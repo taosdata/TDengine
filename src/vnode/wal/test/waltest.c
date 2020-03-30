@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 
   printf("%d wal files are written\n", total);
 
-  int32_t index = 0;
+  uint32_t index = 0;
   char     name[256];
 
   while (1) {

@@ -37,7 +37,7 @@ typedef struct {
   int      fd;
   int      level;
   int      max;  // maximum number of wal files
-  uint64_t id;   // increase continuously
+  uint32_t id;   // increase continuously
   int      num;  // number of wal files
   char     path[TSDB_FILENAME_LEN];
   char     name[TSDB_FILENAME_LEN];
@@ -86,7 +86,7 @@ void walClose(void *handle) {
 
   // remove all files in the directory
   for (int i=0; i<pWal->num; ++i) {
-    sprintf(pWal->name, "%s/%s%ld", pWal->path, walPrefix, pWal->id-i);
+    sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
     if (remove(pWal->name) <0) {
       wError("wal:%s, failed to remove", pWal->name);
     } else {
@@ -113,7 +113,7 @@ int walRenew(twal_h handle) {
 
   pWal->num++;
 
-  sprintf(pWal->name, "%s/%s%ld", pWal->path, walPrefix, pWal->id);
+  sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id);
   pWal->fd = open(pWal->name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (pWal->fd < 0) {
@@ -125,7 +125,7 @@ int walRenew(twal_h handle) {
     if (pWal->num > pWal->max) {
       // remove the oldest wal file
       char name[TSDB_FILENAME_LEN];
-      sprintf(name, "%s/%s%ld", pWal->path, walPrefix, pWal->id - pWal->max);
+      sprintf(name, "%s/%s%d", pWal->path, walPrefix, pWal->id - pWal->max);
       if (remove(name) <0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
       } else {
@@ -173,7 +173,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *)) {
   int      code = 0;
   struct   dirent *ent;
   int      count = 0;
-  uint64_t maxId = 0, minId = -1, index =0;
+  uint32_t maxId = 0, minId = -1, index =0;
 
   int   plen = strlen(walPrefix);
   char  opath[TSDB_FILENAME_LEN];
@@ -185,7 +185,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *)) {
   DIR *dir = opendir(opath);
   while ((ent = readdir(dir))!= NULL) {
     if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
-      index = atoll(ent->d_name + plen);
+      index = atol(ent->d_name + plen);
       if (index > maxId) maxId = index;
       if (index < minId) minId = index;
       count++;
@@ -193,13 +193,13 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *)) {
   }
 
   if ( count != (maxId-minId+1) ) {
-    wError("wal:%s, messed up, count:%d max:%ld min:%ld", opath, count, maxId, minId);
+    wError("wal:%s, messed up, count:%d max:%d min:%d", opath, count, maxId, minId);
     code = -1;
   } else {
     wTrace("wal:%s, %d files will be restored", opath, count);
 
     for (index = minId; index<=maxId; ++index) {
-      sprintf(pWal->name, "%s/old/%s%ld", pWal->path, walPrefix, index);
+      sprintf(pWal->name, "%s/old/%s%d", pWal->path, walPrefix, index);
       code = walRestoreWalFile(pWal->name, pVnode, writeFp);
       if (code < 0) break;
     }
@@ -220,7 +220,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *)) {
   return code;
 }
 
-int walGetWalFile(void *handle, char *name, int32_t *index) {
+int walGetWalFile(void *handle, char *name, uint32_t *index) {
   SWal   *pWal = (SWal *)handle;
   int     code = 1;
   int32_t first = 0; 
@@ -236,7 +236,7 @@ int walGetWalFile(void *handle, char *name, int32_t *index) {
   if (*index < first && *index > pWal->id) {
     code = -1;  // index out of range
   } else { 
-    sprintf(name, "%s/%s%ld", pWal->path, walPrefix, *index);
+    sprintf(name, "%s/%s%d", pWal->path, walPrefix, *index);
     code = (*index == pWal->id) ? 0:1;
   }
 
