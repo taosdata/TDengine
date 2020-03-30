@@ -49,6 +49,7 @@
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
 void *         tsAcctSdb = NULL;
+extern void   *tsDnodeSdb;
 static void   *tsMgmtStatisTimer = NULL;
 static int32_t tsAcctUpdateSize;
 
@@ -135,13 +136,13 @@ static void acctDoStatistic(void *handle, void *tmrId) {
   taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
-int32_t acctInitAccts() {
+int32_t acctInit() {
   SAcctObj tObj;
   tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
     .tableName    = "accounts",
-    .hashSessions = TSDB_MAX_USERS,
+    .hashSessions = TSDB_MAX_ACCOUNTS,
     .maxRowSize   = tsAcctUpdateSize,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = acctAcctActionInsert,
@@ -625,14 +626,14 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
 static int64_t acctGetStatistic(SAcctObj *pAcct) {
   if (pAcct == NULL) return -1;
   
-  SShowObj   pShow;
+  void *pNode = NULL;
   SDnodeObj *pDnode;
   int64_t totalStorage = 0;
   int64_t pointsWritten = 0;
   TSKEY   sKey = taosGetTimestampMs();
 
   while (1) {
-    pShow.pNode = mgmtGetNextDnode(&pShow, (SDnodeObj **)&pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)pDnode);
     if (pDnode == NULL) break;
     for (int i = 0; i < pDnode->openVnodes; ++i) {
       SVgObj *pVgroup = mgmtGetVgroup(pDnode->vload[i].vgId);

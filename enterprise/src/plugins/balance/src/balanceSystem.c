@@ -27,4 +27,36 @@ void balanceInit() {
   balanceSetDnodeUnRemoveStateFp = balanceSetDnodeUnRemoveState;
   balanceGetScoresMetaFp         = balanceGetScoresMeta;
   balanceRetrieveScoresFp        = balanceRetrieveScores;
+
+  //TODO:create dnode
+  int32_t numOfDnodes = sdbGetNumOfRows(tsDnodeSdb);
+  if (numOfDnodes <= 0) {
+    pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);
+  }
+
+  //TODO:drop dnode
+  pDnode->moduleStatus &= ~(1 << TSDB_MOD_MGMT);
+
+
+  
+}
+
+
+int32_t mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+  if (mgmtGetScoresMetaFp) {
+    SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+    if (pUser == NULL) return 0;
+    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+    return mgmtGetScoresMetaFp(pMeta, pShow, pConn);
+  } else {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+}
+
+int32_t mgmtRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  if (mgmtRetrieveScoresFp) {
+    return mgmtRetrieveScoresFp(pShow, data, rows, pConn);
+  } else {
+    return 0;
+  }
 }

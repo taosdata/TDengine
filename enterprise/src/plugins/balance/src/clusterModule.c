@@ -29,7 +29,7 @@ extern int32_t tsVgUpdateSize;
 extern int32_t tsMnodeUpdateSize;
 extern int32_t tsDnodeUpdateSize;
 
-void mgmtSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+void clusterSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus |= (1 << moduleType);
   sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
@@ -39,7 +39,7 @@ void mgmtSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   }
 }
 
-int32_t mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+int32_t clusterUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus &= ~(1 << moduleType);
   sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
@@ -58,7 +58,7 @@ void mgmtStopRemoveStateModule(SDnodeObj *pDnode) {
     }
 
     mPrint("dnode:%s, stop %s module for its offline or remove", taosIpStr(pDnode->privateIp), tsModule[moduleType].name);
-    mgmtUnSetModuleInDnode(pDnode, moduleType);
+    clusterUnSetModuleInDnode(pDnode, moduleType);
   }
 }
 
@@ -83,7 +83,7 @@ void mgmtStartModuleInAllDnodes(int32_t moduleType) {
     }
 
     mPrint("dnode:%s, add %s module for schedule:%d", taosIpStr(pDnode->privateIp), tsModule[moduleType].name, -1);
-    mgmtSetModuleInDnode(pDnode, moduleType);
+    clusterSetModuleInDnode(pDnode, moduleType);
   }
 }
 
@@ -112,7 +112,7 @@ void mgmtStartModuleInDnode(int32_t moduleType) {
     }
 
     mPrint("dnode:%s, add %s module for schedule", taosIpStr(pDnode->privateIp), tsModule[moduleType].name);
-    mgmtSetModuleInDnode(pDnode, moduleType);
+    clusterSetModuleInDnode(pDnode, moduleType);
 
     break;
   }
@@ -131,7 +131,7 @@ void mgmtStopModuleInDnode(int32_t moduleType) {
     }
 
     mPrint("dnode:%s, stop %s module for schedule", taosIpStr(pDnode->privateIp), tsModule[moduleType].name);
-    mgmtUnSetModuleInDnode(pDnode, moduleType);
+    clusterUnSetModuleInDnode(pDnode, moduleType);
     break;
   }
 }
