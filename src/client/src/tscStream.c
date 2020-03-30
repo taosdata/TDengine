@@ -582,10 +582,10 @@ void taos_close_stream(TAOS_STREAM *handle) {
     tscRemoveFromStreamList(pStream, pSql);
 
     taosTmrStopA(&(pStream->pTimer));
+    tscTrace("%p stream:%p is closed", pSql, pStream);
     tscFreeSqlObj(pSql);
     pStream->pSql = NULL;
 
-    tscTrace("%p stream:%p is closed", pSql, pStream);
     tfree(pStream);
   }
 }

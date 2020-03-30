@@ -206,17 +206,20 @@ void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp,
 
   if (pthread_mutex_init(&(pTcp->mutex), NULL) < 0) {
     tError("%s failed to init TCP mutex, reason:%s", label, strerror(errno));
+    free(pTcp);
     return NULL;
   }
 
   if (pthread_cond_init(&(pTcp->fdReady), NULL) != 0) {
     tError("%s init TCP condition variable failed, reason:%s\n", label, strerror(errno));
+    free(pTcp);
     return NULL;
   }
 
   pTcp->pollFd = epoll_create(10);  // size does not matter
   if (pTcp->pollFd < 0) {
     tError("%s failed to create TCP epoll", label);
+    free(pTcp);
     return NULL;
   }
 
@@ -226,6 +229,7 @@ void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp,
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pTcp->thread), &thattr, taosReadTcpData, (void *)(pTcp)) != 0) {
     tError("%s failed to create TCP read data thread, reason:%s", label, strerror(errno));
+    free(pTcp);
     return NULL;
   }
 
