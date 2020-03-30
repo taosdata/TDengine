@@ -189,7 +189,7 @@ int   tsEnableCoreFile = 0;
 int   tsAnyIp = 1;
 uint32_t tsPublicIpInt = 0;
 
-#ifdef CLUSTER
+#ifdef _CLUSTER
 int   tsIsCluster = 1;
 #else
 int   tsIsCluster = 0;
@@ -946,7 +946,7 @@ bool tsReadGlobalConfig() {
   if (tsSecondIp[0] == 0) {
     strcpy(tsSecondIp, tsMasterIp);
   }
-
+  
   taosGetSystemInfo();
 
   tsSetLocale();
@@ -958,6 +958,12 @@ bool tsReadGlobalConfig() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
+  }
+
+  if (tsNumOfTotalVnodes == -1) {
+    tsNumOfTotalVnodes = tsNumOfCores * tsNumOfVnodesPerCore;
+    tsNumOfTotalVnodes = tsNumOfTotalVnodes > TSDB_MAX_VNODES ? TSDB_MAX_VNODES : tsNumOfTotalVnodes;
+    tsNumOfTotalVnodes = tsNumOfTotalVnodes < TSDB_MIN_VNODES ? TSDB_MIN_VNODES : tsNumOfTotalVnodes;     
   }
 
   if (strlen(tsPrivateIp) == 0) {
@@ -1052,12 +1058,12 @@ void tsPrintGlobalConfig() {
     if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_LITE) {
-#ifdef CLUSTER
+#ifdef _CLUSTER
       continue;
 #endif
     }
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_CLUSTER) {
-#ifndef CLUSTER
+#ifndef _CLUSTER
       continue;
 #endif
     }

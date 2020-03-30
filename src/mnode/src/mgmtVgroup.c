@@ -32,7 +32,7 @@
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
-static void   *tsVgroupSdb = NULL;
+void   *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
 
 static int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
