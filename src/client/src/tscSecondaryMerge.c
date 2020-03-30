@@ -696,7 +696,6 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   *pFinalModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
   tfree(pSchema);
-  free(*pMemBuffer);
 
   return TSDB_CODE_SUCCESS;
 
