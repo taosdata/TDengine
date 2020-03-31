@@ -1,4 +1,0 @@
-run cluster/metrics/disk.sim
-run cluster/metrics/metrics.sim
-run cluster/metrics/values.sim
-run cluster/metrics/vnode3.sim
