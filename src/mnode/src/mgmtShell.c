@@ -131,6 +131,10 @@ void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
+  if (rpcMsg == NULL || rpcMsg->pCont == NULL) {
+    return;
+  }
+
   if (!mgmtInServerStatus()) {
     mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
@@ -221,14 +225,17 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
       .handle  = pMsg->thandle,
       .pCont   = pShowRsp,
       .contLen = sizeof(SCMShowRsp) + sizeof(SSchema) * pShow->numOfColumns,
-      .code    = code,
-      .msgType = 0
+      .code    = code
     };
     rpcSendResponse(&rpcRsp);
   } else {
     mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, taosGetShowTypeStr(pShowMsg->type), tstrerror(code));
     mgmtFreeQhandle(pShow);
-    rpcFreeCont(pShowRsp);
+    SRpcMsg rpcRsp = {
+      .handle  = pMsg->thandle,
+      .code    = code
+    };
+    rpcSendResponse(&rpcRsp);
   }
 }
 

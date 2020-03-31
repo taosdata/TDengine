@@ -1065,10 +1065,27 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+int32_t tscBuildDropUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCMDropUserMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_USER;
+
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  SCMDropUserMsg *pDropMsg = (SCMDropUserMsg*)pCmd->payload;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  strcpy(pDropMsg->user, pTableMetaInfo->name);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SCMDropUserMsg);
+  pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_ACCT;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("%p failed to malloc for query msg", pSql);
@@ -2550,7 +2567,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_ALTER_ACCT] = tscBuildAcctMsg;
 
   tscBuildMsg[TSDB_SQL_CREATE_TABLE] = tscBuildCreateTableMsg;
-  tscBuildMsg[TSDB_SQL_DROP_USER] = tscBuildDropAcctMsg;
+  tscBuildMsg[TSDB_SQL_DROP_USER] = tscBuildDropUserMsg;
   tscBuildMsg[TSDB_SQL_DROP_ACCT] = tscBuildDropAcctMsg;
   tscBuildMsg[TSDB_SQL_DROP_DB] = tscBuildDropDbMsg;
   tscBuildMsg[TSDB_SQL_DROP_TABLE] = tscBuildDropTableMsg;

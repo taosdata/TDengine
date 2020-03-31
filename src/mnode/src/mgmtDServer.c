@@ -32,11 +32,11 @@
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
-
 static void   mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg);
 static int    mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static void (*mgmtProcessDnodeMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
 static void  *tsMgmtDServerRpc;
+static void  *tsMgmtDServerQhandle = NULL;
 
 int32_t mgmtInitDServer() {
   SRpcInit rpcInit = {0};
@@ -56,11 +56,18 @@ int32_t mgmtInitDServer() {
     return -1;
   }
 
+  tsMgmtDServerQhandle = taosInitScheduler(tsMaxShellConns, 1, "MS");
+
   mPrint("server connection to dnode is opened");
   return 0;
 }
 
 void mgmtCleanupDServer() {
+  if (tsMgmtDServerQhandle) {
+    taosCleanUpScheduler(tsMgmtDServerQhandle);
+    tsMgmtDServerQhandle = NULL;
+  }
+
   if (tsMgmtDServerRpc) {
     rpcClose(tsMgmtDServerRpc);
     tsMgmtDServerRpc = NULL;
@@ -72,14 +79,34 @@ void mgmtAddDServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
   mgmtProcessDnodeMsgFp[msgType] = fp;
 }
 
+static void mgmtProcessDServerRequest(SSchedMsg *sched) {
+  SRpcMsg *pMsg = sched->msg;
+  (*mgmtProcessDnodeMsgFp[pMsg->msgType])(pMsg);
+  rpcFreeCont(pMsg->pCont);
+  free(pMsg);
+}
+
+static void mgmtAddToDServerQueue(SRpcMsg *pMsg) {
+  SSchedMsg schedMsg;
+  schedMsg.msg = pMsg;
+  schedMsg.fp  = mgmtProcessDServerRequest;
+  taosScheduleTask(tsMgmtDServerQhandle, &schedMsg);
+}
+
 static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
+  if (rpcMsg->pCont == NULL) {
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
+    return;
+  }
+  
   if (mgmtProcessDnodeMsgFp[rpcMsg->msgType]) {
-    (*mgmtProcessDnodeMsgFp[rpcMsg->msgType])(rpcMsg);
+    SRpcMsg *pMsg = malloc(sizeof(SRpcMsg));
+    memcpy(pMsg, rpcMsg, sizeof(SRpcMsg));
+    mgmtAddToDServerQueue(pMsg);
   } else {
     mError("%s is not processed in dserver", taosMsg[rpcMsg->msgType]);
+    rpcFreeCont(rpcMsg->pCont);
   }
-
-  rpcFreeCont(rpcMsg->pCont);
 }
 
 static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
