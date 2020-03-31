@@ -4021,6 +4021,7 @@ bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, STableQuerySup
       if (nextKey != pQuery->skey) {
         if (!pRuntimeEnv->hasTimeWindow) {
           pQuery->skey = nextKey;  // change the query skey
+          pQuery->lastKey = pQuery->skey;
         }
         return true;
       } else {
