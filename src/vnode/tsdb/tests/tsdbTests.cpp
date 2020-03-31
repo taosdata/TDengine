@@ -2,10 +2,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#include "tsdb.h"
 #include "dataformat.h"
-#include "tsdbFile.h"
-#include "tsdbMeta.h"
+#include "tsdbMain.h"
 
 double getCurTime() {
   struct timeval tv;
@@ -49,8 +47,8 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
 }
 
-// TEST(TsdbTest, DISABLED_createRepo) {
-TEST(TsdbTest, createRepo) {
+TEST(TsdbTest, DISABLED_createRepo) {
+// TEST(TsdbTest, createRepo) {
   STsdbCfg config;
 
   // 1. Create a tsdb repository
@@ -79,8 +77,8 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 10000000;
-  int rowsPerSubmit = 10;
+  int nRows = 1;
+  int rowsPerSubmit = 1;
   int64_t start_time = 1584081000000;
 
   SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
@@ -96,7 +94,7 @@ TEST(TsdbTest, createRepo) {
     pBlock->len = 0;
     for (int i = 0; i < rowsPerSubmit; i++) {
       // start_time += 1000;
-      start_time -= 1000;
+      start_time += 1000;
       SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
       tdInitDataRow(row, schema);
 
@@ -141,8 +139,26 @@ TEST(TsdbTest, createRepo) {
 
 // TEST(TsdbTest, DISABLED_openRepo) {
 TEST(TsdbTest, openRepo) {
-  tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
-  ASSERT_NE(pRepo, nullptr);
+  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/build/test/data/vnode/vnode1/tsdb");
+  ASSERT_NE(repo, nullptr);
+
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1835);
+
+  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+    tsdbOpenFile(&pGroup->files[type], O_RDONLY);
+  }
+
+  SCompIdx *pIdx = (SCompIdx *)calloc(pRepo->config.maxTables, sizeof(SCompIdx));
+  tsdbLoadCompIdx(pGroup, (void *)pIdx, pRepo->config.maxTables);
+
+  SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[1].len);
+
+  tsdbLoadCompBlocks(pGroup, &pIdx[1], (void *)pCompInfo);
+
+  int k = 0;
+
 }
 
 TEST(TsdbTest, DISABLED_createFileGroup) {

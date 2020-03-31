@@ -15,7 +15,7 @@
 #include <stdlib.h>
 
 #include "tsdb.h"
-#include "tsdbCache.h"
+#include "tsdbMain.h"
 
 static int  tsdbAllocBlockFromPool(STsdbCache *pCache);
 static void tsdbFreeBlockList(SList *list);

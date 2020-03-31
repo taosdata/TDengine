@@ -12,20 +12,160 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if !defined(_TD_TSDB_FILE_H_)
-#define _TD_TSDB_FILE_H_
+#ifndef _TD_TSDB_MAIN_H_
+#define _TD_TSDB_MAIN_H_
 
-#include <stdint.h>
-
-#include "dataformat.h"
-#include "taosdef.h"
-#include "tglobalcfg.h"
 #include "tsdb.h"
+#include "tlist.h"
+#include "tglobalcfg.h"
+#include "tskiplist.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// ------------------------------ TSDB META FILE INTERFACES ------------------------------
+#define TSDB_META_FILE_NAME "META"
+#define TSDB_META_HASH_FRACTION 1.1
+
+typedef int (*iterFunc)(void *, void *cont, int contLen);
+typedef void (*afterFunc)(void *);
+
+typedef struct {
+  int       fd;        // File descriptor
+  int       nDel;      // number of deletions
+  int       tombSize;  // deleted size
+  int64_t   size;      // Total file size
+  void *    map;       // Map from uid ==> position
+  iterFunc  iFunc;
+  afterFunc aFunc;
+  void *    appH;
+} SMetaFile;
+
+SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables, iterFunc iFunc, afterFunc aFunc, void *appH);
+int32_t    tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);
+int32_t    tsdbDeleteMetaRecord(SMetaFile *mfh, int64_t uid);
+int32_t    tsdbUpdateMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);
+void       tsdbCloseMetaFile(SMetaFile *mfh);
+
+// ------------------------------ TSDB META INTERFACES ------------------------------
+#define IS_CREATE_STABLE(pCfg) ((pCfg)->tagValues != NULL)
+
+typedef struct {
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
+  int32_t numOfPoints;
+  void *  pData;
+} SMemTable;
+
+// ---------- TSDB TABLE DEFINITION
+typedef struct STable {
+  int8_t         type;
+  STableId       tableId;
+  int64_t        superUid;  // Super table UID
+  int32_t        sversion;
+  STSchema *     schema;
+  STSchema *     tagSchema;
+  SDataRow       tagVal;
+  SMemTable *    mem;
+  SMemTable *    imem;
+  void *         pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
+  void *         eventHandler;   // TODO
+  void *         streamHandler;  // TODO
+  struct STable *next;           // TODO: remove the next
+} STable;
+
+void *  tsdbEncodeTable(STable *pTable, int *contLen);
+STable *tsdbDecodeTable(void *cont, int contLen);
+void *  tsdbFreeEncode(void *cont);
+
+// ---------- TSDB META HANDLE DEFINITION
+typedef struct {
+  int32_t maxTables;  // Max number of tables
+
+  int32_t nTables;  // Tables created
+
+  STable **tables;  // table array
+
+  STable *superList;  // super table list TODO: change  it to list container
+
+  void *map; // table map of (uid ===> table)
+
+  SMetaFile *mfh; // meta file handle
+  int        maxRowBytes;
+  int        maxCols;
+} STsdbMeta;
+
+STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables);
+int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
+STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
+
+// ---- Operation on STable
+#define TSDB_TABLE_ID(pTable) ((pTable)->tableId)
+#define TSDB_TABLE_UID(pTable) ((pTable)->uid)
+#define TSDB_TABLE_NAME(pTable) ((pTable)->tableName)
+#define TSDB_TABLE_TYPE(pTable) ((pTable)->type)
+#define TSDB_TABLE_SUPER_TABLE_UID(pTable) ((pTable)->stableUid)
+#define TSDB_TABLE_IS_SUPER_TABLE(pTable) (TSDB_TABLE_TYPE(pTable) == TSDB_SUPER_TABLE)
+#define TSDB_TABLE_TAG_VALUE(pTable) ((pTable)->pTagVal)
+#define TSDB_TABLE_CACHE_DATA(pTable) ((pTable)->content.pData)
+#define TSDB_SUPER_TABLE_INDEX(pTable) ((pTable)->content.pIndex)
+
+// ---- Operation on SMetaHandle
+#define TSDB_NUM_OF_TABLES(pHandle) ((pHandle)->numOfTables)
+#define TSDB_NUM_OF_SUPER_TABLES(pHandle) ((pHandle)->numOfSuperTables)
+#define TSDB_TABLE_OF_ID(pHandle, id) ((pHandle)->pTables)[id]
+#define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
+
+STsdbMeta* tsdbGetMeta(tsdb_repo_t* pRepo);
+
+int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
+int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
+STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
+// int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
+char *getTupleKey(const void * data);
+
+// ------------------------------ TSDB CACHE INTERFACES ------------------------------
+#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16 * 1024 * 1024 /* 16M */
+
+typedef struct {
+  int  blockId;
+  int  offset;
+  int  remain;
+  int  padding;
+  char data[];
+} STsdbCacheBlock;
+
+typedef struct {
+  int64_t index;
+  SList * memPool;
+} STsdbCachePool;
+
+typedef struct {
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
+  int64_t numOfPoints;
+  SList * list;
+} SCacheMem;
+
+typedef struct {
+  int              maxBytes;
+  int              cacheBlockSize;
+  int              totalCacheBlocks;
+  STsdbCachePool   pool;
+  STsdbCacheBlock *curBlock;
+  SCacheMem *      mem;
+  SCacheMem *      imem;
+  tsdb_repo_t *    pRepo;
+} STsdbCache;
+
+STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, tsdb_repo_t *pRepo);
+void        tsdbFreeCache(STsdbCache *pCache);
+void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key);
+
+// ------------------------------ TSDB FILE INTERFACES ------------------------------
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 
@@ -174,11 +314,41 @@ int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SD
 
 SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
 
-// TODO: need an API to merge all sub-block data into one
-
 void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
+
+// TSDB repository definition
+typedef struct _tsdb_repo {
+  char *rootDir;
+  // TSDB configuration
+  STsdbCfg config;
+
+  // The meter meta handle of this TSDB repository
+  STsdbMeta *tsdbMeta;
+
+  // The cache Handle
+  STsdbCache *tsdbCache;
+
+  // The TSDB file handle
+  STsdbFileH *tsdbFileH;
+
+  // Disk tier handle for multi-tier storage
+  void *diskTier;
+
+  pthread_mutex_t mutex;
+
+  int       commit;
+  pthread_t commitThread;
+
+  // A limiter to monitor the resources used by tsdb
+  void *limiter;
+
+  int8_t state;
+
+} STsdbRepo;
+
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // _TD_TSDB_FILE_H_
+#endif
