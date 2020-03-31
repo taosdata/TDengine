@@ -47,8 +47,8 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
 }
 
-// TEST(TsdbTest, DISABLED_createRepo) {
-TEST(TsdbTest, createRepo) {
+TEST(TsdbTest, DISABLED_createRepo) {
+// TEST(TsdbTest, createRepo) {
   STsdbCfg config;
 
   // 1. Create a tsdb repository
@@ -139,12 +139,12 @@ TEST(TsdbTest, createRepo) {
 
 // TEST(TsdbTest, DISABLED_openRepo) {
 TEST(TsdbTest, openRepo) {
-  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
+  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/build/test/data/vnode/vnode1/tsdb");
   ASSERT_NE(repo, nullptr);
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1833);
+  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1835);
 
   for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
     tsdbOpenFile(&pGroup->files[type], O_RDONLY);
@@ -153,9 +153,9 @@ TEST(TsdbTest, openRepo) {
   SCompIdx *pIdx = (SCompIdx *)calloc(pRepo->config.maxTables, sizeof(SCompIdx));
   tsdbLoadCompIdx(pGroup, (void *)pIdx, pRepo->config.maxTables);
 
-  SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[0].len);
+  SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[1].len);
 
-  tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo);
+  tsdbLoadCompBlocks(pGroup, &pIdx[1], (void *)pCompInfo);
 
   int k = 0;
 
