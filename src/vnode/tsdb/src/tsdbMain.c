@@ -1031,6 +1031,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
       pTBlock->numOfPoints = pCols->numOfPoints;
       pTBlock->sversion = pTable->sversion;
       pTBlock->numOfSubBlocks = 1;
+      pTBlock->numOfCols = pCols->numOfCols;
 
       if (dataColsKeyLast(pCols) > pIdx->maxKey) pIdx->maxKey = dataColsKeyLast(pCols);
 

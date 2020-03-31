@@ -74,7 +74,7 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   T_READ_MEMBER(ptr, int8_t, pTable->type);
   T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
   T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
-  T_READ_MEMBER(ptr, int32_t, pTable->superUid);
+  T_READ_MEMBER(ptr, int64_t, pTable->superUid);
   T_READ_MEMBER(ptr, int32_t, pTable->sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
