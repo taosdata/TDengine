@@ -602,7 +602,7 @@ static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 }
 
 static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
-  mTrace("drop vnode msg is received");
+  mTrace("drop vnode rsp is received");
   if (rpcMsg->handle == NULL) return;
 
   SQueuedMsg *queueMsg = rpcMsg->handle;

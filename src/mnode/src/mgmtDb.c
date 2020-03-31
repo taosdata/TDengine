@@ -903,9 +903,10 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
 void  mgmtDropAllDbs(SAcctObj *pAcct)  {
   int32_t numOfDbs = 0;
   SDbObj *pDb = NULL;
+  void *pNode = NULL;
 
   while (1) {
-    void *pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
+    pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
     if (pDb == NULL) break;
 
     if (pDb->pAcct == pAcct) {
@@ -914,5 +915,5 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
     }
   }
 
-  mTrace("acct:%s, all dbs is is set dirty", pAcct->acctId, numOfDbs);
+  mTrace("acct:%s, all dbs is is set dirty", pAcct->user, numOfDbs);
 }

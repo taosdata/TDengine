@@ -144,19 +144,24 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
 
   SDMStatusMsg *pStatus = rpcMsg->pCont;
   pStatus->dnodeId = htonl(pStatus->dnodeId);
+  pStatus->privateIp = htonl(pStatus->privateIp);
+  pStatus->publicIp = htonl(pStatus->publicIp);
+  pStatus->lastReboot = htonl(pStatus->lastReboot);
+  pStatus->numOfCores = htons(pStatus->numOfCores);
+  pStatus->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
 
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
-    pDnode = mgmtGetDnodeByIp(htonl(pStatus->privateIp));
+    pDnode = mgmtGetDnodeByIp(pStatus->privateIp);
     if (pDnode == NULL) {
-      mTrace("dnode not created, privateIp:%s", taosIpStr(htonl(pStatus->privateIp)));
+      mTrace("dnode not created, privateIp:%s", taosIpStr(pStatus->privateIp));
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
   } else {
     pDnode = mgmtGetDnode(pStatus->dnodeId);
     if (pDnode == NULL) {
-      mError("dnode:%d, not exist, privateIp:%s", taosIpStr(pStatus->dnodeId), pStatus->dnodeName);
+      mError("dnode:%d, not exist, privateIp:%s", pStatus->dnodeId, taosIpStr(pStatus->privateIp));
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
@@ -169,16 +174,16 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return ;
   }
   
-  pDnode->privateIp        = htonl(pStatus->privateIp);
-  pDnode->publicIp         = htonl(pStatus->publicIp);
-  pDnode->lastReboot       = htonl(pStatus->lastReboot);
-  pDnode->numOfCores       = htons(pStatus->numOfCores);
+  pDnode->privateIp        = pStatus->privateIp;
+  pDnode->publicIp         = pStatus->publicIp;
+  pDnode->lastReboot       = pStatus->lastReboot;
+  pDnode->numOfCores       = pStatus->numOfCores;
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
-  pDnode->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes); 
+  pDnode->numOfTotalVnodes = pStatus->numOfTotalVnodes; 
   
   if (pStatus->dnodeId == 0) {
-    mTrace("dnode:%d, first access, privateIp:%s, name:%s, ", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
+    mTrace("dnode:%d, first access, privateIp:%s, name:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
@@ -191,7 +196,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     SVgObj *pVgroup = mgmtGetVgroup(pDnode->vload[j].vgId);
     if (pVgroup == NULL) {
       SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
-      mPrint("dnode:%d, vnode:%d not exist in mnode, drop it", pDnode->dnodeId, pDnode->vload[j].vgId);
+      mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pDnode->vload[j].vgId);
       mgmtSendDropVnodeMsg(pDnode->vload[j].vgId, &ipSet, NULL);
     }
   }

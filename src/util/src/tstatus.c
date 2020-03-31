@@ -40,11 +40,11 @@ char* taosGetDbStatusStr(int32_t dbStatus) {
 
 char* taosGetVnodeStatusStr(int32_t vnodeStatus) {
   switch (vnodeStatus) {
-    case TSDB_VN_STATUS_OFFLINE:  return "offline";
-    case TSDB_VN_STATUS_CREATING: return "creating";
+    case TSDB_VN_STATUS_NOT_READY:return "not_ready";
     case TSDB_VN_STATUS_UNSYNCED: return "unsynced";
     case TSDB_VN_STATUS_SLAVE:    return "slave";
     case TSDB_VN_STATUS_MASTER:   return "master";
+    case TSDB_VN_STATUS_CREATING: return "creating";
     case TSDB_VN_STATUS_CLOSING:  return "closing";
     case TSDB_VN_STATUS_DELETING: return "deleting";
     default:                      return "undefined";
