@@ -168,7 +168,18 @@ SDnodeObj *clusterGetDnode(int32_t dnodeId) {
 }
 
 SDnodeObj *clusterGetDnodeByIp(uint32_t ip) {
-  return (SDnodeObj *)sdbGetRow(tsDnodeSdb, &ip);
+  SDnodeObj *pDnode = NULL;
+  void *     pNode = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)&pDnode);
+    if (pDnode == NULL) break;
+    if (ip == pDnode->privateIp) {
+      return pDnode;
+    }
+  }
+
+  return NULL;
 }
 
 static int32_t clusterCreateDnode(uint32_t ip) {
@@ -183,6 +194,10 @@ static int32_t clusterCreateDnode(uint32_t ip) {
   pDnode->createdTime = taosGetTimestampMs();
   pDnode->status = TSDB_DN_STATUS_OFFLINE; 
   pDnode->numOfTotalVnodes = TSDB_INVALID_VNODE_NUM; 
+
+  if (pDnode->privateIp == inet_addr(tsMasterIp)) {
+    pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);
+  }
   
   SSdbOperDesc oper = {
     .type = SDB_OPER_TYPE_GLOBAL,
@@ -312,7 +327,7 @@ static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, 
   char      ipstr[20];
 
   while (numOfRows < rows) {
-    pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)pDnode);
+    pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)&pDnode);
     if (pDnode == NULL) break;
 
     cols = 0;
@@ -402,7 +417,7 @@ static int32_t clusterGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pShow->numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   while (1) {
-    pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)pDnode);
+    pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)&pDnode);
     if (pDnode == NULL) break;
     for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
       if (clusterCheckModuleInDnode(pDnode, moduleType)) {
@@ -425,7 +440,7 @@ int32_t clusterRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *
   char       ipstr[20];
 
   while (numOfRows < rows) {
-    pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)pDnode);
+    pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)&pDnode);
     if (pDnode == NULL) break;
 
     for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
@@ -602,7 +617,7 @@ static int32_t clusterGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
     pShow->pNode = pDnode;
   } else {
     while (true) {
-      pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)pDnode);
+      pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)&pDnode);
       if (pDnode == NULL) break;
       pShow->numOfRows += pDnode->openVnodes;
 
@@ -702,10 +717,3 @@ static void clusterProcessDropDnodeMsg(SQueuedMsg *pMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
-bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
-  return pDnode->lbStatus == TSDB_DN_LB_STATUS_OFFLINE_REMOVING || pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING;
-}
-
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) {
-  return pDnode->status == TSDB_DN_STATUS_OFFLINE;
-}

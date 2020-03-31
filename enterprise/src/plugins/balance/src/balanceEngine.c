@@ -879,3 +879,12 @@ int32_t balanceSetDnodeRemoveState(SDnodeObj *pDnode) {
 void balanceNotify() {
   balanceStartTimer(50);
 }
+
+
+bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
+  return pDnode->lbStatus == TSDB_DN_LB_STATUS_OFFLINE_REMOVING || pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING;
+}
+
+bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) {
+  return pDnode->status == TSDB_DN_STATUS_OFFLINE;
+}

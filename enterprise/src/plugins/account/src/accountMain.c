@@ -62,7 +62,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static int32_t acctActionDestroy(SSdbOperDesc *pOper) {
-   tfree(pOper->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -160,7 +160,7 @@ int32_t acctInit() {
   }
 
   acctCreateRootAcct();
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
@@ -302,7 +302,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   pAcct->createdTime = taosGetTimestampMs();
 
   int32_t grantCode = grantCheck(TSDB_GRANT_ACCT);
-  if (!grantCode != 0) return grantCode;
+  if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
    SSdbOperDesc oper = {
     .type = SDB_OPER_TYPE_GLOBAL,
@@ -374,7 +374,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created time");
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -633,7 +633,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   TSKEY   sKey = taosGetTimestampMs();
 
   while (1) {
-    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)&pDnode);
     if (pDnode == NULL) break;
     for (int i = 0; i < pDnode->openVnodes; ++i) {
       SVgObj *pVgroup = mgmtGetVgroup(pDnode->vload[i].vgId);
@@ -695,10 +695,9 @@ static void acctCreateRootAcct() {
 }
 
 static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
-  SRpcMsg *rpcMsg = pMsg->pCont;
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  
-  SCMCreateAcctMsg *pCreate = rpcMsg->pCont;
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
+
+  SCMCreateAcctMsg *pCreate = pMsg->pCont;
   pCreate->cfg.maxUsers           = htonl(pCreate->cfg.maxUsers);
   pCreate->cfg.maxDbs             = htonl(pCreate->cfg.maxDbs);
   pCreate->cfg.maxTimeSeries      = htonl(pCreate->cfg.maxTimeSeries);
@@ -710,23 +709,10 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
   pCreate->cfg.maxInbound         = htobe64(pCreate->cfg.maxInbound);
   pCreate->cfg.maxOutbound        = htobe64(pCreate->cfg.maxOutbound);
 
-  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
-    mError("account:%s, failed to create account, need redirect message", pCreate->user);
-    return;
-  }
-
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, NULL);
-  if (pUser == NULL) {
-    mError("account:%s, failed to create account, invalid user", pCreate->user);
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
-
+  SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
-    mError("account:%s, failed to create account, no rights", pCreate->user);
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
-    rpcSendResponse(&rpcRsp);
+    mError("account:%s, failed to create account, invalid user", pCreate->user);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return;
   }
 
@@ -737,32 +723,18 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
     mError("account:%s, failed to create account, reason:%s", pCreate->user, tstrerror(code));
   }
 
-  rpcRsp.code = code;
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
 static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
-  SRpcMsg *rpcMsg = pMsg->pCont;
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  
-  SCMDropAcctMsg *pDrop = rpcMsg->pCont;
-  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
-    mError("account:%s, failed to drop account, need redirect message", pDrop->user);
-    return;
-  }
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, NULL);
-  if (pUser == NULL) {
-    mError("account:%s, failed to drop account, invalid user", pDrop->user);
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
+  SCMDropAcctMsg *pDrop = pMsg->pCont;
 
+  SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
-    mError("account:%s, failed to drop account, no rights", pDrop->user);
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
-    rpcSendResponse(&rpcRsp);
+    mError("account:%s, failed to drop account, invalid user", pDrop->user);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return;
   }
 
@@ -773,15 +745,13 @@ static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
     mError("account:%s, failed to drop account, reason:%s", pDrop->user, tstrerror(code));
   }
 
-  rpcRsp.code = code;
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
 static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
-  SRpcMsg *rpcMsg = pMsg->pCont;
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  
-  SCMAlterAcctMsg *pAlter = rpcMsg->pCont;
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
+
+  SCMAlterAcctMsg *pAlter = pMsg->pCont;
   pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
   pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);
   pAlter->cfg.maxTimeSeries      = htonl(pAlter->cfg.maxTimeSeries);
@@ -793,23 +763,10 @@ static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
   pAlter->cfg.maxInbound         = htobe64(pAlter->cfg.maxInbound);
   pAlter->cfg.maxOutbound        = htobe64(pAlter->cfg.maxOutbound);
 
-  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
-    mError("account:%s, failed to alter account, need redirect message", pAlter->user);
-    return;
-  }
-
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, NULL);
-  if (pUser == NULL) {
-    mError("account:%s, failed to alter account, invalid user", pAlter->user);
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
-
+  SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
     mError("account:%s, failed to alter account, no rights", pAlter->user);
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return;
   }
 
@@ -820,11 +777,10 @@ static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
     mError("account:%s, failed to alter account, reason:%s", pAlter->user, tstrerror(code));
   }
 
-  rpcRsp.code = code;
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-int32_t mgmtCheckUserLimit(SAcctObj *pAcct) {
+int32_t clusterCheckUserLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxUsers != 0 && pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
     mError("account:%s, users:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
     return TSDB_CODE_TOO_MANY_USERS;
@@ -832,7 +788,7 @@ int32_t mgmtCheckUserLimit(SAcctObj *pAcct) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtCheckDbLimit(SAcctObj *pAcct) {
+int32_t clusterCheckDbLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxDbs != 0 && pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
     mError("account:%s, dbs:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
     return TSDB_CODE_TOO_MANY_DATABASES;
@@ -840,7 +796,7 @@ int32_t mgmtCheckDbLimit(SAcctObj *pAcct) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtCheckTableLimit(SAcctObj *pAcct) {
+int32_t clusterCheckTableLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxTimeSeries != 0 && pAcct->acctInfo.numOfTimeSeries >= pAcct->cfg.maxTimeSeries) {
     mError("account:%s, timeSeries:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
     return TSDB_CODE_NOT_ENOUGH_TIME_SERIES;
@@ -851,11 +807,11 @@ int32_t mgmtCheckTableLimit(SAcctObj *pAcct) {
 int32_t acctCheck(SAcctObj *pAcct, EAcctGrantType type) {
   switch (type) {
     case TSDB_ACCT_USER:
-      return mgmtCheckTableLimit(pAcct);
+      return clusterCheckUserLimit(pAcct);
     case TSDB_ACCT_DB:
-      return mgmtCheckDbLimit(pAcct);
+      return clusterCheckDbLimit(pAcct);
     case TSDB_ACCT_TABLE:
-      return mgmtCheckTableLimit(pAcct);
+      return clusterCheckTableLimit(pAcct);
   }
 
   return TSDB_CODE_SUCCESS;
