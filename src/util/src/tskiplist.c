@@ -597,11 +597,16 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
     pthread_rwlock_unlock(pSkipList->lock);
   }
   
-  return iter->cur != NULL;
+  return iter->cur != pSkipList->pTail;
 }
 
-SSkipListNode *tSkipListIterGet(SSkipListIterator *iter) { return (iter == NULL)? NULL:iter->cur; }
-
+SSkipListNode *tSkipListIterGet(SSkipListIterator *iter) { 
+  if (iter == NULL || iter->cur == iter->pSkipList->pTail) {
+     return NULL;
+  } else {
+    return iter->cur;
+  }
+}
 void* tSkipListDestroyIter(SSkipListIterator* iter) {
   if (iter == NULL) {
     return NULL;

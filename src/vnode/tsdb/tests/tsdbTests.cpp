@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#include "tsdb.h"
 #include "dataformat.h"
 #include "tsdbMain.h"
 
@@ -78,8 +77,8 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 10000000;
-  int rowsPerSubmit = 100;
+  int nRows = 1;
+  int rowsPerSubmit = 1;
   int64_t start_time = 1584081000000;
 
   SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
@@ -140,8 +139,26 @@ TEST(TsdbTest, createRepo) {
 
 // TEST(TsdbTest, DISABLED_openRepo) {
 TEST(TsdbTest, openRepo) {
-  tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
-  ASSERT_NE(pRepo, nullptr);
+  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
+  ASSERT_NE(repo, nullptr);
+
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1833);
+
+  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+    tsdbOpenFile(&pGroup->files[type], O_RDONLY);
+  }
+
+  SCompIdx *pIdx = (SCompIdx *)calloc(pRepo->config.maxTables, sizeof(SCompIdx));
+  tsdbLoadCompIdx(pGroup, (void *)pIdx, pRepo->config.maxTables);
+
+  SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[0].len);
+
+  tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo);
+
+  int k = 0;
+
 }
 
 TEST(TsdbTest, DISABLED_createFileGroup) {
