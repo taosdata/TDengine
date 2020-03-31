@@ -247,10 +247,6 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     table->type = TSDB_NORMAL_TABLE;
     table->superUid = -1;
     table->schema = tdDupSchema(pCfg->schema);
-    if (schemaNCols(table->schema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(table->schema);
-    tdUpdateSchema(table->schema);
-    int bytes = tdMaxRowBytesFromSchema(table->schema);
-    if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
   }
 
   // Register to meta
@@ -365,6 +361,14 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
     }
     
     pMeta->nTables++;
+  }
+
+  // Update the pMeta->maxCols and pMeta->maxRowBytes
+  if (pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_NORMAL_TABLE) {
+    if (schemaNCols(pTable->schema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pTable->schema);
+    int bytes = tdMaxRowBytesFromSchema(pTable->schema);
+    if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
+    tdUpdateSchema(pTable->schema);
   }
 
   return tsdbAddTableIntoMap(pMeta, pTable);
