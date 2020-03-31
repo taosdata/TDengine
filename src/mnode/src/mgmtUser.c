@@ -61,7 +61,9 @@ static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
   SAcctObj *pAcct = acctGetAcct(pUser->acct);
 
-  acctRemoveUser(pAcct, pUser);
+  if (pAcct != NULL) {
+    acctRemoveUser(pAcct, pUser);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -448,7 +450,8 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
     return ;
   }
 
-  if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
+  if (strcmp(pUser->user, "monitor") == 0 || strcmp(pUser->user, pUser->acct) == 0 ||
+    (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return ;
   }
@@ -507,5 +510,5 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
     }
   }
 
-  mTrace("acct:%s, all users is dropped from sdb", pAcct->acctId, numOfUsers);
+  mTrace("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
 }
