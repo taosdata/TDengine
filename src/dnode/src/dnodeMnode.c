@@ -79,6 +79,12 @@ static void dnodeProcessMsgFromMnode(SRpcMsg *pMsg) {
     return;
   }
 
+  if (pMsg->pCont == NULL) {
+    rspMsg.code = TSDB_CODE_INVALID_MSG_LEN;
+    rpcSendResponse(&rspMsg);
+    return;
+  }
+
   if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
     (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
   } else {

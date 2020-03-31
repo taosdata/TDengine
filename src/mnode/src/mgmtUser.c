@@ -490,6 +490,7 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
   SUserObj *pUser = NULL;
 
   while (1) {
+    pLastNode = pNode;
     pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
     if (pUser == NULL) break;
 
