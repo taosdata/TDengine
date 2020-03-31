@@ -282,7 +282,7 @@ void taosRemoveFromQset(taos_qset p1, taos_queue p2) {
       pthread_mutex_lock(&queue->mutex);
       atomic_sub_fetch_32(&qset->numOfItems, queue->numOfItems);
       queue->qset = NULL;
-      pthread_mutex_lock(&queue->mutex);
+      pthread_mutex_unlock(&queue->mutex);
     }
   } 
   
