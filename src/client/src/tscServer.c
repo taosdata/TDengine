@@ -400,7 +400,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
              pObj, pObj->signature);
     taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
     tscFreeSqlObj(pSql);
-    return ahandle;
+    return NULL;
   }
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
@@ -600,8 +600,8 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
           taos_close(pObj);
           tscTrace("%p Async sql close failed connection", pSql);
         } else {
-          tscFreeSqlObj(pSql);
           tscTrace("%p Async sql is automatically freed", pSql);
+          tscFreeSqlObj(pSql);
         }
       }
     }

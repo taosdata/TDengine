@@ -87,6 +87,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
     MD5Update(&ctx, (uint8_t*)tmp, keyLen);
     char* pStr = base64_encode(ctx.digest, tListLen(ctx.digest));
     strcpy(str, pStr);
+    free(pStr);
   }
 
   free(tmp);

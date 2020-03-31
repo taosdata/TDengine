@@ -233,6 +233,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   }
   assert(idx >= pReducer->numOfBuffer);
   if (idx == 0) {
+    free(pReducer);
     return;
   }
 

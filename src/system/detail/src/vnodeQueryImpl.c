@@ -6185,6 +6185,7 @@ int32_t doMergeMetersResultsToGroupRes(STableQuerySupportObj *pSupporter, SQuery
       } else {  // copy data to disk buffer
         if (buffer[0]->numOfElems == pQuery->pointsToRead) {
           if (flushFromResultBuf(pSupporter, pQuery, pRuntimeEnv) != TSDB_CODE_SUCCESS) {
+            tfree(pTree);
             return -1;
           }
 
