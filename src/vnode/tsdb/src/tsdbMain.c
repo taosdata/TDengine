@@ -14,11 +14,7 @@
 // #include "taosdef.h"
 // #include "disk.h"
 #include "tsdb.h"
-#include "tsdbCache.h"
-#include "tsdbFile.h"
-#include "tsdbMeta.h"
-#include "tutil.h"
-#include "tskiplist.h"
+#include "tsdbMain.h"
 
 #define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
 #define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
@@ -49,35 +45,6 @@
 #define TSDB_MAX_LAST_FILE_SIZE (1024 * 1024 * 10) // 10M
 
 enum { TSDB_REPO_STATE_ACTIVE, TSDB_REPO_STATE_CLOSED, TSDB_REPO_STATE_CONFIGURING };
-
-typedef struct _tsdb_repo {
-  char *rootDir;
-  // TSDB configuration
-  STsdbCfg config;
-
-  // The meter meta handle of this TSDB repository
-  STsdbMeta *tsdbMeta;
-
-  // The cache Handle
-  STsdbCache *tsdbCache;
-
-  // The TSDB file handle
-  STsdbFileH *tsdbFileH;
-
-  // Disk tier handle for multi-tier storage
-  void *diskTier;
-
-  pthread_mutex_t mutex;
-
-  int commit;
-  pthread_t commitThread;
-
-  // A limiter to monitor the resources used by tsdb
-  void *limiter;
-
-  int8_t state;
-
-} STsdbRepo;
 
 static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);

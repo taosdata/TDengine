@@ -4,8 +4,7 @@
 
 #include "tsdb.h"
 #include "dataformat.h"
-#include "tsdbFile.h"
-#include "tsdbMeta.h"
+#include "tsdbMain.h"
 
 double getCurTime() {
   struct timeval tv;

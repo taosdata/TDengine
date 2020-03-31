@@ -16,7 +16,7 @@
 
 #include "taosdef.h"
 #include "hash.h"
-#include "tsdbMetaFile.h"
+#include "tsdbMain.h"
 
 #define TSDB_META_FILE_VERSION_MAJOR 1
 #define TSDB_META_FILE_VERSION_MINOR 0
