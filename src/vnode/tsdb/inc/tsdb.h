@@ -101,8 +101,6 @@ SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
-struct STsdbRepo;
-
 // SSubmitMsg Iterator
 typedef struct {
   int32_t totalLen;
@@ -328,7 +326,7 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-SArray *tsdbQueryTableList(struct STsdbRepo* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len);
+SArray *tsdbQueryTableList(tsdb_repo_t* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len);
 
 #ifdef __cplusplus
 }

@@ -4,9 +4,8 @@
 #include "tskiplist.h"
 #include "tsdb.h"
 #include "taosdef.h"
-#include "tsdbMeta.h"
 #include "hash.h"
-#include "tsdbCache.h"
+#include "tsdbMain.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
 #define TSDB_META_FILE_NAME "META"
@@ -183,6 +182,18 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
   free(pMeta);
 
   return 0;
+}
+
+STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable) {
+  if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE) {
+    return pTable->schema;
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    STable *pSuper = tsdbGetTableByUid(pMeta, pTable->superUid);
+    if (pSuper == NULL) return NULL;
+    return pSuper->schema;
+  } else {
+    return NULL;
+  }
 }
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {

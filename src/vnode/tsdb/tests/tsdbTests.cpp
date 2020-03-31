@@ -4,8 +4,7 @@
 
 #include "tsdb.h"
 #include "dataformat.h"
-#include "tsdbFile.h"
-#include "tsdbMeta.h"
+#include "tsdbMain.h"
 
 double getCurTime() {
   struct timeval tv;
@@ -80,7 +79,7 @@ TEST(TsdbTest, createRepo) {
 
   // // 3. Loop to write some simple data
   int nRows = 10000000;
-  int rowsPerSubmit = 10;
+  int rowsPerSubmit = 100;
   int64_t start_time = 1584081000000;
 
   SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
@@ -96,7 +95,7 @@ TEST(TsdbTest, createRepo) {
     pBlock->len = 0;
     for (int i = 0; i < rowsPerSubmit; i++) {
       // start_time += 1000;
-      start_time -= 1000;
+      start_time += 1000;
       SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
       tdInitDataRow(row, schema);
 

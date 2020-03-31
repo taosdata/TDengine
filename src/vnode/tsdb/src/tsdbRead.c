@@ -21,8 +21,7 @@
 #include "../../../query/inc/qast.h"
 #include "../../../query/inc/tsqlfunction.h"
 #include "tsdb.h"
-#include "tsdbFile.h"
-#include "tsdbMeta.h"
+#include "tsdbMain.h"
 
 #define EXTRA_BYTES 2
 #define PRIMARY_TSCOL_REQUIRED(c) (((SColumnInfoEx *)taosArrayGet(c, 0))->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)
@@ -112,7 +111,7 @@ enum {
 };
 
 typedef struct STsdbQueryHandle {
-  struct STsdbRepo* pTsdb;
+  STsdbRepo*      pTsdb;
   int8_t          model;  // access model, single table model or multi-table model
   SQueryFilePos cur;    // current position
   SQueryFilePos start;  // the start position, used for secondary/third iteration
@@ -809,7 +808,7 @@ tsdb_query_handle_t *tsdbQueryFromTagConds(STsdbQueryCond *pCond, int16_t stable
 
 SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle) {}
 
-static SArray* createTableIdArrayList(struct STsdbRepo* tsdb, int64_t uid) {
+static SArray* createTableIdArrayList(STsdbRepo* tsdb, int64_t uid) {
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   assert(pTable != NULL);  //assert pTable is a super table
   
@@ -1118,7 +1117,8 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond
   return TSDB_CODE_SUCCESS;
 }
 
-SArray *tsdbQueryTableList(struct STsdbRepo* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len) {
+// SArray *tsdbQueryTableList(struct STsdbRepo* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len) {
+SArray *tsdbQueryTableList(tsdb_repo_t* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len) {
   // no condition, all tables created according to the stable will involved in querying
   if (pTagCond == NULL || wcslen(pTagCond) == 0) {
     return createTableIdArrayList(tsdb, uid);

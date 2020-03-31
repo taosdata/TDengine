@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 #include "tutil.h"
-#include "tsdbFile.h"
+#include "tsdbMain.h"
 
 const char *tsdbFileSuffix[] = {
     ".head",  // TSDB_FILE_TYPE_HEAD
