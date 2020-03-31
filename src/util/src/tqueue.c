@@ -68,9 +68,9 @@ void taosCloseQueue(taos_queue param) {
   STaosQnode *pNode = queue->head;  
   queue->head = NULL;
 
-  pthread_mutex_lock(&queue->mutex);
-
   if (queue->qset) taosRemoveFromQset(queue->qset, queue); 
+
+  pthread_mutex_lock(&queue->mutex);
 
   while (pNode) {
     pTemp = pNode;
@@ -253,32 +253,36 @@ void taosRemoveFromQset(taos_qset p1, taos_queue p2) {
   STaosQueue *queue = (STaosQueue *)p2;
   STaosQset  *qset = (STaosQset *)p1;
  
-  STaosQueue *tqueue;
+  STaosQueue *tqueue = NULL;
 
   pthread_mutex_lock(&qset->mutex);
 
   if (qset->head) {
     if (qset->head == queue) {
       qset->head = qset->head->next;
-      qset->numOfQueues--;
+      tqueue = queue;
     } else {
       STaosQueue *prev = qset->head;
       tqueue = qset->head->next;
       while (tqueue) {
         if (tqueue== queue) {
           prev->next = tqueue->next;
-          if (qset->current == queue) qset->current = tqueue->next;
-          qset->numOfQueues--;
-
-          pthread_mutex_lock(&queue->mutex);
-          atomic_sub_fetch_32(&qset->numOfItems, queue->numOfItems);
-          queue->qset = NULL;
-          pthread_mutex_unlock(&queue->mutex);
+          break;
         } else {
           prev = tqueue;
           tqueue = tqueue->next;
         }
       }
+    }
+
+    if (tqueue) {
+      if (qset->current == queue) qset->current = tqueue->next;
+      qset->numOfQueues--;
+
+      pthread_mutex_lock(&queue->mutex);
+      atomic_sub_fetch_32(&qset->numOfItems, queue->numOfItems);
+      queue->qset = NULL;
+      pthread_mutex_unlock(&queue->mutex);
     }
   } 
   
