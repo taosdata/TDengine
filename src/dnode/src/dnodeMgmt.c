@@ -145,8 +145,8 @@ void *dnodeGetVnode(int32_t vgId) {
     return NULL;
   }
 
-  int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-  dTrace("pVnode:%p, vgroup:%d, get vnode, refCount:%d", pVnode->vgId, refCount);
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  dTrace("pVnode:%p, vgroup:%d, get vnode, refCount:%d", pVnode, pVnode->vgId, pVnode->refCount);
 
   return pVnode;
 }
@@ -190,7 +190,7 @@ void dnodeReleaseVnode(void *pVnodeRaw) {
       dTrace("pVnode:%p, vgroup:%d, vnode will cleanup until refCount:%d is 0", pVnode, pVnode->vgId, refCount);
     }
   } else {
-    dTrace("pVnode:%p, vgroup:%d, release vnode, refCount:%d", pVnode->vgId, refCount);
+    dTrace("pVnode:%p, vgroup:%d, release vnode, refCount:%d", pVnode, pVnode->vgId, refCount);
   }
 }
 
