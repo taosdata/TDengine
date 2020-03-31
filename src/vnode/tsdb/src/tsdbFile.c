@@ -183,9 +183,10 @@ int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SD
   SCompBlock *pBlock = pStartBlock;
   for (int i = 0; i < numOfBlocks; i++) {
     if (tsdbLoadCompCols(pFile, pBlock, (void *)pCompData) < 0) return -1;
+    pCols->numOfPoints += (pCompData->cols[0].len / 8);
     for (int iCol = 0; iCol < pBlock->numOfCols; iCol++) {
       SCompCol *pCompCol = &(pCompData->cols[iCol]);
-      pCols->numOfPoints += pBlock->numOfPoints;
+      // pCols->numOfPoints += pBlock->numOfPoints;
       int k = 0;
       for (; k < pCols->numOfCols; k++) {
         if (pCompCol->colId == pCols->cols[k].colId) break;

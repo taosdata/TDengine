@@ -12,6 +12,7 @@ double getCurTime() {
 }
 
 TEST(TsdbTest, DISABLED_tableEncodeDecode) {
+// TEST(TsdbTest, tableEncodeDecode) {
   STable *pTable = (STable *)malloc(sizeof(STable));
 
   pTable->type = TSDB_NORMAL_TABLE;
@@ -47,8 +48,8 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
 }
 
-TEST(TsdbTest, DISABLED_createRepo) {
-// TEST(TsdbTest, createRepo) {
+// TEST(TsdbTest, DISABLED_createRepo) {
+TEST(TsdbTest, createRepo) {
   STsdbCfg config;
 
   // 1. Create a tsdb repository
@@ -139,12 +140,12 @@ TEST(TsdbTest, DISABLED_createRepo) {
 
 // TEST(TsdbTest, DISABLED_openRepo) {
 TEST(TsdbTest, openRepo) {
-  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/build/test/data/vnode/vnode1/tsdb");
+  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
   ASSERT_NE(repo, nullptr);
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1835);
+  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1833);
 
   for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
     tsdbOpenFile(&pGroup->files[type], O_RDONLY);
@@ -155,7 +156,21 @@ TEST(TsdbTest, openRepo) {
 
   SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[1].len);
 
-  tsdbLoadCompBlocks(pGroup, &pIdx[1], (void *)pCompInfo);
+  tsdbLoadCompBlocks(pGroup, &pIdx[0], (void *)pCompInfo);
+
+  int blockIdx = 0;
+  SCompBlock *pBlock = &(pCompInfo->blocks[blockIdx]);
+
+  SCompData *pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * pBlock->numOfCols);
+
+  tsdbLoadCompCols(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, (void *)pCompData);
+
+  STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, pCompData->uid);
+  SDataCols *pDataCols = tdNewDataCols(tdMaxRowBytesFromSchema(pTable->schema), 5, 10);
+  tdInitDataCols(pDataCols, pTable->schema);
+
+  tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, 1, pDataCols, pCompData);
+
 
   int k = 0;
 
