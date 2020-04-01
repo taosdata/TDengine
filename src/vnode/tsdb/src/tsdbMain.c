@@ -806,7 +806,7 @@ static void tsdbDestroyTableIters(SSkipListIterator **iters, int maxTables) {
 }
 
 static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables) {
-  SSkipListIterator **iters = (SSkipListIterator *)calloc(maxTables, sizeof(SSkipListIterator *));
+  SSkipListIterator **iters = (SSkipListIterator **)calloc(maxTables, sizeof(SSkipListIterator *));
   if (iters == NULL) return NULL;
 
   for (int tid = 0; tid < maxTables; tid++) {
@@ -893,9 +893,9 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   SFileGroup *pGroup = NULL;
   SCompIdx *  pIndices = NULL;
   SCompInfo * pCompInfo = NULL;
-  size_t      compInfoSize = 0;
-  SCompBlock  compBlock;
-  SCompBlock *pBlock = &compBlock;
+  // size_t      compInfoSize = 0;
+  // SCompBlock  compBlock;
+  // SCompBlock *pBlock = &compBlock;
 
   TSKEY minKey = 0, maxKey = 0;
   tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
@@ -963,10 +963,11 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
           TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pTBlock, nBlocks);
 
           SCompBlock tBlock;
-          int64_t toffset, tlen;
+          int64_t toffset;
+          int32_t tlen;
           tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_LAST], pTBlock, nBlocks, pCols, &tBlock);
 
-          tsdbWriteBlockToFileImpl(&lFile, pCols, pCols->numOfPoints, &toffset, tlen, pTable->tableId.uid);
+          tsdbWriteBlockToFileImpl(&lFile, pCols, pCols->numOfPoints, &toffset, &tlen, pTable->tableId.uid);
           pTBlock = TSDB_COMPBLOCK_AT(pCompInfo, pIdx->numOfSuperBlocks);
           pTBlock->offset = toffset;
           pTBlock->len = tlen;
@@ -1164,7 +1165,6 @@ static int compareKeyBlock(const void *arg1, const void *arg2) {
 
 int tsdbWriteBlockToFile(STsdbRepo *pRepo, SFileGroup *pGroup, SCompIdx *pIdx, SCompInfo *pCompInfo, SDataCols *pCols, SCompBlock *pCompBlock, SFile *lFile, int64_t uid) {
   STsdbCfg * pCfg = &(pRepo->config);
-  SCompData *pCompData = NULL;
   SFile *    pFile = NULL;
   int        numOfPointsToWrite = 0;
   int64_t    offset = 0;

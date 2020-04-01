@@ -78,7 +78,7 @@ typedef struct STable {
 
 void *  tsdbEncodeTable(STable *pTable, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);
-void *  tsdbFreeEncode(void *cont);
+void    tsdbFreeEncode(void *cont);
 
 // ---------- TSDB META HANDLE DEFINITION
 typedef struct {
@@ -97,7 +97,7 @@ typedef struct {
   int        maxCols;
 } STsdbMeta;
 
-STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables);
+STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 
@@ -216,7 +216,7 @@ typedef struct {
 
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
-int         tsdbCreateFile(char *dataDir, int fileId, char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose);
+int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose);
 int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
 int         tsdbCloseFile(SFile *pFile); SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);

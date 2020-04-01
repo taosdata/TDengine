@@ -72,7 +72,7 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key) {
   if (bytes > pCache->cacheBlockSize) return NULL;
 
   if (pCache->curBlock == NULL || pCache->curBlock->remain < bytes) {
-    if (pCache->curBlock !=NULL && (pCache->mem->list) >= pCache->totalCacheBlocks/2) {
+    if (pCache->curBlock !=NULL && listNEles(pCache->mem->list) >= pCache->totalCacheBlocks/2) {
       tsdbTriggerCommit(pCache->pRepo);
     }
 
@@ -130,7 +130,7 @@ static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
 
   if (pCache->mem == NULL) { // Create a new one
     pCache->mem = (SCacheMem *)malloc(sizeof(SCacheMem));
-    if (pCache->mem == NULL) return NULL;
+    if (pCache->mem == NULL) return -1;
     pCache->mem->keyFirst = INT64_MAX;
     pCache->mem->keyLast = 0;
     pCache->mem->numOfPoints = 0;
