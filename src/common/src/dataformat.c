@@ -326,8 +326,6 @@ void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
     pCols->cols[i].offset = colOffset(schemaColAt(pSchema, i));
     pCols->cols[i].colId = colColId(schemaColAt(pSchema, i));
   }
-
-  return pCols;
 }
 
 void tdFreeDataCols(SDataCols *pCols) {
