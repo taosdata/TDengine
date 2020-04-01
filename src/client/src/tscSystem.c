@@ -93,7 +93,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.sessions = tsMaxMgmtConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.idleTime = 2000;
-    rpcInit.user = "root";
+    rpcInit.user = (char*)user;
     rpcInit.ckey = "key";
     rpcInit.secret = secretEncrypt;
 
