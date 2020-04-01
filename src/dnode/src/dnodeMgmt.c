@@ -29,6 +29,8 @@
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
 
+typedef enum { CLOSE_TSDB, DROP_TSDB } ECloseTsdbFlag;
+
 typedef struct {
   int32_t      vgId;      // global vnode group ID
   int32_t      refCount;  // reference count
@@ -47,10 +49,9 @@ static int32_t  dnodeOpenVnodes();
 static void     dnodeCleanupVnodes();
 static int32_t  dnodeOpenVnode(int32_t vnode, char *rootDir);
 static void     dnodeCleanupVnode(SVnodeObj *pVnode);
-static void     dnodeDoCleanupVnode(SVnodeObj *pVnode);
+static void     dnodeDoCleanupVnode(SVnodeObj *pVnode, ECloseTsdbFlag dropFlag);
 static int32_t  dnodeCreateVnode(SMDCreateVnodeMsg *cfg);
 static void     dnodeDropVnode(SVnodeObj *pVnode);
-static void     dnodeDoDropVnode(SVnodeObj *pVnode);
 static void     dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
 static void     dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static void     dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
@@ -178,14 +179,14 @@ void dnodeReleaseVnode(void *pVnodeRaw) {
   if (pVnode->status == TSDB_VN_STATUS_DELETING) {
     if (refCount <= 0) {
       dPrint("pVnode:%p, vgroup:%d, drop vnode, refCount:%d", pVnode, pVnode->vgId, refCount);
-      dnodeDoDropVnode(pVnode);
+      dnodeDoCleanupVnode(pVnode, DROP_TSDB);
     } else {
       dTrace("pVnode:%p, vgroup:%d, vnode will be dropped until refCount:%d is 0", pVnode, pVnode->vgId, refCount);
     }
   } else if (pVnode->status == TSDB_VN_STATUS_CLOSING) {
     if (refCount <= 0) {
       dPrint("pVnode:%p, vgroup:%d, cleanup vnode, refCount:%d", pVnode, pVnode->vgId, refCount);
-      dnodeDoCleanupVnode(pVnode);
+      dnodeDoCleanupVnode(pVnode, CLOSE_TSDB);
     } else {
       dTrace("pVnode:%p, vgroup:%d, vnode will cleanup until refCount:%d is 0", pVnode, pVnode->vgId, refCount);
     }
@@ -264,7 +265,7 @@ static int32_t dnodeOpenVnode(int32_t vnode, char *rootDir) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void dnodeDoCleanupVnode(SVnodeObj *pVnode) {
+static void dnodeDoCleanupVnode(SVnodeObj *pVnode, ECloseTsdbFlag closeFlag) {
   dTrace("pVnode:%p, vgroup:%d, cleanup vnode", pVnode, pVnode->vgId);
   
   // remove replica
@@ -281,7 +282,12 @@ static void dnodeDoCleanupVnode(SVnodeObj *pVnode) {
 
   // remove tsdb
   if (pVnode->tsdb) {
-    tsdbCloseRepo(pVnode->tsdb);
+    if (closeFlag == DROP_TSDB) {
+      tsdbDropRepo(pVnode->tsdb);
+    } else if (closeFlag == CLOSE_TSDB) {
+      tsdbCloseRepo(pVnode->tsdb);
+    }
+    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
     pVnode->tsdb = NULL;
   }
 }
@@ -351,18 +357,8 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
     pVnode->status = TSDB_VN_STATUS_MASTER;
   }
 
-  dPrint("vgroup:%d, vnode:%d is created", pVnode->vgId, pVnode->vgId);
+  dPrint("pVnode:%p, vgroup:%d, vnode:%d is created", pVnode, pVnode->vgId, pVnode->vgId);
   return TSDB_CODE_SUCCESS;
-}
-
-static void dnodeDoDropVnode(SVnodeObj *pVnode) {
-  dnodeDoCleanupVnode(pVnode);
-  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
-
-  char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnode->vgId);
-  dPrint("pVnode:%p, vgroup:%d, drop file:%s from disk", pVnode, pVnode->vgId, rootDir);
-  // rmdir(rootDir);
 }
 
 static void dnodeDropVnode(SVnodeObj *pVnode) {
@@ -383,7 +379,7 @@ static void dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
   if (pVnodeObj != NULL) {
     rpcRsp.code = TSDB_CODE_SUCCESS;
-    dPrint("vgroup:%d, vnode is already exist", pCreate->cfg.vgId);
+    dPrint("pVnode:%p, vgroup:%d, vnode is already exist", pVnodeObj, pCreate->cfg.vgId);
   } else {
     rpcRsp.code = dnodeCreateVnode(pCreate);
   }
@@ -453,7 +449,6 @@ static void dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
 
 static void dnodeBuildVloadMsg(char *pNode, void * param) {
   SVnodeObj *pVnode = (SVnodeObj *) pNode;
-  dPrint("===> pVnode:%p, vgroup:%d status:%s", pVnode, pVnode->vgId, taosGetVnodeStatusStr(pVnode->status));
   if (pVnode->status == TSDB_VN_STATUS_DELETING) return;
   
   SDMStatusMsg *pStatus = param;
