@@ -178,9 +178,9 @@ static void dnodeCleanUpSystem() {
     tclearModuleStatus(TSDB_MOD_MGMT);
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
     dnodeCleanupShell();
-    dnodeCleanupMClient();
     dnodeCleanupMnode();
     dnodeCleanupMgmt();
+    dnodeCleanupMClient();
     dnodeCleanupWrite();
     dnodeCleanupRead();
     dnodeCleanUpModules();

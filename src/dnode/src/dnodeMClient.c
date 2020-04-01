@@ -128,7 +128,9 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
 }
 
 void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
-  rpcSendRequest(tsDnodeMClientRpc, &tsDnodeMnodeIpList, rpcMsg);
+  if (tsDnodeMClientRpc) {
+    rpcSendRequest(tsDnodeMClientRpc, &tsDnodeMnodeIpList, rpcMsg);
+  }
 }
 
 static bool dnodeReadMnodeIpList() {
