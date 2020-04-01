@@ -138,7 +138,11 @@ static uint32_t grantGetCulsterCurTimeSeries() {
   while (1) {
     pNode = sdbFetchRow(tsChildTableSdb, pNode, (void **)&pTable);
     if (pTable == NULL) break;
-    numOfPoints += (pTable->superTable->numOfColumns - 1);
+    if (pTable->superTable != NULL) {
+      numOfPoints += (pTable->superTable->numOfColumns - 1);
+    } else {
+      numOfPoints += (pTable->numOfColumns - 1);
+    }
   }
 
   return numOfPoints;
@@ -258,7 +262,6 @@ void grantReset(EGrantType grant, uint64_t value) {
       break;
   }
 }
-
 
 static void grantAddTimeSeries(uint32_t timeSeriesNum) {
   __sync_add_and_fetch(&grantStatus.curTimeSeries, timeSeriesNum);
