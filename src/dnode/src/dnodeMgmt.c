@@ -284,10 +284,10 @@ static void dnodeDoCleanupVnode(SVnodeObj *pVnode, ECloseTsdbFlag closeFlag) {
   if (pVnode->tsdb) {
     if (closeFlag == DROP_TSDB) {
       tsdbDropRepo(pVnode->tsdb);
+      taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
     } else if (closeFlag == CLOSE_TSDB) {
       tsdbCloseRepo(pVnode->tsdb);
     }
-    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
     pVnode->tsdb = NULL;
   }
 }
