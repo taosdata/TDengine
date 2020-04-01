@@ -126,6 +126,8 @@ int32_t mgmtStartSystem() {
     mError("failed to init dnode balance")
   }
 
+  grantReset(TSDB_GRANT_ALL, 0);
+
   mPrint("TDengine mgmt is initialized successfully");
 
   return 0;
