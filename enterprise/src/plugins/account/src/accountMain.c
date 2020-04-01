@@ -262,8 +262,7 @@ static int32_t acctCheckAcctParams(SAcctCfg *pCfg) {
 }
 
 static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
-  SAcctObj *
-  pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, name);
+  SAcctObj *pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, name);
   if (pAcct != NULL) {
     return TSDB_CODE_ACCT_ALREADY_EXIST;
   }
@@ -366,7 +365,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -696,8 +695,15 @@ static void acctCreateRootAcct() {
 
 static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SCMCreateAcctMsg *pCreate = pMsg->pCont;
+  SAcctObj *pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, pCreate->user);
+  if (pAcct != NULL) {
+    mError("account:%s, already exist, update it", pCreate->user);
+    acctProcessAlterAcctMsg(pMsg);
+    return;
+  }
+  
   pCreate->cfg.maxUsers           = htonl(pCreate->cfg.maxUsers);
   pCreate->cfg.maxDbs             = htonl(pCreate->cfg.maxDbs);
   pCreate->cfg.maxTimeSeries      = htonl(pCreate->cfg.maxTimeSeries);
