@@ -174,7 +174,7 @@ int32_t tsdbUpdateMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t co
 
 void tsdbCloseMetaFile(SMetaFile *mfh) {
   if (mfh == NULL) return;
-  close(mfh);
+  close(mfh->fd);
 
   taosHashCleanup(mfh->map);
 }
@@ -210,7 +210,7 @@ static int tsdbCreateMetaFile(char *fname) {
 
   if (tsdbWriteMetaHeader(fd) < 0) {
     close(fd);
-    return NULL;
+    return -1;
   }
 
   return fd;
@@ -242,7 +242,7 @@ static int tsdbRestoreFromMetaFile(char *fname, SMetaFile *mfh) {
   mfh->fd = fd;
 
   void *buf = NULL;
-  int buf_size = 0;
+  // int buf_size = 0;
 
   SRecordInfo info;
   while (1) {

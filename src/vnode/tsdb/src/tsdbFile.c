@@ -33,7 +33,7 @@ const char *tsdbFileSuffix[] = {
 
 static int compFGroupKey(const void *key, const void *fgroup);
 static int compFGroup(const void *arg1, const void *arg2);
-static int tsdbGetFileName(char *dataDir, int fileId, char *suffix, char *fname);
+static int tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname);
 static int tsdbWriteFileHead(SFile *pFile);
 static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables);
 static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid);
@@ -53,8 +53,6 @@ STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles) {
   }
 
   struct dirent *dp = NULL;
-  int fid = 0;
-  SFileGroup fGroup = {0};
   while ((dp = readdir(dir)) != NULL) {
     if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 1) == 0) continue;
     int fid = 0;
@@ -70,7 +68,7 @@ STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles) {
 
 void tsdbCloseFileH(STsdbFileH *pFileH) { free(pFileH); }
 
-static int tsdbInitFile(char *dataDir, int fid, char *suffix, SFile *pFile) {
+static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile) {
   tsdbGetFileName(dataDir, fid, suffix, pFile->fname);
   if (access(pFile->fname, F_OK|R_OK|W_OK) < 0) return -1;
   pFile->fd = -1;
@@ -82,7 +80,6 @@ static int tsdbInitFile(char *dataDir, int fid, char *suffix, SFile *pFile) {
 static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid) {
   if (tsdbSearchFGroup(pFileH, fid) != NULL) return 0;
 
-  char fname[128] = "\0";
   SFileGroup fGroup = {0};
   fGroup.fileId = fid;
 
@@ -163,8 +160,8 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
   SFileGroup *ret = pIter->pFileGroup;
   if (ret == NULL) return NULL;
 
-  if (pIter->direction = TSDB_FGROUP_ITER_FORWARD) {
-    if (pIter->pFileGroup + 1 == pIter->base + pIter->numOfFGroups) {
+  if (pIter->direction == TSDB_FGROUP_ITER_FORWARD) {
+    if ((pIter->pFileGroup + 1) == (pIter->base + pIter->numOfFGroups)) {
       pIter->pFileGroup = NULL;
     } else {
       pIter->pFileGroup += 1;
@@ -223,7 +220,7 @@ int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInf
   if (pCompData == NULL) return -1;
 
   // Load data from the block
-  if (tsdbLoadDataBlock(pOutFile, pStartBlock, numOfBlocks, pCols, pCompData));
+  // if (tsdbLoadDataBlock(pOutFile, pStartBlock, numOfBlocks, pCols, pCompData));
 
   // Write data block to the file
   {
@@ -315,7 +312,7 @@ static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables) {
   return 0;
 }
 
-static int tsdbGetFileName(char *dataDir, int fileId, char *suffix, char *fname) {
+static int tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname) {
   if (dataDir == NULL || fname == NULL) return -1;
 
   sprintf(fname, "%s/f%d%s", dataDir, fileId, suffix);
@@ -348,7 +345,7 @@ SFileGroup * tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid) {
   return pGroup;
 }
 
-int tsdbCreateFile(char *dataDir, int fileId, char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose) {
+int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose) {
   memset((void *)pFile, 0, sizeof(SFile));
   pFile->fd = -1;
 

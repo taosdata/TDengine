@@ -89,7 +89,7 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   return pTable;
 }
 
-void *tsdbFreeEncode(void *cont) {
+void tsdbFreeEncode(void *cont) {
   if (cont != NULL) free(cont);
 }
 
@@ -124,7 +124,7 @@ void tsdbOrgMeta(void *pHandle) {
  * Initialize the meta handle
  * ASSUMPTIONS: VALID PARAMETER
  */
-STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
+STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) return NULL;
 
