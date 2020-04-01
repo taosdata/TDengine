@@ -18,47 +18,37 @@
 #include "mgmtBalance.h"
 #include "mgmtDnode.h"
 
-int32_t (*mgmtInitBalanceFp)() = NULL;
-void    (*mgmtCleanupBalanceFp)() = NULL;
-void    (*mgmtStartBalanceTimerFp)(int32_t afterMs) = NULL;
-int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup) = NULL;
-
-int32_t mgmtInitBalance() {
-  if (mgmtInitBalanceFp) {
-    return (*mgmtInitBalanceFp)();
-  } else {
-    return 0;
-  }
-}
-
-void mgmtCleanupBalance() {
-  if (mgmtCleanupBalanceFp) {
-    (*mgmtCleanupBalanceFp)();
-  }
-}
-
-void mgmtStartBalanceTimer(int32_t afterMs) {
-  if (mgmtStartBalanceTimerFp) {
-    (*mgmtStartBalanceTimerFp)(afterMs);
-  }
-}
+int32_t mgmtInitBalance() { return 0; }
+void    mgmtCleanupBalance() {}
+void    mgmtStartBalanceTimer(int32_t afterMs) {}
 
 int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
-  if (mgmtAllocVnodesFp) {
-    return (*mgmtAllocVnodesFp)(pVgroup);
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
+  SDnodeObj *pSelDnode = NULL;
+  float      vnodeUsage = 1.0;
+
+  while (1) {
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->numOfTotalVnodes <= 0) continue;
+    if (pDnode->openVnodes == pDnode->numOfTotalVnodes) continue;
+
+    float usage = (float)pDnode->openVnodes / pDnode->numOfTotalVnodes;
+    if (usage <= vnodeUsage) {
+      pSelDnode = pDnode;
+      vnodeUsage = usage;
+    }
   }
 
-  SDnodeObj *pDnode = mgmtGetDnode(1);
-  if (pDnode == NULL) return TSDB_CODE_OTHERS;
-
-  if (pDnode->openVnodes < pDnode->numOfTotalVnodes) {
-    pVgroup->vnodeGid[0].dnodeId   = pDnode->dnodeId;
-    pVgroup->vnodeGid[0].privateIp = pDnode->privateIp;
-    pVgroup->vnodeGid[0].publicIp  = pDnode->publicIp;
-    mTrace("dnode:%d, alloc one vnode to vgroup", pDnode->dnodeId);
-    return TSDB_CODE_SUCCESS;
-  } else {
-    mError("dnode:%d, failed to alloc vnode to vgroup", pDnode->dnodeId);
+  if (pSelDnode == NULL) {
+    mError("failed to alloc vnode to vgroup", pDnode->dnodeId);
     return TSDB_CODE_NO_ENOUGH_DNODES;
   }
+
+  pVgroup->vnodeGid[0].dnodeId = pSelDnode->dnodeId;
+  pVgroup->vnodeGid[0].privateIp = pSelDnode->privateIp;
+  pVgroup->vnodeGid[0].publicIp = pSelDnode->publicIp;
+  mTrace("dnode:%d, alloc one vnode to vgroup", pSelDnode->dnodeId);
+  return TSDB_CODE_SUCCESS;
 }

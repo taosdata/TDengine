@@ -37,7 +37,6 @@ static void dnodeSetRunStatus(SDnodeRunStatus status);
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static void dnodeCheckDataDirOpenned(char *dir);
 static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
-void (*dnodeParseParameterKFp)() = NULL;
 
 int32_t main(int32_t argc, char *argv[]) {
   // Set global configuration file
@@ -57,25 +56,24 @@ int32_t main(int32_t argc, char *argv[]) {
       printf("buildinfo: %s\n", buildinfo);
       exit(EXIT_SUCCESS);
     } else if (strcmp(argv[i], "-k") == 0) {
-      if (dnodeParseParameterKFp) {
-        dnodeParseParameterKFp();
-        exit(EXIT_SUCCESS);
-      }
+      grantParseParameter();
+      exit(EXIT_SUCCESS);
+    }
 #ifdef TAOS_MEM_CHECK
-    } else if (strcmp(argv[i], "--alloc-random-fail") == 0) {
-      if ((i < argc - 1) && (argv[i+1][0] != '-')) {
+    else if (strcmp(argv[i], "--alloc-random-fail") == 0) {
+      if ((i < argc - 1) && (argv[i + 1][0] != '-')) {
         taosSetAllocMode(TAOS_ALLOC_MODE_RANDOM_FAIL, argv[++i], true);
       } else {
         taosSetAllocMode(TAOS_ALLOC_MODE_RANDOM_FAIL, NULL, true);
       }
     } else if (strcmp(argv[i], "--detect-mem-leak") == 0) {
-      if ((i < argc - 1) && (argv[i+1][0] != '-')) {
+      if ((i < argc - 1) && (argv[i + 1][0] != '-')) {
         taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, argv[++i], true);
       } else {
         taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, NULL, true);
       }
-#endif
     }
+#endif
   }
 
   /* Set termination handler. */
@@ -180,9 +178,9 @@ static void dnodeCleanUpSystem() {
     tclearModuleStatus(TSDB_MOD_MGMT);
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
     dnodeCleanupShell();
-    dnodeCleanupMClient();
     dnodeCleanupMnode();
     dnodeCleanupMgmt();
+    dnodeCleanupMClient();
     dnodeCleanupWrite();
     dnodeCleanupRead();
     dnodeCleanUpModules();

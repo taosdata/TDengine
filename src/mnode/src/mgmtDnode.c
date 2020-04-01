@@ -32,6 +32,7 @@ static void    mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg);
 extern int32_t clusterInit();
 extern void    clusterCleanUp();
 extern int32_t clusterGetDnodesNum();
+extern void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
 extern SDnodeObj* clusterGetDnode(int32_t dnodeId);
 extern SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
 static SDnodeObj  tsDnodeObj = {0};
@@ -95,6 +96,19 @@ int32_t mgmtGetDnodesNum() {
   return clusterGetDnodesNum();
 #else
   return 1;
+#endif
+}
+
+void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode) {
+#ifdef _CLUSTER
+  return (*clusterGetNextDnode)(pNode, pDnode);
+#else
+  if (*pDnode == NULL) {
+    *pDnode = &tsDnodeObj;
+  } else {
+    *pDnode = NULL;
+  }
+  return *pDnode;
 #endif
 }
 

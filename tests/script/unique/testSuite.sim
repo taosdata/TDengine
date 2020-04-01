@@ -1,3 +1,5 @@
 ################################# 
 run unique/account/basic.sim
+run unique/account/paras.sim
+run unique/account/usage.sim
 ################################## 
