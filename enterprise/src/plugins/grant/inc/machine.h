@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #if 1
-#define GRANT_DEFAULT        35*86400
+#define GRANT_DEFAULT        60*86400
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHECK_INTERVAL 300    //60seconds
 #define GRANT_HEART_BEAT_MSG 10     //600seconds

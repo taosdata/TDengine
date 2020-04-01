@@ -188,7 +188,13 @@ static int32_t clusterCreateDnode(uint32_t ip) {
     return grantCode;
   }
 
-  SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
+  SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+  if (pDnode != NULL) {
+    mError("dnode:%d is alredy exist, ip:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp));
+    return TSDB_CODE_DNODE_ALREADY_EXIST;
+  }
+
+  pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
   pDnode->privateIp = ip;
   pDnode->publicIp = ip;
   pDnode->createdTime = taosGetTimestampMs();
@@ -689,7 +695,7 @@ static void clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
     uint32_t ip = inet_addr(pCreate->ip);
     rpcRsp.code = clusterCreateDnode(ip);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      SDnodeObj *pDnode = mgmtGetDnode(ip);
+      SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
       mLPrint("dnode:%d, ip:%s is created by %s", pDnode->dnodeId, pCreate->ip, pMsg->pUser->user);
     } else {
       mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(rpcRsp.code));
@@ -706,7 +712,8 @@ static void clusterProcessDropDnodeMsg(SQueuedMsg *pMsg) {
   if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
-    rpcRsp.code = clusterDropDnodeByIp(inet_addr(pDrop->ip));
+    uint32_t ip = inet_addr(pDrop->ip);
+    rpcRsp.code = clusterDropDnodeByIp(ip);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
       mLPrint("dnode:%s is dropped by %s", pDrop->ip, pMsg->pUser->user);
     } else {
