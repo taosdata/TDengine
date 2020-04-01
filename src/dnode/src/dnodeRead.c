@@ -77,15 +77,8 @@ void dnodeRead(SRpcMsg *pMsg) {
   char        *pCont       = (char *) pMsg->pCont;
   SRpcContext *pRpcContext = NULL;
   
-  dTrace("dnode read msg disposal");
-  
-//  SMsgDesc *pDesc = pCont;
-//  pDesc->numOfVnodes = htonl(pDesc->numOfVnodes);
-//  pCont += sizeof(SMsgDesc);
-//  if (pDesc->numOfVnodes > 1) {
-//    pRpcContext = calloc(sizeof(SRpcContext), 1);
-//    pRpcContext->numOfVnodes = pDesc->numOfVnodes;
-//  }
+  dTrace("dnode %s msg incoming, thandle:%p", taosMsg[pMsg->msgType], pMsg->handle);
+
   if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
     queuedMsgNum = 0;
   }
@@ -176,10 +169,7 @@ static void *dnodeProcessReadQueue(void *param) {
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     }
 
-//    dnodeProcessReadResult(pVnode, pReadMsg);
     taosFreeQitem(pReadMsg);
-
-    dnodeReleaseVnode(pVnode);
   }
 
   return NULL;
@@ -200,8 +190,6 @@ static void dnodeHandleIdleReadWorker() {
 static void dnodeProcessReadResult(void *pVnode, SReadMsg *pRead) {
   SRpcContext *pRpcContext = pRead->pRpcContext;
   int32_t      code = 0;
-
-  dnodeReleaseVnode(pVnode);
 
   if (pRpcContext) {
     if (terrno) {
@@ -266,6 +254,8 @@ static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
     };
   
     rpcSendResponse(&rpcRsp);
+    dTrace("dnode query msg disposed, thandle:%p", pMsg->rpcMsg.handle);
+    dnodeReleaseVnode(pVnode);
   } else {
     pQInfo = pMsg->pCont;
   }
@@ -308,4 +298,6 @@ static void dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcRsp);
+  dTrace("dnode retrieve msg disposed, thandle:%p", pMsg->rpcMsg.handle);
+  dnodeReleaseVnode(pVnode);
 }
