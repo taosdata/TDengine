@@ -21,7 +21,6 @@
 #include "ttime.h"
 
 #include "qinterpolation.h"
-//#include "tscJoinProcess.h"
 #include "ttime.h"
 
 #include "queryExecutor.h"

@@ -27,7 +27,7 @@ extern "C" {
 #include "taosdef.h"
 #include "tvariant.h"
 
-struct tSQLBinaryExpr;
+struct tSQLSyntaxNode;
 struct SSchema;
 struct tSkipList;
 struct tSkipListNode;
@@ -62,44 +62,38 @@ typedef struct SBinaryFilterSupp {
 
 typedef struct tSQLSyntaxNode {
   uint8_t nodeType;
-  int16_t colId;  // for schema, the id of column
   union {
-    struct tSQLBinaryExpr *pExpr;
-    struct SSchema *       pSchema;
-    tVariant *             pVal;
+    struct {
+      uint8_t optr;  // filter operator
+      uint8_t hasPK; // 0: do not contain primary filter, 1: contain
+      void *  info;  // support filter operation on this expression only available for leaf node
+      
+      struct tSQLSyntaxNode *pLeft;  // left child pointer
+      struct tSQLSyntaxNode *pRight; // right child pointer
+    } _node;
+    struct SSchema *pSchema;
+    tVariant *      pVal;
   };
 } tSQLSyntaxNode;
 
-typedef struct tSQLBinaryExpr {
-  uint8_t         nSQLBinaryOptr;      // filter operator
-  uint8_t         filterOnPrimaryKey;  // 0: do not contain primary filter, 1: contain
-
-  /*
-   * provide the information to support filter operation on this expression
-   * only available for leaf node
-   */
-  void *          info;
-  tSQLSyntaxNode *pLeft;               // left child pointer
-  tSQLSyntaxNode *pRight;              // right child pointer
-} tSQLBinaryExpr;
 
 typedef struct tQueryResultset {
   void ** pRes;
   int64_t num;
 } tQueryResultset;
 
-void tSQLBinaryExprFromString(tSQLBinaryExpr **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len);
+void tSQLBinaryExprFromString(tSQLSyntaxNode **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len);
 
-void tSQLBinaryExprToString(tSQLBinaryExpr *pExpr, char *dst, int32_t *len);
+void tSQLBinaryExprToString(tSQLSyntaxNode *pExpr, char *dst, int32_t *len);
 
-void tSQLBinaryExprDestroy(tSQLBinaryExpr **pExprs, void (*fp)(void*));
+void tSQLBinaryExprDestroy(tSQLSyntaxNode **pExprs, void (*fp)(void*));
 
-void tSQLBinaryExprTraverse(tSQLBinaryExpr *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
+void tSQLBinaryExprTraverse(tSQLSyntaxNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
 
-void tSQLBinaryExprCalcTraverse(tSQLBinaryExpr *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+void tSQLBinaryExprCalcTraverse(tSQLSyntaxNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*cb)(void *, char *, int32_t));
 
-void tSQLBinaryExprTrv(tSQLBinaryExpr *pExprs, int32_t *val, int16_t *ids);
+void tSQLBinaryExprTrv(tSQLSyntaxNode *pExprs, int32_t *val, int16_t *ids);
 void tQueryResultClean(tQueryResultset *pRes);
 
 uint8_t getBinaryExprOptr(SSQLToken *pToken);

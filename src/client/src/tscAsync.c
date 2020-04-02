@@ -369,7 +369,7 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
     tscTrace("%p SqlObj is freed, not add into queue async res", pSql);
     return;
   } else {
-    tscError("%p add into queued async res, code:%d", pSql, pSql->res.code);
+    tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
   }
 
   SSchedMsg schedMsg;
@@ -410,7 +410,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     pSql->fp = NULL;
 
     if (code != 0) {
-      code = abs(code);
       pRes->code = code;
       tscTrace("%p failed to renew tableMeta", pSql);
       tsem_post(&pSql->rspSem);
@@ -432,8 +431,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     return;
   }
 
-  if (code != 0) {
-    pRes->code = (uint8_t)abs(code);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRes->code = code;
     tscQueueAsyncRes(pSql);
     return;
   }

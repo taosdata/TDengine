@@ -50,6 +50,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
+static void mgmtProcessUseMsg(SQueuedMsg *queuedMsg);
 
 static void *tsMgmtShellRpc = NULL;
 static void *tsMgmtTranQhandle = NULL;
@@ -62,7 +63,8 @@ int32_t mgmtInitShell() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_RETRIEVE, mgmtProcessRetrieveMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mgmtProcessHeartBeatMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mgmtProcessConnectMsg);
-
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mgmtProcessUseMsg);
+  
   tsMgmtTranQhandle = taosInitScheduler(tsMaxShellConns, 1, "mnodeT");
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
@@ -432,6 +434,23 @@ connect_over:
     rpcRsp.pCont   = pConnectRsp;
     rpcRsp.contLen = sizeof(SCMConnectRsp);
   }
+  rpcSendResponse(&rpcRsp);
+}
+
+static void mgmtProcessUseMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  
+  SCMUseDbMsg *pUseDbMsg = pMsg->pCont;
+  
+  // todo check for priority of current user
+  SDbObj* pDbObj = mgmtGetDb(pUseDbMsg->db);
+  
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pDbObj == NULL) {
+    code = TSDB_CODE_INVALID_DB;
+  }
+  
+  rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
 }
 

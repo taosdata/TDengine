@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include <tstrbuild.h>
 #include "taos.h"
 #include "taosmsg.h"
 #include "tstoken.h"
@@ -187,38 +188,19 @@ typedef struct SSqlInfo {
 } SSqlInfo;
 
 typedef struct tSQLExpr {
-  /*
-   * for single operand:
-   * TK_ALL
-   * TK_ID
-   * TK_SUM
-   * TK_AVG
-   * TK_MIN
-   * TK_MAX
-   * TK_FIRST
-   * TK_LAST
-   * TK_BOTTOM
-   * TK_TOP
-   * TK_STDDEV
-   * TK_PERCENTILE
-   *
-   * for binary operand:
-   * TK_LESS
-   * TK_LARGE
-   * TK_EQUAL etc...
-   */
-  uint32_t nSQLOptr;  // TK_FUNCTION: sql function, TK_LE: less than(binary expr)
+  // TK_FUNCTION: sql function, TK_LE: less than(binary expr)
+  uint32_t nSQLOptr;
   
   // the full sql string of function(col, param), which is actually the raw
   // field name, since the function name is kept in nSQLOptr already
-  SSQLToken            operand;
+  SSQLToken operand;
+  SSQLToken colInfo;            // field id
+  tVariant  val;                // value only for string, float, int
+  
+  struct tSQLExpr *pLeft;       // left child
+  struct tSQLExpr *pRight;      // right child
+  
   struct tSQLExprList *pParam;  // function parameters
-  
-  SSQLToken colInfo;  // field id
-  tVariant  val;      // value only for string, float, int
-  
-  struct tSQLExpr *pLeft;   // left child
-  struct tSQLExpr *pRight;  // right child
 } tSQLExpr;
 
 // used in select clause. select <tSQLExprList> from xxx
@@ -326,18 +308,20 @@ void tSQLSetColumnInfo(TAOS_FIELD *pField, SSQLToken *pName, TAOS_FIELD *pType);
 
 void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *pToken);
 
-
 void *ParseAlloc(void *(*mallocProc)(size_t));
 
+// convert the sql filter expression into binary data
+int32_t tSQLExprToBinary(tSQLExpr* pExpr, SStringBuilder* sb);
+
 enum {
-  TSQL_NODE_TYPE_EXPR = 0x1,
-  TSQL_NODE_TYPE_ID = 0x2,
+  TSQL_NODE_TYPE_EXPR  = 0x1,
+  TSQL_NODE_TYPE_ID    = 0x2,
   TSQL_NODE_TYPE_VALUE = 0x4,
 };
 
 #define NON_ARITHMEIC_EXPR 0
-#define NORMAL_ARITHMETIC 1
-#define AGG_ARIGHTMEIC    2
+#define NORMAL_ARITHMETIC  1
+#define AGG_ARIGHTMEIC     2
 
 int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pSql);
 
