@@ -658,7 +658,7 @@ static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
   SRpcIpSet  *pIpSet = &pContext->ipSet;
 
   pConn = rpcGetConnFromCache(pRpc->pCache, pIpSet->ip[pIpSet->inUse], pIpSet->port, pContext->connType);
-  if ( pConn == NULL ) {
+  if ( pConn == NULL || pConn->user[0] == 0) {
     char ipstr[20] = {0};
     tinet_ntoa(ipstr, pIpSet->ip[pIpSet->inUse]);
     pConn = rpcOpenConn(pRpc, ipstr, pIpSet->port, pContext->connType);
