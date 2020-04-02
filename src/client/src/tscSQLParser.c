@@ -117,7 +117,7 @@ static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index);
 
-static int32_t tSQLBinaryExprCreateFromSqlExpr(tExprNode **pExpr, tSQLExpr* pAst, int32_t* num,
+static int32_t convertSyntaxTreeToExprTree(tExprNode **pExpr, tSQLExpr* pAst, int32_t* num,
     SColIndexEx** pColIndex, SSqlExprInfo* pExprInfo);
 
 /*
@@ -1211,9 +1211,9 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           tExprNode* pNode = NULL;
           SColIndexEx* pColIndex = NULL;
           
-          int32_t ret = tSQLBinaryExprCreateFromSqlExpr(&pNode, pItem->pNode, &pBinExprInfo->numOfCols, &pColIndex, &pQueryInfo->exprsInfo);
+          int32_t ret = convertSyntaxTreeToExprTree(&pNode, pItem->pNode, &pBinExprInfo->numOfCols, &pColIndex, &pQueryInfo->exprsInfo);
           if (ret != TSDB_CODE_SUCCESS) {
-            tSQLBinaryExprDestroy(&pNode, NULL);
+            tExprTreeDestroy(&pNode, NULL);
             return invalidSqlErrMsg(pQueryInfo->msg, "invalid expression in select clause");
           }
           
@@ -5807,20 +5807,20 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
 
-static int32_t tSQLBinaryExprCreateFromSqlExpr(tExprNode **pExpr, tSQLExpr* pAst, int32_t* num,
+static int32_t convertSyntaxTreeToExprTree(tExprNode **pExpr, tSQLExpr* pAst, int32_t* num,
     SColIndexEx** pColIndex, SSqlExprInfo* pExprInfo) {
   tExprNode* pLeft = NULL;
   tExprNode* pRight= NULL;
   
   if (pAst->pLeft != NULL) {
-    int32_t ret = tSQLBinaryExprCreateFromSqlExpr(&pLeft, pAst->pLeft, num, pColIndex, pExprInfo);
+    int32_t ret = convertSyntaxTreeToExprTree(&pLeft, pAst->pLeft, num, pColIndex, pExprInfo);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
   }
   
   if (pAst->pRight != NULL) {
-    int32_t ret = tSQLBinaryExprCreateFromSqlExpr(&pRight, pAst->pRight, num, pColIndex, pExprInfo);
+    int32_t ret = convertSyntaxTreeToExprTree(&pRight, pAst->pRight, num, pColIndex, pExprInfo);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }

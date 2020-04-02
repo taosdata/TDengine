@@ -16,6 +16,7 @@
 #ifndef TDENGINE_TAST_H
 #define TDENGINE_TAST_H
 
+#include <tbuffer.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -64,9 +65,9 @@ typedef struct tExprNode {
   uint8_t nodeType;
   union {
     struct {
-      uint8_t optr;  // filter operator
-      uint8_t hasPK; // 0: do not contain primary filter, 1: contain
-      void *  info;  // support filter operation on this expression only available for leaf node
+      uint8_t optr;             // filter operator
+      uint8_t hasPK;            // 0: do not contain primary filter, 1: contain
+      void *  info;             // support filter operation on this expression only available for leaf node
       
       struct tExprNode *pLeft;  // left child pointer
       struct tExprNode *pRight; // right child pointer
@@ -80,7 +81,7 @@ void tSQLBinaryExprFromString(tExprNode **pExpr, SSchema *pSchema, int32_t numOf
 
 void tSQLBinaryExprToString(tExprNode *pExpr, char *dst, int32_t *len);
 
-void tSQLBinaryExprDestroy(tExprNode **pExprs, void (*fp)(void*));
+void tExprTreeDestroy(tExprNode **pExprs, void (*fp)(void*));
 
 void tSQLBinaryExprTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
 
@@ -90,6 +91,10 @@ void tSQLBinaryExprCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOut
 void tSQLBinaryExprTrv(tExprNode *pExprs, int32_t *val, int16_t *ids);
 
 uint8_t getBinaryExprOptr(SSQLToken *pToken);
+
+SBuffer exprTreeToBinary(tExprNode* pExprTree);
+
+tExprNode* exprTreeFromBinary(const void* pBuf, size_t size);
 
 #ifdef __cplusplus
 }

@@ -5961,7 +5961,7 @@ static void freeQInfo(SQInfo *pQInfo) {
       
       if (pBinExprInfo->numOfCols > 0) {
         tfree(pBinExprInfo->pReqColumns);
-        tSQLBinaryExprDestroy(&pBinExprInfo->pBinExpr, NULL);
+        tExprTreeDestroy(&pBinExprInfo->pBinExpr, NULL);
       }
     }
     

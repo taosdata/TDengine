@@ -1310,7 +1310,7 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond
   };
   
   tSQLBinaryExprTraverse(pExpr, pSTable->pIndex, pRes, &supp);
-  tSQLBinaryExprDestroy(&pExpr, tSQLListTraverseDestroyInfo);
+  tExprTreeDestroy(&pExpr, tSQLListTraverseDestroyInfo);
   
   tansformQueryResult(pRes);
   
