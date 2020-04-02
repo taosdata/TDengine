@@ -1213,11 +1213,11 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           
           int32_t ret = tSQLBinaryExprCreateFromSqlExpr(&pNode, pItem->pNode, &pBinExprInfo->numOfCols, &pColIndex, &pQueryInfo->exprsInfo);
           if (ret != TSDB_CODE_SUCCESS) {
-            tSQLBinaryExprDestroy(&pNode->pExpr, NULL);
+            tSQLBinaryExprDestroy(&pNode, NULL);
             return invalidSqlErrMsg(pQueryInfo->msg, "invalid expression in select clause");
           }
           
-          pBinExprInfo->pBinExpr = pNode->pExpr;
+          pBinExprInfo->pBinExpr = pNode;
           pBinExprInfo->pReqColumns = pColIndex;
           
           for(int32_t k = 0; k < pBinExprInfo->numOfCols; ++k) {
@@ -5850,28 +5850,21 @@ static int32_t tSQLBinaryExprCreateFromSqlExpr(tSQLSyntaxNode **pExpr, tSQLExpr*
       return TSDB_CODE_SUCCESS;
     }
     
-    (*pExpr)->colId = -1;
-    
     *pColIndex = realloc(*pColIndex, (++(*num)) * sizeof(SColIndexEx));
     memset(&(*pColIndex)[(*num) - 1], 0, sizeof(SColIndexEx));
     
     strncpy((*pColIndex)[(*num) - 1].name, pAst->operand.z, pAst->operand.n);
   } else {
-    tSQLBinaryExpr *pBinExpr = (tSQLBinaryExpr *)calloc(1, sizeof(tSQLBinaryExpr));
-    pBinExpr->filterOnPrimaryKey = false;
-    pBinExpr->pLeft = pLeft;
-    pBinExpr->pRight = pRight;
+    *pExpr = (tSQLSyntaxNode *)calloc(1, sizeof(tSQLSyntaxNode));
+    (*pExpr)->_node.hasPK = false;
+    (*pExpr)->_node.pLeft = pLeft;
+    (*pExpr)->_node.pRight = pRight;
     SSQLToken t = {.type = pAst->nSQLOptr};
-    pBinExpr->nSQLBinaryOptr = getBinaryExprOptr(&t);
+    (*pExpr)->_node.optr = getBinaryExprOptr(&t);
   
-    assert(pBinExpr->nSQLBinaryOptr != 0);
+    assert((*pExpr)->_node.optr != 0);
     
-    (*pExpr) = malloc(sizeof(tSQLSyntaxNode));
-    (*pExpr)->nodeType = TSQL_NODE_EXPR;
-    (*pExpr)->pExpr = pBinExpr;
-    (*pExpr)->colId = -1;
-  
-    if (pBinExpr->nSQLBinaryOptr == TSDB_BINARY_OP_DIVIDE) {
+    if ((*pExpr)->_node.optr == TSDB_BINARY_OP_DIVIDE) {
       if (pRight->nodeType == TSQL_NODE_VALUE) {
         if (pRight->pVal->nType == TSDB_DATA_TYPE_INT && pRight->pVal->i64Key == 0) {
           return TSDB_CODE_INVALID_SQL;
