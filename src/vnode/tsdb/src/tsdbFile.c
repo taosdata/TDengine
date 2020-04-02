@@ -356,7 +356,7 @@ int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables,
     return -1;
   }
 
-  if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) {
+  if (tsdbOpenFile(pFile, O_RDWR | O_CREAT) < 0) {
     // TODO: deal with the ERROR here
     return -1;
   }
