@@ -30,9 +30,6 @@ bool    mgmtCheckRedirect(void *handle);
 void    mgmtGetMnodePrivateIpList(SRpcIpSet *ipSet);
 void    mgmtGetMnodePublicIpList(SRpcIpSet *ipSet);
 
-int32_t mgmtAddMnode(uint32_t privateIp, uint32_t publicIp);
-int32_t mgmtRemoveMnode(uint32_t privateIp);
-
 #ifdef __cplusplus
 }
 #endif
