@@ -42,7 +42,7 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
   }
 
   if (pSelDnode == NULL) {
-    mError("failed to alloc vnode to vgroup", pDnode->dnodeId);
+    mError("failed to alloc vnode to vgroup");
     return TSDB_CODE_NO_ENOUGH_DNODES;
   }
 

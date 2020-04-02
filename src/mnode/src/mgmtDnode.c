@@ -35,7 +35,9 @@ extern int32_t clusterGetDnodesNum();
 extern void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
 extern SDnodeObj* clusterGetDnode(int32_t dnodeId);
 extern SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
+#ifndef _CLUSTER
 static SDnodeObj  tsDnodeObj = {0};
+#endif
 
 int32_t mgmtInitDnodes() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
@@ -101,7 +103,7 @@ int32_t mgmtGetDnodesNum() {
 
 void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode) {
 #ifdef _CLUSTER
-  return (*clusterGetNextDnode)(pNode, pDnode);
+  return clusterGetNextDnode(pNode, pDnode);
 #else
   if (*pDnode == NULL) {
     *pDnode = &tsDnodeObj;
