@@ -11,10 +11,10 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
     INCLUDE_DIRECTORIES(inc)
 
     #AUX_SOURCE_DIRECTORY(imp LIB_SRC)
-    
     LIST(APPEND LIB_SRC ./src/grantMain.c)
     ADD_LIBRARY(grant ${LIB_SRC} ./src/machine.o)
     
+    #AUX_SOURCE_DIRECTORY(imp BIN_SRC)
     #LIST(APPEND BIN_SRC tools/taosGrant.c)
     #ADD_EXECUTABLE(taosGrant ${BIN_SRC})
     #TARGET_LINK_LIBRARIES(taosGrant tutil)

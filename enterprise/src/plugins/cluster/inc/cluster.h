@@ -24,9 +24,9 @@ extern "C" {
 int32_t clusterInit();
 void    clusterCleanUp();
 int32_t clusterGetDnodesNum();
+void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
 SDnodeObj* clusterGetDnode(int32_t dnodeId);
 SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
-
 
 // bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
 // bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
@@ -36,7 +36,6 @@ SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
 // void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode);
 // void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId);
 // void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes);
-
 
 #ifdef __cplusplus
 }
