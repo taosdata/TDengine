@@ -13,6 +13,7 @@
 
 // #include "taosdef.h"
 // #include "disk.h"
+#include "os.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
 
@@ -914,7 +915,8 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   pGroup = tsdbOpenFilesForCommit(pFileH, fid);
   if (pGroup == NULL) { /* TODO */
   }
-  tsdbCreateFile(dataDir, fid, ".h", pCfg->maxTables, &hFile, 1, 0);
+  tsdbCreateFile(dataDir, fid, ".h", pCfg->maxTables, &hFile, 1, 1);
+  tsdbOpenFile(&hFile, O_RDWR);
   if (0 /*pGroup->files[TSDB_FILE_TYPE_LAST].size > TSDB_MAX_LAST_FILE_SIZE*/) {
     // TODO: make it not to write the last file every time
     tsdbCreateFile(dataDir, fid, ".l", pCfg->maxTables, &lFile, 0, 0);
@@ -1045,7 +1047,11 @@ _table_over:
     // Write the SCompBlock part
     pIdx->offset = lseek(hFile.fd, 0, SEEK_END);
     if (pIdx->len > 0) {
-      sendfile(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, hFile.fd, NULL, pIdx->len);
+      int bytes = tsendfile(hFile.fd, pGroup->files[TSDB_FILE_TYPE_HEAD].fd, NULL, pIdx->len);
+      if (bytes < pIdx->len) {
+        printf("Failed to send file, reason: %s\n", strerror(errno));
+        int d = 1;
+      }
       if (nNewBlocks > 0) {
         write(hFile.fd, (void *)(pCompInfo->blocks), sizeof(SCompBlock) * nNewBlocks);
         pIdx->len += (sizeof(SCompBlock) * nNewBlocks);
