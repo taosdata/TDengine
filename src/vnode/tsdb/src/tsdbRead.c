@@ -616,7 +616,7 @@ static void filterDataInDataBlock(STsdbQueryHandle *pQueryHandle, SDataCols* pCo
   // move the data block in the front to data block if needed
   int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
   
-  for (int32_t i = 0; i < 1 /*taosArrayGetSize(sa)*/; ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(sa); ++i) {
     int16_t colId = *(int16_t *)taosArrayGet(sa, i);
     
     for (int32_t j = 0; j < numOfCols; ++j) {
@@ -731,7 +731,6 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   pCheckInfo->pFileGroup = tsdbGetFileGroupNext(&pCheckInfo->fileIter);
   
   SQueryFilePos* cur = &pQueryHandle->cur;
-  cur->fid = -1;
   
   TSKEY key = pCheckInfo->lastKey;
   int32_t index = -1;
