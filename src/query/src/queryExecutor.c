@@ -2609,7 +2609,6 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
          GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
 
   tsdb_query_handle_t pQueryHandle = pRuntimeEnv->pQueryHandle;
-
   while (tsdbNextDataBlock(pQueryHandle)) {
     // check if query is killed or not set the status of query to pass the status check
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -5461,7 +5460,7 @@ static int32_t buildAirthmeticExprFromMsg(SSqlFunctionExpr *pExpr, SQueryTableMs
   SSqlBinaryExprInfo *pBinaryExprInfo = &pExpr->binExprInfo;
   SColumnInfo *       pColMsg = pQueryMsg->colList;
 #if 0
-  tSQLSyntaxNode* pBinExpr = NULL;
+  tExprNode* pBinExpr = NULL;
   SSchema*        pSchema = toSchema(pQueryMsg, pColMsg, pQueryMsg->numOfCols);
   
   dTrace("qmsg:%p create binary expr from string:%s", pQueryMsg, pExpr->pBase.arg[0].argValue.pz);

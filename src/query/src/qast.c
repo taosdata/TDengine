@@ -13,11 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "qast.h"
-#include <tarray.h>
-#include <tskiplist.h>
-#include "../../client/inc/tschemautil.h"
+
 #include "os.h"
+
+#include "tutil.h"
 #include "qsqlparser.h"
 #include "qsyntaxtreefunction.h"
 #include "taosdef.h"
@@ -26,7 +25,12 @@
 #include "tsqlfunction.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "tutil.h"
+
+
+#include "../../client/inc/tschemautil.h"
+#include "qast.h"
+#include "tarray.h"
+#include "tskiplist.h"
 
 /*
  *
@@ -39,22 +43,20 @@
  * ver 0.3, pipeline filter in the form of: (a+2)/9 > 14
  *
  */
+static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken);
+static void       tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
 
-static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken);
-static void            tSQLSyntaxNodeDestroy(tSQLSyntaxNode *pNode, void (*fp)(void *));
+static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i);
+static void       destroySyntaxTree(tExprNode *);
 
-static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i);
-static void            destroySyntaxTree(tSQLSyntaxNode *);
-
-static uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode *pLeft,
-                                   const tSQLSyntaxNode *pRight);
+static uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight);
 
 /*
  * Check the filter value type on the right hand side based on the column id on the left hand side,
  * the filter value type must be identical to field type for relational operation
  * As for binary arithmetic operation, it is not necessary to do so.
  */
-static void reviseBinaryExprIfNecessary(tSQLSyntaxNode **pLeft, tSQLSyntaxNode **pRight, uint8_t *optr) {
+static void reviseBinaryExprIfNecessary(tExprNode **pLeft, tExprNode **pRight, uint8_t *optr) {
   if (*optr >= TSDB_RELATION_LESS && *optr <= TSDB_RELATION_LIKE) {
     // make sure that the type of data on both sides of relational comparision are identical
     if ((*pLeft)->nodeType == TSQL_NODE_VALUE) {
@@ -79,7 +81,7 @@ static void reviseBinaryExprIfNecessary(tSQLSyntaxNode **pLeft, tSQLSyntaxNode *
    */
   if ((*pLeft)->nodeType == TSQL_NODE_VALUE && (*pRight)->nodeType == TSQL_NODE_COL) {
     if (*optr >= TSDB_RELATION_LARGE && *optr <= TSDB_RELATION_LARGE_EQUAL && *optr != TSDB_RELATION_EQUAL) {
-      SWAP(*pLeft, *pRight, tSQLSyntaxNode *);
+      SWAP(*pLeft, *pRight, tExprNode *);
     }
 
     switch (*optr) {
@@ -101,15 +103,15 @@ static void reviseBinaryExprIfNecessary(tSQLSyntaxNode **pLeft, tSQLSyntaxNode *
   }
 }
 
-static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken) {
+static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken) {
   /* if the token is not a value, return false */
   if (pToken->type == TK_RP || (pToken->type != TK_INTEGER && pToken->type != TK_FLOAT && pToken->type != TK_ID &&
                                 pToken->type != TK_TBNAME && pToken->type != TK_STRING && pToken->type != TK_BOOL)) {
     return NULL;
   }
 
-  size_t nodeSize = sizeof(tSQLSyntaxNode);
-  tSQLSyntaxNode *pNode = NULL;
+  size_t nodeSize = sizeof(tExprNode);
+  tExprNode *pNode = NULL;
 
   if (pToken->type == TK_ID || pToken->type == TK_TBNAME) {
     int32_t i = 0;
@@ -130,7 +132,7 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
     nodeSize += sizeof(SSchema);
 
     pNode = calloc(1, nodeSize);
-    pNode->pSchema = (struct SSchema *)((char *)pNode + sizeof(tSQLSyntaxNode));
+    pNode->pSchema = (struct SSchema *)((char *)pNode + sizeof(tExprNode));
     pNode->nodeType = TSQL_NODE_COL;
 
     if (pToken->type == TK_ID) {
@@ -145,7 +147,7 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
   } else {
     nodeSize += sizeof(tVariant);
     pNode = calloc(1, nodeSize);
-    pNode->pVal = (tVariant *)((char *)pNode + sizeof(tSQLSyntaxNode));
+    pNode->pVal = (tVariant *)((char *)pNode + sizeof(tExprNode));
 
     toTSDBType(pToken->type);
     tVariantCreate(pNode->pVal, pToken);
@@ -191,21 +193,21 @@ uint8_t getBinaryExprOptr(SSQLToken *pToken) {
 }
 
 // previous generated expr is reduced as the left child
-static tSQLSyntaxNode *parseRemainStr(char *pstr, tSQLSyntaxNode *pExpr, SSchema *pSchema, int32_t optr,
+static tExprNode *parseRemainStr(char *pstr, tExprNode *pExpr, SSchema *pSchema, int32_t optr,
                                       int32_t numOfCols, int32_t *i) {
   // set the previous generated node as the left child of new root
   pExpr->nodeType = TSQL_NODE_EXPR;
 
   // remain is the right child
-  tSQLSyntaxNode *pRight = createSyntaxTree(pSchema, numOfCols, pstr, i);
+  tExprNode *pRight = createSyntaxTree(pSchema, numOfCols, pstr, i);
   if (pRight == NULL || (pRight->nodeType == TSQL_NODE_COL && pExpr->nodeType != TSQL_NODE_VALUE) ||
       (pExpr->nodeType == TSQL_NODE_VALUE && pRight->nodeType != TSQL_NODE_COL)) {
-    tSQLSyntaxNodeDestroy(pExpr, NULL);
-    tSQLSyntaxNodeDestroy(pRight, NULL);
+    tExprNodeDestroy(pExpr, NULL);
+    tExprNodeDestroy(pRight, NULL);
     return NULL;
   }
 
-  tSQLSyntaxNode *pNewExpr = (tSQLSyntaxNode *)calloc(1, sizeof(tSQLSyntaxNode));
+  tExprNode *pNewExpr = (tExprNode *)calloc(1, sizeof(tExprNode));
   uint8_t         k = optr;
   reviseBinaryExprIfNecessary(&pExpr, &pRight, &k);
   pNewExpr->_node.pLeft = pExpr;
@@ -218,7 +220,7 @@ static tSQLSyntaxNode *parseRemainStr(char *pstr, tSQLSyntaxNode *pExpr, SSchema
   return pNewExpr;
 }
 
-uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode *pLeft, const tSQLSyntaxNode *pRight) {
+uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
   if (pLeft->nodeType == TSQL_NODE_COL) {
     // if left node is the primary column,return true
     return (strcmp(primaryColumnName, pLeft->pSchema->name) == 0) ? 1 : 0;
@@ -231,20 +233,20 @@ uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode 
   }
 }
 
-static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i) {
+static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i) {
   SSQLToken t0 = tStrGetToken(str, i, false, 0, NULL);
   if (t0.n == 0) {
     return NULL;
   }
 
-  tSQLSyntaxNode *pLeft = NULL;
+  tExprNode *pLeft = NULL;
   if (t0.type == TK_LP) {  // start new left child branch
     pLeft = createSyntaxTree(pSchema, numOfCols, str, i);
   } else {
     if (t0.type == TK_RP) {
       return NULL;
     }
-    pLeft = tSQLSyntaxNodeCreate(pSchema, numOfCols, &t0);
+    pLeft = tExprNodeCreate(pSchema, numOfCols, &t0);
   }
 
   if (pLeft == NULL) {
@@ -254,7 +256,7 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
   t0 = tStrGetToken(str, i, false, 0, NULL);
   if (t0.n == 0 || t0.type == TK_RP) {
     if (pLeft->nodeType != TSQL_NODE_EXPR) {  // if left is not the expr, it is not a legal expr
-      tSQLSyntaxNodeDestroy(pLeft, NULL);
+      tExprNodeDestroy(pLeft, NULL);
       return NULL;
     }
 
@@ -265,12 +267,12 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
   uint8_t optr = getBinaryExprOptr(&t0);
   if (optr == 0) {
     pError("not support binary operator:%d", t0.type);
-    tSQLSyntaxNodeDestroy(pLeft, NULL);
+    tExprNodeDestroy(pLeft, NULL);
     return NULL;
   }
 
   assert(pLeft != NULL);
-  tSQLSyntaxNode *pRight = NULL;
+  tExprNode *pRight = NULL;
 
   if (t0.type == TK_AND || t0.type == TK_OR || t0.type == TK_LP) {
     pRight = createSyntaxTree(pSchema, numOfCols, str, i);
@@ -283,51 +285,51 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
      */
     t0 = tStrGetToken(str, i, true, 0, NULL);
     if (t0.n == 0) {
-      tSQLSyntaxNodeDestroy(pLeft, NULL);  // illegal expression
+      tExprNodeDestroy(pLeft, NULL);  // illegal expression
       return NULL;
     }
 
     if (t0.type == TK_LP) {
       pRight = createSyntaxTree(pSchema, numOfCols, str, i);
     } else {
-      pRight = tSQLSyntaxNodeCreate(pSchema, numOfCols, &t0);
+      pRight = tExprNodeCreate(pSchema, numOfCols, &t0);
     }
   }
 
   if (pRight == NULL) {
-    tSQLSyntaxNodeDestroy(pLeft, NULL);
+    tExprNodeDestroy(pLeft, NULL);
     return NULL;
   }
 
   /* create binary expr as the child of new parent node */
-  tSQLSyntaxNode *pBinExpr = (tSQLSyntaxNode *)calloc(1, sizeof(tSQLSyntaxNode));
+  tExprNode *pExpr = (tExprNode *)calloc(1, sizeof(tExprNode));
   reviseBinaryExprIfNecessary(&pLeft, &pRight, &optr);
 
-  pBinExpr->_node.hasPK = isQueryOnPrimaryKey(pSchema[0].name, pLeft, pRight);
-  pBinExpr->_node.pLeft = pLeft;
-  pBinExpr->_node.pRight = pRight;
-  pBinExpr->_node.optr = optr;
+  pExpr->_node.hasPK = isQueryOnPrimaryKey(pSchema[0].name, pLeft, pRight);
+  pExpr->_node.pLeft = pLeft;
+  pExpr->_node.pRight = pRight;
+  pExpr->_node.optr = optr;
 
   t0 = tStrGetToken(str, i, true, 0, NULL);
 
   if (t0.n == 0 || t0.type == TK_RP) {
-    tSQLSyntaxNode *pn = malloc(sizeof(tSQLSyntaxNode));
-    pBinExpr->nodeType = TSQL_NODE_EXPR;
-    return pBinExpr;
+    pExpr->nodeType = TSQL_NODE_EXPR;
+    return pExpr;
   } else {
     uint8_t localOptr = getBinaryExprOptr(&t0);
     if (localOptr == 0) {
       pError("not support binary operator:%d", t0.type);
-      free(pBinExpr);
+      free(pExpr);
       return NULL;
     }
 
-    return parseRemainStr(str, pBinExpr, pSchema, localOptr, numOfCols, i);
+    return parseRemainStr(str, pExpr, pSchema, localOptr, numOfCols, i);
   }
 }
 
-void tSQLBinaryExprFromString(tSQLSyntaxNode **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len) {
+void tSQLBinaryExprFromString(tExprNode **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len) {
   *pExpr = NULL;
+  
   if (len <= 0 || src == NULL || pSchema == NULL || numOfCols <= 0) {
     return;
   }
@@ -340,7 +342,7 @@ void tSQLBinaryExprFromString(tSQLSyntaxNode **pExpr, SSchema *pSchema, int32_t 
   }
 }
 
-int32_t tSQLBinaryExprToStringImpl(tSQLSyntaxNode *pNode, char *dst, uint8_t type) {
+int32_t tSQLBinaryExprToStringImpl(tExprNode *pNode, char *dst, uint8_t type) {
   int32_t len = 0;
   if (type == TSQL_NODE_EXPR) {
     *dst = '(';
@@ -406,7 +408,7 @@ static char *tSQLOptrToString(uint8_t optr, char *dst) {
   return dst;
 }
 
-void tSQLBinaryExprToString(tSQLSyntaxNode *pExpr, char *dst, int32_t *len) {
+void tSQLBinaryExprToString(tExprNode *pExpr, char *dst, int32_t *len) {
   if (pExpr == NULL) {
     *dst = 0;
     *len = 0;
@@ -423,9 +425,9 @@ void tSQLBinaryExprToString(tSQLSyntaxNode *pExpr, char *dst, int32_t *len) {
   *len += tSQLBinaryExprToStringImpl(pExpr->_node.pRight, start, pExpr->_node.pRight->nodeType);
 }
 
-static void UNUSED_FUNC destroySyntaxTree(tSQLSyntaxNode *pNode) { tSQLSyntaxNodeDestroy(pNode, NULL); }
+static void UNUSED_FUNC destroySyntaxTree(tExprNode *pNode) { tExprNodeDestroy(pNode, NULL); }
 
-static void tSQLSyntaxNodeDestroy(tSQLSyntaxNode *pNode, void (*fp)(void *)) {
+static void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   if (pNode == NULL) {
     return;
   }
@@ -439,13 +441,13 @@ static void tSQLSyntaxNodeDestroy(tSQLSyntaxNode *pNode, void (*fp)(void *)) {
   free(pNode);
 }
 
-void tSQLBinaryExprDestroy(tSQLSyntaxNode **pExpr, void (*fp)(void *)) {
+void tSQLBinaryExprDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   if (*pExpr == NULL) {
     return;
   }
 
-  tSQLSyntaxNodeDestroy((*pExpr)->_node.pLeft, fp);
-  tSQLSyntaxNodeDestroy((*pExpr)->_node.pRight, fp);
+  tExprNodeDestroy((*pExpr)->_node.pLeft, fp);
+  tExprNodeDestroy((*pExpr)->_node.pRight, fp);
 
   if (fp != NULL) {
     fp((*pExpr)->_node.info);
@@ -559,7 +561,7 @@ void tSQLBinaryExprDestroy(tSQLSyntaxNode **pExpr, void (*fp)(void *)) {
 //  DEFAULT_COMP(p1, p2);
 //}
 
-int32_t merge(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResultset *pFinalRes) {
+int32_t merge(SArray *pLeft, SArray *pRight, SArray *pFinalRes) {
 //  assert(pFinalRes->pRes == 0);
 //
 //  pFinalRes->pRes = calloc((size_t)(pLeft->num + pRight->num), POINTER_BYTES);
@@ -600,7 +602,7 @@ int32_t merge(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResultset *
   return 0;
 }
 
-int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResultset *pFinalRes) {
+int32_t intersect(SArray *pLeft, SArray *pRight, SArray *pFinalRes) {
 //  int64_t num = MIN(pLeft->num, pRight->num);
 //
 //  assert(pFinalRes->pRes == 0);
@@ -638,25 +640,26 @@ int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResults
 /*
  * traverse the result and apply the function to each item to check if the item is qualified or not
  */
-static UNUSED_FUNC void tSQLListTraverseOnResult(struct tSQLSyntaxNode *pExpr, __result_filter_fn_t fp, tQueryResultset *pResult) {
-  assert(pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_VALUE);
-
-  // brutal force scan the result list and check for each item in the list
-  int64_t num = pResult->num;
-  for (int32_t i = 0, j = 0; i < pResult->num; ++i) {
-    if (fp == NULL || (fp(pResult->pRes[i], pExpr->_node.info) == true)) {
-      pResult->pRes[j++] = pResult->pRes[i];
-    } else {
-      num--;
-    }
-  }
-
-  pResult->num = num;
+static UNUSED_FUNC void tSQLListTraverseOnResult(struct tExprNode *pExpr, __result_filter_fn_t fp, SArray *pResult) {
+//  assert(pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_VALUE);
+//
+//  // brutal force scan the result list and check for each item in the list
+//  int64_t num = pResult->num;
+//  for (int32_t i = 0, j = 0; i < pResult->num; ++i) {
+//    if (fp == NULL || (fp(pResult->pRes[i], pExpr->_node.info) == true)) {
+//      pResult->pRes[j++] = pResult->pRes[i];
+//    } else {
+//      num--;
+//    }
+//  }
+//
+//  pResult->num = num;
+  assert(0);
 }
 
-static bool filterItem(tSQLSyntaxNode *pExpr, const void *pItem, SBinaryFilterSupp *param) {
-  tSQLSyntaxNode *pLeft = pExpr->_node.pLeft;
-  tSQLSyntaxNode *pRight = pExpr->_node.pRight;
+static bool filterItem(tExprNode *pExpr, const void *pItem, SBinaryFilterSupp *param) {
+  tExprNode *pLeft = pExpr->_node.pLeft;
+  tExprNode *pRight = pExpr->_node.pRight;
 
   /*
    * non-leaf nodes, recursively traverse the syntax tree in the post-root order
@@ -695,7 +698,7 @@ static bool filterItem(tSQLSyntaxNode *pExpr, const void *pItem, SBinaryFilterSu
  * @param pSchema   tag schemas
  * @param fp        filter callback function
  */
-static void tSQLBinaryTraverseOnResult(tSQLSyntaxNode *pExpr, SArray *pResult, SBinaryFilterSupp *param) {
+static void tSQLBinaryTraverseOnResult(tExprNode *pExpr, SArray *pResult, SBinaryFilterSupp *param) {
   size_t size = taosArrayGetSize(pResult);
   
   SArray* array = taosArrayInit(size, POINTER_BYTES);
@@ -710,7 +713,7 @@ static void tSQLBinaryTraverseOnResult(tSQLSyntaxNode *pExpr, SArray *pResult, S
   taosArrayCopy(pResult, array);
 }
 
-static void tSQLBinaryTraverseOnSkipList(tSQLSyntaxNode *pExpr, SArray *pResult, SSkipList *pSkipList,
+static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSkipList *pSkipList,
     SBinaryFilterSupp *param) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
 
@@ -724,13 +727,13 @@ static void tSQLBinaryTraverseOnSkipList(tSQLSyntaxNode *pExpr, SArray *pResult,
 }
 
 // post-root order traverse syntax tree
-void tSQLBinaryExprTraverse(tSQLSyntaxNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param) {
+void tSQLBinaryExprTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param) {
   if (pExpr == NULL) {
     return;
   }
 
-  tSQLSyntaxNode *pLeft = pExpr->_node.pLeft;
-  tSQLSyntaxNode *pRight = pExpr->_node.pRight;
+  tExprNode *pLeft = pExpr->_node.pLeft;
+  tExprNode *pRight = pExpr->_node.pRight;
 
   // recursive traverse left child branch
   if (pLeft->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_EXPR) {
@@ -751,22 +754,22 @@ void tSQLBinaryExprTraverse(tSQLSyntaxNode *pExpr, SSkipList *pSkipList, SArray 
       assert(taosArrayGetSize(result) == 0);
       tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
     } else if (weight == 2 || (weight == 1 && pExpr->_node.optr == TSDB_RELATION_OR)) {
-      tQueryResultset rLeft = {0};
-      tQueryResultset rRight = {0};
+      SArray* rLeft  = taosArrayInit(10, POINTER_BYTES);
+      SArray* rRight = taosArrayInit(10, POINTER_BYTES);
 
-      tSQLBinaryExprTraverse(pLeft, pSkipList, &rLeft, param);
-      tSQLBinaryExprTraverse(pRight, pSkipList, &rRight, param);
+      tSQLBinaryExprTraverse(pLeft, pSkipList, rLeft, param);
+      tSQLBinaryExprTraverse(pRight, pSkipList, rRight, param);
 
       if (pExpr->_node.optr == TSDB_RELATION_AND) {  // CROSS
-        intersect(&rLeft, &rRight, result);
+        intersect(rLeft, rRight, result);
       } else if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
-        merge(&rLeft, &rRight, result);
+        merge(rLeft, rRight, result);
       } else {
         assert(false);
       }
 
-      free(rLeft.pRes);
-      free(rRight.pRes);
+      taosArrayDestroy(rLeft);
+      taosArrayDestroy(rRight);
     } else {
       /*
        * (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) is handled here
@@ -776,8 +779,8 @@ void tSQLBinaryExprTraverse(tSQLSyntaxNode *pExpr, SSkipList *pSkipList, SArray 
        */
       assert(pExpr->_node.optr == TSDB_RELATION_AND);
 
-      tSQLSyntaxNode *pFirst = NULL;
-      tSQLSyntaxNode *pSecond = NULL;
+      tExprNode *pFirst = NULL;
+      tExprNode *pSecond = NULL;
       if (pLeft->_node.hasPK == 1) {
         pFirst = pLeft;
         pSecond = pRight;
@@ -810,14 +813,14 @@ void tSQLBinaryExprTraverse(tSQLSyntaxNode *pExpr, SSkipList *pSkipList, SArray 
   }
 }
 
-void tSQLBinaryExprCalcTraverse(tSQLSyntaxNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+void tSQLBinaryExprCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*getSourceDataBlock)(void *, char *, int32_t)) {
   if (pExprs == NULL) {
     return;
   }
 
-  tSQLSyntaxNode *pLeft = pExprs->_node.pLeft;
-  tSQLSyntaxNode *pRight = pExprs->_node.pRight;
+  tExprNode *pLeft = pExprs->_node.pLeft;
+  tExprNode *pRight = pExprs->_node.pRight;
 
   /* the left output has result from the left child syntax tree */
   char *pLeftOutput = (char*)malloc(sizeof(int64_t) * numOfRows);
@@ -890,13 +893,13 @@ void tSQLBinaryExprCalcTraverse(tSQLSyntaxNode *pExprs, int32_t numOfRows, char 
   free(pRightOutput);
 }
 
-void tSQLBinaryExprTrv(tSQLSyntaxNode *pExprs, int32_t *val, int16_t *ids) {
+void tSQLBinaryExprTrv(tExprNode *pExprs, int32_t *val, int16_t *ids) {
   if (pExprs == NULL) {
     return;
   }
 
-  tSQLSyntaxNode *pLeft = pExprs->_node.pLeft;
-  tSQLSyntaxNode *pRight = pExprs->_node.pRight;
+  tExprNode *pLeft = pExprs->_node.pLeft;
+  tExprNode *pRight = pExprs->_node.pRight;
 
   // recursive traverse left child branch
   if (pLeft->nodeType == TSQL_NODE_EXPR) {
@@ -912,13 +915,4 @@ void tSQLBinaryExprTrv(tSQLSyntaxNode *pExprs, int32_t *val, int16_t *ids) {
     ids[*val] = pRight->pSchema->colId;
     (*val) += 1;
   }
-}
-
-void tQueryResultClean(tQueryResultset *pRes) {
-  if (pRes == NULL) {
-    return;
-  }
-
-  tfree(pRes->pRes);
-  pRes->num = 0;
 }

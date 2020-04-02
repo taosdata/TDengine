@@ -117,7 +117,7 @@ static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index);
 
-static int32_t tSQLBinaryExprCreateFromSqlExpr(tSQLSyntaxNode **pExpr, tSQLExpr* pAst, int32_t* num,
+static int32_t tSQLBinaryExprCreateFromSqlExpr(tExprNode **pExpr, tSQLExpr* pAst, int32_t* num,
     SColIndexEx** pColIndex, SSqlExprInfo* pExprInfo);
 
 /*
@@ -1208,7 +1208,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
 
           SSqlBinaryExprInfo* pBinExprInfo = &pFuncExpr->binExprInfo;
           
-          tSQLSyntaxNode* pNode = NULL;
+          tExprNode* pNode = NULL;
           SColIndexEx* pColIndex = NULL;
           
           int32_t ret = tSQLBinaryExprCreateFromSqlExpr(&pNode, pItem->pNode, &pBinExprInfo->numOfCols, &pColIndex, &pQueryInfo->exprsInfo);
@@ -5807,10 +5807,10 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
 
-static int32_t tSQLBinaryExprCreateFromSqlExpr(tSQLSyntaxNode **pExpr, tSQLExpr* pAst, int32_t* num,
+static int32_t tSQLBinaryExprCreateFromSqlExpr(tExprNode **pExpr, tSQLExpr* pAst, int32_t* num,
     SColIndexEx** pColIndex, SSqlExprInfo* pExprInfo) {
-  tSQLSyntaxNode* pLeft = NULL;
-  tSQLSyntaxNode* pRight= NULL;
+  tExprNode* pLeft = NULL;
+  tExprNode* pRight= NULL;
   
   if (pAst->pLeft != NULL) {
     int32_t ret = tSQLBinaryExprCreateFromSqlExpr(&pLeft, pAst->pLeft, num, pColIndex, pExprInfo);
@@ -5828,14 +5828,14 @@ static int32_t tSQLBinaryExprCreateFromSqlExpr(tSQLSyntaxNode **pExpr, tSQLExpr*
   
   if (pAst->pLeft == NULL) {
     if (pAst->nSQLOptr >= TK_TINYINT && pAst->nSQLOptr <= TK_DOUBLE) {
-      *pExpr = calloc(1, sizeof(tSQLSyntaxNode) + sizeof(tVariant));
+      *pExpr = calloc(1, sizeof(tExprNode) + sizeof(tVariant));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
-      (*pExpr)->pVal = (tVariant*) ((char*)(*pExpr) + sizeof(tSQLSyntaxNode));
+      (*pExpr)->pVal = (tVariant*) ((char*)(*pExpr) + sizeof(tExprNode));
       tVariantAssign((*pExpr)->pVal, &pAst->val);
     } else if (pAst->nSQLOptr >= TK_COUNT && pAst->nSQLOptr <= TK_AVG_IRATE) {
-      *pExpr = calloc(1, sizeof(tSQLSyntaxNode) + sizeof(SSchemaEx));
+      *pExpr = calloc(1, sizeof(tExprNode) + sizeof(SSchemaEx));
       (*pExpr)->nodeType = TSQL_NODE_COL;
-      (*pExpr)->pSchema = (SSchema*)((char*)(*pExpr) + sizeof(tSQLSyntaxNode));
+      (*pExpr)->pSchema = (SSchema*)((char*)(*pExpr) + sizeof(tExprNode));
       strncpy((*pExpr)->pSchema->name, pAst->operand.z, pAst->operand.n);
 
       // set the input column data byte and type.
@@ -5855,7 +5855,7 @@ static int32_t tSQLBinaryExprCreateFromSqlExpr(tSQLSyntaxNode **pExpr, tSQLExpr*
     
     strncpy((*pColIndex)[(*num) - 1].name, pAst->operand.z, pAst->operand.n);
   } else {
-    *pExpr = (tSQLSyntaxNode *)calloc(1, sizeof(tSQLSyntaxNode));
+    *pExpr = (tExprNode *)calloc(1, sizeof(tExprNode));
     (*pExpr)->_node.hasPK = false;
     (*pExpr)->_node.pLeft = pLeft;
     (*pExpr)->_node.pRight = pRight;
