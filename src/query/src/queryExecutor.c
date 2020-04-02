@@ -2603,8 +2603,8 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
 
 static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-
   int64_t cnt = 0;
+
   dTrace("QInfo:%p query start, qrange:%" PRId64 "-%" PRId64 ", lastkey:%" PRId64 ", order:%d",
          GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
 
@@ -3595,8 +3595,8 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   pQuery->window.ekey = ekey;
 
   STimeWindow win = {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
-  tsdbResetQuery(pRuntimeEnv->pQueryHandle, &win, current, pQuery->order.order);
-  tsdbNextDataBlock(pRuntimeEnv->pQueryHandle);
+//  tsdbResetQuery(pRuntimeEnv->pQueryHandle, &win, current, pQuery->order.order);
+//  tsdbNextDataBlock(pRuntimeEnv->pQueryHandle);
 }
 
 void doFinalizeResult(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -5461,7 +5461,7 @@ static int32_t buildAirthmeticExprFromMsg(SSqlFunctionExpr *pExpr, SQueryTableMs
   SSqlBinaryExprInfo *pBinaryExprInfo = &pExpr->binExprInfo;
   SColumnInfo *       pColMsg = pQueryMsg->colList;
 #if 0
-  tSQLBinaryExpr* pBinExpr = NULL;
+  tSQLSyntaxNode* pBinExpr = NULL;
   SSchema*        pSchema = toSchema(pQueryMsg, pColMsg, pQueryMsg->numOfCols);
   
   dTrace("qmsg:%p create binary expr from string:%s", pQueryMsg, pExpr->pBase.arg[0].argValue.pz);

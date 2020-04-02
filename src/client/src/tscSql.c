@@ -867,7 +867,7 @@ int taos_errno(TAOS *taos) {
   return code;
 }
 
-static bool validErrorCode(int32_t code) { return code >= TSDB_CODE_SUCCESS && code < TSDB_CODE_MAX_ERROR_CODE; }
+//static bool validErrorCode(int32_t code) { return code >= TSDB_CODE_SUCCESS && code < TSDB_CODE_MAX_ERROR_CODE; }
 
 /*
  * In case of invalid sql error, additional information is attached to explain
@@ -890,23 +890,15 @@ static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
 
 char *taos_errstr(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
-  uint8_t  code;
 
   if (pObj == NULL || pObj->signature != pObj)
     return (char*)tstrerror(globalCode);
 
   SSqlObj *pSql = pObj->pSql;
-
-  if (validErrorCode(pSql->res.code)) {
-    code = pSql->res.code;
-  } else {
-    code = TSDB_CODE_OTHERS;  // unknown error
-  }
-
-  if (hasAdditionalErrorInfo(code, &pSql->cmd)) {
+  if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd)) {
     return pSql->cmd.payload;
   } else {
-    return (char*)tstrerror(code);
+    return (char*)tstrerror(pSql->res.code);
   }
 }
 

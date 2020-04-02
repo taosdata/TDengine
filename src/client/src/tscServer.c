@@ -325,7 +325,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
   
   if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
     void *taosres = tscKeepConn[pCmd->command] ? pSql : NULL;
-    rpcMsg->code = pRes->code ? -pRes->code : pRes->numOfRows;
+    rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
     
     tscTrace("%p Async SQL result:%s res:%p", pSql, tstrerror(pRes->code), taosres);
 
