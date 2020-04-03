@@ -47,6 +47,7 @@ typedef struct _SSdbTable {
   int32_t     tableId;
   int32_t     hashSessions;
   int32_t     maxRowSize;
+  int32_t     refCountPos;
   int32_t     autoIndex;
   int32_t     fd;
   int64_t     numOfRows;
@@ -66,7 +67,6 @@ typedef struct {
   int64_t version;
   int64_t offset;
   int32_t rowSize;
-  int32_t refCount;
   void *  row;
 } SRowMeta;
 
@@ -320,11 +320,6 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
       }
     } else {
       if (rowHead->version < 0) {
-        SSdbOperDesc oper = {
-          .table = pTable,
-          .pObj = pMetaRow
-        };
-        sdbDecRef(pTable, pMetaRow);
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         pTable->numOfRows--;
         sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, read deleted record:%s",
@@ -340,13 +335,11 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
           .rowSize = rowHead->rowSize,
            .pObj = pMetaRow
         };
-        sdbDecRef(pTable, pMetaRow);
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         
         int32_t code = (*pTable->decodeFp)(&oper);
         if (code == TSDB_CODE_SUCCESS) {
           rowMeta.row = oper.pObj;
-          sdbIncRef(pTable, pMetaRow);
           (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
           sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, read updated record:%s",
                    pTable->tableName, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, rowHead->data));
@@ -375,6 +368,7 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
       .version = pMeta->version,
     };
 
+    sdbIncRef(pTable, oper.pObj);
     int32_t code = (*pTable->insertFp)(&oper);
     if (code != TSDB_CODE_SUCCESS) {
       sdbError("table:%s, failed to insert record:%s", pTable->tableName, sdbGetkeyStr(pTable, rowHead->data));
@@ -398,6 +392,7 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   pTable->keyType = pDesc->keyType;
   pTable->hashSessions = pDesc->hashSessions;
   pTable->maxRowSize = pDesc->maxRowSize;
+  pTable->refCountPos = pDesc->refCountPos;
   pTable->insertFp = pDesc->insertFp;
   pTable->deleteFp = pDesc->deleteFp;
   pTable->updateFp = pDesc->updateFp;
@@ -438,18 +433,18 @@ static SRowMeta *sdbGetRowMeta(void *handle, void *key) {
 void sdbIncRef(void *handle, void *pRow) {
   if (pRow) {
     SSdbTable *pTable = handle;
-    SRowMeta *pMeta = (pRow - 4);
-    atomic_add_fetch_32(&pMeta->refCount, 1);
-    sdbTrace("table:%s, add ref:%d to record:%s", pTable->tableName, pMeta->refCount, sdbGetkeyStr(pTable, pRow));
+    int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+    atomic_add_fetch_32(pRefCount, 1);
+    sdbTrace("table:%s, add ref:%d to record:%s", pTable->tableName, *pRefCount, sdbGetkeyStr(pTable, pRow));
   }
 }
 
 void sdbDecRef(void *handle, void *pRow) {
   if (pRow) {
     SSdbTable *pTable = handle;
-    SRowMeta * pMeta = (pRow - 4);
-    int32_t    refCount = atomic_sub_fetch_32(&pMeta->refCount, 1);
-    sdbTrace("table:%s, def ref:%d from record:%s", pTable->tableName, pMeta->refCount, sdbGetkeyStr(pTable, pRow));
+    int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+    int32_t refCount = atomic_sub_fetch_32(pRefCount, 1);
+    sdbTrace("table:%s, def ref:%d from record:%s", pTable->tableName, *pRefCount, sdbGetkeyStr(pTable, pRow));
     if (refCount <= 0) {
       SSdbOperDesc oper = {.pObj = pRow};
       (*pTable->destroyFp)(&oper);

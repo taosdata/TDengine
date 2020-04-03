@@ -99,6 +99,7 @@ int32_t mgmtInitUsers() {
     .tableName    = "users",
     .hashSessions = TSDB_MAX_USERS,
     .maxRowSize   = tsUserUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = mgmtUserActionInsert,
     .deleteFp     = mgmtUserActionDelete,

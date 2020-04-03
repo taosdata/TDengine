@@ -44,6 +44,7 @@ typedef struct {
   char   *tableName;
   int32_t hashSessions;
   int32_t maxRowSize;
+  int32_t refCountPos;
   ESdbKeyType keyType;
   int32_t (*insertFp)(SSdbOperDesc *pOper);
   int32_t (*deleteFp)(SSdbOperDesc *pOper);

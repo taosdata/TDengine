@@ -149,6 +149,7 @@ int32_t mgmtInitVgroups() {
     .tableName    = "vgroups",
     .hashSessions = TSDB_MAX_VGROUPS,
     .maxRowSize   = tsVgUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_AUTO,
     .insertFp     = mgmtVgroupActionInsert,
     .deleteFp     = mgmtVgroupActionDelete,

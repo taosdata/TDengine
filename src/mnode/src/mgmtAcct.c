@@ -51,7 +51,7 @@ void acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
   pAcct->acctInfo.numOfDbs++;
   pthread_mutex_unlock(&pAcct->mutex);
 
-  mgmtIncDbRef(pDb);
+  acctIncRef(pAcct);
 }
 
 void acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
@@ -71,7 +71,7 @@ void acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
   pAcct->acctInfo.numOfDbs--;
   pthread_mutex_unlock(&pAcct->mutex);
 
-  mgmtDecDbRef(pDb);
+  acctDecRef(pAcct);
 }
 
 void acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
@@ -80,7 +80,7 @@ void acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
   pUser->pAcct = pAcct;
   pthread_mutex_unlock(&pAcct->mutex);
 
-  mgmtIncUserRef(pUser);
+  acctIncRef(pAcct);
 }
 
 void acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
@@ -89,5 +89,5 @@ void acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
   pUser->pAcct = NULL;
   pthread_mutex_unlock(&pAcct->mutex);
 
-  mgmtDecUserRef(pUser);
+  acctDecRef(pAcct);
 }
