@@ -45,8 +45,8 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-static void *  tsChildTableSdb;
-static void *  tsSuperTableSdb;
+void *  tsChildTableSdb;
+void *  tsSuperTableSdb;
 static int32_t tsChildTableUpdateSize;
 static int32_t tsSuperTableUpdateSize;
 
@@ -239,7 +239,7 @@ static int32_t mgmtInitChildTables() {
     .tableName    = "ctables",
     .hashSessions = tsMaxTables,
     .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = 0, //(int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = mgmtChildTableActionInsert,
     .deleteFp     = mgmtChildTableActionDelete,
@@ -415,7 +415,7 @@ static int32_t mgmtInitSuperTables() {
     .tableName    = "stables",
     .hashSessions = TSDB_MAX_SUPER_TABLES,
     .maxRowSize   = tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = 0, //(int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = mgmtSuperTableActionInsert,
     .deleteFp     = mgmtSuperTableActionDelete,

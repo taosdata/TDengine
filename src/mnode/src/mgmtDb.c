@@ -33,7 +33,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-static void *  tsDbSdb = NULL;
+void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
@@ -116,7 +116,7 @@ int32_t mgmtInitDbs() {
     .tableName    = "dbs",
     .hashSessions = TSDB_MAX_DBS,
     .maxRowSize   = tsDbUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = 0,//(int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = mgmtDbActionInsert,
     .deleteFp     = mgmtDbActionDelete,

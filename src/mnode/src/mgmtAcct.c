@@ -32,31 +32,25 @@ int32_t acctInit() {
 
 void      acctCleanUp() {}
 SAcctObj *acctGetAcct(char *acctName) { return &tsAcctObj; }
-void      acctIncRef(SAcctObj *pAcct) {}
-void      acctDecRef(SAcctObj *pAcct) {}
 int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
 #endif
 
 void acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
   atomic_add_fetch_32(&pAcct->acctInfo.numOfDbs, 1);
   pDb->pAcct = pAcct;
-  acctIncRef(pAcct);
 }
 
 void acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfDbs, 1);
   pDb->pAcct = NULL;
-  acctDecRef(pAcct);
 }
 
 void acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
   atomic_add_fetch_32(&pAcct->acctInfo.numOfUsers, 1);
   pUser->pAcct = pAcct;
-  acctIncRef(pAcct);
 }
 
 void acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfUsers, 1);
   pUser->pAcct = NULL;
-  acctDecRef(pAcct);
 }

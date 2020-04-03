@@ -25,7 +25,7 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-static void *  tsUserSdb = NULL;
+void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -97,7 +97,7 @@ int32_t mgmtInitUsers() {
     .tableName    = "users",
     .hashSessions = TSDB_MAX_USERS,
     .maxRowSize   = tsUserUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = 0, //(int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = mgmtUserActionInsert,
     .deleteFp     = mgmtUserActionDelete,
@@ -117,8 +117,7 @@ int32_t mgmtInitUsers() {
   mgmtCreateUser(pAcct, "root", "taosdata");
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
-  acctDecRef(pAcct);
-
+  
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mgmtProcessDropUserMsg);
