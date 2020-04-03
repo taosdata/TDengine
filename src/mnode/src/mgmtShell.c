@@ -117,6 +117,7 @@ void mgmtAddShellShowRetrieveHandle(uint8_t msgType, SShowRetrieveFp fp) {
 void mgmtProcessTranRequest(SSchedMsg *sched) {
   SQueuedMsg *queuedMsg = sched->msg;
   (*tsMgmtProcessShellMsgFp[queuedMsg->msgType])(queuedMsg);
+  mgmtDecUserRef(queuedMsg->pUser);
   rpcFreeCont(queuedMsg->pCont);
   free(queuedMsg);
 }
@@ -167,6 +168,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     queuedMsg.pUser   = pUser;
     queuedMsg.usePublicIp = usePublicIp;
     (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(&queuedMsg);
+    mgmtDecUserRef(pUser);
     rpcFreeCont(rpcMsg->pCont);
   } else {
     SQueuedMsg *queuedMsg = calloc(1, sizeof(SQueuedMsg));
@@ -354,9 +356,11 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
   SUserObj *pUser = mgmtGetUser(user);
   if (pUser == NULL) {
     *secret = 0;
+    mgmtDecUserRef(pUser);
     return TSDB_CODE_INVALID_USER;
   } else {
     memcpy(secret, pUser->pass, TSDB_KEY_LEN);
+    mgmtDecUserRef(pUser);
     return TSDB_CODE_SUCCESS;
   }
 }
@@ -372,20 +376,8 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   }
 
   int32_t code;
-  SUserObj *pUser = mgmtGetUser(connInfo.user);
-  if (pUser == NULL) {
-    code = TSDB_CODE_INVALID_USER;
-    goto connect_over;
-  }
-
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
-    goto connect_over;
-  }
-
-  SAcctObj *pAcct = acctGetAcct(pUser->acct);
-  if (pAcct == NULL) {
-    code = TSDB_CODE_INVALID_ACCT;
     goto connect_over;
   }
 
@@ -393,6 +385,9 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     goto connect_over;
   }
+
+  SUserObj *pUser = pMsg->pUser;
+  SAcctObj *pAcct = pUser->pAcct;
 
   if (pConnectMsg->db[0]) {
     char dbName[TSDB_TABLE_ID_LEN * 3] = {0};
@@ -415,7 +410,7 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
 
-  if (connInfo.serverIp == tsPublicIpInt) {
+  if (pMsg->usePublicIp) {
     mgmtGetMnodePublicIpList(&pConnectRsp->ipList);
   } else {
     mgmtGetMnodePrivateIpList(&pConnectRsp->ipList);

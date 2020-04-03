@@ -325,7 +325,6 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
           .pObj = pMetaRow
         };
         sdbDecRef(pTable, pMetaRow);
-        (*pTable->destroyFp)(&oper);
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         pTable->numOfRows--;
         sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, read deleted record:%s",
@@ -342,7 +341,6 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
            .pObj = pMetaRow
         };
         sdbDecRef(pTable, pMetaRow);
-        (*pTable->destroyFp)(&oper);
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         
         int32_t code = (*pTable->decodeFp)(&oper);

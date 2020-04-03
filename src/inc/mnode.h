@@ -181,7 +181,6 @@ typedef struct _user_obj {
   int8_t            writeAuth;
   int8_t            reserved[13];
   int8_t            updateEnd[1];
-  struct _user_obj *prev, *next;
   struct _acctObj * pAcct;
   SQqueryList *     pQList;  // query list
   SStreamList *     pSList;  // stream list
@@ -216,7 +215,6 @@ typedef struct _acctObj {
   int8_t    updateEnd[1];
   SAcctInfo acctInfo;
   SDbObj *         pHead;
-  SUserObj *       pUser;
   pthread_mutex_t  mutex;
 } SAcctObj;
 
