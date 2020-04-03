@@ -1355,21 +1355,21 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  pMsg->pVgroup = mgmtGetAvailableVgroup(pMsg->pDb);
-  if (pMsg->pVgroup == NULL) {
+  SVgObj *pVgroup = mgmtGetAvailableVgroup(pMsg->pDb);
+  if (pVgroup == NULL) {
     mTrace("table:%s, start to create a new vgroup", pCreate->tableId);
     mgmtCreateVgroup(mgmtCloneQueuedMsg(pMsg), pMsg->pDb);
     return;
   }
 
-  int32_t sid = taosAllocateId(pMsg->pVgroup->idPool);
+  int32_t sid = taosAllocateId(pVgroup->idPool);
   if (sid < 0) {
-    mTrace("tables:%s, no enough sid in vgroup:%d", pMsg->pVgroup->vgId);
+    mTrace("tables:%s, no enough sid in vgroup:%d", pVgroup->vgId);
     mgmtCreateVgroup(mgmtCloneQueuedMsg(pMsg), pMsg->pDb);
     return;
   }
 
-  pMsg->pTable = (STableInfo *)mgmtDoCreateChildTable(pCreate, pMsg->pVgroup, sid);
+  pMsg->pTable = (STableInfo *)mgmtDoCreateChildTable(pCreate, pVgroup, sid);
   if (pMsg->pTable == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, terrno);
     return;
@@ -1381,7 +1381,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pMsg->pVgroup);
+  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
   SRpcMsg rpcMsg = {
@@ -1397,8 +1397,8 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
 
 void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
-  pMsg->pVgroup = mgmtGetVgroup(pTable->vgId);
-  if (pMsg->pVgroup == NULL) {
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
     mError("table:%s, failed to drop ctable, vgroup not exist", pTable->info.tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OTHERS);
     return;
@@ -1417,7 +1417,7 @@ void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
   pDrop->sid     = htonl(pTable->sid);
   pDrop->uid     = htobe64(pTable->uid);
 
-  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pMsg->pVgroup);
+  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
 
   mTrace("table:%s, send drop ctable msg", pDrop->tableId);
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
@@ -1817,8 +1817,8 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
     return;
   }
 
-  queueMsg->pVgroup = mgmtGetVgroup(pTable->vgId);
-  if (queueMsg->pVgroup == NULL) {
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
     mError("table:%s, failed to get vgroup", pTable->info.tableId);
     mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_INVALID_VGROUP_ID);
     return;
@@ -1837,9 +1837,9 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
     return;
   }
 
-  if (queueMsg->pVgroup->numOfTables <= 0) {
-    mPrint("vgroup:%d, all tables is dropped, drop vgroup", queueMsg->pVgroup->vgId);
-    mgmtDropVgroup(queueMsg->pVgroup, NULL);
+  if (pVgroup->numOfTables <= 0) {
+    mPrint("vgroup:%d, all tables is dropped, drop vgroup", pVgroup->vgId);
+    mgmtDropVgroup(pVgroup, NULL);
   }
 
   mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SUCCESS);

@@ -252,7 +252,6 @@ typedef struct {
   void     *pCont;
   SUserObj *pUser;
   SDbObj   *pDb;
-  SVgObj   *pVgroup;
   STableInfo *pTable;
 } SQueuedMsg;
 

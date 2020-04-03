@@ -149,7 +149,6 @@ int32_t mgmtInitVgroups() {
     .tableName    = "vgroups",
     .hashSessions = TSDB_MAX_VGROUPS,
     .maxRowSize   = tsVgUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_AUTO,
     .insertFp     = mgmtVgroupActionInsert,
     .deleteFp     = mgmtVgroupActionDelete,
@@ -173,14 +172,6 @@ int32_t mgmtInitVgroups() {
 
   mTrace("vgroup is initialized");
   return 0;
-}
-
-void mgmtIncVgroupRef(SVgObj *pVgroup) { 
-  return sdbIncRef(tsVgroupSdb, pVgroup); 
-}
-
-void mgmtDecVgroupRef(SVgObj *pVgroup) { 
-  return sdbDecRef(tsVgroupSdb, pVgroup); 
 }
 
 SVgObj *mgmtGetVgroup(int32_t vgId) {
@@ -436,7 +427,7 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     taosIdPoolMarkStatus(pVgroup->idPool, pTable->sid);
     pVgroup->numOfTables++;
   }
-
+  
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }

@@ -789,7 +789,6 @@ void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
     rpcFreeCont(pMsg->pCont);
     if (pMsg->pUser) mgmtDecUserRef(pMsg->pUser);
     if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
-    if (pMsg->pVgroup) mgmtDecVgroupRef(pMsg->pVgroup);
     if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
     free(pMsg);
   }

@@ -215,7 +215,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
       mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pDnode->vload[j].vgId);
       mgmtSendDropVnodeMsg(pDnode->vload[j].vgId, &ipSet, NULL);
     }
-    mgmtDecVgroupRef(pVgroup);
   }
 
   if (pDnode->status != TSDB_DN_STATUS_READY) {

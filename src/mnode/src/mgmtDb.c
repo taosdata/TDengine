@@ -27,6 +27,7 @@
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
 #include "mgmtMnode.h"
+#include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
@@ -36,7 +37,7 @@ static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
-static void    mgmtDropDb(void *handle, void *tmrId);
+static void    mgmtDropDb(SQueuedMsg *newMsg);
 static int32_t mgmtSetDbDirty(SDbObj *pDb);
 static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -651,6 +652,7 @@ void mgmtRemoveSuperTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfSuperTables, -1);
   mgmtDecDbRef(pDb);
 }
+
 void mgmtAddTableIntoDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, 1);
   mgmtIncDbRef(pDb);
@@ -769,8 +771,6 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 }
 
 static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   SCMAlterDbMsg *pAlter = pMsg->pCont;
   mTrace("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->thandle);
 
@@ -780,13 +780,7 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  if (!pMsg->pUser->writeAuth) {
-    mError("db:%s, failed to alter, no rights", pAlter->db);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    return;
-  }
-
-  SDbObj *pDb = mgmtGetDb(pAlter->db);
+  SDbObj *pDb = pMsg->pDb = mgmtGetDb(pAlter->db);
   if (pDb == NULL) {
     mError("db:%s, failed to alter, invalid db", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_DB);
@@ -797,16 +791,13 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to alter, invalid db option", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, code);
-    mgmtDecDbRef(pDb);
     return;
   }
 
   SVgObj *pVgroup = pDb->pHead;
   if (pVgroup != NULL) {
     mPrint("vgroup:%d, will be altered", pVgroup->vgId);
-    SQueuedMsg *newMsg = malloc(sizeof(SQueuedMsg));
-    memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
-    memset(pMsg, 0, sizeof(SQueuedMsg));
+    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
     newMsg->ahandle = pVgroup;
     newMsg->expected = pVgroup->numOfVnodes;
     mgmtAlterVgroup(pVgroup, newMsg);
@@ -814,15 +805,11 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   }
 
   mTrace("db:%s, all vgroups is altered", pDb->name);
-
   mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
-  rpcFreeCont(pMsg->pCont);
-  mgmtDecDbRef(pDb);
 }
 
-static void mgmtDropDb(void *handle, void *tmrId) {
-  SQueuedMsg *newMsg = handle;
-  SDbObj *pDb = newMsg->ahandle;
+static void mgmtDropDb(SQueuedMsg *pMsg) {
+  SDbObj *pDb = pMsg->pDb;
   mPrint("db:%s, drop db from sdb", pDb->name);
 
   SSdbOperDesc oper = {
@@ -835,14 +822,10 @@ static void mgmtDropDb(void *handle, void *tmrId) {
     code = TSDB_CODE_SDB_ERROR;
   }
 
-  mgmtSendSimpleResp(newMsg->thandle, code);
-  rpcFreeCont(newMsg->pCont);
-  free(newMsg);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
 static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   SCMDropDbMsg *pDrop = pMsg->pCont;
   mTrace("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->thandle);
 
@@ -852,13 +835,7 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  if (!pMsg->pUser->writeAuth) {
-    mError("db:%s, failed to drop, no rights", pDrop->db);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    return;
-  }
-
-  SDbObj *pDb = mgmtGetDb(pDrop->db);
+  SDbObj *pDb = pMsg->pDb = mgmtGetDb(pDrop->db);
   if (pDb == NULL) {
     if (pDrop->ignoreNotExists) {
       mTrace("db:%s, db is not exist, think drop success", pDrop->db);
@@ -874,7 +851,6 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
     mError("db:%s, can't drop monitor database", pDrop->db);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MONITOR_DB_FORBIDDEN);
-    mgmtDecDbRef(pDb);
     return;
   }
 
@@ -882,17 +858,13 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to drop, reason:%s", pDrop->db, tstrerror(code));
     mgmtSendSimpleResp(pMsg->thandle, code);
-    mgmtDecDbRef(pDb);
     return;
   }
-
-  SQueuedMsg *newMsg = malloc(sizeof(SQueuedMsg));
-  memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
-  pMsg->pCont = NULL;
 
   SVgObj *pVgroup = pDb->pHead;
   if (pVgroup != NULL) {
     mPrint("vgroup:%d, will be dropped", pVgroup->vgId);
+    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
     newMsg->ahandle = pVgroup;
     newMsg->expected = pVgroup->numOfVnodes;
     mgmtDropVgroup(pVgroup, newMsg);
@@ -900,10 +872,7 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   }
 
   mTrace("db:%s, all vgroups is dropped", pDb->name);
-
-  void *tmpTmr;
-  newMsg->ahandle = pDb;
-  taosTmrReset(mgmtDropDb, 10, newMsg, tsMgmtTmr, &tmpTmr);
+  mgmtDropDb(pMsg);
 }
 
 void  mgmtDropAllDbs(SAcctObj *pAcct)  {
