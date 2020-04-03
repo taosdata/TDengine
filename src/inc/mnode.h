@@ -102,9 +102,8 @@ typedef struct {
 } SVnodeGid;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN];
+  char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t type;
-  int8_t dirty;
 } STableInfo;
 
 typedef struct SSuperTableObj {

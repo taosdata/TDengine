@@ -48,6 +48,7 @@ static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
 
   if (pAcct != NULL) {
     acctAddUser(pAcct, pUser);
+    mgmtIncUserRef(pUser);
   }
   else {
     mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
@@ -63,6 +64,7 @@ static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
 
   if (pAcct != NULL) {
     acctRemoveUser(pAcct, pUser);
+    mgmtDecUserRef(pUser);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -137,6 +139,14 @@ void mgmtCleanUpUsers() {
 
 SUserObj *mgmtGetUser(char *name) {
   return (SUserObj *)sdbGetRow(tsUserSdb, name);
+}
+
+void mgmtIncUserRef(SUserObj *pUser) { 
+  return sdbIncRef(tsUserSdb, pUser); 
+}
+
+void mgmtDecUserRef(SUserObj *pUser) { 
+  return sdbDecRef(tsUserSdb, pUser); 
 }
 
 static int32_t mgmtUpdateUser(SUserObj *pUser) {

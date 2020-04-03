@@ -27,6 +27,8 @@ int32_t mgmtInitDbs();
 void    mgmtCleanUpDbs();
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByTableId(char *db);
+void    mgmtIncDbRef(SDbObj *pDb);
+void    mgmtDecDbRef(SDbObj *pDb)
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 void    mgmtDropAllDbs(SAcctObj *pAcct);
 

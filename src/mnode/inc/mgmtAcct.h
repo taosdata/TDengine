@@ -32,10 +32,10 @@ void      acctCleanUp();
 SAcctObj *acctGetAcct(char *acctName);
 int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type);
 
-int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb);
-int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb);
-int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser);
-int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser);
+void      acctAddDb(SAcctObj *pAcct, SDbObj *pDb);
+void      acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb);
+void      acctAddUser(SAcctObj *pAcct, SUserObj *pUser);
+void      acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser);
 
 #ifdef __cplusplus
 }

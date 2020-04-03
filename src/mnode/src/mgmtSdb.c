@@ -24,6 +24,7 @@
 #include "tutil.h"
 #include "hashint.h"
 #include "hashstr.h"
+
 #include "mgmtSdb.h"
 
 #define abs(x) (((x) < 0) ? -(x) : (x))
@@ -65,6 +66,7 @@ typedef struct {
   int64_t version;
   int64_t offset;
   int32_t rowSize;
+  int32_t refCount;
   void *  row;
 } SRowMeta;
 
@@ -322,6 +324,7 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
           .table = pTable,
           .pObj = pMetaRow
         };
+        sdbDecRef(pTable, pMetaRow);
         (*pTable->destroyFp)(&oper);
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         pTable->numOfRows--;
@@ -338,13 +341,14 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
           .rowSize = rowHead->rowSize,
            .pObj = pMetaRow
         };
-        
+        sdbDecRef(pTable, pMetaRow);
         (*pTable->destroyFp)(&oper);
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         
         int32_t code = (*pTable->decodeFp)(&oper);
         if (code == TSDB_CODE_SUCCESS) {
           rowMeta.row = oper.pObj;
+          sdbIncRef(pTable, pMetaRow);
           (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
           sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, read updated record:%s",
                    pTable->tableName, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, rowHead->data));
@@ -433,6 +437,28 @@ static SRowMeta *sdbGetRowMeta(void *handle, void *key) {
   return pMeta;
 }
 
+void sdbIncRef(void *handle, void *pRow) {
+  if (pRow) {
+    SSdbTable *pTable = handle;
+    SRowMeta *pMeta = (pRow - 4);
+    atomic_add_fetch_32(&pMeta->refCount, 1);
+    sdbTrace("table:%s, add ref:%d to record:%s", pTable->tableName, pMeta->refCount, sdbGetkeyStr(pTable, pRow));
+  }
+}
+
+void sdbDecRef(void *handle, void *pRow) {
+  if (pRow) {
+    SSdbTable *pTable = handle;
+    SRowMeta * pMeta = (pRow - 4);
+    int32_t    refCount = atomic_sub_fetch_32(&pMeta->refCount, 1);
+    sdbTrace("table:%s, def ref:%d from record:%s", pTable->tableName, pMeta->refCount, sdbGetkeyStr(pTable, pRow));
+    if (refCount <= 0) {
+      SSdbOperDesc oper = {.pObj = pRow};
+      (*pTable->destroyFp)(&oper);
+    }
+  }
+}
+
 void *sdbGetRow(void *handle, void *key) {
   SSdbTable *pTable = (SSdbTable *)handle;
   SRowMeta * pMeta;
@@ -441,6 +467,7 @@ void *sdbGetRow(void *handle, void *key) {
 
   pthread_mutex_lock(&pTable->mutex);
   pMeta = (*sdbGetIndexFp[pTable->keyType])(pTable->iHandle, key);
+  if (pMeta) sdbIncRef(pTable, pMeta->row);
   pthread_mutex_unlock(&pTable->mutex);
 
   if (pMeta == NULL) {
@@ -459,6 +486,7 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
 
   if (sdbGetRow(pTable, pOper->pObj)) {
     sdbError("table:%s, failed to insert record:%s, already exist", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj));
+    sdbDecRef(pTable, pOper->pObj);
     return TSDB_CODE_ALREADY_THERE;
   }
 
@@ -526,6 +554,7 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
   rowMeta.rowSize = pOper->rowSize;
   rowMeta.row = pOper->pObj;
   (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj, &rowMeta);
+  sdbIncRef(pTable, pOper->pObj);
 
   pTable->numOfRows++;  
   
@@ -626,8 +655,7 @@ int32_t sdbDeleteRow(SSdbOperDesc *pOper) {
   pthread_mutex_unlock(&pTable->mutex);
 
   (*pTable->deleteFp)(pOper);
-  (*pTable->destroyFp)(pOper);
-
+  sdbDecRef(pTable, pOper->pObj);
   return 0;
 }
 
@@ -762,6 +790,7 @@ void *sdbFetchRow(void *handle, void *pNode, void **ppRow) {
   if (pMeta == NULL) return NULL;
 
   *ppRow = pMeta->row;
+  sdbIncRef(handle, pMeta->row);
 
   return pNode;
 }

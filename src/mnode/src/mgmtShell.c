@@ -25,7 +25,6 @@
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
-#include "mgmtChildTable.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
@@ -33,7 +32,6 @@
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
-#include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
@@ -449,6 +447,7 @@ static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
     mTrace("table:%s auto created task added", pInfo->tableId);
   }
 
+  mgmtDecTableRef(pTable);
   return addIntoTranQueue;
 }
 

@@ -33,7 +33,7 @@ SAcctObj *acctGetAcct(char *acctName) { return &tsAcctObj; }
 int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
 #endif
 
-int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
+void acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
   pDb->next = pAcct->pHead;
   pDb->prev = NULL;
@@ -46,11 +46,9 @@ int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
   pAcct->pHead = pDb;
   pAcct->acctInfo.numOfDbs++;
   pthread_mutex_unlock(&pAcct->mutex);
-
-  return 0;
 }
 
-int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
+void acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
   if (pDb->prev) {
     pDb->prev->next = pDb->next;
@@ -66,11 +64,9 @@ int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
 
   pAcct->acctInfo.numOfDbs--;
   pthread_mutex_unlock(&pAcct->mutex);
-
-  return 0;
 }
 
-int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
+void acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
   pthread_mutex_lock(&pAcct->mutex);
   pUser->next = pAcct->pUser;
   pUser->prev = NULL;
@@ -83,11 +79,9 @@ int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
   pAcct->acctInfo.numOfUsers++;
   pUser->pAcct = pAcct;
   pthread_mutex_unlock(&pAcct->mutex);
-
-  return 0;
 }
 
-int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
+void acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
   pthread_mutex_lock(&pAcct->mutex);
   if (pUser->prev) {
     pUser->prev->next = pUser->next;
@@ -103,6 +97,4 @@ int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
 
   pAcct->acctInfo.numOfUsers--;
   pthread_mutex_unlock(&pAcct->mutex);
-
-  return 0;
 }

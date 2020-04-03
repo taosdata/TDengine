@@ -22,15 +22,12 @@
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
-#include "mgmtChildTable.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
 #include "mgmtMnode.h"
-#include "mgmtChildTable.h"
 #include "mgmtSdb.h"
-#include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
@@ -147,6 +144,14 @@ int32_t mgmtInitDbs() {
 
 SDbObj *mgmtGetDb(char *db) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
+}
+
+void mgmtIncDbRef(SDbObj *pDb) { 
+  return sdbIncRef(tsDbSdb, pDb); 
+}
+
+void mgmtDecDbRef(SDbObj *pDb) { 
+  return sdbDecRef(tsDbSdb, pDb); 
 }
 
 SDbObj *mgmtGetDbByTableId(char *tableId) {
