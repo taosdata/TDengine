@@ -68,8 +68,6 @@ static int32_t acctActionDestroy(SSdbOperDesc *pOper) {
 
 static int32_t acctAcctActionInsert(SSdbOperDesc *pOper) {
   SAcctObj *pAcct = pOper->pObj;
-  pAcct->pHead = NULL;
-  pAcct->pUser = NULL;
   pAcct->acctInfo.numOfUsers = 0;
   pAcct->acctInfo.numOfDbs = 0;
   pAcct->acctInfo.numOfTimeSeries = 0;
