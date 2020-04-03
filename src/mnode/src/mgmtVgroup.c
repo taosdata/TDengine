@@ -175,6 +175,14 @@ int32_t mgmtInitVgroups() {
   return 0;
 }
 
+void mgmtIncVgroupRef(SVgObj *pVgroup) { 
+  return sdbIncRef(tsVgroupSdb, pVgroup); 
+}
+
+void mgmtDecVgroupRef(SVgObj *pVgroup) { 
+  return sdbDecRef(tsVgroupSdb, pVgroup); 
+}
+
 SVgObj *mgmtGetVgroup(int32_t vgId) {
   return (SVgObj *)sdbGetRow(tsVgroupSdb, &vgId);
 }
@@ -183,15 +191,7 @@ SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {
   return pDb->pHead;
 }
 
-void mgmtCreateVgroup(SQueuedMsg *pMsg) {
-  SDbObj *pDb = pMsg->pDb;
-  if (pDb == NULL) {
-    mError("failed to create vgroup, db not found");
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_DB);
-    mgmtFreeQueuedMsg(pMsg);
-    return;
-  }
-
+void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
   SVgObj *pVgroup = (SVgObj *)calloc(1, sizeof(SVgObj));
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
@@ -548,7 +548,6 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
     newMsg->msgType = queueMsg->msgType;
     newMsg->thandle = queueMsg->thandle;
-    newMsg->pDb     = queueMsg->pDb;
     newMsg->pUser   = queueMsg->pUser;
     newMsg->contLen = queueMsg->contLen;
     newMsg->pCont   = rpcMallocCont(newMsg->contLen);
@@ -632,7 +631,6 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
   newMsg->msgType = queueMsg->msgType;
   newMsg->thandle = queueMsg->thandle;
-  newMsg->pDb     = queueMsg->pDb;
   newMsg->pUser   = queueMsg->pUser;
   newMsg->contLen = queueMsg->contLen;
   newMsg->pCont   = rpcMallocCont(newMsg->contLen);

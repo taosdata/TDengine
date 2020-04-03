@@ -25,7 +25,7 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-static void * tsUserSdb = NULL;
+static void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -44,7 +44,6 @@ static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
 
   if (pAcct != NULL) {
     acctAddUser(pAcct, pUser);
-    acctDecRef(pAcct);
   }
   else {
     mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
@@ -60,7 +59,6 @@ static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
 
   if (pAcct != NULL) {
     acctRemoveUser(pAcct, pUser);
-    acctDecRef(pAcct);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -426,7 +424,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
 
     mgmtSendSimpleResp(pMsg->thandle, code);
   } else {
-     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
   }
 
   mgmtDecUserRef(pUser);

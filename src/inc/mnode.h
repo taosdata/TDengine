@@ -169,7 +169,6 @@ typedef struct _db_obj {
   int8_t  reserved[15];
   int8_t  updateEnd[1];
   int32_t refCount;
-  struct _db_obj *prev, *next;
   int32_t numOfVgroups;
   int32_t numOfTables;
   int32_t numOfSuperTables;
@@ -222,7 +221,6 @@ typedef struct _acctObj {
   int8_t    updateEnd[1];
   int32_t   refCount;
   SAcctInfo acctInfo;
-  SDbObj *         pHead;
   pthread_mutex_t  mutex;
 } SAcctObj;
 
@@ -252,8 +250,10 @@ typedef struct {
   void     *ahandle;
   void     *thandle;
   void     *pCont;
-  SDbObj   *pDb;
   SUserObj *pUser;
+  SDbObj   *pDb;
+  SVgObj   *pVgroup;
+  STableInfo *pTable;
 } SQueuedMsg;
 
 int32_t mgmtInitSystem();

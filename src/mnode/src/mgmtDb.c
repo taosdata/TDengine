@@ -32,7 +32,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-void *         tsDbSdb = NULL;
+static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
@@ -55,8 +55,6 @@ static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
 
   pDb->pHead = NULL;
   pDb->pTail = NULL;
-  pDb->prev = NULL;
-  pDb->next = NULL;
   pDb->numOfVgroups = 0;
   pDb->numOfTables = 0;
   pDb->numOfSuperTables = 0;
@@ -288,8 +286,9 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
     return code;
   }
 
-  SDbObj *pDb = (SDbObj *)sdbGetRow(tsDbSdb, pCreate->db);
+  SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb != NULL) {
+    mgmtDecDbRef(pDb);
     return TSDB_CODE_DB_ALREADY_EXIST;
   }
 
@@ -517,16 +516,14 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   }
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-
   pShow->numOfRows = pUser->pAcct->acctInfo.numOfDbs;
-  pShow->pNode = pUser->pAcct->pHead;
 
+  mgmtDecUserRef(pUser);
   return 0;
 }
 
 static char *mgmtGetDbStr(char *src) {
   char *pos = strstr(src, TS_PATH_DELIMITER);
-
   return ++pos;
 }
 
@@ -539,14 +536,8 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
   if (pUser == NULL) return 0;
 
   while (numOfRows < rows) {
-    pDb = (SDbObj *)pShow->pNode;
+    pShow->pNode = sdbFetchRow(tsDbSdb, pShow->pNode, (void **) &pDb);
     if (pDb == NULL) break;
-    pShow->pNode = (void *)pDb->next;
-    if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-      if (strcmp(pUser->user, "root") != 0 && strcmp(pUser->user, "_root") != 0 && strcmp(pUser->user, "monitor") != 0 ) {
-        continue;
-      }
-    }
 
     cols = 0;
 
@@ -643,25 +634,31 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     cols++;
 
     numOfRows++;
+    mgmtDecDbRef(pDb);
   }
 
   pShow->numOfReads += numOfRows;
+  mgmtDecUserRef(pUser);
   return numOfRows;
 }
 
 void mgmtAddSuperTableIntoDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfSuperTables, 1);
+  mgmtIncDbRef(pDb);
 }
 
 void mgmtRemoveSuperTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfSuperTables, -1);
+  mgmtDecDbRef(pDb);
 }
 void mgmtAddTableIntoDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, 1);
+  mgmtIncDbRef(pDb);
 }
 
 void mgmtRemoveTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, -1);
+  mgmtDecDbRef(pDb);
 }
 
 static int32_t mgmtSetDbDirty(SDbObj *pDb) {
@@ -800,15 +797,16 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to alter, invalid db option", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, code);
+    mgmtDecDbRef(pDb);
+    return;
   }
-
-  SQueuedMsg *newMsg = malloc(sizeof(SQueuedMsg));
-  memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
-  pMsg->pCont = NULL;
 
   SVgObj *pVgroup = pDb->pHead;
   if (pVgroup != NULL) {
     mPrint("vgroup:%d, will be altered", pVgroup->vgId);
+    SQueuedMsg *newMsg = malloc(sizeof(SQueuedMsg));
+    memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
+    memset(pMsg, 0, sizeof(SQueuedMsg));
     newMsg->ahandle = pVgroup;
     newMsg->expected = pVgroup->numOfVnodes;
     mgmtAlterVgroup(pVgroup, newMsg);
@@ -817,9 +815,9 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
 
   mTrace("db:%s, all vgroups is altered", pDb->name);
 
-  mgmtSendSimpleResp(newMsg->thandle, TSDB_CODE_SUCCESS);
-  rpcFreeCont(newMsg->pCont);
-  free(newMsg);
+  mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
+  rpcFreeCont(pMsg->pCont);
+  mgmtDecDbRef(pDb);
 }
 
 static void mgmtDropDb(void *handle, void *tmrId) {
@@ -876,6 +874,7 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
     mError("db:%s, can't drop monitor database", pDrop->db);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MONITOR_DB_FORBIDDEN);
+    mgmtDecDbRef(pDb);
     return;
   }
 
@@ -883,6 +882,7 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to drop, reason:%s", pDrop->db, tstrerror(code));
     mgmtSendSimpleResp(pMsg->thandle, code);
+    mgmtDecDbRef(pDb);
     return;
   }
 
@@ -919,6 +919,7 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
       mgmtSetDbDirty(pDb);
       numOfDbs++;
     }
+    mgmtDecDbRef(pDb);
   }
 
   mTrace("acct:%s, all dbs is is set dirty", pAcct->user, numOfDbs);

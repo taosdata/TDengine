@@ -117,9 +117,7 @@ void mgmtAddShellShowRetrieveHandle(uint8_t msgType, SShowRetrieveFp fp) {
 void mgmtProcessTranRequest(SSchedMsg *sched) {
   SQueuedMsg *queuedMsg = sched->msg;
   (*tsMgmtProcessShellMsgFp[queuedMsg->msgType])(queuedMsg);
-  mgmtDecUserRef(queuedMsg->pUser);
-  rpcFreeCont(queuedMsg->pCont);
-  free(queuedMsg);
+  mgmtFreeQueuedMsg(queuedMsg);
 }
 
 void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
@@ -134,6 +132,12 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
+  if (mgmtCheckRedirect(rpcMsg->handle)) {
+    // send resp in redirect func
+    rpcFreeCont(rpcMsg->pCont);
+    return;
+  }
+
   if (!mgmtInServerStatus()) {
     mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
@@ -142,6 +146,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
 
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_GRANT_EXPIRED);
+    rpcFreeCont(rpcMsg->pCont);
     return;
   }
 
@@ -151,45 +156,28 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  bool usePublicIp = false;
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, &usePublicIp);
-  if (pUser == NULL) {
+  SQueuedMsg *pMsg = mgmtMallocQueuedMsg(rpcMsg);
+  if (pMsg == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_USER);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
-
+  
   if (mgmtCheckMsgReadOnly(rpcMsg->msgType, rpcMsg->pCont)) {
-    SQueuedMsg queuedMsg = {0};
-    queuedMsg.thandle = rpcMsg->handle;
-    queuedMsg.msgType = rpcMsg->msgType;
-    queuedMsg.contLen = rpcMsg->contLen;
-    queuedMsg.pCont   = rpcMsg->pCont;
-    queuedMsg.pUser   = pUser;
-    queuedMsg.usePublicIp = usePublicIp;
-    (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(&queuedMsg);
-    mgmtDecUserRef(pUser);
-    rpcFreeCont(rpcMsg->pCont);
+    (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(pMsg);
+    mgmtFreeQueuedMsg(pMsg);
   } else {
-    SQueuedMsg *queuedMsg = calloc(1, sizeof(SQueuedMsg));
-    queuedMsg->thandle = rpcMsg->handle;
-    queuedMsg->msgType = rpcMsg->msgType;
-    queuedMsg->contLen = rpcMsg->contLen;
-    queuedMsg->pCont   = rpcMsg->pCont;
-    queuedMsg->pUser   = pUser;
-    queuedMsg->usePublicIp = usePublicIp;
-    mgmtAddToShellQueue(queuedMsg);
+    if (!pMsg->pUser->writeAuth) {
+      mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
+      mgmtFreeQueuedMsg(pMsg);
+    } else {
+      mgmtAddToShellQueue(pMsg);
+    }
   }
 }
 
 static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
   SCMShowMsg *pShowMsg = pMsg->pCont;
-  if (pShowMsg->type == TSDB_MGMT_TABLE_DNODE || TSDB_MGMT_TABLE_GRANTS || TSDB_MGMT_TABLE_SCORES) {
-    if (mgmtCheckRedirect(pMsg->thandle)) {
-      return;
-    }
-  }
-
   if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_MSG_TYPE);
     return;
