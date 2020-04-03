@@ -285,14 +285,16 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     pRes->rspType = rpcMsg->msgType;
     pRes->rspLen  = rpcMsg->contLen;
 
-    char *tmp = (char *)realloc(pRes->pRsp, pRes->rspLen);
-    if (tmp == NULL) {
-      pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    } else {
-      pRes->pRsp = tmp;
-      if (pRes->rspLen) {
+    if (pRes->rspLen > 0) {
+      char *tmp = (char *)realloc(pRes->pRsp, pRes->rspLen);
+      if (tmp == NULL) {
+        pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      } else {
+        pRes->pRsp = tmp;
         memcpy(pRes->pRsp, rpcMsg->pCont, pRes->rspLen);
       }
+    } else {
+      pRes->pRsp = NULL;
     }
 
     // ignore the error information returned from mnode when set ignore flag in sql

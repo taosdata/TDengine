@@ -124,7 +124,6 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   pSql->sqlstr = sqlstr;
 
   tsem_init(&pSql->rspSem, 0, 0);
-  tsem_init(&pSql->emptyRspSem, 0, 1);
 
   SSqlRes *pRes = &pSql->res;
   pRes->numOfRows = 1;

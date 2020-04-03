@@ -357,7 +357,6 @@ typedef struct SSqlObj {
   char              freed : 4;
   char              listed : 4;
   tsem_t            rspSem;
-  tsem_t            emptyRspSem;
   SSqlCmd           cmd;
   SSqlRes           res;
   uint8_t           numOfSubs;

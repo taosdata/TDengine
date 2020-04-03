@@ -51,17 +51,15 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("failed to malloc payload");
-    tfree(pSql);
     tscQueueAsyncError(fp, param);
     return;
   }
   
-  pSql->sqlstr = malloc(sqlLen + 1);
+  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     tscQueueAsyncError(fp, param);
     free(pCmd->payload);
-    free(pSql);
     return;
   }
   
@@ -412,7 +410,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     if (code != 0) {
       pRes->code = code;
       tscTrace("%p failed to renew tableMeta", pSql);
-      tsem_post(&pSql->rspSem);
+//      tsem_post(&pSql->rspSem);
     } else {
       tscTrace("%p renew tableMeta successfully, command:%d, code:%d, retry:%d",
           pSql, pSql->cmd.command, pSql->res.code, pSql->retry);
@@ -424,7 +422,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscSendMsgToServer(pSql);
       if (code != 0) {
         pRes->code = code;
-        tsem_post(&pSql->rspSem);
+//        tsem_post(&pSql->rspSem);
       }
     }
 

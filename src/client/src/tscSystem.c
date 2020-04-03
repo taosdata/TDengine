@@ -40,15 +40,10 @@ void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
 int     tsInsertHeadSize;
 
-extern int            tscEmbedded;
-int                   tscNumOfThreads;
-static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
-static pthread_mutex_t tscMutex;
+int tscNumOfThreads;
 
-extern int  tsTscEnableRecordSql;
-extern int  tsNumOfLogLines;
+static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
-void deltaToUtcInitOnce();
 
 void tscCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
@@ -60,7 +55,6 @@ int32_t tscInitRpc(const char *user, const char *secret) {
   char secretEncrypt[32] = {0};
   taosEncryptPass((uint8_t *)secret, strlen(secret), secretEncrypt);
 
-  pthread_mutex_lock(&tscMutex);
   if (pVnodeConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localIp = tsLocalIp;
@@ -78,7 +72,6 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     pVnodeConn = rpcOpen(&rpcInit);
     if (pVnodeConn == NULL) {
       tscError("failed to init connection to vnode");
-      pthread_mutex_unlock(&tscMutex);
       return -1;
     }
   }
@@ -100,12 +93,10 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     pTscMgmtConn = rpcOpen(&rpcInit);
     if (pTscMgmtConn == NULL) {
       tscError("failed to init connection to mgmt");
-      pthread_mutex_unlock(&tscMutex);
       return -1;
     }
   }
 
-  pthread_mutex_unlock(&tscMutex);
   return 0;
 }
 
@@ -113,7 +104,7 @@ void taos_init_imp() {
   char        temp[128];
   struct stat dirstat;
 
-  pthread_mutex_init(&tscMutex, NULL);
+  errno = TSDB_CODE_SUCCESS;
   srand(taosGetTimestampSec());
   deltaToUtcInitOnce();
 

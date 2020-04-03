@@ -215,7 +215,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pQueryInfo->numOfTables == 0) {
     pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
   } else {
-    pTableMetaInfo = &pQueryInfo->pTableMetaInfo[0];
+    pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
   }
 
   pCmd->command = pInfo->type;
