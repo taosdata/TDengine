@@ -96,6 +96,7 @@ void dnodeWrite(SRpcMsg *pMsg) {
     SMsgDesc *pDesc = (SMsgDesc *)pCont;
     pDesc->numOfVnodes = htonl(pDesc->numOfVnodes);
     pCont += sizeof(SMsgDesc);
+    leftLen -= sizeof(SMsgDesc);
     if (pDesc->numOfVnodes > 1) {
       pRpcContext = calloc(sizeof(SRpcContext), 1);
       pRpcContext->numOfVnodes = pDesc->numOfVnodes;
