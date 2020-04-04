@@ -872,17 +872,17 @@ static int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SSchema schema[]
     }
   }
 
-  pMsg->pDb = mgmtGetDbByTableId(pStable->info.tableId);
-  if (pMsg->pDb == NULL) {
-    mError("meter: %s not belongs to any database", pStable->info.tableId);
-    return TSDB_CODE_APP_ERROR;
-  }
+  // pMsg->pDb = mgmtGetDbByTableId(pStable->info.tableId);
+  // if (pMsg->pDb == NULL) {
+  //   mError("meter: %s not belongs to any database", pStable->info.tableId);
+  //   return TSDB_CODE_APP_ERROR;
+  // }
 
-  pMsg->pAcct = acctGetAcct(pMsg->pDb->cfg.acct);
-  if (pMsg->pAcct == NULL) {
-    mError("DB: %s not belongs to andy account", pMsg->pDb->name);
-    return TSDB_CODE_APP_ERROR;
-  }
+  // pMsg->pAcct = acctGetAcct(pMsg->pDb->cfg.acct);
+  // if (pMsg->pAcct == NULL) {
+  //   mError("DB: %s not belongs to andy account", pMsg->pDb->name);
+  //   return TSDB_CODE_APP_ERROR;
+  // }
 
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
   pStable->schema = realloc(pStable->schema, schemaSize + sizeof(SSchema) * ncols);
@@ -899,7 +899,7 @@ static int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SSchema schema[]
   pStable->numOfColumns += ncols;
   pStable->sversion++;
 
-  pMsg->pAcct->acctInfo.numOfTimeSeries += (ncols * pStable->numOfTables);
+  // pMsg->pAcct->acctInfo.numOfTimeSeries += (ncols * pStable->numOfTables);
   // sdbUpdateRow(tsSuperTableSdb, pStable, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
 
   return TSDB_CODE_SUCCESS;
@@ -911,17 +911,17 @@ static int32_t mgmtProcessDropSuperTableMsgColumnByName(SSuperTableObj *pStable,
     return TSDB_CODE_APP_ERROR;
   }
 
-  pMsg->pDb = mgmtGetDbByTableId(pStable->info.tableId);
-  if (pMsg->pDb == NULL) {
-    mError("meter: %s not belongs to any database", pStable->info.tableId);
-    return TSDB_CODE_APP_ERROR;
-  }
+  // pMsg->pDb = mgmtGetDbByTableId(pStable->info.tableId);
+  // if (pMsg->pDb == NULL) {
+  //   mError("meter: %s not belongs to any database", pStable->info.tableId);
+  //   return TSDB_CODE_APP_ERROR;
+  // }
 
-  pMsg->pAcct = acctGetAcct(pMsg->pDb->cfg.acct);
-  if (pMsg->pAcct == NULL) {
-    mError("DB: %s not belongs to andy account", pMsg->pDb->name);
-    return TSDB_CODE_APP_ERROR;
-  }
+  // pMsg->pAcct = acctGetAcct(pMsg->pDb->cfg.acct);
+  // if (pMsg->pAcct == NULL) {
+  //   mError("DB: %s not belongs to andy account", pMsg->pDb->name);
+  //   return TSDB_CODE_APP_ERROR;
+  // }
 
   memmove(pStable->schema + sizeof(SSchema) * col, pStable->schema + sizeof(SSchema) * (col + 1),
           sizeof(SSchema) * (pStable->numOfColumns + pStable->numOfTags - col - 1));
@@ -932,7 +932,7 @@ static int32_t mgmtProcessDropSuperTableMsgColumnByName(SSuperTableObj *pStable,
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
   pStable->schema = realloc(pStable->schema, schemaSize);
 
-  pMsg->pAcct->acctInfo.numOfTimeSeries -= (pStable->numOfTables);
+  // pMsg->pAcct->acctInfo.numOfTimeSeries -= (pStable->numOfTables);
   // sdbUpdateRow(tsSuperTableSdb, pStable, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
 
   return TSDB_CODE_SUCCESS;
