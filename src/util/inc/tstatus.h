@@ -62,6 +62,19 @@ enum _TSDB_VN_DROP_STATUS {
   TSDB_VN_DROP_STATUS_DROPPING
 };
 
+enum _TSDB_MN_STATUS {
+  TSDB_MN_STATUS_OFFLINE,
+  TSDB_MN_STATUS_UNSYNCED,
+  TSDB_MN_STATUS_SYNCING,
+  TSDB_MN_STATUS_SERVING
+};
+
+enum _TSDB_MN_ROLE {
+  TSDB_MN_ROLE_UNDECIDED,
+  TSDB_MN_ROLE_SLAVE,
+  TSDB_MN_ROLE_MASTER
+};
+
 enum _TSDB_DN_STATUS {
   TSDB_DN_STATUS_OFFLINE,
   TSDB_DN_STATUS_READY
@@ -104,6 +117,8 @@ char* taosGetVgroupLbStatusStr(int32_t vglbStatus);
 char* taosGetVnodeStreamStatusStr(int32_t vnodeStreamStatus);
 char* taosGetTableStatusStr(int32_t tableStatus);
 char *taosGetShowTypeStr(int32_t showType);
+char *taosGetMnodeStatusStr(int32_t mnodeStatus);
+char *taosGetMnodeRoleStr(int32_t mnodeRole);
 
 #ifdef __cplusplus
 }

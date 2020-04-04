@@ -285,14 +285,16 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     pRes->rspType = rpcMsg->msgType;
     pRes->rspLen  = rpcMsg->contLen;
 
-    char *tmp = (char *)realloc(pRes->pRsp, pRes->rspLen);
-    if (tmp == NULL) {
-      pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    } else {
-      pRes->pRsp = tmp;
-      if (pRes->rspLen) {
+    if (pRes->rspLen > 0) {
+      char *tmp = (char *)realloc(pRes->pRsp, pRes->rspLen);
+      if (tmp == NULL) {
+        pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      } else {
+        pRes->pRsp = tmp;
         memcpy(pRes->pRsp, rpcMsg->pCont, pRes->rspLen);
       }
+    } else {
+      pRes->pRsp = NULL;
     }
 
     // ignore the error information returned from mnode when set ignore flag in sql
@@ -327,7 +329,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     void *taosres = tscKeepConn[pCmd->command] ? pSql : NULL;
     rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
     
-    tscTrace("%p Async SQL result:%s res:%p", pSql, tstrerror(pRes->code), taosres);
+    tscTrace("%p Async SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
 
     /*
      * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
@@ -892,11 +894,6 @@ int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCMCreateDbMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_DB;
-
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
 
   SCMCreateDbMsg *pCreateDbMsg = (SCMCreateDbMsg*)pCmd->payload;
 

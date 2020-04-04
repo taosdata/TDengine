@@ -13,14 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <setjmp.h>
-
 #ifndef TDENGINE_TBUFFER_H
 #define TDENGINE_TBUFFER_H
 
+#include "setjmp.h"
+#include "os.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
 SBuffer can be used to read or write a buffer, but cannot be used for both
@@ -80,37 +81,33 @@ int main(int argc, char** argv) {
 */
 typedef struct {
   jmp_buf jb;
-  char* data;
-  size_t pos;
-  size_t size;
+  char*   data;
+  size_t  pos;
+  size_t  size;
 } SBuffer;
-
 
 // common functions can be used in both read & write
 #define tbufThrowError(buf, code) longjmp((buf)->jb, (code))
 size_t tbufTell(SBuffer* buf);
 size_t tbufSeekTo(SBuffer* buf, size_t pos);
 size_t tbufSkip(SBuffer* buf, size_t size);
-void tbufClose(SBuffer* buf, bool keepData);
-
+void   tbufClose(SBuffer* buf, bool keepData);
 
 // basic read functions
-#define tbufBeginRead(buf, data, len) (((buf)->data = (char*)data), ((buf)->pos = 0), ((buf)->size = ((data) == NULL) ? 0 : (len)), setjmp((buf)->jb))
-char* tbufRead(SBuffer* buf, size_t size);
-void tbufReadToBuffer(SBuffer* buf, void* dst, size_t size);
+#define tbufBeginRead(buf, _data, len) ((buf)->data = (char*)(_data), ((buf)->pos = 0), ((buf)->size = ((_data) == NULL) ? 0 : (len)), setjmp((buf)->jb))
+char*       tbufRead(SBuffer* buf, size_t size);
+void        tbufReadToBuffer(SBuffer* buf, void* dst, size_t size);
 const char* tbufReadString(SBuffer* buf, size_t* len);
-size_t tbufReadToString(SBuffer* buf, char* dst, size_t size);
-
+size_t      tbufReadToString(SBuffer* buf, char* dst, size_t size);
 
 // basic write functions
 #define tbufBeginWrite(buf) ((buf)->data = NULL, ((buf)->pos = 0), ((buf)->size = 0), setjmp((buf)->jb))
-void tbufEnsureCapacity(SBuffer* buf, size_t size);
+void  tbufEnsureCapacity(SBuffer* buf, size_t size);
 char* tbufGetData(SBuffer* buf, bool takeOver);
-void tbufWrite(SBuffer* buf, const void* data, size_t size);
-void tbufWriteAt(SBuffer* buf, size_t pos, const void* data, size_t size);
-void tbufWriteStringLen(SBuffer* buf, const char* str, size_t len);
-void tbufWriteString(SBuffer* buf, const char* str);
-
+void  tbufWrite(SBuffer* buf, const void* data, size_t size);
+void  tbufWriteAt(SBuffer* buf, size_t pos, const void* data, size_t size);
+void  tbufWriteStringLen(SBuffer* buf, const char* str, size_t len);
+void  tbufWriteString(SBuffer* buf, const char* str);
 
 // read & write function for primitive types
 #ifndef TBUFFER_DEFINE_FUNCTION
@@ -120,17 +117,21 @@ void tbufWriteString(SBuffer* buf, const char* str);
   void tbufWrite##name##At(SBuffer* buf, size_t pos, type data);
 #endif
 
-TBUFFER_DEFINE_FUNCTION( bool, Bool )
-TBUFFER_DEFINE_FUNCTION( char, Char )
-TBUFFER_DEFINE_FUNCTION( int8_t, Int8 )
-TBUFFER_DEFINE_FUNCTION( uint8_t, Unt8 )
-TBUFFER_DEFINE_FUNCTION( int16_t, Int16 )
-TBUFFER_DEFINE_FUNCTION( uint16_t, Uint16 )
-TBUFFER_DEFINE_FUNCTION( int32_t, Int32 )
-TBUFFER_DEFINE_FUNCTION( uint32_t, Uint32 )
-TBUFFER_DEFINE_FUNCTION( int64_t, Int64 )
-TBUFFER_DEFINE_FUNCTION( uint64_t, Uint64 )
-TBUFFER_DEFINE_FUNCTION( float, Float )
-TBUFFER_DEFINE_FUNCTION( double, Double )
+TBUFFER_DEFINE_FUNCTION(bool, Bool)
+TBUFFER_DEFINE_FUNCTION(char, Char)
+TBUFFER_DEFINE_FUNCTION(int8_t, Int8)
+TBUFFER_DEFINE_FUNCTION(uint8_t, Unt8)
+TBUFFER_DEFINE_FUNCTION(int16_t, Int16)
+TBUFFER_DEFINE_FUNCTION(uint16_t, Uint16)
+TBUFFER_DEFINE_FUNCTION(int32_t, Int32)
+TBUFFER_DEFINE_FUNCTION(uint32_t, Uint32)
+TBUFFER_DEFINE_FUNCTION(int64_t, Int64)
+TBUFFER_DEFINE_FUNCTION(uint64_t, Uint64)
+TBUFFER_DEFINE_FUNCTION(float, Float)
+TBUFFER_DEFINE_FUNCTION(double, Double)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -424,6 +424,28 @@ static SDataBlockInfo getTrueDataBlockInfo(STsdbQueryHandle* pHandle, STableChec
 SArray *getDefaultLoadColumns(STsdbQueryHandle *pQueryHandle, bool loadTS);
 static void filterDataInDataBlock(STsdbQueryHandle *pQueryHandle, SDataCols* pCols, SArray *sa);
 
+static bool doLoadDataFromFileBlock(STsdbQueryHandle *pQueryHandle) {
+  SQueryFilePos *cur = &pQueryHandle->cur;
+  
+  STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
+  SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
+  
+  SCompData* data = calloc(1, sizeof(SCompData)+ sizeof(SCompCol)*pBlock->numOfCols);
+  
+  data->numOfCols = pBlock->numOfCols;
+  data->uid = pCheckInfo->pTableObj->tableId.uid;
+  
+  pCheckInfo->pDataCols = tdNewDataCols(1000, 2, 4096);
+  tdInitDataCols(pCheckInfo->pDataCols, pCheckInfo->pTableObj->schema);
+  
+  SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
+  if (pFile->fd == FD_INITIALIZER) {
+    pFile->fd = open(pFile->fname, O_RDONLY);
+  }
+  
+  tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data);
+}
+
 static bool loadQualifiedDataFromFileBlock(STsdbQueryHandle *pQueryHandle) {
   SQueryFilePos *cur = &pQueryHandle->cur;
   
@@ -432,31 +454,18 @@ static bool loadQualifiedDataFromFileBlock(STsdbQueryHandle *pQueryHandle) {
   
   SArray *sa = getDefaultLoadColumns(pQueryHandle, true);
   if (QUERY_IS_ASC_QUERY(pQueryHandle->order)) {
+    
+    // query ended in current block
     if (pQueryHandle->window.ekey < pBlock->keyLast) {
-      SCompData*  data = calloc(1, sizeof(SCompData)+ sizeof(SCompCol)*pBlock->numOfCols);
-  
-      data->numOfCols = pBlock->numOfCols;
-      data->uid = pCheckInfo->pTableObj->tableId.uid;
-  
-      pCheckInfo->pDataCols = tdNewDataCols(1000, 2, 4096);
-      tdInitDataCols(pCheckInfo->pDataCols, pCheckInfo->pTableObj->schema);
-  
-      SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
-      if (pFile->fd == FD_INITIALIZER) {
-        pFile->fd = open(pFile->fname, O_RDONLY);
-      }
-  
-      if (tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data) == 0) {
-        //do something
-      }
+      doLoadDataFromFileBlock(pQueryHandle);
+      filterDataInDataBlock(pQueryHandle, pCheckInfo->pDataCols, sa);
     }
-  } else {
+  } else {// todo desc query
     if (pQueryHandle->window.ekey > pBlock->keyFirst) {
-//      loadDataBlockIntoMem_(pQueryHandle, pBlock, &pQueryHandle->pFields[cur->slot], cur->fileId, sa);
+//
     }
   }
   
-  filterDataInDataBlock(pQueryHandle, pCheckInfo->pDataCols, sa);
   return pQueryHandle->realNumOfRows > 0;
 }
 
@@ -508,7 +517,7 @@ bool moveToNextBlock(STsdbQueryHandle *pQueryHandle, int32_t step) {
       // next block in the same file
       cur->slot += step;
 
-      SCompBlock* pBlock = &pQueryHandle->pBlock[cur->slot];
+      SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
       cur->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pBlock->numOfPoints - 1;
       return loadQualifiedDataFromFileBlock(pQueryHandle);
     }
@@ -736,11 +745,22 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   int32_t index = -1;
 
   int32_t tid = pCheckInfo->tableId.tid;
-  SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
   
-  while (1) {
+  while (pCheckInfo->pFileGroup != NULL) {
     if ((fid = getFileCompInfo(pCheckInfo, pCheckInfo->pFileGroup)) < 0) {
       break;
+    }
+  
+    SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
+  
+    // no data block in current file, try next
+    if (pCheckInfo->compIndex[tid].numOfSuperBlocks == 0) {
+      dTrace("QInfo:%p no data block in file, fid:%d, tid:%d, try next", pQueryHandle->qinfo,
+          pCheckInfo->pFileGroup->fileId, tid);
+      
+      pCheckInfo->pFileGroup = tsdbGetFileGroupNext(&pCheckInfo->fileIter);
+  
+      continue;
     }
     
     index = binarySearchForBlockImpl(pCheckInfo->pCompInfo->blocks, pCheckInfo->compIndex[tid].numOfSuperBlocks, pQueryHandle->order, key);
@@ -769,12 +789,11 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   
   // load first data block into memory failed, caused by disk block error
   bool    blockLoaded = false;
-  SArray *sa = NULL;
+  SArray *sa = getDefaultLoadColumns(pQueryHandle, true);
   
   // todo no need to loaded at all
   cur->slot = index;
   
-  sa = getDefaultLoadColumns(pQueryHandle, true);
   SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
   SCompData*  data = calloc(1, sizeof(SCompData)+ sizeof(SCompCol)*pBlock->numOfCols);
   
@@ -784,6 +803,7 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   pCheckInfo->pDataCols = tdNewDataCols(1000, 2, 4096);
   tdInitDataCols(pCheckInfo->pDataCols, pCheckInfo->pTableObj->schema);
   
+  SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
   if (pFile->fd == FD_INITIALIZER) {
     pFile->fd = open(pFile->fname, O_RDONLY);
   }
@@ -973,11 +993,16 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
     STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
     
     SDataBlockInfo binfo = getTrueDataBlockInfo(pHandle, pCheckInfo);
-    if (pHandle->realNumOfRows <= binfo.size) {
+    assert(pHandle->realNumOfRows <= binfo.size);
+    
+    if (pHandle->realNumOfRows < binfo.size) {
       return pHandle->pColumns;
     } else {
-      // todo do load data block
-      assert(0);
+      SArray *sa = getDefaultLoadColumns(pHandle, true);
+  
+      doLoadDataFromFileBlock(pHandle);
+      filterDataInDataBlock(pHandle, pCheckInfo->pDataCols, sa);
+      return pHandle->pColumns;
     }
   }
 }
@@ -1197,7 +1222,7 @@ static void getTagColumnInfo(SSyntaxTreeFilterSupporter* pSupporter, SSchema* pS
 }
 
 void filterPrepare(void* expr, void* param) {
-  tSQLSyntaxNode *pExpr = (tSQLSyntaxNode*) expr;
+  tExprNode *pExpr = (tExprNode*) expr;
   if (pExpr->_node.info != NULL) {
     return;
   }
@@ -1276,7 +1301,7 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond) {
   STColumn* stcol = schemaColAt(pSTable->tagSchema, 0);
   
-  tSQLSyntaxNode* pExpr = NULL;
+  tExprNode* pExpr = NULL;
   tSQLBinaryExprFromString(&pExpr, stcol, schemaNCols(pSTable->tagSchema), pCond, strlen(pCond));
   
   // failed to build expression, no result, return immediately
@@ -1297,7 +1322,7 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond
   };
   
   tSQLBinaryExprTraverse(pExpr, pSTable->pIndex, pRes, &supp);
-  tSQLBinaryExprDestroy(&pExpr, tSQLListTraverseDestroyInfo);
+  tExprTreeDestroy(&pExpr, tSQLListTraverseDestroyInfo);
   
   tansformQueryResult(pRes);
   

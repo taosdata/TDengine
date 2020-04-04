@@ -136,3 +136,22 @@ char *taosGetShowTypeStr(int32_t showType) {
     default:                      return "undefined";
   }
 }
+
+char *taosGetMnodeStatusStr(int32_t mnodeStatus) {
+  switch (mnodeStatus) {
+    case TSDB_MN_STATUS_OFFLINE:   return "offline";
+    case TSDB_MN_STATUS_UNSYNCED:  return "unsynced";
+    case TSDB_MN_STATUS_SYNCING:   return "syncing";
+    case TSDB_MN_STATUS_SERVING:   return "serving";
+    default:                       return "undefined";
+  }
+}
+
+char *taosGetMnodeRoleStr(int32_t mnodeRole) {
+  switch (mnodeRole) {
+    case TSDB_MN_ROLE_UNDECIDED: return "undicided";
+    case TSDB_MN_ROLE_SLAVE:     return "slave";
+    case TSDB_MN_ROLE_MASTER:    return "master";
+    default:                     return "undefined";
+  }
+}

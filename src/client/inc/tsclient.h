@@ -357,7 +357,6 @@ typedef struct SSqlObj {
   char              freed : 4;
   char              listed : 4;
   tsem_t            rspSem;
-  tsem_t            emptyRspSem;
   SSqlCmd           cmd;
   SSqlRes           res;
   uint8_t           numOfSubs;
@@ -409,7 +408,7 @@ int  tscProcessSql(SSqlObj *pSql);
 int  tscRenewMeterMeta(SSqlObj *pSql, char *tableId);
 void tscQueueAsyncRes(SSqlObj *pSql);
 
-void tscQueueAsyncError(void(*fp), void *param);
+void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 
 int tscProcessLocalCmd(SSqlObj *pSql);
 int tscCfgDynamicOptions(char *msg);
@@ -450,7 +449,7 @@ void tscFreeSqlObj(SSqlObj *pObj);
 
 void tscCloseTscObj(STscObj *pObj);
 
-void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, int32_t sqlLen);
+void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen);
 
 void tscProcessMultiVnodesInsert(SSqlObj *pSql);
 void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);

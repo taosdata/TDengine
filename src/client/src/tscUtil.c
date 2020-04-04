@@ -469,7 +469,7 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   pSql->freed = 0;
   tscFreeSqlCmdData(pCmd);
   
-  tscTrace("%p free sqlObj partial completed", pSql);
+  tscTrace("%p partially free sqlObj completed", pSql);
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
@@ -487,8 +487,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tfree(pCmd->payload);
 
   pCmd->allocSize = 0;
-
-  tsem_destroy(&pSql->rspSem);
   free(pSql);
 }
 
@@ -820,7 +818,9 @@ void tscCloseTscObj(STscObj* pObj) {
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 
+  sem_destroy(&pSql->rspSem);
   pthread_mutex_destroy(&pObj->mutex);
+  
   tscTrace("%p DB connection is closed", pObj);
   tfree(pObj);
 }
@@ -842,10 +842,9 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
   if (pCmd->payload == NULL) {
     assert(pCmd->allocSize == 0);
 
-    pCmd->payload = (char*)malloc(size);
+    pCmd->payload = (char*)calloc(1, size);
     if (pCmd->payload == NULL) return TSDB_CODE_CLI_OUT_OF_MEMORY;
     pCmd->allocSize = size;
-    memset(pCmd->payload, 0, pCmd->allocSize);
   } else {
     if (pCmd->allocSize < size) {
       char* b = realloc(pCmd->payload, size);
@@ -853,6 +852,8 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
       pCmd->payload = b;
       pCmd->allocSize = size;
     }
+    
+    memset(pCmd->payload, 0, pCmd->payloadLen);
   }
 
   //memset(pCmd->payload, 0, pCmd->allocSize);
@@ -1105,7 +1106,7 @@ void tscClearFieldInfo(SFieldInfo* pFieldInfo) {
   
   for(int32_t i = 0; i < pFieldInfo->numOfOutputCols; ++i) {
     if (pFieldInfo->pExpr[i] != NULL) {
-      tSQLBinaryExprDestroy(&pFieldInfo->pExpr[i]->binExprInfo.pBinExpr, NULL);
+      tExprTreeDestroy(&pFieldInfo->pExpr[i]->binExprInfo.pBinExpr, NULL);
       tfree(pFieldInfo->pExpr[i]->binExprInfo.pReqColumns);
       tfree(pFieldInfo->pExpr[i]);
     }
@@ -1742,7 +1743,7 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
   }
 
   STscObj* pTscObj = pSql->pTscObj;
-  if (pSql->pStream != NULL || pTscObj->pHb == pSql) {
+  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pTscObj->pSql == pSql) {
     return false;
   }
 
@@ -1929,7 +1930,6 @@ STableMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
-//  pTableMetaInfo->pMetricMeta = pMetricMeta;
   pTableMetaInfo->numOfTags = numOfTags;
 
   if (tags != NULL) {
@@ -1963,7 +1963,7 @@ void doRemoveMeterMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFro
 }
 
 void tscRemoveAllMeterMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
-  tscTrace("%p deref the metric/meter meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
+  tscTrace("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
 
   int32_t index = pQueryInfo->numOfTables;
   while (index >= 0) {
