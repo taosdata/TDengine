@@ -271,7 +271,11 @@ static void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSqlObj *pSql = ((STscObj *)param)->pSql;
   
-  pSql->res.code = code;
+  // valid error code is less than 0
+  if (code < 0) {
+    pSql->res.code = code;
+  }
+  
   sem_post(&pSql->rspSem);
 }
 
