@@ -221,10 +221,9 @@ void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *)) {
 void taosVisitIntHashWithFp(void *handle, int (*fp)(char *, void *), void *param) {
   IHashObj * pObj;
   IHashNode *pNode, *pNext;
-  char *     pData = NULL;
 
   pObj = (IHashObj *)handle;
-  if (pObj == NULL || pObj->maxSessions <= 0) return NULL;
+  if (pObj == NULL || pObj->maxSessions <= 0) return;
 
   pthread_mutex_lock(&pObj->mutex);
 
@@ -245,11 +244,10 @@ void taosVisitIntHashWithFp(void *handle, int (*fp)(char *, void *), void *param
 int32_t taosGetIntHashSize(void *handle) {
   IHashObj * pObj;
   IHashNode *pNode, *pNext;
-  char *     pData = NULL;
   int32_t    num = 0;
 
   pObj = (IHashObj *)handle;
-  if (pObj == NULL || pObj->maxSessions <= 0) return NULL;
+  if (pObj == NULL || pObj->maxSessions <= 0) return 0;
 
   pthread_mutex_lock(&pObj->mutex);
 
