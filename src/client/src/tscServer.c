@@ -1225,7 +1225,6 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCreateTableSQL *pCreateTable = pInfo->pCreateTableInfo;
 
   pCreateTableMsg->igExists = pCreateTable->existCheck ? 1 : 0;
-
   pCreateTableMsg->numOfColumns = htons(pCmd->numOfCols);
   pCreateTableMsg->numOfTags = htons(pCmd->count);
 

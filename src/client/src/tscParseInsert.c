@@ -1291,7 +1291,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   return doParseInsertSql(pSql, pSql->sqlstr + index);
 }
 
-int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
+int tsParseSql(SSqlObj *pSql, bool initalParse) {
   int32_t ret = TSDB_CODE_SUCCESS;
   tscTrace("continue parse sql: %s", pSql->asyncTblPos);
   
@@ -1301,7 +1301,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
      * Set the fp before parse the sql string, in case of getmetermeta failed, in which
      * the error handle callback function can rightfully restore the user defined function (fp)
      */
-    if (pSql->fp != NULL && multiVnodeInsertion) {
+    if (pSql->fp != NULL && initalParse) {
       pSql->fetchFp = pSql->fp;
 
       // replace user defined callback function with multi-insert proxy function
@@ -1311,7 +1311,13 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
     ret = tsParseInsertSql(pSql);
   } else {
     ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
-    if (TSDB_CODE_SUCCESS != ret) return ret;
+    if (TSDB_CODE_SUCCESS != ret) {
+      return ret;
+    }
+    
+    if (initalParse) {
+      tscFreeSqlCmdData(&pSql->cmd);
+    }
 
     SSqlInfo SQLInfo = {0};
     tSQLParse(&SQLInfo, pSql->sqlstr);
