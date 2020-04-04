@@ -1070,14 +1070,14 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * interrupted position.
        */
       if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
-        tscTrace("async insert and waiting to get meter meta, then continue parse sql from offset: %" PRId64, pos);
+        tscTrace("%p waiting for get table meta during insert, then resume from offset: %" PRId64 " , %s", pSql,
+            pos, pSql->asyncTblPos);
         return code;
       }
       
       // todo add to return
-      tscError("async insert parse error, code:%d, %s", code, tstrerror(code));
+      tscError("%p async insert parse error, code:%d, %s", pSql, code, tstrerror(code));
       pSql->asyncTblPos = NULL;
-      
       goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
     }
 

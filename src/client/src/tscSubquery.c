@@ -279,7 +279,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     assert(pSubQueryInfo->exprsInfo.numOfExprs == 1); // ts_comp query only requires one resutl columns
     taos_free_result(pPrevSub);
   
-    SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, NULL);
+    SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, TSDB_SQL_SELECT, pSupporter, NULL);
     if (pNew == NULL) {
       tscDestroyJoinSupporter(pSupporter);
       success = false;
@@ -834,7 +834,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     }
   }
   
-  SSqlObj *pNew = createSubqueryObj(pSql, tableIndex, tscJoinQueryCallback, pSupporter, NULL);
+  SSqlObj *pNew = createSubqueryObj(pSql, tableIndex, tscJoinQueryCallback, TSDB_SQL_SELECT, pSupporter, NULL);
   if (pNew == NULL) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
@@ -1386,7 +1386,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
 static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj) {
   const int32_t table_index = 0;
   
-  SSqlObj *pNew = createSubqueryObj(pSql, table_index, tscRetrieveDataRes, trsupport, prevSqlObj);
+  SSqlObj *pNew = createSubqueryObj(pSql, table_index, tscRetrieveDataRes, trsupport, TSDB_SQL_SELECT, prevSqlObj);
   if (pNew != NULL) {  // the sub query of two-stage super table query
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_SUBQUERY;
@@ -1545,7 +1545,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     pSupporter->pSql = pSql;
     pSupporter->pState = pState;
     
-    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertMerge, pSupporter, NULL);
+    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertMerge, pSupporter, TSDB_SQL_INSERT, NULL);
     if (pNew == NULL) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
       break;
@@ -1563,7 +1563,6 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   
   for (int32_t j = 0; j < pSql->numOfSubs; ++j) {
     SSqlObj *pSub = pSql->pSubs[j];
-    pSub->cmd.command = TSDB_SQL_INSERT;
     int32_t code = tscCopyDataBlockToPayload(pSub, pDataBlocks->pData[j]);
     
     if (code != TSDB_CODE_SUCCESS) {

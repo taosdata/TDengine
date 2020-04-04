@@ -392,9 +392,9 @@ typedef struct SSqlFuncExprMsg {
 } SSqlFuncExprMsg;
 
 typedef struct SSqlBinaryExprInfo {
-  struct tSQLBinaryExpr *pBinExpr;    /*  for binary expression */
-  int32_t                numOfCols;   /*  binary expression involves the readed number of columns*/
-  SColIndexEx *          pReqColumns; /*  source column list */
+  struct tExprNode *pBinExpr;    /*  for binary expression */
+  int32_t           numOfCols;   /*  binary expression involves the readed number of columns*/
+  SColIndexEx *     pReqColumns; /*  source column list */
 } SSqlBinaryExprInfo;
 
 typedef struct SSqlFunctionExpr {

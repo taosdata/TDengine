@@ -450,10 +450,10 @@ void *taosCacheAcquireByName(SCacheObj *pCacheObj, const char *key) {
   
   if (ptNode != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    pTrace("key:%s is retrieved from cache,refcnt:%d", key, T_REF_VAL_GET(*ptNode));
+    pTrace("key:%s is retrieved from cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    pTrace("key:%s not in cache,retrieved failed", key);
+    pTrace("key:%s not in cache, retrieved failed", key);
   }
   
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
@@ -472,7 +472,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   }
   
   int32_t ref = T_REF_INC(ptNode);
-  pTrace("%p addedTime ref data in cache, refCnt:%d", data, ref)
+  pTrace("%p add data ref in cache, refcnt:%d", ptNode, ref)
   
   // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
   assert(ref >= 2);
@@ -515,17 +515,15 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   }
   
   *data = NULL;
+  int16_t ref = T_REF_DEC(pNode);
+  pTrace("%p is released, refcnt:%d", pNode, ref);
   
   if (_remove) {
     __cache_wr_lock(pCacheObj);
     // pNode may be released immediately by other thread after the reference count of pNode is set to 0,
     // So we need to lock it in the first place.
-    T_REF_DEC(pNode);
     taosCacheMoveToTrash(pCacheObj, pNode);
-    
     __cache_unlock(pCacheObj);
-  } else {
-    T_REF_DEC(pNode);
   }
 }
 

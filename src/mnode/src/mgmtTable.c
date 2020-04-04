@@ -1191,7 +1191,7 @@ static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableOb
     return NULL;
   }
 
-  memcpy(pCreate->tableId, pTable->info.tableId, TSDB_TABLE_ID_LEN + 1);
+  memcpy(pCreate->tableId, pTable->info.tableId, TSDB_TABLE_ID_LEN);
   pCreate->contLen       = htonl(contLen);
   pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->info.type;
@@ -1318,7 +1318,7 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
     return NULL;
   }
 
-  mTrace("table:%s, create ctable in vgroup, uid:%" PRIu64 , pTable->info.tableId, pTable->uid);
+  mTrace("table:%s, create table in vgroup, id:%d, uid:%" PRIu64 , pTable->info.tableId, pTable->sid, pTable->uid);
   return pTable;
 }
 
@@ -1639,7 +1639,7 @@ void mgmtGetChildTableMeta(SQueuedMsg *pMsg) {
         return;
       }
       memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
-      strcpy(pCreateMsg->tableId, pInfo->tableId);
+      strncpy(pCreateMsg->tableId, pInfo->tableId, tListLen(pInfo->tableId));
 
       SQueuedMsg *newMsg = malloc(sizeof(SQueuedMsg));
       memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
