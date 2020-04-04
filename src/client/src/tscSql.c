@@ -267,25 +267,25 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   return pRes->code;
 }
 
-static void syncQueryCallback(void *param, TAOS_RES *tres, int code) {
+static void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
-  STscObj *pObj = (STscObj *)param;
+  SSqlObj *pSql = ((STscObj *)param)->pSql;
   
-  assert(pObj->pSql != NULL);
-  sem_post(&pObj->pSql->rspSem);
+  pSql->res.code = code;
+  sem_post(&pSql->rspSem);
 }
 
 int taos_query(TAOS *taos, const char *sqlstr) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
   
   SSqlObj* pSql = pObj->pSql;
   
-  int32_t sqlLen = strlen(sqlstr);
-  doAsyncQuery(pObj, pObj->pSql, syncQueryCallback, taos, sqlstr, sqlLen);
+  size_t sqlLen = strlen(sqlstr);
+  doAsyncQuery(pObj, pObj->pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   // wait for the callback function to post the semaphore
   sem_wait(&pSql->rspSem);
@@ -643,7 +643,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
   return pRes->tsrow;
 }
 
-static void asyncFetchCallback(void *param, TAOS_RES *tres, int numOfRows) {
+static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
   
   if (numOfRows < 0) { // set the error code
@@ -671,7 +671,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   // current data are exhausted, fetch more data
   if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows && pRes->completed != true &&
       (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_METRIC || pCmd->command == TSDB_SQL_FETCH))) {
-    taos_fetch_rows_a(res, asyncFetchCallback, pSql->pTscObj);
+    taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     
     sem_wait(&pSql->rspSem);
   }
@@ -848,21 +848,16 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
 void taos_free_result(TAOS_RES *res) { taos_free_result_imp(res, 0); }
 
+// todo should not be used in async query
 int taos_errno(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
-  int      code;
 
-  if (pObj == NULL || pObj->signature != pObj) return globalCode;
+  if (pObj == NULL || pObj->signature != pObj) {
+    return terrno;
+  }
 
-  if ((int8_t)(pObj->pSql->res.code) == -1)
-    code = TSDB_CODE_OTHERS;
-  else
-    code = pObj->pSql->res.code;
-
-  return code;
+  return pObj->pSql->res.code;
 }
-
-//static bool validErrorCode(int32_t code) { return code >= TSDB_CODE_SUCCESS && code < TSDB_CODE_MAX_ERROR_CODE; }
 
 /*
  * In case of invalid sql error, additional information is attached to explain
@@ -883,6 +878,7 @@ static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
   return z != NULL;
 }
 
+// todo should not be used in async model
 char *taos_errstr(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
 
