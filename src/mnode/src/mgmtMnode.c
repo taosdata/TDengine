@@ -15,119 +15,79 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
+#include "tstatus.h"
 #include "trpc.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
+#include "mgmtShell.h"
 #include "mgmtUser.h"
 
-int32_t (*mpeerAddMnodeFp)(uint32_t privateIp, uint32_t publicIp) = NULL;
-int32_t (*mpeerRemoveMnodeFp)(uint32_t privateIp) = NULL;
-int32_t (*mpeerGetMnodesNumFp)() = NULL;
-void *  (*mpeerGetNextMnodeFp)(SShowObj *pShow, SMnodeObj **pMnode) = NULL;
-int32_t (*mpeerInitMnodesFp)() = NULL;
-void    (*mpeerCleanUpMnodesFp)() = NULL;
+#ifndef _MPEER
 
 static SMnodeObj tsMnodeObj = {0};
-static bool tsMnodeIsMaster = false;
-static bool tsMnodeIsServing = false;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static char *mgmtMnodeStatusStr[] = {
-  "offline",
-  "unsynced",
-  "syncing",
-  "serving",
-  "null"
-};
-
-static char *mgmtMnodeRoleStr[] = {
-  "unauthed",
-  "undecided",
-  "master",
-  "slave",
-  "null"
-};
-
 int32_t mgmtInitMnodes() {
-  if (mpeerInitMnodesFp) {
-    return (*mpeerInitMnodesFp)();
-  } else {
-    tsMnodeIsServing = true;
-    tsMnodeIsMaster = true;
-    return 0;
-  }
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
+
+  tsMnodeObj.mnodeId     = 1;
+  tsMnodeObj.privateIp   = inet_addr(tsPrivateIp);
+  tsMnodeObj.publicIp    = inet_addr(tsPublicIp);
+  tsMnodeObj.createdTime = taosGetTimestampMs();
+  tsMnodeObj.role        = TSDB_MN_ROLE_MASTER;
+  tsMnodeObj.status      = TSDB_MN_STATUS_SERVING;
+  tsMnodeObj.numOfMnodes = 1;
+  sprintf(tsMnodeObj.mnodeName, "%d", tsMnodeObj.mnodeId);
+
+  return TSDB_CODE_SUCCESS;
 }
 
-void mgmtCleanupMnodes() {
-  if (mpeerCleanUpMnodesFp) {
-    (*mpeerCleanUpMnodesFp)();
-  }
-}
-
-bool mgmtInServerStatus() {
-  return tsMnodeIsServing; 
-}
-   
-bool mgmtIsMaster() { 
-  return tsMnodeIsMaster; 
-}
-
-bool mgmtCheckRedirect(void *handle) {
-  return false;
-}
-
-int32_t mgmtAddMnode(uint32_t privateIp, uint32_t publicIp) {
-  if (mpeerAddMnodeFp) {
-    return (*mpeerAddMnodeFp)(privateIp, publicIp);
-  } else {
-    return 0;
-  }
-}
-
-int32_t mgmtRemoveMnode(uint32_t privateIp) {
-  if (mpeerRemoveMnodeFp) {
-    return (*mpeerRemoveMnodeFp)(privateIp);
-  } else {
-    return 0;
-  }
-}
+void mgmtCleanupMnodes() {}
+bool mgmtInServerStatus() { return tsMnodeObj.status == TSDB_MN_STATUS_SERVING; }
+bool mgmtIsMaster() { return tsMnodeObj.role == TSDB_MN_ROLE_MASTER; }
+bool mgmtCheckRedirect(void *handle) { return false; }
 
 static int32_t mgmtGetMnodesNum() {
-  if (mpeerGetMnodesNumFp) {
-    return (*mpeerGetMnodesNumFp)();
-  } else {
-    return 1;
-  }
+  return 1;
 }
 
-static void *mgmtGetNextMnode(SShowObj *pShow, SMnodeObj **pMnode) {
-  if (mpeerGetNextMnodeFp) {
-    return (*mpeerGetNextMnodeFp)(pShow, pMnode);
+static void *mgmtGetNextMnode(void *pNode, SMnodeObj **pMnode) {
+  if (*pMnode == NULL) {
+    *pMnode = &tsMnodeObj;
   } else {
-    if (*pMnode == NULL) {
-      *pMnode = &tsMnodeObj;
-    } else {
-      *pMnode = NULL;
-    }
+    *pMnode = NULL;
   }
 
   return *pMnode;
 }
 
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  int32_t cols = 0;
-
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
+  int32_t  cols = 0;
   SSchema *pSchema = pMeta->schema;
+
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "id");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
   pShow->bytes[cols] = 16;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "private ip");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 16;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "public ip");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -149,12 +109,6 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 16;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "public ip");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
@@ -163,7 +117,7 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = mgmtGetMnodesNum();
+  pShow->numOfRows = mgmtGetDnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
 
@@ -171,19 +125,28 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 }
 
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t  numOfRows = 0;
-  int32_t  cols      = 0;
+  int32_t    numOfRows = 0;
+  int32_t    cols      = 0;
   SMnodeObj *pMnode   = NULL;
-  char     *pWrite;
-  char     ipstr[32];
+  char      *pWrite;
+  char       ipstr[32];
 
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextMnode(pShow, (SMnodeObj **)&pMnode);
+    pShow->pNode = mgmtGetNextMnode(pShow->pNode, (SMnodeObj **)&pMnode);
     if (pMnode == NULL) break;
 
     cols = 0;
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = pMnode->mnodeId;
+    cols++;
+
     tinet_ntoa(ipstr, pMnode->privateIp);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strcpy(pWrite, ipstr);
+    cols++;
+
+    tinet_ntoa(ipstr, pMnode->publicIp);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     strcpy(pWrite, ipstr);
     cols++;
@@ -193,16 +156,11 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mgmtMnodeStatusStr[pMnode->status]);
+    strcpy(pWrite, taosGetMnodeStatusStr(pMnode->status));
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mgmtMnodeRoleStr[pMnode->role]);
-    cols++;
-
-    tinet_ntoa(ipstr, pMnode->publicIp);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, ipstr);
+     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strcpy(pWrite, taosGetMnodeRoleStr(pMnode->role));
     cols++;
 
     numOfRows++;
@@ -216,12 +174,14 @@ void mgmtGetMnodePrivateIpList(SRpcIpSet *ipSet) {
   ipSet->inUse = 0;
   ipSet->port = htons(tsMnodeDnodePort);
   ipSet->numOfIps = 1;
-  ipSet->ip[0] = htonl(inet_addr(tsMasterIp));
+  ipSet->ip[0] = htonl(tsMnodeObj.privateIp);
 }
 
 void mgmtGetMnodePublicIpList(SRpcIpSet *ipSet) {
   ipSet->inUse = 0;
   ipSet->port = htons(tsMnodeDnodePort);
   ipSet->numOfIps = 1;
-  ipSet->ip[0] = htonl(inet_addr(tsMasterIp));
+  ipSet->ip[0] = htonl(tsMnodeObj.publicIp);
 }
+
+#endif

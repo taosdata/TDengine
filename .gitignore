@@ -12,6 +12,7 @@ rpms/
 mac/
 *.pyc
 *.tmp
+*.swp
 src/connector/nodejs/node_modules/
 src/connector/nodejs/out/
 tests/test/

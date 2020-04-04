@@ -52,6 +52,14 @@ static int32_t mgmtVgroupActionDestroy(SSdbOperDesc *pOper) {
   if (pVgroup->tableList) {
     tfree(pVgroup->tableList);
   }
+
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
+    if (pDnode) {
+      atomic_sub_fetch_32(&pDnode->openVnodes, 1);
+    }
+  }
+
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
@@ -87,6 +95,7 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
     pVgroup->vnodeGid[i].privateIp = pDnode->privateIp;
     pVgroup->vnodeGid[i].publicIp = pDnode->publicIp;
     pVgroup->vnodeGid[i].vnode = pVgroup->vgId;
+    atomic_add_fetch_32(&pDnode->openVnodes, 1);
   }
 
   mgmtAddVgroupIntoDb(pVgroup);

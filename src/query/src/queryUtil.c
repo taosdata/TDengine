@@ -21,10 +21,10 @@
 #include "ttime.h"
 
 #include "qinterpolation.h"
-//#include "tscJoinProcess.h"
 #include "ttime.h"
 
 #include "queryExecutor.h"
+#include "queryUtil.h"
 
 int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type) {

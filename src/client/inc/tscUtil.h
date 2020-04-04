@@ -132,7 +132,6 @@ void tscFieldInfoSetExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlExpr* pExpr)
 void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionExpr* pExpr);
 
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
-void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
 void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size);
 void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src);
 

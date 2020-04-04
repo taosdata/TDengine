@@ -49,6 +49,7 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
   pVgroup->vnodeGid[0].dnodeId = pSelDnode->dnodeId;
   pVgroup->vnodeGid[0].privateIp = pSelDnode->privateIp;
   pVgroup->vnodeGid[0].publicIp = pSelDnode->publicIp;
-  mTrace("dnode:%d, alloc one vnode to vgroup", pSelDnode->dnodeId);
+
+  mTrace("dnode:%d, alloc one vnode to vgroup, openVnodes:%d", pSelDnode->dnodeId, pSelDnode->openVnodes);
   return TSDB_CODE_SUCCESS;
 }

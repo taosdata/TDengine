@@ -40,7 +40,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, int32_t sqlLen) {
+void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
   
@@ -51,17 +51,15 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("failed to malloc payload");
-    tfree(pSql);
-    tscQueueAsyncError(fp, param);
+    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
     return;
   }
   
-  pSql->sqlstr = malloc(sqlLen + 1);
+  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
-    tscQueueAsyncError(fp, param);
+    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
     free(pCmd->payload);
-    free(pSql);
     return;
   }
   
@@ -75,7 +73,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
   
   if (code != TSDB_CODE_SUCCESS) {
-    pSql->res.code = (uint8_t)code;
+    pSql->res.code = code;
     tscQueueAsyncRes(pSql);
     return;
   }
@@ -88,15 +86,16 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     tscError("bug!!! pObj:%p", pObj);
-    globalCode = TSDB_CODE_DISCONNECTED;
-    tscQueueAsyncError(fp, param);
+    terrno = TSDB_CODE_DISCONNECTED;
+    tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
     return;
   }
   
   int32_t sqlLen = strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string too long");
-    tscQueueAsyncError(fp, param);
+    terrno = TSDB_CODE_INVALID_SQL;
+    tscQueueAsyncError(fp, param, TSDB_CODE_INVALID_SQL);
     return;
   }
   
@@ -105,7 +104,8 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
-    tscQueueAsyncError(fp, param);
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
     return;
   }
   
@@ -170,7 +170,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
       pRes->code = numOfRows;
     }
 
-    tscQueueAsyncError(pSql->fetchFp, param);
+    tscQueueAsyncError(pSql->fetchFp, param, pRes->code);
     return;
   }
 
@@ -200,8 +200,8 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
-    globalCode = TSDB_CODE_DISCONNECTED;
-    tscQueueAsyncError(fp, param);
+//    globalCode = TSDB_CODE_DISCONNECTED;
+    tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
     return;
   }
 
@@ -210,7 +210,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
-    tscQueueAsyncError(fp, param);
+    tscQueueAsyncError(fp, param, TSDB_CODE_INVALID_QHANDLE);
     return;
   }
 
@@ -232,8 +232,8 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
-    globalCode = TSDB_CODE_DISCONNECTED;
-    tscQueueAsyncError(fp, param);
+//    globalCode = TSDB_CODE_DISCONNECTED;
+    tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
     return;
   }
 
@@ -242,7 +242,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
-    tscQueueAsyncError(fp, param);
+    tscQueueAsyncError(fp, param, TSDB_CODE_INVALID_QHANDLE);
     return;
   }
 
@@ -331,7 +331,7 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
 
   // pCmd may be released, so cache pCmd->command
   int cmd = pCmd->command;
-  int code = pRes->code ? -pRes->code : pRes->numOfRows;
+  int code = pRes->code;// ? -pRes->code : pRes->numOfRows;
 
   // in case of async insert, restore the user specified callback function
   bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
@@ -349,18 +349,20 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
   }
 }
 
-void tscProcessAsyncError(SSchedMsg *pMsg) {
+static void tscProcessAsyncError(SSchedMsg *pMsg) {
   void (*fp)() = pMsg->ahandle;
-
-  (*fp)(pMsg->thandle, NULL, -1);
+  (*fp)(pMsg->thandle, NULL, *(int32_t*)pMsg->msg);
 }
 
-void tscQueueAsyncError(void(*fp), void *param) {
+void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
+  int32_t* c = malloc(sizeof(int32_t));
+  *c = code;
+  
   SSchedMsg schedMsg;
   schedMsg.fp = tscProcessAsyncError;
   schedMsg.ahandle = fp;
   schedMsg.thandle = param;
-  schedMsg.msg = NULL;
+  schedMsg.msg = c;
   taosScheduleTask(tscQhandle, &schedMsg);
 }
 
@@ -369,7 +371,7 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
     tscTrace("%p SqlObj is freed, not add into queue async res", pSql);
     return;
   } else {
-    tscError("%p add into queued async res, code:%d", pSql, pSql->res.code);
+    tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
   }
 
   SSchedMsg schedMsg;
@@ -410,10 +412,9 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     pSql->fp = NULL;
 
     if (code != 0) {
-      code = abs(code);
       pRes->code = code;
       tscTrace("%p failed to renew tableMeta", pSql);
-      tsem_post(&pSql->rspSem);
+//      tsem_post(&pSql->rspSem);
     } else {
       tscTrace("%p renew tableMeta successfully, command:%d, code:%d, retry:%d",
           pSql, pSql->cmd.command, pSql->res.code, pSql->retry);
@@ -425,15 +426,15 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscSendMsgToServer(pSql);
       if (code != 0) {
         pRes->code = code;
-        tsem_post(&pSql->rspSem);
+//        tsem_post(&pSql->rspSem);
       }
     }
 
     return;
   }
 
-  if (code != 0) {
-    pRes->code = (uint8_t)abs(code);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRes->code = code;
     tscQueueAsyncRes(pSql);
     return;
   }
