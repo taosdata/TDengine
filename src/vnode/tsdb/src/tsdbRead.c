@@ -745,11 +745,22 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   int32_t index = -1;
 
   int32_t tid = pCheckInfo->tableId.tid;
-  SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
   
-  while (1) {
+  while (pCheckInfo->pFileGroup != NULL) {
     if ((fid = getFileCompInfo(pCheckInfo, pCheckInfo->pFileGroup)) < 0) {
       break;
+    }
+  
+    SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
+  
+    // no data block in current file, try next
+    if (pCheckInfo->compIndex[tid].numOfSuperBlocks == 0) {
+      dTrace("QInfo:%p no data block in file, fid:%d, tid:%d, try next", pQueryHandle->qinfo,
+          pCheckInfo->pFileGroup->fileId, tid);
+      
+      pCheckInfo->pFileGroup = tsdbGetFileGroupNext(&pCheckInfo->fileIter);
+  
+      continue;
     }
     
     index = binarySearchForBlockImpl(pCheckInfo->pCompInfo->blocks, pCheckInfo->compIndex[tid].numOfSuperBlocks, pQueryHandle->order, key);
@@ -792,6 +803,7 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   pCheckInfo->pDataCols = tdNewDataCols(1000, 2, 4096);
   tdInitDataCols(pCheckInfo->pDataCols, pCheckInfo->pTableObj->schema);
   
+  SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
   if (pFile->fd == FD_INITIALIZER) {
     pFile->fd = open(pFile->fname, O_RDONLY);
   }
