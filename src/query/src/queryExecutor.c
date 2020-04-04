@@ -5148,7 +5148,7 @@ static void singleTableQueryImpl(SQInfo* pQInfo) {
   int64_t st = taosGetTimestampUs();
   
   // group by normal column, sliding window query, interval query are handled by interval query processor
-  if (pQuery->intervalTime != 0 || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
+  if (isIntervalQuery(pQuery) || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
     tableIntervalProcessor(pQInfo);
   } else {
     if (isFixedOutputQuery(pQuery)) {
