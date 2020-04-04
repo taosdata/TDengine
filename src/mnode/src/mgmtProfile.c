@@ -791,6 +791,8 @@ void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
     if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
     if (pMsg->pVgroup) mgmtDecVgroupRef(pMsg->pVgroup);
     if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
+    // if (pMsg->pAcct) acctDecRef(pMsg->pAcct);
+    // if (pMsg->pDnode) mgmtDecTableRef(pMsg->pDnode);
     free(pMsg);
   }
 }

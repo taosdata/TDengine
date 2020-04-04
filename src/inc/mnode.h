@@ -250,6 +250,8 @@ typedef struct {
   void     *ahandle;
   void     *thandle;
   void     *pCont;
+  SAcctObj *pAcct;
+  SDnodeObj*pDnode;
   SUserObj *pUser;
   SDbObj   *pDb;
   SVgObj   *pVgroup;
