@@ -58,6 +58,7 @@ static int32_t mgmtVgroupActionDestroy(SSdbOperDesc *pOper) {
     if (pDnode) {
       atomic_sub_fetch_32(&pDnode->openVnodes, 1);
     }
+    mgmtDecDnodeRef(pDnode);
   }
 
   tfree(pOper->pObj);
@@ -96,6 +97,7 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
     pVgroup->vnodeGid[i].publicIp = pDnode->publicIp;
     pVgroup->vnodeGid[i].vnode = pVgroup->vgId;
     atomic_add_fetch_32(&pDnode->openVnodes, 1);
+    mgmtDecDnodeRef(pDnode);
   }
 
   mgmtAddVgroupIntoDb(pVgroup);
@@ -295,10 +297,10 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
     if (NULL == pTable || pTable->type == TSDB_SUPER_TABLE) {
       return TSDB_CODE_INVALID_TABLE_ID;
     }
-
+    mgmtDecTableRef(pTable);
     pVgroup = mgmtGetVgroup(((SChildTableObj*)pTable)->vgId);
     if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
-    mgmtDecTableRef(pTable);
+    mgmtDecVgroupRef(pVgroup);
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
   } else {
     SVgObj *pVgroup = pDb->pHead;
@@ -350,6 +352,8 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
     pShow->pNode = pVgroup;
   }
 
+   mgmtDecDbRef(pDb);
+
   return 0;
 }
 
@@ -359,6 +363,7 @@ char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
     mError("vgroup:%d, not exist in dnode:%d", pVgroup->vgId, pDnode->dnodeId);
     return "null";
   }
+  mgmtDecDnodeRef(pDnode);
 
   if (pDnode->status == TSDB_DN_STATUS_OFFLINE) {
     return "offline";
@@ -438,6 +443,8 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
   }
 
   pShow->numOfReads += numOfRows;
+  mgmtDecDbRef(pDb);
+
   return numOfRows;
 }
 
@@ -634,13 +641,7 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
     code = TSDB_CODE_SDB_ERROR;
   }
 
-  SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
-  newMsg->msgType = queueMsg->msgType;
-  newMsg->thandle = queueMsg->thandle;
-  newMsg->pUser   = queueMsg->pUser;
-  newMsg->contLen = queueMsg->contLen;
-  newMsg->pCont   = rpcMallocCont(newMsg->contLen);
-  memcpy(newMsg->pCont, queueMsg->pCont, newMsg->contLen);
+  SQueuedMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
   mgmtAddToShellQueue(newMsg);
 
   queueMsg->pCont = NULL;
@@ -660,6 +661,7 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NOT_ACTIVE_VNODE);
     return;
   }
+  mgmtDecDnodeRef(pDnode);
 
   SVgObj *pVgroup = mgmtGetVgroup(pCfg->vgId);
   if (pVgroup == NULL) {
@@ -667,6 +669,7 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NOT_ACTIVE_VNODE);
     return;
   }
+  mgmtDecVgroupRef(pVgroup);
 
   mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_SUCCESS);
 
@@ -682,6 +685,7 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
   SVgObj *pVgroup = NULL;
 
   while (1) {
+    mgmtDecVgroupRef(pVgroup);
     pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
 
