@@ -2609,7 +2609,6 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
          GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
 
   tsdb_query_handle_t pQueryHandle = pRuntimeEnv->pQueryHandle;
-
   while (tsdbNextDataBlock(pQueryHandle)) {
     // check if query is killed or not set the status of query to pass the status check
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -5149,7 +5148,7 @@ static void singleTableQueryImpl(SQInfo* pQInfo) {
   int64_t st = taosGetTimestampUs();
   
   // group by normal column, sliding window query, interval query are handled by interval query processor
-  if (pQuery->intervalTime != 0 || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
+  if (isIntervalQuery(pQuery) || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
     tableIntervalProcessor(pQInfo);
   } else {
     if (isFixedOutputQuery(pQuery)) {
@@ -5461,7 +5460,7 @@ static int32_t buildAirthmeticExprFromMsg(SSqlFunctionExpr *pExpr, SQueryTableMs
   SSqlBinaryExprInfo *pBinaryExprInfo = &pExpr->binExprInfo;
   SColumnInfo *       pColMsg = pQueryMsg->colList;
 #if 0
-  tSQLSyntaxNode* pBinExpr = NULL;
+  tExprNode* pBinExpr = NULL;
   SSchema*        pSchema = toSchema(pQueryMsg, pColMsg, pQueryMsg->numOfCols);
   
   dTrace("qmsg:%p create binary expr from string:%s", pQueryMsg, pExpr->pBase.arg[0].argValue.pz);
@@ -5962,7 +5961,7 @@ static void freeQInfo(SQInfo *pQInfo) {
       
       if (pBinExprInfo->numOfCols > 0) {
         tfree(pBinExprInfo->pReqColumns);
-        tSQLBinaryExprDestroy(&pBinExprInfo->pBinExpr, NULL);
+        tExprTreeDestroy(&pBinExprInfo->pBinExpr, NULL);
       }
     }
     

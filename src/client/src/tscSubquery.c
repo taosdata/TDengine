@@ -392,10 +392,10 @@ void freeSubqueryObj(SSqlObj* pSql) {
 static void doQuitSubquery(SSqlObj* pParentSql) {
   freeSubqueryObj(pParentSql);
 
-  tsem_wait(&pParentSql->emptyRspSem);
-  tsem_wait(&pParentSql->emptyRspSem);
+//  tsem_wait(&pParentSql->emptyRspSem);
+//  tsem_wait(&pParentSql->emptyRspSem);
 
-  tsem_post(&pParentSql->rspSem);
+//  tsem_post(&pParentSql->rspSem);
 }
 
 static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter) {
@@ -567,7 +567,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         freeSubqueryObj(pParentSql);
       }
 
-      tsem_post(&pParentSql->rspSem);
+//      tsem_post(&pParentSql->rspSem);
     } else {
       tscTrace("%p sub:%p completed, completed:%d, total:%d", pParentSql, tres, finished, numOfTotal);
     }
@@ -662,7 +662,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   }
 
   // wait for all subquery completed
-  tsem_wait(&pSql->rspSem);
+//  tsem_wait(&pSql->rspSem);
   
   // update the records for each subquery
   for(int32_t i = 0; i < pSql->numOfSubs; ++i) {
@@ -797,10 +797,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
           tscProcessSql(pSql);
         } else {  // first retrieve from vnode during the secondary stage sub-query
           if (pParentSql->fp == NULL) {
-            tsem_wait(&pParentSql->emptyRspSem);
-            tsem_wait(&pParentSql->emptyRspSem);
-
-            tsem_post(&pParentSql->rspSem);
+//            tsem_post(&pParentSql->rspSem);
           } else {
             // set the command flag must be after the semaphore been correctly set.
             //    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
@@ -954,10 +951,7 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
     }
   }
   
-  tsem_post(&pSql->emptyRspSem);
-  tsem_wait(&pSql->rspSem);
-  
-  tsem_post(&pSql->emptyRspSem);
+//  tsem_wait(&pSql->rspSem);
   
   if (pSql->numOfSubs <= 0) {
     pSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;

@@ -147,6 +147,11 @@ void tsdbInitFileGroupIter(STsdbFileH *pFileH, SFileGroupIter *pIter, int direct
 }
 
 void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) {
+  if (pIter->numOfFGroups == 0) {
+    assert(pIter->pFileGroup == NULL);
+    return;
+  }
+  
   int flags = (pIter->direction == TSDB_FGROUP_ITER_FORWARD) ? TD_GE : TD_LE;
   void *ptr = taosbsearch(&fid, pIter->base, sizeof(SFileGroup), pIter->numOfFGroups, compFGroupKey, flags);
   if (ptr == NULL) {
