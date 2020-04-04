@@ -293,7 +293,7 @@ int taos_query(TAOS *taos, const char *sqlstr) {
   SSqlObj* pSql = pObj->pSql;
   
   size_t sqlLen = strlen(sqlstr);
-  doAsyncQuery(pObj, pObj->pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
+  doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   // wait for the callback function to post the semaphore
   sem_wait(&pSql->rspSem);
