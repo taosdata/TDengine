@@ -796,10 +796,11 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
    *         for each subquery. Because the failure of execution tsProcessSql may trigger the callback function
    *         be executed, and the retry efforts may result in double free the resources, e.g.,SRetrieveSupport
    */
-  if (pRes->code != TSDB_CODE_QUERY_CANCELLED &&
-      ((pRes->numOfRows > 0 && pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
+  if ((pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_SHOW || pCmd->command == TSDB_SQL_RETRIEVE ||
+      pCmd->command == TSDB_SQL_FETCH) &&
+      (pRes->code != TSDB_CODE_QUERY_CANCELLED && ((pRes->numOfRows > 0 && pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
        (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows == 0 && pCmd->command == TSDB_SQL_SELECT &&
-        pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL))) {
+        pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)))) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
     tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
