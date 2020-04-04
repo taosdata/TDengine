@@ -62,6 +62,7 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
   if (pDb == NULL) {
     return TSDB_CODE_INVALID_DB;
   }
+  mgmtDecDbRef(pDb);
 
   pVgroup->pDb = pDb;
   pVgroup->prev = NULL;
@@ -100,6 +101,7 @@ static int32_t mgmtVgroupActionDelete(SSdbOperDesc *pOper) {
     mgmtRemoveVgroupFromDb(pVgroup);
   }
 
+  mgmtDecDbRef(pVgroup->pDb);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -437,6 +439,7 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables++;
   }
   
+  mgmtIncVgroupRef(pVgroup);
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
@@ -448,6 +451,7 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables--;
   }
 
+  mgmtDecVgroupRef(pVgroup);
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
@@ -545,14 +549,7 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   if (queueMsg->received != queueMsg->expected) return;
 
   if (queueMsg->received == queueMsg->successed) {
-    SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
-    newMsg->msgType = queueMsg->msgType;
-    newMsg->thandle = queueMsg->thandle;
-    newMsg->pUser   = queueMsg->pUser;
-    newMsg->contLen = queueMsg->contLen;
-    newMsg->pCont   = rpcMallocCont(newMsg->contLen);
-    memcpy(newMsg->pCont, queueMsg->pCont, newMsg->contLen);
-    queueMsg->pCont = NULL;
+    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
     mgmtAddToShellQueue(newMsg);
   } else {
     SSdbOperDesc oper = {

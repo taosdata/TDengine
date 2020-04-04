@@ -435,7 +435,7 @@ void sdbIncRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    sdbTrace("add ref to record:%s:%s:%d", pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
+    sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
   }
 }
 
@@ -444,8 +444,11 @@ void sdbDecRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     int32_t  refCount = atomic_sub_fetch_32(pRefCount, 1);
-    sdbTrace("def ref of record:%s:%s:%d", pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
-    if (refCount <= 0) {
+    sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
+
+    int8_t* updateEnd = pRow + pTable->refCountPos - 1;
+    if (refCount <= 0 && *updateEnd) {
+      sdbTrace("table:%s, record:%s:%s:%d is destroyed", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
       SSdbOperDesc oper = {.pObj = pRow};
       (*pTable->destroyFp)(&oper);
     }
@@ -648,6 +651,8 @@ int32_t sdbDeleteRow(SSdbOperDesc *pOper) {
   pthread_mutex_unlock(&pTable->mutex);
 
   (*pTable->deleteFp)(pOper);
+  int8_t* updateEnd = pOper->pObj + pTable->refCountPos - 1;
+  *updateEnd = 1;
   sdbDecRef(pTable, pOper->pObj);
   return 0;
 }
