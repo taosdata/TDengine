@@ -466,9 +466,14 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   
   tscFreeSqlResult(pSql);
   tfree(pSql->pSubs);
-  pSql->numOfSubs = 0;
+  
+  taosHashCleanup(pSql->pTableHashList);
   
   pSql->freed = 0;
+  pSql->numOfSubs = 0;
+  pSql->pTableHashList = NULL;
+  pSql->asyncTblPos = NULL;
+  
   tscFreeSqlCmdData(pCmd);
   
   tscTrace("%p partially free sqlObj completed", pSql);

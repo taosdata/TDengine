@@ -1293,7 +1293,16 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
 int tsParseSql(SSqlObj *pSql, bool initialParse) {
   int32_t ret = TSDB_CODE_SUCCESS;
-  tscTrace("continue parse sql: %s", pSql->asyncTblPos);
+  
+  if (initialParse) {
+    char* p = pSql->sqlstr;
+    pSql->sqlstr = NULL;
+    
+    tscFreeSqlObjPartial(pSql);
+    pSql->sqlstr = p;
+  } else {
+    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
+  }
   
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
@@ -1302,8 +1311,6 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
      * the error handle callback function can rightfully restore the user defined function (fp)
      */
     if (initialParse) {
-      tscFreeSqlCmdData(&pSql->cmd);
-      
       // replace user defined callback function with multi-insert proxy function
       pSql->fetchFp = pSql->fp;
       pSql->fp = (void(*)())tscHandleMultivnodeInsert;
@@ -1316,10 +1323,6 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
       return ret;
     }
     
-    if (initialParse) {
-      tscFreeSqlCmdData(&pSql->cmd);
-    }
-
     SSqlInfo SQLInfo = {0};
     tSQLParse(&SQLInfo, pSql->sqlstr);
 

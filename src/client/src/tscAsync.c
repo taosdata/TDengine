@@ -331,7 +331,7 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
 
   // pCmd may be released, so cache pCmd->command
   int cmd = pCmd->command;
-  int code = pRes->code;// ? -pRes->code : pRes->numOfRows;
+  int code = pRes->code;
 
   // in case of async insert, restore the user specified callback function
   bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
