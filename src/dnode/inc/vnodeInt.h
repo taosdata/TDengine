@@ -13,19 +13,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_WRITE_H
-#define TDENGINE_DNODE_WRITE_H
+#ifndef TDENGINE_VNODE_INT_H
+#define TDENGINE_VNODE_INT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dnodeInitWrite();
-void    dnodeCleanupWrite();
-void    dnodeWrite(SRpcMsg *pMsg);
-void *  dnodeAllocateWqueue();
-void    dnodeFreeWqueue(void *worker);
-void    dnodeSendWriteResponse(void *pVnode, void *param, int32_t code);
+typedef enum _VN_STATUS {
+  VN_STATUS_INIT,
+  VN_STATUS_CREATING,
+  VN_STATUS_READY,
+  VN_STATUS_CLOSING,
+  VN_STATUS_DELETING,
+} EVnStatus;
+
+typedef struct {
+  int32_t      vgId;      // global vnode group ID
+  int32_t      refCount;  // reference count
+  EVnStatus    status; 
+  int          role;   
+  int64_t      version;
+  void *       wqueue;
+  void *       rqueue;
+  void *       wal;
+  void *       tsdb;
+  void *       sync;
+  void *       events;
+  void *       cq;  // continuous query
+} SVnodeObj;
+
+int vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
 
 #ifdef __cplusplus
 }

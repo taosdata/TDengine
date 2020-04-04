@@ -12,42 +12,32 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_WAL_H_
-#define _TD_WAL_H_
+
+#ifndef TDENGINE_VNODE_H
+#define TDENGINE_VNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TAOS_WAL_NOLOG   0
-#define TAOS_WAL_WRITE   1
-#define TAOS_WAL_FSYNC   2
- 
-typedef struct {
-  int8_t    msgType;
-  int8_t    reserved[3];
-  int32_t   len;
-  uint64_t  version;
-  uint32_t  signature;
-  uint32_t  cksum;
-  char      cont[];
-} SWalHead;
+int32_t vnodeInitWrite();
+int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeDrop(int32_t vgId);
+int32_t vnodeOpen(int32_t vnode, char *rootDir);
+int32_t vnodeClose(void *pVnode);
 
-typedef void* twal_h;  // WAL HANDLE
+void    vnodeRelease(void *pVnode);
 
-twal_h  walOpen(char *path, int max, int level);
-void    walClose(twal_h);
-int     walRenew(twal_h);
-int     walWrite(twal_h, SWalHead *);
-void    walFsync(twal_h);
-int     walRestore(twal_h, void *pVnode, int (*writeFp)(void *ahandle, void *pWalHead));
-int     walGetWalFile(twal_h, char *name, uint32_t *index);
+void*   vnodeGetVnode(int32_t vgId);
+void*   vnodeGetRqueue(void *);
+void*   vnodeGetWqueue(int32_t vgId);
+void*   vnodeGetWal(void *pVnode);
+void*   vnodeGetTsdb(void *pVnode);
 
-extern int wDebugFlag;
-
+int32_t vnodeProcessWrite(void *pVnode, int qtype, SWalHead *pHead, void *item);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // _TD_WAL_H_
+#endif

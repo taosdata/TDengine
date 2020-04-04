@@ -22,9 +22,11 @@
 #include "tqueue.h"
 #include "trpc.h"
 
+#include "twal.h"
 #include "dnodeMgmt.h"
 #include "dnodeRead.h"
 #include "queryExecutor.h"
+#include "vnode.h"
 
 typedef struct {
   int32_t  code;
@@ -76,7 +78,8 @@ void dnodeRead(SRpcMsg *pMsg) {
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
   SRpcContext *pRpcContext = NULL;
-  
+  void        *pVnode;  
+
   dTrace("dnode %s msg incoming, thandle:%p", taosMsg[pMsg->msgType], pMsg->handle);
 
   if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
@@ -88,7 +91,7 @@ void dnodeRead(SRpcMsg *pMsg) {
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
-    void *pVnode = dnodeGetVnode(pHead->vgId);
+    pVnode = vnodeGetVnode(pHead->vgId);
     if (pVnode == NULL) {
       leftLen -= pHead->contLen;
       pCont -= pHead->contLen;
@@ -96,13 +99,13 @@ void dnodeRead(SRpcMsg *pMsg) {
     }
 
     // put message into queue
+    taos_queue queue = vnodeGetRqueue(pVnode);
     SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
     pRead->rpcMsg      = *pMsg;
     pRead->pCont       = pCont;
     pRead->contLen     = pHead->contLen;
     pRead->pRpcContext = pRpcContext;
 
-    taos_queue queue = dnodeGetVnodeRworker(pVnode);
     taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
 
     // next vnode
@@ -123,7 +126,7 @@ void dnodeRead(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateReadWorker(void *pVnode) {
+void *dnodeAllocateRqueue(void *pVnode) {
   taos_queue *queue = taosOpenQueue(sizeof(SReadMsg));
   if (queue == NULL) return NULL;
 
@@ -144,7 +147,7 @@ void *dnodeAllocateReadWorker(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeReadWorker(void *rqueue) {
+void dnodeFreeRqueue(void *rqueue) {
   taosCloseQueue(rqueue);
 
   // dynamically adjust the number of threads
@@ -229,7 +232,7 @@ static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMs
   pRead->pRpcContext = pMsg->pRpcContext;
   pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
   
-  taos_queue queue = dnodeGetVnodeRworker(pVnode);
+  taos_queue queue = vnodeGetRqueue(pVnode);
   taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
 }
 
@@ -238,7 +241,7 @@ static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
   
   SQInfo* pQInfo = NULL;
   if (pMsg->contLen != 0) {
-    void* tsdb = dnodeGetVnodeTsdb(pVnode);
+    void* tsdb = vnodeGetTsdb(pVnode);
     int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, &pQInfo);
   
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
@@ -255,7 +258,7 @@ static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
   
     rpcSendResponse(&rpcRsp);
     dTrace("dnode query msg disposed, thandle:%p", pMsg->rpcMsg.handle);
-    dnodeReleaseVnode(pVnode);
+    vnodeRelease(pVnode);
   } else {
     pQInfo = pMsg->pCont;
   }
@@ -299,5 +302,5 @@ static void dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg) {
 
   rpcSendResponse(&rpcRsp);
   dTrace("dnode retrieve msg disposed, thandle:%p", pMsg->rpcMsg.handle);
-  dnodeReleaseVnode(pVnode);
+  vnodeRelease(pVnode);
 }

@@ -53,7 +53,7 @@ void      tsdbFreeCfg(STsdbCfg *pCfg);
 // --------- TSDB REPOSITORY DEFINITION
 typedef void tsdb_repo_t;  // use void to hide implementation details from outside
 
-tsdb_repo_t *  tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
+int            tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 int32_t        tsdbDropRepo(tsdb_repo_t *repo);
 tsdb_repo_t *  tsdbOpenRepo(char *tsdbDir);
 int32_t        tsdbCloseRepo(tsdb_repo_t *repo);
