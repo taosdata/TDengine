@@ -27,6 +27,8 @@ extern "C" {
 int32_t mgmtInitVgroups();
 void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
+void    mgmtIncVgroupRef(SVgObj *pVgroup);
+void    mgmtDecVgroupRef(SVgObj *pVgroup);
 void    mgmtDropAllVgroups(SDbObj *pDropDb);
 
 void    mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb);

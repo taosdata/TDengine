@@ -30,6 +30,8 @@ typedef enum {
 int32_t   acctInit();
 void      acctCleanUp();
 SAcctObj *acctGetAcct(char *acctName);
+void      acctIncRef(SAcctObj *pAcct);
+void      acctDecRef(SAcctObj *pAcct);
 int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type);
 
 void      acctAddDb(SAcctObj *pAcct, SDbObj *pDb);

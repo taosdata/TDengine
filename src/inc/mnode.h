@@ -59,6 +59,7 @@ typedef struct {
   char     mnodeName[TSDB_DNODE_NAME_LEN + 1];
   int8_t   reserved[15];
   int8_t   updateEnd[1];
+  int32_t  refCount;
   int      syncFd;
   void    *hbTimer;
   void    *pSync;
@@ -84,6 +85,7 @@ typedef struct {
   char       dnodeName[TSDB_DNODE_NAME_LEN + 1];
   int8_t     reserved[15];
   int8_t     updateEnd[1];
+  int32_t    refCount;
   SVnodeLoad vload[TSDB_MAX_VNODES];
   int32_t    status;
   uint32_t   lastReboot;       // time stamp for last reboot
@@ -151,6 +153,7 @@ typedef struct _vg_obj {
   int8_t          lbStatus;
   int8_t          reserved[14];
   int8_t          updateEnd[1];
+  int32_t         refCount;
   struct _vg_obj *prev, *next;
   struct _db_obj *pDb;
   int32_t         numOfTables;
@@ -216,6 +219,7 @@ typedef struct _acctObj {
   int8_t    dirty;
   int8_t    reserved[14];
   int8_t    updateEnd[1];
+  int32_t  refCount;
   SAcctInfo acctInfo;
   pthread_mutex_t  mutex;
 } SAcctObj;
@@ -248,6 +252,7 @@ typedef struct {
   void     *pCont;
   SUserObj *pUser;
   SDbObj   *pDb;
+  SVgObj   *pVgroup;
   STableInfo *pTable;
 } SQueuedMsg;
 

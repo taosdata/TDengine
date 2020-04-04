@@ -45,8 +45,8 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-void *  tsChildTableSdb;
-void *  tsSuperTableSdb;
+static void *  tsChildTableSdb;
+static void *  tsSuperTableSdb;
 static int32_t tsChildTableUpdateSize;
 static int32_t tsSuperTableUpdateSize;
 
@@ -239,7 +239,7 @@ static int32_t mgmtInitChildTables() {
     .tableName    = "ctables",
     .hashSessions = tsMaxTables,
     .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-    .refCountPos  = 0, //(int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = mgmtChildTableActionInsert,
     .deleteFp     = mgmtChildTableActionDelete,
@@ -415,7 +415,7 @@ static int32_t mgmtInitSuperTables() {
     .tableName    = "stables",
     .hashSessions = TSDB_MAX_SUPER_TABLES,
     .maxRowSize   = tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-    .refCountPos  = 0, //(int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = mgmtSuperTableActionInsert,
     .deleteFp     = mgmtSuperTableActionDelete,
@@ -1355,7 +1355,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  SVgObj *pVgroup = mgmtGetAvailableVgroup(pMsg->pDb);
+  SVgObj *pVgroup = pMsg->pVgroup = mgmtGetAvailableVgroup(pMsg->pDb);
   if (pVgroup == NULL) {
     mTrace("table:%s, start to create a new vgroup", pCreate->tableId);
     mgmtCreateVgroup(mgmtCloneQueuedMsg(pMsg), pMsg->pDb);
@@ -1397,7 +1397,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
 
 void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
-  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  SVgObj *pVgroup = pMsg->pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to drop ctable, vgroup not exist", pTable->info.tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OTHERS);
@@ -1817,7 +1817,7 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  SVgObj *pVgroup = pMsg->pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to get vgroup", pTable->info.tableId);
     mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_INVALID_VGROUP_ID);
