@@ -1,4 +1,5 @@
 ################################# 
-run general/user/testSuite.sim
-run general/table/testSuite.sim
+run general/user/basic1.sim
+run general/db/basic1.sim
+run general/table/basic1.sim
 ################################## 

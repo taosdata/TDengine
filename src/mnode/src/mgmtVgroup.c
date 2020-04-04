@@ -20,7 +20,6 @@
 #include "tstatus.h"
 #include "mnode.h"
 #include "mgmtBalance.h"
-#include "mgmtChildTable.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDnode.h"
@@ -71,6 +70,7 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
   if (pDb == NULL) {
     return TSDB_CODE_INVALID_DB;
   }
+  mgmtDecDbRef(pDb);
 
   pVgroup->pDb = pDb;
   pVgroup->prev = NULL;
@@ -110,6 +110,7 @@ static int32_t mgmtVgroupActionDelete(SSdbOperDesc *pOper) {
     mgmtRemoveVgroupFromDb(pVgroup);
   }
 
+  mgmtDecDbRef(pVgroup->pDb);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -159,6 +160,7 @@ int32_t mgmtInitVgroups() {
     .tableName    = "vgroups",
     .hashSessions = TSDB_MAX_VGROUPS,
     .maxRowSize   = tsVgUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_AUTO,
     .insertFp     = mgmtVgroupActionInsert,
     .deleteFp     = mgmtVgroupActionDelete,
@@ -184,6 +186,14 @@ int32_t mgmtInitVgroups() {
   return 0;
 }
 
+void mgmtIncVgroupRef(SVgObj *pVgroup) { 
+  return sdbIncRef(tsVgroupSdb, pVgroup); 
+}
+
+void mgmtDecVgroupRef(SVgObj *pVgroup) { 
+  return sdbDecRef(tsVgroupSdb, pVgroup); 
+}
+
 SVgObj *mgmtGetVgroup(int32_t vgId) {
   return (SVgObj *)sdbGetRow(tsVgroupSdb, &vgId);
 }
@@ -192,15 +202,7 @@ SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {
   return pDb->pHead;
 }
 
-void mgmtCreateVgroup(SQueuedMsg *pMsg) {
-  SDbObj *pDb = pMsg->pDb;
-  if (pDb == NULL) {
-    mError("failed to create vgroup, db not found");
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_DB);
-    mgmtFreeQueuedMsg(pMsg);
-    return;
-  }
-
+void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
   SVgObj *pVgroup = (SVgObj *)calloc(1, sizeof(SVgObj));
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
@@ -287,16 +289,16 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
 
   int32_t maxReplica = 0;
   SVgObj  *pVgroup   = NULL;
-  SChildTableObj *pTable = NULL;
+  STableInfo *pTable = NULL;
   if (pShow->payloadLen > 0 ) {
-    pTable = mgmtGetChildTable(pShow->payload);
-    if (NULL == pTable) {
+    pTable = mgmtGetTable(pShow->payload);
+    if (NULL == pTable || pTable->type == TSDB_SUPER_TABLE) {
       return TSDB_CODE_INVALID_TABLE_ID;
     }
 
-    pVgroup = mgmtGetVgroup(pTable->vgId);
+    pVgroup = mgmtGetVgroup(((SChildTableObj*)pTable)->vgId);
     if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
-
+    mgmtDecTableRef(pTable);
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
   } else {
     SVgObj *pVgroup = pDb->pHead;
@@ -445,7 +447,8 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     taosIdPoolMarkStatus(pVgroup->idPool, pTable->sid);
     pVgroup->numOfTables++;
   }
-
+  
+  mgmtIncVgroupRef(pVgroup);
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
@@ -457,6 +460,7 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables--;
   }
 
+  mgmtDecVgroupRef(pVgroup);
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
@@ -554,15 +558,7 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   if (queueMsg->received != queueMsg->expected) return;
 
   if (queueMsg->received == queueMsg->successed) {
-    SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
-    newMsg->msgType = queueMsg->msgType;
-    newMsg->thandle = queueMsg->thandle;
-    newMsg->pDb     = queueMsg->pDb;
-    newMsg->pUser   = queueMsg->pUser;
-    newMsg->contLen = queueMsg->contLen;
-    newMsg->pCont   = rpcMallocCont(newMsg->contLen);
-    memcpy(newMsg->pCont, queueMsg->pCont, newMsg->contLen);
-    queueMsg->pCont = NULL;
+    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
     mgmtAddToShellQueue(newMsg);
   } else {
     SSdbOperDesc oper = {
@@ -641,7 +637,6 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
   newMsg->msgType = queueMsg->msgType;
   newMsg->thandle = queueMsg->thandle;
-  newMsg->pDb     = queueMsg->pDb;
   newMsg->pUser   = queueMsg->pUser;
   newMsg->contLen = queueMsg->contLen;
   newMsg->pCont   = rpcMallocCont(newMsg->contLen);
