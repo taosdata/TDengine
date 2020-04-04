@@ -25,7 +25,7 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-static void *  tsUserSdb = NULL;
+void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
