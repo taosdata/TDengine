@@ -298,6 +298,10 @@ int taos_query(TAOS *taos, const char *sqlstr) {
   // wait for the callback function to post the semaphore
   sem_wait(&pSql->rspSem);
   
+  if (pSql->res.code != TSDB_CODE_SUCCESS) {
+    tscFreeSqlCmdData(&pSql->cmd);
+  }
+  
   return pSql->res.code;
 }
 
