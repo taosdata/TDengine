@@ -926,7 +926,7 @@ void tSQLBinaryExprTrv(tExprNode *pExprs, int32_t *val, int16_t *ids) {
   }
 }
 
-static int32_t exprTreeToBinaryImpl(tExprNode* pExprTree, SBuffer* pBuf) {
+static void exprTreeToBinaryImpl(tExprNode* pExprTree, SBuffer* pBuf) {
   tbufWrite(pBuf, &pExprTree->nodeType, sizeof(pExprTree->nodeType));
   
   if (pExprTree->nodeType == TSQL_NODE_VALUE) {
@@ -973,7 +973,7 @@ SBuffer exprTreeToBinary(tExprNode* pExprTree) {
   return buf;
 }
 
-static tExprNode* exprTreeFromBinaryImpl(tExprNode** pExprTree, SBuffer* pBuf) {
+static void exprTreeFromBinaryImpl(tExprNode** pExprTree, SBuffer* pBuf) {
   tExprNode* pExpr = calloc(1, sizeof(tExprNode));
   tbufReadToBuffer(pBuf, &pExpr->nodeType, sizeof(pExpr->nodeType));
   
@@ -1014,7 +1014,7 @@ static tExprNode* exprTreeFromBinaryImpl(tExprNode** pExprTree, SBuffer* pBuf) {
 
 tExprNode* exprTreeFromBinary(const void* pBuf, size_t size) {
   SBuffer rbuf = {0};
-  int32_t code = tbufBeginRead(&rbuf, pBuf, size);
+  /*int32_t code =*/ tbufBeginRead(&rbuf, pBuf, size);
   
   tExprNode* pExprNode = NULL;
   exprTreeFromBinaryImpl(&pExprNode, &rbuf);

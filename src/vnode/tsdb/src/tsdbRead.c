@@ -444,6 +444,7 @@ static bool doLoadDataFromFileBlock(STsdbQueryHandle *pQueryHandle) {
   }
   
   tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data);
+  return true;
 }
 
 static bool loadQualifiedDataFromFileBlock(STsdbQueryHandle *pQueryHandle) {
@@ -484,7 +485,7 @@ bool moveToNextBlock(STsdbQueryHandle *pQueryHandle, int32_t step) {
          (pQueryHandle->cur.slot == pCheckInfo->compIndex[tid].numOfSuperBlocks - 1)) ||
         (step == QUERY_DESC_FORWARD_STEP && (pQueryHandle->cur.slot == 0))) {
       // temporarily keep the position value, in case of no data qualified when move forwards(backwards)
-      SQueryFilePos save = pQueryHandle->cur;
+//      SQueryFilePos save = pQueryHandle->cur;
       SFileGroup*   fgroup = tsdbGetFileGroupNext(&pCheckInfo->fileIter);
 
       int32_t fid = -1;
@@ -524,6 +525,8 @@ bool moveToNextBlock(STsdbQueryHandle *pQueryHandle, int32_t step) {
   } else {  // data in cache
     return hasMoreDataInCacheForSingleModel(pQueryHandle);
   }
+  
+  return false;
 }
 
 int vnodeBinarySearchKey(char *pValue, int num, TSKEY key, int order) {
@@ -751,8 +754,6 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
       break;
     }
   
-    SFile* pFile = &pCheckInfo->pFileGroup->files[TSDB_FILE_TYPE_DATA];
-  
     // no data block in current file, try next
     if (pCheckInfo->compIndex[tid].numOfSuperBlocks == 0) {
       dTrace("QInfo:%p no data block in file, fid:%d, tid:%d, try next", pQueryHandle->qinfo,
@@ -836,7 +837,7 @@ static bool hasMoreDataInFileForSingleTableModel(STsdbQueryHandle* pHandle) {
   assert(pHandle->activeIndex == 0 && taosArrayGetSize(pHandle->pTableCheckInfo) == 1);
   
   STsdbFileH* pFileHandle = tsdbGetFile(pHandle->pTsdb);
-  SQueryFilePos* cur = &pHandle->cur;
+//  SQueryFilePos* cur = &pHandle->cur;
   
   STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
   
@@ -1329,20 +1330,19 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond
   return TSDB_CODE_SUCCESS;
 }
 
-// SArray *tsdbQueryTableList(struct STsdbRepo* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len) {
 SArray *tsdbQueryTableList(tsdb_repo_t* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len) {
   // no condition, all tables created according to the stable will involved in querying
+  SArray* result = taosArrayInit(8, POINTER_BYTES);
+  
   if (pTagCond == NULL || wcslen(pTagCond) == 0) {
     return createTableIdArrayList(tsdb, uid);
   } else {
     char* str = convertTagQueryStr(pTagCond, len);
-    SArray* result = taosArrayInit(8, POINTER_BYTES);
     
     STable* pSTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
     assert(pSTable != NULL);
     
-    if (doQueryTableList(pSTable, result, str) == TSDB_CODE_SUCCESS) {
-      return result;
-    }
+    doQueryTableList(pSTable, result, str);
+    return result;
   }
 }
