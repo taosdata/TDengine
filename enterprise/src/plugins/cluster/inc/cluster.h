@@ -25,6 +25,8 @@ int32_t clusterInit();
 void    clusterCleanUp();
 int32_t clusterGetDnodesNum();
 void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
+void    clusterIncDnodeRef(SDnodeObj *pDnode);
+void    clusterDecDnodeRef(SDnodeObj *pDnode);
 SDnodeObj* clusterGetDnode(int32_t dnodeId);
 SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
 

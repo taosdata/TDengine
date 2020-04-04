@@ -151,6 +151,13 @@ SDnodeObj *clusterGetDnode(int32_t dnodeId) {
   return (SDnodeObj *)sdbGetRow(tsDnodeSdb, &dnodeId);
 }
 
+void clusterIncDnodeRef(SDnodeObj *pDnode) {
+  sdbIncRef(tsDnodeSdb, pDnode);
+}
+void clusterDecDnodeRef(SDnodeObj *pDnode) {
+  sdbDecRef(tsDnodeSdb, pDnode);
+}
+
 SDnodeObj *clusterGetDnodeByIp(uint32_t ip) {
   SDnodeObj *pDnode = NULL;
   void *     pNode = NULL;
