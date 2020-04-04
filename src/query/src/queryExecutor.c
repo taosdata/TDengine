@@ -87,8 +87,6 @@ typedef enum {
 static void setQueryStatus(SQuery *pQuery, int8_t status);
 bool        isIntervalQuery(SQuery *pQuery) { return pQuery->intervalTime > 0; }
 
-int32_t setQueryCtxForTableQuery(void *pReadMsg, SQInfo **pQInfo) {}
-
 enum {
   TS_JOIN_TS_EQUAL = 0,
   TS_JOIN_TS_NOT_EQUALS = 1,
@@ -1021,7 +1019,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
   return TSDB_CODE_SUCCESS;
 }
 
-static char *getGroupbyColumnData(SQuery *pQuery, SData **data, int16_t *type, int16_t *bytes) {
+static UNUSED_FUNC char *getGroupbyColumnData(SQuery *pQuery, SData **data, int16_t *type, int16_t *bytes) {
   char *groupbyColumnData = NULL;
 
   SSqlGroupbyExpr *pGroupbyExpr = pQuery->pGroupbyExpr;
@@ -1295,7 +1293,7 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStat
   return num;
 }
 
-static int32_t reviseForwardSteps(SQueryRuntimeEnv *pRuntimeEnv, int32_t forwardStep) {
+static UNUSED_FUNC int32_t reviseForwardSteps(SQueryRuntimeEnv *pRuntimeEnv, int32_t forwardStep) {
   /*
    * 1. If value filter exists, we try all data in current block, and do not set the QUERY_RESBUF_FULL flag.
    *
@@ -1719,7 +1717,7 @@ void doGetAlignedIntervalQueryRangeImpl(SQuery *pQuery, int64_t key, int64_t key
   }
 }
 
-static bool doGetQueryPos(TSKEY key, SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupporter) {
+static UNUSED_FUNC bool doGetQueryPos(TSKEY key, SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupporter) {
 #if 0
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
@@ -1742,7 +1740,7 @@ static bool doGetQueryPos(TSKEY key, SQInfo *pQInfo, SPointInterpoSupporter *pPo
 #endif
 }
 
-static bool doSetDataInfo(SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupporter, void *pMeterObj,
+static UNUSED_FUNC bool doSetDataInfo(SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupporter, void *pMeterObj,
                           TSKEY nextKey) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
@@ -2175,7 +2173,7 @@ void pointInterpSupporterDestroy(SPointInterpoSupporter *pPointInterpSupport) {
   pPointInterpSupport->numOfCols = 0;
 }
 
-static void allocMemForInterpo(SQInfo *pQInfo, SQuery *pQuery, void *pMeterObj) {
+static UNUSED_FUNC void allocMemForInterpo(SQInfo *pQInfo, SQuery *pQuery, void *pMeterObj) {
 #if 0
   if (pQuery->interpoType != TSDB_INTERPO_NONE) {
     assert(isIntervalQuery(pQuery) || (pQuery->intervalTime == 0 && isPointInterpoQuery(pQuery)));
@@ -2767,7 +2765,7 @@ static void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, SWindowRes
   }
 }
 
-static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType) {
+static UNUSED_FUNC void printBinaryData(int32_t functionId, char *data, int32_t srcDataType) {
   if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     switch (srcDataType) {
       case TSDB_DATA_TYPE_BINARY:
@@ -4037,7 +4035,7 @@ bool vnodeHasRemainResults(void *handle) {
   }
 }
 
-static int32_t resultInterpolate(SQInfo *pQInfo, tFilePage **data, tFilePage **pDataSrc, int32_t numOfRows,
+static UNUSED_FUNC int32_t resultInterpolate(SQInfo *pQInfo, tFilePage **data, tFilePage **pDataSrc, int32_t numOfRows,
                                  int32_t outputRows) {
 #if 0
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -4129,6 +4127,8 @@ int32_t vnodeQueryResultInterpolate(SQInfo *pQInfo, tFilePage **pDst, tFilePage 
     }
   }
 #endif
+
+  return 0;
 }
 
 void vnodePrintQueryStatistics(SQInfo *pQInfo) {
@@ -4299,7 +4299,7 @@ int32_t doInitializeQInfo(SQInfo *pQInfo, void *param, void* tsdb, bool isSTable
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isGroupbyEachTable(SSqlGroupbyExpr *pGroupbyExpr, tSidSet *pSidset) {
+static UNUSED_FUNC bool isGroupbyEachTable(SSqlGroupbyExpr *pGroupbyExpr, tSidSet *pSidset) {
   if (pGroupbyExpr == NULL || pGroupbyExpr->numOfGroupCols == 0) {
     return false;
   }
@@ -4315,7 +4315,7 @@ static bool isGroupbyEachTable(SSqlGroupbyExpr *pGroupbyExpr, tSidSet *pSidset) 
   return false;
 }
 
-static bool doCheckWithPrevQueryRange(SQuery *pQuery, TSKEY nextKey) {
+static UNUSED_FUNC bool doCheckWithPrevQueryRange(SQuery *pQuery, TSKEY nextKey) {
   if ((nextKey > pQuery->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
       (nextKey < pQuery->window.ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
     return false;
@@ -4324,7 +4324,7 @@ static bool doCheckWithPrevQueryRange(SQuery *pQuery, TSKEY nextKey) {
   return true;
 }
 
-static void enableExecutionForNextTable(SQueryRuntimeEnv *pRuntimeEnv) {
+static UNUSED_FUNC void enableExecutionForNextTable(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
@@ -4442,7 +4442,7 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
   return true;
 }
 
-static int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start) {
+static UNUSED_FUNC int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
@@ -5525,8 +5525,6 @@ static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SSqlFunct
 
     int16_t type = 0;
     int16_t bytes = 0;
-
-    SColIndexEx *pColumnIndexExInfo = &pExprs[i].pBase.colInfo;
 
     // parse the arithmetic expression
     if (pExprs[i].pBase.functionId == TSDB_FUNC_ARITHM) {
