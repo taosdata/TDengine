@@ -155,6 +155,10 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
   assert(pObj != NULL && pObj->pSql != NULL);
   
+  if (code < 0) {
+    pObj->pSql->res.code = code;
+  }
+  
   sem_post(&pObj->pSql->rspSem);
 }
 
@@ -177,6 +181,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     sem_wait(&pSql->rspSem);
     
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
+      terrno = pSql->res.code;
       taos_close(pObj);
       return NULL;
     }
@@ -186,8 +191,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     // version compare only requires the first 3 segments of the version string
     int code = taosCheckVersion(version, taos_get_server_info(pObj), 3);
     if (code != 0) {
-      pSql->res.code = code;
-      
+      terrno = code;
       taos_close(pObj);
       return NULL;
     } else {
