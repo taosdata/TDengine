@@ -29,6 +29,7 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
   float      vnodeUsage = 1.0;
 
   while (1) {
+    mgmtDecDnodeRef(pDnode);
     pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
     if (pDnode->numOfTotalVnodes <= 0) continue;

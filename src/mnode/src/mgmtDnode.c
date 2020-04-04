@@ -42,6 +42,8 @@ extern int32_t clusterInit();
 extern void    clusterCleanUp();
 extern int32_t clusterGetDnodesNum();
 extern void *  clusterGetNextDnode(void *pNode, void **pDnode);
+extern void    clusterIncDnodeRef(SDnodeObj *pDnode);
+extern void    clusterDecDnodeRef(SDnodeObj *pDnode);
 extern SDnodeObj* clusterGetDnode(int32_t dnodeId);
 extern SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
 #ifndef _CLUSTER
@@ -118,6 +120,18 @@ int32_t mgmtGetDnodesNum() {
 #endif
 }
 
+void mgmtIncDnodeRef(SDnodeObj *pDnode) {
+#ifdef _CLUSTER
+  return clusterIncDnodeRef(pDnode);
+#endif
+}
+
+void mgmtDecDnodeRef(SDnodeObj *pDnode) {
+#ifdef _CLUSTER
+  return clusterDecDnodeRef(pDnode);
+#endif
+}
+
 void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode) {
 #ifdef _CLUSTER
   return clusterGetNextDnode(pNode, pDnode);
@@ -183,6 +197,13 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pStatus->numOfCores = htons(pStatus->numOfCores);
   pStatus->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
 
+  uint32_t version = htonl(pStatus->version);
+  if (version != tsVersion) {
+    mError("status msg version:%d not equal with mnode:%d", version, tsVersion);
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_VERSION);
+    return ;
+  }
+
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
     pDnode = mgmtGetDnodeByIp(pStatus->privateIp);
@@ -198,13 +219,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
-  }
-
-  uint32_t version = htonl(pStatus->version);
-  if (version != tsVersion) {
-    mError("dnode:%d, status msg version:%d not equal with mnode:%d", pDnode->dnodeId, version, tsVersion);
-    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_VERSION);
-    return ;
   }
   
   pDnode->privateIp        = pStatus->privateIp;
@@ -240,6 +254,8 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     pDnode->status = TSDB_DN_STATUS_READY;
     mgmtStartBalanceTimer(200);
   }
+
+  mgmtDecDnodeRef(pDnode);
 
   int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SVnodeAccess);
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
@@ -340,6 +356,8 @@ static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
 
+  mgmtDecUserRef(pUser);
+
   return 0;
 }
 
@@ -351,6 +369,7 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
   char       ipstr[32];
 
   while (numOfRows < rows) {
+    mgmtDecDnodeRef(pDnode);
     pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
     if (pDnode == NULL) break;
 
@@ -454,6 +473,7 @@ static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -466,6 +486,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
   char       ipstr[20];
 
   while (numOfRows < rows) {
+    mgmtDecDnodeRef(pDnode);
     pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
     if (pDnode == NULL) break;
 
@@ -540,6 +561,7 @@ static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -654,6 +676,8 @@ static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   } 
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  mgmtDecDnodeRef(pDnode);
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
