@@ -497,6 +497,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
 
       } else if (pCreateTable->type == TSQL_CREATE_TABLE_FROM_STABLE) {
+        assert(pCmd->numOfCols == 0);
         if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
           return code;
         }

@@ -394,6 +394,10 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
 }
 
 void tscFreeSqlCmdData(SSqlCmd* pCmd) {
+  pCmd->command = 0;
+  pCmd->numOfCols = 0;
+  pCmd->count = 0;
+  
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   tscFreeSubqueryInfo(pCmd);
 }
@@ -454,9 +458,7 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
       cmd == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
     tscRemoveFromSqlList(pSql);
   }
-
-  pCmd->command = 0;
-
+  
   // pSql->sqlstr will be used by tscBuildQueryStreamDesc
   pthread_mutex_lock(&pObj->mutex);
   tfree(pSql->sqlstr);
@@ -1899,7 +1901,6 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
 
   for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
     char* addr = (char*)pCmd - offsetof(SSqlObj, cmd);
-
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
 
     doClearSubqueryInfo(pQueryInfo);
