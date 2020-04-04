@@ -430,7 +430,7 @@ static void mgmtProcessUseMsg(SQueuedMsg *pMsg) {
  * check if we need to add mgmtProcessTableMetaMsg into tranQueue, which will be executed one-by-one.
  */
 static bool mgmtCheckTableMetaMsgReadOnly(SQueuedMsg *pMsg) {
-  SCMTableInfoMsg *pInfo = (SCMTableInfoMsg *) pMsg;
+  SCMTableInfoMsg *pInfo = pMsg->pCont;
   pMsg->pTable = mgmtGetTable(pInfo->tableId);
   if (pMsg->pTable != NULL) return true;
 
