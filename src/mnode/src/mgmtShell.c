@@ -40,7 +40,7 @@ typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
-static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont);
+static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg);
 static void mgmtProcessMsgFromShell(SRpcMsg *pMsg);
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
 static void mgmtProcessMsgWhileNotReady(SRpcMsg *rpcMsg);
@@ -135,7 +135,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   }
 
   if (mgmtCheckRedirect(rpcMsg->handle)) {
-    // send resp in redirect func
+    // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -165,7 +165,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
   
-  if (mgmtCheckMsgReadOnly(rpcMsg->msgType, rpcMsg->pCont)) {
+  if (mgmtCheckMsgReadOnly(pMsg)) {
     (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(pMsg);
     mgmtFreeQueuedMsg(pMsg);
   } else {
@@ -185,7 +185,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  if (!tsMgmtShowMetaFp[pShowMsg->type]) {
+  if (!tsMgmtShowMetaFp[pShowMsg->type] || !tsMgmtShowRetrieveFp[pShowMsg->type]) {
     mError("show type:%s is not support", taosGetShowTypeStr(pShowMsg->type));
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OPS_NOT_SUPPORT);
     return;
@@ -299,22 +299,13 @@ static void mgmtProcessRetrieveMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
-  //SCMHeartBeatMsg *pHBMsg = (SCMHeartBeatMsg *) rpcMsg->pCont;
-  //mgmtSaveQueryStreamList(pHBMsg);
-
   SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
   if (pHBRsp == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return;
   }
 
-  SRpcConnInfo connInfo;
-  if (rpcGetConnInfo(pMsg->thandle, &connInfo) != 0) {
-    mError("conn:%p is already released while process heart beat msg", pMsg->thandle);
-    return;
-  }
-
-  if (connInfo.serverIp == tsPublicIpInt) {
+  if (pMsg->usePublicIp) {
     mgmtGetMnodePublicIpList(&pHBRsp->ipList);
   } else {
     mgmtGetMnodePrivateIpList(&pHBRsp->ipList);
@@ -424,10 +415,10 @@ static void mgmtProcessUseMsg(SQueuedMsg *pMsg) {
   SCMUseDbMsg *pUseDbMsg = pMsg->pCont;
   
   // todo check for priority of current user
-  SDbObj* pDbObj = mgmtGetDb(pUseDbMsg->db);
+  pMsg->pDb = mgmtGetDb(pUseDbMsg->db);
   
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pDbObj == NULL) {
+  if (pMsg->pDb == NULL) {
     code = TSDB_CODE_INVALID_DB;
   }
   
@@ -438,26 +429,29 @@ static void mgmtProcessUseMsg(SQueuedMsg *pMsg) {
 /**
  * check if we need to add mgmtProcessTableMetaMsg into tranQueue, which will be executed one-by-one.
  */
-static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
-  SCMTableInfoMsg *pInfo = (SCMTableInfoMsg *) pMsg;
-  int16_t autoCreate = htons(pInfo->createFlag);
-  STableInfo *pTable = mgmtGetTable(pInfo->tableId);
+static bool mgmtCheckTableMetaMsgReadOnly(SQueuedMsg *pMsg) {
+  SCMTableInfoMsg *pInfo = pMsg->pCont;
+  pMsg->pTable = mgmtGetTable(pInfo->tableId);
+  if (pMsg->pTable != NULL) return true;
 
   // If table does not exists and autoCreate flag is set, we add the handler into task queue
-  bool addIntoTranQueue = (pTable == NULL && autoCreate == 1);
-  if (addIntoTranQueue) {
+  int16_t autoCreate = htons(pInfo->createFlag);
+  if (autoCreate == 1) {
     mTrace("table:%s auto created task added", pInfo->tableId);
+    return false;
   }
-
-  mgmtDecTableRef(pTable);
-  return addIntoTranQueue;
+  
+  return true;
 }
 
-static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
-  if ((type == TSDB_MSG_TYPE_CM_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
-       type == TSDB_MSG_TYPE_CM_STABLE_VGROUP || type == TSDB_MSG_TYPE_RETRIEVE ||
-       type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_CM_TABLES_META      ||
-       type == TSDB_MSG_TYPE_CM_CONNECT) {
+static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg) {
+  if (pMsg->msgType == TSDB_MSG_TYPE_CM_TABLE_META) {
+    return mgmtCheckTableMetaMsgReadOnly(pMsg);
+  }
+
+  if (pMsg->msgType == TSDB_MSG_TYPE_CM_STABLE_VGROUP || pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE       ||
+      pMsg->msgType == TSDB_MSG_TYPE_CM_SHOW          || pMsg->msgType == TSDB_MSG_TYPE_CM_TABLES_META ||
+      pMsg->msgType == TSDB_MSG_TYPE_CM_CONNECT) {
     return true;
   }
 
