@@ -840,7 +840,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     rpcMsg.handle = pConn;
     rpcMsg.msgType = pConn->inType;
     rpcMsg.code = TSDB_CODE_NETWORK_UNAVAIL;
-    (*(pRpc->cfp))(&rpcMsg);
+    // (*(pRpc->cfp))(&rpcMsg);
   }
  
   rpcCloseConn(pConn);
@@ -1169,7 +1169,7 @@ static void rpcProcessIdleTimer(void *param, void *tmrId) {
       rpcMsg.handle = pConn;
       rpcMsg.msgType = pConn->inType;
       rpcMsg.code = TSDB_CODE_NETWORK_UNAVAIL; 
-      (*(pRpc->cfp))(&rpcMsg);
+      // (*(pRpc->cfp))(&rpcMsg);
     }
     rpcCloseConn(pConn);
   } else {

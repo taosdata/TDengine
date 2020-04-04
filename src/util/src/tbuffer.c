@@ -30,7 +30,7 @@
     tbufWriteAt(buf, pos, &data, sizeof(data));\
   }
 
-#include "../inc/tbuffer.h"
+#include "tbuffer.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,13 +119,14 @@ void tbufEnsureCapacity(SBuffer* buf, size_t size) {
 }
 
 char* tbufGetData(SBuffer* buf, bool takeOver) {
-		char* ret = buf->data;
-		if (takeOver) {
-      buf->pos = 0;
-      buf->size = 0;
-			buf->data = NULL;
-    }
-		return ret;
+  char* ret = buf->data;
+  if (takeOver) {
+    buf->pos = 0;
+    buf->size = 0;
+    buf->data = NULL;
+  }
+
+  return ret;
 }
 
 void tbufEndWrite(SBuffer* buf) {

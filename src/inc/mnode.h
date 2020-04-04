@@ -59,6 +59,7 @@ typedef struct {
   char     mnodeName[TSDB_DNODE_NAME_LEN + 1];
   int8_t   reserved[15];
   int8_t   updateEnd[1];
+  int32_t  refCount;
   int      syncFd;
   void    *hbTimer;
   void    *pSync;
@@ -84,6 +85,7 @@ typedef struct {
   char       dnodeName[TSDB_DNODE_NAME_LEN + 1];
   int8_t     reserved[15];
   int8_t     updateEnd[1];
+  int32_t    refCount;
   SVnodeLoad vload[TSDB_MAX_VNODES];
   int32_t    status;
   uint32_t   lastReboot;       // time stamp for last reboot
@@ -102,9 +104,8 @@ typedef struct {
 } SVnodeGid;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN];
+  char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t type;
-  int8_t dirty;
 } STableInfo;
 
 typedef struct SSuperTableObj {
@@ -116,6 +117,7 @@ typedef struct SSuperTableObj {
   int32_t    numOfTags;
   int8_t     reserved[15];
   int8_t     updateEnd[1];
+  int32_t    refCount;
   int32_t    numOfTables;
   int16_t    nextColId;
   SSchema *  schema;
@@ -134,6 +136,7 @@ typedef struct {
   int8_t     reserved[1]; 
   int8_t     updateEnd[1];
   int16_t    nextColId;    //used by normal table
+  int32_t    refCount;
   char*      sql;          //used by normal table
   SSchema*   schema;       //used by normal table
   SSuperTableObj *superTable;
@@ -150,6 +153,7 @@ typedef struct _vg_obj {
   int8_t          lbStatus;
   int8_t          reserved[14];
   int8_t          updateEnd[1];
+  int32_t         refCount;
   struct _vg_obj *prev, *next;
   struct _db_obj *pDb;
   int32_t         numOfTables;
@@ -164,7 +168,7 @@ typedef struct _db_obj {
   SDbCfg  cfg;
   int8_t  reserved[15];
   int8_t  updateEnd[1];
-  struct _db_obj *prev, *next;
+  int32_t refCount;
   int32_t numOfVgroups;
   int32_t numOfTables;
   int32_t numOfSuperTables;
@@ -182,7 +186,7 @@ typedef struct _user_obj {
   int8_t            writeAuth;
   int8_t            reserved[13];
   int8_t            updateEnd[1];
-  struct _user_obj *prev, *next;
+  int32_t           refCount;
   struct _acctObj * pAcct;
   SQqueryList *     pQList;  // query list
   SStreamList *     pSList;  // stream list
@@ -215,9 +219,8 @@ typedef struct _acctObj {
   int8_t    dirty;
   int8_t    reserved[14];
   int8_t    updateEnd[1];
+  int32_t  refCount;
   SAcctInfo acctInfo;
-  SDbObj *         pHead;
-  SUserObj *       pUser;
   pthread_mutex_t  mutex;
 } SAcctObj;
 
@@ -247,8 +250,12 @@ typedef struct {
   void     *ahandle;
   void     *thandle;
   void     *pCont;
-  SDbObj   *pDb;
+  SAcctObj *pAcct;
+  SDnodeObj*pDnode;
   SUserObj *pUser;
+  SDbObj   *pDb;
+  SVgObj   *pVgroup;
+  STableInfo *pTable;
 } SQueuedMsg;
 
 int32_t mgmtInitSystem();

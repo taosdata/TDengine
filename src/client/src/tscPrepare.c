@@ -488,7 +488,6 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   }
 
   tsem_init(&pSql->rspSem, 0, 0);
-  tsem_init(&pSql->emptyRspSem, 0, 1);
   pSql->signature = pSql;
   pSql->pTscObj = pObj;
 

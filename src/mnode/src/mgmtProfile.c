@@ -16,10 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
+#include "mgmtDb.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
+#include "mgmtTable.h"
 #include "mgmtUser.h"
+#include "mgmtVgroup.h"
 
 int32_t mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
 
@@ -763,12 +766,49 @@ int32_t mgmtInitProfile() {
 void mgmtCleanUpProfile() {
 }
 
+void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg) {
+  bool usePublicIp = false;
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, &usePublicIp);
+  if (pUser == NULL) {
+    return NULL;
+  }
+
+  SQueuedMsg *pMsg = calloc(1, sizeof(SQueuedMsg));
+  pMsg->thandle = rpcMsg->handle;
+  pMsg->msgType = rpcMsg->msgType;
+  pMsg->contLen = rpcMsg->contLen;
+  pMsg->pCont = rpcMsg->pCont;
+  pMsg->pUser = pUser;
+  pMsg->usePublicIp = usePublicIp;
+
+  return pMsg;
+}
+
 void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
   if (pMsg != NULL) {
-    if (pMsg->pCont != NULL) {
-      rpcFreeCont(pMsg->pCont);
-      pMsg->pCont = NULL;
-    }
+    rpcFreeCont(pMsg->pCont);
+    if (pMsg->pUser) mgmtDecUserRef(pMsg->pUser);
+    if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
+    if (pMsg->pVgroup) mgmtDecVgroupRef(pMsg->pVgroup);
+    if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
+    // if (pMsg->pAcct) acctDecRef(pMsg->pAcct);
+    // if (pMsg->pDnode) mgmtDecTableRef(pMsg->pDnode);
     free(pMsg);
   }
+}
+
+void* mgmtCloneQueuedMsg(SQueuedMsg *pSrcMsg) {
+  SQueuedMsg *pDestMsg = calloc(1, sizeof(SQueuedMsg));
+  
+  pDestMsg->thandle = pSrcMsg->thandle;
+  pDestMsg->msgType = pSrcMsg->msgType;
+  pDestMsg->pCont   = pSrcMsg->pCont;
+  pDestMsg->contLen = pSrcMsg->contLen;
+  pDestMsg->pUser   = pSrcMsg->pUser;
+  pDestMsg->usePublicIp = pSrcMsg->usePublicIp;
+
+  pSrcMsg->pCont = NULL;
+  pSrcMsg->pUser = NULL;
+  
+  return pDestMsg;
 }

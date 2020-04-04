@@ -44,6 +44,7 @@ typedef struct {
   char   *tableName;
   int32_t hashSessions;
   int32_t maxRowSize;
+  int32_t refCountPos;
   ESdbKeyType keyType;
   int32_t (*insertFp)(SSdbOperDesc *pOper);
   int32_t (*deleteFp)(SSdbOperDesc *pOper);
@@ -62,6 +63,8 @@ int32_t sdbUpdateRow(SSdbOperDesc *pOper);
 
 void    *sdbGetRow(void *handle, void *key);
 void    *sdbFetchRow(void *handle, void *pNode, void **ppRow);
+void     sdbIncRef(void *thandle, void *pRow);
+void     sdbDecRef(void *thandle, void *pRow);
 int64_t  sdbGetNumOfRows(void *handle);
 int64_t  sdbGetId(void *handle);
 uint64_t sdbGetVersion();

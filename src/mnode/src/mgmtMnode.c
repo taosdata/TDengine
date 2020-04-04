@@ -48,7 +48,7 @@ int32_t mgmtInitMnodes() {
 void mgmtCleanupMnodes() {}
 bool mgmtInServerStatus() { return tsMnodeObj.status == TSDB_MN_STATUS_SERVING; }
 bool mgmtIsMaster() { return tsMnodeObj.role == TSDB_MN_ROLE_MASTER; }
-bool mgmtCheckRedirect(void *handle) { return false; }
+bool mgmtCheckRedirect(void *thandle) { return false; }
 
 static int32_t mgmtGetMnodesNum() {
   return 1;
@@ -117,9 +117,10 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = mgmtGetDnodesNum();
+  pShow->numOfRows = mgmtGetMnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -167,6 +168,7 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
   }
 
   pShow->numOfReads += numOfRows;
+
   return numOfRows;
 }
 

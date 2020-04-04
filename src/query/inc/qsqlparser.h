@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_QASTDEF_H
-#define TDENGINE_QASTDEF_H
+#ifndef TDENGINE_QSQLPARSER_H
+#define TDENGINE_QSQLPARSER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -329,4 +329,4 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pSql);
 }
 #endif
 
-#endif  // TDENGINE_QASTDEF_H
+#endif  // TDENGINE_QSQLPARSER_H
