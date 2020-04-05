@@ -142,6 +142,7 @@ int32_t acctInit() {
     .tableName    = "accounts",
     .hashSessions = TSDB_MAX_ACCOUNTS,
     .maxRowSize   = tsAcctUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_STRING,
     .insertFp     = acctAcctActionInsert,
     .deleteFp     = acctActionDelete,
