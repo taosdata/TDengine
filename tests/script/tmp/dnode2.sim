@@ -1,0 +1,4 @@
+system sh/stop_dnodes.sh
+system sh/exec_up.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode2 -s start
+sql connect
