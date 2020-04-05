@@ -2011,9 +2011,8 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     }
 
     char tableName[TSDB_TABLE_NAME_LEN] = {0};
-    memset(tableName, 0, tListLen(tableName));
     
-    // pattern compare for meter name
+    // pattern compare for table name
     mgmtExtractTableName(pTable->info.tableId, tableName);
 
     if (pShow->payloadLen > 0 &&

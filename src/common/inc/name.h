@@ -19,7 +19,7 @@ typedef struct SColumnInfoEx {
   void* pData;    // the corresponding block data in memory
 } SColumnInfoEx;
 
-int32_t extractTableName(const char *tableId, char *name);
+void extractTableName(const char *tableId, char *name);
 
 char* extractDBName(const char *tableId, char *name);
 

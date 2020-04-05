@@ -535,11 +535,11 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
         continue;
       }
 
-      SSqlRes *pRes1 = &pSql->pSubs[i]->res;
+//      SSqlRes *pRes1 = &pSql->pSubs[i]->res;
       SSqlCmd *pCmd1 = &pSql->pSubs[i]->cmd;
 
       SQueryInfo *    pQueryInfo1 = tscGetQueryInfoDetail(pCmd1, pCmd1->clauseIndex);
-      STableMetaInfo *pMetaInfo = tscGetMetaInfo(pQueryInfo1, 0);
+//      STableMetaInfo *pMetaInfo = tscGetMetaInfo(pQueryInfo1, 0);
 
       assert(pQueryInfo1->numOfTables == 1);
 
@@ -576,7 +576,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
+static UNUSED_FUNC void **tscBuildResFromSubqueries(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   while (1) {

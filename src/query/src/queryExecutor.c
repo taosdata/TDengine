@@ -47,7 +47,7 @@
 #define SET_SUPPLEMENT_SCAN_FLAG(runtime) ((runtime)->scanFlag = SUPPLEMENTARY_SCAN)
 #define SET_MASTER_SCAN_FLAG(runtime) ((runtime)->scanFlag = MASTER_SCAN)
 
-#define GET_QINFO_ADDR(x) ((char *)(x)-offsetof(SQInfo, runtimeEnv))
+#define GET_QINFO_ADDR(x) ((void*)((char *)(x)-offsetof(SQInfo, runtimeEnv)))
 
 #define GET_COL_DATA_POS(query, index, step) ((query)->pos + (index) * (step))
 
@@ -1140,13 +1140,13 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStat
     bool  hasNull = hasNullValue(pQuery, k, pDataBlockInfo, pStatis, &pColStatis);
     char *dataBlock = getDataBlocks(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->size, pDataBlock);
 
-    setExecParams(pQuery, &pCtx[k], dataBlock, (char *)primaryKeyCol, pDataBlockInfo->size, functionId, pColStatis,
+    setExecParams(pQuery, &pCtx[k], dataBlock, primaryKeyCol, pDataBlockInfo->size, functionId, pColStatis,
                   hasNull, &sasArray[k], pRuntimeEnv->scanFlag);
   }
 
   // set the input column data
   for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
-    SSingleColumnFilterInfo *pFilterInfo = &pQuery->pFilterInfo[k];
+//    SSingleColumnFilterInfo *pFilterInfo = &pQuery->pFilterInfo[k];
     assert(0);
     /*
      * NOTE: here the tbname/tags column cannot reach here, since it will never be a filter column,
@@ -1465,7 +1465,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, SColumnModel 
   pRuntimeEnv->offset[0] = 0;
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
     SSqlFuncExprMsg *pSqlFuncMsg = &pQuery->pSelectExpr[i].pBase;
-    SColIndexEx *    pColIndexEx = &pSqlFuncMsg->colInfo;
+//    SColIndexEx *    pColIndexEx = &pSqlFuncMsg->colInfo;
 
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
     pCtx->inputType = GET_COLUMN_TYPE(pQuery, i);
@@ -1586,7 +1586,7 @@ static bool isQueryKilled(SQInfo *pQInfo) {
 #endif
 }
 
-static bool setQueryKilled(SQInfo* pQInfo) {
+static void setQueryKilled(SQInfo* pQInfo) {
   pQInfo->code = TSDB_CODE_QUERY_CANCELLED;
 }
 
@@ -1738,6 +1738,7 @@ static UNUSED_FUNC bool doGetQueryPos(TSKEY key, SQInfo *pQInfo, SPointInterpoSu
     }
   }
 #endif
+  return true;
 }
 
 static UNUSED_FUNC bool doSetDataInfo(SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupporter, void *pMeterObj,
@@ -2924,11 +2925,11 @@ int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *param) 
 }
 
 int32_t mergeResultsToGroup(SQInfo *pQInfo) {
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
+//  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+//  SQuery *          pQuery = pRuntimeEnv->pQuery;
 
-  int64_t st = taosGetTimestampMs();
-  int32_t ret = TSDB_CODE_SUCCESS;
+//  int64_t st = taosGetTimestampMs();
+//  int32_t ret = TSDB_CODE_SUCCESS;
 
   //  while (pQInfo->subgroupIdx < pQInfo->pSidSet->numOfSubSet) {
   //    int32_t start = pQInfo->pSidSet->starterPos[pQInfo->subgroupIdx];
@@ -2994,7 +2995,7 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
 
     for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
-      char *  pDest = pQuery->sdata[i];
+      char *  pDest = pQuery->sdata[i]->data;
 
       memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->numOfElems,
              bytes * pData->numOfElems);
@@ -3033,7 +3034,7 @@ int64_t getNumOfResultWindowRes(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pW
   return maxOutput;
 }
 
-int32_t doMergeMetersResultsToGroupRes(SQInfo *pQInfo, STableDataInfo *pTableDataInfo, int32_t start, int32_t end) {
+UNUSED_FUNC int32_t doMergeMetersResultsToGroupRes(SQInfo *pQInfo, STableDataInfo *pTableDataInfo, int32_t start, int32_t end) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pQInfo->runtimeEnv.pQuery;
 
@@ -3204,7 +3205,7 @@ int32_t flushFromResultBuf(SQInfo *pQInfo) {
 
 void resetMergeResultBuf(SQuery *pQuery, SQLFunctionCtx *pCtx, SResultInfo *pResultInfo) {
   for (int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
-    pCtx[k].aOutputBuf = pQuery->sdata[k] - pCtx[k].outputBytes;
+    pCtx[k].aOutputBuf = pQuery->sdata[k]->data - pCtx[k].outputBytes;
     pCtx[k].size = 1;
     pCtx[k].startOffset = 0;
     pCtx[k].resultInfo = &pResultInfo[k];
@@ -3561,7 +3562,7 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     }
 
     // set the correct start position, and load the corresponding block in buffer for next round scan all data blocks.
-    int32_t ret = tsdbDataBlockSeek(pRuntimeEnv->pQueryHandle, pos);
+    /*int32_t ret =*/ tsdbDataBlockSeek(pRuntimeEnv->pQueryHandle, pos);
 
     status = pQuery->status;
     pRuntimeEnv->windowResInfo.curIndex = activeSlot;
@@ -3582,7 +3583,7 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   pQuery->window.skey = skey;
   pQuery->window.ekey = pQuery->lastKey - step;
-  tsdbpos_t current = tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
+  /*tsdbpos_t current =*/ tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
 
   doSingleMeterSupplementScan(pRuntimeEnv);
 
@@ -3591,7 +3592,7 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   pQuery->lastKey = lkey;
   pQuery->window.ekey = ekey;
 
-  STimeWindow win = {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
+//  STimeWindow win = {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
 //  tsdbResetQuery(pRuntimeEnv->pQueryHandle, &win, current, pQuery->order.order);
 //  tsdbNextDataBlock(pRuntimeEnv->pQueryHandle);
 }
@@ -4020,7 +4021,7 @@ bool vnodeHasRemainResults(void *handle) {
 
     // query has completed
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-      TSKEY ekey = taosGetRevisedEndKey(pQuery->window.ekey, pQuery->order.order, pQuery->intervalTime,
+      /*TSKEY ekey =*/ taosGetRevisedEndKey(pQuery->window.ekey, pQuery->order.order, pQuery->intervalTime,
                                         pQuery->slidingTimeUnit, pQuery->precision);
       //      int32_t numOfTotal = taosGetNumOfResultWithInterpo(pInterpoInfo, (TSKEY
       //      *)pRuntimeEnv->pInterpoBuf[0]->data,
@@ -4088,8 +4089,8 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
 
 int32_t vnodeQueryResultInterpolate(SQInfo *pQInfo, tFilePage **pDst, tFilePage **pDataSrc, int32_t numOfRows,
                                     int32_t *numOfInterpo) {
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
+//  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+//  SQuery *          pQuery = pRuntimeEnv->pQuery;
 #if 0
   while (1) {
     numOfRows = taosNumOfRemainPoints(&pRuntimeEnv->interpoInfo);
@@ -4390,8 +4391,8 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
 static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *dataInCache, int32_t index,
                                         int32_t start) {
   //  STableIdInfo **pMeterSidExtInfo = pQInfo->pMeterSidExtInfo;
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = &pRuntimeEnv->pQuery;
+//  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+//  SQuery *          pQuery = pRuntimeEnv->pQuery;
 #if 0
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
   
@@ -4438,7 +4439,7 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
 
 #endif
 
-  initCtxOutputBuf(pRuntimeEnv);
+//  initCtxOutputBuf(pRuntimeEnv);
   return true;
 }
 
@@ -5457,8 +5458,8 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
 }
 
 static int32_t buildAirthmeticExprFromMsg(SSqlFunctionExpr *pExpr, SQueryTableMsg *pQueryMsg) {
-  SSqlBinaryExprInfo *pBinaryExprInfo = &pExpr->binExprInfo;
-  SColumnInfo *       pColMsg = pQueryMsg->colList;
+//  SSqlBinaryExprInfo *pBinaryExprInfo = &pExpr->binExprInfo;
+//  SColumnInfo *       pColMsg = pQueryMsg->colList;
 #if 0
   tExprNode* pBinExpr = NULL;
   SSchema*        pSchema = toSchema(pQueryMsg, pColMsg, pQueryMsg->numOfCols);
@@ -5874,7 +5875,7 @@ static bool isValidQInfo(void *param) {
    * pQInfo->signature may be changed by another thread, so we assign value of signature
    * into local variable, then compare by using local variable
    */
-  uint64_t sig = pQInfo->signature;
+  uint64_t sig = (uint64_t) pQInfo->signature;
   return (sig == (uint64_t)pQInfo);
 }
 

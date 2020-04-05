@@ -645,7 +645,7 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
       }
     }
 
-    if ((*compar)(key, elePtrAt(base, size, idx) < 0)) {
+    if ((*compar)(key, elePtrAt(base, size, idx)) < 0) {
       return elePtrAt(base, size, idx);
     } else {
       if (idx + 1 > nmemb - 1) {

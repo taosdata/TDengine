@@ -301,6 +301,7 @@ tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond
       .pCompInfo = calloc(1, 1024),
     };
     
+    assert(info.pTableObj != NULL);
     taosArrayPush(pQueryHandle->pTableCheckInfo, &info);
   }
   
@@ -1008,17 +1009,21 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
   }
 }
 
-int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow *window, tsdbpos_t position, int16_t order) {}
+int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow *window, tsdbpos_t position, int16_t order) {
+  return 0;
+}
 
-int32_t tsdbDataBlockSeek(tsdb_query_handle_t *pQueryHandle, tsdbpos_t pos) {}
+int32_t tsdbDataBlockSeek(tsdb_query_handle_t *pQueryHandle, tsdbpos_t pos) { return 0;}
 
 tsdbpos_t tsdbDataBlockTell(tsdb_query_handle_t *pQueryHandle) { return NULL; }
 
-SArray *tsdbRetrieveDataRow(tsdb_query_handle_t *pQueryHandle, SArray *pIdList, SQueryRowCond *pCond) {}
+SArray *tsdbRetrieveDataRow(tsdb_query_handle_t *pQueryHandle, SArray *pIdList, SQueryRowCond *pCond) { return NULL;}
 
-tsdb_query_handle_t *tsdbQueryFromTagConds(STsdbQueryCond *pCond, int16_t stableId, const char *pTagFilterStr) {}
+tsdb_query_handle_t *tsdbQueryFromTagConds(STsdbQueryCond *pCond, int16_t stableId, const char *pTagFilterStr) {
+  return NULL;
+}
 
-SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle) {}
+SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle) { return NULL; }
 
 static SArray* createTableIdArrayList(STsdbRepo* tsdb, int64_t uid) {
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
@@ -1303,7 +1308,7 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond
   STColumn* stcol = schemaColAt(pSTable->tagSchema, 0);
   
   tExprNode* pExpr = NULL;
-  tSQLBinaryExprFromString(&pExpr, stcol, schemaNCols(pSTable->tagSchema), pCond, strlen(pCond));
+  tSQLBinaryExprFromString(&pExpr, stcol, schemaNCols(pSTable->tagSchema), (char*) pCond, strlen(pCond));
   
   // failed to build expression, no result, return immediately
   if (pExpr == NULL) {

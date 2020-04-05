@@ -343,10 +343,10 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
 }
 
 static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
+//  SSqlCmd *pCmd = &pSql->cmd;
+//  SSqlRes *pRes = &pSql->res;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+//  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 #if 0
   SSuperTableMeta *pMetricMeta = tscGetMetaInfo(pQueryInfo, 0)->pMetricMeta;
   int32_t      totalNumOfResults = 1;  // count function only produce one result

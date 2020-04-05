@@ -36,4 +36,6 @@ bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
 
 void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo);
 
+char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult);
+
 #endif  // TDENGINE_QUERYUTIL_H
