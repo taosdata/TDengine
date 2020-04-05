@@ -34,6 +34,7 @@ typedef struct {
 } SWriteWorker;  
 
 typedef struct {
+  SRspRet  rspRet;
   void    *pCont;
   int32_t  contLen;
   SRpcMsg  rpcMsg;
@@ -148,8 +149,8 @@ void dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code) {
 
   SRpcMsg rpcRsp = {
     .handle  = pWrite->rpcMsg.handle,
-    .pCont   = NULL,
-    .contLen = 0,
+    .pCont   = pWrite->rspRet.rsp,
+    .contLen = pWrite->rspRet.len,
     .code    = code,
   };
 

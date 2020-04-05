@@ -289,7 +289,7 @@ static void dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg) {
       dnodeContinueExecuteQuery(pVnode, pQInfo, pMsg);
     } else {  // no further execution invoked, release the ref to vnode
       dnodeProcessReadResult(pVnode, pMsg);
-      dnodeReleaseVnode(pVnode);
+      vnodeRelease(pVnode);
     }
   }
   

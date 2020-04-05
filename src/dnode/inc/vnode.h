@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+typedef struct {
+  int   len;
+  void *rsp;
+} SRspRet;
+
 int32_t vnodeInitWrite();
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeDrop(int32_t vgId);

@@ -29,11 +29,11 @@
 #include "vnodeInt.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, void*);
-static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, void *);
-static int32_t  vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pMsg, void *);
-static int32_t  vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pMsg, void *);
-static int32_t  vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pMsg, void *);
-static int32_t  vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pMsg, void *);
+static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
+static int32_t  vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
+static int32_t  vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
+static int32_t  vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
+static int32_t  vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
 
 int32_t vnodeInitWrite() {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -48,6 +48,9 @@ int32_t vnodeInitWrite() {
 int32_t vnodeProcessWrite(void *param, int qtype, SWalHead *pHead, void *item) {
   int32_t    code = 0;
   SVnodeObj *pVnode = (SVnodeObj *)param;
+
+  if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
+    return TSDB_CODE_MSG_NOT_PROCESSED; 
 
   if (pVnode->status == VN_STATUS_DELETING || pVnode->status == VN_STATUS_CLOSING) 
     return TSDB_CODE_NOT_ACTIVE_VNODE; 
@@ -73,7 +76,7 @@ int32_t vnodeProcessWrite(void *param, int qtype, SWalHead *pHead, void *item) {
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
   if ( code < 0) return code;
-
+ 
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
   if (code < 0) return code;
 
@@ -86,7 +89,7 @@ int32_t vnodeProcessWrite(void *param, int qtype, SWalHead *pHead, void *item) {
   return code;
 }
 
-static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, void *item) {
+static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int32_t code = 0;
 
   // save insert result into item
@@ -94,10 +97,19 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, void *item)
   dTrace("pVnode:%p vgId:%d, submit msg is processed", pVnode, pVnode->vgId);
   code = tsdbInsertData(pVnode->tsdb, pCont);
 
+  pRet->len = sizeof(SShellSubmitRspMsg);
+  pRet->rsp = rpcMallocCont(pRet->len);
+  SShellSubmitRspMsg *pRsp = pRet->rsp;
+
+  pRsp->code              = 0;
+  pRsp->numOfRows         = htonl(1);
+  pRsp->affectedRows      = htonl(1);
+  pRsp->numOfFailedBlocks = 0;
+
   return code;
 }
 
-static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, void *item) {
+static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
 
@@ -153,7 +165,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, void *
   return code; 
 }
 
-static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, void *item) {
+static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDDropTableMsg *pTable = pCont;
   int32_t code = 0;
 
@@ -168,7 +180,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, void *it
   return code;
 }
 
-static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, void *item) {
+static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
 
@@ -223,7 +235,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, void *i
   return code;
 }
 
-static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, void *item) {
+static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDDropSTableMsg *pTable = pCont;
   int32_t code = 0;
 
