@@ -25,6 +25,9 @@ typedef struct {
   void *rsp;
 } SRspRet;
 
+int32_t vnodeInitModule();
+void    vnodeCleanupModule();
+
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeDrop(int32_t vgId);
 int32_t vnodeOpen(int32_t vnode, char *rootDir);
@@ -39,6 +42,7 @@ void*   vnodeGetWal(void *pVnode);
 void*   vnodeGetTsdb(void *pVnode);
 
 int32_t vnodeProcessWrite(void *pVnode, int qtype, SWalHead *pHead, void *item);
+void    vnodeBuildStatusMsg(void * param);
 
 #ifdef __cplusplus
 }

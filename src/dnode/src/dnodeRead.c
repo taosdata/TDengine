@@ -127,7 +127,7 @@ void dnodeRead(SRpcMsg *pMsg) {
 }
 
 void *dnodeAllocateRqueue(void *pVnode) {
-  taos_queue *queue = taosOpenQueue(sizeof(SReadMsg));
+  taos_queue queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
   taosAddIntoQset(readQset, queue, pVnode);
@@ -143,6 +143,8 @@ void *dnodeAllocateRqueue(void *pVnode) {
       dError("failed to create thread to process read queue, reason:%s", strerror(errno));
     }
   }
+
+  dTrace("pVnode:%p, queue:%p is allocated", pVnode, queue); 
 
   return queue;
 }

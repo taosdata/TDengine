@@ -106,7 +106,7 @@ void dnodeWrite(SRpcMsg *pMsg) {
 
 void *dnodeAllocateWqueue(void *pVnode) {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
-  taos_queue *queue = taosOpenQueue();
+  void *queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
   if (pWorker->qset == NULL) {
@@ -129,7 +129,7 @@ void *dnodeAllocateWqueue(void *pVnode) {
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
   }
 
-  dTrace("queue:%p is allocated for pVnode:%p", queue, pVnode);
+  dTrace("pVnode:%p, queue:%p is allocated", pVnode, queue);
 
   return queue;
 }

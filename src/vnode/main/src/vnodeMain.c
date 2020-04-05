@@ -25,10 +25,32 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "twal.h"
+#include "dnode.h"
+#include "vnode.h"
 #include "vnodeInt.h"
 
-extern void *tsDnodeVnodesHash;
-static void vnodeCleanUp(SVnodeObj *pVnode);
+static void *tsDnodeVnodesHash;
+static void  vnodeCleanUp(SVnodeObj *pVnode);
+static void  vnodeBuildVloadMsg(char *pNode, void * param);
+
+int32_t vnodeInitModule() {
+
+  vnodeInitWriteFp();
+
+  tsDnodeVnodesHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SVnodeObj), taosHashInt);
+  if (tsDnodeVnodesHash == NULL) {
+    dError("failed to init vnode list");
+    return -1;
+  }
+
+  return 0;
+}
+
+typedef void (*CleanupFp)(char *);
+void vnodeCleanupModule() {
+  taosCleanUpIntHashWithFp(tsDnodeVnodesHash, (CleanupFp)vnodeClose);
+  taosCleanUpIntHash(tsDnodeVnodesHash);
+}
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
@@ -94,9 +116,6 @@ int32_t vnodeDrop(int32_t vgId) {
 
 int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   char temp[TSDB_FILENAME_LEN];
-
-  static pthread_once_t vnodeInitWrite = PTHREAD_ONCE_INIT;
-  pthread_once(&vnodeInitWrite, vnodeInitWriteFp);
 
   SVnodeObj vnodeObj = {0};
   vnodeObj.vgId     = vnode;
@@ -192,6 +211,24 @@ void *vnodeGetWal(void *pVnode) {
 
 void *vnodeGetTsdb(void *pVnode) {
   return ((SVnodeObj *)pVnode)->tsdb; 
+}
+
+void vnodeBuildStatusMsg(void *param) {
+  SDMStatusMsg *pStatus = param;
+  taosVisitIntHashWithFp(tsDnodeVnodesHash, vnodeBuildVloadMsg, pStatus);
+}
+
+static void vnodeBuildVloadMsg(char *pNode, void * param) {
+  SVnodeObj *pVnode = (SVnodeObj *) pNode;
+  if (pVnode->status == VN_STATUS_DELETING) return;
+
+  SDMStatusMsg *pStatus = param;
+  if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
+
+  SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
+  pLoad->vgId = htonl(pVnode->vgId);
+  pLoad->vnode = htonl(pVnode->vgId);
+  pLoad->status = pVnode->status;
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
