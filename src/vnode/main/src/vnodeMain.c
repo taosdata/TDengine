@@ -25,11 +25,6 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "twal.h"
-#include "dnodeMClient.h"
-#include "dnodeMgmt.h"
-#include "dnodeRead.h"
-#include "dnodeWrite.h"
-#include "vnode.h"
 #include "vnodeInt.h"
 
 extern void *tsDnodeVnodesHash;
@@ -99,6 +94,9 @@ int32_t vnodeDrop(int32_t vgId) {
 
 int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   char temp[TSDB_FILENAME_LEN];
+
+  static pthread_once_t vnodeInitWrite = PTHREAD_ONCE_INIT;
+  pthread_once(&vnodeInitWrite, vnodeInitWriteFp);
 
   SVnodeObj vnodeObj = {0};
   vnodeObj.vgId     = vnode;

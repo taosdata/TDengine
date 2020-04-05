@@ -23,8 +23,6 @@
 #include "tsdb.h"
 #include "twal.h"
 #include "dataformat.h"
-#include "dnodeWrite.h"
-#include "dnodeMgmt.h"
 #include "vnode.h"
 #include "vnodeInt.h"
 
@@ -35,14 +33,12 @@ static int32_t  vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet 
 static int32_t  vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
 static int32_t  vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
 
-int32_t vnodeInitWrite() {
+void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = vnodeProcessCreateTableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = vnodeProcessDropTableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = vnodeProcessAlterTableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = vnodeProcessDropStableMsg;
-
-  return 0;
 }
 
 int32_t vnodeProcessWrite(void *param, int qtype, SWalHead *pHead, void *item) {

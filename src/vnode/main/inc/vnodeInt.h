@@ -43,7 +43,8 @@ typedef struct {
   void *       cq;  // continuous query
 } SVnodeObj;
 
-int vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
+int  vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
+void vnodeInitWriteFp(void);
 
 #ifdef __cplusplus
 }

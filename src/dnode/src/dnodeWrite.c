@@ -46,14 +46,12 @@ typedef struct _thread_obj {
   SWriteWorker  *writeWorker;
 } SWriteWorkerPool;
 
-static void  *dnodeProcessWriteQueue(void *param);
-static void   dnodeHandleIdleWorker(SWriteWorker *pWorker);
+static void *dnodeProcessWriteQueue(void *param);
+static void  dnodeHandleIdleWorker(SWriteWorker *pWorker);
 
 SWriteWorkerPool wWorkerPool;
 
 int32_t dnodeInitWrite() {
-  
-  vnodeInitWrite();
 
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
@@ -216,7 +214,6 @@ static void *dnodeProcessWriteQueue(void *param) {
 
   return NULL;
 }
-
 
 static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   int32_t num = taosGetQueueNumber(pWorker->qset);
