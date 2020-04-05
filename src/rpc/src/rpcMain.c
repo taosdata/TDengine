@@ -1100,10 +1100,6 @@ static void rpcProcessConnError(void *param, void *id) {
   SRpcInfo       *pRpc = pContext->pRpc;
   SRpcMsg         rpcMsg;
  
-  if (pRpc == NULL) {
-    return;
-  }
-  
   tTrace("%s connection error happens", pRpc->label);
 
   if ( pContext->numOfTry >= pContext->ipSet.numOfIps ) {
