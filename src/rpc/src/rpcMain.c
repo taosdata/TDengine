@@ -828,13 +828,15 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   if (pConn->inType) {
     // if there are pending request, notify the app
     tTrace("%s %p, connection is gone, notify the app", pRpc->label, pConn);
+/*
     SRpcMsg rpcMsg;
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
     rpcMsg.handle = pConn;
     rpcMsg.msgType = pConn->inType;
     rpcMsg.code = TSDB_CODE_NETWORK_UNAVAIL;
-    // (*(pRpc->cfp))(&rpcMsg);
+    (*(pRpc->cfp))(&rpcMsg);
+*/
   }
  
   rpcCloseConn(pConn);
@@ -1157,13 +1159,15 @@ static void rpcProcessIdleTimer(void *param, void *tmrId) {
     if (pConn->inType && pRpc->cfp) {
       // if there are pending request, notify the app
       tTrace("%s %p, notify the app, connection is gone", pRpc->label, pConn);
+/*
       SRpcMsg rpcMsg;
       rpcMsg.pCont = NULL;
       rpcMsg.contLen = 0;
       rpcMsg.handle = pConn;
       rpcMsg.msgType = pConn->inType;
       rpcMsg.code = TSDB_CODE_NETWORK_UNAVAIL; 
-      // (*(pRpc->cfp))(&rpcMsg);
+      (*(pRpc->cfp))(&rpcMsg);
+*/
     }
     rpcCloseConn(pConn);
   } else {
