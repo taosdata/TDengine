@@ -187,6 +187,7 @@ void vnodeRelease(void *pVnodeRaw) {
   if (tsOpennedVnodes <= 0) {
     taosCleanUpIntHash(tsDnodeVnodesHash);
     vnodeModuleInit = PTHREAD_ONCE_INIT;
+    tsDnodeVnodesHash = NULL;
   }
 }
 
@@ -240,10 +241,7 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
-  if (pVnode->status == VN_STATUS_DELETING) {
-    // fix deadlock occured while close system
-    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
-  }
+  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
   
   //syncStop(pVnode->sync);
   tsdbCloseRepo(pVnode->tsdb);
