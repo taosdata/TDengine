@@ -263,7 +263,6 @@ void *rpcOpen(SRpcInit *pInit) {
   }
 
   if (pRpc->connType == TAOS_CONN_SERVER) {
-//    pRpc->hash = taosInitStrHash(pRpc->sessions, sizeof(pRpc), taosHashString);
       pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true);
     if (pRpc->hash == NULL) {
       tError("%s failed to init string hash", pRpc->label);
@@ -535,8 +534,7 @@ static void rpcCloseConn(void *thandle) {
   if ( pRpc->connType == TAOS_CONN_SERVER) {
     char hashstr[40] = {0};
     size_t size = sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
-//    taosDeleteStrHash(pRpc->hash, hashstr);
-//    taosHashRemove(pRpc->hash, hashstr, size);
+    taosHashRemove(pRpc->hash, hashstr, size);
     
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
     pConn->pRspMsg = NULL;
@@ -588,7 +586,6 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   size_t size = sprintf(hashstr, "%x:%x:%x:%d", pRecv->ip, pHead->linkUid, pHead->sourceId, pRecv->connType);
  
   // check if it is already allocated
-//  SRpcConn **ppConn = (SRpcConn **)(taosGetStrHashData(pRpc->hash, hashstr));
   SRpcConn **ppConn = (SRpcConn **)(taosHashGet(pRpc->hash, hashstr, size));
   if (ppConn) pConn = *ppConn;
   if (pConn) return pConn;
@@ -621,7 +618,6 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
       pConn->localPort = (pRpc->localPort + pRpc->index);
     }
 
-//    taosAddStrHash(pRpc->hash, hashstr, (char *)&pConn);
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
     
     tTrace("%s %p, rpc connection is allocated, sid:%d id:%s port:%u", 
@@ -834,13 +830,15 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   if (pConn->inType) {
     // if there are pending request, notify the app
     tTrace("%s %p, connection is gone, notify the app", pRpc->label, pConn);
+/*
     SRpcMsg rpcMsg;
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
     rpcMsg.handle = pConn;
     rpcMsg.msgType = pConn->inType;
     rpcMsg.code = TSDB_CODE_NETWORK_UNAVAIL;
-    // (*(pRpc->cfp))(&rpcMsg);
+    (*(pRpc->cfp))(&rpcMsg);
+*/
   }
  
   rpcCloseConn(pConn);
@@ -1163,13 +1161,15 @@ static void rpcProcessIdleTimer(void *param, void *tmrId) {
     if (pConn->inType && pRpc->cfp) {
       // if there are pending request, notify the app
       tTrace("%s %p, notify the app, connection is gone", pRpc->label, pConn);
+/*
       SRpcMsg rpcMsg;
       rpcMsg.pCont = NULL;
       rpcMsg.contLen = 0;
       rpcMsg.handle = pConn;
       rpcMsg.msgType = pConn->inType;
       rpcMsg.code = TSDB_CODE_NETWORK_UNAVAIL; 
-      // (*(pRpc->cfp))(&rpcMsg);
+      (*(pRpc->cfp))(&rpcMsg);
+*/
     }
     rpcCloseConn(pConn);
   } else {
