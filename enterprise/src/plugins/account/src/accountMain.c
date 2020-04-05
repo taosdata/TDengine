@@ -807,7 +807,7 @@ int32_t clusterCheckDbLimit(SAcctObj *pAcct) {
 int32_t clusterCheckTableLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxTimeSeries != 0 && pAcct->acctInfo.numOfTimeSeries >= pAcct->cfg.maxTimeSeries) {
     mError("account:%s, timeSeries:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
-    return TSDB_CODE_NOT_ENOUGH_TIME_SERIES;
+    return TSDB_CODE_TOO_MANY_TIME_SERIES;
   }
   return TSDB_CODE_SUCCESS;
 }
