@@ -23,8 +23,6 @@ extern "C" {
 int32_t dnodeInitRead();
 void    dnodeCleanupRead();
 void    dnodeRead(SRpcMsg *pMsg);
-void *  dnodeAllocateRqueue();
-void    dnodeFreeRqueue(void *rqueue);
 
 #ifdef __cplusplus
 }

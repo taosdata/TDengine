@@ -23,8 +23,6 @@ extern "C" {
 int32_t dnodeInitWrite();
 void    dnodeCleanupWrite();
 void    dnodeWrite(SRpcMsg *pMsg);
-void *  dnodeAllocateWqueue();
-void    dnodeFreeWqueue(void *worker);
 void    dnodeSendWriteResponse(void *pVnode, void *param, int32_t code);
 
 #ifdef __cplusplus

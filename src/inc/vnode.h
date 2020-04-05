@@ -25,15 +25,14 @@ typedef struct {
   void *rsp;
 } SRspRet;
 
-int32_t vnodeInitWrite();
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeDrop(int32_t vgId);
 int32_t vnodeOpen(int32_t vnode, char *rootDir);
 int32_t vnodeClose(void *pVnode);
 
 void    vnodeRelease(void *pVnode);
-
 void*   vnodeGetVnode(int32_t vgId);
+
 void*   vnodeGetRqueue(void *);
 void*   vnodeGetWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
