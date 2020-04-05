@@ -34,7 +34,6 @@ typedef struct {
   EVnStatus    status; 
   int          role;   
   int64_t      version;
-  int          temp;
   void        *wqueue;
   void        *rqueue;
   void        *wal;
