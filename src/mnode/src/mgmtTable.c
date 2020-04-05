@@ -987,7 +987,6 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
   char stableName[TSDB_TABLE_NAME_LEN] = {0};
 
   while (numOfRows < rows) {    
-    mgmtDecTableRef(pTable);
     pShow->pNode = sdbFetchRow(tsSuperTableSdb, pShow->pNode, (void **) &pTable);
     if (pTable == NULL) break;
     if (strncmp(pTable->info.tableId, prefix, prefixLen)) {
@@ -1024,6 +1023,8 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
     cols++;
 
     numOfRows++;
+    mgmtDecTableRef(pTable);
+
   }
 
   pShow->numOfReads += numOfRows;
@@ -1887,7 +1888,6 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
   int32_t prefixLen = strlen(prefix);
 
   while (numOfRows < rows) {
-    mgmtDecTableRef(pTable);
     pShow->pNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
     if (pTable == NULL) break;
 
@@ -1933,6 +1933,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     cols++;
 
     numOfRows++;
+    mgmtDecTableRef(pTable);
   }
 
   pShow->numOfReads += numOfRows;

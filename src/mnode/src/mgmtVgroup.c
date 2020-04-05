@@ -101,6 +101,7 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
   }
 
   mgmtAddVgroupIntoDb(pVgroup);
+  mgmtIncDbRef(pVgroup->pDb);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -455,7 +456,6 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables++;
   }
   
-  mgmtIncVgroupRef(pVgroup);
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
@@ -467,7 +467,6 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables--;
   }
 
-  mgmtDecVgroupRef(pVgroup);
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }

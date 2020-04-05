@@ -645,22 +645,18 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
 
 void mgmtAddSuperTableIntoDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfSuperTables, 1);
-  mgmtIncDbRef(pDb);
 }
 
 void mgmtRemoveSuperTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfSuperTables, -1);
-  mgmtDecDbRef(pDb);
 }
 
 void mgmtAddTableIntoDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, 1);
-  mgmtIncDbRef(pDb);
 }
 
 void mgmtRemoveTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, -1);
-  mgmtDecDbRef(pDb);
 }
 
 static int32_t mgmtSetDbDirty(SDbObj *pDb) {
