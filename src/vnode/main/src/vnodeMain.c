@@ -165,7 +165,10 @@ void vnodeRelease(void *pVnodeRaw) {
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
 
-  if (refCount > 0) return;
+  if (refCount > 0) {
+    dTrace("pVnode:%p vgId:%d, release vnode, refCount:%d", pVnode, pVnode->vgId, refCount);
+    return;
+  }
 
   // remove read queue
   dnodeFreeRqueue(pVnode->rqueue);
