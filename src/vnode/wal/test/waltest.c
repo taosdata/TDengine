@@ -21,16 +21,14 @@
 int64_t  ver = 0;
 void    *pWal = NULL;
 
-int writeToQueue(void *pVnode, void *data) {
-  SWalHead *pHead = (SWalHead *)data;
-
+int writeToQueue(void *pVnode, SWalHead *pHead, int type) {
   // do nothing
   if (pHead->version > ver)
     ver = pHead->version;
 
   walWrite(pWal, pHead);
   
-  free(data);
+  free(pHead);
 
   return 0;
 }

@@ -26,6 +26,7 @@
 #include "tchecksum.h"
 #include "tutil.h"
 #include "twal.h"
+#include "tqueue.h"
 
 #define walPrefix "wal"
 #define wError(...) if (wDebugFlag & DEBUG_ERROR) {tprintf("ERROR WAL ", wDebugFlag, __VA_ARGS__);}
@@ -48,7 +49,7 @@ int wDebugFlag = 135;
 
 static uint32_t walSignature = 0xFAFBFDFE;
 static int walHandleExistingFiles(char *path);
-static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, void *));
+static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SWalHead *, int));
 static int walRemoveWalFiles(char *path);
 
 void *walOpen(char *path, int max, int level) {
@@ -168,7 +169,7 @@ void walFsync(void *handle) {
     fsync(pWal->fd);
 }
 
-int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *)) {
+int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, SWalHead *, int)) {
   SWal    *pWal = (SWal *)handle;
   int      code = 0;
   struct   dirent *ent;
@@ -245,43 +246,45 @@ int walGetWalFile(void *handle, char *name, uint32_t *index) {
   return code;
 }  
 
-static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, void *)) {
-  SWalHead walHead;
-  int      code = 0;
+static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SWalHead *, int)) {
+  int code = 0;
+
+  char *buffer = malloc(1024000);  // size for one record
+  if (buffer == NULL) return -1;
+
+  SWalHead *pHead = (SWalHead *)buffer;
 
   int fd = open(name, O_RDONLY);
   if (fd < 0) {
     wError("wal:%s, failed to open for restore(%s)", name, strerror(errno));
+    free(buffer);
     return -1;
   }
 
   wTrace("wal:%s, start to restore", name);
 
   while (1) {
-    int ret = read(fd, &walHead, sizeof(walHead));
+    int ret = read(fd, pHead, sizeof(SWalHead));
     if ( ret == 0) { code = 0; break;}  
 
-    if (ret != sizeof(walHead)) {
+    if (ret != sizeof(SWalHead)) {
       wWarn("wal:%s, failed to read head, skip, ret:%d(%s)", name, ret, strerror(errno));
       break;
     }
 
-    if (taosCheckChecksumWhole((uint8_t *)&walHead, sizeof(walHead))) {
+    if (taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wWarn("wal:%s, cksum is messed up, skip the rest of file", name);
       break;
     } 
 
-    char *buffer = malloc(sizeof(SWalHead) + walHead.len);
-    memcpy(buffer, &walHead, sizeof(walHead));
-
-    ret = read(fd, buffer+sizeof(walHead), walHead.len);
-    if ( ret != walHead.len) {
-      wWarn("wal:%s, failed to read body, skip, len:%d ret:%d", name, walHead.len, ret);
+    ret = read(fd, pHead->cont, pHead->len);
+    if ( ret != pHead->len) {
+      wWarn("wal:%s, failed to read body, skip, len:%d ret:%d", name, pHead->len, ret);
       break;
     }
 
     // write into queue
-    (*writeFp)(pVnode, buffer);
+    (*writeFp)(pVnode, buffer, TAOS_QTYPE_WAL);
   }
 
   return code;

@@ -108,67 +108,40 @@ void tsdbFreeCfg(STsdbCfg *pCfg) {
  *
  * @return a TSDB repository handle on success, NULL for failure
  */
-tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) {
-  if (rootDir == NULL) return NULL;
+int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) {
 
-  if (access(rootDir, F_OK | R_OK | W_OK) == -1) return NULL;
+  if (mkdir(rootDir, 0755) != 0) {
+    if (errno == EACCES) {
+      return TSDB_CODE_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_SERV_NO_DISKSPACE;
+    } else if (errno == EEXIST) {
+    } else {
+      return TSDB_CODE_VG_INIT_FAILED;
+    }
+  }
+
+  if (access(rootDir, F_OK | R_OK | W_OK) == -1) return -1;
 
   if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) {
-    return NULL;
+    return -1;
   }
 
   STsdbRepo *pRepo = (STsdbRepo *)malloc(sizeof(STsdbRepo));
   if (pRepo == NULL) {
-    return NULL;
+    return -1;
   }
 
   pRepo->rootDir = strdup(rootDir);
   pRepo->config = *pCfg;
   pRepo->limiter = limiter;
-  pthread_mutex_init(&pRepo->mutex, NULL);
 
   // Create the environment files and directories
-  if (tsdbSetRepoEnv(pRepo) < 0) {
-    free(pRepo->rootDir);
-    free(pRepo);
-    return NULL;
-  }
-
-  // Initialize meta
-  STsdbMeta *pMeta = tsdbInitMeta(rootDir, pCfg->maxTables);
-  if (pMeta == NULL) {
-    free(pRepo->rootDir);
-    free(pRepo);
-    return NULL;
-  }
-  pRepo->tsdbMeta = pMeta;
-
-  // Initialize cache
-  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize, -1, (tsdb_repo_t *)pRepo);
-  if (pCache == NULL) {
-    free(pRepo->rootDir);
-    tsdbFreeMeta(pRepo->tsdbMeta);
-    free(pRepo);
-    return NULL;
-  }
-  pRepo->tsdbCache = pCache;
-
-  // Initialize file handle
-  char dataDir[128] = "\0";
-  tsdbGetDataDirName(pRepo, dataDir);
-  pRepo->tsdbFileH =
-      tsdbInitFileH(dataDir, pCfg->maxTables);
-  if (pRepo->tsdbFileH == NULL) {
-    free(pRepo->rootDir);
-    tsdbFreeCache(pRepo->tsdbCache);
-    tsdbFreeMeta(pRepo->tsdbMeta);
-    free(pRepo);
-    return NULL;
-  }
-
-  pRepo->state = TSDB_REPO_STATE_ACTIVE;
-
-  return (tsdb_repo_t *)pRepo;
+  int32_t code = tsdbSetRepoEnv(pRepo);
+  
+  free(pRepo->rootDir);
+  free(pRepo);
+  return code;
 }
 
 /**

@@ -12,42 +12,41 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_WAL_H_
-#define _TD_WAL_H_
+
+#ifndef TDENGINE_VNODE_INT_H
+#define TDENGINE_VNODE_INT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TAOS_WAL_NOLOG   0
-#define TAOS_WAL_WRITE   1
-#define TAOS_WAL_FSYNC   2
- 
+typedef enum _VN_STATUS {
+  VN_STATUS_INIT,
+  VN_STATUS_CREATING,
+  VN_STATUS_READY,
+  VN_STATUS_CLOSING,
+  VN_STATUS_DELETING,
+} EVnStatus;
+
 typedef struct {
-  int8_t    msgType;
-  int8_t    reserved[3];
-  int32_t   len;
-  uint64_t  version;
-  uint32_t  signature;
-  uint32_t  cksum;
-  char      cont[];
-} SWalHead;
+  int32_t      vgId;      // global vnode group ID
+  int32_t      refCount;  // reference count
+  EVnStatus    status; 
+  int          role;   
+  int64_t      version;
+  void *       wqueue;
+  void *       rqueue;
+  void *       wal;
+  void *       tsdb;
+  void *       sync;
+  void *       events;
+  void *       cq;  // continuous query
+} SVnodeObj;
 
-typedef void* twal_h;  // WAL HANDLE
-
-twal_h  walOpen(char *path, int max, int level);
-void    walClose(twal_h);
-int     walRenew(twal_h);
-int     walWrite(twal_h, SWalHead *);
-void    walFsync(twal_h);
-int     walRestore(twal_h, void *pVnode, int (*writeFp)(void *ahandle, void *pWalHead));
-int     walGetWalFile(twal_h, char *name, uint32_t *index);
-
-extern int wDebugFlag;
-
+int vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // _TD_WAL_H_
+#endif
