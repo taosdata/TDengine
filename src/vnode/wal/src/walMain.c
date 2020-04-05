@@ -287,6 +287,8 @@ static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SW
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);
   }
 
+  free(buffer);
+
   return code;
 }
 
