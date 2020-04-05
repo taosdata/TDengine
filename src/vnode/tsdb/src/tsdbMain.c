@@ -50,7 +50,7 @@ enum { TSDB_REPO_STATE_ACTIVE, TSDB_REPO_STATE_CLOSED, TSDB_REPO_STATE_CONFIGURI
 static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
-static int     tsdbOpenMetaFile(char *tsdbDir);
+// static int     tsdbOpenMetaFile(char *tsdbDir);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
@@ -222,10 +222,10 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
   return (tsdb_repo_t *)pRepo;
 }
 
-static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
-  // TODO
-  return 0;
-}
+// static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
+//   // TODO
+//   return 0;
+// }
 
 /**
  * Close a TSDB repository. Only free memory resources, and keep the files.
@@ -679,10 +679,10 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbOpenMetaFile(char *tsdbDir) {
-  // TODO
-  return 0;
-}
+// static int tsdbOpenMetaFile(char *tsdbDir) {
+//   // TODO
+//   return 0;
+// }
 
 static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   // TODO
@@ -937,7 +937,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
 
           TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pTBlock, nBlocks);
 
-          SCompBlock tBlock;
+          SCompData tBlock;
           int64_t toffset;
           int32_t tlen;
           tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_LAST], pTBlock, nBlocks, pCols, &tBlock);
@@ -968,7 +968,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     pCompInfo->uid = pTable->tableId.uid;
 
     // Load SCompBlock part if neccessary
-    int isCompBlockLoaded = 0;
+    // int isCompBlockLoaded = 0;
     if (0) {
     // if (pIdx->offset > 0) {
       if (pIdx->hasLast || tsdbHasDataInRange(pIter, minKey, pIdx->maxKey)) {
@@ -976,7 +976,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
         pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, pIdx->len + sizeof(SCompBlock) * 100);
         if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) { /* TODO */
         }
-        if (pCompInfo->uid == pTable->tableId.uid) isCompBlockLoaded = 1;
+        // if (pCompInfo->uid == pTable->tableId.uid) isCompBlockLoaded = 1;
       } else {
         // TODO: No need to load the SCompBlock part, just sendfile the SCompBlock part
         // and write those new blocks to it
@@ -1023,7 +1023,6 @@ _table_over:
       int bytes = tsendfile(hFile.fd, pGroup->files[TSDB_FILE_TYPE_HEAD].fd, NULL, pIdx->len);
       if (bytes < pIdx->len) {
         printf("Failed to send file, reason: %s\n", strerror(errno));
-        int d = 1;
       }
       if (nNewBlocks > 0) {
         write(hFile.fd, (void *)(pCompInfo->blocks), sizeof(SCompBlock) * nNewBlocks);
