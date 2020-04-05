@@ -255,7 +255,8 @@ int vnodeWriteToQueue(void *param, SWalHead *pHead, int type) {
   SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);
   memcpy(pWal, pHead, size);
 
-  taosWriteQitem(pVnode->wqueue, type, pHead);
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  taosWriteQitem(pVnode->wqueue, type, pWal);
 
   return 0;
 }

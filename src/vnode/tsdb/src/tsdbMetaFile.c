@@ -29,7 +29,7 @@ typedef struct {
 } SRecordInfo;
 
 static int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
-static int32_t tsdbCheckMetaHeader(int fd);
+// static int32_t tsdbCheckMetaHeader(int fd);
 static int32_t tsdbWriteMetaHeader(int fd);
 static int     tsdbCreateMetaFile(char *fname);
 static int     tsdbRestoreFromMetaFile(char *fname, SMetaFile *mfh);
@@ -185,10 +185,10 @@ static int32_t tsdbGetMetaFileName(char *rootDir, char *fname) {
   return 0;
 }
 
-static int32_t tsdbCheckMetaHeader(int fd) {
-  // TODO: write the meta file header check function
-  return 0;
-}
+// static int32_t tsdbCheckMetaHeader(int fd) {
+//   // TODO: write the meta file header check function
+//   return 0;
+// }
 
 static int32_t tsdbWriteMetaHeader(int fd) {
   // TODO: write the meta file header to file
@@ -199,10 +199,10 @@ static int32_t tsdbWriteMetaHeader(int fd) {
   return 0;
 }
 
-static int32_t tsdbReadMetaHeader(int fd) {
-  lseek(fd, TSDB_META_FILE_HEADER_SIZE, SEEK_SET);
-  return 0;
-}
+// static int32_t tsdbReadMetaHeader(int fd) {
+//   lseek(fd, TSDB_META_FILE_HEADER_SIZE, SEEK_SET);
+//   return 0;
+// }
 
 static int tsdbCreateMetaFile(char *fname) {
   int fd = open(fname, O_RDWR | O_CREAT, 0755);
