@@ -467,14 +467,14 @@ static int insertStmtExecute(STscStmt* stmt) {
 TAOS_STMT* taos_stmt_init(TAOS* taos) {
   STscObj* pObj = (STscObj*)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     tscError("connection disconnected");
     return NULL;
   }
 
   STscStmt* pStmt = calloc(1, sizeof(STscStmt));
   if (pStmt == NULL) {
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     tscError("failed to allocate memory for statement");
     return NULL;
   }
@@ -482,7 +482,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     free(pStmt);
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     tscError("failed to allocate memory for statement");
     return NULL;
   }

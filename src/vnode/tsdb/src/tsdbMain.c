@@ -183,7 +183,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  STsdbRepo *pRepo = (STsdbRepo *)malloc(sizeof(STsdbRepo));
+  STsdbRepo *pRepo = (STsdbRepo *)calloc(1, sizeof(STsdbRepo));
   if (pRepo == NULL) {
     return NULL;
   }

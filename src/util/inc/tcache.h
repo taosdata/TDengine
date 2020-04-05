@@ -98,7 +98,7 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTimeInSeconds);
  * @param keepTime      survival time in second
  * @return              cached element
  */
-void *taosCachePut(SCacheObj *pCacheObj, char *key, void *pData, size_t dataSize, int keepTimeInSeconds);
+void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, size_t dataSize, int keepTimeInSeconds);
 
 /**
  * get data from cache

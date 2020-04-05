@@ -819,7 +819,7 @@ void tscCloseTscObj(STscObj* pObj) {
   pObj->signature = NULL;
   SSqlObj* pSql = pObj->pSql;
   if (pSql) {
-    globalCode = pSql->res.code;
+    terrno = pSql->res.code;
   }
   
   taosTmrStopA(&(pObj->pTimer));
@@ -993,20 +993,6 @@ void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo) {
 }
 
 void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo) {
-//  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-//  if (pFieldInfo->numOfOutputCols == 0) {
-//    return;
-//  }
-//
-//  pFieldInfo->pOffset[0] = 0;
-//
-//  /*
-//   * the retTypeLen is used to store the intermediate result length
-//   * for potential secondary merge exists
-//   */
-//  for (int32_t i = 1; i < pFieldInfo->numOfOutputCols; ++i) {
-//    pFieldInfo->pOffset[i] = pFieldInfo->pOffset[i - 1] + tscSqlExprGet(pQueryInfo, i - 1)->resBytes;
-//  }
   SSqlExprInfo* pExprInfo = &pQueryInfo->exprsInfo;
   if (pExprInfo->numOfExprs == 0) {
     return;
@@ -2167,7 +2153,7 @@ int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid) {
 
 bool tscIsUpdateQuery(STscObj* pObj) {
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 

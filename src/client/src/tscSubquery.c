@@ -279,7 +279,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     assert(pSubQueryInfo->exprsInfo.numOfExprs == 1); // ts_comp query only requires one resutl columns
     taos_free_result(pPrevSub);
   
-    SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, TSDB_SQL_SELECT, pSupporter, NULL);
+    SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
     if (pNew == NULL) {
       tscDestroyJoinSupporter(pSupporter);
       success = false;
@@ -538,7 +538,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
     }
   
     if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && numOfRows == 0) {
-      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
       assert(pQueryInfo->numOfTables == 1);
 
       // for projection query, need to try next vnode if current vnode is exhausted
@@ -606,7 +606,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     SSqlRes *pRes = &pSql->pSubs[i]->res;
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->pSubs[i]->cmd, 0);
   
-    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
     if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
 //      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes &&
@@ -834,7 +834,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     }
   }
   
-  SSqlObj *pNew = createSubqueryObj(pSql, tableIndex, tscJoinQueryCallback, TSDB_SQL_SELECT, pSupporter, NULL);
+  SSqlObj *pNew = createSubqueryObj(pSql, tableIndex, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
   if (pNew == NULL) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
@@ -1237,7 +1237,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
   // data in from current vnode is stored in cache and disk
-  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
+//  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
 //    tscTrace("%p sub:%p all data retrieved from ip:%u,vid:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql, pSvd->ip,
 //             pSvd->vnode, numOfRowsFromSubquery, idx);
   
@@ -1333,7 +1333,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   SSqlRes *   pRes = &pSql->res;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
 //  SVnodeSidList *vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx);
 //  SVnodeSidList *vnodeInfo = 0;
@@ -1409,10 +1409,10 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   SSqlObj*  pParentSql = trsupport->pParentSqlObj;
   SSqlObj*  pSql = (SSqlObj *)tres;
   
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
+//  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   assert(pSql->cmd.numOfClause == 1 && pSql->cmd.pQueryInfo[0]->numOfTables == 1);
   
-  int32_t idx = pTableMetaInfo->vnodeIndex;
+//  int32_t idx = pTableMetaInfo->vnodeIndex;
   
   SVnodeSidList *vnodeInfo = NULL;
   SVnodeDesc *   pSvd = NULL;
@@ -1459,7 +1459,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
         pState->code = -TSDB_CODE_CLI_OUT_OF_MEMORY;
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
       } else {
-        SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
+//        SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
 //        assert(pNewQueryInfo->pTableMetaInfo[0]->pTableMeta != NULL && pNewQueryInfo->pTableMetaInfo[0]->pMetricMeta != NULL);
         tscProcessSql(pNew);
         return;

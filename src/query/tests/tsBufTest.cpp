@@ -158,7 +158,7 @@ void loadDataTest() {
     for (int32_t i = 0; i < numOfTags; ++i) {
       int64_t* list = createTsList(num, start, step);
       tsBufAppend(pTSBuf, j, i, (const char*)list, num * sizeof(int64_t));
-      printf("%d - %lld\n", i, list[0]);
+      printf("%d - %" PRIu64 "\n", i, list[0]);
 
       free(list);
       start += step * num;
@@ -195,7 +195,7 @@ void loadDataTest() {
   tsBufResetPos(pNewBuf);
 
   int64_t s = taosGetTimestampUs();
-  printf("start:%lld\n", s);
+  printf("start:%" PRIu64 "\n", s);
 
   int32_t x = 0;
   while (tsBufNextPos(pNewBuf)) {
@@ -204,11 +204,11 @@ void loadDataTest() {
       break;
     }
 
-    //    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    //    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag, elem.ts);
   }
 
   int64_t e = taosGetTimestampUs();
-  printf("end:%lld, elapsed:%lld, total obj:%d\n", e, e - s, x);
+  printf("end:%" PRIu64 ", elapsed:%" PRIu64 ", total obj:%d\n", e, e - s, x);
 }
 
 void randomIncTsTest() {}
@@ -229,14 +229,14 @@ void TSTraverse() {
     for (int32_t i = 0; i < numOfTags; ++i) {
       int64_t* list = createTsList(num, start, step);
       tsBufAppend(pTSBuf, j, i, (const char*)list, num * sizeof(int64_t));
-      printf("%d - %d - %lld, %lld\n", j, i, list[0], list[num - 1]);
+      printf("%d - %d - %" PRIu64 ", %" PRIu64 "\n", j, i, list[0], list[num - 1]);
 
       free(list);
       start += step * num;
 
       list = createTsList(num, start, step);
       tsBufAppend(pTSBuf, j, i, (const char*)list, num * sizeof(int64_t));
-      printf("%d - %d - %lld, %lld\n", j, i, list[0], list[num - 1]);
+      printf("%d - %d - %" PRIu64 ", %" PRIu64 "\n", j, i, list[0], list[num - 1]);
       free(list);
 
       start += step * num;
@@ -250,7 +250,7 @@ void TSTraverse() {
   ////////////////////////////////////////////////////////////////////////////////////////
   // reverse traverse
   int64_t s = taosGetTimestampUs();
-  printf("start:%lld\n", s);
+  printf("start:%" PRIu64 "\n", s);
 
   pTSBuf->cur.order = TSQL_SO_DESC;
 
@@ -258,7 +258,7 @@ void TSTraverse() {
   int32_t x = 0;
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    //    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    //    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag, elem.ts);
   }
 
   // specify the data block with vnode and tags value
@@ -273,7 +273,7 @@ void TSTraverse() {
   int32_t totalOutput = 10;
   while (1) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag, elem.ts);
 
     if (!tsBufNextPos(pTSBuf)) {
       break;
@@ -303,7 +303,7 @@ void TSTraverse() {
   // complete forwards traverse
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    //    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    //    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag, elem.ts);
   }
 
   // specify the data block with vnode and tags value
@@ -318,7 +318,7 @@ void TSTraverse() {
   totalOutput = 10;
   while (1) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag, elem.ts);
 
     if (!tsBufNextPos(pTSBuf)) {
       break;
@@ -429,7 +429,7 @@ void mergeIdenticalVnodeBufferTest() {
     STSElem elem = tsBufGetElem(pTSBuf1);
     EXPECT_EQ(elem.vnode, 12);
 
-    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag, elem.ts);
   }
 
   tsBufDestory(pTSBuf1);

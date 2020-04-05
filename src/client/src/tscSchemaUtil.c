@@ -131,7 +131,7 @@ bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
 SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t startCol) {
   assert(pTableMeta != NULL);
   
-  SSchema* pSchema = pTableMeta->schema;
+  SSchema* pSchema = (SSchema*) pTableMeta->schema;
 #if 0
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     assert (pTableMeta->pSTable != NULL);

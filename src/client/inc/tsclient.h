@@ -468,7 +468,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo);
 extern void *     pVnodeConn;
 extern void *     pTscMgmtConn;
 extern void *     tscCacheHandle;
-extern int32_t    globalCode;
 extern int        slaveIndex;
 extern void *     tscTmr;
 extern void *     tscQhandle;
