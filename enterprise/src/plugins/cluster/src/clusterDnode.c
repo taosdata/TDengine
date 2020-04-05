@@ -110,6 +110,7 @@ int32_t clusterInit() {
     .tableName    = "dnodes",
     .hashSessions = TSDB_MAX_DNODES,
     .maxRowSize   = tsDnodeUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_TYPE_AUTO,
     .insertFp     = clusterDnodeActionInsert,
     .deleteFp     = clusterDnodeActionDelete,
