@@ -175,7 +175,7 @@ void stringKeySkiplistTest() {
   }
 
   int64_t e = taosGetTimestampUs();
-  printf("elapsed time:%lld us to insert %d data, avg:%f us\n", (e - s), total, (double)(e - s) / total);
+  printf("elapsed time:%" PRIu64 " us to insert %d data, avg:%f us\n", (e - s), total, (double)(e - s) / total);
 
   printf("level two------------------\n");
   tSkipListPrint(pSkipList, 1);
@@ -237,13 +237,13 @@ void skiplistPerformanceTest() {
       int64_t cur = taosGetTimestampMs();
 
       int64_t elapsed = cur - prev;
-      printf("add %d, elapsed time: %lld ms, avg elapsed:%f ms, total:%d\n", 100000, elapsed, elapsed / 100000.0, i);
+      printf("add %d, elapsed time: %" PRIu64 " ms, avg elapsed:%f ms, total:%d\n", 100000, elapsed, elapsed / 100000.0, i);
       prev = cur;
     }
   }
 
   int64_t e = taosGetTimestampMs();
-  printf("total:%lld ms, avg:%f\n", e - s, (e - s) / (double)size);
+  printf("total:%" PRIu64 " ms, avg:%f\n", e - s, (e - s) / (double)size);
   printf("max level of skiplist:%d, actually level:%d\n ", pSkipList->maxLevel, pSkipList->level);
 
   assert(tSkipListGetSize(pSkipList) == size);

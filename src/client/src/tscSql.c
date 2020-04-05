@@ -57,17 +57,17 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   taos_init();
   
   if (!validUserName(user)) {
-    globalCode = TSDB_CODE_INVALID_ACCT;
+    terrno = TSDB_CODE_INVALID_ACCT;
     return NULL;
   }
 
   if (!validPassword(pass)) {
-    globalCode = TSDB_CODE_INVALID_PASS;
+    terrno = TSDB_CODE_INVALID_PASS;
     return NULL;
   }
 
   if (tscInitRpc(user, pass) != 0) {
-    globalCode = TSDB_CODE_NETWORK_UNAVAIL;
+    terrno = TSDB_CODE_NETWORK_UNAVAIL;
     return NULL;
   }
 
@@ -92,7 +92,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -107,7 +107,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     /* db name is too long */
     if (len > TSDB_DB_NAME_LEN) {
       free(pObj);
-      globalCode = TSDB_CODE_INVALID_DB;
+      terrno = TSDB_CODE_INVALID_DB;
       return NULL;
     }
 
@@ -122,7 +122,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (NULL == pSql) {
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     free(pObj);
     return NULL;
   }
@@ -140,7 +140,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   pSql->cmd.command = TSDB_SQL_CONNECT;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     free(pSql);
     free(pObj);
     return NULL;
@@ -303,7 +303,7 @@ int taos_query(TAOS *taos, const char *sqlstr) {
 TAOS_RES *taos_use_result(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return NULL;
   }
 
@@ -662,7 +662,7 @@ static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return NULL;
   }
   
@@ -694,7 +694,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   int nRows = 0;
 
   if (pSql == NULL || pSql->signature != pSql) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     *rows = NULL;
     return 0;
   }
@@ -733,7 +733,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 
@@ -1011,7 +1011,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 int taos_validate_sql(TAOS *taos, const char *sql) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 
@@ -1143,7 +1143,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 

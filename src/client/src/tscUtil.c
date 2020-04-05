@@ -819,7 +819,7 @@ void tscCloseTscObj(STscObj* pObj) {
   pObj->signature = NULL;
   SSqlObj* pSql = pObj->pSql;
   if (pSql) {
-    globalCode = pSql->res.code;
+    terrno = pSql->res.code;
   }
   
   taosTmrStopA(&(pObj->pTimer));
@@ -2153,7 +2153,7 @@ int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid) {
 
 bool tscIsUpdateQuery(STscObj* pObj) {
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 

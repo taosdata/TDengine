@@ -33,7 +33,6 @@ void *  pVMeterConn;
 void *  pTscMgmtConn;
 void *  pSlaveConn;
 void *  tscCacheHandle;
-int32_t globalCode = 0;
 int     slaveIndex;
 void *  tscTmr;
 void *  tscQhandle;

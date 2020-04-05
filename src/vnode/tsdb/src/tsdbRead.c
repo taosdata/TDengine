@@ -1053,7 +1053,7 @@ typedef struct SSyntaxTreeFilterSupporter {
  * convert the result pointer to STabObj instead of tSkipListNode
  * @param pRes
  */
-static void tansformQueryResult(SArray* pRes) {
+static UNUSED_FUNC void tansformQueryResult(SArray* pRes) {
   if (pRes == NULL || taosArrayGetSize(pRes) == 0) {
     return;
   }
@@ -1305,10 +1305,10 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
 }
 
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond) {
-  STColumn* stcol = schemaColAt(pSTable->tagSchema, 0);
+//  STColumn* stcol = schemaColAt(pSTable->tagSchema, 0);
   
   tExprNode* pExpr = NULL;
-  tSQLBinaryExprFromString(&pExpr, stcol, schemaNCols(pSTable->tagSchema), (char*) pCond, strlen(pCond));
+//  tSQLBinaryExprFromString(&pExpr, stcol, schemaNCols(pSTable->tagSchema), (char*) pCond, strlen(pCond));
   
   // failed to build expression, no result, return immediately
   if (pExpr == NULL) {
@@ -1319,18 +1319,18 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, const char* pCond
   }
   
   // query according to the binary expression
-  SSyntaxTreeFilterSupporter s = {.pTagSchema = stcol, .numOfTags = schemaNCols(pSTable->tagSchema)};
-  
-  SBinaryFilterSupp supp = {
-      .fp = (__result_filter_fn_t)tSkipListNodeFilterCallback,
-      .setupInfoFn = (__do_filter_suppl_fn_t)filterPrepare,
-      .pExtInfo = &s
-  };
-  
-  tSQLBinaryExprTraverse(pExpr, pSTable->pIndex, pRes, &supp);
-  tExprTreeDestroy(&pExpr, tSQLListTraverseDestroyInfo);
-  
-  tansformQueryResult(pRes);
+//  SSyntaxTreeFilterSupporter s = {.pTagSchema = stcol, .numOfTags = schemaNCols(pSTable->tagSchema)};
+//
+//  SBinaryFilterSupp supp = {
+//      .fp = (__result_filter_fn_t)tSkipListNodeFilterCallback,
+//      .setupInfoFn = (__do_filter_suppl_fn_t)filterPrepare,
+//      .pExtInfo = &s
+//  };
+//
+//  tSQLBinaryExprTraverse(pExpr, pSTable->pIndex, pRes, &supp);
+//  tExprTreeDestroy(&pExpr, tSQLListTraverseDestroyInfo);
+//
+//  tansformQueryResult(pRes);
   
   return TSDB_CODE_SUCCESS;
 }
