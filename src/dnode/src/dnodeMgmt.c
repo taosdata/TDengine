@@ -31,22 +31,7 @@
 #include "dnodeWrite.h"
 #include "vnode.h"
 
-typedef struct {
-  int32_t      vgId;      // global vnode group ID
-  int32_t      refCount;  // reference count
-  EVnodeStatus status;    // status: master, slave, notready, deleting
-  int64_t      version;
-  void *       wworker;
-  void *       rworker;
-  void *       wal;
-  void *       tsdb;
-  void *       replica;
-  void *       events;
-  void *       cq;  // continuous query
-} SVnodeObj;
-
 static int32_t  dnodeOpenVnodes();
-static void     dnodeCleanupVnodes();
 static int32_t  dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
@@ -56,7 +41,6 @@ static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 static void     dnodeSendStatusMsg(void *handle, void *tmrId);
 static void     dnodeReadDnodeId();
 
-void    *tsDnodeVnodesHash = NULL;
 static void    *tsDnodeTmr = NULL;
 static void    *tsStatusTimer = NULL;
 static uint32_t tsRebootTime;
@@ -72,12 +56,6 @@ int32_t dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
 
-  tsDnodeVnodesHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SVnodeObj), taosHashInt);
-  if (tsDnodeVnodesHash == NULL) {
-    dError("failed to init vnode list");
-    return -1;
-  }
-
   tsRebootTime = taosGetTimestampSec();
 
   tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
@@ -86,6 +64,10 @@ int32_t dnodeInitMgmt() {
     return -1;
   }
   
+  if ( vnodeInitModule() != TSDB_CODE_SUCCESS) {
+    return -1;
+  }
+
   int32_t code = dnodeOpenVnodes();
   if (code != TSDB_CODE_SUCCESS) {
     return -1;
@@ -106,11 +88,7 @@ void dnodeCleanupMgmt() {
     tsDnodeTmr = NULL;
   }
 
-  dnodeCleanupVnodes();
-  if (tsDnodeVnodesHash == NULL) {
-    taosCleanUpIntHash(tsDnodeVnodesHash);
-    tsDnodeVnodesHash = NULL;
-  }
+  vnodeCleanupModule();
 }
 
 void dnodeMgmt(SRpcMsg *pMsg) {
@@ -129,14 +107,6 @@ void dnodeMgmt(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-void *dnodeGetVnodeWworker(void *pVnode) {
-  return ((SVnodeObj *)pVnode)->wworker;
-}
- 
-void *dnodeGetVnodeRworker(void *pVnode) {
-  return ((SVnodeObj *)pVnode)->rworker;
-}
- 
 static int32_t dnodeOpenVnodes() {
   DIR *dir = opendir(tsVnodeDir);
   if (dir == NULL) {
@@ -164,13 +134,6 @@ static int32_t dnodeOpenVnodes() {
 
   dPrint("dnode mgmt is opened, vnodes:%d", numOfVnodes);
   return TSDB_CODE_SUCCESS;
-}
-
-typedef void (*CleanupFp)(char *);
-static void dnodeCleanupVnodes() {
-  int32_t num = taosGetIntHashSize(tsDnodeVnodesHash);
-  taosCleanUpIntHashWithFp(tsDnodeVnodesHash, (CleanupFp)vnodeClose);
-  dPrint("dnode mgmt is closed, vnodes:%d", num);
 }
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
@@ -219,19 +182,6 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
   return tsCfgDynamicOptions(pCfg->config);
 }
 
-static void dnodeBuildVloadMsg(char *pNode, void * param) {
-  SVnodeObj *pVnode = (SVnodeObj *) pNode;
-  if (pVnode->status == TSDB_VN_STATUS_DELETING) return;
-  
-  SDMStatusMsg *pStatus = param;
-  if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
-  
-  SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
-  pLoad->vgId = htonl(pVnode->vgId);
-  pLoad->vnode = htonl(pVnode->vgId);
-  pLoad->status = pVnode->status;
-}
-
 static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   if (tsDnodeTmr == NULL) {
      dError("dnode timer is already released");
@@ -263,7 +213,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->diskAvailable    = tsAvailDataDirGB;
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
 
-  taosVisitIntHashWithFp(tsDnodeVnodesHash, dnodeBuildVloadMsg, pStatus);
+  vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
   pStatus->openVnodes = htons(pStatus->openVnodes);
   

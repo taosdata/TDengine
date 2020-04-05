@@ -34,13 +34,14 @@ typedef struct {
   EVnStatus    status; 
   int          role;   
   int64_t      version;
-  void *       wqueue;
-  void *       rqueue;
-  void *       wal;
-  void *       tsdb;
-  void *       sync;
-  void *       events;
-  void *       cq;  // continuous query
+  int          temp;
+  void        *wqueue;
+  void        *rqueue;
+  void        *wal;
+  void        *tsdb;
+  void        *sync;
+  void        *events;
+  void        *cq;  // continuous query
 } SVnodeObj;
 
 int  vnodeWriteToQueue(void *param, SWalHead *pHead, int type);

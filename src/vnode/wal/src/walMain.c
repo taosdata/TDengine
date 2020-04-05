@@ -284,7 +284,7 @@ static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SW
     }
 
     // write into queue
-    (*writeFp)(pVnode, buffer, TAOS_QTYPE_WAL);
+    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);
   }
 
   return code;
