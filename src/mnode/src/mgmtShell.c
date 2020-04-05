@@ -136,6 +136,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
 
   if (mgmtCheckRedirect(rpcMsg->handle)) {
     // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
