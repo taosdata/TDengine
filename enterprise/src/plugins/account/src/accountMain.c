@@ -170,6 +170,9 @@ int32_t acctInit() {
   return 0;
 }
 
+void acctIncRef(SAcctObj *pAcct) { sdbIncRef(tsAcctSdb, pAcct); }
+void acctDecRef(SAcctObj *pAcct) { sdbDecRef(tsAcctSdb, pAcct); }
+
 SAcctObj *acctGetAcct(char *name) {
   return (SAcctObj *)sdbGetRow(tsAcctSdb, name);
 }
