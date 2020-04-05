@@ -374,10 +374,10 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   return tsdbAddTableIntoMap(pMeta, pTable);
 }
 
-static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
-  // TODO
-  return 0;
-}
+// static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
+//   // TODO
+//   return 0;
+// }
 
 static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
   // TODO: add the table to the map
