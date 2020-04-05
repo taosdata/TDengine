@@ -995,7 +995,7 @@ int tsCfgDynamicOptions(char *msg) {
   int   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return code;
+  if (olen == 0) return TSDB_CODE_INVALID_MSG_CONTENT;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)

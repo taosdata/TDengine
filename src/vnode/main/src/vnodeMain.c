@@ -232,8 +232,11 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
-  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
-
+  if (pVnode->status == VN_STATUS_DELETING) {
+    // fix deadlock occured while close system
+    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
+  }
+  
   //syncStop(pVnode->sync);
   tsdbCloseRepo(pVnode->tsdb);
   walClose(pVnode->wal);
