@@ -587,7 +587,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   assert(pCmd->numOfClause == 1);
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
-  // set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
+  // set the correct table meta object, the table meta has been locked in pDataBlocks, so it must be in the cache
   if (pTableMetaInfo->pTableMeta != pDataBlock->pTableMeta) {
     strcpy(pTableMetaInfo->name, pDataBlock->tableId);
     taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), false);
@@ -599,7 +599,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
 
   /*
    * the submit message consists of : [RPC header|message body|digest]
-   * the dataBlock only includes the RPC Header buffer and actual submit messsage body, space for digest needs
+   * the dataBlock only includes the RPC Header buffer and actual submit message body, space for digest needs
    * additional space.
    */
   int ret = tscAllocPayload(pCmd, pDataBlock->nAllocSize + 100);
@@ -1277,7 +1277,7 @@ void tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo) {
 
 
 void tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t tableuid, bool deepcopy) {
-  if (src == NULL) {
+  if (src == NULL || src->numOfExprs == 0) {
     return;
   }
 
@@ -1983,22 +1983,24 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     return NULL;
   }
 
-  memcpy(&pNew->cmd, pCmd, sizeof(SSqlCmd));
+  SSqlCmd* pnCmd = &pNew->cmd;
+  memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
+  
+  pnCmd->command = cmd;
+  pnCmd->payload = NULL;
+  pnCmd->allocSize = 0;
 
-  pNew->cmd.command = cmd;
-  pNew->cmd.payload = NULL;
-  pNew->cmd.allocSize = 0;
+  pnCmd->pQueryInfo = NULL;
+  pnCmd->numOfClause = 0;
+  pnCmd->clauseIndex = 0;
+  pnCmd->pDataBlocks = NULL;
 
-  pNew->cmd.pQueryInfo = NULL;
-  pNew->cmd.numOfClause = 0;
-  pNew->cmd.clauseIndex = 0;
-
-  if (tscAddSubqueryInfo(&pNew->cmd) != TSDB_CODE_SUCCESS) {
+  if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
     return NULL;
   }
 
-  SQueryInfo* pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
+  SQueryInfo* pNewQueryInfo = tscGetQueryInfoDetail(pnCmd, 0);
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   memcpy(pNewQueryInfo, pQueryInfo, sizeof(SQueryInfo));
@@ -2018,7 +2020,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     memcpy(pNewQueryInfo->defaultVal, pQueryInfo->defaultVal, pQueryInfo->fieldsInfo.numOfOutputCols * sizeof(int64_t));
   }
 
-  if (tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
+  if (tscAllocPayload(pnCmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
     tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->vnodeIndex);
     tscFreeSqlObj(pNew);
     return NULL;

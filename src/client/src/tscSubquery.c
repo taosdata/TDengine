@@ -1512,6 +1512,9 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
   
   tscTrace("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
   
+  tfree(pState);
+  tfree(pSupporter);
+  
   // release data block data
   pParentCmd->pDataBlocks = tscDestroyBlockArrayList(pParentCmd->pDataBlocks);
   
