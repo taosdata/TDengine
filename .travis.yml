@@ -12,7 +12,7 @@ compiler:
 
 os:
   - linux
-  - osx
+#  - osx
 
 addons:
   coverity_scan:
@@ -59,8 +59,8 @@ matrix:
           - build-essential
           - cmake
 
-  - os: osx
-    addons:
-      homebrew:
-        - cmake
+#  - os: osx
+#    addons:
+#      homebrew:
+#        - cmake
 
