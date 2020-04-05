@@ -99,14 +99,14 @@ void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
 static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char* sql) {
   SSub* pSub = calloc(1, sizeof(SSub));
   if (pSub == NULL) {
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     tscError("failed to allocate memory for subscription");
     return NULL;
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     tscError("failed to allocate SSqlObj for subscription");
     goto failed;
   }
@@ -309,7 +309,7 @@ void tscSaveSubscriptionProgress(void* sub) {
 TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval) {
   STscObj* pObj = (STscObj*)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_DISCONNECTED;
     tscError("connection disconnected");
     return NULL;
   }

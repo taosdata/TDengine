@@ -233,8 +233,8 @@ static FORCE_INLINE void taosCacheMoveToTrash(SCacheObj *pCacheObj, SCacheDataNo
  * @param dataSize
  * @return
  */
-static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode *pNode, char *key, int32_t keyLen,
-                                           void *pData, uint32_t dataSize, uint64_t duration) {
+static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode *pNode, const char *key, int32_t keyLen,
+                                           const void *pData, uint32_t dataSize, uint64_t duration) {
   SCacheDataNode *pNewNode = NULL;
   
   // only a node is not referenced by any other object, in-place update it
@@ -288,7 +288,7 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
  * @param pNode
  * @return
  */
-static FORCE_INLINE SCacheDataNode *taosAddToCacheImpl(SCacheObj *pCacheObj, char *key, size_t keyLen, const void *pData,
+static FORCE_INLINE SCacheDataNode *taosAddToCacheImpl(SCacheObj *pCacheObj, const char *key, size_t keyLen, const void *pData,
                                                        size_t dataSize, uint64_t duration) {
   SCacheDataNode *pNode = taosCreateHashNode(key, keyLen, pData, dataSize, duration);
   if (pNode == NULL) {
@@ -401,7 +401,7 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
   return pCacheObj;
 }
 
-void *taosCachePut(SCacheObj *pCacheObj, char *key, void *pData, size_t dataSize, int duration) {
+void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, size_t dataSize, int duration) {
   SCacheDataNode *pNode;
   
   if (pCacheObj == NULL || pCacheObj->pHashTable == NULL) {

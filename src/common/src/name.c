@@ -24,11 +24,11 @@ static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
   return len;
 }
 
-int32_t extractTableName(const char* tableId, char* name) {
+void extractTableName(const char* tableId, char* name) {
   size_t offset = strcspn(tableId, &TS_PATH_DELIMITER[0]);
   offset = strcspn(&tableId[offset], &TS_PATH_DELIMITER[0]);
   
-  return strncpy(name, &tableId[offset], TSDB_TABLE_NAME_LEN);
+  strncpy(name, &tableId[offset], TSDB_TABLE_NAME_LEN);
   
 //  char* r = skipSegments(tableId, TS_PATH_DELIMITER[0], 2);
 //  return copy(name, r, TS_PATH_DELIMITER[0]);

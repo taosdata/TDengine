@@ -200,7 +200,6 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
-//    globalCode = TSDB_CODE_DISCONNECTED;
     tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
     return;
   }
@@ -232,7 +231,6 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
-//    globalCode = TSDB_CODE_DISCONNECTED;
     tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
     return;
   }

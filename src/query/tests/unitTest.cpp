@@ -11,6 +11,9 @@
 #include "tvariant.h"
 #include "ttokendef.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+
 namespace {
 int32_t testValidateName(char* name) {
   SSQLToken token = {0};

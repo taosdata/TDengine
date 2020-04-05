@@ -9,6 +9,9 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+
 typedef struct ResultObj {
   int32_t numOfResult;
   char *  resultName[64];

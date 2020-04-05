@@ -117,7 +117,7 @@ int taosWriteQitem(taos_queue param, int type, void *item) {
   queue->numOfItems++;
   if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
 
-  //pTrace("item:%p is put into queue, items:%d", item, queue->numOfItems);
+  //pTrace("item:%p is put into queue, type:%d items:%d", item, type, queue->numOfItems);
 
   pthread_mutex_unlock(&queue->mutex);
 
@@ -197,7 +197,7 @@ int taosGetQitem(taos_qall param, int *type, void **pitem) {
     *pitem = pNode->item;
     *type = pNode->type;
     num = 1;
-    //pTrace("item:%p is fetched", *pitem);
+    // pTrace("item:%p is fetched, type:%d", *pitem, *type);
   }
 
   return num;

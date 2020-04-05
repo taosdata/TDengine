@@ -1420,10 +1420,10 @@ int tscProcessDescribeTableRsp(SSqlObj *pSql) {
 }
 
 int tscProcessTagRetrieveRsp(SSqlObj *pSql) {
-  SSqlCmd *pCmd = &pSql->cmd;
+//  SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+//  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   int32_t numOfRes = 0;
 #if 0
@@ -1569,7 +1569,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return pCmd->payloadLen;
 }
 
-static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
+static UNUSED_FUNC int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
   const int32_t defaultSize =
       minMsgSize() + sizeof(SSuperTableMetaMsg) + sizeof(SMgmtHead) + sizeof(int16_t) * TSDB_MAX_TAGS;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -1884,10 +1884,10 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
  *  |...... 1B        1B            4B
  **/
 int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
-  uint8_t  ieType;
-  int32_t  totalNum;
-  int32_t  i;
-
+//  uint8_t  ieType;
+//  int32_t  totalNum;
+//  int32_t  i;
+#if 0
   char *rsp = pSql->res.pRsp;
 
   ieType = *rsp;
@@ -1985,6 +1985,8 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
   pSql->res.code = TSDB_CODE_SUCCESS;
   pSql->res.numOfTotal = i;
   tscTrace("%p load multi-metermeta resp complete num:%d", pSql, pSql->res.numOfTotal);
+#endif
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2467,7 +2469,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   //the query condition is serialized into pCmd->payload, we need to rebuild key for stable meta info in cache.
-  bool required = false;
+//  bool required = false;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
   if (pQueryInfo->pTableMetaInfo[0]->vgroupIdList != NULL) {
