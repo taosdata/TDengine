@@ -40,7 +40,7 @@ typedef struct {
   SRpcMsg  rpcMsg;
 } SWriteMsg;
 
-typedef struct _thread_obj {
+typedef struct _wworker_pool {
   int32_t        max;        // max number of workers
   int32_t        nextId;     // from 0 to max-1, cyclic
   SWriteWorker  *writeWorker;
