@@ -168,7 +168,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   }
 
   if (name[0] == 0 || pass[0] == 0) {
-    return TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG_CONTENT;
   }
 
   SUserObj *pUser = mgmtGetUser(name);

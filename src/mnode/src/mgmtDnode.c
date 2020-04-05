@@ -147,8 +147,7 @@ void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode) {
 
 void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SCMCfgDnodeMsg *pCmCfgDnode = pMsg->pCont;
   if (pCmCfgDnode->ip[0] == 0) {
     strcpy(pCmCfgDnode->ip, tsPrivateIp);
@@ -176,14 +175,14 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   }
 
   if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-    mTrace("dnode:%s is configured by %s", pCmCfgDnode->ip, pMsg->pUser->user);
+    mPrint("dnode:%s, is configured by %s", pCmCfgDnode->ip, pMsg->pUser->user);
   }
 
   rpcSendResponse(&rpcRsp);
 }
 
 static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
-  mTrace("cfg vnode rsp is received");
+  mPrint("cfg vnode rsp is received");
 }
 
 void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {

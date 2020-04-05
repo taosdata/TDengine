@@ -90,7 +90,7 @@ echo "logDir              $LOG_DIR"       >> $TAOS_CFG
 echo "publicIp            $NODE_IP"       >> $TAOS_CFG
 echo "internalIp          $NODE_IP"       >> $TAOS_CFG
 echo "privateIp           $NODE_IP"       >> $TAOS_CFG
-echo "dDebugFlag          135"            >> $TAOS_CFG
+echo "dDebugFlag          199"            >> $TAOS_CFG
 echo "mDebugFlag          199"            >> $TAOS_CFG
 echo "sdbDebugFlag        199"            >> $TAOS_CFG
 echo "rpcDebugFlag        135"            >> $TAOS_CFG

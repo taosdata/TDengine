@@ -20,6 +20,7 @@
 #include "tkey.h"
 #include "tlog.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "tsocket.h"
 #include "tsystem.h"
 #include "tutil.h"
@@ -994,7 +995,7 @@ int tsCfgDynamicOptions(char *msg) {
   int   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return 0;
+  if (olen == 0) return code;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
