@@ -490,6 +490,7 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   pCfg->daysToKeep2                  = htonl(pCfg->daysToKeep2);
   pCfg->daysToKeep                   = htonl(pCfg->daysToKeep);
   pCfg->commitTime                   = htonl(pCfg->commitTime);
+  pCfg->commitLog                    = pCfg->commitLog;
   pCfg->blocksPerTable               = htons(pCfg->blocksPerTable);
   pCfg->replications                 = (char) pVgroup->numOfVnodes;
   pCfg->rowsInFileBlock              = htonl(pCfg->rowsInFileBlock);

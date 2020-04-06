@@ -32,6 +32,7 @@
 #include "vnode.h"
 
 static int32_t  dnodeOpenVnodes();
+static void     dnodeCloseVnodes();
 static int32_t  dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
@@ -64,10 +65,6 @@ int32_t dnodeInitMgmt() {
     return -1;
   }
   
-  if ( vnodeInitModule() != TSDB_CODE_SUCCESS) {
-    return -1;
-  }
-
   int32_t code = dnodeOpenVnodes();
   if (code != TSDB_CODE_SUCCESS) {
     return -1;
@@ -88,7 +85,7 @@ void dnodeCleanupMgmt() {
     tsDnodeTmr = NULL;
   }
 
-  vnodeCleanupModule();
+  dnodeCloseVnodes();
 }
 
 void dnodeMgmt(SRpcMsg *pMsg) {
@@ -107,7 +104,7 @@ void dnodeMgmt(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-static int32_t dnodeOpenVnodes() {
+static int dnodeGetVnodeList(int32_t vnodeList[]) {
   DIR *dir = opendir(tsVnodeDir);
   if (dir == NULL) {
     return TSDB_CODE_NO_WRITE_ACCESS;
@@ -122,18 +119,42 @@ static int32_t dnodeOpenVnodes() {
       int32_t vnode = atoi(de->d_name + 5);
       if (vnode == 0) continue;
 
-      char vnodeDir[TSDB_FILENAME_LEN * 3];
-      snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/%s", tsVnodeDir, de->d_name);
-      int32_t code = vnodeOpen(vnode, vnodeDir);
-      if (code == 0) {
-        numOfVnodes++;
-      }
+      vnodeList[numOfVnodes] = vnode;
+      numOfVnodes++;
     }
   }
   closedir(dir);
 
-  dPrint("dnode mgmt is opened, vnodes:%d", numOfVnodes);
-  return TSDB_CODE_SUCCESS;
+  return numOfVnodes;
+}
+
+static int32_t dnodeOpenVnodes() {
+   char vnodeDir[TSDB_FILENAME_LEN * 3];
+   int  failed = 0;
+
+   int32_t *vnodeList = (int32_t *) malloc(sizeof(int32_t) * 10000);
+   int numOfVnodes = dnodeGetVnodeList(vnodeList);
+  
+   for (int i=0; i<numOfVnodes; ++i) {
+      snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/vnode%d", tsVnodeDir, vnodeList[i]);
+      if (vnodeOpen(vnodeList[i], vnodeDir) <0) failed++;
+   }
+
+   free(vnodeList);
+
+   dPrint("there are total vnodes:%d, failed to open:%d", numOfVnodes, failed);
+   return TSDB_CODE_SUCCESS;
+}
+
+static void dnodeCloseVnodes() {
+   int32_t *vnodeList = (int32_t *) malloc(sizeof(int32_t) * 10000);
+   int numOfVnodes = dnodeGetVnodeList(vnodeList);
+  
+   for (int i=0; i<numOfVnodes; ++i) 
+     vnodeClose(vnodeList[i]); 
+
+   free(vnodeList);
+   dPrint("total vnodes:%d are all closed", numOfVnodes);
 }
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
@@ -142,6 +163,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
+  pCreate->cfg.commitLog   = pCreate->cfg.commitLog;
 
   return vnodeCreate(pCreate);
 }
