@@ -45,6 +45,8 @@ static int32_t doQuery(TAOS* taos, const char* sql) {
   }
   
   taos_free_result(res);
+
+  return 0;
 }
 
 int main(int argc, char *argv[]) {

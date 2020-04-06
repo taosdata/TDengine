@@ -28,6 +28,7 @@
 #include "dnodeRead.h"
 #include "dnodeShell.h"
 #include "dnodeWrite.h"
+#include "mgmtGrant.h"
 
 static int32_t dnodeInitSystem();
 static int32_t dnodeInitStorage();
