@@ -31,9 +31,9 @@
 #include "mgmtVgroup.h"
 #include "dnodeMClient.h"
 
-void *tsDnodeSdb = NULL;
+void   *tsDnodeSdb = NULL;
+int32_t tsDnodeUpdateSize = 0;
 extern void *  tsVgroupSdb;
-static int32_t tsDnodeUpdateSize = 0;
 static int32_t clusterCreateDnode(uint32_t ip);
 static int32_t clusterDropDnode(SDnodeObj *pDnode);
 static void    clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg);

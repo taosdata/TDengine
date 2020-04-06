@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_MPEER_SCORE_H
-#define TDENGINE_MODULE_MPEER_SCORE_H
+#ifndef TDENGINE_PLUGIN_BALANCE_MODULE_H
+#define TDENGINE_PLUGIN_BALANCE_MODULE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,26 +25,7 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-/*
-* Interface functions
-*/
-
-int32_t balanceGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
-/*
- * Internal definitions
- */
-
-void balanceInitDnodeList();
-void balanceMakeDnodeList();
-void balanceReleaseDnodeList();
-
-void  balanceCalcSystemScore();
-float balanceTryCalcDnodeScore(SDnodeObj *pDnode, int32_t extraVnode);
-
-extern int32_t     tsBalanceDnodeListSize;
-extern SDnodeObj **tsBalanceDnodeList;
+bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
 
 #ifdef __cplusplus
 }
