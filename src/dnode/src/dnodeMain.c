@@ -31,6 +31,7 @@
 
 static int32_t dnodeInitSystem();
 static int32_t dnodeInitStorage();
+extern void grantParseParameter();
 static void dnodeCleanupStorage();
 static void dnodeCleanUpSystem();
 static void dnodeSetRunStatus(SDnodeRunStatus status);

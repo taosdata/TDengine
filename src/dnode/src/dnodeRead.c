@@ -192,6 +192,7 @@ static void dnodeHandleIdleReadWorker() {
   }
 }
 
+UNUSED_FUNC
 static void dnodeProcessReadResult(void *pVnode, SReadMsg *pRead) {
   SRpcContext *pRpcContext = pRead->pRpcContext;
   int32_t      code = 0;
