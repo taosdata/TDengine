@@ -1512,7 +1512,8 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
     } else {
       pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].privateIp;
     }
-    pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
+    pMeta->vpeerDesc[i].dnodeId = htonl(pVgroup->vnodeGid[i].dnodeId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 

@@ -251,7 +251,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pDnode->status != TSDB_DN_STATUS_READY) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TSDB_DN_STATUS_READY;
-    mgmtStartBalanceTimer(200);
+    mgmtBalanceNotify();
   }
 
   mgmtDecDnodeRef(pDnode);

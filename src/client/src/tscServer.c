@@ -1835,7 +1835,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   }
 
   for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-    pMetaMsg->vpeerDesc[i].vnode = htonl(pMetaMsg->vpeerDesc[i].vnode);
+    pMetaMsg->vpeerDesc[i].vgId = htonl(pMetaMsg->vpeerDesc[i].vgId);
   }
 
   SSchema* pSchema = pMetaMsg->schema;

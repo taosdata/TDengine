@@ -32,7 +32,7 @@
 #include "mgmtVgroup.h"
 
 void   *tsVgroupSdb = NULL;
-static int32_t tsVgUpdateSize = 0;
+int32_t tsVgUpdateSize = 0;
 
 static int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -93,11 +93,12 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
 
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
-    pVgroup->vnodeGid[i].privateIp = pDnode->privateIp;
-    pVgroup->vnodeGid[i].publicIp = pDnode->publicIp;
-    pVgroup->vnodeGid[i].vnode = pVgroup->vgId;
-    atomic_add_fetch_32(&pDnode->openVnodes, 1);
-    mgmtDecDnodeRef(pDnode);
+    if (pDnode != NULL) {
+      pVgroup->vnodeGid[i].privateIp = pDnode->privateIp;
+      pVgroup->vnodeGid[i].publicIp = pDnode->publicIp;
+      atomic_add_fetch_32(&pDnode->openVnodes, 1);    
+      mgmtDecDnodeRef(pDnode);
+    }     
   }
 
   mgmtAddVgroupIntoDb(pVgroup);
@@ -236,7 +237,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
 
   mPrint("vgroup:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    mPrint("vgroup:%d, index:%d, dnode:%d vnode:%d", pVgroup->vgId, i, pVgroup->vnodeGid[i].dnodeId, pVgroup->vnodeGid[i].vnode);
+    mPrint("vgroup:%d, index:%d, dnode:%d", pVgroup->vgId, i, pVgroup->vnodeGid[i].dnodeId);
   }
 
   pMsg->ahandle = pVgroup;
@@ -312,27 +313,21 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   }
 
   for (int32_t i = 0; i < maxReplica; ++i) {
+    pShow->bytes[cols] = 2;
+    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+    strcpy(pSchema[cols].name, "dnode");
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+
     pShow->bytes[cols] = 16;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
     strcpy(pSchema[cols].name, "ip");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
-    pShow->bytes[cols] = 2;
-    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-    strcpy(pSchema[cols].name, "vnode");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
     pShow->bytes[cols] = 9;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "vnode status");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 16;
-    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "public ip");
+    strcpy(pSchema[cols].name, "vstatus");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
   }
@@ -416,13 +411,13 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
     cols++;
 
     for (int32_t i = 0; i < maxReplica; ++i) {
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int16_t *) pWrite = pVgroup->vnodeGid[i].dnodeId;
+      cols++;
+
       tinet_ntoa(ipstr, pVgroup->vnodeGid[i].privateIp);
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       strcpy(pWrite, ipstr);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *) pWrite = pVgroup->vnodeGid[i].vnode;
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -432,11 +427,6 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
       } else {
         strcpy(pWrite, "null");
       }
-      cols++;
-
-      tinet_ntoa(ipstr, pVgroup->vnodeGid[i].publicIp);
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, ipstr);
       cols++;
     }
 
@@ -490,15 +480,15 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   pCfg->daysToKeep2                  = htonl(pCfg->daysToKeep2);
   pCfg->daysToKeep                   = htonl(pCfg->daysToKeep);
   pCfg->commitTime                   = htonl(pCfg->commitTime);
-  pCfg->commitLog                    = pCfg->commitLog;
-  pCfg->blocksPerTable               = htons(pCfg->blocksPerTable);
-  pCfg->replications                 = (char) pVgroup->numOfVnodes;
   pCfg->rowsInFileBlock              = htonl(pCfg->rowsInFileBlock);
-
+  pCfg->blocksPerTable               = htons(pCfg->blocksPerTable);
+  pCfg->replications                 = (int8_t) pVgroup->numOfVnodes;
+  
   SVnodeDesc *vpeerDesc = pVnode->vpeerDesc;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
-    vpeerDesc[j].vnode = htonl(pVgroup->vnodeGid[j].vnode);
-    vpeerDesc[j].ip    = htonl(pVgroup->vnodeGid[j].privateIp);
+    vpeerDesc[j].vgId    = htonl(pVgroup->vgId);
+    vpeerDesc[j].dnodeId = htonl(pVgroup->vnodeGid[j].dnodeId);
+    vpeerDesc[j].ip      = htonl(pVgroup->vnodeGid[j].privateIp);
   }
 
   return pVnode;
