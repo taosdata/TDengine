@@ -163,6 +163,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
+  pCreate->cfg.commitLog   = pCreate->cfg.commitLog;
 
   return vnodeCreate(pCreate);
 }

@@ -88,7 +88,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return code;
   }
 
-  dPrint("vgId:%d, vnode is created", pVnodeCfg->cfg.vgId);
+  dPrint("vgId:%d, vnode is created, clog:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.commitLog);
   code = vnodeOpen(pVnodeCfg->cfg.vgId, rootDir);
 
   return code;
