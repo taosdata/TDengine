@@ -40,8 +40,6 @@ void mgmtCleanupBalance() {
 void mgmtBalanceNotify() {
 #ifdef _VPEER
   balanceNotify();
-#else
-  return 0;
 #endif
 }
 
