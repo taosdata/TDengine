@@ -182,6 +182,7 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   dTrace("pVnode:%p vgId:%d, vnode is released", pVnode, pVnode->vgId);
+  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
 
   tsOpennedVnodes--;
   if (tsOpennedVnodes <= 0) {
@@ -195,6 +196,11 @@ void *vnodeGetVnode(int32_t vgId) {
   SVnodeObj *pVnode = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
+    return NULL;
+  }
+
+  if (pVnode->status == VN_STATUS_CLOSING || pVnode->status == VN_STATUS_DELETING) {
+    terrno =  TSDB_CODE_INVALID_VGROUP_ID;
     return NULL;
   }
 
@@ -241,7 +247,6 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
-  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
   
   //syncStop(pVnode->sync);
   tsdbCloseRepo(pVnode->tsdb);
