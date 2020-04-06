@@ -49,9 +49,8 @@ typedef struct SQueryFilePos {
 } SQueryFilePos;
 
 typedef struct SDataBlockLoadInfo {
-  int32_t fileListIndex;
-  int32_t fileId;
-  int32_t slotIdx;
+  SFileGroup* fileGroup;
+  int32_t slot;
   int32_t sid;
   SArray *pLoadedCols;
 } SDataBlockLoadInfo;
@@ -190,86 +189,15 @@ static void initQueryFileInfoFD(SQueryFilesInfo *pVnodeFilesInfo) {
 }
 
 static void vnodeInitDataBlockLoadInfo(SDataBlockLoadInfo *pBlockLoadInfo) {
-  pBlockLoadInfo->slotIdx = -1;
-  pBlockLoadInfo->fileId = -1;
+  pBlockLoadInfo->slot = -1;
   pBlockLoadInfo->sid = -1;
-  pBlockLoadInfo->fileListIndex = -1;
+  pBlockLoadInfo->fileGroup = NULL;
 }
 
 static void vnodeInitCompBlockLoadInfo(SLoadCompBlockInfo *pCompBlockLoadInfo) {
   pCompBlockLoadInfo->sid = -1;
   pCompBlockLoadInfo->fileId = -1;
   pCompBlockLoadInfo->fileListIndex = -1;
-}
-
-static int fileOrderComparFn(const void *p1, const void *p2) {
-  SHeaderFileInfo *pInfo1 = (SHeaderFileInfo *)p1;
-  SHeaderFileInfo *pInfo2 = (SHeaderFileInfo *)p2;
-  
-  if (pInfo1->fileId == pInfo2->fileId) {
-    return 0;
-  }
-  
-  return (pInfo1->fileId > pInfo2->fileId) ? 1 : -1;
-}
-
-void vnodeRecordAllFiles(int32_t vnodeId, SQueryFilesInfo *pVnodeFilesInfo) {
-  char suffix[] = ".head";
-  pVnodeFilesInfo->pFileInfo = taosArrayInit(4, sizeof(int32_t));
-  
-  struct dirent *pEntry = NULL;
-  pVnodeFilesInfo->vnodeId = vnodeId;
-  char* tsDirectory = "";
-  
-  sprintf(pVnodeFilesInfo->dbFilePathPrefix, "%s/vnode%d/db/", tsDirectory, vnodeId);
-  DIR *pDir = opendir(pVnodeFilesInfo->dbFilePathPrefix);
-  if (pDir == NULL) {
-    //    dError("QInfo:%p failed to open directory:%s, %s", pQInfo, pVnodeFilesInfo->dbFilePathPrefix,
-    //    strerror(errno));
-    return;
-  }
-  
-  while ((pEntry = readdir(pDir)) != NULL) {
-    if ((pEntry->d_name[0] == '.' && pEntry->d_name[1] == '\0') || (strcmp(pEntry->d_name, "..") == 0)) {
-      continue;
-    }
-    
-    if (pEntry->d_type & DT_DIR) {
-      continue;
-    }
-    
-    size_t len = strlen(pEntry->d_name);
-    if (strcasecmp(&pEntry->d_name[len - 5], suffix) != 0) {
-      continue;
-    }
-    
-    int32_t vid = 0;
-    int32_t fid = 0;
-    sscanf(pEntry->d_name, "v%df%d", &vid, &fid);
-    if (vid != vnodeId) { /* ignore error files */
-      //      dError("QInfo:%p error data file:%s in vid:%d, ignore", pQInfo, pEntry->d_name, vnodeId);
-      continue;
-    }
-    
-//    int32_t firstFid = pVnode->fileId - pVnode->numOfFiles + 1;
-//    if (fid > pVnode->fileId || fid < firstFid) {
-//           dError("QInfo:%p error data file:%s in vid:%d, fid:%d, fid range:%d-%d", pQInfo, pEntry->d_name, vnodeId,
-//           fid, firstFid, pVnode->fileId);
-//      continue;
-//    }
-    
-    assert(fid >= 0 && vid >= 0);
-    taosArrayPush(pVnodeFilesInfo->pFileInfo, &fid);
-  }
-  
-  closedir(pDir);
-  
-  //  dTrace("QInfo:%p find %d data files in %s to be checked", pQInfo, pVnodeFilesInfo->numOfFiles,
-  //         pVnodeFilesInfo->dbFilePathPrefix);
-  
-  // order the files information according their names */
-  size_t numOfFiles = taosArrayGetSize(pVnodeFilesInfo->pFileInfo);
-  qsort(pVnodeFilesInfo->pFileInfo->pData, numOfFiles, sizeof(SHeaderFileInfo), fileOrderComparFn);
 }
 
 tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo) {
@@ -807,6 +735,11 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   }
   
   if (tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data) == 0) {
+    SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
+    pBlockLoadInfo->fileGroup = pCheckInfo->pFileGroup;
+    pBlockLoadInfo->slot = pQueryHandle->cur.slot;
+    pBlockLoadInfo->sid = pCheckInfo->pTableObj->tableId.tid;
+    
     blockLoaded = true;
   }
     
@@ -815,6 +748,9 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   
   // failed to load data from disk, abort current query
   if (blockLoaded == false) {
+    taosArrayDestroy(sa);
+    tfree(data);
+    
     return false;
   }
   
@@ -1001,10 +937,16 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
       return pHandle->pColumns;
     } else {
       SArray *sa = getDefaultLoadColumns(pHandle, true);
-  
-      doLoadDataFromFileBlock(pHandle);
-      filterDataInDataBlock(pHandle, pCheckInfo->pDataCols, sa);
-      return pHandle->pColumns;
+      
+      // data block has been loaded, todo extract method
+      SDataBlockLoadInfo* pBlockLoadInfo = &pHandle->dataBlockLoadInfo;
+      if (pBlockLoadInfo->slot == pHandle->cur.slot && pBlockLoadInfo->sid == pCheckInfo->pTableObj->tableId.tid) {
+        return pHandle->pColumns;
+      } else {
+        doLoadDataFromFileBlock(pHandle);
+        filterDataInDataBlock(pHandle, pCheckInfo->pDataCols, sa);
+        return pHandle->pColumns;
+      }
     }
   }
 }
@@ -1361,7 +1303,10 @@ void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle) {
     STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
     tSkipListDestroyIter(pTableCheckInfo->iter);
 
-    tfree(pTableCheckInfo->pDataCols->buf);
+    if (pTableCheckInfo->pDataCols != NULL) {
+      tfree(pTableCheckInfo->pDataCols->buf);
+    }
+    
     tfree(pTableCheckInfo->pDataCols);
     
     tfree(pTableCheckInfo->pCompInfo);
