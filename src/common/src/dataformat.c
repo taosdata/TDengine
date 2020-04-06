@@ -317,14 +317,17 @@ void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
   pCols->numOfCols = schemaNCols(pSchema);
 
   pCols->cols[0].pData = pCols->buf;
+  int offset = TD_DATA_ROW_HEAD_SIZE;
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     if (i > 0) {
       pCols->cols[i].pData = (char *)(pCols->cols[i - 1].pData) + schemaColAt(pSchema, i - 1)->bytes * pCols->maxPoints;
     }
     pCols->cols[i].type = colType(schemaColAt(pSchema, i));
     pCols->cols[i].bytes = colBytes(schemaColAt(pSchema, i));
-    pCols->cols[i].offset = colOffset(schemaColAt(pSchema, i));
+    pCols->cols[i].offset = offset;
     pCols->cols[i].colId = colColId(schemaColAt(pSchema, i));
+
+    offset += TYPE_BYTES[pCols->cols[i].type];
   }
 }
 
@@ -343,7 +346,6 @@ void tdResetDataCols(SDataCols *pCols) {
 }
 
 void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
-  TSKEY key = dataRowKey(row);
   for (int i = 0; i < pCols->numOfCols; i++) {
     SDataCol *pCol = pCols->cols + i;
     memcpy((void *)((char *)(pCol->pData) + pCol->len), dataRowAt(row, pCol->offset), pCol->bytes);
@@ -378,4 +380,8 @@ static int tdFLenFromSchema(STSchema *pSchema) {
   }
 
   return ret;
+}
+
+int tdMergeDataCols(SDataCols *target, SDataCols *source) {
+  return 0;
 }

@@ -32,6 +32,7 @@
 static void *tsDnodeVnodesHash;
 static void  vnodeCleanUp(SVnodeObj *pVnode);
 static void  vnodeBuildVloadMsg(char *pNode, void * param);
+static int   vnodeWALCallback(void *arg);
 
 static int   tsOpennedVnodes;
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
@@ -120,23 +121,28 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   vnodeObj.version  = 0;  
   SVnodeObj *pVnode = (SVnodeObj *)taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *)(&vnodeObj));
 
+  pVnode->wqueue = dnodeAllocateWqueue(pVnode);
+  pVnode->rqueue = dnodeAllocateRqueue(pVnode);
+
+  sprintf(temp, "%s/wal", rootDir);
+  pVnode->wal      = walOpen(temp, 3, tsCommitLog);
+  pVnode->sync     = NULL;
+  pVnode->events   = NULL;
+  pVnode->cq       = NULL;
+
+  STsdbAppH appH = {0};
+  appH.appH = (void *)pVnode;
+  appH.walCallBack = vnodeWALCallback;
+
   sprintf(temp, "%s/tsdb", rootDir);
-  void *pTsdb = tsdbOpenRepo(temp);
+  void *pTsdb = tsdbOpenRepo(temp, &appH);
   if (pTsdb == NULL) {
     dError("pVnode:%p vgId:%d, failed to open tsdb at %s(%s)", pVnode, pVnode->vgId, temp, tstrerror(terrno));
     taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
     return terrno;
   }
 
-  pVnode->wqueue = dnodeAllocateWqueue(pVnode);
-  pVnode->rqueue = dnodeAllocateRqueue(pVnode);
-
-  sprintf(temp, "%s/wal", rootDir);
-  pVnode->wal      = walOpen(temp, 3, tsCommitLog);
-  pVnode->tsdb     = pTsdb;
-  pVnode->sync     = NULL;
-  pVnode->events   = NULL;
-  pVnode->cq       = NULL;
+  pVnode->tsdb = pTsdb;
 
   walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
 
@@ -248,4 +254,9 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   walClose(pVnode->wal);
 
   vnodeRelease(pVnode);
+}
+
+static int vnodeWALCallback(void *arg) {
+  SVnodeObj *pVnode = arg;
+  return walRenew(pVnode->wal);
 }
