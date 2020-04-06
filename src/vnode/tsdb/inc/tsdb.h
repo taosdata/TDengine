@@ -328,6 +328,12 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  */
 SArray *tsdbQueryTableList(tsdb_repo_t* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len);
 
+/**
+ * clean up the query handle
+ * @param queryHandle
+ */
+void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle);
+
 #ifdef __cplusplus
 }
 #endif
