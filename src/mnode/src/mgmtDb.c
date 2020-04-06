@@ -166,8 +166,8 @@ SDbObj *mgmtGetDbByTableId(char *tableId) {
 }
 
 static int32_t mgmtCheckDBParams(SCMCreateDbMsg *pCreate) {
-  if (pCreate->commitLog < 0 || pCreate->commitLog > 1) {
-    mError("invalid db option commitLog: %d, only 0 or 1 allowed", pCreate->commitLog);
+  if (pCreate->commitLog < 0 || pCreate->commitLog > 2) {
+    mError("invalid db option commitLog: %d, only 0-2 allowed", pCreate->commitLog);
     return TSDB_CODE_INVALID_OPTION;
   }
 

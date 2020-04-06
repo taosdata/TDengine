@@ -632,7 +632,7 @@ static void doInitGlobalConfig() {
   
   tsInitConfigOption(cfg++, "clog", &tsCommitLog, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
+                     0, 2, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "comp", &tsCompression, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      0, 2, 0, TSDB_CFG_UTYPE_NONE);
