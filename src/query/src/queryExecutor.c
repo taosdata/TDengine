@@ -5168,7 +5168,8 @@ static void singleTableQueryImpl(SQInfo* pQInfo) {
   if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed", pQInfo);
   } else {
-    dTrace("QInfo:%p query task completed, %d points are returned", pQInfo, pQuery->rec.size);
+    dTrace("QInfo:%p query task completed, %" PRId64 " rows will returned, total:%" PRId64 " rows", pQInfo, pQuery->rec.size,
+        pQuery->rec.total);
   }
   
   sem_post(&pQInfo->dataReady);
@@ -5838,7 +5839,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   
   vnodeParametersSafetyCheck(pQuery);
   
-  dTrace("qmsg:%p create QInfo:%p, QInfo created", pQueryMsg, pQInfo);
+  dTrace("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
   return pQInfo;
 
 _clean_memory:
@@ -6157,18 +6158,14 @@ int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
-    if (pQInfo->code == TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_QUERY_CANCELLED;
-    } else {  // in case of not TSDB_CODE_SUCCESS, return the code to client
-      return (pQInfo->code >= 0)? pQInfo->code:(-pQInfo->code);
-    }
+    return pQInfo->code;
   }
 
   sem_wait(&pQInfo->dataReady);
   dTrace("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%d", pQInfo, pQuery->rowSize, pQuery->rec.size,
       pQInfo->code);
   
-  return (pQInfo->code >= 0)? pQInfo->code:(-pQInfo->code);
+  return pQInfo->code;
 }
 
 bool qHasMoreResultsToRetrieve(SQInfo* pQInfo) {
@@ -6213,6 +6210,7 @@ int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* c
   if (pQuery->rec.size > 0 && code == TSDB_CODE_SUCCESS) {
     code = doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {
+    setQueryStatus(pQuery, QUERY_OVER);
     code = pQInfo->code;
   }
   
