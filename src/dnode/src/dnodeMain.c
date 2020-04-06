@@ -77,7 +77,7 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   /* Set termination handler. */
-  struct sigaction act;
+  struct sigaction act = {0};
   act.sa_flags = SA_SIGINFO;
   act.sa_sigaction = signal_handler;
   sigaction(SIGTERM, &act, NULL);

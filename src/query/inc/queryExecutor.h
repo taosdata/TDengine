@@ -199,6 +199,12 @@ typedef struct SQInfo {
 int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
 
 /**
+ * destroy the query info struct
+ * @param pQInfo
+ */
+void qDestroyQueryInfo(SQInfo* pQInfo);
+
+/**
  * query on single table
  * @param pReadMsg
  */

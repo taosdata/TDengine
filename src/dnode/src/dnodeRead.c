@@ -290,8 +290,9 @@ static void dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg) {
     if (qHasMoreResultsToRetrieve(pQInfo)) {
       dnodeContinueExecuteQuery(pVnode, pQInfo, pMsg);
     } else {  // no further execution invoked, release the ref to vnode
-      dnodeProcessReadResult(pVnode, pMsg);
-      //vnodeRelease(pVnode);
+      qDestroyQueryInfo(pQInfo);
+//      dnodeProcessReadResult(pVnode, pMsg);
+      vnodeRelease(pVnode);
     }
   }
   
@@ -305,5 +306,4 @@ static void dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg) {
 
   rpcSendResponse(&rpcRsp);
   dTrace("dnode retrieve msg disposed, thandle:%p", pMsg->rpcMsg.handle);
-  vnodeRelease(pVnode);
 }
