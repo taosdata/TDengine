@@ -150,7 +150,7 @@ int walWrite(void *handle, SWalHead *pHead) {
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
 
   pHead->signature = walSignature;
-  taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWal));
+  taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
   int contLen = pHead->len + sizeof(SWalHead);
 
   if(write(pWal->fd, pHead, contLen) != contLen) {
@@ -272,7 +272,7 @@ static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SW
       break;
     }
 
-    if (taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
+    if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wWarn("wal:%s, cksum is messed up, skip the rest of file", name);
       break;
     } 
