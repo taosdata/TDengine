@@ -322,6 +322,8 @@ typedef struct _tsdb_repo {
   // TSDB configuration
   STsdbCfg config;
 
+  STsdbAppH appH;
+
   // The meter meta handle of this TSDB repository
   STsdbMeta *tsdbMeta;
 

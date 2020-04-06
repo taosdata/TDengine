@@ -346,7 +346,6 @@ void tdResetDataCols(SDataCols *pCols) {
 }
 
 void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
-  TSKEY key = dataRowKey(row);
   for (int i = 0; i < pCols->numOfCols; i++) {
     SDataCol *pCol = pCols->cols + i;
     memcpy((void *)((char *)(pCol->pData) + pCol->len), dataRowAt(row, pCol->offset), pCol->bytes);
@@ -384,5 +383,5 @@ static int tdFLenFromSchema(STSchema *pSchema) {
 }
 
 int tdMergeDataCols(SDataCols *target, SDataCols *source) {
-
+  return 0;
 }
