@@ -941,6 +941,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       sql = sToken.z;
     }
     code = tscGetTableMeta(pSql, pTableMetaInfo);
+    
+    if (pSql->asyncTblPos == NULL) {
+      assert(code == TSDB_CODE_ACTION_IN_PROGRESS);
+    }
   }
 
   int32_t len = cend - cstart + 1;
@@ -1064,8 +1068,8 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     
     if ((code = tscCheckIfCreateTable(&str, pSql)) != TSDB_CODE_SUCCESS) {
       /*
-       * For async insert, after get the metermeta from server, the sql string will not be
-       * parsed using the new metermeta to avoid the overhead cause by get metermeta data information.
+       * For async insert, after get the table meta from server, the sql string will not be
+       * parsed using the new table meta to avoid the overhead cause by get table meta data information.
        * And during the getMeterMetaCallback function, the sql string will be parsed from the
        * interrupted position.
        */
