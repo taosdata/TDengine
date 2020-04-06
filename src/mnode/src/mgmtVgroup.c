@@ -32,7 +32,7 @@
 #include "mgmtVgroup.h"
 
 void   *tsVgroupSdb = NULL;
-static int32_t tsVgUpdateSize = 0;
+int32_t tsVgUpdateSize = 0;
 
 static int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -93,10 +93,12 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
 
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
-    pVgroup->vnodeGid[i].privateIp = pDnode->privateIp;
-    pVgroup->vnodeGid[i].publicIp = pDnode->publicIp;
-    atomic_add_fetch_32(&pDnode->openVnodes, 1);
-    mgmtDecDnodeRef(pDnode);
+    if (pDnode != NULL) {
+      pVgroup->vnodeGid[i].privateIp = pDnode->privateIp;
+      pVgroup->vnodeGid[i].publicIp = pDnode->publicIp;
+      atomic_add_fetch_32(&pDnode->openVnodes, 1);    
+      mgmtDecDnodeRef(pDnode);
+    }     
   }
 
   mgmtAddVgroupIntoDb(pVgroup);
