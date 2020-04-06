@@ -654,7 +654,7 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
 }
 
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
-  char fname[128];
+  char fname[260];
   if (pRepo == NULL) return 0;
   char *dirName = calloc(1, strlen(pRepo->rootDir) + strlen("tsdb") + 2);
   if (dirName == NULL) {
