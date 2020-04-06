@@ -126,7 +126,7 @@ int taosUpdateIdPool(id_pool_t *handle, int maxId) {
     return -1;
   }
 
-  int *idList = calloc(maxId, sizeof(bool));
+  bool *idList = calloc(maxId, sizeof(bool));
   if (idList == NULL) {
     return -1;
   }
@@ -137,7 +137,7 @@ int taosUpdateIdPool(id_pool_t *handle, int maxId) {
   pIdPool->numOfFree += (maxId - pIdPool->maxId);
   pIdPool->maxId = maxId;
 
-  int *oldIdList = pIdPool->freeList;
+  bool *oldIdList = pIdPool->freeList;
   pIdPool->freeList = idList;
   free(oldIdList);
 

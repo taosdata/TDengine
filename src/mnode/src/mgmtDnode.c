@@ -41,7 +41,7 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
 extern int32_t clusterInit();
 extern void    clusterCleanUp();
 extern int32_t clusterGetDnodesNum();
-extern void *  clusterGetNextDnode(void *pNode, void **pDnode);
+extern void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
 extern void    clusterIncDnodeRef(SDnodeObj *pDnode);
 extern void    clusterDecDnodeRef(SDnodeObj *pDnode);
 extern SDnodeObj* clusterGetDnode(int32_t dnodeId);
