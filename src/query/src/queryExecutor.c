@@ -1567,8 +1567,6 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
-  tfree(pRuntimeEnv->pQuery);
-  
   pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
 
@@ -2247,10 +2245,7 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
   }
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
-
-  //  tSidSetDestroy(&pQInfo->pSidSet);
 
   if (pQInfo->pTableDataInfo != NULL) {
     //    size_t num = taosHashGetSize(pQInfo->pTableIdList);
@@ -5974,6 +5969,8 @@ static void freeQInfo(SQInfo *pQInfo) {
   }
   
   tfree(pQuery->pGroupbyExpr);
+  tfree(pQuery);
+  
   taosArrayDestroy(pQInfo->pTableIdList);
   
   dTrace("QInfo:%p QInfo is freed", pQInfo);

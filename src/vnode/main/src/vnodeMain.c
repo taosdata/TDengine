@@ -33,27 +33,22 @@ static void *tsDnodeVnodesHash;
 static void  vnodeCleanUp(SVnodeObj *pVnode);
 static void  vnodeBuildVloadMsg(char *pNode, void * param);
 
-int32_t vnodeInitModule() {
+static int   tsOpennedVnodes;
+static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
+
+static void vnodeInit() {
 
   vnodeInitWriteFp();
 
   tsDnodeVnodesHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SVnodeObj), taosHashInt);
   if (tsDnodeVnodesHash == NULL) {
     dError("failed to init vnode list");
-    return -1;
   }
-
-  return 0;
-}
-
-typedef void (*CleanupFp)(char *);
-void vnodeCleanupModule() {
-  taosCleanUpIntHashWithFp(tsDnodeVnodesHash, (CleanupFp)vnodeClose);
-  taosCleanUpIntHash(tsDnodeVnodesHash);
 }
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
+  pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj *pTemp = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pVnodeCfg->cfg.vgId);
 
@@ -93,7 +88,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return code;
   }
 
-  dPrint("vgId:%d, vnode is created", pVnodeCfg->cfg.vgId);
+  dPrint("vgId:%d, vnode is created, clog:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.commitLog);
   code = vnodeOpen(pVnodeCfg->cfg.vgId, rootDir);
 
   return code;
@@ -116,6 +111,7 @@ int32_t vnodeDrop(int32_t vgId) {
 
 int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   char temp[TSDB_FILENAME_LEN];
+  pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj vnodeObj = {0};
   vnodeObj.vgId     = vnode;
@@ -147,11 +143,14 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status = VN_STATUS_READY;
   dTrace("pVnode:%p vgId:%d, vnode is opened in %s", pVnode, pVnode->vgId, rootDir);
 
+  tsOpennedVnodes++;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeClose(void *param) {
-  SVnodeObj *pVnode = (SVnodeObj *)param;
+int32_t vnodeClose(int32_t vgId) {
+
+  SVnodeObj *pVnode = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, vgId);
+  if (pVnode == NULL) return 0;
 
   dTrace("pVnode:%p vgId:%d, vnode will be closed", pVnode, pVnode->vgId);
   pVnode->status = VN_STATUS_CLOSING;
@@ -183,6 +182,13 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   dTrace("pVnode:%p vgId:%d, vnode is released", pVnode, pVnode->vgId);
+
+  tsOpennedVnodes--;
+  if (tsOpennedVnodes <= 0) {
+    taosCleanUpIntHash(tsDnodeVnodesHash);
+    vnodeModuleInit = PTHREAD_ONCE_INIT;
+    tsDnodeVnodesHash = NULL;
+  }
 }
 
 void *vnodeGetVnode(int32_t vgId) {
@@ -235,10 +241,7 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
-  if (pVnode->status == VN_STATUS_DELETING) {
-    // fix deadlock occured while close system
-    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
-  }
+  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
   
   //syncStop(pVnode->sync);
   tsdbCloseRepo(pVnode->tsdb);
