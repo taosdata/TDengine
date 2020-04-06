@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_MNODE_PEER_H
-#define TDENGINE_MODULE_MNODE_PEER_H
+#ifndef TDENGINE_PLUGIN_BALANCE_H
+#define TDENGINE_PLUGIN_BALANCE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,19 +25,18 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-void balanceInit();
+/*
+* Interface functions
+*/
 
-extern int32_t (*balanceInitResourceFp)();
-extern void    (*balanceCleanUpResourceFp)();
+int32_t balanceInit();
+void    balanceCleanUp();
 
-extern void    (*balanceNotifyFp)();
-extern int32_t (*balanceAllocVnodesFp)(SVgObj *pVgroup);
+void    balanceNotify();
+int32_t balanceAllocVnodes(SVgObj *pVgroup);
 
-extern int32_t (*balanceSetDnodeRemoveStateFp)(SDnodeObj *pDnode);
-extern void    (*balanceSetDnodeUnRemoveStateFp)(SDnodeObj *pDnode);
-
-extern int32_t (*balanceGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-extern int32_t (*balanceRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+int32_t balanceSetDnodeRemoveState(SDnodeObj *pDnode);
+void    balanceSetDnodeUnRemoveState(SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }
