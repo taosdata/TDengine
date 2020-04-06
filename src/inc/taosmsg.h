@@ -241,7 +241,8 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
-  int32_t  vnode;  // the index of vnode
+  int32_t  vgId;
+  int32_t  dnodeId;
   uint32_t ip;
 } SVnodeDesc;
 

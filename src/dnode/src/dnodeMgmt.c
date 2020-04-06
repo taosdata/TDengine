@@ -160,11 +160,24 @@ static void dnodeCloseVnodes() {
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
-  pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
-  pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
-  pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
-  pCreate->cfg.commitLog   = pCreate->cfg.commitLog;
-
+  pCreate->cfg.vgId            = htonl(pCreate->cfg.vgId);
+  pCreate->cfg.maxSessions     = htonl(pCreate->cfg.maxSessions);
+  pCreate->cfg.cacheBlockSize  = htonl(pCreate->cfg.cacheBlockSize);
+  pCreate->cfg.daysPerFile     = htonl(pCreate->cfg.daysPerFile);
+  pCreate->cfg.daysToKeep1     = htonl(pCreate->cfg.daysToKeep1);
+  pCreate->cfg.daysToKeep2     = htonl(pCreate->cfg.daysToKeep2);
+  pCreate->cfg.daysToKeep      = htonl(pCreate->cfg.daysToKeep);
+  pCreate->cfg.commitTime      = htonl(pCreate->cfg.commitTime);
+  pCreate->cfg.rowsInFileBlock = htonl(pCreate->cfg.rowsInFileBlock);
+  pCreate->cfg.blocksPerTable  = htons(pCreate->cfg.blocksPerTable);
+  pCreate->cfg.cacheNumOfBlocks.totalBlocks = htonl(pCreate->cfg.cacheNumOfBlocks.totalBlocks);
+  
+  for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
+    pCreate->vpeerDesc[j].vgId    = htonl(pCreate->vpeerDesc[j].vgId);
+    pCreate->vpeerDesc[j].dnodeId = htonl(pCreate->vpeerDesc[j].dnodeId);
+    pCreate->vpeerDesc[j].ip      = htonl(pCreate->vpeerDesc[j].ip);
+  }
+  
   return vnodeCreate(pCreate);
 }
 

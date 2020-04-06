@@ -156,28 +156,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QUERY_CANCELLED,            0, 110, "query cancelled
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_IE,                 0, 111, "invalid ie")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VALUE,              0, 112, "invalid value")
 
-// TAOS_DEFINE_ERROR(TSDB_CODE_SYNC_REQUIRED,              0, 99, "sync required")
-// TAOS_DEFINE_ERROR(TSDB_CODE_UNSYNCED,                   0, 100, "unsyned")
-// TAOS_DEFINE_ERROR(TSDB_CODE_DATA_ALREADY_IMPORTED,      0, 75, "data already imported")
-// TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_COMMIT_LOG,         0, 109, "invalid commit log")       // commit log init failed
-// TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VNODE_STATUS,       0, 116, "invalid vnode status")
-// TAOS_DEFINE_ERROR(TSDB_CODE_TIMESTAMP_OUT_OF_RANGE,     0, 105, "timestamp out of range")
-// TAOS_DEFINE_ERROR(TSDB_CODE_DUPLICATE_TAGS,             0, 112, "duplicate tags")           // tags value for join not unique
-// TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SUBMIT_MSG,         0, 113, "invalid submit message")
-// TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_LOCK_RESOURCES,   0, 117, "failed to lock resources")
-// TAOS_DEFINE_ERROR(TSDB_CODE_FILE_BLOCK_TS_DISORDERED,   0, 108, "file block ts disordered") // time stamp in file block is disordered
-// TAOS_DEFINE_ERROR(TSDB_CODE_BATCH_SIZE_TOO_BIG,         0, 104, "batch size too big")
-// TAOS_DEFINE_ERROR(TSDB_CODE_WRONG_SCHEMA,               0, 53, "wrong schema")
-// TAOS_DEFINE_ERROR(TSDB_CODE_NO_QSUMMARY,                0, 68, "no qsummery")
-// TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_METER_ID,           0, 27, "invalid meter id")
-// TAOS_DEFINE_ERROR(TSDB_CODE_METRICMETA_EXPIRED,         0, 63, "metricmeta expired")    // local cached metric-meta expired causes error in metric query
-// TAOS_DEFINE_ERROR(TSDB_CODE_SESSION_ALREADY_EXIST,      0, 67, "session already exist")
-// TAOS_DEFINE_ERROR(TSDB_CODE_SESSION_NOT_READY,          0, 103, "session not ready")        // table NOT in ready state
-// TAOS_DEFINE_ERROR(TSDB_CODE_DATA_OVERFLOW,              0, 82, "data overflow")
-// TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_TRANS_NOT_FINISHED,  0, 17, "action transaction not finished")
-// TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_NOT_ONLINE,          0, 18, "action not online")
-// TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_SEND_FAILD,          0, 19, "action send failed")
-// TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_SESSION,         0, 20, "not active session")
+// others
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_FILE_FORMAT,        0, 120, "invalid file format")
+
 
 #ifdef TAOS_ERROR_C
 };
