@@ -169,17 +169,27 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
-  char *pMsg = rpcMallocCont(pSql->cmd.payloadLen);
+  SSqlCmd* pCmd = &pSql->cmd;
+  
+  char *pMsg = rpcMallocCont(pCmd->payloadLen);
   if (NULL == pMsg) {
     tscError("%p msg:%s malloc fail", pSql, taosMsg[pSql->cmd.msgType]);
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  pSql->ipList->ip[0] = inet_addr(tsPrivateIp);
-  
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
-    pSql->ipList->port = tsDnodeShellPort;
-    tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
+    STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    
+    pSql->ipList.numOfIps = pTableMeta->numOfVpeers;
+    pSql->ipList.port     = tsDnodeShellPort;
+    pSql->ipList.inUse    = 0;
+    
+    for(int32_t i = 0; i < pTableMeta->numOfVpeers; ++i) {
+      pSql->ipList.ip[i] = pTableMeta->vpeerDesc[i].ip;
+    }
+    
+    tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
     memcpy(pMsg, pSql->cmd.payload + tsRpcHeadSize, pSql->cmd.payloadLen);
 
     SRpcMsg rpcMsg = {
@@ -189,10 +199,12 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = pSql,
       .code    = 0
     };
-    rpcSendRequest(pVnodeConn, pSql->ipList, &rpcMsg);
+    rpcSendRequest(pVnodeConn, &pSql->ipList, &rpcMsg);
   } else {
-    pSql->ipList->port = tsMnodeShellPort;
-    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
+    pSql->ipList = tscMgmtIpList;
+    pSql->ipList.port = tsMnodeShellPort;
+    
+    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
     memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
     SRpcMsg rpcMsg = {
         .msgType = pSql->cmd.msgType,
@@ -201,7 +213,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
         .handle  = pSql,
         .code   = 0
     };
-    rpcSendRequest(pTscMgmtConn, pSql->ipList, &rpcMsg);
+    rpcSendRequest(pTscMgmtConn, &pSql->ipList, &rpcMsg);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -405,7 +417,7 @@ int tscProcessSql(SSqlObj *pSql) {
     }
 
     // temp
-    pSql->ipList = &tscMgmtIpList;
+//    pSql->ipList = tscMgmtIpList;
 //    if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
 //      pSql->index = pTableMetaInfo->pTableMeta->index;
 //    } else {  // it must be the parent SSqlObj for super table query
@@ -417,7 +429,7 @@ int tscProcessSql(SSqlObj *pSql) {
 //      }
 //    }
   } else if (pSql->cmd.command < TSDB_SQL_LOCAL) {
-    pSql->ipList = &tscMgmtIpList;
+    pSql->ipList = tscMgmtIpList;
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
@@ -532,9 +544,9 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   pShellMsg->numOfBlocks = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
-  // pSql->cmd.payloadLen is set during copying data into paylaod
+  // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscTrace("%p build submit msg, vgId:%d numOfVnodes:%d", pSql, pTableMeta->vgId, htons(pMsgDesc->numOfVnodes));
+  tscTrace("%p build submit msg, vgId:%d numOfVnodes:%d", pSql, pTableMeta->vgId, htonl(pMsgDesc->numOfVnodes));
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1836,6 +1848,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
   for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
     pMetaMsg->vpeerDesc[i].vgId = htonl(pMetaMsg->vpeerDesc[i].vgId);
+    pMetaMsg->vpeerDesc[i].ip = htonl(pMetaMsg->vpeerDesc[i].ip);
+    pMetaMsg->vpeerDesc[i].dnodeId = htonl(pMetaMsg->vpeerDesc[i].dnodeId);
   }
 
   SSchema* pSchema = pMetaMsg->schema;

@@ -2480,12 +2480,11 @@ SArray *loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBl
   }
 
   if (r == BLK_DATA_NO_NEEDED) {
-    //      qTrace("QInfo:%p vid:%d sid:%d id:%s, slot:%d, data block ignored, brange:%" PRId64 "-%" PRId64 ",
-    //      rows:%d", GET_QINFO_ADDR(pQuery), pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->slot,
-    //             pBlock->keyFirst, pBlock->keyLast, pBlock->numOfPoints);
+    qTrace("QInfo:%p slot:%d, data block ignored, brange:%" PRId64 "-%" PRId64 ", rows:%d",
+          GET_QINFO_ADDR(pRuntimeEnv), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->size);
   } else if (r == BLK_DATA_FILEDS_NEEDED) {
     if (tsdbRetrieveDataBlockStatisInfo(pRuntimeEnv->pQueryHandle, pStatis) != TSDB_CODE_SUCCESS) {
-//      return DISK_DATA_LOAD_FAILED;
+      //        return DISK_DATA_LOAD_FAILED;
     }
 
     if (*pStatis == NULL) {
@@ -5908,14 +5907,6 @@ static void freeQInfo(SQInfo *pQInfo) {
     tfree(pQuery->sdata[col]);
   }
   
-  //  for (int col = 0; col < pQuery->numOfCols; ++col) {
-  //    vnodeFreeColumnInfo(&pQuery->colList[col].data);
-  //  }
-  //
-  //  if (pQuery->colList[0].colIdx != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-  //    tfree(pQuery->tsData);
-  //  }
-  
   sem_destroy(&(pQInfo->dataReady));
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
   
@@ -6124,9 +6115,6 @@ void qTableQuery(SQInfo *pQInfo) {
   }
   
   dTrace("QInfo:%p query task is launched", pQInfo);
-  
-//  sem_post(&pQInfo->dataReady);
-//  pQInfo->runtimeEnv.pQuery->status = QUERY_OVER;
   
   int32_t numOfTables = taosArrayGetSize(pQInfo->pTableIdList);
   if (numOfTables == 1) {
