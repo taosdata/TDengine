@@ -22,7 +22,9 @@ extern "C" {
 
 typedef struct {
   int   len;
+  int   code;
   void *rsp;
+  void *qhandle; //used by query and retrieve msg
 } SRspRet;
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
@@ -41,6 +43,8 @@ void*   vnodeGetTsdb(void *pVnode);
 
 int32_t vnodeProcessWrite(void *pVnode, int qtype, SWalHead *pHead, void *item);
 void    vnodeBuildStatusMsg(void * param);
+
+int32_t vnodeProcessRead(void *pVnode, int msgType, void *pCont, int32_t contLen, SRspRet *ret);
 
 #ifdef __cplusplus
 }

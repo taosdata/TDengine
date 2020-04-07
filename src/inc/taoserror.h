@@ -47,6 +47,7 @@ static STaosError errors[] = {
 
 // rpc
 TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,         0, 1, "action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_NEED_REPROCESSED,    0, 3, "action need to be reprocessed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_NOT_PROCESSED,          0, 4, "message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_ALREADY_PROCESSED,          0, 5, "message already processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_REDIRECT,                   0, 6, "redirect")

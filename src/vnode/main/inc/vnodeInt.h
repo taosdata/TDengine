@@ -47,6 +47,7 @@ typedef struct {
 
 int  vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
 void vnodeInitWriteFp(void);
+void vnodeInitReadFp(void);
 
 #ifdef __cplusplus
 }
