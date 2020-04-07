@@ -6,7 +6,7 @@
 #include "ttokendef.h"
 
 // todo refactor
-static FORCE_INLINE const char* skipSegments(const char* input, char delim, int32_t num) {
+__attribute__((unused)) static FORCE_INLINE const char* skipSegments(const char* input, char delim, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     while (*input != 0 && *input++ != delim) {
     };
@@ -14,7 +14,7 @@ static FORCE_INLINE const char* skipSegments(const char* input, char delim, int3
   return input;
 }
 
-static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
+__attribute__((unused)) static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
   size_t len = 0;
   while (*src != delimiter && *src != 0) {
     *dst++ = *src++;
