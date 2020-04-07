@@ -52,7 +52,6 @@ static void  dnodeHandleIdleWorker(SWriteWorker *pWorker);
 SWriteWorkerPool wWorkerPool;
 
 int32_t dnodeInitWrite() {
-
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
   if (wWorkerPool.writeWorker == NULL) return -1;
@@ -71,7 +70,7 @@ void dnodeCleanupWrite() {
 }
 
 void dnodeWrite(SRpcMsg *pMsg) {
-  char        *pCont       = (char *) pMsg->pCont;
+  char *pCont = (char *)pMsg->pCont;
 
   if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT || pMsg->msgType == TSDB_MSG_TYPE_MD_DROP_STABLE) {
     SMsgDesc *pDesc = (SMsgDesc *)pCont;
@@ -80,16 +79,16 @@ void dnodeWrite(SRpcMsg *pMsg) {
   }
 
   SMsgHead *pHead = (SMsgHead *) pCont;
-  pHead->vgId    = htonl(pHead->vgId);
-  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId     = htonl(pHead->vgId);
+  pHead->contLen  = htonl(pHead->contLen);
 
   taos_queue queue = vnodeGetWqueue(pHead->vgId);
   if (queue) {
     // put message into queue
     SWriteMsg *pWrite = (SWriteMsg *)taosAllocateQitem(sizeof(SWriteMsg));
-    pWrite->rpcMsg      = *pMsg;
-    pWrite->pCont       = pCont;
-    pWrite->contLen     = pHead->contLen;
+    pWrite->rpcMsg    = *pMsg;
+    pWrite->pCont     = pCont;
+    pWrite->contLen   = pHead->contLen;
 
     taosWriteQitem(queue, TAOS_QTYPE_RPC, pWrite);
   } else {
@@ -227,4 +226,3 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
      pthread_exit(NULL);
   }
 }
-

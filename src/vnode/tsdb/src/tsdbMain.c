@@ -177,7 +177,7 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
+tsdb_repo_t *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
   char dataDir[128] = "\0";
   if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
@@ -191,6 +191,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
   pRepo->rootDir = strdup(tsdbDir);
 
   tsdbRestoreCfg(pRepo, &(pRepo->config));
+  if (pAppH) pRepo->appH = *pAppH;
 
   pRepo->tsdbMeta = tsdbInitMeta(tsdbDir, pRepo->config.maxTables);
   if (pRepo->tsdbMeta == NULL) {
@@ -366,14 +367,16 @@ int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
   SSubmitMsgIter msgIter;
 
   tsdbInitSubmitMsgIter(pMsg, &msgIter);
-  SSubmitBlk *pBlock;
+  SSubmitBlk *pBlock = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  
   while ((pBlock = tsdbGetSubmitMsgNext(&msgIter)) != NULL) {
-    if (tsdbInsertDataToTable(repo, pBlock) < 0) {
-      return -1;
+    if ((code = tsdbInsertDataToTable(repo, pBlock)) != TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
 
-  return 0;
+  return code;
 }
 
 /**
@@ -653,7 +656,7 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
 }
 
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
-  char fname[128];
+  char fname[260];
   if (pRepo == NULL) return 0;
   char *dirName = calloc(1, strlen(pRepo->rootDir) + strlen("tsdb") + 2);
   if (dirName == NULL) {
@@ -734,7 +737,9 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
-  if (pTable == NULL) return -1;
+  if (pTable == NULL) {
+    return TSDB_CODE_INVALID_TABLE_ID;
+  }
 
   SSubmitBlkIter blkIter;
   SDataRow row;
@@ -746,7 +751,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
     }
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {

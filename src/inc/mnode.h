@@ -98,7 +98,6 @@ typedef struct {
 
 typedef struct {
   int32_t  dnodeId;
-  int32_t  vnode;
   uint32_t privateIp;
   uint32_t publicIp;
 } SVnodeGid;

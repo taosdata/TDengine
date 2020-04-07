@@ -291,6 +291,30 @@ int taosInitTimer(void (*callback)(int), int ms) {
   return 0;
 }
 
+ssize_t tread(int fd, void *buf, size_t count) {
+  size_t  leftbytes = count;
+  ssize_t readbytes;
+  char *  tbuf = (char *)buf;
+
+  while (leftbytes > 0) {
+    readbytes = read(fd, (void *)tbuf, leftbytes);
+    if (readbytes < 0) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        return -1;
+      }
+    } else if (readbytes == 0) {
+      return (ssize_t)(count - leftbytes);
+    }
+
+    leftbytes -= readbytes;
+    tbuf += readbytes;
+  }
+
+  return (ssize_t)count;
+}
+
 ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size) {
   size_t  leftbytes = size;
   ssize_t sentbytes;
@@ -308,6 +332,8 @@ ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size) {
       else {
         return -1;
       }
+    } else if (sentbytes == 0) {
+      return (ssize_t)(size - leftbytes);
     }
 
     leftbytes -= sentbytes;

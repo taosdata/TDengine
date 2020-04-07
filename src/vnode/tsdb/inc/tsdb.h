@@ -34,6 +34,15 @@ extern "C" {
 
 #define TSDB_INVALID_SUPER_TABLE_ID -1
 
+// --------- TSDB APPLICATION HANDLE DEFINITION
+typedef struct {
+  // WAL handle
+  void *appH;
+  int (*walCallBack)(void *);
+  int (*eventCallBack)(void *);
+  int (*cqueryCallBack)(void *);
+} STsdbAppH;
+
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
 typedef struct {
   int8_t  precision;
@@ -55,7 +64,7 @@ typedef void tsdb_repo_t;  // use void to hide implementation details from outsi
 
 int            tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 int32_t        tsdbDropRepo(tsdb_repo_t *repo);
-tsdb_repo_t *  tsdbOpenRepo(char *tsdbDir);
+tsdb_repo_t *  tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH);
 int32_t        tsdbCloseRepo(tsdb_repo_t *repo);
 int32_t        tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
 int32_t        tsdbTriggerCommit(tsdb_repo_t *repo);
@@ -327,6 +336,12 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  *
  */
 SArray *tsdbQueryTableList(tsdb_repo_t* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len);
+
+/**
+ * clean up the query handle
+ * @param queryHandle
+ */
+void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle);
 
 #ifdef __cplusplus
 }

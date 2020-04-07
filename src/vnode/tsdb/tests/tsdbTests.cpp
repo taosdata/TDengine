@@ -140,7 +140,7 @@ TEST(TsdbTest, createRepo) {
 
 // TEST(TsdbTest, DISABLED_openRepo) {
 TEST(TsdbTest, openRepo) {
-  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
+  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
   ASSERT_NE(repo, nullptr);
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;

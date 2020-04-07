@@ -41,7 +41,7 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
 extern int32_t clusterInit();
 extern void    clusterCleanUp();
 extern int32_t clusterGetDnodesNum();
-extern void *  clusterGetNextDnode(void *pNode, void **pDnode);
+extern void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
 extern void    clusterIncDnodeRef(SDnodeObj *pDnode);
 extern void    clusterDecDnodeRef(SDnodeObj *pDnode);
 extern SDnodeObj* clusterGetDnode(int32_t dnodeId);
@@ -251,7 +251,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pDnode->status != TSDB_DN_STATUS_READY) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TSDB_DN_STATUS_READY;
-    mgmtStartBalanceTimer(200);
+    mgmtBalanceNotify();
   }
 
   mgmtDecDnodeRef(pDnode);

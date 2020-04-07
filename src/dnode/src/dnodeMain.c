@@ -28,9 +28,11 @@
 #include "dnodeRead.h"
 #include "dnodeShell.h"
 #include "dnodeWrite.h"
+#include "mgmtGrant.h"
 
 static int32_t dnodeInitSystem();
 static int32_t dnodeInitStorage();
+extern void grantParseParameter();
 static void dnodeCleanupStorage();
 static void dnodeCleanUpSystem();
 static void dnodeSetRunStatus(SDnodeRunStatus status);
@@ -77,7 +79,7 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   /* Set termination handler. */
-  struct sigaction act;
+  struct sigaction act = {0};
   act.sa_flags = SA_SIGINFO;
   act.sa_sigaction = signal_handler;
   sigaction(SIGTERM, &act, NULL);

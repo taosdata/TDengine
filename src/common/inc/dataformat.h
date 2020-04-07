@@ -110,7 +110,8 @@ typedef struct SDataCol {
   int     bytes;
   int     len;
   int     offset;
-  void *  pData;
+  void *  pData; // Original data
+  void *  pCData; // Compressed data
 } SDataCol;
 
 typedef struct {

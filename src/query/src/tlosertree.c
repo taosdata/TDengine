@@ -40,7 +40,7 @@ void tLoserTreeDisplay(SLoserTreeInfo* pTree) {
   printf("\n");
 }
 
-uint8_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* param, __merge_compare_fn_t compareFn) {
+uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* param, __merge_compare_fn_t compareFn) {
   int32_t totalEntries = numOfEntries << 1;
 
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);

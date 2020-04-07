@@ -24,16 +24,44 @@
 
 void taosMsleep(int mseconds);
 
+static int32_t doQuery(TAOS* taos, const char* sql) {
+  int32_t code = taos_query(taos, sql);
+  if (code != 0) {
+    printf("failed to execute query, reason:%s\n", taos_errstr(taos));
+    return -1;
+  }
+  
+  TAOS_RES* res = taos_use_result(taos);
+  TAOS_ROW row = NULL;
+  char buf[512] = {0};
+  
+  int32_t numOfFields = taos_num_fields(res);
+  TAOS_FIELD* pFields = taos_fetch_fields(res);
+  
+  while((row = taos_fetch_row(res)) != NULL) {
+    taos_print_row(buf, row, pFields, numOfFields);
+    printf("%s\n", buf);
+    memset(buf, 0, 512);
+  }
+  
+  taos_free_result(res);
+
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   TAOS *    taos;
   char      qstr[1024];
   TAOS_RES *result;
+  
   
   // connect to server
   if (argc < 2) {
     printf("please input server-ip \n");
     return 0;
   }
+  
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
   
   // init TAOS
   taos_init();
@@ -45,6 +73,22 @@ int main(int argc, char *argv[]) {
   }
   printf("success to connect to server\n");
   
+  doQuery(taos, "create database if not exists test");
+  doQuery(taos, "use test");
+  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:3', 3);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:4', 4);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:5', 5);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:6', 6);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:7', 7);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:8', 8);");
+  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:9', 9);");
+  doQuery(taos, "select * from tm0;");
+  
+  taos_close(taos);
+  return 0;
   
   taos_query(taos, "drop database demo");
   if (taos_query(taos, "create database demo") != 0) {
@@ -53,7 +97,9 @@ int main(int argc, char *argv[]) {
   }
   printf("success to create database\n");
   
+  
   taos_query(taos, "use demo");
+  
   
   // create table
   if (taos_query(taos, "create table m1 (ts timestamp, speed int)") != 0) {
@@ -62,8 +108,10 @@ int main(int argc, char *argv[]) {
   }
   printf("success to create table\n");
   
+  
   // sleep for one second to make sure table is created on data node
   // taosMsleep(1000);
+  
   
   // insert 10 records
   int i = 0;
@@ -76,6 +124,7 @@ int main(int argc, char *argv[]) {
   }
   printf("success to insert rows, total %d rows\n", i);
   
+  
   // query the records
   sprintf(qstr, "SELECT * FROM m1");
   if (taos_query(taos, qstr) != 0) {
@@ -83,18 +132,23 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   
+  
   result = taos_use_result(taos);
+  
   
   if (result == NULL) {
     printf("failed to get result, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
+
+//  TAOS_ROW    row;
   
   TAOS_ROW    row;
   int         rows = 0;
   int         num_fields = taos_field_count(taos);
   TAOS_FIELD *fields = taos_fetch_fields(result);
   char        temp[256];
+  
   
   printf("select * from table, result:\n");
   // fetch the records row by row

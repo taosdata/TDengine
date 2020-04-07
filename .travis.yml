@@ -61,6 +61,9 @@ script:
         grep failed out.txt
         total_failed=`grep failed out.txt | wc -l`
         echo "Total $total_failed failed"
+        if [ "$total_failed" -ne "0" ]; then
+          exit $total_failed
+        fi
         ;;
     esac
 

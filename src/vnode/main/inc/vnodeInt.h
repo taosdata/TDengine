@@ -41,10 +41,13 @@ typedef struct {
   void        *sync;
   void        *events;
   void        *cq;  // continuous query
+  int32_t      replicas;
+  SVnodeDesc   vpeers[TSDB_MAX_MPEERS];
 } SVnodeObj;
 
 int  vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
 void vnodeInitWriteFp(void);
+void vnodeInitReadFp(void);
 
 #ifdef __cplusplus
 }
