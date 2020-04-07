@@ -41,6 +41,7 @@ static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
 static void vnodeInit() {
   vnodeInitWriteFp();
+  vnodeInitReadFp();
 
   tsDnodeVnodesHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SVnodeObj *), taosHashInt);
   if (tsDnodeVnodesHash == NULL) {
