@@ -54,7 +54,8 @@ TEST(TsdbTest, createRepo) {
 
   // 1. Create a tsdb repository
   tsdbSetDefaultCfg(&config);
-  tsdb_repo_t *pRepo = tsdbCreateRepo("/home/ubuntu/work/ttest/vnode0", &config, NULL);
+  tsdbCreateRepo("/home/ubuntu/work/ttest/vnode0", &config, NULL);
+  tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
   ASSERT_NE(pRepo, nullptr);
 
   // 2. Create a normal table
@@ -139,42 +140,42 @@ TEST(TsdbTest, createRepo) {
 }
 
 // TEST(TsdbTest, DISABLED_openRepo) {
-TEST(TsdbTest, openRepo) {
-  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
-  ASSERT_NE(repo, nullptr);
+// TEST(TsdbTest, openRepo) {
+//   tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
+//   ASSERT_NE(repo, nullptr);
 
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
+//   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1833);
+//   SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1833);
 
-  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-    tsdbOpenFile(&pGroup->files[type], O_RDONLY);
-  }
+//   for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+//     tsdbOpenFile(&pGroup->files[type], O_RDONLY);
+//   }
 
-  SCompIdx *pIdx = (SCompIdx *)calloc(pRepo->config.maxTables, sizeof(SCompIdx));
-  tsdbLoadCompIdx(pGroup, (void *)pIdx, pRepo->config.maxTables);
+//   SCompIdx *pIdx = (SCompIdx *)calloc(pRepo->config.maxTables, sizeof(SCompIdx));
+//   tsdbLoadCompIdx(pGroup, (void *)pIdx, pRepo->config.maxTables);
 
-  SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[1].len);
+//   SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[1].len);
 
-  tsdbLoadCompBlocks(pGroup, &pIdx[0], (void *)pCompInfo);
+//   tsdbLoadCompBlocks(pGroup, &pIdx[0], (void *)pCompInfo);
 
-  int blockIdx = 0;
-  SCompBlock *pBlock = &(pCompInfo->blocks[blockIdx]);
+//   int blockIdx = 0;
+//   SCompBlock *pBlock = &(pCompInfo->blocks[blockIdx]);
 
-  SCompData *pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * pBlock->numOfCols);
+//   SCompData *pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * pBlock->numOfCols);
 
-  tsdbLoadCompCols(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, (void *)pCompData);
+//   tsdbLoadCompCols(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, (void *)pCompData);
 
-  STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, pCompData->uid);
-  SDataCols *pDataCols = tdNewDataCols(tdMaxRowBytesFromSchema(pTable->schema), 5, 10);
-  tdInitDataCols(pDataCols, pTable->schema);
+//   STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, pCompData->uid);
+//   SDataCols *pDataCols = tdNewDataCols(tdMaxRowBytesFromSchema(pTable->schema), 5, 10);
+//   tdInitDataCols(pDataCols, pTable->schema);
 
-  tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, 1, pDataCols, pCompData);
+//   tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, 1, pDataCols, pCompData);
 
 
-  int k = 0;
+//   int k = 0;
 
-}
+// }
 
 TEST(TsdbTest, DISABLED_createFileGroup) {
   SFileGroup fGroup;

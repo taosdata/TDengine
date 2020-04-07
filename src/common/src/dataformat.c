@@ -382,6 +382,7 @@ static int tdFLenFromSchema(STSchema *pSchema) {
   return ret;
 }
 
-int tdMergeDataCols(SDataCols *target, SDataCols *source) {
+int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
+  // TODO
   return 0;
 }

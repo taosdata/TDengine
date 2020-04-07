@@ -90,9 +90,9 @@ typedef struct {
 
   STable *superList;  // super table list TODO: change  it to list container
 
-  void *map; // table map of (uid ===> table)
+  void *map;  // table map of (uid ===> table)
 
-  SMetaFile *mfh; // meta file handle
+  SMetaFile *mfh;  // meta file handle
   int        maxRowBytes;
   int        maxCols;
 } STsdbMeta;
@@ -118,14 +118,14 @@ STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 #define TSDB_TABLE_OF_ID(pHandle, id) ((pHandle)->pTables)[id]
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
-STsdbMeta* tsdbGetMeta(tsdb_repo_t* pRepo);
+STsdbMeta *tsdbGetMeta(tsdb_repo_t *pRepo);
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
 int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
-char *getTupleKey(const void * data);
+char *  getTupleKey(const void *data);
 
 // ------------------------------ TSDB CACHE INTERFACES ------------------------------
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16 * 1024 * 1024 /* 16M */
@@ -191,8 +191,8 @@ typedef struct {
 } SFileInfo;
 
 typedef struct {
-  int     fd;
-  char    fname[128];
+  int       fd;
+  char      fname[128];
   SFileInfo info;
 } SFile;
 
@@ -216,11 +216,14 @@ typedef struct {
 
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
-int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose);
-int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
+int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader,
+                           int toClose);
+SFileGroup *tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
-int         tsdbCloseFile(SFile *pFile); SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
+int         tsdbCloseFile(SFile *pFile);
+SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
 int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
+int         tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname);
 
 #define TSDB_FGROUP_ITER_FORWARD 0
 #define TSDB_FGROUP_ITER_BACKWARD 1
@@ -265,6 +268,8 @@ typedef struct {
   TSKEY   keyLast;
 } SCompBlock;
 
+// Maximum number of sub-blocks a super-block can have
+#define TSDB_MAX_SUBBLOCKS 8
 #define IS_SUPER_BLOCK(pBlock) ((pBlock)->numOfSubBlocks >= 1)
 #define IS_SUB_BLOCK(pBlock) ((pBlock)->numOfSubBlocks == 0)
 
@@ -276,15 +281,15 @@ typedef struct {
 } SCompInfo;
 
 #define TSDB_COMPBLOCK_AT(pCompInfo, idx) ((pCompInfo)->blocks + (idx))
-#define TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pCompBlock, size)\
-do {\
-  if (pCompBlock->numOfSubBlocks > 1) {\
-    pCompBlock = pCompInfo->blocks + pCompBlock->offset;\
-    size = pCompBlock->numOfSubBlocks;\
-  } else {\
-    size = 1;\
-  }\
-} while (0)
+#define TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pCompBlock, size) \
+  do {                                                                 \
+    if (pCompBlock->numOfSubBlocks > 1) {                              \
+      pCompBlock = pCompInfo->blocks + pCompBlock->offset;             \
+      size = pCompBlock->numOfSubBlocks;                               \
+    } else {                                                           \
+      size = 1;                                                        \
+    }                                                                  \
+  } while (0)
 
 // TODO: take pre-calculation into account
 typedef struct {
@@ -302,18 +307,11 @@ typedef struct {
   SCompCol cols[];
 } SCompData;
 
-STsdbFileH* tsdbGetFile(tsdb_repo_t* pRepo);
+STsdbFileH *tsdbGetFile(tsdb_repo_t *pRepo);
 
-int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols);
-
-int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
-int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
-int tsdbLoadCompCols(SFile *pFile, SCompBlock *pBlock, void *buf);
-int tsdbLoadColData(SFile *pFile, SCompCol *pCol, int64_t blockBaseOffset, void *buf);
-int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SDataCols *pCols, SCompData *pCompData);
-
+int         tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast,
+                                    SDataCols *pCols);
 SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
-
 void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 
 // TSDB repository definition
@@ -348,6 +346,112 @@ typedef struct _tsdb_repo {
 
 } STsdbRepo;
 
+typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
+
+typedef struct {
+  tsdb_rw_helper_t type;  // helper type
+  int              maxTables;
+  int              maxRowSize;
+  int              maxRows;
+  int              maxCols;
+  int              minRowsPerFileBlock;
+  int              maxRowsPerFileBlock;
+  int8_t           compress;
+} SHelperCfg;
+
+typedef struct {
+  int fid;
+  TSKEY minKey;
+  TSKEY maxKey;
+  // For read/write purpose
+  SFile headF;
+  SFile dataF;
+  SFile lastF;
+  // For write purpose only
+  SFile nHeadF;
+  SFile nLastF;
+} SHelperFile;
+
+typedef struct {
+  int64_t uid;
+  int32_t tid;
+  int32_t sversion;
+} SHelperTable;
+
+typedef struct {
+  // Global configuration
+  SHelperCfg config;
+
+  SHelperFile files;
+
+  SHelperTable tableInfo;
+
+  // ---------- For read purpose
+  int8_t state;  // current loading state
+
+  SCompIdx *pCompIdx;
+  size_t    compIdxSize;
+
+  SCompInfo *pCompInfo;
+  size_t     compInfoSize;
+  int        blockIter; // For write purpose
+
+  SCompData *pCompData;
+  size_t     compDataSize;
+
+  SDataCols *pDataCols[2];
+
+  // ---------- For read purpose
+  bool hasLast;
+
+  int       newBlocks;
+  SCompIdx *pWCompIdx;
+  size_t    wCompIdxSize;
+
+  SCompInfo *pWCompInfo;
+  size_t     wCompInfoSize;
+
+  SCompData *pWCompData;
+  size_t     wCompDataSize;
+} SRWHelper;
+
+// --------- Helper state
+#define TSDB_HELPER_CLEAR_STATE 0x0      // Clear state
+#define TSDB_HELPER_FILE_SET 0x1         // File is set
+#define TSDB_HELPER_FILE_OPEN 0x2        // File is opened
+
+#define TSDB_HELPER_IDX_LOAD 0x4    // SCompIdx part is loaded
+#define TSDB_HELPER_INFO_LOAD 0x8   // SCompInfo part is loaded
+#define TSDB_HELPER_FILE_DATA_LOAD 0x10  // SCompData part is loaded
+
+#define TSDB_HELPER_TYPE(h) ((h)->config.type)
+
+#define helperSetState(h, s) (((h)->state) |= (s))
+#define helperClearState(h, s) ((h)->state &= (~(s)))
+#define helperHasState(h, s) ((((h)->state) & (s)) == (s))
+
+int  tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg);
+void tsdbDestroyHelper(SRWHelper *pHelper);
+void tsdbClearHelper(SRWHelper *pHelper);
+
+// --------- For set operations
+int  tsdbSetHelperFile(SRWHelper *pHelper, SFileGroup *pGroup);
+int  tsdbOpenHelperFile(SRWHelper *pHelper);
+void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema *pSchema);
+int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
+
+// --------- For read operations
+int tsdbLoadCompIdx(SRWHelper *pHelper, void *target);
+int tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
+int tsdbLoadCompData(SRWHelper *pHelper, int blkIdx, void *target);
+int tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int32_t *colIds, int numOfColIds);
+int tsdbLoadBlockData(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
+
+// --------- For write operations
+int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols);
+int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper);
+int tsdbWriteCompInfo(SRWHelper *pHelper);
+int tsdbWriteCompIdx(SRWHelper *pHelper);
 
 #ifdef __cplusplus
 }

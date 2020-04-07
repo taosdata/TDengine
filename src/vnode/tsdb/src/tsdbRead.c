@@ -369,14 +369,14 @@ static int32_t getFileCompInfo(STableCheckInfo* pCheckInfo, SFileGroup* fileGrou
     fileGroup->files[TSDB_FILE_TYPE_HEAD].fd = open(fileGroup->files[TSDB_FILE_TYPE_HEAD].fname, O_RDONLY);
   }
   
-  tsdbLoadCompIdx(fileGroup, pCheckInfo->compIndex, 10000); // todo set dynamic max tables
-  SCompIdx* compIndex = &pCheckInfo->compIndex[pCheckInfo->tableId.tid];
+  // tsdbLoadCompIdx(fileGroup, pCheckInfo->compIndex, 10000); // todo set dynamic max tables
+  // SCompIdx* compIndex = &pCheckInfo->compIndex[pCheckInfo->tableId.tid];
   
-  if (compIndex->len == 0 || compIndex->numOfSuperBlocks == 0) {  // no data block in this file, try next file
+  // if (compIndex->len == 0 || compIndex->numOfSuperBlocks == 0) {  // no data block in this file, try next file
   
-  } else {
-    tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pCompInfo);
-  }
+  // } else {
+  //   tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pCompInfo);
+  // }
   
   return TSDB_CODE_SUCCESS;
 }
@@ -444,7 +444,7 @@ static bool doLoadDataFromFileBlock(STsdbQueryHandle *pQueryHandle) {
     pFile->fd = open(pFile->fname, O_RDONLY);
   }
   
-  tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data);
+  // tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data);
   return true;
 }
 
@@ -810,10 +810,10 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
     pFile->fd = open(pFile->fname, O_RDONLY);
   }
   
-  if (tsdbLoadDataBlock(pFile, &pCheckInfo->pCompInfo->blocks[cur->slot], 1,
-      pCheckInfo->pDataCols, data) == 0) {
-    blockLoaded = true;
-  }
+  // if (tsdbLoadDataBlock(pFile, &pCheckInfo->pCompInfo->blocks[cur->slot], 1,
+  //     pCheckInfo->pDataCols, data) == 0) {
+  //   blockLoaded = true;
+  // }
     
     //    dError("QInfo:%p fileId:%d total numOfBlks:%d blockId:%d load into memory failed due to error in disk files",
     //           GET_QINFO_ADDR(pQuery), pQuery->fileId, pQuery->numOfBlocks, blkIdx);
