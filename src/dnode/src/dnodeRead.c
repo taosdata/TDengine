@@ -82,16 +82,17 @@ void dnodeRead(SRpcMsg *pMsg) {
 
   dTrace("dnode %s msg incoming, thandle:%p", taosMsg[pMsg->msgType], pMsg->handle);
 
-  if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
-    queuedMsgNum = 0;
-  }
-
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
-    pVnode = vnodeGetVnode(pHead->vgId);
+    if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
+      pVnode = vnodeGetVnode(pHead->vgId);
+    } else {
+      pVnode = vnodeAccquireVnode(pHead->vgId);
+    }
+
     if (pVnode == NULL) {
       leftLen -= pHead->contLen;
       pCont -= pHead->contLen;
@@ -261,7 +262,6 @@ static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
   
     rpcSendResponse(&rpcRsp);
     dTrace("dnode query msg disposed, thandle:%p", pMsg->rpcMsg.handle);
-    vnodeRelease(pVnode);
   } else {
     pQInfo = pMsg->pCont;
   }

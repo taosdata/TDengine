@@ -219,6 +219,13 @@ void *vnodeGetVnode(int32_t vgId) {
     return NULL;
   }
 
+  return pVnode;
+}
+
+void *vnodeAccquireVnode(int32_t vgId) {
+  SVnodeObj *pVnode = vnodeGetVnode(vgId);
+  if (pVnode == NULL) return pVnode;
+
   atomic_add_fetch_32(&pVnode->refCount, 1);
   dTrace("pVnode:%p vgId:%d, get vnode, refCount:%d", pVnode, pVnode->vgId, pVnode->refCount);
 
@@ -230,7 +237,7 @@ void *vnodeGetRqueue(void *pVnode) {
 }
 
 void *vnodeGetWqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeGetVnode(vgId);
+  SVnodeObj *pVnode = vnodeAccquireVnode(vgId);
   if (pVnode == NULL) return NULL;
   return pVnode->wqueue;
 } 
