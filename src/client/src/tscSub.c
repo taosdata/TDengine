@@ -108,7 +108,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   if (pSql == NULL) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
     tscError("failed to allocate SSqlObj for subscription");
-    goto failed;
+    goto _pSql_failed;
   }
 
   pSql->signature = pSql;
@@ -137,13 +137,11 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   return pSub;
 
 failed:
-  if (sqlstr != NULL) {
-    free(sqlstr);
-  }
-  if (pSql != NULL) {
-    free(pSql);
-  }
-  free(pSub);
+  tfree(sqlstr);
+
+_pSql_failed:
+  tfree(pSql);
+  tfree(pSub);
   return NULL;
 }
 
