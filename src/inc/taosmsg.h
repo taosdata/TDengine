@@ -753,12 +753,12 @@ typedef struct {
 
 typedef struct {
   int32_t    numOfQueries;
-  SQueryDesc qdesc[];
+  SQueryDesc *qdesc;
 } SQqueryList;
 
 typedef struct {
   int32_t     numOfStreams;
-  SStreamDesc sdesc[];
+  SStreamDesc *sdesc;
 } SStreamList;
 
 typedef struct {
