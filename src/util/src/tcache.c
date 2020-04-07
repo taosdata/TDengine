@@ -472,7 +472,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   }
   
   int32_t ref = T_REF_INC(ptNode);
-  pTrace("%p add data ref in cache, refcnt:%d", ptNode, ref)
+  pTrace("%p acquired by data in cache, refcnt:%d", ptNode, ref)
   
   // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
   assert(ref >= 2);
@@ -516,7 +516,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   
   *data = NULL;
   int16_t ref = T_REF_DEC(pNode);
-  pTrace("%p is released, refcnt:%d", pNode, ref);
+  pTrace("%p data released, refcnt:%d", pNode, ref);
   
   if (_remove) {
     __cache_wr_lock(pCacheObj);

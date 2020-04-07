@@ -2239,24 +2239,6 @@ char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWi
          pQuery->pSelectExpr[columnIndex].resBytes * realRowId;
 }
 
-void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
-  if (pQInfo == NULL) {
-    return;
-  }
-
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-  teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
-
-  if (pQInfo->pTableDataInfo != NULL) {
-    //    size_t num = taosHashGetSize(pQInfo->pTableIdList);
-    for (int32_t j = 0; j < 0; ++j) {
-      destroyMeterQueryInfo(pQInfo->pTableDataInfo[j].pTableQInfo, pQuery->numOfOutputCols);
-    }
-  }
-
-  tfree(pQInfo->pTableDataInfo);
-}
-
 int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
   if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey > pQuery->window.ekey)) ||
       (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.ekey > pQuery->window.skey))) {
@@ -2264,14 +2246,10 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
            pQuery->window.ekey, pQuery->order.order);
 
     sem_post(&pQInfo->dataReady);
-    //    pQInfo->over = 1;
-
     return TSDB_CODE_SUCCESS;
   }
 
   pQuery->status = 0;
-
-  pQuery->rec = (SResultRec){0};
   pQuery->rec = (SResultRec){0};
 
   changeExecuteScanOrder(pQuery, true);
@@ -5925,7 +5903,7 @@ static void freeQInfo(SQInfo *pQInfo) {
   SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
   setQueryKilled(pQInfo);
   
-  dTrace("QInfo:%p start to free SQInfo", pQInfo);
+  dTrace("QInfo:%p start to free QInfo", pQInfo);
   for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {
     tfree(pQuery->sdata[col]);
   }
@@ -5939,7 +5917,16 @@ static void freeQInfo(SQInfo *pQInfo) {
   //  }
   
   sem_destroy(&(pQInfo->dataReady));
-  vnodeQueryFreeQInfoEx(pQInfo);
+  teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
+  
+  if (pQInfo->pTableDataInfo != NULL) {
+    //    size_t num = taosHashGetSize(pQInfo->pTableIdList);
+    for (int32_t j = 0; j < 0; ++j) {
+      destroyMeterQueryInfo(pQInfo->pTableDataInfo[j].pTableQInfo, pQuery->numOfOutputCols);
+    }
+  }
+  
+  tfree(pQInfo->pTableDataInfo);
   
   for (int32_t i = 0; i < pQuery->numOfFilterCols; ++i) {
     SSingleColumnFilterInfo *pColFilter = &pQuery->pFilterInfo[i];
@@ -6121,6 +6108,7 @@ _query_over:
 }
 
 void qDestroyQueryInfo(SQInfo* pQInfo) {
+  dTrace("QInfo:%p query completed", pQInfo);
   freeQInfo(pQInfo);
 }
 

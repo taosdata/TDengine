@@ -2399,8 +2399,8 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   pTableMetaInfo->pTableMeta = (STableMeta *)taosCacheAcquireByName(tscCacheHandle, pTableMetaInfo->name);
   if (pTableMetaInfo->pTableMeta != NULL) {
     STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-    tscTrace("%p retrieve tableMeta from cache, the number of columns:%d, numOfTags:%d", pSql, tinfo.numOfColumns,
-             tinfo.numOfTags);
+    tscTrace("%p retrieve table Meta from cache, the number of columns:%d, numOfTags:%d, %p", pSql, tinfo.numOfColumns,
+             tinfo.numOfTags, pTableMetaInfo->pTableMeta);
 
     return TSDB_CODE_SUCCESS;
   }

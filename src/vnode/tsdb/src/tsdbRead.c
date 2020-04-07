@@ -438,10 +438,10 @@ bool moveToNextBlock(STsdbQueryHandle *pQueryHandle, int32_t step) {
           return true;
         }
       } else {  // check data in cache
+        pQueryHandle->cur.fid = -1;
         return hasMoreDataInCacheForSingleModel(pQueryHandle);
       }
-    } else {
-      // next block in the same file
+    } else { // next block in the same file
       cur->slot += step;
 
       SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
@@ -526,9 +526,11 @@ static void filterDataInDataBlock(STsdbQueryHandle *pQueryHandle, SDataCols* pCo
   if (QUERY_IS_ASC_QUERY(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
     endPos = blockInfo.size - 1;
     pQueryHandle->realNumOfRows = endPos - cur->pos + 1;
+    pCheckInfo->lastKey = blockInfo.window.ekey + 1;
   } else if (!QUERY_IS_ASC_QUERY(pQueryHandle->order) && pQueryHandle->window.ekey < blockInfo.window.skey) {
     endPos = 0;
     pQueryHandle->realNumOfRows = cur->pos + 1;
+    pCheckInfo->lastKey = blockInfo.window.ekey - 1;
   } else {
     endPos = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, pQueryHandle->window.ekey, pQueryHandle->order);
     
@@ -539,6 +541,8 @@ static void filterDataInDataBlock(STsdbQueryHandle *pQueryHandle, SDataCols* pCo
       } else {
         pQueryHandle->realNumOfRows = endPos - cur->pos;
       }
+  
+      pCheckInfo->lastKey = ((int64_t*)(pCols->cols[0].pData))[endPos] + 1;
     } else {
       if (endPos > cur->pos) {
         pQueryHandle->realNumOfRows = 0;
@@ -546,6 +550,8 @@ static void filterDataInDataBlock(STsdbQueryHandle *pQueryHandle, SDataCols* pCo
       } else {
         pQueryHandle->realNumOfRows = cur->pos - endPos;
       }
+      
+      assert(0);
     }
   }
   
@@ -888,7 +894,7 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
       
       rows = pHandle->realNumOfRows;
       skey = *(TSKEY*) pColInfoEx->pData;
-      ekey = *(TSKEY*) pColInfoEx->pData + TSDB_KEYSIZE * (rows - 1);
+      ekey = *(TSKEY*) ((char*)pColInfoEx->pData + TSDB_KEYSIZE * (rows - 1));
     }
   } else {
     if (pTable->mem != NULL) {
@@ -926,6 +932,10 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
   
   if (pHandle->cur.fid < 0) {
+    
+    
+    
+    
     return pHandle->pColumns;
   } else {
     STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
@@ -945,6 +955,7 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
       } else {
         doLoadDataFromFileBlock(pHandle);
         filterDataInDataBlock(pHandle, pCheckInfo->pDataCols, sa);
+        
         return pHandle->pColumns;
       }
     }
@@ -1296,7 +1307,6 @@ SArray *tsdbQueryTableList(tsdb_repo_t* tsdb, int64_t uid, const wchar_t *pTagCo
 
 void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) queryHandle;
-  
   
   size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   for(int32_t i = 0; i < size; ++i) {
