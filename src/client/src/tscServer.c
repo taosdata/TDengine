@@ -266,11 +266,15 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
         rpcFreeCont(rpcMsg->pCont);
         return;
       } else {
-        tscTrace("%p it shall renew meter meta, code:%d", pSql, tstrerror(rpcMsg->code));
+        tscTrace("%p it shall renew table meta, code:%d", pSql, tstrerror(rpcMsg->code));
 
         pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;
         pSql->res.code = rpcMsg->code;  // keep the previous error code
-
+        if (++pSql->retry > pSql->maxRetry) {
+          tscError("%p max retry %d reached, ", pSql, pSql->retry);
+          return;
+        }
+        
         rpcMsg->code = tscRenewMeterMeta(pSql, pTableMetaInfo->name);
 
         if (pTableMetaInfo->pTableMeta) {
@@ -2449,7 +2453,7 @@ static void tscWaitingForCreateTable(SSqlCmd *pCmd) {
 int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
   int code = 0;
 
-  // handle metric meta renew process
+  // handle table meta renew process
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
