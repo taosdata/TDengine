@@ -14,7 +14,7 @@
  */
 
 #ifndef TDENGINE_MGMT_GRANT_H
-#define TDENGINE_MGMT_GTANT_H
+#define TDENGINE_MGMT_GRANT_H
 
 #ifdef __cplusplus
 "C" {

@@ -38,7 +38,7 @@ typedef struct SLoserTreeInfo {
   SLoserTreeNode *pNode;
 } SLoserTreeInfo;
 
-uint8_t tLoserTreeCreate(SLoserTreeInfo **pTree, int32_t numOfEntries, void *param, __merge_compare_fn_t compareFn);
+uint32_t tLoserTreeCreate(SLoserTreeInfo **pTree, int32_t numOfEntries, void *param, __merge_compare_fn_t compareFn);
 
 void tLoserTreeInit(SLoserTreeInfo *pTree);
 
