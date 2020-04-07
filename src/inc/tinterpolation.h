@@ -30,7 +30,7 @@ typedef struct SInterpolationInfo {
   char *  prevValues;           // previous row of data
   char *  nextValues;           // next row of data
   int32_t numOfTags;
-  char ** pTags;  // tags value for current interoplation
+  char ** pTags;  // tags value for current interpolation
 } SInterpolationInfo;
 
 typedef struct SPoint {
@@ -82,6 +82,8 @@ int32_t taosDoInterpoResult(SInterpolationInfo *pInterpoInfo, int16_t interpoTyp
                             const int32_t *functionIDs, int32_t bufSize);
 
 int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
+
+int taosDoLinearInterpolationD(int32_t type, SPoint* point1, SPoint* point2, SPoint* point);
 
 #ifdef __cplusplus
 }

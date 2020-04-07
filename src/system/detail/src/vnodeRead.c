@@ -269,7 +269,7 @@ static SQInfo *vnodeAllocateQInfoEx(SQueryMeterMsg *pQueryMsg, SSqlGroupbyExpr *
   pQuery->intervalTime = pQueryMsg->intervalTime;
   pQuery->slidingTime = pQueryMsg->slidingTime;
   pQuery->interpoType = pQueryMsg->interpoType;
-  pQuery->intervalTimeUnit = pQueryMsg->intervalTimeUnit;
+  pQuery->slidingTimeUnit = pQueryMsg->slidingTimeUnit;
 
   pQInfo->query.pointsToRead = vnodeList[pMeterObj->vnode].cfg.rowsInFileBlock;
 

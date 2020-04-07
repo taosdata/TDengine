@@ -80,6 +80,17 @@ static int32_t getGroupResultId(int32_t groupIndex) {
   return base + (groupIndex * 10000);
 }
 
+static bool needsBoundaryTS(SQuery *pQuery) {
+  for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    int32_t functionId = pQuery->pSelectExpr[i].pBase.functionId;
+    if (functionId == TSDB_FUNC_RATE) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 static FORCE_INLINE bool isIntervalQuery(SQuery *pQuery) { return pQuery->intervalTime > 0; }
 
 // check the offset value integrity
@@ -579,9 +590,9 @@ bool doRevisedResultsByLimit(SQInfo *pQInfo) {
   return false;
 }
 
-static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, int64_t StartQueryTimestamp, void *inputData,
+static void setExecParams(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int64_t StartQueryTimestamp, void *inputData,
                           char *primaryColumnData, int32_t size, int32_t functionId, SField *pField, bool hasNull,
-                          int32_t blockStatus, void *param, int32_t scanFlag);
+                          void *param);
 
 void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo);
 
@@ -1518,14 +1529,6 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
     w.ekey = w.skey + pQuery->intervalTime - 1;
   }
 
-  /*
-   * query border check, skey should not be bounded by the query time range, since the value skey will
-   * be used as the time window index value. So we only change ekey of time window accordingly.
-   */
-  if (w.ekey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) {
-    w.ekey = pQuery->ekey;
-  }
-
   assert(ts >= w.skey && ts <= w.ekey && w.skey != 0);
 
   return w;
@@ -1651,8 +1654,12 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
         continue;
       }
 
-      if ((pResult->window.ekey <= lastKey && QUERY_IS_ASC_QUERY(pQuery)) ||
-          (pResult->window.skey >= lastKey && !QUERY_IS_ASC_QUERY(pQuery))) {
+      /*
+       * when the ekey equals to lastKey of current block, do NOT close it, since the interpolation may
+       * be involved.
+       */
+      if ((pResult->window.ekey < lastKey && QUERY_IS_ASC_QUERY(pQuery)) ||
+          (pResult->window.skey > lastKey && !QUERY_IS_ASC_QUERY(pQuery))) {
         closeTimeWindow(pWindowResInfo, i);
       } else {
         skey = pResult->window.skey;
@@ -1742,7 +1749,7 @@ static void doBlockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SWindowStat
       pCtx[k].size = forwardStep;
       pCtx[k].startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? startPos : startPos - (forwardStep - 1);
   
-      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0 || functionId == TSDB_FUNC_RATE) {
         pCtx[k].ptsList = (TSKEY *)((char*)pRuntimeEnv->primaryColBuffer->data + pCtx[k].startOffset * TSDB_KEYSIZE);
       }
   
@@ -1829,6 +1836,31 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
   }
 }
 
+static void handleInBlockEkeyInterpolation(SQueryRuntimeEnv* pRuntimeEnv, int32_t endPos,
+                                           const TSKEY* primaryKeyCol, STimeWindow* win, SQLFunctionCtx* pCtx) {
+  // this query time window ended in the current data block
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  TSKEY lastKey = primaryKeyCol[endPos];
+  
+  TSKEY e = win->skey + pQuery->intervalTime;
+  TSKEY next = primaryKeyCol[endPos + 1];
+  
+  // the next key is beyond the query time range
+  if ((next > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) || (next > pQuery->skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+    pCtx->next.key = -1;
+    return;
+  }
+  
+  pCtx->next.key = e;
+  char *d = pCtx->aInputElemBuf + pCtx->inputBytes * endPos;
+  
+  SPoint point1 = (SPoint){.key = lastKey, .val = d};
+  SPoint point2 = (SPoint){.key = next, .val = (d + pCtx->inputBytes)};
+  SPoint point = (SPoint){.key = pCtx->next.key, .val = &pCtx->next.data};
+  
+  taosDoLinearInterpolationD(pCtx->inputType, &point1, &point2, &point);
+}
+
 static TSKEY reviseWindowEkey(SQuery *pQuery, STimeWindow *pWindow) {
   TSKEY ekey = -1;
   if (QUERY_IS_ASC_QUERY(pQuery)) {
@@ -1844,6 +1876,255 @@ static TSKEY reviseWindowEkey(SQuery *pQuery, STimeWindow *pWindow) {
   }
 
   return ekey;
+}
+
+static void interpolateEndKeyValue(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo* pBlockInfo, STimeWindow* win,
+    int32_t endPos, SQLFunctionCtx* pCtx, int32_t index) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  
+  TSKEY *primaryKeyCol = (TSKEY *)pRuntimeEnv->primaryColBuffer->data;
+  
+  // if current query window beyonds the whole query window, do not employ the interpolation
+  if ((win->ekey >= pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+    (win->ekey >= pQuery->skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+    pCtx->next.key = -1;
+    return;
+  }
+  
+  if (!QUERY_IS_ASC_QUERY(pQuery) && win->skey >= pBlockInfo->keyLast) {
+    pCtx->next.key = -1;
+    return;
+  }
+  
+  if (QUERY_IS_ASC_QUERY(pQuery)) {
+  
+    /*
+     * the time window closed before current data block, use the interpolation to generate
+     * the final result part, endPos equals to -1 means that this time window ends before current data block.
+     */
+    if (win->ekey < pBlockInfo->keyFirst) {
+      assert(endPos == -1);
+      
+      TSKEY prev = *(int64_t*) pRuntimeEnv->lastRowInBlock[0];
+      TSKEY next = pBlockInfo->keyFirst;
+  
+      pCtx->next.key = win->skey + pQuery->intervalTime;
+      
+      char *d = pCtx->aInputElemBuf;
+  
+      SPoint point1 = (SPoint){.key = prev, .val = pRuntimeEnv->lastRowInBlock[index]};
+      SPoint point2 = (SPoint){.key = next, .val = d};
+      SPoint point = (SPoint){.key = pCtx->next.key, .val = &pCtx->next.data};
+  
+      taosDoLinearInterpolationD(pCtx->inputType, &point1, &point2, &point);
+    } else if (win->ekey < pBlockInfo->keyLast) {
+      handleInBlockEkeyInterpolation(pRuntimeEnv, endPos, primaryKeyCol, win, pCtx);
+    } else {
+      //do nothing now, the interpolation will be handled before processing the next data block
+      assert(win->ekey >= pBlockInfo->keyLast);
+      pCtx->next.key = -1;
+    }
+  } else { // desc order query
+  
+    //the time window closed before current data block, use the interpolation to generate the final result part.
+    if (win->ekey >= pBlockInfo->keyLast) {
+      TSKEY prev = pBlockInfo->keyLast;
+      TSKEY next = *(TSKEY*) pRuntimeEnv->lastRowInBlock[0];
+  
+      pCtx->next.key = win->skey + pQuery->intervalTime;
+  
+      char *d = pCtx->aInputElemBuf + (pBlockInfo->size - 1) * pCtx->inputBytes;
+  
+      SPoint point1 = (SPoint){.key = prev, .val = d};
+      SPoint point2 = (SPoint){.key = next, .val = pRuntimeEnv->lastRowInBlock[index]};
+      SPoint point = (SPoint){.key = pCtx->next.key, .val = &pCtx->next.data};
+  
+      taosDoLinearInterpolationD(pCtx->inputType, &point1, &point2, &point);
+    } else if (win->ekey < pBlockInfo->keyLast) {
+      handleInBlockEkeyInterpolation(pRuntimeEnv, endPos, primaryKeyCol, win, pCtx);
+    } else {
+      pCtx->next.key = -1;
+    }
+  }
+  
+}
+
+static void handleInBlockSkeyInterpolation (SQueryRuntimeEnv* pRuntimeEnv, int32_t startPos,
+    const TSKEY* primaryKeyCol, STimeWindow* win, SQLFunctionCtx* pCtx) {
+  assert(startPos > 0);
+  
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  
+  TSKEY prev = primaryKeyCol[startPos - 1];
+  TSKEY next = primaryKeyCol[startPos];
+  
+  if (!QUERY_IS_ASC_QUERY(pQuery) && prev < pQuery->ekey) {
+    pCtx->prev.key = -1;
+    return;
+  }
+  
+  pCtx->prev.key = win->skey;
+  char *d = pCtx->aInputElemBuf + pCtx->inputBytes * (startPos - 1);
+  
+  SPoint point1 = (SPoint){.key = prev, .val = d};
+  SPoint point2 = (SPoint){.key = next, .val = (d + pCtx->inputBytes)};
+  SPoint point = (SPoint){.key = pCtx->prev.key, .val = &pCtx->prev.data};
+  
+  taosDoLinearInterpolationD(pCtx->inputType, &point1, &point2, &point);
+}
+
+static void interpolateStartKeyValue(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo* pBlockInfo, SWindowResInfo* pWindowResInfo,
+                                         STimeWindow* win, int32_t startPos, SQLFunctionCtx* pCtx, int32_t index) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  TSKEY *primaryKeyCol = (TSKEY *)pRuntimeEnv->primaryColBuffer->data;
+  TSKEY skey = primaryKeyCol[startPos];
+  
+  /*
+   * no need the start time interpolation
+   * 1. current window is the first window in either ascending or descending order output
+   * 2. time window start exactly from a timestamp with data
+   */
+  if (skey == win->skey || win->skey < pWindowResInfo->startTime ||
+      (win->skey <= pQuery->skey  && QUERY_IS_ASC_QUERY(pQuery)) ||
+      (win->skey <= pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+    pCtx->prev.key = -1;
+    return;
+  }
+  
+  if (QUERY_IS_ASC_QUERY(pQuery)) {
+    // the queried time window and time window of data block must be intersect
+//    assert(win->ekey >= pBlockInfo->keyFirst && win->skey <= pBlockInfo->keyLast);
+    
+    /*
+     * this win should not be the first time window that starts from a less timestamp than
+     * the skey of current data block
+     */
+    if (win->skey < pBlockInfo->keyFirst) {
+      TSKEY prev = *(TSKEY*) pRuntimeEnv->lastRowInBlock[0];
+      TSKEY next = pBlockInfo->keyFirst;
+    
+      pCtx->prev.key = win->skey;
+      char *d = pCtx->aInputElemBuf;
+    
+      SPoint point1 = (SPoint){.key = prev, .val = pRuntimeEnv->lastRowInBlock[index]};
+      SPoint point2 = (SPoint){.key = next, .val = d};
+      SPoint point = (SPoint){.key = pCtx->prev.key, .val = &pCtx->prev.data};
+    
+      taosDoLinearInterpolationD(pCtx->inputType, &point1, &point2, &point);
+    } else {
+      handleInBlockSkeyInterpolation(pRuntimeEnv, startPos, primaryKeyCol, win, pCtx);
+    }
+  } else { // desc order
+    if (win->skey > pBlockInfo->keyLast) {
+      //this pBlockInfo located before current time window
+      TSKEY prev = pBlockInfo->keyLast;
+      TSKEY next = *(TSKEY*) pRuntimeEnv->lastRowInBlock[0];
+  
+      pCtx->prev.key = win->skey;
+      char *d = pCtx->aInputElemBuf + (pBlockInfo->size - 1) * pCtx->inputBytes;
+  
+      SPoint point1 = (SPoint){.key = prev, .val = d};
+      SPoint point2 = (SPoint){.key = next, .val = pRuntimeEnv->lastRowInBlock[index]};
+      SPoint point = (SPoint){.key = pCtx->prev.key, .val = &pCtx->prev.data};
+  
+      taosDoLinearInterpolationD(pCtx->inputType, &point1, &point2, &point);
+    } else {
+      // the queried time window and time window of data block must be intersect
+      assert(win->ekey >= pBlockInfo->keyFirst && win->skey <= pBlockInfo->keyLast);
+      
+      if (win->skey >= pBlockInfo->keyFirst) {
+        // the pBlockInfo is intersected with query time window
+        handleInBlockSkeyInterpolation(pRuntimeEnv, startPos, primaryKeyCol, win, pCtx);
+      } else {
+        assert(win->skey < pBlockInfo->keyFirst && win->ekey >= pBlockInfo->keyFirst);
+        pCtx->prev.key = -1;
+      }
+    }
+  }
+}
+
+static void doSetInterpolationDataForTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo *pWindowResInfo,
+    SBlockInfo* pBlockInfo, STimeWindow* win, int32_t startPos, int32_t forwardStep) {
+  
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+  
+  if (!pRuntimeEnv->interpoSearch) {
+    return;
+  }
+  
+  int32_t s = startPos;
+  int32_t e = forwardStep * step + startPos - step;
+  
+  if (!QUERY_IS_ASC_QUERY(pQuery)) {
+    SWAP(s, e, int32_t);
+  }
+  
+  // interpolate for skey value
+  for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    if (pQuery->pSelectExpr[i].pBase.functionId != TSDB_FUNC_RATE) {
+      continue;
+    }
+    
+    SColIndexEx *pCol = &pQuery->pSelectExpr[i].pBase.colInfo;
+    interpolateStartKeyValue(pRuntimeEnv, pBlockInfo, pWindowResInfo, win, s, &pRuntimeEnv->pCtx[i], pCol->colIdxInBuf);
+  }
+  
+  // interpolate for ekey value
+  for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    if (pQuery->pSelectExpr[i].pBase.functionId != TSDB_FUNC_RATE) {
+      continue;
+    }
+    
+    SColIndexEx *pCol = &pQuery->pSelectExpr[i].pBase.colInfo;
+    interpolateEndKeyValue(pRuntimeEnv, pBlockInfo, win, e, &pRuntimeEnv->pCtx[i], pCol->colIdxInBuf);
+  }
+}
+
+static void doInterpolatePrevTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo, SBlockInfo* pBlockInfo,
+    TSKEY ts, int32_t offset, STimeWindow* win) {
+  // get current not closed time window
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  
+  int32_t slot = pWindowResInfo->curIndex;
+  if (slot == -1 || !pRuntimeEnv->interpoSearch) {
+    return;
+  }
+  
+  while (slot < pWindowResInfo->size) {
+    STimeWindow w = getWindowResult(pWindowResInfo, slot)->window;
+    if (w.skey == win->skey) {
+      assert(w.ekey == win->ekey);
+      break;
+    }
+    
+    // do not check for the closed time window
+    SWindowResult* pWindowRes = getWindowRes(pWindowResInfo, slot);
+    if (pWindowRes->status.closed) {
+      slot += 1;
+      continue;
+    }
+    
+    // if current active window locates before current data block, do interpolate the result and close it
+    assert((w.skey < win->skey && w.ekey < ts && QUERY_IS_ASC_QUERY(pQuery)) ||
+        (w.skey > win->skey && w.skey > ts && !QUERY_IS_ASC_QUERY(pQuery)));
+    
+    int32_t forwardStep = 0;
+    doSetInterpolationDataForTimeWindow(pRuntimeEnv, pWindowResInfo, pBlockInfo, &w, offset, forwardStep);
+    
+    // set correct output buffer for interplate result. todo handle error
+    if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pRuntimeEnv->pMeterObj->sid, &w) != TSDB_CODE_SUCCESS) {
+      continue;
+    }
+    
+    SWindowStatus *pStatus = getTimeWindowResStatus(pWindowResInfo, slot);
+    doBlockwiseApplyFunctions(pRuntimeEnv, pStatus, &w, pQuery->pos, forwardStep);
+    
+    closeTimeWindow(pWindowResInfo, slot);
+    
+    // try next time window
+    slot += 1;
+  }
 }
 
 /**
@@ -1872,7 +2153,6 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
     int32_t functionId = pQuery->pSelectExpr[k].pBase.functionId;
 
     SField dummyField = {0};
-
     bool  hasNull = hasNullVal(pQuery, k, pBlockInfo, pFields, isDiskFileBlock);
     char *dataBlock = getDataBlocks(pRuntimeEnv, &sasArray[k], k, forwardStep);
 
@@ -1890,29 +2170,33 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
       }
     }
 
-    setExecParams(pQuery, &pCtx[k], pQuery->skey, dataBlock, (char *)primaryKeyCol, forwardStep, functionId, tpField,
-                  hasNull, pRuntimeEnv->blockStatus, &sasArray[k], pRuntimeEnv->scanFlag);
+    setExecParams(pRuntimeEnv, &pCtx[k], pQuery->skey, dataBlock, (char *)primaryKeyCol, forwardStep, functionId, tpField,
+                  hasNull, &sasArray[k]);
   }
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
   if (isIntervalQuery(pQuery)) {
     int32_t offset = GET_COL_DATA_POS(pQuery, 0, step);
     TSKEY   ts = primaryKeyCol[offset];
-
+  
     STimeWindow win = getActiveTimeWindow(pWindowResInfo, ts, pQuery);
+    doInterpolatePrevTimeWindow(pRuntimeEnv, pWindowResInfo, pBlockInfo, ts, offset, &win);
+    
     if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pRuntimeEnv->pMeterObj->sid, &win) != TSDB_CODE_SUCCESS) {
       return 0;
     }
 
     TSKEY ekey = reviseWindowEkey(pQuery, &win);
     forwardStep = getNumOfRowsInTimeWindow(pQuery, pBlockInfo, primaryKeyCol, pQuery->pos, ekey, searchFn, true);
-
+    
+    doSetInterpolationDataForTimeWindow(pRuntimeEnv, pWindowResInfo, pBlockInfo, &win, offset, forwardStep);
+  
     SWindowStatus *pStatus = getTimeWindowResStatus(pWindowResInfo, curTimeWindow(pWindowResInfo));
     doBlockwiseApplyFunctions(pRuntimeEnv, pStatus, &win, pQuery->pos, forwardStep);
 
-    int32_t     index = pWindowResInfo->curIndex;
+    int32_t index = pWindowResInfo->curIndex;
+    
     STimeWindow nextWin = win;
-
     while (1) {
       int32_t startPos =
           getNextQualifiedWindow(pRuntimeEnv, &nextWin, pWindowResInfo, pBlockInfo, primaryKeyCol, searchFn);
@@ -1928,7 +2212,9 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
 
       ekey = reviseWindowEkey(pQuery, &nextWin);
       forwardStep = getNumOfRowsInTimeWindow(pQuery, pBlockInfo, primaryKeyCol, startPos, ekey, searchFn, true);
-
+      
+      doSetInterpolationDataForTimeWindow(pRuntimeEnv, pWindowResInfo, pBlockInfo, &nextWin, startPos, forwardStep);
+      
       pStatus = getTimeWindowResStatus(pWindowResInfo, curTimeWindow(pWindowResInfo));
       doBlockwiseApplyFunctions(pRuntimeEnv, pStatus, &nextWin, startPos, forwardStep);
     }
@@ -1942,6 +2228,9 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
      */
     for (int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
       int32_t functionId = pQuery->pSelectExpr[k].pBase.functionId;
+      pCtx[k].next.key = -1;
+      pCtx[k].prev.key = -1;
+      
       if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
         aAggs[functionId].xFunction(&pCtx[k]);
       }
@@ -1955,6 +2244,14 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
   int32_t num = 0;
   if (!isIntervalQuery(pQuery)) {
     num = getNumOfResult(pRuntimeEnv) - prevNumOfRes;
+  }
+  
+  // save the last row in current data block
+  for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
+    SColumnInfo* pColInfo = &pQuery->colList[i].data;
+    int32_t s = (QUERY_IS_ASC_QUERY(pQuery))? pColInfo->bytes * (pBlockInfo->size - 1) : 0;
+    
+    memcpy(pRuntimeEnv->lastRowInBlock[i], pRuntimeEnv->colDataBuffer[i]->data + s, pColInfo->bytes);
   }
 
   tfree(sasArray);
@@ -2166,6 +2463,31 @@ void closeAllTimeWindow(SWindowResInfo *pWindowResInfo) {
   }
 }
 
+SWindowResult* getWindowRes(SWindowResInfo* pWindowResInfo, size_t index) {
+  assert(index < pWindowResInfo->size);
+  return &pWindowResInfo->pResult[index];
+}
+
+/*
+ * remove the results that are not the FIRST time window that spreads beyond the
+ * the last qualified time stamp in case of sliding query, which the sliding time is not equalled to the interval time
+ */
+void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order) {
+  assert(pWindowResInfo->size >= 0 && pWindowResInfo->capacity >= pWindowResInfo->size);
+  
+  int32_t i = 0;
+  while(i < pWindowResInfo->size &&
+      ((pWindowResInfo->pResult[i].window.ekey < lastKey && order == QUERY_ASC_FORWARD_STEP) ||
+          (pWindowResInfo->pResult[i].window.skey > lastKey && order == QUERY_DESC_FORWARD_STEP))) {
+    ++i;
+  }
+
+//  assert(i < pWindowResInfo->size);
+  if (i < pWindowResInfo->size) {
+    pWindowResInfo->size = (i + 1);
+  }
+}
+
 static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pData, int16_t type, int16_t bytes) {
   if (isNull(pData, type)) {  // ignore the null value
     return -1;
@@ -2311,10 +2633,9 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
     bool  hasNull = hasNullVal(pQuery, k, pBlockInfo, pFields, isDiskFileBlock);
     char *dataBlock = getDataBlocks(pRuntimeEnv, &sasArray[k], k, *forwardStep);
 
-    TSKEY ts = pQuery->skey;  // QUERY_IS_ASC_QUERY(pQuery) ? pRuntimeEnv->intervalWindow.skey :
-                              // pRuntimeEnv->intervalWindow.ekey;
-    setExecParams(pQuery, &pCtx[k], ts, dataBlock, (char *)primaryKeyCol, (*forwardStep), functionId, pFields, hasNull,
-                  pRuntimeEnv->blockStatus, &sasArray[k], pRuntimeEnv->scanFlag);
+    TSKEY ts = pQuery->skey;
+    setExecParams(pRuntimeEnv, &pCtx[k], ts, dataBlock, (char *)primaryKeyCol, (*forwardStep), functionId, pFields, hasNull,
+                  &sasArray[k]);
   }
 
   // set the input column data
@@ -2340,7 +2661,9 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
 
   int32_t j = 0;
   TSKEY   lastKey = -1;
-
+  int32_t lastIndex = -1;
+  bool firstAccessedPoint = true;
+  
   for (j = 0; j < (*forwardStep); ++j) {
     int32_t offset = GET_COL_DATA_POS(pQuery, j, step);
 
@@ -2362,8 +2685,31 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
     // interval window query
     if (isIntervalQuery(pQuery)) {
       // decide the time window according to the primary timestamp
-      int64_t     ts = primaryKeyCol[offset];
+      TSKEY ts = primaryKeyCol[offset];
+      
       STimeWindow win = getActiveTimeWindow(pWindowResInfo, ts, pQuery);
+//      if (firstAccessedPoint) {
+//        doInterpolatePrevTimeWindow(pRuntimeEnv, pWindowResInfo, pBlockInfo, ts, offset, &win);
+//        firstAccessedPoint = false;
+//      } else {
+//        int32_t index = pWindowResInfo->curIndex;
+//        STimeWindow w = getWindowResult(pWindowResInfo, index)->window;
+//
+//        if (w.skey == win.skey) { // do nothing
+//          assert(w.ekey == win.ekey);
+//        } else {
+//          assert((w.skey < win.skey && w.ekey < ts && QUERY_IS_ASC_QUERY(pQuery)) ||
+//              (w.skey > win.skey && w.skey > ts && !QUERY_IS_ASC_QUERY(pQuery)));
+//
+//          // set the endkey interpolation for the previous
+//          for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+//            SColIndexEx *pCol = &pQuery->pSelectExpr[i].pBase.colInfo;
+//
+//            interpolateEndKeyValue(pRuntimeEnv, pBlockInfo, win, e, &pRuntimeEnv->pCtx[i], pCol->colIdxInBuf);
+//          }
+//
+//        }
+//      }
 
       int32_t ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pRuntimeEnv->pMeterObj->sid, &win);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -2377,6 +2723,8 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
       doRowwiseApplyFunctions(pRuntimeEnv, pStatus, &win, offset);
 
       lastKey = ts;
+      lastIndex = j;
+      
       STimeWindow nextWin = win;
       int32_t     index = pWindowResInfo->curIndex;
       int32_t     sid = pRuntimeEnv->pMeterObj->sid;
@@ -2421,6 +2769,9 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
 
       for (int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
         int32_t functionId = pQuery->pSelectExpr[k].pBase.functionId;
+        pCtx[k].next.key = -1;
+        pCtx[k].prev.key = -1;
+        
         if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
           aAggs[functionId].xFunctionF(&pCtx[k], offset);
         }
@@ -2434,7 +2785,7 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
         break;
       }
     }
-
+  
     /*
      * pointsOffset is the maximum available space in result buffer update the actual forward step for query that
      * requires checking buffer during loop
@@ -2444,6 +2795,15 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
       *forwardStep = j + 1;
       break;
     }
+  }
+  
+  // save the last accessed row of current data block for interpolation
+  int32_t index = GET_COL_DATA_POS(pQuery, lastIndex, step);
+  for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
+    SColumnInfo* pColInfo = &pQuery->colList[i].data;
+    int32_t s = pColInfo->bytes * index;
+    
+    memcpy(pRuntimeEnv->lastRowInBlock[i], pRuntimeEnv->colDataBuffer[i]->data + s, pColInfo->bytes);
   }
 
   free(sasArray);
@@ -2657,11 +3017,24 @@ int32_t getNextDataFileCompInfo(SQueryRuntimeEnv *pRuntimeEnv, SMeterObj *pMeter
   return fileIndex;
 }
 
-void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, int64_t startQueryTimestamp, void *inputData,
-                   char *primaryColumnData, int32_t size, int32_t functionId, SField *pField, bool hasNull,
-                   int32_t blockStatus, void *param, int32_t scanFlag) {
-  int32_t startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? pQuery->pos : pQuery->pos - (size - 1);
+static void getOneRowFromDataBlock(SQueryRuntimeEnv *pRuntimeEnv, char **dst, int32_t pos) {
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+  
+  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
+    int32_t bytes = pQuery->colList[i].data.bytes;
+    memcpy(dst[i], pRuntimeEnv->colDataBuffer[i]->data + pos * bytes, bytes);
+  }
+}
 
+void setExecParams(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int64_t startQueryTimestamp, void *inputData,
+                   char *primaryColumnData, int32_t size, int32_t functionId, SField *pField, bool hasNull,
+                   void *param) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  int32_t startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? pQuery->pos : pQuery->pos - (size - 1);
+ 
+  int32_t scanFlag = pRuntimeEnv->scanFlag;
+  int32_t blockStatus = pRuntimeEnv->blockStatus;
+  
   pCtx->nStartQueryTimestamp = startQueryTimestamp;
   pCtx->scanFlag = scanFlag;
 
@@ -2913,6 +3286,12 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     tfree(pRuntimeEnv->pInterpoBuf);
   }
   
+  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
+    tfree(pRuntimeEnv->lastRowInBlock[i]);
+  }
+  
+  tfree(pRuntimeEnv->lastRowInBlock);
+  
   destroyDiskbasedResultBuf(pRuntimeEnv->pResultBuf);
   pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
@@ -2924,6 +3303,7 @@ static int64_t getOldestKey(int32_t numOfFiles, int64_t fileId, SVnodeCfg *pCfg)
 }
 
 bool isQueryKilled(SQuery *pQuery) {
+  return false;
   SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
 
   /*
@@ -3324,7 +3704,7 @@ void vnodeCheckIfDataExists(SQueryRuntimeEnv *pRuntimeEnv, SMeterObj *pMeterObj,
 void doGetAlignedIntervalQueryRangeImpl(SQuery *pQuery, int64_t pKey, int64_t keyFirst, int64_t keyLast,
                                         int64_t *actualSkey, int64_t *actualEkey, int64_t *skey, int64_t *ekey) {
   assert(pKey >= keyFirst && pKey <= keyLast);
-  *skey = taosGetIntervalStartTimestamp(pKey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision);
+  *skey = taosGetIntervalStartTimestamp(pKey, pQuery->slidingTime, pQuery->slidingTimeUnit, pQuery->precision);
 
   if (keyFirst > (INT64_MAX - pQuery->intervalTime)) {
     /*
@@ -3355,13 +3735,62 @@ void doGetAlignedIntervalQueryRangeImpl(SQuery *pQuery, int64_t pKey, int64_t ke
   }
 }
 
-static void getOneRowFromDataBlock(SQueryRuntimeEnv *pRuntimeEnv, char **dst, int32_t pos) {
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-
-  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
-    int32_t bytes = pQuery->colList[i].data.bytes;
-    memcpy(dst[i], pRuntimeEnv->colDataBuffer[i]->data + pos * bytes, bytes);
+static bool loadPrevDataPoint(SQueryRuntimeEnv* pRuntimeEnv, char** result) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  SMeterObj* pMeterObj = pRuntimeEnv->pMeterObj;
+  
+  /* the qualified point is not the first point in data block */
+  if (pQuery->pos > 0) {
+    int32_t prevPos = pQuery->pos - 1;
+    
+    /* save the point that is directly after the specified point */
+    getOneRowFromDataBlock(pRuntimeEnv, result, prevPos);
+  } else {
+    __block_search_fn_t searchFn = vnodeSearchKeyFunc[pMeterObj->searchAlgorithm];
+    
+    savePointPosition(&pRuntimeEnv->startPos, pQuery->fileId, pQuery->slot, pQuery->pos);
+    
+    // backwards movement would not set the pQuery->pos correct. We need to set it manually later.
+    moveToNextBlock(pRuntimeEnv, QUERY_DESC_FORWARD_STEP, searchFn, true);
+    
+    /*
+     * no previous data exists.
+     * reset the status and load the data block that contains the qualified point
+     */
+    if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
+      dTrace("QInfo:%p no previous data block, start fileId:%d, slot:%d, pos:%d, qrange:%" PRId64 "-%" PRId64
+                 ", out of range",
+             GET_QINFO_ADDR(pQuery), pRuntimeEnv->startPos.fileId, pRuntimeEnv->startPos.slot,
+             pRuntimeEnv->startPos.pos, pQuery->skey, pQuery->ekey);
+      
+      // no result, return immediately
+      setQueryStatus(pQuery, QUERY_COMPLETED);
+      return false;
+    } else {  // prev has been located
+      if (pQuery->fileId >= 0) {
+        pQuery->pos = pQuery->pBlock[pQuery->slot].numOfPoints - 1;
+        getOneRowFromDataBlock(pRuntimeEnv, result, pQuery->pos);
+        
+        qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
+               pQuery->fileId, pQuery->slot, pQuery->pos, pQuery->pos);
+        
+        // restore to the start position
+        loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->startPos);
+      } else {
+        // moveToNextBlock make sure there is a available cache block, if exists
+        assert(vnodeIsDatablockLoaded(pRuntimeEnv, pMeterObj, -1, true) == DISK_BLOCK_NO_NEED_TO_LOAD);
+        SCacheBlock* pBlock = &pRuntimeEnv->cacheBlock;
+        
+        pQuery->pos = pBlock->numOfPoints - 1;
+        getOneRowFromDataBlock(pRuntimeEnv, result, pQuery->pos);
+        
+        qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
+               pQuery->fileId, pQuery->slot, pBlock->numOfPoints - 1, pQuery->pos);
+      }
+    }
   }
+  
+  return true;
 }
 
 static bool getNeighborPoints(STableQuerySupportObj *pSupporter, SMeterObj *pMeterObj,
@@ -3381,10 +3810,8 @@ static bool getNeighborPoints(STableQuerySupportObj *pSupporter, SMeterObj *pMet
   } else {
     assert(QUERY_IS_ASC_QUERY(pQuery));
   }
+  
   assert(pPointInterpSupporter != NULL && pQuery->skey == pQuery->ekey);
-
-  SCacheBlock *pBlock = NULL;
-
   qTrace("QInfo:%p get next data point, fileId:%d, slot:%d, pos:%d", GET_QINFO_ADDR(pQuery), pQuery->fileId,
          pQuery->slot, pQuery->pos);
 
@@ -3413,55 +3840,9 @@ static bool getNeighborPoints(STableQuerySupportObj *pSupporter, SMeterObj *pMet
     }
     return true;
   }
-
-  /* the qualified point is not the first point in data block */
-  if (pQuery->pos > 0) {
-    int32_t prevPos = pQuery->pos - 1;
-
-    /* save the point that is directly after the specified point */
-    getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, prevPos);
-  } else {
-    __block_search_fn_t searchFn = vnodeSearchKeyFunc[pMeterObj->searchAlgorithm];
-
-    savePointPosition(&pRuntimeEnv->startPos, pQuery->fileId, pQuery->slot, pQuery->pos);
-
-    // backwards movement would not set the pQuery->pos correct. We need to set it manually later.
-    moveToNextBlock(pRuntimeEnv, QUERY_DESC_FORWARD_STEP, searchFn, true);
-
-    /*
-     * no previous data exists.
-     * reset the status and load the data block that contains the qualified point
-     */
-    if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-      dTrace("QInfo:%p no previous data block, start fileId:%d, slot:%d, pos:%d, qrange:%" PRId64 "-%" PRId64
-             ", out of range",
-             GET_QINFO_ADDR(pQuery), pRuntimeEnv->startPos.fileId, pRuntimeEnv->startPos.slot,
-             pRuntimeEnv->startPos.pos, pQuery->skey, pQuery->ekey);
-
-      // no result, return immediately
-      setQueryStatus(pQuery, QUERY_COMPLETED);
-      return false;
-    } else {  // prev has been located
-      if (pQuery->fileId >= 0) {
-        pQuery->pos = pQuery->pBlock[pQuery->slot].numOfPoints - 1;
-        getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, pQuery->pos);
-
-        qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
-               pQuery->fileId, pQuery->slot, pQuery->pos, pQuery->pos);
-      } else {
-        // moveToNextBlock make sure there is a available cache block, if exists
-        assert(vnodeIsDatablockLoaded(pRuntimeEnv, pMeterObj, -1, true) == DISK_BLOCK_NO_NEED_TO_LOAD);
-        pBlock = &pRuntimeEnv->cacheBlock;
-
-        pQuery->pos = pBlock->numOfPoints - 1;
-        getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, pQuery->pos);
-
-        qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
-               pQuery->fileId, pQuery->slot, pBlock->numOfPoints - 1, pQuery->pos);
-      }
-    }
-  }
-
+  
+  loadPrevDataPoint(pRuntimeEnv, pPointInterpSupporter->pPrevPoint);
+  
   pQuery->skey = *(TSKEY *)pPointInterpSupporter->pPrevPoint[0];
   pQuery->ekey = *(TSKEY *)pPointInterpSupporter->pNextPoint[0];
   pQuery->lastKey = pQuery->skey;
@@ -3635,8 +4016,17 @@ bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, STableQuerySup
       if (key != NULL) {
         *key = nextKey;
       }
-
-      return doGetQueryPos(nextKey, pSupporter, pPointInterpSupporter);
+      
+      // needs the data before the begin timestamp of query time window
+      if (nextKey != pQuery->skey) {
+        if (!pRuntimeEnv->hasTimeWindow) {
+          pQuery->skey = nextKey;  // change the query skey
+          pQuery->lastKey = pQuery->skey;
+        }
+        return true;
+      } else {
+        return doGetQueryPos(nextKey, pSupporter, pPointInterpSupporter);
+      }
     }
 
     // set no data in file
@@ -4223,63 +4613,6 @@ static bool forwardQueryStartPosIfNeeded(SQInfo *pQInfo, STableQuerySupportObj *
           }
         }
         
-//        if (win.ekey <= blockInfo.keyLast) {
-//          pQuery->limit.offset -= 1;
-//
-//          if (win.ekey == blockInfo.keyLast) {
-//            moveToNextBlock(pRuntimeEnv, step, searchFn, false);
-//            if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-//              break;
-//            }
-//
-//            // next block does not included in time range, abort query
-//            blockInfo = getBlockInfo(pRuntimeEnv);
-//            if ((blockInfo.keyFirst > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-//                (blockInfo.keyLast < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-//              setQueryStatus(pQuery, QUERY_COMPLETED);
-//              break;
-//            }
-//
-//            // set the window that start from the next data block
-//            win = getActiveTimeWindow(pWindowResInfo, blockInfo.keyFirst, pQuery);
-//          } else {
-//            // the time window is closed in current data block, load disk file block into memory to
-//            // check the next time window
-//            if (IS_DISK_DATA_BLOCK(pQuery)) {
-//              getTimestampInDiskBlock(pRuntimeEnv, 0);
-//            }
-//
-//            STimeWindow nextWin = win;
-//            int32_t     startPos =
-//                getNextQualifiedWindow(pRuntimeEnv, &nextWin, pWindowResInfo, &blockInfo, primaryKey, searchFn);
-//
-//            if (startPos < 0) {  // failed to find the qualified time window
-//              assert((nextWin.skey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-//                     (nextWin.ekey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
-//
-//              setQueryStatus(pQuery, QUERY_COMPLETED);
-//              break;
-//            } else {  // set the abort info
-//              pQuery->pos = startPos;
-//              pQuery->lastKey = primaryKey[startPos];
-//              win = nextWin;
-//            }
-//          }
-//
-//          continue;
-//        }
-//
-//        moveToNextBlock(pRuntimeEnv, step, searchFn, false);
-//        if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-//          break;
-//        }
-//
-//        blockInfo = getBlockInfo(pRuntimeEnv);
-//        if ((blockInfo.keyFirst > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-//            (blockInfo.keyLast < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-//          setQueryStatus(pQuery, QUERY_COMPLETED);
-//          break;
-//        }
       }
 
       if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED) || pQuery->limit.offset > 0) {
@@ -4468,7 +4801,7 @@ void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointI
 }
 
 void pointInterpSupporterInit(SQuery *pQuery, SPointInterpoSupporter *pInterpoSupport) {
-  if (isPointInterpoQuery(pQuery)) {
+  if (isPointInterpoQuery(pQuery) || needsBoundaryTS(pQuery)) {
     pInterpoSupport->pPrevPoint = malloc(pQuery->numOfCols * POINTER_BYTES);
     pInterpoSupport->pNextPoint = malloc(pQuery->numOfCols * POINTER_BYTES);
 
@@ -4547,12 +4880,15 @@ static int32_t allocateRuntimeEnvBuf(SQueryRuntimeEnv *pRuntimeEnv, SMeterObj *p
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   // To make sure the start position of each buffer is aligned to 4bytes in 32-bit ARM system.
+  pRuntimeEnv->lastRowInBlock = calloc(pQuery->numOfCols, POINTER_BYTES);
   for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
     int32_t bytes = pQuery->colList[i].data.bytes;
     pRuntimeEnv->colDataBuffer[i] = calloc(1, sizeof(SData) + EXTRA_BYTES + pMeterObj->pointsPerFileBlock * bytes);
     if (pRuntimeEnv->colDataBuffer[i] == NULL) {
       goto _error_clean;
     }
+    
+    pRuntimeEnv->lastRowInBlock[i] = calloc(1, bytes);
   }
 
   // record the maximum column width among columns of this meter/metric
@@ -4666,7 +5002,9 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, STableQuery
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   pRuntimeEnv->pQuery = pQuery;
   pRuntimeEnv->pMeterObj = pMeterObj;
-
+  pRuntimeEnv->hasTimeWindow = !notHasQueryTimeRange(pQuery);
+  pRuntimeEnv->interpoSearch = needsBoundaryTS(pQuery);
+  
   if ((code = allocateRuntimeEnvBuf(pRuntimeEnv, pMeterObj)) != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -4721,9 +5059,9 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, STableQuery
   /* query on single table */
   pSupporter->numOfMeters = 1;
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
-
-  SPointInterpoSupporter interpInfo = {0};
-  pointInterpSupporterInit(pQuery, &interpInfo);
+  
+  SPointInterpoSupporter interpoSupporter = {0};
+  pointInterpSupporterInit(pQuery, &interpoSupporter);
 
   /*
    * in case of last_row query without query range, we set the query timestamp to
@@ -4731,11 +5069,11 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, STableQuery
    */
 
   if (isFirstLastRowQuery(pQuery) && notHasQueryTimeRange(pQuery)) {
-    if (!normalizeUnBoundLastRowQuery(pSupporter, &interpInfo)) {
+    if (!normalizeUnBoundLastRowQuery(pSupporter, &interpoSupporter)) {
       sem_post(&pQInfo->dataReady);
       pQInfo->over = 1;
 
-      pointInterpSupporterDestroy(&interpInfo);
+      pointInterpSupporterDestroy(&interpoSupporter);
       return TSDB_CODE_SUCCESS;
     }
   } else {  // find the skey and ekey in case of sliding query
@@ -4749,22 +5087,33 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, STableQuery
       }
 
       int64_t skey = 0;
-      if ((normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &interpInfo, &skey) == false) ||
+      if ((normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &interpoSupporter, &skey) == false) ||
           (isFixedOutputQuery(pQuery) && !isTopBottomQuery(pQuery) && (pQuery->limit.offset > 0)) ||
           (isTopBottomQuery(pQuery) && pQuery->limit.offset >= pQuery->pSelectExpr[1].pBase.arg[0].argValue.i64)) {
         sem_post(&pQInfo->dataReady);
         pQInfo->over = 1;
 
-        pointInterpSupporterDestroy(&interpInfo);
+        pointInterpSupporterDestroy(&interpoSupporter);
         return TSDB_CODE_SUCCESS;
       }
 
+      pQuery->skey = skey;
       if (!QUERY_IS_ASC_QUERY(pQuery)) {
         win.skey = minKey;
         win.ekey = skey;
+        pQuery->ekey = minKey;
       } else {
         win.skey = skey;
         win.ekey = pQuery->ekey;
+      }
+      
+      // empty result
+      if (QUERY_IS_ASC_QUERY(pQuery) && win.skey > win.ekey) {
+        sem_post(&pQInfo->dataReady);
+        pQInfo->over = 1;
+
+        pointInterpSupporterDestroy(&interpoSupporter);
+        return TSDB_CODE_SUCCESS;
       }
 
       TSKEY skey1, ekey1;
@@ -4784,13 +5133,13 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, STableQuery
       pQuery->over = QUERY_NOT_COMPLETED;
     } else {
       int64_t ekey = 0;
-      if ((normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &interpInfo, &ekey) == false) ||
+      if ((normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &interpoSupporter, &ekey) == false) ||
           (isFixedOutputQuery(pQuery) && !isTopBottomQuery(pQuery) && (pQuery->limit.offset > 0)) ||
           (isTopBottomQuery(pQuery) && pQuery->limit.offset >= pQuery->pSelectExpr[1].pBase.arg[0].argValue.i64)) {
         sem_post(&pQInfo->dataReady);
         pQInfo->over = 1;
 
-        pointInterpSupporterDestroy(&interpInfo);
+        pointInterpSupporterDestroy(&interpoSupporter);
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -4800,14 +5149,14 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, STableQuery
    * here we set the value for before and after the specified time into the
    * parameter for interpolation query
    */
-  pointInterpSupporterSetData(pQInfo, &interpInfo);
-  pointInterpSupporterDestroy(&interpInfo);
+  pointInterpSupporterSetData(pQInfo, &interpoSupporter);
+  pointInterpSupporterDestroy(&interpoSupporter);
 
   if (!forwardQueryStartPosIfNeeded(pQInfo, pSupporter, dataInDisk, dataInCache)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t rs = taosGetIntervalStartTimestamp(pSupporter->rawSKey, pQuery->intervalTime, pQuery->intervalTimeUnit,
+  int64_t rs = taosGetIntervalStartTimestamp(pSupporter->rawSKey, pQuery->intervalTime, pQuery->slidingTimeUnit,
                                              pQuery->precision);
   taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, rs, 0, 0);
   allocMemForInterpo(pSupporter, pQuery, pMeterObj);
@@ -4888,6 +5237,7 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
   pSupporter->rawEKey = pQuery->ekey;
   pSupporter->rawSKey = pQuery->skey;
   pQuery->lastKey = pQuery->skey;
+  pRuntimeEnv->interpoSearch = needsBoundaryTS(pQuery);
 
   // create runtime environment
   SColumnModel *pTagSchemaInfo = pSupporter->pSidSet->pColumnModel;
@@ -4943,7 +5293,7 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
   }
 
   TSKEY revisedStime = taosGetIntervalStartTimestamp(pSupporter->rawSKey, pQuery->intervalTime,
-                                                     pQuery->intervalTimeUnit, pQuery->precision);
+                                                     pQuery->slidingTimeUnit, pQuery->precision);
   taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, revisedStime, 0, 0);
   pRuntimeEnv->stableQuery = true;
 
@@ -5389,6 +5739,8 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   if (isIntervalQuery(pQuery) && IS_MASTER_SCAN(pRuntimeEnv)) {
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
       closeAllTimeWindow(&pRuntimeEnv->windowResInfo);
+      removeRedundantWindow(&pRuntimeEnv->windowResInfo, pQuery->lastKey - step, step);
+  
       pRuntimeEnv->windowResInfo.curIndex = pRuntimeEnv->windowResInfo.size - 1;
     } else if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {  // check if window needs to be closed
       SBlockInfo blockInfo = getBlockInfo(pRuntimeEnv);
@@ -5448,7 +5800,6 @@ void vnodeSetTagValueInParam(tSidSet *pSidSet, SQueryRuntimeEnv *pRuntimeEnv, SM
     }
 
     // set the join tag for first column
-    SSqlFuncExprMsg *pFuncMsg = &pQuery->pSelectExpr[0].pBase;
     if (pFuncMsg->functionId == TSDB_FUNC_TS && pFuncMsg->colInfo.colIdx == PRIMARYKEY_TIMESTAMP_COL_INDEX &&
         pRuntimeEnv->pTSBuf != NULL) {
       assert(pFuncMsg->numOfParams == 1);
@@ -5474,9 +5825,6 @@ static void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, SWindowRes
     pCtx[i].hasNull = true;
     pCtx[i].nStartQueryTimestamp = timestamp;
     pCtx[i].aInputElemBuf = getPosInResultPage(pRuntimeEnv, i, pWindowRes);
-    //    pCtx[i].aInputElemBuf = ((char *)inputSrc->data) +
-    //                            ((int32_t)pRuntimeEnv->offset[i] * pRuntimeEnv->numOfRowsPerPage) +
-    //                            pCtx[i].outputBytes * inputIdx;
 
     // in case of tag column, the tag information should be extracted from input buffer
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TAG) {
@@ -7172,7 +7520,6 @@ void setIntervalQueryRange(SMeterQueryInfo *pMeterQueryInfo, STableQuerySupportO
 
     doGetAlignedIntervalQueryRangeImpl(pQuery, win.skey, win.skey, win.ekey, &skey1, &ekey1, &windowSKey, &windowEKey);
     pWindowResInfo->startTime = windowSKey;  // windowSKey may be 0 in case of 1970 timestamp
-                                             //    assert(pWindowResInfo->startTime > 0);
 
     if (pWindowResInfo->prevSKey == 0) {
       if (QUERY_IS_ASC_QUERY(pQuery)) {
@@ -7477,6 +7824,8 @@ void stableApplyFunctionsOnBlock(STableQuerySupportObj *pSupporter, SMeterDataIn
 
   updateWindowResNumOfRes(pRuntimeEnv, pMeterDataInfo);
   updatelastkey(pQuery, pMeterQueryInfo);
+  
+  doCheckQueryCompleted(pRuntimeEnv, pMeterQueryInfo->lastKey, pWindowResInfo);
 }
 
 // we need to split the refstatsult into different packages.
@@ -7536,7 +7885,7 @@ bool vnodeHasRemainResults(void *handle) {
     // query has completed
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
       TSKEY   ekey = taosGetRevisedEndKey(pSupporter->rawEKey, pQuery->order.order, pQuery->intervalTime,
-                                        pQuery->intervalTimeUnit, pQuery->precision);
+                                        pQuery->slidingTimeUnit, pQuery->precision);
       int32_t numOfTotal = taosGetNumOfResultWithInterpo(pInterpoInfo, (TSKEY *)pRuntimeEnv->pInterpoBuf[0]->data,
                                                          remain, pQuery->intervalTime, ekey, pQuery->pointsToRead);
       return numOfTotal > 0;
@@ -7647,7 +7996,7 @@ int32_t vnodeQueryResultInterpolate(SQInfo *pQInfo, tFilePage **pDst, tFilePage 
     numOfRows = taosNumOfRemainPoints(&pRuntimeEnv->interpoInfo);
 
     TSKEY   ekey = taosGetRevisedEndKey(pSupporter->rawEKey, pQuery->order.order, pQuery->intervalTime,
-                                      pQuery->intervalTimeUnit, pQuery->precision);
+                                      pQuery->slidingTimeUnit, pQuery->precision);
     int32_t numOfFinalRows = taosGetNumOfResultWithInterpo(&pRuntimeEnv->interpoInfo, (TSKEY *)pDataSrc[0]->data,
                                                            numOfRows, pQuery->intervalTime, ekey, pQuery->pointsToRead);
 
