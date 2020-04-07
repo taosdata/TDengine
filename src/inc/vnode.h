@@ -31,7 +31,8 @@ int32_t vnodeOpen(int32_t vgId, char *rootDir);
 int32_t vnodeClose(int32_t vgId);
 
 void    vnodeRelease(void *pVnode);
-void*   vnodeGetVnode(int32_t vgId);
+void*   vnodeAccquireVnode(int32_t vgId); // add refcount 
+void*   vnodeGetVnode(int32_t vgId);      // keep refcount unchanged
 
 void*   vnodeGetRqueue(void *);
 void*   vnodeGetWqueue(int32_t vgId);
