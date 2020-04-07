@@ -83,7 +83,7 @@ static int32_t getGroupResultId(int32_t groupIndex) {
 static bool needsBoundaryTS(SQuery *pQuery) {
   for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
     int32_t functionId = pQuery->pSelectExpr[i].pBase.functionId;
-    if (functionId == TSDB_FUNC_RATE) {
+    if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE) {
       return true;
     }
   }
@@ -1749,7 +1749,8 @@ static void doBlockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SWindowStat
       pCtx[k].size = forwardStep;
       pCtx[k].startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? startPos : startPos - (forwardStep - 1);
   
-      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0 || functionId == TSDB_FUNC_RATE) {
+      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0 
+        || ((functionId >= TSDB_FUNC_RATE) && (functionId <= TSDB_FUNC_AVG_IRATE))) {
         pCtx[k].ptsList = (TSKEY *)((char*)pRuntimeEnv->primaryColBuffer->data + pCtx[k].startOffset * TSDB_KEYSIZE);
       }
   
@@ -2062,7 +2063,8 @@ static void doSetInterpolationDataForTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, S
   
   // interpolate for skey value
   for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-    if (pQuery->pSelectExpr[i].pBase.functionId != TSDB_FUNC_RATE) {
+    if ((pQuery->pSelectExpr[i].pBase.functionId < TSDB_FUNC_RATE)
+      || (pQuery->pSelectExpr[i].pBase.functionId > TSDB_FUNC_AVG_IRATE)) {
       continue;
     }
     
@@ -2072,7 +2074,8 @@ static void doSetInterpolationDataForTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, S
   
   // interpolate for ekey value
   for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-    if (pQuery->pSelectExpr[i].pBase.functionId != TSDB_FUNC_RATE) {
+    if ((pQuery->pSelectExpr[i].pBase.functionId < TSDB_FUNC_RATE)
+      || (pQuery->pSelectExpr[i].pBase.functionId > TSDB_FUNC_AVG_IRATE)) {
       continue;
     }
     
