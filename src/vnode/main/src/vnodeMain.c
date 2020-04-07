@@ -291,7 +291,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   }
 
   fclose(fp);
-  dTrace("vgId:%d, save vnode cfg successed", pVnodeCfg, pVnodeCfg->cfg.vgId);
+  dTrace("vgId:%d, save vnode cfg successed", pVnodeCfg->cfg.vgId);
 
   return TSDB_CODE_SUCCESS;
 }
