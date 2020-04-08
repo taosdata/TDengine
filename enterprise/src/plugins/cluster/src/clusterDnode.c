@@ -148,14 +148,32 @@ int32_t clusterGetDnodesNum() {
   return sdbGetNumOfRows(tsDnodeSdb);
 }
 
+void clusterUpdateDnode(SDnodeObj *pDnode) {
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_TYPE_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode,
+    .rowSize = tsDnodeUpdateSize
+  };
+
+  sdbUpdateRow(&oper);
+}
+
+void clusterDropDnode(SDnodeObj *pDnode) {
+    SSdbOperDesc oper = {
+    .type = SDB_OPER_TYPE_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode
+  };
+
+  sdbDeleteRow(&oper);
+}
+
 SDnodeObj *clusterGetDnode(int32_t dnodeId) {
   return (SDnodeObj *)sdbGetRow(tsDnodeSdb, &dnodeId);
 }
 
-void clusterIncDnodeRef(SDnodeObj *pDnode) {
-  sdbIncRef(tsDnodeSdb, pDnode);
-}
-void clusterDecDnodeRef(SDnodeObj *pDnode) {
+void clusterReleaseDnode(SDnodeObj *pDnode) {
   sdbDecRef(tsDnodeSdb, pDnode);
 }
 

@@ -25,31 +25,17 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-void clusterInit();
+int32_t clusterInit();
+void    clusterCleanUp();
+int32_t clusterGetDnodesNum();
 
-// dnodeMgmt & clusterDnodeConn
-extern void    (*dnodeInitMgmtIpFp)();
-extern int32_t (*dnodeInitMgmtFp)();
-extern void    (*dnodeCleanUpMgmtFp)();
-extern void    (*dnodeProcessStatusRspFp)(void *pCont, int32_t contLen, int8_t msgType, void *pConn);
-extern void    (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen);
-extern void    (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
+void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
+void    clusterReleaseDnode(SDnodeObj *pDnode);
+SDnodeObj* clusterGetDnode(int32_t dnodeId);
+SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
 
-// mgmtDnodeInt & clusterMgmtConn
-extern int32_t (*mgmtInitDnodeIntFp)();
-extern void    (*mgmtCleanUpDnodeIntFp);
-extern void    (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
-extern void    (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
-
-// mgmtDnode & clusterDnode
-extern int32_t    (*mgmtInitDnodesFp)();
-extern void       (*mgmtCleanUpDnodesFp)();
-extern SDnodeObj *(*mgmtGetDnodeFp)(uint32_t ip);
-extern int32_t    (*mgmtGetDnodesNumFp)();
-extern int32_t    (*mgmtUpdateDnodeFp)(SDnodeObj *pDnode);
-extern void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode);
-extern int32_t    (*mgmtCreateDnodeFp)(uint32_t ip);
-extern int32_t    (*mgmtDropDnodeByIpFp)(uint32_t ip);
+void clusterUpdateDnode(SDnodeObj *pDnode);
+void clusterDropDnode(SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }

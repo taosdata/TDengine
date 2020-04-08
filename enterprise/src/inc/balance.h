@@ -25,18 +25,11 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-/*
-* Interface functions
-*/
-
 int32_t balanceInit();
 void    balanceCleanUp();
-
 void    balanceNotify();
 int32_t balanceAllocVnodes(SVgObj *pVgroup);
-
-int32_t balanceSetDnodeRemoveState(SDnodeObj *pDnode);
-void    balanceSetDnodeUnRemoveState(SDnodeObj *pDnode);
+int32_t balanceDropDnode(SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }
