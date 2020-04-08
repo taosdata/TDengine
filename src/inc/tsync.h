@@ -56,16 +56,13 @@ typedef struct {
 } SNodesRole;
  
 typedef struct {
-  char       label[20]; // for debug purpose 
-  char       path[128]; // path to the file
-  int8_t     replica;   // number of replications, >=1
-  int8_t     quorum;    // number of confirms required, >=1 
   int32_t    vgId;      // vgroup ID
-  void      *ahandle;   // handle provided by APP 
   uint64_t   version;   // initial version
-  uint32_t   arbitratorIp; 
-  SNodeInfo  nodeInfo[TAOS_SYNC_MAX_REPLICA];
+  SSyncCfg   syncCfg;   // configuration from mgmt
+  char       path[128]; // path to the file
  
+  void      *ahandle;   // handle provided by APP 
+
   // if name is null, get the file from index or after, used by master
   // if name is provided, get the named file at the specified index, used by unsynced node
   // it returns the file magic number and size, if file not there, magic shall be 0.
@@ -76,7 +73,7 @@ typedef struct {
   int        (*getWalInfo)(char *name, int *index); 
  
   // when a forward pkt is received, call this to handle data 
-  int        (*writeToCache)(void *ahandle, SWalHead *, int type);
+  int        (*writeToCache)(void *ahandle, void *pHead, int type);
 
   // when forward is confirmed by peer, master call this API to notify app
   void       (*confirmForward)(void *ahandle, void *mhandle, int32_t code);
@@ -89,8 +86,8 @@ typedef void* tsync_h;
 
 tsync_h syncStart(SSyncInfo *);
 void    syncStop(tsync_h shandle);
-int     syncReconfig(tsync_h shandle, SSyncInfo *);
-int     syncForwardToPeer(tsync_h shandle, SWalHead *pHead, void *mhandle);
+int     syncReconfig(tsync_h shandle, SSyncCfg *);
+int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle);
 void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code);
 void    syncRecover(tsync_h shandle);      // recover from other nodes:
 int     syncGetNodesRole(tsync_h shandle, SNodesRole *);
