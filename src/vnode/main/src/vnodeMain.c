@@ -317,51 +317,51 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   FILE *fp = fopen(cfgFile, "r");
   if (!fp) return errno;
 
-  int32_t commitLog = 0;
+  int32_t commitLog = -1;
   int32_t num = fscanf(fp, "%s %d", option[0], &commitLog);
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "commitLog") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
-  if (commitLog == 0) return TSDB_CODE_INVALID_FILE_FORMAT;
+  if (commitLog == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
   pVnode->walCfg.commitLog = (int8_t)commitLog;
 
-  int32_t wals = 0;
+  int32_t wals = -1;
   num = fscanf(fp, "%s %d", option[0], &wals);
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "wals") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
-  if (wals == 0) return TSDB_CODE_INVALID_FILE_FORMAT;
+  if (wals == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
   pVnode->walCfg.wals = (int8_t)wals;
 
-  int32_t arbitratorIp = 0;
+  int32_t arbitratorIp = -1;
   num = fscanf(fp, "%s %u", option[0], &arbitratorIp);
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "arbitratorIp") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
-  if (arbitratorIp == 0) return TSDB_CODE_INVALID_FILE_FORMAT;
+  if (arbitratorIp == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
   pVnode->syncCfg.arbitratorIp = arbitratorIp;
 
-  int32_t quorum = 0;
+  int32_t quorum = -1;
   num = fscanf(fp, "%s %d", option[0], &quorum);
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "quorum") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
-  if (quorum == 0) return TSDB_CODE_INVALID_FILE_FORMAT;
+  if (quorum == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
   pVnode->syncCfg.quorum = (int8_t)quorum;
 
-  int32_t replica = 0;
+  int32_t replica = -1;
   num = fscanf(fp, "%s %d", option[0], &replica);
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "replica") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
-  if (replica == 0) return TSDB_CODE_INVALID_FILE_FORMAT;
+  if (replica == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
   pVnode->syncCfg.replica = (int8_t)replica;
 
   for (int32_t i = 0; i < replica; ++i) {
-    int32_t  dnodeId = 0;
-    uint32_t dnodeIp = 0;
+    int32_t  dnodeId = -1;
+    uint32_t dnodeIp = -1;
     num = fscanf(fp, "%s %s %d %s %u %s %s", option[0], option[1], &dnodeId, option[2], &dnodeIp, option[3], pVnode->syncCfg.nodeInfo[i].name);
     if (num != 7) return TSDB_CODE_INVALID_FILE_FORMAT;
     if (strcmp(option[1], "nodeId") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
     if (strcmp(option[2], "nodeIp") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
     if (strcmp(option[3], "name") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
-    if (dnodeId == 0) return TSDB_CODE_INVALID_FILE_FORMAT;
-    if (dnodeIp == 0) return TSDB_CODE_INVALID_FILE_FORMAT;
+    if (dnodeId == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
+    if (dnodeIp == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
     pVnode->syncCfg.nodeInfo[i].nodeId = dnodeId;
     pVnode->syncCfg.nodeInfo[i].nodeIp = dnodeIp;
   }
