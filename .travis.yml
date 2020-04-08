@@ -41,12 +41,29 @@ addons:
     branch_pattern: coverity_scan
 
 before_script:
-  - mkdir build
-  - cd build
+  - mkdir debug
+  - cd debug
 
 script:
   - cmake .. 
-  - cmake --build .
+  - cmake --build . || exit $?
+  - |-
+    case $TRAVIS_OS_NAME in
+      linux)
+        cd ../tests/script
+        sudo ./test.sh 2>&1 | tee out.txt
+        cat out.txt
+        grep success out.txt
+        total_success=`grep success out.txt | wc -l`
+        echo "Total $total_success success"
+        grep failed out.txt
+        total_failed=`grep failed out.txt | wc -l`
+        echo "Total $total_failed failed"
+        if [ "$total_failed" -ne "0" ]; then
+          exit $total_failed
+        fi
+        ;;
+    esac
 
 #
 # Build Matrix
@@ -58,6 +75,7 @@ matrix:
         packages:
           - build-essential
           - cmake
+          - net-tools
 
 #  - os: osx
 #    addons:
