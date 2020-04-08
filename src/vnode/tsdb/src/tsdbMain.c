@@ -889,23 +889,20 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   tsdbGetDataDirName(pRepo, dataDir);
   if ((pGroup = tsdbCreateFGroup(pFileH, dataDir, fid, pCfg->maxTables)) == NULL) goto _err;
 
-  // Set the file to write/read
-  tsdbSetHelperFile(pHelper, pGroup);
-
   // Open files for write/read
-  if (tsdbOpenHelperFile(pHelper) < 0) goto _err;
+  if (tsdbSetAndOpenHelperFile(pHelper, pGroup) < 0) goto _err;
 
   // Loop to commit data in each table
   for (int tid = 0; tid < pCfg->maxTables; tid++) {
     STable *           pTable = pMeta->tables[tid];
     SSkipListIterator *pIter = iters[tid];
 
+    // Set the helper and the buffer dataCols object to help to write this table
     SHelperTable hTable = {.uid = pTable->tableId.uid, .tid = pTable->tableId.tid, .sversion = pTable->sversion};
     tsdbSetHelperTable(pHelper, &hTable, tsdbGetTableSchema(pMeta, pTable));
     tdInitDataCols(pDataCols, tsdbGetTableSchema(pMeta, pTable));
 
-    // Loop to write the data in the cache to files, if no data to write, just break
-    // the loop 
+    // Loop to write the data in the cache to files. If no data to write, just break the loop 
     int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
     while (true) {
       int rowsRead = tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pDataCols);
@@ -939,6 +936,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   return 0;
 
   _err:
+  ASSERT(false);
   tsdbCloseHelperFile(pHelper, 1);
   return -1;
 }

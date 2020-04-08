@@ -385,10 +385,11 @@ typedef struct {
   SHelperFile files;
 
   SHelperTable tableInfo;
+  SCompIdx     compIdx;  // SCompIdx of current table
 
-  // ---------- For read purpose
   int8_t state;  // current loading state
 
+  // Information in .head file
   SCompIdx *pCompIdx;
   size_t    compIdxSize;
 
@@ -396,33 +397,24 @@ typedef struct {
   size_t     compInfoSize;
   int        blockIter; // For write purpose
 
+  // Information in .data or .last file
   SCompData *pCompData;
   size_t     compDataSize;
 
   SDataCols *pDataCols[2];
 
-  // ---------- For read purpose
-  bool hasLast;
-
-  int       newBlocks;
-  SCompIdx *pWCompIdx;
-  size_t    wCompIdxSize;
-
-  SCompInfo *pWCompInfo;
-  size_t     wCompInfoSize;
-
-  SCompData *pWCompData;
-  size_t     wCompDataSize;
+  // Compression buffer
+  void * cBuffer;
+  size_t cBufSize;
 } SRWHelper;
 
 // --------- Helper state
-#define TSDB_HELPER_CLEAR_STATE 0x0      // Clear state
-#define TSDB_HELPER_FILE_SET 0x1         // File is set
-#define TSDB_HELPER_FILE_OPEN 0x2        // File is opened
-
-#define TSDB_HELPER_IDX_LOAD 0x4    // SCompIdx part is loaded
-#define TSDB_HELPER_INFO_LOAD 0x8   // SCompInfo part is loaded
-#define TSDB_HELPER_FILE_DATA_LOAD 0x10  // SCompData part is loaded
+#define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
+#define TSDB_HELPER_FILE_SET_AND_OPEN 0x1  // File is set
+#define TSDB_HELPER_IDX_LOAD 0x2           // SCompIdx part is loaded
+#define TSDB_HELPER_TABLE_SET 0x4          // Table is set
+#define TSDB_HELPER_INFO_LOAD 0x8          // SCompInfo part is loaded
+#define TSDB_HELPER_FILE_DATA_LOAD 0x10    // SCompData part is loaded
 
 #define TSDB_HELPER_TYPE(h) ((h)->config.type)
 
@@ -435,8 +427,7 @@ void tsdbDestroyHelper(SRWHelper *pHelper);
 void tsdbClearHelper(SRWHelper *pHelper);
 
 // --------- For set operations
-int  tsdbSetHelperFile(SRWHelper *pHelper, SFileGroup *pGroup);
-int  tsdbOpenHelperFile(SRWHelper *pHelper);
+int  tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup);
 void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema *pSchema);
 int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
 
