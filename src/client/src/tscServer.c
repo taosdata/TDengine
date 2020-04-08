@@ -1787,6 +1787,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   size = tscEstimateHeartBeatMsgLength(pSql);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
+    pthread_mutex_unlock(&pObj->mutex);
     tscError("%p failed to malloc for heartbeat msg", pSql);
     return -1;
   }
