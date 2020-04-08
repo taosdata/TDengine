@@ -372,7 +372,7 @@ char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
   }
   clusterReleaseDnode(pDnode);
 
-  if (pDnode->status == TSDB_DN_STATUS_OFFLINE) {
+  if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     return "offline";
   }
 

@@ -48,7 +48,7 @@ int32_t clusterInitDnodes() {
   tsDnodeObj.publicIp         = inet_addr(tsPublicIp);
   tsDnodeObj.createdTime      = taosGetTimestampMs();
   tsDnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
-  tsDnodeObj.status           = TSDB_DN_STATUS_OFFLINE;
+  tsDnodeObj.status           = TAOS_DN_STATUS_OFFLINE;
   tsDnodeObj.lastReboot       = taosGetTimestampSec();
   sprintf(tsDnodeObj.dnodeName, "%d", tsDnodeObj.dnodeId);
 
@@ -203,9 +203,9 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mgmtReleaseVgroup(pVgroup);
   }
 
-  if (pDnode->status != TSDB_DN_STATUS_READY) {
+  if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
-    pDnode->status = TSDB_DN_STATUS_READY;
+    pDnode->status = TAOS_DN_STATUS_READY;
     balanceNotify();
   }
 
@@ -673,10 +673,10 @@ static int32_t clusterRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, 
 
 char* clusterGetDnodeStatusStr(int32_t dnodeStatus) {
   switch (dnodeStatus) {
-    case TSDB_DN_STATUS_OFFLINE:   return "offline";
-    case TSDB_DN_STATUS_DROPING:   return "dropping";
-    case TSDB_DN_STATUS_BALANCING: return "balancing";
-    case TSDB_DN_STATUS_READY:     return "ready";
+    case TAOS_DN_STATUS_OFFLINE:   return "offline";
+    case TAOS_DN_STATUS_DROPPING:  return "dropping";
+    case TAOS_DN_STATUS_BALANCING: return "balancing";
+    case TAOS_DN_STATUS_READY:     return "ready";
     default:                       return "undefined";
   }
 }

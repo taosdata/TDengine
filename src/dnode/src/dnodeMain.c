@@ -220,7 +220,6 @@ static int32_t dnodeInitStorage() {
   sprintf(tsMnodeDir, "%s/mnode", dataDir);
   sprintf(tsVnodeDir, "%s/vnode", dataDir);
   sprintf(tsDnodeDir, "%s/dnode", dataDir);
-  mkdir(tsMnodeDir, 0755);
   mkdir(tsVnodeDir, 0755);
   mkdir(tsDnodeDir, 0755);
 

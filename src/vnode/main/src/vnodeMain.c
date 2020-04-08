@@ -266,6 +266,7 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
   pLoad->vgId = htonl(pVnode->vgId);
   pLoad->vnode = htonl(pVnode->vgId);
   pLoad->status = pVnode->status;
+  pLoad->role = pVnode->role;
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
