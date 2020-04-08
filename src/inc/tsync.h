@@ -37,25 +37,10 @@ typedef enum _TAOS_SYNC_STATUS {
 } ESyncStatus;
 
 typedef struct {
-  int8_t    msgType;
-  int8_t    reserved[3];
-  int32_t   len;
-  uint64_t  version;
-  uint64_t  cksum;
-  char      cont[];
-} SWalHead;
-
-typedef struct {
   uint32_t  nodeId;    // node ID assigned by TDengine
   uint32_t  nodeIp;    // node IP address
   char      name[TSDB_FILENAME_LEN]; // external node name 
 } SNodeInfo;
-
-typedef struct {
-  int       selfIndex;
-  uint32_t  nodeId[TAOS_SYNC_MAX_REPLICA];
-  int       role[TAOS_SYNC_MAX_REPLICA];  
-} SNodesRole;
 
 typedef struct {
   uint32_t   arbitratorIp;  // arbitrator IP address
@@ -63,7 +48,13 @@ typedef struct {
   int8_t     replica;   // number of replications, >=1
   SNodeInfo  nodeInfo[TAOS_SYNC_MAX_REPLICA];
 } SSyncCfg;
-  
+
+typedef struct {
+  int       selfIndex;
+  uint32_t  nodeId[TAOS_SYNC_MAX_REPLICA];
+  int       role[TAOS_SYNC_MAX_REPLICA];  
+} SNodesRole;
+ 
 typedef struct {
   char       label[20]; // for debug purpose 
   char       path[128]; // path to the file
