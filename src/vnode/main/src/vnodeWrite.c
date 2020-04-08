@@ -248,8 +248,9 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   return code;
 }
 
-int vnodeWriteToQueue(void *param, SWalHead *pHead, int type) {
+int vnodeWriteToQueue(void *param, void *data, int type) {
   SVnodeObj *pVnode = param;
+  SWalHead *pHead = data;
 
   int size = sizeof(SWalHead) + pHead->len;
   SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);

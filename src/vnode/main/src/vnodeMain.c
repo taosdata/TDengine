@@ -29,13 +29,18 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 
-static void   *tsDnodeVnodesHash;
-static void    vnodeCleanUp(SVnodeObj *pVnode);
-static void    vnodeBuildVloadMsg(char *pNode, void * param);
-static int     vnodeWALCallback(void *arg);
-static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
-static int32_t vnodeReadCfg(SVnodeObj *pVnode);
+static void    *tsDnodeVnodesHash;
+static void     vnodeCleanUp(SVnodeObj *pVnode);
+static void     vnodeBuildVloadMsg(char *pNode, void * param);
+static int      vnodeWalCallback(void *arg);
+static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
+static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
+static int      vnodeWalCallback(void *arg);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
+static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
+static void     vnodeNotifyRole(void *ahandle, int8_t role);
 
+// module global
 static int   tsOpennedVnodes;
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
@@ -140,14 +145,27 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
   sprintf(temp, "%s/wal", rootDir);
-  pVnode->wal      = walOpen(temp, pVnode->walCfg.wals, pVnode->walCfg.commitLog);
-  pVnode->sync     = NULL;
+  pVnode->wal      = walOpen(temp, &pVnode->walCfg);
+
+  SSyncInfo syncInfo;
+  syncInfo.vgId = pVnode->vgId;
+  syncInfo.vgId = pVnode->version;
+  syncInfo.syncCfg = pVnode->syncCfg;
+  sprintf(syncInfo.path, "%s/tsdb/", rootDir);
+  syncInfo.ahandle = pVnode;
+  syncInfo.getWalInfo = vnodeGetWalInfo;
+  syncInfo.getFileInfo = vnodeGetFileInfo;
+  syncInfo.writeToCache = vnodeWriteToQueue;
+  syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
+  syncInfo.notifyRole = vnodeNotifyRole;
+  // pVnode->sync     = syncStart(&syncInfo);;
+
   pVnode->events   = NULL;
   pVnode->cq       = NULL;
 
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
-  appH.walCallBack = vnodeWALCallback;
+  appH.walCallBack = vnodeWalCallback;
 
   sprintf(temp, "%s/tsdb", rootDir);
   void *pTsdb = tsdbOpenRepo(temp, &appH);
@@ -281,9 +299,25 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 }
 
 // TODO: this is a simple implement
-static int vnodeWALCallback(void *arg) {
+static int vnodeWalCallback(void *arg) {
   SVnodeObj *pVnode = arg;
   return walRenew(pVnode->wal);
+}
+
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
+  // SVnodeObj *pVnode = ahandle;
+  //tsdbGetFileInfo(pVnode->tsdb, name, index, size);
+  return 0;
+}
+
+static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
+  SVnodeObj *pVnode = ahandle;
+  return walGetWalFile(pVnode->wal, name, index);
+}
+
+static void vnodeNotifyRole(void *ahandle, int8_t role) {
+  SVnodeObj *pVnode = ahandle;
+  pVnode->role = role;
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {

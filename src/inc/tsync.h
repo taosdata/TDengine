@@ -66,11 +66,11 @@ typedef struct {
   // if name is null, get the file from index or after, used by master
   // if name is provided, get the named file at the specified index, used by unsynced node
   // it returns the file magic number and size, if file not there, magic shall be 0.
-  uint32_t   (*getFileInfo)(char *name, int *index, int *size); 
+  uint32_t   (*getFileInfo)(void *ahandle, char *name, uint32_t *index, int32_t *size); 
 
   // get the wal file from index or after
   // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file
-  int        (*getWalInfo)(char *name, int *index); 
+  int        (*getWalInfo)(void *ahandle, char *name, uint32_t *index); 
  
   // when a forward pkt is received, call this to handle data 
   int        (*writeToCache)(void *ahandle, void *pHead, int type);
@@ -94,11 +94,13 @@ int     syncGetNodesRole(tsync_h shandle, SNodesRole *);
 
 extern  char *syncRole[];
 
+//global configurable parameters
 extern  int   tsMaxSyncNum;
 extern  int   tsSyncTcpThreads;
 extern  int   tsMaxWatchFiles;
 extern  short tsSyncPort;
 extern  int   tsMaxFwdInfo; 
+extern  int   sDebugFlag;
 
 #ifdef __cplusplus
 }
