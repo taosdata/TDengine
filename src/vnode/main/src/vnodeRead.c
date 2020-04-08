@@ -42,7 +42,7 @@ int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen,
   if (vnodeProcessReadMsgFp[msgType] == NULL) 
     return TSDB_CODE_MSG_NOT_PROCESSED; 
 
-  if (pVnode->status == VN_STATUS_DELETING || pVnode->status == VN_STATUS_CLOSING) 
+  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
     return TSDB_CODE_NOT_ACTIVE_VNODE; 
 
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pCont, contLen, ret);

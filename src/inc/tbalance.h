@@ -13,36 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_GRANT_H
-#define TDENGINE_MGMT_GRANT_H
+#ifndef TDENGINE_BALANCE_H
+#define TDENGINE_BALANCE_H
 
 #ifdef __cplusplus
-"C" {
+extern "C" {
 #endif
 
-typedef enum {
-  TSDB_GRANT_ALL,
-  TSDB_GRANT_TIME,
-  TSDB_GRANT_USER,
-  TSDB_GRANT_DB,
-  TSDB_GRANT_TIMESERIES,
-  TSDB_GRANT_DNODE,
-  TSDB_GRANT_ACCT,
-  TSDB_GRANT_STORAGE,
-  TSDB_GRANT_SPEED,
-  TSDB_GRANT_QUERY_TIME,
-  TSDB_GRANT_CONNS,
-  TSDB_GRANT_STREAMS,
-  TSDB_GRANT_CPU_CORES,
-} EGrantType;
+#include <stdint.h>
+#include <stdbool.h>
+#include <pthread.h>
 
-int32_t grantInit();
-void    grantCleanUp();
-void    grantParseParameter();
-int32_t grantCheck(EGrantType grant);
-void    grantReset(EGrantType grant, uint64_t value);
-void    grantAdd(EGrantType grant, uint64_t value);
-void    grantRestore(EGrantType grant, uint64_t value);
+struct _db_obj;
+struct _vg_obj;
+struct _dnode_obj;
+
+int32_t balanceInit();
+void    balanceCleanUp();
+void    balanceNotify();
+int32_t balanceAllocVnodes(struct _vg_obj *pVgroup);
+int32_t balanceDropDnode(struct _dnode_obj *pDnode);
 
 #ifdef __cplusplus
 }

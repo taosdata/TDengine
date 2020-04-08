@@ -22,13 +22,18 @@ extern "C" {
 
 #include "mnode.h"
 
+enum _TSDB_DB_STATUS {
+  TSDB_DB_STATUS_READY,
+  TSDB_DB_STATUS_DROPPING
+};
+
 // api
 int32_t mgmtInitDbs();
 void    mgmtCleanUpDbs();
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByTableId(char *db);
 void    mgmtIncDbRef(SDbObj *pDb);
-void    mgmtDecDbRef(SDbObj *pDb);
+void    mgmtReleaseDb(SDbObj *pDb);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 void    mgmtDropAllDbs(SAcctObj *pAcct);
 
