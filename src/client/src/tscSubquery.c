@@ -1381,6 +1381,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   } else { // all data has been retrieved to client
     tscAllDataRetrievedFromDnode(trsupport, pSql);
   }
+  pthread_mutex_unlock(&trsupport->queryMutex);
 }
 
 static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj) {
