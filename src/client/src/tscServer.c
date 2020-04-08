@@ -2148,7 +2148,12 @@ int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(SDropUserMsg);
 
   pCmd->payloadLen = pMsg - pStart;
-  pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
+
+  if (pInfo->type == TSDB_SQL_DROP_ACCT) {
+    pCmd->msgType = TSDB_MSG_TYPE_DROP_ACCT;
+  } else {
+    pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
