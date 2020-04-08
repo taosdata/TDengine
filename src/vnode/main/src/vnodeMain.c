@@ -41,7 +41,7 @@ static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 
 // module global
-static int   tsOpennedVnodes;
+static int32_t         tsOpennedVnodes;
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
 static void vnodeInit() {
@@ -182,7 +182,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status = VN_STATUS_READY;
   dTrace("pVnode:%p vgId:%d, vnode is opened in %s", pVnode, pVnode->vgId, rootDir);
 
-  tsOpennedVnodes++;
+  atomic_add_fetch_32(&tsOpennedVnodes, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -223,8 +223,8 @@ void vnodeRelease(void *pVnodeRaw) {
   dTrace("pVnode:%p vgId:%d, vnode is released", pVnode, pVnode->vgId);
   free(pVnode);
 
-  tsOpennedVnodes--;
-  if (tsOpennedVnodes <= 0) {
+  int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
+  if (count <= 0) {
     taosCleanUpIntHash(tsDnodeVnodesHash);
     vnodeModuleInit = PTHREAD_ONCE_INIT;
     tsDnodeVnodesHash = NULL;
