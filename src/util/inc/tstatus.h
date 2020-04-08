@@ -24,15 +24,6 @@ extern "C" {
 #include <stdbool.h>
 #include "taoserror.h"
 
-enum _TSDB_VG_STATUS {
-  TSDB_VG_STATUS_READY               = TSDB_CODE_SUCCESS,
-  TSDB_VG_STATUS_IN_PROGRESS         = 1, //TSDB_CODE_ACTION_IN_PROGRESS,
-  TSDB_VG_STATUS_NO_DISK_PERMISSIONS = 73,//TSDB_CODE_NO_DISK_PERMISSIONS,
-  TSDB_VG_STATUS_SERVER_NO_PACE      = 110, //TSDB_CODE_SERV_NO_DISKSPACE,
-  TSDB_VG_STATUS_SERV_OUT_OF_MEMORY  = 69, //TSDB_CODE_SERV_OUT_OF_MEMORY,
-  TSDB_VG_STATUS_INIT_FAILED         = 74, //TSDB_CODE_VG_INIT_FAILED,
-  TSDB_VG_STATUS_FULL                = 48, //TSDB_CODE_NO_ENOUGH_DNODES,
-};
 
 enum _TSDB_DB_STATUS {
   TSDB_DB_STATUS_READY,
@@ -75,21 +66,9 @@ enum _TSDB_MN_ROLE {
   TSDB_MN_ROLE_MASTER
 };
 
-enum _TSDB_DN_STATUS {
-  TSDB_DN_STATUS_OFFLINE,
-  TSDB_DN_STATUS_READY
-};
-
-enum _TSDB_DN_LB_STATUS {
-  TSDB_DN_LB_STATUS_BALANCED,
-  TSDB_DN_LB_STATUS_BALANCING,
-  TSDB_DN_LB_STATUS_OFFLINE_REMOVING,
-  TSDB_DN_LB_STATE_SHELL_REMOVING
-};
-
-enum _TSDB_VG_LB_STATUS {
-  TSDB_VG_LB_STATUS_READY,
-  TSDB_VG_LB_STATUS_UPDATE
+enum _TSDB_VG_STATUS {
+  TSDB_VG_STATUS_READY,
+  TSDB_VG_STATUS_UPDATE
 };
 
 enum _TSDB_VN_STREAM_STATUS {
@@ -111,7 +90,6 @@ char* taosGetDbStatusStr(int32_t dbStatus);
 char* taosGetVnodeStatusStr(int32_t vnodeStatus);
 char* taosGetVnodeSyncStatusStr(int32_t vnodeSyncStatus);
 char* taosGetVnodeDropStatusStr(int32_t dropping);
-char* taosGetDnodeStatusStr(int32_t dnodeStatus);
 char* taosGetDnodeLbStatusStr(int32_t dnodeBalanceStatus);
 char* taosGetVgroupLbStatusStr(int32_t vglbStatus);
 char* taosGetVnodeStreamStatusStr(int32_t vnodeStreamStatus);

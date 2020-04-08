@@ -42,8 +42,7 @@ extern int32_t clusterInit();
 extern void    clusterCleanUp();
 extern int32_t clusterGetDnodesNum();
 extern void *  clusterGetNextDnode(void *pNode, SDnodeObj **pDnode);
-extern void    clusterIncDnodeRef(SDnodeObj *pDnode);
-extern void    clusterDecDnodeRef(SDnodeObj *pDnode);
+extern void    clusterReleaseDnode(SDnodeObj *pDnode);
 extern SDnodeObj* clusterGetDnode(int32_t dnodeId);
 extern SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
 #ifndef _CLUSTER
@@ -120,15 +119,9 @@ int32_t mgmtGetDnodesNum() {
 #endif
 }
 
-void mgmtIncDnodeRef(SDnodeObj *pDnode) {
+void mgmtReleaseDnode(SDnodeObj *pDnode) {
 #ifdef _CLUSTER
-  return clusterIncDnodeRef(pDnode);
-#endif
-}
-
-void mgmtDecDnodeRef(SDnodeObj *pDnode) {
-#ifdef _CLUSTER
-  return clusterDecDnodeRef(pDnode);
+  return clusterReleaseDnode(pDnode);
 #endif
 }
 
@@ -724,4 +717,14 @@ static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, voi
   
   pShow->numOfReads += numOfRows;
   return numOfRows;
+}
+
+char* mgmtGetDnodeStatusStr(int32_t dnodeStatus) {
+  switch (dnodeStatus) {
+    case TSDB_DN_STATUS_OFFLINE:   return "offline";
+    case TSDB_DN_STATUS_DROPING:   return "dropping";
+    case TSDB_DN_STATUS_BALANCING: return "balancing";
+    case TSDB_DN_STATUS_READY:     return "ready";
+    default:                       return "undefined";
+  }
 }

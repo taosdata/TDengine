@@ -190,16 +190,24 @@ int32_t mgmtInitVgroups() {
   return 0;
 }
 
-void mgmtIncVgroupRef(SVgObj *pVgroup) { 
-  return sdbIncRef(tsVgroupSdb, pVgroup); 
-}
-
-void mgmtDecVgroupRef(SVgObj *pVgroup) { 
+void mgmtReleaseVgroup(SVgObj *pVgroup) { 
   return sdbDecRef(tsVgroupSdb, pVgroup); 
 }
 
 SVgObj *mgmtGetVgroup(int32_t vgId) {
   return (SVgObj *)sdbGetRow(tsVgroupSdb, &vgId);
+}
+
+void mgmtUpdateVgroup(SVgObj *pVgroup) {
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_TYPE_GLOBAL,
+    .table = tsVgroupSdb,
+    .pObj = pVgroup,
+    .rowSize = tsVgUpdateSize
+  };
+
+  sdbUpdateRow(&oper);
+  mgmtSendCreateVgroupMsg(pVgroup, NULL);
 }
 
 SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {

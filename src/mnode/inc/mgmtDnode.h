@@ -21,12 +21,19 @@ extern "C" {
 #endif
 #include "mnode.h"
 
+enum _TSDB_DN_STATUS {
+  TSDB_DN_STATUS_OFFLINE,
+  TSDB_DN_STATUS_DROPING,
+  TSDB_DN_STATUS_BALANCING,
+  TSDB_DN_STATUS_READY
+};
+
 int32_t mgmtInitDnodes();
 void    mgmtCleanUpDnodes();
 int32_t mgmtGetDnodesNum();
 void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode);
-void    mgmtIncDnodeRef(SDnodeObj *pDnode);
-void    mgmtDecDnodeRef(SDnodeObj *pDnode);
+void    mgmtReleaseDnode(SDnodeObj *pDnode);
+char*   mgmtGetDnodeStatusStr(int32_t dnodeStatus);
 SDnodeObj* mgmtGetDnode(int32_t dnodeId);
 SDnodeObj* mgmtGetDnodeByIp(uint32_t ip);
 

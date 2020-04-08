@@ -147,9 +147,10 @@ typedef struct _vg_obj {
   int64_t         createdTime;
   SVnodeGid       vnodeGid[TSDB_VNODES_SUPPORT];
   int32_t         numOfVnodes;
-  int32_t         lbIp;
+  int32_t         lbDnodeId;
   int32_t         lbTime;
-  int8_t          lbStatus;
+  int8_t          status;
+
   int8_t          reserved[14];
   int8_t          updateEnd[1];
   int32_t         refCount;

@@ -69,14 +69,6 @@ char* taosGetVnodeDropStatusStr(int32_t dropping) {
   }
 }
 
-char* taosGetDnodeStatusStr(int32_t dnodeStatus) {
-  switch (dnodeStatus) {
-    case TSDB_DN_STATUS_OFFLINE: return "offline";
-    case TSDB_DN_STATUS_READY:   return "ready";
-    default:                     return "undefined";
-  }
-}
-
 char* taosGetDnodeLbStatusStr(int32_t dnodeBalanceStatus) {
   switch (dnodeBalanceStatus) {
     case TSDB_DN_LB_STATUS_BALANCED:         return "balanced";
