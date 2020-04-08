@@ -158,7 +158,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.writeToCache = vnodeWriteToQueue;
   syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
-  // pVnode->sync     = syncStart(&syncInfo);;
+  pVnode->sync     = syncStart(&syncInfo);;
 
   pVnode->events   = NULL;
   pVnode->cq       = NULL;
