@@ -44,14 +44,13 @@ int main(int argc, char *argv[]) {
   SSyncInfo syncInfo;
   memset(&syncInfo, 0, sizeof(syncInfo));
 
-  strcpy(syncInfo.label, "vid:0");
-  syncInfo.replica = 1;
-  syncInfo.quorum = 1;
+  syncInfo.syncCfg.replica = 1;
+  syncInfo.syncCfg.quorum = 1;
   syncInfo.vgId = 1;
   syncInfo.ahandle = &syncInfo;
-  syncInfo.nodeInfo[0].nodeId = 1;
-  strcpy(syncInfo.nodeInfo[0].name, tsPrivateIp);
-  syncInfo.nodeInfo[0].nodeIp = inet_addr(tsPrivateIp);
+  syncInfo.syncCfg.nodeInfo[0].nodeId = 1;
+  strcpy(syncInfo.syncCfg.nodeInfo[0].name, tsPrivateIp);
+  syncInfo.syncCfg.nodeInfo[0].nodeIp = inet_addr(tsPrivateIp);
 
   void *syncHandle = syncStart(&syncInfo);
   if (syncHandle == NULL) {

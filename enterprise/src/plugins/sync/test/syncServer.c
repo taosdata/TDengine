@@ -19,6 +19,7 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "tqueue.h"
+#include "twal.h"
 #include "tsync.h"
 
 int msgSize = 128;
@@ -35,6 +36,7 @@ char localIp[40] = "0.0.0.0";
 char path[256];
 int  numOfWrites ;
 SSyncInfo syncInfo;
+SSyncCfg *pCfg;
 
 int writeIntoWal(SWalHead *pHead)
 { 
@@ -108,7 +110,7 @@ int processRpcMsg(void *item) {
     code = 0;
   }
 
-  if (syncInfo.quorum <= 1) { 
+  if (pCfg->quorum <= 1) { 
     taosFreeQitem(item); 
     rpcFreeCont(pMsg->pCont);
 
@@ -136,7 +138,7 @@ int processFwdMsg(void *item) {
   writeIntoWal(pHead);
   tversion = pHead->version;
 
-  if (syncInfo.quorum > 1) syncConfirmForward(syncHandle, pHead->version, 0);
+  if (pCfg->quorum > 1) syncConfirmForward(syncHandle, pHead->version, 0);
 
   // write into cache
 
@@ -280,7 +282,8 @@ int  getWalInfo(char *name, int *index) {
 
 }
 
-int writeToCache(void *ahandle, SWalHead *pHead, int type) {
+int writeToCache(void *ahandle, void *data, int type) {
+  SWalHead *pHead = data;
 
   dTrace("pkt from peer is received, ver:%d len:%d type:%d", pHead->version, pHead->len, type);
 
@@ -305,9 +308,8 @@ void notifyRole(void *ahandle, int8_t r) {
 
 void initSync() {
 
-  strcpy(syncInfo.label, "vid:1");
-  syncInfo.replica = 1;
-  syncInfo.quorum = 1;
+  pCfg->replica = 1;
+  pCfg->quorum = 1;
   syncInfo.vgId = 1;
   syncInfo.ahandle = &syncInfo;
   syncInfo.getFileInfo = getFileInfo;
@@ -315,40 +317,40 @@ void initSync() {
   syncInfo.writeToCache = writeToCache;
   syncInfo.confirmForward = confirmForward;
   syncInfo.notifyRole = notifyRole;
-  syncInfo.nodeInfo[0].nodeId = 1;
-  strcpy(syncInfo.nodeInfo[0].name, "192.168.0.1");
-  syncInfo.nodeInfo[1].nodeId = 2;
-  strcpy(syncInfo.nodeInfo[1].name, "192.168.0.2");
-  syncInfo.nodeInfo[2].nodeId = 3;
-  strcpy(syncInfo.nodeInfo[2].name, "192.168.0.3");
-  syncInfo.nodeInfo[3].nodeId = 4;
-  strcpy(syncInfo.nodeInfo[3].name, "192.168.0.4");
-  syncInfo.nodeInfo[4].nodeId = 5;
-  strcpy(syncInfo.nodeInfo[4].name, "192.168.0.5");
+  pCfg->nodeInfo[0].nodeId = 1;
+  strcpy(pCfg->nodeInfo[0].name, "192.168.0.1");
+  pCfg->nodeInfo[1].nodeId = 2;
+  strcpy(pCfg->nodeInfo[1].name, "192.168.0.2");
+  pCfg->nodeInfo[2].nodeId = 3;
+  strcpy(pCfg->nodeInfo[2].name, "192.168.0.3");
+  pCfg->nodeInfo[3].nodeId = 4;
+  strcpy(pCfg->nodeInfo[3].name, "192.168.0.4");
+  pCfg->nodeInfo[4].nodeId = 5;
+  strcpy(pCfg->nodeInfo[4].name, "192.168.0.5");
 
 }
 
 void doSync()
 {
   for (int i=0; i<5; ++i) {
-    syncInfo.nodeInfo[i].nodeIp = inet_addr(syncInfo.nodeInfo[i].name);
-    if ( strcmp(localIp, syncInfo.nodeInfo[i].name) == 0 ) 
-      nodeId = syncInfo.nodeInfo[i].nodeId;
+    pCfg->nodeInfo[i].nodeIp = inet_addr(pCfg->nodeInfo[i].name);
+    if ( strcmp(localIp, pCfg->nodeInfo[i].name) == 0 ) 
+      nodeId = pCfg->nodeInfo[i].nodeId;
   }
 
   sprintf(path, "/home/jhtao/test/d%d", nodeId);
   strcpy(syncInfo.path, path);
 
-  if ((syncInfo.replica & 1) == 0) {
-    syncInfo.arbitratorIp = inet_addr("192.168.0.6");
+  if ((pCfg->replica & 1) == 0) {
+    pCfg->arbitratorIp = inet_addr("192.168.0.6");
   } else {
-    syncInfo.arbitratorIp = 0;
+    pCfg->arbitratorIp = 0;
   }
 
   if ( syncHandle == NULL) {
       syncHandle = syncStart(&syncInfo);
   } else {
-      if (syncReconfig(syncHandle, &syncInfo) < 0) syncHandle = NULL;
+      if (syncReconfig(syncHandle, pCfg) < 0) syncHandle = NULL;
   }
 
   dPrint("nodeId:%d path:%s localIp:%s", nodeId, path, localIp);
@@ -357,6 +359,7 @@ void doSync()
 int main(int argc, char *argv[]) {
   SRpcInit rpcInit;
   char     dataName[20] = "server.data";
+  pCfg =  &syncInfo.syncCfg;
 
   initSync();
 
@@ -388,9 +391,9 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-v")==0 && i < argc-1) {
       syncInfo.version = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r")==0 && i < argc-1) {
-      syncInfo.replica = atoi(argv[++i]);
+      pCfg->replica = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-q")==0 && i < argc-1) {
-      syncInfo.quorum = atoi(argv[++i]);
+      pCfg->quorum = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
@@ -405,8 +408,8 @@ int main(int argc, char *argv[]) {
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
       printf("  [-w write]: write received data to file(0, 1, 2), default is:%d\n", commit);
       printf("  [-v version]: initial node version, default is:%ld\n", syncInfo.version);
-      printf("  [-r replica]: replicacation number, default is:%d\n", syncInfo.replica);
-      printf("  [-q quorum]: quorum, default is:%d\n", syncInfo.quorum);
+      printf("  [-r replica]: replicacation number, default is:%d\n", pCfg->replica);
+      printf("  [-q quorum]: quorum, default is:%d\n", pCfg->quorum);
       printf("  [-d debugFlag]: debug flag, default:%d\n", rpcDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
@@ -448,23 +451,23 @@ int main(int argc, char *argv[]) {
 
     switch(c) {
       case '1':
-        syncInfo.replica = 1; doSync();
+        pCfg->replica = 1; doSync();
         break;        
       case '2':
-        syncInfo.replica = 2; doSync();
+        pCfg->replica = 2; doSync();
         break;
       case '3':
-        syncInfo.replica = 3; doSync();
+        pCfg->replica = 3; doSync();
         break;
       case '4':
-        syncInfo.replica = 4; doSync();
+        pCfg->replica = 4; doSync();
         break;
       case '5':
-        syncInfo.replica = 5; doSync();
+        pCfg->replica = 5; doSync();
         break;
       case 's':
         syncGetNodesRole(syncHandle, &nroles);
-        for (int i=0; i<syncInfo.replica; ++i) 
+        for (int i=0; i<pCfg->replica; ++i) 
           dPrint("=== nodeId:%d role:%s", nroles.nodeId[i], syncRole[nroles.role[i]]);
         break;
       default:

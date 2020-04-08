@@ -20,6 +20,8 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tsocket.h"
+#include "tqueue.h"
+#include "twal.h"
 #include "tsync.h"
 #include "syncInt.h"
 

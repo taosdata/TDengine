@@ -125,7 +125,7 @@ typedef struct _sync_node {
   void        *ahandle;
   uint32_t   (*getFileInfo)(char *name, int *index, int *size);
   int        (*getWalInfo)(char *name, int *index);
-  int        (*writeToCache)(void *ahandle, SWalHead *, int type); 
+  int        (*writeToCache)(void *ahandle, void *pHead, int type); 
   void       (*confirmForward)(void *ahandle, void *mhandle, int32_t code);
   void       (*notifyRole)(void *ahandle, int8_t role);
   int8_t       selfIndex;
