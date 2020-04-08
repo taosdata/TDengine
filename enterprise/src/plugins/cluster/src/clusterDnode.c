@@ -45,6 +45,11 @@ static int32_t clusterDnodeActionDestroy(SSdbOperDesc *pOper) {
 }
 
 static int32_t clusterDnodeActionInsert(SSdbOperDesc *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
+  if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
+    pDnode->status = TAOS_DN_STATUS_OFFLINE;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -177,6 +182,7 @@ void *clusterGetDnodeByIp(uint32_t ip) {
     if (ip == pDnode->privateIp) {
       return pDnode;
     }
+    clusterReleaseDnode(pDnode);
   }
 
   return NULL;
@@ -198,7 +204,7 @@ static int32_t clusterCreateDnode(uint32_t ip) {
   pDnode->privateIp = ip;
   pDnode->publicIp = ip;
   pDnode->createdTime = taosGetTimestampMs();
-  pDnode->status = TSDB_DN_STATUS_OFFLINE; 
+  pDnode->status = TAOS_DN_STATUS_OFFLINE; 
   pDnode->numOfTotalVnodes = TSDB_INVALID_VNODE_NUM; 
 
   if (pDnode->privateIp == inet_addr(tsMasterIp)) {

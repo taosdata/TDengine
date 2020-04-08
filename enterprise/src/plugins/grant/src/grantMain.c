@@ -18,6 +18,7 @@
 #include "tgrant.h"
 #include "machine.h"
 #include "mnode.h"
+#include "tcluster.h"
 #include "mgmtDServer.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
