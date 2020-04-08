@@ -17,13 +17,14 @@
 #include "os.h"
 #include "tglobalcfg.h"
 #include "tmodule.h"
-#include "tstatus.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "mnode.h"
-#include "mgmtDnode.h"
-#include "mgmtGrant.h"
+#include "tbalance.h"
+#include "tcluster.h"
+#include "tgrant.h"
+#include "vnode.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -35,7 +36,6 @@ void   *tsDnodeSdb = NULL;
 int32_t tsDnodeUpdateSize = 0;
 extern void *  tsVgroupSdb;
 static int32_t clusterCreateDnode(uint32_t ip);
-static int32_t clusterDropDnode(SDnodeObj *pDnode);
 static void    clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg);
 static void    clusterProcessDropDnodeMsg(SQueuedMsg *pMsg);
 
@@ -102,7 +102,7 @@ static int32_t clusterDnodeActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t clusterInit() {
+int32_t clusterInitDnodes() {
   SDnodeObj tObj;
   tsDnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
@@ -140,7 +140,7 @@ int32_t clusterInit() {
   return 0;
 }
 
-void clusterCleanUp() {
+void clusterCleanupDnodes() {
   sdbCloseTable(tsDnodeSdb);
 }
 
@@ -159,25 +159,15 @@ void clusterUpdateDnode(SDnodeObj *pDnode) {
   sdbUpdateRow(&oper);
 }
 
-void clusterDropDnode(SDnodeObj *pDnode) {
-    SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
-    .table = tsDnodeSdb,
-    .pObj = pDnode
-  };
-
-  sdbDeleteRow(&oper);
-}
-
-SDnodeObj *clusterGetDnode(int32_t dnodeId) {
-  return (SDnodeObj *)sdbGetRow(tsDnodeSdb, &dnodeId);
+void *clusterGetDnode(int32_t dnodeId) {
+  return sdbGetRow(tsDnodeSdb, &dnodeId);
 }
 
 void clusterReleaseDnode(SDnodeObj *pDnode) {
   sdbDecRef(tsDnodeSdb, pDnode);
 }
 
-SDnodeObj *clusterGetDnodeByIp(uint32_t ip) {
+void *clusterGetDnodeByIp(uint32_t ip) {
   SDnodeObj *pDnode = NULL;
   void *     pNode = NULL;
 
@@ -198,7 +188,7 @@ static int32_t clusterCreateDnode(uint32_t ip) {
     return grantCode;
   }
 
-  SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+  SDnodeObj *pDnode = clusterGetDnodeByIp(ip);
   if (pDnode != NULL) {
     mError("dnode:%d is alredy exist, ip:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp));
     return TSDB_CODE_DNODE_ALREADY_EXIST;
@@ -232,7 +222,7 @@ static int32_t clusterCreateDnode(uint32_t ip) {
   return code;
 }
 
-static int32_t clusterDropDnode(SDnodeObj *pDnode) {
+int32_t clusterDropDnode(SDnodeObj *pDnode) {
   SSdbOperDesc oper = {
     .type = SDB_OPER_TYPE_GLOBAL,
     .table = tsDnodeSdb,
@@ -260,7 +250,11 @@ static int32_t clusterDropDnodeByIp(uint32_t ip) {
     return TSDB_CODE_NO_REMOVE_MASTER;
   }
 
+#ifndef _VPEER
   return clusterDropDnode(pDnode);
+#else
+  return balanceDropDnode(pDnode);
+#endif
 }
 
 static void clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
@@ -275,7 +269,7 @@ static void clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
     uint32_t ip = inet_addr(pCreate->ip);
     rpcRsp.code = clusterCreateDnode(ip);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+      SDnodeObj *pDnode = clusterGetDnodeByIp(ip);
       mLPrint("dnode:%d, ip:%s is created by %s", pDnode->dnodeId, pCreate->ip, pMsg->pUser->user);
     } else {
       mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(rpcRsp.code));

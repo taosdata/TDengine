@@ -21,10 +21,11 @@
 #include "ttime.h"
 #include "tutil.h"
 #include "mnode.h"
-#include "mgmtAcct.h"
+#include "taccount.h"
+#include "tcluster.h"
+#include "tgrant.h"
+#include "mnode.h"
 #include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtGrant.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -172,10 +173,10 @@ int32_t acctInit() {
 }
 
 void acctIncRef(SAcctObj *pAcct) { sdbIncRef(tsAcctSdb, pAcct); }
-void acctDecRef(SAcctObj *pAcct) { sdbDecRef(tsAcctSdb, pAcct); }
+void acctReleaseAcct(SAcctObj *pAcct) { sdbDecRef(tsAcctSdb, pAcct); }
 
-SAcctObj *acctGetAcct(char *name) {
-  return (SAcctObj *)sdbGetRow(tsAcctSdb, name);
+void *acctGetAcct(char *name) {
+  return sdbGetRow(tsAcctSdb, name);
 }
 
 static int32_t acctCheckAcctParams(SAcctCfg *pCfg) {

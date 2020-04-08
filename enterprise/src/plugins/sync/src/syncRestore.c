@@ -32,7 +32,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
   SFileInfo  sinfo;   // slave file info
   SFileAck   fileAck;
   int        code = -1;
-  char       name[TSDB_FILENAME_LEN];
+  char       name[TSDB_FILENAME_LEN * 2];
 
   while (1) {
     // read file info
