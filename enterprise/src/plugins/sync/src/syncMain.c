@@ -24,6 +24,8 @@
 #include "taoserror.h"
 #include "taosTcpPool.h"
 #include "taosHashId.h"
+#include "tqueue.h"
+#include "twal.h"
 #include "tsync.h"
 #include "syncInt.h"
 
@@ -97,24 +99,19 @@ void *syncStart(SSyncInfo *pInfo)
   }
     
   SSyncNode *pNode = (SSyncNode *) calloc(sizeof(SSyncNode), 1);
+  SSyncCfg  *pCfg = &pInfo->syncCfg;
   
+  strcpy(pNode->label, "SYN");
   pNode->selfIndex = -1;
-  pNode->replica = pInfo->replica;
-  pNode->quorum = pInfo->quorum;
-  strcpy(pNode->label, pInfo->label);
-  strcpy(pNode->path, pInfo->path);
-  pNode->vgId = pInfo->vgId;
-  pNode->getFileInfo = pInfo->getFileInfo;
-  pNode->getWalInfo = pInfo->getWalInfo;
-  pNode->writeToCache = pInfo->writeToCache;
-  pNode->notifyRole = pInfo->notifyRole;
-  pNode->confirmForward = pInfo->confirmForward;
-  pNode->ahandle = pInfo->ahandle;
-  pthread_mutex_init(&pNode->mutex, NULL);
 
-  for (int i = 0; i < pInfo->replica; ++i) {
-    pNode->peerInfo[i] = syncAddPeer(pNode, &pInfo->nodeInfo[i]);
-    if (pInfo->nodeInfo[i].nodeIp == tsSyncServerIp) pNode->selfIndex = i;
+  pNode->vgId = pInfo->vgId;
+  nodeVersion = pInfo->version;    // set the initial version
+
+  pNode->replica = pCfg->replica;
+  pNode->quorum = pCfg->quorum;
+  for (int i = 0; i < pCfg->replica; ++i) {
+    pNode->peerInfo[i] = syncAddPeer(pNode, &pCfg->nodeInfo[i]);
+    if (pCfg->nodeInfo[i].nodeIp == tsSyncServerIp) pNode->selfIndex = i;
   }
 
   if (pNode->selfIndex < 0) {
@@ -123,13 +120,22 @@ void *syncStart(SSyncInfo *pInfo)
     return NULL;
   }
 
-  syncAddArbitrator(pNode, pInfo->arbitratorIp);
+  strcpy(pNode->path, pInfo->path);
+
+  pNode->ahandle = pInfo->ahandle;
+  pNode->getFileInfo = pInfo->getFileInfo;
+  pNode->getWalInfo = pInfo->getWalInfo;
+  pNode->writeToCache = pInfo->writeToCache;
+  pNode->notifyRole = pInfo->notifyRole;
+  pNode->confirmForward = pInfo->confirmForward;
 
   pNode->pSyncFwds = calloc(sizeof(SSyncFwds) + tsMaxFwdInfo*sizeof(SFwdInfo), 1);
   pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, pNode, syncTmrCtrl);
-  nodeVersion = pInfo->version;    // set the initial version
-  nodeRole = (pInfo->replica > 1) ? TAOS_SYNC_ROLE_UNSYNCED : TAOS_SYNC_ROLE_MASTER;
+  nodeRole = (pNode->replica > 1) ? TAOS_SYNC_ROLE_UNSYNCED : TAOS_SYNC_ROLE_MASTER;
   dPrint("%s, %d replicas are configured, role:%s", pNode->label, pNode->replica, syncRole[nodeRole]);
+
+  syncAddArbitrator(pNode, pCfg->arbitratorIp);
+  pthread_mutex_init(&pNode->mutex, NULL);
 
   atomic_add_fetch_32(&tsNodeNum, 1);
   syncAddNodeRef(pNode);
@@ -162,29 +168,29 @@ void syncStop(void *param)
   }
 }
 
-int syncReconfig(void *param, SSyncInfo *pNewInfo) 
+int syncReconfig(void *param, SSyncCfg *pNewCfg) 
 {
   SSyncNode  *pNode = (SSyncNode *)param;
   int         i, j;
 
   dPrint("%s, reconfig, role:%s replica:%d old:%d", pNode->label, syncRole[nodeRole], 
-         pNewInfo->replica, pNode->replica);
+         pNewCfg->replica, pNode->replica);
 
   for (i = 0; i < pNode->replica; ++i) {
-    for (j = 0; j < pNewInfo->replica; ++j) {
-      if (pNode->peerInfo[i]->ip == pNewInfo->nodeInfo[j].nodeIp) 
+    for (j = 0; j < pNewCfg->replica; ++j) {
+      if (pNode->peerInfo[i]->ip == pNewCfg->nodeInfo[j].nodeIp) 
         break;
     }
 
-    if (j >= pNewInfo->replica) {
+    if (j >= pNewCfg->replica) {
       syncRemovePeer(pNode->peerInfo[i]);
       pNode->peerInfo[i] = NULL;
     }
   }
 
   SSyncPeer *newPeers[TAOS_SYNC_MAX_REPLICA];
-  for (i = 0; i < pNewInfo->replica; ++i) {
-    SNodeInfo *pNewNode = &pNewInfo->nodeInfo[i];
+  for (i = 0; i < pNewCfg->replica; ++i) {
+    SNodeInfo *pNewNode = &pNewCfg->nodeInfo[i];
 
     for (j = 0; j < pNode->replica; ++j) {
       if (pNode->peerInfo[j]->ip == pNewNode->nodeIp)
@@ -200,16 +206,16 @@ int syncReconfig(void *param, SSyncInfo *pNewInfo)
     if (pNewNode->nodeIp == tsSyncServerIp) pNode->selfIndex = i;
   }
 
-  pNode->replica = pNewInfo->replica;
-  pNode->quorum = pNewInfo->quorum;
-  memcpy(pNode->peerInfo, newPeers, sizeof(SSyncPeer *) * pNewInfo->replica);
+  pNode->replica = pNewCfg->replica;
+  pNode->quorum = pNewCfg->quorum;
+  memcpy(pNode->peerInfo, newPeers, sizeof(SSyncPeer *) * pNewCfg->replica);
 
-  for (i = pNewInfo->replica; i < TAOS_SYNC_MAX_REPLICA; ++i)
+  for (i = pNewCfg->replica; i < TAOS_SYNC_MAX_REPLICA; ++i)
     pNode->peerInfo[i] = NULL;
 
   pNode->selfIndex = -1;
   for (i=0; i<pNode->replica; ++i) {
-    if (pNewInfo->nodeInfo[i].nodeIp == tsSyncServerIp) pNode->selfIndex = i;
+    if (pNewCfg->nodeInfo[i].nodeIp == tsSyncServerIp) pNode->selfIndex = i;
   }
     
   if (pNode->selfIndex <0) {
@@ -218,9 +224,9 @@ int syncReconfig(void *param, SSyncInfo *pNewInfo)
     return -1;
   }  
 
-  syncAddArbitrator(pNode, pNewInfo->arbitratorIp);
+  syncAddArbitrator(pNode, pNewCfg->arbitratorIp);
 
-  if (pNewInfo->replica <= 1) {
+  if (pNewCfg->replica <= 1) {
     dPrint("%s, no peers are configured, work as master!", pNode->label);
     nodeRole = TAOS_SYNC_ROLE_MASTER;
     (*pNode->notifyRole)(pNode->ahandle, nodeRole);
@@ -231,11 +237,12 @@ int syncReconfig(void *param, SSyncInfo *pNewInfo)
   return 0;
 }
 
-int syncForwardToPeer(void *param, SWalHead *pWalHead, void *mhandle)
+int syncForwardToPeer(void *param, void *data, void *mhandle)
 {
   SSyncNode  *pNode = (SSyncNode *)param;
   SSyncPeer  *pPeer;
   SSyncHead  *pSyncHead;
+  SWalHead   *pWalHead = data;
   int         fwdLen;
   int         code = 0;
 
