@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <stdbool.h>
+//#include <stdint.h>
+//#include <stdbool.h>
 #include "os.h"
+#include "ihash.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "ttimer.h"
@@ -23,7 +24,6 @@
 #include "tsocket.h"
 #include "taoserror.h"
 #include "taosTcpPool.h"
-#include "taosHashId.h"
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"
@@ -87,7 +87,7 @@ static void syncModuleInitFunc() {
   tsTcpPool = taosOpenTcpThreadPool(&info);
 
   syncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
-  vgIdHash = taosOpenIdHash(100000);
+  vgIdHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SSyncNode *), taosHashInt); 
 }
 
 void *syncStart(SSyncInfo *pInfo) 
@@ -138,7 +138,7 @@ void *syncStart(SSyncInfo *pInfo)
 
   atomic_add_fetch_32(&tsNodeNum, 1);
   syncAddNodeRef(pNode);
-  taosAddIdHash(vgIdHash, pNode, pInfo->vgId);
+  taosAddIntHash(vgIdHash, pNode->vgId, (char *)(&pNode));
 
   (*pNode->notifyRole)(pNode->ahandle, nodeRole);
   return pNode;
@@ -156,14 +156,14 @@ void syncStop(void *param)
     if (pPeer) syncRemovePeer(pPeer); 
   }
 
-  taosDeleteIdHash(vgIdHash, pNode->vgId);
+  taosDeleteIntHash(vgIdHash, pNode->vgId);
   syncDecNodeRef(pNode);
   atomic_sub_fetch_32(&tsNodeNum, 1);
   taosTmrStop(pNode->pFwdTimer);
 
   if (tsNodeNum <=0) {
     taosCloseTcpThreadPool(tsTcpPool);
-    taosCloseIdHash(vgIdHash);
+    taosCleanUpIntHash(vgIdHash);
   }
 }
 
@@ -922,7 +922,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
     return;
   }
 
-  SSyncNode *pNode = taosGetIdHash(vgIdHash, vgId); 
+  SSyncNode *pNode = *(SSyncNode **)taosGetIntHashData(vgIdHash, vgId); 
   if (pNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
     taosCloseTcpSocket(connFd);
