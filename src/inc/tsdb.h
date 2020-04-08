@@ -103,8 +103,8 @@ extern "C" {
 #define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 6mb
 
 #define TSDB_MAX_BYTES_PER_ROW    TSDB_MAX_COLUMNS * 16
-#define TSDB_MAX_TAGS_LEN         512
-#define TSDB_MAX_TAGS             32
+#define TSDB_MAX_TAGS_LEN         2048
+#define TSDB_MAX_TAGS             128
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16
@@ -133,7 +133,7 @@ extern "C" {
 #define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
 
 #define TSDB_PAYLOAD_SIZE         (TSDB_DEFAULT_PKT_SIZE - 100)
-#define TSDB_DEFAULT_PAYLOAD_SIZE 1024   // default payload size
+#define TSDB_DEFAULT_PAYLOAD_SIZE 4096   // default payload size
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_SQLCMD_SIZE          1024
 #define TSDB_MAX_VNODES           256
