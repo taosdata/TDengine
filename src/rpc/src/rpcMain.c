@@ -331,6 +331,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   char *start = ((char *)ptr) - sizeof(SRpcReqContext) - sizeof(SRpcHead);
   if (contLen == 0 ) {
     free(start); 
+    return NULL;
   }
 
   int size = contLen + RPC_MSG_OVERHEAD;
