@@ -343,8 +343,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
 
     if (shouldFree) {
-      tscFreeSqlObj(pSql);
       tscTrace("%p Async sql is automatically freed", pSql);
+      tscFreeSqlObj(pSql);
     }
   }
 
