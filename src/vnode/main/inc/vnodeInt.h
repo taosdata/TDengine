@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+#include "tsync.h"
+#include "twal.h"
+
 typedef enum _VN_STATUS {
   VN_STATUS_INIT,
   VN_STATUS_CREATING,
@@ -41,8 +44,9 @@ typedef struct {
   void        *sync;
   void        *events;
   void        *cq;  // continuous query
-  int32_t      replicas;
-  SVnodeDesc   vpeers[TSDB_MAX_MPEERS];
+  STsdbCfg    tsdbCfg;
+  SSyncCfg    syncCfg;
+  SWalCfg     walCfg;
 } SVnodeObj;
 
 int  vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
