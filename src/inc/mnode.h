@@ -105,10 +105,10 @@ typedef struct {
 typedef struct {
   char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t type;
-} STableInfo;
+} STableObj;
 
 typedef struct SSuperTableObj {
-  STableInfo info;
+  STableObj  info;
   uint64_t   uid;
   int64_t    createdTime;
   int32_t    sversion;
@@ -123,7 +123,7 @@ typedef struct SSuperTableObj {
 } SSuperTableObj;
 
 typedef struct {
-  STableInfo info;
+  STableObj  info;
   uint64_t   uid;
   int64_t    createdTime;
   int32_t    sversion;     //used by normal table
@@ -255,7 +255,7 @@ typedef struct {
   SUserObj *pUser;
   SDbObj   *pDb;
   SVgObj   *pVgroup;
-  STableInfo *pTable;
+  STableObj *pTable;
 } SQueuedMsg;
 
 int32_t mgmtInitSystem();

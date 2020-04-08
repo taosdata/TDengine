@@ -301,7 +301,7 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
 
   int32_t maxReplica = 0;
   SVgObj  *pVgroup   = NULL;
-  STableInfo *pTable = NULL;
+  STableObj *pTable = NULL;
   if (pShow->payloadLen > 0 ) {
     pTable = mgmtGetTable(pShow->payload);
     if (NULL == pTable || pTable->type == TSDB_SUPER_TABLE) {
