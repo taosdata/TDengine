@@ -39,8 +39,9 @@ int       sDebugFlag = 135;
 
 // module global, not configurable
 int       tsSyncNum;    // number of sync in process in whole system
-int       tsNodeNum;    // number of nodes in system
-uint32_t  tsSyncServerIp;
+
+static int            tsNodeNum;    // number of nodes in system
+static uint32_t       tsSyncServerIp;
 static ttpool_h       tsTcpPool;
 static void          *syncTmrCtrl = NULL;
 static void          *vgIdHash;
