@@ -80,7 +80,8 @@ void *walOpen(char *path, int max, int level) {
 }
 
 void walClose(void *handle) {
- 
+  if (handle == NULL) return;
+  
   SWal *pWal = (SWal *)handle;
   
   close(pWal->fd);

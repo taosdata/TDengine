@@ -36,7 +36,7 @@ static int     vnodeWALCallback(void *arg);
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
 static int32_t vnodeReadCfg(SVnodeObj *pVnode);
 
-static int   tsOpennedVnodes;
+static int32_t tsOpennedVnodes;
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
 static void vnodeInit() {
@@ -104,8 +104,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeDrop(int32_t vgId) {
-
-  SVnodeObj *pVnode = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, vgId);
+  SVnodeObj *pVnode = *(SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (pVnode == NULL) {
     dTrace("vgId:%d, failed to drop, vgId not exist", vgId);
     return TSDB_CODE_INVALID_VGROUP_ID;
