@@ -43,9 +43,9 @@ print $data10 $data11 $data22
 print $data20 $data11 $data22
 
 print =============== insert data
-sql insert into d1.n1 values(now, 1)
-sql insert into d1.n1 values(now, 2)
-sql insert into d1.n1 values(now, 3)
+sql insert into d1.n1 values(now+1s, 1)
+sql insert into d1.n1 values(now+2s, 2)
+sql insert into d1.n1 values(now+3s, 3)
 
 print =============== query data
 sql select * from d1.n1
