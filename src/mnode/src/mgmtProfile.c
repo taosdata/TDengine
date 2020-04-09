@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
+#include "taccount.h"
+#include "tcluster.h"
 #include "mgmtDb.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
@@ -787,12 +789,12 @@ void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg) {
 void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
   if (pMsg != NULL) {
     rpcFreeCont(pMsg->pCont);
-    if (pMsg->pUser) mgmtDecUserRef(pMsg->pUser);
-    if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
-    if (pMsg->pVgroup) mgmtDecVgroupRef(pMsg->pVgroup);
+    if (pMsg->pUser) mgmtReleaseUser(pMsg->pUser);
+    if (pMsg->pDb) mgmtReleaseDb(pMsg->pDb);
+    if (pMsg->pVgroup) mgmtReleaseVgroup(pMsg->pVgroup);
     if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
-    // if (pMsg->pAcct) acctDecRef(pMsg->pAcct);
-    // if (pMsg->pDnode) mgmtDecTableRef(pMsg->pDnode);
+    if (pMsg->pAcct) acctReleaseAcct(pMsg->pAcct);
+    if (pMsg->pDnode) clusterReleaseDnode(pMsg->pDnode);
     free(pMsg);
   }
 }

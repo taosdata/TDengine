@@ -20,7 +20,6 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tstatus.h"
 #include "tsdb.h"
 #include "ttime.h"
 #include "ttimer.h"

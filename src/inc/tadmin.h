@@ -13,18 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_BALANCE_H
-#define TDENGINE_MGMT_BALANCE_H
+#ifndef TDENGINE_ADMIN_H
+#define TDENGINE_ADMIN_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "mnode.h"
 
-int32_t mgmtInitBalance();
-void    mgmtCleanupBalance();
-void    mgmtBalanceNotify() ;
-int32_t mgmtAllocVnodes(SVgObj *pVgroup);
+#include <stdint.h>
+#include <stdbool.h>
+
+void adminInit();
+
+struct _http_server_obj_;
+
+extern void (*adminInitHandleFp)(struct _http_server_obj_* pServer);
+extern void (*opInitHandleFp)(struct _http_server_obj_* pServer);
 
 #ifdef __cplusplus
 }

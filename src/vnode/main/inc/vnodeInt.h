@@ -23,18 +23,10 @@ extern "C" {
 #include "tsync.h"
 #include "twal.h"
 
-typedef enum _VN_STATUS {
-  VN_STATUS_INIT,
-  VN_STATUS_CREATING,
-  VN_STATUS_READY,
-  VN_STATUS_CLOSING,
-  VN_STATUS_DELETING,
-} EVnStatus;
-
 typedef struct {
   int32_t      vgId;      // global vnode group ID
   int32_t      refCount;  // reference count
-  EVnStatus    status; 
+  int          status; 
   int8_t       role;   
   int64_t      version;
   void        *wqueue;

@@ -20,6 +20,14 @@
 extern "C" {
 #endif
 
+typedef enum _VN_STATUS {
+  TAOS_VN_STATUS_INIT,
+  TAOS_VN_STATUS_CREATING,
+  TAOS_VN_STATUS_READY,
+  TAOS_VN_STATUS_CLOSING,
+  TAOS_VN_STATUS_DELETING,
+} EVnStatus;
+
 typedef struct {
   int   len;
   int   code;
@@ -41,7 +49,7 @@ void*   vnodeGetWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
 void*   vnodeGetTsdb(void *pVnode);
 
-int32_t vnodeProcessWrite(void *pVnode, int qtype, SWalHead *pHead, void *item);
+int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
 void    vnodeBuildStatusMsg(void * param);
 
 int32_t vnodeProcessRead(void *pVnode, int msgType, void *pCont, int32_t contLen, SRspRet *ret);

@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tstatus.h"
 #include "trpc.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
@@ -62,6 +61,25 @@ static void *mgmtGetNextMnode(void *pNode, SMnodeObj **pMnode) {
   }
 
   return *pMnode;
+}
+
+char *taosGetMnodeStatusStr(int32_t mnodeStatus) {
+  switch (mnodeStatus) {
+    case TSDB_MN_STATUS_OFFLINE:   return "offline";
+    case TSDB_MN_STATUS_UNSYNCED:  return "unsynced";
+    case TSDB_MN_STATUS_SYNCING:   return "syncing";
+    case TSDB_MN_STATUS_SERVING:   return "serving";
+    default:                       return "undefined";
+  }
+}
+
+char *taosGetMnodeRoleStr(int32_t mnodeRole) {
+  switch (mnodeRole) {
+    case TSDB_MN_ROLE_UNDECIDED: return "undicided";
+    case TSDB_MN_ROLE_SLAVE:     return "slave";
+    case TSDB_MN_ROLE_MASTER:    return "master";
+    default:                     return "undefined";
+  }
 }
 
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -120,7 +138,7 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pShow->numOfRows = mgmtGetMnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
-  mgmtDecUserRef(pUser);
+  mgmtReleaseUser(pUser);
 
   return 0;
 }

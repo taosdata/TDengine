@@ -20,7 +20,6 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tstatus.h"
 #include "tsdb.h"
 #include "ttime.h"
 #include "ttimer.h"
@@ -117,7 +116,7 @@ int32_t vnodeDrop(int32_t vgId) {
   }
 
   dTrace("pVnode:%p vgId:%d, vnode will be dropped", pVnode, pVnode->vgId);
-  pVnode->status = VN_STATUS_DELETING;
+  pVnode->status = TAOS_VN_STATUS_DELETING;
   vnodeCleanUp(pVnode);
  
   return TSDB_CODE_SUCCESS;
@@ -129,7 +128,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
   pVnode->vgId     = vnode;
-  pVnode->status   = VN_STATUS_INIT;
+  pVnode->status   = TAOS_VN_STATUS_INIT;
   pVnode->refCount = 1;
   pVnode->version  = 0;  
   taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
@@ -179,7 +178,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
 
-  pVnode->status = VN_STATUS_READY;
+  pVnode->status = TAOS_VN_STATUS_READY;
   dTrace("pVnode:%p vgId:%d, vnode is opened in %s", pVnode, pVnode->vgId, rootDir);
 
   atomic_add_fetch_32(&tsOpennedVnodes, 1);
@@ -192,7 +191,7 @@ int32_t vnodeClose(int32_t vgId) {
   if (pVnode == NULL) return 0;
 
   dTrace("pVnode:%p vgId:%d, vnode will be closed", pVnode, pVnode->vgId);
-  pVnode->status = VN_STATUS_CLOSING;
+  pVnode->status = TAOS_VN_STATUS_CLOSING;
   vnodeCleanUp(pVnode);
 
   return 0;
@@ -216,7 +215,7 @@ void vnodeRelease(void *pVnodeRaw) {
   dnodeFreeWqueue(pVnode->wqueue);
   pVnode->wqueue = NULL;
 
-  if (pVnode->status == VN_STATUS_DELETING) {
+  if (pVnode->status == TAOS_VN_STATUS_DELETING) {
     // remove the whole directory
   }
 
@@ -276,7 +275,7 @@ void vnodeBuildStatusMsg(void *param) {
 
 static void vnodeBuildVloadMsg(char *pNode, void * param) {
   SVnodeObj *pVnode = *(SVnodeObj **) pNode;
-  if (pVnode->status == VN_STATUS_DELETING) return;
+  if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
 
   SDMStatusMsg *pStatus = param;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
@@ -285,6 +284,7 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
   pLoad->vgId = htonl(pVnode->vgId);
   pLoad->vnode = htonl(pVnode->vgId);
   pLoad->status = pVnode->status;
+  pLoad->role = pVnode->role;
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {

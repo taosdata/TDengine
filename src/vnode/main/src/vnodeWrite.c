@@ -41,18 +41,19 @@ void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = vnodeProcessDropStableMsg;
 }
 
-int32_t vnodeProcessWrite(void *param, int qtype, SWalHead *pHead, void *item) {
+int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   int32_t    code = 0;
-  SVnodeObj *pVnode = (SVnodeObj *)param;
+  SVnodeObj *pVnode = (SVnodeObj *)param1;
+  SWalHead  *pHead = param2;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
     return TSDB_CODE_MSG_NOT_PROCESSED; 
 
-  if (pVnode->status == VN_STATUS_DELETING || pVnode->status == VN_STATUS_CLOSING) 
+  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
     return TSDB_CODE_NOT_ACTIVE_VNODE; 
 
   if (pHead->version == 0) { // from client 
-    if (pVnode->status != VN_STATUS_READY) 
+    if (pVnode->status != TAOS_VN_STATUS_READY) 
       return TSDB_CODE_NOT_ACTIVE_VNODE;
 
     // if (pVnode->replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TMODULE_H
-#define TDENGINE_TMODULE_H
+#ifndef TDENGINE_CLUSTER_H
+#define TDENGINE_CLUSTER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,31 +24,28 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-enum _module {
-  TSDB_MOD_MGMT,
-  TSDB_MOD_HTTP,
-  TSDB_MOD_MONITOR,
-  TSDB_MOD_MAX
+struct _dnode_obj;
+
+enum _TAOS_DN_STATUS {
+  TAOS_DN_STATUS_OFFLINE,
+  TAOS_DN_STATUS_DROPPING,
+  TAOS_DN_STATUS_BALANCING,
+  TAOS_DN_STATUS_READY
 };
 
-#define tsetModuleStatus(mod) \
-  { tsModuleStatus |= (1 << mod); }
-#define tclearModuleStatus(mod) \
-  { tsModuleStatus &= ~(1 << mod); }
+int32_t clusterInit();
+void    clusterCleanUp();
+char*   clusterGetDnodeStatusStr(int32_t dnodeStatus);
 
-typedef struct {
-  char  *name;
-  int  (*initFp)();
-  void (*cleanUpFp)();
-  int  (*startFp)();
-  void (*stopFp)();
-  int    num;
-  int    curNum;
-  int    equalVnodeNum;
-} SModule;
-
-extern uint32_t tsModuleStatus;
-extern SModule tsModule[];
+int32_t clusterInitDnodes();
+void    clusterCleanupDnodes();
+int32_t clusterGetDnodesNum();
+void *  clusterGetNextDnode(void *pNode, struct _dnode_obj **pDnode);
+void    clusterReleaseDnode(struct _dnode_obj *pDnode);
+void *  clusterGetDnode(int32_t dnodeId);
+void *  clusterGetDnodeByIp(uint32_t ip);
+void    clusterUpdateDnode(struct _dnode_obj *pDnode);
+int32_t clusterDropDnode(struct _dnode_obj *pDnode);
 
 #ifdef __cplusplus
 }

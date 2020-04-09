@@ -16,15 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tstatus.h"
 #include "tutil.h"
 #include "name.h"
 #include "mnode.h"
-#include "mgmtAcct.h"
-#include "mgmtBalance.h"
+#include "taccount.h"
+#include "tbalance.h"
 #include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtGrant.h"
+#include "tcluster.h"
+#include "tgrant.h"
 #include "mgmtShell.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
@@ -38,7 +37,7 @@ static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
 static void    mgmtDropDb(SQueuedMsg *newMsg);
-static int32_t mgmtSetDbDirty(SDbObj *pDb);
+static int32_t mgmtSetDbDropping(SDbObj *pDb);
 static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateDbMsg(SQueuedMsg *pMsg);
@@ -146,11 +145,11 @@ SDbObj *mgmtGetDb(char *db) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-void mgmtIncDbRef(SDbObj *pDb) { 
+void mgmtIncDbRef(SDbObj *pDb) {
   return sdbIncRef(tsDbSdb, pDb); 
 }
 
-void mgmtDecDbRef(SDbObj *pDb) { 
+void mgmtReleaseDb(SDbObj *pDb) { 
   return sdbDecRef(tsDbSdb, pDb); 
 }
 
@@ -289,7 +288,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
 
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb != NULL) {
-    mgmtDecDbRef(pDb);
+    mgmtReleaseDb(pDb);
     return TSDB_CODE_DB_ALREADY_EXIST;
   }
 
@@ -519,7 +518,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->numOfRows = pUser->pAcct->acctInfo.numOfDbs;
 
-  mgmtDecUserRef(pUser);
+  mgmtReleaseUser(pUser);
   return 0;
 }
 
@@ -631,15 +630,15 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pDb->dirty != TSDB_DB_STATUS_READY ? "dropping" : "ready");
+    strcpy(pWrite, pDb->status != TSDB_DB_STATUS_READY ? "dropping" : "ready");
     cols++;
 
     numOfRows++;
-    mgmtDecDbRef(pDb);
+    mgmtReleaseDb(pDb);
   }
 
   pShow->numOfReads += numOfRows;
-  mgmtDecUserRef(pUser);
+  mgmtReleaseUser(pUser);
   return numOfRows;
 }
 
@@ -659,10 +658,10 @@ void mgmtRemoveTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, -1);
 }
 
-static int32_t mgmtSetDbDirty(SDbObj *pDb) {
-  if (pDb->dirty) return TSDB_CODE_SUCCESS;
+static int32_t mgmtSetDbDropping(SDbObj *pDb) {
+  if (pDb->status) return TSDB_CODE_SUCCESS;
 
-  pDb->dirty = true;
+  pDb->status = true;
   SSdbOperDesc oper = {
     .type = SDB_OPER_TYPE_GLOBAL,
     .table = tsDbSdb,
@@ -850,7 +849,7 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  int32_t code = mgmtSetDbDirty(pDb);
+  int32_t code = mgmtSetDbDropping(pDb);
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to drop, reason:%s", pDrop->db, tstrerror(code));
     mgmtSendSimpleResp(pMsg->thandle, code);
@@ -881,10 +880,10 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
     if (pDb == NULL) break;
 
     if (pDb->pAcct == pAcct) {
-      mgmtSetDbDirty(pDb);
+      mgmtSetDbDropping(pDb);
       numOfDbs++;
     }
-    mgmtDecDbRef(pDb);
+    mgmtReleaseDb(pDb);
   }
 
   mTrace("acct:%s, all dbs is is set dirty", pAcct->user, numOfDbs);
