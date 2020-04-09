@@ -29,7 +29,7 @@ if $data03 != 1 then
 endi
 
 sql show d1.vgroups
-if $data00 != 1 then 
+if $data00 != 2 then 
   return -1
 endi
 
