@@ -725,10 +725,6 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
     return TSDB_CODE_INVALID_RESPONSE_TYPE;
   }
 
-  if (pHead->code == TSDB_CODE_NOT_READY) {
-    return TSDB_CODE_ALREADY_PROCESSED;
-  }
-
   taosTmrStopA(&pConn->pTimer);
   pConn->retry = 0;
 
@@ -935,8 +931,8 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       tTrace("%s %p, redirect is received, numOfIps:%d", pRpc->label, pConn, pContext->ipSet.numOfIps);
       rpcSendReqToServer(pRpc, pContext);
     } else if (pHead->code == TSDB_CODE_NOT_READY) {
-      pConn->pContext->code = pHead->code;
-      rpcProcessConnError(pConn->pContext, NULL);
+      pContext->code = pHead->code;
+      rpcProcessConnError(pContext, NULL);
     } else {
       rpcNotifyClient(pContext, &rpcMsg);
     }
@@ -1101,7 +1097,7 @@ static void rpcProcessConnError(void *param, void *id) {
  
   tTrace("%s connection error happens", pRpc->label);
 
-  if ( pContext->numOfTry >= pContext->ipSet.numOfIps ) {
+  if ( pContext->numOfTry >= pContext->ipSet.numOfIps*2 ) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.handle = pContext->ahandle;
     rpcMsg.code = pContext->code;
