@@ -28,14 +28,17 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 
-static void   *tsDnodeVnodesHash;
-static void    vnodeCleanUp(SVnodeObj *pVnode);
-static void    vnodeBuildVloadMsg(char *pNode, void * param);
-static int     vnodeWALCallback(void *arg);
-static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
-static int32_t vnodeReadCfg(SVnodeObj *pVnode);
+static void    *tsDnodeVnodesHash;
+static void     vnodeCleanUp(SVnodeObj *pVnode);
+static void     vnodeBuildVloadMsg(char *pNode, void * param);
+static int      vnodeWalCallback(void *arg);
+static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
+static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
+static int      vnodeWalCallback(void *arg);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
+static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
+static void     vnodeNotifyRole(void *ahandle, int8_t role);
 
-static int32_t tsOpennedVnodes;
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
 static void vnodeInit() {
@@ -138,14 +141,27 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
   sprintf(temp, "%s/wal", rootDir);
-  pVnode->wal      = walOpen(temp, pVnode->walCfg.wals, pVnode->walCfg.commitLog);
-  pVnode->sync     = NULL;
+  pVnode->wal      = walOpen(temp, &pVnode->walCfg);
+
+  SSyncInfo syncInfo;
+  syncInfo.vgId = pVnode->vgId;
+  syncInfo.version = pVnode->version;
+  syncInfo.syncCfg = pVnode->syncCfg;
+  sprintf(syncInfo.path, "%s/tsdb/", rootDir);
+  syncInfo.ahandle = pVnode;
+  syncInfo.getWalInfo = vnodeGetWalInfo;
+  syncInfo.getFileInfo = vnodeGetFileInfo;
+  syncInfo.writeToCache = vnodeWriteToQueue;
+  syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
+  syncInfo.notifyRole = vnodeNotifyRole;
+  pVnode->sync     = syncStart(&syncInfo);;
+
   pVnode->events   = NULL;
   pVnode->cq       = NULL;
 
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
-  appH.walCallBack = vnodeWALCallback;
+  appH.walCallBack = vnodeWalCallback;
 
   sprintf(temp, "%s/tsdb", rootDir);
   void *pTsdb = tsdbOpenRepo(temp, &appH);
@@ -162,7 +178,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status = TAOS_VN_STATUS_READY;
   dTrace("pVnode:%p vgId:%d, vnode is opened in %s", pVnode, pVnode->vgId, rootDir);
 
-  tsOpennedVnodes++;
+  atomic_add_fetch_32(&tsOpennedVnodes, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -203,8 +219,8 @@ void vnodeRelease(void *pVnodeRaw) {
   dTrace("pVnode:%p vgId:%d, vnode is released", pVnode, pVnode->vgId);
   free(pVnode);
 
-  tsOpennedVnodes--;
-  if (tsOpennedVnodes <= 0) {
+  int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
+  if (count <= 0) {
     taosCleanUpIntHash(tsDnodeVnodesHash);
     vnodeModuleInit = PTHREAD_ONCE_INIT;
     tsDnodeVnodesHash = NULL;
@@ -280,9 +296,25 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 }
 
 // TODO: this is a simple implement
-static int vnodeWALCallback(void *arg) {
+static int vnodeWalCallback(void *arg) {
   SVnodeObj *pVnode = arg;
   return walRenew(pVnode->wal);
+}
+
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
+  // SVnodeObj *pVnode = ahandle;
+  //tsdbGetFileInfo(pVnode->tsdb, name, index, size);
+  return 0;
+}
+
+static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
+  SVnodeObj *pVnode = ahandle;
+  return walGetWalFile(pVnode->wal, name, index);
+}
+
+static void vnodeNotifyRole(void *ahandle, int8_t role) {
+  SVnodeObj *pVnode = ahandle;
+  pVnode->role = role;
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
@@ -335,7 +367,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "arbitratorIp") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (arbitratorIp == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
-  pVnode->syncCfg.arbitratorIp = arbitratorIp;
+  pVnode->syncCfg.arbitratorIp = 0;
 
   int32_t quorum = -1;
   num = fscanf(fp, "%s %d", option[0], &quorum);

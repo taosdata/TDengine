@@ -21,8 +21,10 @@
 int64_t  ver = 0;
 void    *pWal = NULL;
 
-int writeToQueue(void *pVnode, SWalHead *pHead, int type) {
+int writeToQueue(void *pVnode, void *data, int type) {
   // do nothing
+  SWalHead *pHead = data;
+
   if (pHead->version > ver)
     ver = pHead->version;
 
@@ -74,7 +76,11 @@ int main(int argc, char *argv[]) {
 
   taosInitLog("wal.log", 100000, 10);
 
-  pWal = walOpen(path, max, level);
+  SWalCfg walCfg;
+  walCfg.commitLog = level;
+  walCfg.wals = max;
+
+  pWal = walOpen(path, &walCfg);
   if (pWal == NULL) {
     printf("failed to open wal\n");
     exit(-1);

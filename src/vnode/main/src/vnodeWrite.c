@@ -78,11 +78,8 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
   if (code < 0) return code;
 
-/* forward
-  if (pVnode->replica > 1 && pVnode->role == TAOS_SYNC_ROLE_MASTER) {
+  if (pVnode->syncCfg.replica > 1) 
     code = syncForwardToPeer(pVnode->sync, pHead, item);
-  }
-*/
 
   return code;
 }
@@ -252,8 +249,9 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   return code;
 }
 
-int vnodeWriteToQueue(void *param, SWalHead *pHead, int type) {
+int vnodeWriteToQueue(void *param, void *data, int type) {
   SVnodeObj *pVnode = param;
+  SWalHead *pHead = data;
 
   int size = sizeof(SWalHead) + pHead->len;
   SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);

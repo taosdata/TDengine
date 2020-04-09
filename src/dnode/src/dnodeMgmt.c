@@ -131,7 +131,7 @@ static int32_t dnodeOpenVnodes() {
   char vnodeDir[TSDB_FILENAME_LEN * 3];
   int32_t failed = 0;
 
-  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * 10000);
+  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
   int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
@@ -146,7 +146,7 @@ static int32_t dnodeOpenVnodes() {
 }
 
 static void dnodeCloseVnodes() {
-  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * 10000);
+  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
   int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {

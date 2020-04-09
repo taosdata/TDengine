@@ -110,6 +110,8 @@ char *taosMsg[] = {
     "",
     "",
     "",
+    "",
+    "",
     "",                    //90
 
     "config-table",
