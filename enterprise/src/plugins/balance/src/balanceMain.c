@@ -24,6 +24,7 @@
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
+#include "mgmtUser.h"
 #include "mgmtVgroup.h"
 #include "balanceModule.h"
 #include "dnodeMClient.h"
@@ -390,7 +391,7 @@ static int32_t balanceMonitorVgroups() {
     if (vgReplica == dbReplica) {
       if (pVgroup->status != TSDB_VG_STATUS_READY) {
         pVgroup->status = TSDB_VG_STATUS_READY;
-        pVgroup->lbTime = 0;
+        pVgroup->lbTime = tsAccessSquence;
         pVgroup->lbDnodeId = 0;
         mgmtUpdateVgroup(pVgroup);
         hasUpdatingVgroup = true;
@@ -455,6 +456,7 @@ static bool balanceMontiorDropping() {
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
       balanceMonitorDnodeDropping(pDnode);
     }
+
   }
 
   return false;
@@ -486,7 +488,7 @@ static bool balanceStart() {
 
 static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   tsBalanceTimer = NULL;
-  tsAccessSquence += tsBalanceMonitorInterval;
+  tsAccessSquence ++;
 
   if (handle == NULL) {
     if (tsAccessSquence % tsBalanceStartInterval != 0) return;
@@ -511,7 +513,7 @@ static void balanceStartTimer(int64_t mseconds) {
 }
 
 void balanceNotify() {
-  balanceStartTimer(500); 
+  balanceStartTimer(1200); 
 }
 
 int32_t balanceInit() {
@@ -555,7 +557,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
     clusterReleaseDnode(pDnode);
   }
 
-  if (pDnode->openVnodes < totalFreeVnodes) {
+  if (pDnode->openVnodes > totalFreeVnodes) {
     mError("dnode:%d, openVnodes:%d totalFreeVnodes:%d no enough dnodes", pDnode->dnodeId, pDnode->openVnodes, totalFreeVnodes);
     return TSDB_CODE_NO_ENOUGH_DNODES;
   }
@@ -563,7 +565,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
   pDnode->status = TAOS_DN_STATUS_DROPPING;
   clusterUpdateDnode(pDnode);
   
-  balanceStartTimer(400);
+  balanceStartTimer(1100);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -606,7 +608,7 @@ static int32_t balanceCalcBandwidthScore(SDnodeObj *pDnode) {
 
 static float balanceCalcModuleScore(SDnodeObj *pDnode) {
   if (pDnode->numOfTotalVnodes <= 1) return 0;
-  if (mgmtCheckModuleInDnode(pDnode, TSDB_MOD_MGMT)) {
+  if (clusterCheckModuleInDnode(pDnode, TSDB_MOD_MGMT)) {
     return (float)tsModule[TSDB_MOD_MGMT].equalVnodeNum / pDnode->numOfTotalVnodes * 100;
   }
   return 0;
@@ -614,6 +616,7 @@ static float balanceCalcModuleScore(SDnodeObj *pDnode) {
 
 static float balanceCalcVnodeScore(SDnodeObj *pDnode, int32_t extra) {
   if (pDnode->numOfTotalVnodes <= 1) return 0;
+  if (pDnode->status == TAOS_DN_STATUS_DROPPING) return 1000;
   return (float)(pDnode->openVnodes + extra) / pDnode->numOfTotalVnodes * 100;
 }
 
@@ -624,13 +627,9 @@ static float balanceCalcVnodeScore(SDnodeObj *pDnode, int32_t extra) {
  * 3. otherwise use interpolation method
  **/
 void balanceCalcDnodeScore(SDnodeObj *pDnode) {
-  if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
-    pDnode->score = 1000;
-  } else {
-    pDnode->score = balanceCalcCpuScore(pDnode) + balanceCalcMemoryScore(pDnode) + balanceCalcDiskScore(pDnode) +
-                    balanceCalcBandwidthScore(pDnode) + balanceCalcModuleScore(pDnode) +
-                    balanceCalcVnodeScore(pDnode, 0) + pDnode->customScore;
-  }
+  pDnode->score = balanceCalcCpuScore(pDnode) + balanceCalcMemoryScore(pDnode) + balanceCalcDiskScore(pDnode) +
+                  balanceCalcBandwidthScore(pDnode) + balanceCalcModuleScore(pDnode) +
+                  balanceCalcVnodeScore(pDnode, 0) + pDnode->customScore;
 }
 
 float balanceTryCalcDnodeScore(SDnodeObj *pDnode, int32_t extra) {
@@ -704,12 +703,17 @@ void balanceReleaseDnodeList() {
 }
 
 static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  if (pUser == NULL) return 0;
+
+  if (strcmp(pUser->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = 16;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "IP");
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "id");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -765,11 +769,15 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
 
   pShow->numOfRows = clusterGetDnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
+
+  mgmtReleaseUser(pUser);
 
   return 0;
 }
@@ -779,8 +787,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
   int32_t    cols = 0;
-  char       ipstr[20];
-
+  
   while (numOfRows < rows) {
     pShow->pNode = clusterGetNextDnode(pShow->pNode, &pDnode);
     if (pDnode == NULL) break;
@@ -792,9 +799,8 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
 
     cols = 0;
 
-    tinet_ntoa(ipstr, pDnode->privateIp);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, ipstr);
+    *(int16_t *)pWrite = pDnode->dnodeId;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
