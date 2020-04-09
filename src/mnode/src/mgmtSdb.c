@@ -520,6 +520,11 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
   
   if (pTable->keyType == SDB_KEY_TYPE_AUTO) {
     *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+
+    // let vgId increase from 2
+    if (pTable->autoIndex == 1 && strcmp(pTable->tableName, "vgroups") == 0) {
+      *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+    }
   }
   pTable->version++;
   sdbVersion++;
