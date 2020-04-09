@@ -241,7 +241,8 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
-  int32_t  vnode;  // the index of vnode
+  int32_t  vgId;
+  int32_t  dnodeId;
   uint32_t ip;
 } SVnodeDesc;
 
@@ -752,12 +753,12 @@ typedef struct {
 
 typedef struct {
   int32_t    numOfQueries;
-  SQueryDesc qdesc[];
+  SQueryDesc *qdesc;
 } SQqueryList;
 
 typedef struct {
   int32_t     numOfStreams;
-  SStreamDesc sdesc[];
+  SStreamDesc *sdesc;
 } SStreamList;
 
 typedef struct {

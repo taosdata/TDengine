@@ -18,11 +18,35 @@
 #include "mgmtBalance.h"
 #include "mgmtDnode.h"
 
-int32_t mgmtInitBalance() { return 0; }
-void    mgmtCleanupBalance() {}
-void    mgmtStartBalanceTimer(int32_t afterMs) {}
+extern int32_t balanceInit();
+extern void    balanceCleanUp();
+extern void    balanceNotify();
+extern int32_t balanceAllocVnodes(SVgObj *pVgroup);
+
+int32_t mgmtInitBalance() {
+#ifdef _VPEER
+  return balanceInit();
+#else
+  return 0;
+#endif
+}
+
+void mgmtCleanupBalance() {
+#ifdef _VPEER
+  balanceCleanUp();
+#endif
+}
+
+void mgmtBalanceNotify() {
+#ifdef _VPEER
+  balanceNotify();
+#endif
+}
 
 int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
+#ifdef _VPEER
+  return balanceAllocVnodes(pVgroup);
+#else
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   SDnodeObj *pSelDnode = NULL;
@@ -53,4 +77,5 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
 
   mTrace("dnode:%d, alloc one vnode to vgroup, openVnodes:%d", pSelDnode->dnodeId, pSelDnode->openVnodes);
   return TSDB_CODE_SUCCESS;
+#endif  
 }

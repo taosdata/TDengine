@@ -1566,6 +1566,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 
   destroyResultBuf(pRuntimeEnv->pResultBuf);
+  tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
   pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
 
@@ -2238,27 +2239,6 @@ char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWi
          pQuery->pSelectExpr[columnIndex].resBytes * realRowId;
 }
 
-void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
-  if (pQInfo == NULL) {
-    return;
-  }
-
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-
-  teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
-
-  //  tSidSetDestroy(&pQInfo->pSidSet);
-
-  if (pQInfo->pTableDataInfo != NULL) {
-    //    size_t num = taosHashGetSize(pQInfo->pTableIdList);
-    for (int32_t j = 0; j < 0; ++j) {
-      destroyMeterQueryInfo(pQInfo->pTableDataInfo[j].pTableQInfo, pQuery->numOfOutputCols);
-    }
-  }
-
-  tfree(pQInfo->pTableDataInfo);
-}
-
 int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
   if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey > pQuery->window.ekey)) ||
       (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.ekey > pQuery->window.skey))) {
@@ -2266,14 +2246,10 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
            pQuery->window.ekey, pQuery->order.order);
 
     sem_post(&pQInfo->dataReady);
-    //    pQInfo->over = 1;
-
     return TSDB_CODE_SUCCESS;
   }
 
   pQuery->status = 0;
-
-  pQuery->rec = (SResultRec){0};
   pQuery->rec = (SResultRec){0};
 
   changeExecuteScanOrder(pQuery, true);
@@ -4202,8 +4178,9 @@ int32_t doInitializeQInfo(SQInfo *pQInfo, void *param, void* tsdb, bool isSTable
   }
   
   pRuntimeEnv->pQueryHandle = tsdbQueryByTableId(tsdb, &cond, pQInfo->pTableIdList, cols);
+  taosArrayDestroy(cols);
+  
   pRuntimeEnv->pQuery = pQuery;
-
   pRuntimeEnv->pTSBuf = param;
   pRuntimeEnv->cur.vnodeIndex = -1;
   if (param != NULL) {
@@ -5169,7 +5146,8 @@ static void singleTableQueryImpl(SQInfo* pQInfo) {
   if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed", pQInfo);
   } else {
-    dTrace("QInfo:%p query task completed, %d points are returned", pQInfo, pQuery->rec.size);
+    dTrace("QInfo:%p query task completed, %" PRId64 " rows will returned, total:%" PRId64 " rows", pQInfo, pQuery->rec.size,
+        pQuery->rec.total);
   }
   
   sem_post(&pQInfo->dataReady);
@@ -5444,13 +5422,11 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     *tagCond = calloc(1, pQueryMsg->tagCondLen * TSDB_NCHAR_SIZE);
     memcpy(*tagCond, pMsg, pQueryMsg->tagCondLen * TSDB_NCHAR_SIZE);
   }
-
-  dTrace("qmsg:%p query on %d meter(s), qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, numOfTagCols:%d, "
-         "timestamp order:%d, tags order:%d, tags order col:%d, numOfOutputCols:%d, numOfCols:%d, interval:%" PRId64
-         ", fillType:%d, comptslen:%d, limit:%" PRId64 ", offset:%" PRId64,
+  
+  dTrace("qmsg:%p query on %d table(s), qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, ts order:%d, "
+         "outputCols:%d, numOfCols:%d, interval:%d" PRId64 ", fillType:%d, comptsLen:%d, limit:%" PRId64 ", offset:%" PRId64,
          pQueryMsg, pQueryMsg->numOfTables, pQueryMsg->window.skey, pQueryMsg->window.ekey,
-         pQueryMsg->numOfGroupCols, pQueryMsg->order, pQueryMsg->orderType,
-         pQueryMsg->orderByIdx, pQueryMsg->numOfOutputCols,
+         pQueryMsg->numOfGroupCols, pQueryMsg->order, pQueryMsg->numOfOutputCols,
          pQueryMsg->numOfCols, pQueryMsg->intervalTime, pQueryMsg->interpoType, pQueryMsg->tsLen,
          pQueryMsg->limit, pQueryMsg->offset);
 
@@ -5731,7 +5707,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
                                SArray *pTableIdList) {
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
-    goto _clean_memory;
+    goto _clean_pQInfo_memory;
   }
 
   SQuery *pQuery = calloc(1, sizeof(SQuery));
@@ -5841,7 +5817,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   
   vnodeParametersSafetyCheck(pQuery);
   
-  dTrace("qmsg:%p create QInfo:%p, QInfo created", pQueryMsg, pQInfo);
+  dTrace("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
   return pQInfo;
 
 _clean_memory:
@@ -5860,6 +5836,7 @@ _clean_memory:
   tfree(pExprs);
   tfree(pGroupbyExpr);
 
+_clean_pQInfo_memory:
   tfree(pQInfo);
 
   return NULL;
@@ -5927,7 +5904,7 @@ static void freeQInfo(SQInfo *pQInfo) {
   SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
   setQueryKilled(pQInfo);
   
-  dTrace("QInfo:%p start to free SQInfo", pQInfo);
+  dTrace("QInfo:%p start to free QInfo", pQInfo);
   for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {
     tfree(pQuery->sdata[col]);
   }
@@ -5941,7 +5918,16 @@ static void freeQInfo(SQInfo *pQInfo) {
   //  }
   
   sem_destroy(&(pQInfo->dataReady));
-  vnodeQueryFreeQInfoEx(pQInfo);
+  teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
+  
+  if (pQInfo->pTableDataInfo != NULL) {
+    //    size_t num = taosHashGetSize(pQInfo->pTableIdList);
+    for (int32_t j = 0; j < 0; ++j) {
+      destroyMeterQueryInfo(pQInfo->pTableDataInfo[j].pTableQInfo, pQuery->numOfOutputCols);
+    }
+  }
+  
+  tfree(pQInfo->pTableDataInfo);
   
   for (int32_t i = 0; i < pQuery->numOfFilterCols; ++i) {
     SSingleColumnFilterInfo *pColFilter = &pQuery->pFilterInfo[i];
@@ -5973,6 +5959,8 @@ static void freeQInfo(SQInfo *pQInfo) {
   
   tfree(pQuery->pGroupbyExpr);
   tfree(pQuery);
+  
+  taosArrayDestroy(pQInfo->pTableIdList);
   
   dTrace("QInfo:%p QInfo is freed", pQInfo);
   
@@ -6120,6 +6108,11 @@ _query_over:
   return TSDB_CODE_SUCCESS;
 }
 
+void qDestroyQueryInfo(SQInfo* pQInfo) {
+  dTrace("QInfo:%p query completed", pQInfo);
+  freeQInfo(pQInfo);
+}
+
 void qTableQuery(SQInfo *pQInfo) {
   if (pQInfo == NULL || pQInfo->signature != pQInfo) {
     dTrace("%p freed abort query", pQInfo);
@@ -6132,6 +6125,9 @@ void qTableQuery(SQInfo *pQInfo) {
   }
   
   dTrace("QInfo:%p query task is launched", pQInfo);
+  
+//  sem_post(&pQInfo->dataReady);
+//  pQInfo->runtimeEnv.pQuery->status = QUERY_OVER;
   
   int32_t numOfTables = taosArrayGetSize(pQInfo->pTableIdList);
   if (numOfTables == 1) {
@@ -6151,18 +6147,14 @@ int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
-    if (pQInfo->code == TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_QUERY_CANCELLED;
-    } else {  // in case of not TSDB_CODE_SUCCESS, return the code to client
-      return (pQInfo->code >= 0)? pQInfo->code:(-pQInfo->code);
-    }
+    return pQInfo->code;
   }
 
   sem_wait(&pQInfo->dataReady);
   dTrace("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%d", pQInfo, pQuery->rowSize, pQuery->rec.size,
       pQInfo->code);
   
-  return (pQInfo->code >= 0)? pQInfo->code:(-pQInfo->code);
+  return pQInfo->code;
 }
 
 bool qHasMoreResultsToRetrieve(SQInfo* pQInfo) {
@@ -6207,12 +6199,12 @@ int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* c
   if (pQuery->rec.size > 0 && code == TSDB_CODE_SUCCESS) {
     code = doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {
+    setQueryStatus(pQuery, QUERY_OVER);
     code = pQInfo->code;
   }
   
   if (isQueryKilled(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
     (*pRsp)->completed = 1; // notify no more result to client
-    freeQInfo(pQInfo);
   }
   
   return code;

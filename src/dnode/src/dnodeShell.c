@@ -37,7 +37,7 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]    = dnodeRead;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_RETRIEVE] = dnodeRead;
 
-  int numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
+  int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
   numOfThreads = (int32_t) ((1.0 - tsRatioOfQueryThreads) * numOfThreads / 2.0);
   if (numOfThreads < 1) {
     numOfThreads = 1;

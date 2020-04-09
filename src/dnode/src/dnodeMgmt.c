@@ -64,7 +64,7 @@ int32_t dnodeInitMgmt() {
     dError("failed to init dnode timer");
     return -1;
   }
-  
+
   int32_t code = dnodeOpenVnodes();
   if (code != TSDB_CODE_SUCCESS) {
     return -1;
@@ -104,7 +104,7 @@ void dnodeMgmt(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-static int dnodeGetVnodeList(int32_t vnodeList[]) {
+static int32_t dnodeGetVnodeList(int32_t vnodeList[]) {
   DIR *dir = opendir(tsVnodeDir);
   if (dir == NULL) {
     return TSDB_CODE_NO_WRITE_ACCESS;
@@ -129,47 +129,59 @@ static int dnodeGetVnodeList(int32_t vnodeList[]) {
 }
 
 static int32_t dnodeOpenVnodes() {
-   char vnodeDir[TSDB_FILENAME_LEN * 3];
-   int  failed = 0;
+  char vnodeDir[TSDB_FILENAME_LEN * 3];
+  int32_t failed = 0;
 
-   int32_t *vnodeList = (int32_t *) malloc(sizeof(int32_t) * 10000);
-   int numOfVnodes = dnodeGetVnodeList(vnodeList);
-  
-   for (int i=0; i<numOfVnodes; ++i) {
-      snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/vnode%d", tsVnodeDir, vnodeList[i]);
-      if (vnodeOpen(vnodeList[i], vnodeDir) <0) failed++;
-   }
+  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * 10000);
+  int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
 
-   free(vnodeList);
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/vnode%d", tsVnodeDir, vnodeList[i]);
+    if (vnodeOpen(vnodeList[i], vnodeDir) < 0) failed++;
+  }
 
-   dPrint("there are total vnodes:%d, failed to open:%d", numOfVnodes, failed);
-   return TSDB_CODE_SUCCESS;
+  free(vnodeList);
+
+  dPrint("there are total vnodes:%d, failed to open:%d", numOfVnodes, failed);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void dnodeCloseVnodes() {
-   int32_t *vnodeList = (int32_t *) malloc(sizeof(int32_t) * 10000);
-   int numOfVnodes = dnodeGetVnodeList(vnodeList);
-  
-   for (int i=0; i<numOfVnodes; ++i) 
-     vnodeClose(vnodeList[i]); 
+  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * 10000);
+  int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
 
-   free(vnodeList);
-   dPrint("total vnodes:%d are all closed", numOfVnodes);
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    vnodeClose(vnodeList[i]);
+  }
+
+  free(vnodeList);
+  dPrint("total vnodes:%d are all closed", numOfVnodes);
 }
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
-
   SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
-  pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
-  pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
-  pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
-  pCreate->cfg.commitLog   = pCreate->cfg.commitLog;
-
+  pCreate->cfg.vgId            = htonl(pCreate->cfg.vgId);
+  pCreate->cfg.maxSessions     = htonl(pCreate->cfg.maxSessions);
+  pCreate->cfg.cacheBlockSize  = htonl(pCreate->cfg.cacheBlockSize);
+  pCreate->cfg.daysPerFile     = htonl(pCreate->cfg.daysPerFile);
+  pCreate->cfg.daysToKeep1     = htonl(pCreate->cfg.daysToKeep1);
+  pCreate->cfg.daysToKeep2     = htonl(pCreate->cfg.daysToKeep2);
+  pCreate->cfg.daysToKeep      = htonl(pCreate->cfg.daysToKeep);
+  pCreate->cfg.commitTime      = htonl(pCreate->cfg.commitTime);
+  pCreate->cfg.rowsInFileBlock = htonl(pCreate->cfg.rowsInFileBlock);
+  pCreate->cfg.blocksPerTable  = htons(pCreate->cfg.blocksPerTable);
+  pCreate->cfg.cacheNumOfBlocks.totalBlocks = htonl(pCreate->cfg.cacheNumOfBlocks.totalBlocks);
+  
+  for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
+    pCreate->vpeerDesc[j].vgId    = htonl(pCreate->vpeerDesc[j].vgId);
+    pCreate->vpeerDesc[j].dnodeId = htonl(pCreate->vpeerDesc[j].dnodeId);
+    pCreate->vpeerDesc[j].ip      = htonl(pCreate->vpeerDesc[j].ip);
+  }
+  
   return vnodeCreate(pCreate);
 }
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
-
   SMDDropVnodeMsg *pDrop = rpcMsg->pCont;
   pDrop->vgId = htonl(pDrop->vgId);
 
@@ -177,7 +189,6 @@ static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
-
   SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
@@ -206,7 +217,7 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   if (tsDnodeTmr == NULL) {
-     dError("dnode timer is already released");
+    dError("dnode timer is already released");
     return;
   }
 

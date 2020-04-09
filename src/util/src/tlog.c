@@ -347,7 +347,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
   va_start(argpointer, format);
   int writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
   if (writeLen <= 0) {
-    char tmp[MAX_LOGLINE_DUMP_BUFFER_SIZE];
+    char tmp[MAX_LOGLINE_DUMP_BUFFER_SIZE] = {0};
     writeLen = vsnprintf(tmp, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
     strncpy(buffer + len, tmp, MAX_LOGLINE_CONTENT_SIZE);
     len += MAX_LOGLINE_CONTENT_SIZE;

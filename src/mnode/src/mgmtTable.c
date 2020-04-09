@@ -486,8 +486,8 @@ static void *mgmtGetSuperTable(char *tableId) {
   return sdbGetRow(tsSuperTableSdb, tableId);
 }
 
-STableInfo *mgmtGetTable(char *tableId) {
-  STableInfo *tableInfo = sdbGetRow(tsSuperTableSdb, tableId);
+STableObj *mgmtGetTable(char *tableId) {
+  STableObj *tableInfo = sdbGetRow(tsSuperTableSdb, tableId);
   if (tableInfo != NULL) {
     return tableInfo;
   }
@@ -501,7 +501,7 @@ STableInfo *mgmtGetTable(char *tableId) {
 }
 
 void mgmtIncTableRef(void *p1) {
-  STableInfo *pTable = (STableInfo *)p1;
+  STableObj *pTable = (STableObj *)p1;
   if (pTable->type == TSDB_SUPER_TABLE) {
     sdbIncRef(tsSuperTableSdb, pTable);
   } else {
@@ -512,7 +512,7 @@ void mgmtIncTableRef(void *p1) {
 void mgmtDecTableRef(void *p1) {
   if (p1 == NULL) return;
 
-  STableInfo *pTable = (STableInfo *)p1;
+  STableObj *pTable = (STableObj *)p1;
   if (pTable->type == TSDB_SUPER_TABLE) {
     sdbDecRef(tsSuperTableSdb, pTable);
   } else {
@@ -1302,7 +1302,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  pMsg->pTable = (STableInfo *)mgmtDoCreateChildTable(pCreate, pVgroup, sid);
+  pMsg->pTable = (STableObj *)mgmtDoCreateChildTable(pCreate, pVgroup, sid);
   if (pMsg->pTable == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, terrno);
     return;
@@ -1512,7 +1512,8 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
     } else {
       pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].privateIp;
     }
-    pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
+    pMeta->vpeerDesc[i].dnodeId = htonl(pVgroup->vnodeGid[i].dnodeId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 
@@ -1640,7 +1641,7 @@ static SChildTableObj* mgmtGetTableByPos(uint32_t dnodeId, int32_t vnode, int32_
   }
 
   SChildTableObj *pTable = pVgroup->tableList[sid];
-  mgmtIncTableRef((STableInfo *)pTable);
+  mgmtIncTableRef((STableObj *)pTable);
   mgmtDecVgroupRef(pVgroup);
   return pTable;
 }

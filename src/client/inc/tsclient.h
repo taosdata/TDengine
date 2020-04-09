@@ -213,8 +213,6 @@ typedef struct SDataBlockList {
   int32_t            idx;
   uint32_t           nSize;
   uint32_t           nAlloc;
-  char *             userParam; /* user assigned parameters for async query */
-  void *             udfp;      /* user defined function pointer, used in async model */
   STableDataBlocks **pData;
 } SDataBlockList;
 
@@ -451,7 +449,6 @@ void tscCloseTscObj(STscObj *pObj);
 
 void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen);
 
-void tscProcessMultiVnodesInsert(SSqlObj *pSql);
 void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
 void tscKillMetricQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);

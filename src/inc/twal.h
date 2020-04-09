@@ -33,6 +33,11 @@ typedef struct {
   char      cont[];
 } SWalHead;
 
+typedef struct {
+  int8_t    commitLog; // commitLog
+  int8_t    wals;      // number of WAL files;
+} SWalCfg;
+
 typedef void* twal_h;  // WAL HANDLE
 
 twal_h  walOpen(char *path, int max, int level);

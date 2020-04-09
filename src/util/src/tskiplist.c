@@ -18,7 +18,7 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList, int32_t level) {  // record link count in each level
+__attribute__ ((unused)) static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList, int32_t level) {  // record link count in each level
 #if SKIP_LIST_RECORD_PERFORMANCE
   for (int32_t i = 0; i < level; ++i) {
     pSkipList->state.nLevelNodeCnt[i]++;
@@ -26,7 +26,7 @@ static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList, int32_t level
 #endif
 }
 
-static FORCE_INLINE void removeNodeEachLevel(SSkipList *pSkipList, int32_t level) {
+__attribute__ ((unused)) static FORCE_INLINE void removeNodeEachLevel(SSkipList *pSkipList, int32_t level) {
 #if SKIP_LIST_RECORD_PERFORMANCE
   for (int32_t i = 0; i < level; ++i) {
     pSkipList->state.nLevelNodeCnt[i]--;

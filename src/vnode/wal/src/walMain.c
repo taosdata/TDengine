@@ -80,7 +80,8 @@ void *walOpen(char *path, int max, int level) {
 }
 
 void walClose(void *handle) {
- 
+  if (handle == NULL) return;
+  
   SWal *pWal = (SWal *)handle;
   
   close(pWal->fd);
@@ -125,7 +126,7 @@ int walRenew(twal_h handle) {
 
     if (pWal->num > pWal->max) {
       // remove the oldest wal file
-      char name[TSDB_FILENAME_LEN];
+      char name[TSDB_FILENAME_LEN * 3];
       sprintf(name, "%s/%s%d", pWal->path, walPrefix, pWal->id - pWal->max);
       if (remove(name) <0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
@@ -150,7 +151,7 @@ int walWrite(void *handle, SWalHead *pHead) {
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
 
   pHead->signature = walSignature;
-  taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWal));
+  taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
   int contLen = pHead->len + sizeof(SWalHead);
 
   if(write(pWal->fd, pHead, contLen) != contLen) {
@@ -177,7 +178,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, SWalHead *, in
   uint32_t maxId = 0, minId = -1, index =0;
 
   int   plen = strlen(walPrefix);
-  char  opath[TSDB_FILENAME_LEN];
+  char  opath[TSDB_FILENAME_LEN+5];
   sprintf(opath, "%s/old", pWal->path);
 
   // is there old directory?
@@ -272,7 +273,7 @@ static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SW
       break;
     }
 
-    if (taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
+    if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wWarn("wal:%s, cksum is messed up, skip the rest of file", name);
       break;
     } 
@@ -294,8 +295,8 @@ static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SW
 
 int walHandleExistingFiles(char *path) {
   int    code = 0;
-  char   oname[TSDB_FILENAME_LEN];
-  char   nname[TSDB_FILENAME_LEN];
+  char   oname[TSDB_FILENAME_LEN * 3];
+  char   nname[TSDB_FILENAME_LEN * 3];
   char   opath[TSDB_FILENAME_LEN];
 
   sprintf(opath, "%s/old", path);
@@ -336,7 +337,7 @@ int walHandleExistingFiles(char *path) {
 
 static int walRemoveWalFiles(char *path) {
   int    plen = strlen(walPrefix);
-  char   name[TSDB_FILENAME_LEN];
+  char   name[TSDB_FILENAME_LEN * 3];
   int    code = 0;
 
   if (access(path, F_OK) != 0) return 0;
