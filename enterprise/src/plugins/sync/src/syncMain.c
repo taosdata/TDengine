@@ -105,8 +105,6 @@ void *syncStart(SSyncInfo *pInfo)
   
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;
-  nodeVersion = pInfo->version;    // set the initial version
-
   pNode->replica = pCfg->replica;
   pNode->quorum = pCfg->quorum;
   for (int i = 0; i < pCfg->replica; ++i) {
@@ -121,6 +119,7 @@ void *syncStart(SSyncInfo *pInfo)
   }
 
   strcpy(pNode->path, pInfo->path);
+  nodeVersion = pInfo->version;    // set the initial version
 
   pNode->ahandle = pInfo->ahandle;
   pNode->getFileInfo = pInfo->getFileInfo;
@@ -141,7 +140,9 @@ void *syncStart(SSyncInfo *pInfo)
   syncAddNodeRef(pNode);
   taosAddIntHash(vgIdHash, pNode->vgId, (char *)(&pNode));
 
-  (*pNode->notifyRole)(pNode->ahandle, nodeRole);
+  if (pNode->notifyRole) 
+   (*pNode->notifyRole)(pNode->ahandle, nodeRole);
+
   return pNode;
 }
 
@@ -246,7 +247,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   int         fwdLen;
   int         code = 0;
 
-  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return -1;
+  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return TSDB_CODE_NOT_READY;
 
   // always update version
   nodeVersion = pWalHead->version;
