@@ -41,6 +41,8 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 static int nRowsLEThan(SDataCols *pDataCols, int maxKey);
 static int tsdbGetRowsCanBeMergedWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
 static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
+static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded);
+static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 
 int tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg) {
   if (pHelper == NULL || pCfg == NULL || tsdbCheckHelperCfg(pCfg) < 0) return -1;
@@ -236,7 +238,6 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
         rowsToWrite = tsdbMergeDataWithBlock(pHelper, blkIdx, pDataCols);
         if (rowsToWrite < 0) goto _err;
 
-        ASSERT(rowsToWrite == MIN(rows1, rows2));
       } else { // Either merge with the previous block or save as a super block in the middle
         SCompBlock *prevBlock = (blkIdx == 0) ? NULL : (pCompBlock - 1);
 
@@ -283,7 +284,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
 }
 
 int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
-  ASSERT(pHelper->state = TSDB_HELPER_FILE_SET_AND_OPEN);
+  ASSERT(pHelper->state == TSDB_HELPER_FILE_SET_AND_OPEN);
 
   if (!helperHasState(pHelper, TSDB_HELPER_IDX_LOAD)) {
     // If not load from file, just load it in object
@@ -538,7 +539,6 @@ static int nRowsLEThan(SDataCols *pDataCols, int maxKey) {
 
 static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols) {
   int        rowsWritten = 0;
-  TSKEY      keyFirst = dataColsKeyFirst(pDataCols);
   SCompBlock compBlock = {0};
 
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
@@ -566,24 +566,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 
     if (tsdbWriteBlockToFile(pHelper, pFile, pDataCols, rowsCanMerge, &compBlock, pCompBlock->last, false) < 0) goto _err;
 
-    // TODO: Add the sub-block
-    if (pCompBlock->numOfSubBlocks == 1) {
-      pCompBlock->numOfSubBlocks += 2;
-      // pCompBlock->offset = ;
-      // pCompBlock->len = ;
-    } else {
-      pCompBlock->numOfSubBlocks++;
-    }
-    pCompBlock->numOfPoints += rowsCanMerge;
-    pCompBlock->keyFirst = MIN(pCompBlock->keyFirst, dataColsKeyFirst(pDataCols));
-    pCompBlock->keyLast = MAX(pCompBlock->keyLast, dataColsKeyAt(pDataCols, rowsCanMerge - 1));
-
-    // Update the Idx
-    // pIdx->hasLast = ;
-    // pIdx->len =;
-    // pIdx->numOfSuperBlocks = ;
-
-    rowsWritten = rowsCanMerge;
+    if (tsdbAddSubBlock(pHelper, &compBlock, blkIdx, rowsCanMerge) < 0) goto _err;
   } else {
     // Read-Merge-Write as a super block
     if (tsdbLoadBlockData(pHelper, blkIdx, NULL) < 0) goto _err;
@@ -603,12 +586,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
     }
 
     if (tsdbWriteBlockToFile(pHelper, pFile, pHelper->pDataCols[0], pCompBlock->numOfPoints + rowsCanMerge, &compBlock, isLast, true) < 0) goto _err;
-
-    *pCompBlock = compBlock;
-
-    pIdx->maxKey = MAX(pIdx->maxKey, compBlock.keyLast);
-    // pIdx->hasLast = ;
-    // pIdx->
+    if (tsdbUpdateSuperBlock(pHelper, &compBlock, blkIdx) < 0) goto _err;
   }
 
   return rowsWritten;
