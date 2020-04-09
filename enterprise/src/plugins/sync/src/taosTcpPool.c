@@ -140,6 +140,7 @@ static void taosProcessTcpData(void *param) {
     for (int i = 0; i < fdNum; ++i) {
       void *ahandle = events[i].data.ptr;
       int   fd = events[i].data.fd;
+      if (ahandle == NULL) continue;
 
       if (events[i].events & EPOLLERR) {
         epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, fd, NULL);
