@@ -15,9 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "grant.h"
+#include "tgrant.h"
 #include "machine.h"
 #include "mnode.h"
+#include "tcluster.h"
 #include "mgmtDServer.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"

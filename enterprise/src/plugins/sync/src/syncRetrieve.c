@@ -97,7 +97,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
   SFileInfo   fileInfo;
   SFileAck    fileAck;
   int         code = -1;
-  char        name[TSDB_FILENAME_LEN];
+  char        name[TSDB_FILENAME_LEN * 2];
 
   fileInfo.index = 0;
 
@@ -277,7 +277,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         code = -1;
-  char        fname[TSDB_FILENAME_LEN];  // full path to wal file
+  char        fname[TSDB_FILENAME_LEN * 2];  // full path to wal file
 
   if (syncAreFilesModified(pPeer) != 0) return -1;
 
@@ -348,8 +348,8 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
 static int syncRetrieveWal(SSyncPeer *pPeer)
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
-  char        fname[TSDB_FILENAME_LEN];
-  char        wname[TSDB_FILENAME_LEN];
+  char        fname[TSDB_FILENAME_LEN * 2];
+  char        wname[TSDB_FILENAME_LEN * 2];
   int32_t     size;
   struct stat fstat;
   int         code = -1;

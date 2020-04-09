@@ -15,8 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "tmodule.h"
-#include "mgmtBalance.h"
-#include "mgmtDnode.h"
+#include "tbalance.h"
+#include "tcluster.h"
+#include "mnode.h"
 #include "mgmtMnode.h"
 #include "dnodeModule.h"
 
