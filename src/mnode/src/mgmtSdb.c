@@ -700,6 +700,7 @@ int32_t sdbUpdateRow(SSdbOperDesc *pOper) {
   int32_t total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
   SRowHead *rowHead = (SRowHead *)calloc(1, total_size);
   if (rowHead == NULL) {
+    pthread_mutex_unlock(&pTable->mutex);
     sdbError("table:%s, failed to allocate row head memory", pTable->tableName);
     return -1;
   }

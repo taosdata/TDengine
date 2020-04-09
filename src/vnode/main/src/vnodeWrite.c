@@ -25,6 +25,7 @@
 #include "dataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "tutil.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
 static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
@@ -157,6 +158,8 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
 
   void *pTsdb = vnodeGetTsdb(pVnode);
   code = tsdbCreateTable(pTsdb, &tCfg);
+
+  tfree(pDestSchema);
 
   dTrace("pVnode:%p vgId:%d, table:%s is created, result:%x", pVnode, pVnode->vgId, pTable->tableId, code);
   return code; 

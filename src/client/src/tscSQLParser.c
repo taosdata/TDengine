@@ -209,7 +209,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   int32_t code = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
-//  assert(pQueryInfo->numOfTables == 0);
 
   STableMetaInfo* pTableMetaInfo = NULL;
   if (pQueryInfo->numOfTables == 0) {

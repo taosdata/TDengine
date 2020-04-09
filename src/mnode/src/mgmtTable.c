@@ -1506,9 +1506,9 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
 
   for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
     if (usePublicIp) {
-      pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+      pMeta->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].publicIp);
     } else {
-      pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].privateIp;
+      pMeta->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].privateIp);
     }
     pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
     pMeta->vpeerDesc[i].dnodeId = htonl(pVgroup->vnodeGid[i].dnodeId);
