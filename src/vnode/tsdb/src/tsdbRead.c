@@ -740,14 +740,14 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
     pFile->fd = open(pFile->fname, O_RDONLY);
   }
   
-  if (tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data) == 0) {
-    SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
-    pBlockLoadInfo->fileGroup = pCheckInfo->pFileGroup;
-    pBlockLoadInfo->slot = pQueryHandle->cur.slot;
-    pBlockLoadInfo->sid = pCheckInfo->pTableObj->tableId.tid;
+  // if (tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data) == 0) {
+  //   SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
+  //   pBlockLoadInfo->fileGroup = pCheckInfo->pFileGroup;
+  //   pBlockLoadInfo->slot = pQueryHandle->cur.slot;
+  //   pBlockLoadInfo->sid = pCheckInfo->pTableObj->tableId.tid;
     
-    blockLoaded = true;
-  }
+  //   blockLoaded = true;
+  // }
     
     //    dError("QInfo:%p fileId:%d total numOfBlks:%d blockId:%d load into memory failed due to error in disk files",
     //           GET_QINFO_ADDR(pQuery), pQuery->fileId, pQuery->numOfBlocks, blkIdx);

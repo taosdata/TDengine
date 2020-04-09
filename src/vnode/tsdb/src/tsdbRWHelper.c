@@ -27,7 +27,7 @@
 static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
 static void tsdbInitHelperFile(SHelperFile *pHFile);
 static int  tsdbInitHelperRead(SRWHelper *pHelper);
-static int  tsdbInitHelperWrite(SRWHelper *pHelper);
+// static int  tsdbInitHelperWrite(SRWHelper *pHelper);
 static void tsdbClearHelperFile(SHelperFile *pHFile);
 static void tsdbDestroyHelperRead(SRWHelper *pHelper);
 static void tsdbDestroyHelperWrite(SRWHelper *pHelper);
@@ -40,6 +40,7 @@ static int compareKeyBlock(const void *arg1, const void *arg2);
 static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
 static int nRowsLEThan(SDataCols *pDataCols, int maxKey);
 static int tsdbGetRowsCanBeMergedWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
+static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 
 int tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg) {
   if (pHelper == NULL || pCfg == NULL || tsdbCheckHelperCfg(pCfg) < 0) return -1;
@@ -52,7 +53,10 @@ int tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg) {
 
   if (tsdbInitHelperRead(pHelper) < 0) goto _err;
 
-  if ((TSDB_HELPER_TYPE(pHelper) == TSDB_WRITE_HELPER) && tsdbInitHelperWrite(pHelper) < 0) goto _err;
+  pHelper->pDataCols[0] = tdNewDataCols(pCfg->maxRowSize, pCfg->maxCols, pCfg->maxRows);
+  pHelper->pDataCols[1] = tdNewDataCols(pCfg->maxRowSize, pCfg->maxCols, pCfg->maxRows);
+  
+  if ((pHelper->pDataCols[0] == NULL) || (pHelper->pDataCols[1] == NULL)) goto _err;
 
   pHelper->state = TSDB_HELPER_CLEAR_STATE;
 
@@ -182,6 +186,7 @@ void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema
  */
 int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
   ASSERT(TSDB_HELPER_TYPE(pHelper) == TSDB_WRITE_HELPER);
+  ASSERT(pDataCols->numOfPoints > 0);
 
   SCompBlock compBlock;
   int        rowsToWrite = 0;
@@ -193,8 +198,7 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
 
   // Load the SCompInfo part if neccessary
   ASSERT(helperHasState(pHelper, TSDB_HELPER_TABLE_SET));
-  if ((!helperHasState(pHelper, TSDB_HELPER_INFO_LOAD)) &&
-      ((pIdx->offset > 0) && (pIdx->hasLast || keyFirst <= pIdx->maxKey))) {
+  if (!helperHasState(pHelper, TSDB_HELPER_INFO_LOAD) && (pIdx->offset > 0)) {
     if (tsdbLoadCompInfo(pHelper, NULL) < 0) goto _err;
   }
 
@@ -212,14 +216,7 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
 
     if (tsdbWriteBlockToFile(pHelper, pWFile, pDataCols, rowsToWrite, &compBlock, isLast, true) < 0) goto _err;
 
-    // TODO: may need to reallocate the memory
-    pHelper->pCompInfo->blocks[pHelper->blockIter++] = compBlock;
-
-    pIdx->hasLast = compBlock.last;
-    pIdx->numOfSuperBlocks++;
-    pIdx->maxKey = compBlock.keyLast;
-    ASSERT(compBlock.keyLast == dataColsKeyLast(pDataCols));
-    pIdx->len += sizeof(SCompBlock);
+    if (tsdbInsertSuperBlock(pHelper, &compBlock, pIdx->numOfSuperBlocks) < 0) goto _err;
   } else {  // (Has old data) AND ((has last block) OR (key overlap)), need to merge the block
     SCompBlock *pCompBlock = taosbsearch((void *)(&keyFirst), (void *)(pHelper->pCompInfo->blocks),
                                          pIdx->numOfSuperBlocks, sizeof(SCompBlock), compareKeyBlock, TD_GE);
@@ -405,14 +402,14 @@ static void tsdbDestroyHelperRead(SRWHelper *pHelper) {
   tdFreeDataCols(pHelper->pDataCols[1]);
 }
 
-static int tsdbInitHelperWrite(SRWHelper *pHelper) {
-  SHelperCfg *pCfg = &(pHelper->config);
+// static int tsdbInitHelperWrite(SRWHelper *pHelper) {
+//   SHelperCfg *pCfg = &(pHelper->config);
 
-  // pHelper->wCompIdxSize = pCfg->maxTables * sizeof(SCompIdx);
-  // if ((pHelper->pWCompIdx = (SCompIdx *)malloc(pHelper->wCompIdxSize)) == NULL) return -1;
+//   // pHelper->wCompIdxSize = pCfg->maxTables * sizeof(SCompIdx);
+//   // if ((pHelper->pWCompIdx = (SCompIdx *)malloc(pHelper->wCompIdxSize)) == NULL) return -1;
 
-  return 0;
-}
+//   return 0;
+// }
 
 static void tsdbDestroyHelperWrite(SRWHelper *pHelper) {
   // tfree(pHelper->pWCompIdx);
@@ -644,7 +641,7 @@ static int tsdbGetRowsCanBeMergedWithBlock(SRWHelper *pHelper, int blkIdx, SData
 
   } else {
     int32_t colId[1] = {0};
-    if (tsdbLoadBlockDataCols(pHelper, NULL, &colId, 1) < 0) goto _err;
+    if (tsdbLoadBlockDataCols(pHelper, NULL, colId, 1) < 0) goto _err;
 
     int iter1 = 0;  // For pDataCols
     int iter2 = 0;  // For loaded data cols
@@ -674,4 +671,54 @@ static int tsdbGetRowsCanBeMergedWithBlock(SRWHelper *pHelper, int blkIdx, SData
 
 _err:
   return -1;
+}
+
+static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx) {
+  SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
+
+  ASSERT(blkIdx >=0 && blkIdx <= pIdx->numOfSuperBlocks);
+  ASSERT(pCompBlock->numOfSubBlocks == 1);
+
+  // Adjust memory if no more room
+  size_t spaceNeed = sizeof(SCompBlock);
+  size_t spaceLeft = pHelper->compInfoSize - pIdx->len;
+  ASSERT(spaceLeft >= 0);
+  if (spaceLeft < spaceNeed) {
+    size_t tsize = pHelper->compInfoSize + sizeof(SCompBlock) * 16;
+    if (pHelper->compInfoSize == 0) tsize += sizeof(SCompInfo);
+
+    pHelper->pCompInfo = (SCompInfo *)realloc((void *)(pHelper->pCompInfo), tsize);
+    if (pHelper->pCompInfo == NULL) goto _err;
+  }
+
+  // Insert the block
+  if (blkIdx < pIdx->numOfSuperBlocks) {
+    SCompBlock *pTCompBlock = pHelper->pCompInfo->blocks + blkIdx;
+    memmove((void *)(pTCompBlock + 1), (void *)pTCompBlock, pIdx->len - sizeof(SCompInfo) - sizeof(SCompBlock) *blkIdx);
+    pTCompBlock++;
+    for (int i = 0; i < pIdx->numOfSuperBlocks - blkIdx; i++) {
+      pTCompBlock->offset++;
+    }
+  }
+  pHelper->pCompInfo->blocks[blkIdx] = *pCompBlock;
+
+  pIdx->numOfSuperBlocks++;
+  pIdx->len++;
+  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].keyLast;
+  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last;
+
+  return 0;
+
+  _err:
+  return -1;
+}
+
+static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock) {
+  // TODO
+  return 0;
+}
+
+static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx) {
+  // TODO
+  return 0;
 }

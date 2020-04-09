@@ -79,8 +79,8 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 1;
-  int rowsPerSubmit = 1;
+  int nRows = 10000000;
+  int rowsPerSubmit = 10;
   int64_t start_time = 1584081000000;
 
   SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
