@@ -24,8 +24,7 @@ extern "C" {
 int32_t   mgmtInitUsers();
 void      mgmtCleanUpUsers();
 SUserObj *mgmtGetUser(char *name);
-void      mgmtIncUserRef(SUserObj *pUser);
-void      mgmtDecUserRef(SUserObj *pUser);
+void      mgmtReleaseUser(SUserObj *pUser);
 SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp);
 int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
 void      mgmtDropAllUsers(SAcctObj *pAcct);

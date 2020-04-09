@@ -14,56 +14,34 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tstatus.h"
-#include "mgmtBalance.h"
-#include "mgmtDnode.h"
+#include "tbalance.h"
+#include "mnode.h"
+#include "tcluster.h"
+#include "mgmtVgroup.h"
 
-extern int32_t balanceInit();
-extern void    balanceCleanUp();
-extern void    balanceNotify();
-extern int32_t balanceAllocVnodes(SVgObj *pVgroup);
+#ifndef _VPEER
+int32_t balanceInit() { return 0; }
+void    balanceCleanUp() {}
+void    balanceNotify() {}
 
-int32_t mgmtInitBalance() {
-#ifdef _VPEER
-  return balanceInit();
-#else
-  return 0;
-#endif
-}
-
-void mgmtCleanupBalance() {
-#ifdef _VPEER
-  balanceCleanUp();
-#endif
-}
-
-void mgmtBalanceNotify() {
-#ifdef _VPEER
-  balanceNotify();
-#endif
-}
-
-int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
-#ifdef _VPEER
-  return balanceAllocVnodes(pVgroup);
-#else
+int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   SDnodeObj *pSelDnode = NULL;
   float      vnodeUsage = 1.0;
 
   while (1) {
-    mgmtDecDnodeRef(pDnode);
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pNode = clusterGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
-    if (pDnode->numOfTotalVnodes <= 0) continue;
-    if (pDnode->openVnodes == pDnode->numOfTotalVnodes) continue;
 
-    float usage = (float)pDnode->openVnodes / pDnode->numOfTotalVnodes;
-    if (usage <= vnodeUsage) {
-      pSelDnode = pDnode;
-      vnodeUsage = usage;
+    if (pDnode->numOfTotalVnodes > 0 && pDnode->openVnodes < pDnode->numOfTotalVnodes) {
+      float usage = (float)pDnode->openVnodes / pDnode->numOfTotalVnodes;
+      if (usage <= vnodeUsage) {
+        pSelDnode = pDnode;
+        vnodeUsage = usage;
+      }
     }
+    clusterReleaseDnode(pDnode);
   }
 
   if (pSelDnode == NULL) {
@@ -77,5 +55,6 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
 
   mTrace("dnode:%d, alloc one vnode to vgroup, openVnodes:%d", pSelDnode->dnodeId, pSelDnode->openVnodes);
   return TSDB_CODE_SUCCESS;
-#endif  
 }
+
+#endif 

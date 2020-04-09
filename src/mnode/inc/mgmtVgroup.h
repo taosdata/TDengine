@@ -24,12 +24,19 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
+enum _TSDB_VG_STATUS {
+  TSDB_VG_STATUS_READY,
+  TSDB_VG_STATUS_UPDATE
+};
+
 int32_t mgmtInitVgroups();
 void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
-void    mgmtIncVgroupRef(SVgObj *pVgroup);
-void    mgmtDecVgroupRef(SVgObj *pVgroup);
+void    mgmtReleaseVgroup(SVgObj *pVgroup);
 void    mgmtDropAllVgroups(SDbObj *pDropDb);
+
+void *  mgmtGetNextVgroup(void *pNode, SVgObj **pVgroup);
+void    mgmtUpdateVgroup(SVgObj *pVgroup);
 
 void    mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb);
 void    mgmtDropVgroup(SVgObj *pVgroup, void *ahandle);

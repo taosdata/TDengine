@@ -40,12 +40,12 @@ typedef struct {
 
 typedef void* twal_h;  // WAL HANDLE
 
-twal_h  walOpen(char *path, int max, int level);
+twal_h  walOpen(char *path, SWalCfg *pCfg);
 void    walClose(twal_h);
 int     walRenew(twal_h);
 int     walWrite(twal_h, SWalHead *);
 void    walFsync(twal_h);
-int     walRestore(twal_h, void *pVnode, int (*writeFp)(void *ahandle, SWalHead *pHead, int type));
+int     walRestore(twal_h, void *pVnode, int (*writeFp)(void *ahandle, void *pHead, int type));
 int     walGetWalFile(twal_h, char *name, uint32_t *index);
 
 extern int wDebugFlag;

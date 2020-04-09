@@ -42,7 +42,7 @@ void *dnodeAllocateWqueue(void *pVnode);
 void  dnodeFreeWqueue(void *queue);
 void *dnodeAllocateRqueue(void *pVnode);
 void  dnodeFreeRqueue(void *rqueue);
-void  dnodeSendWriteResponse(void *pVnode, void *param, int32_t code);
+void  dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code);
 
 #ifdef __cplusplus
 }

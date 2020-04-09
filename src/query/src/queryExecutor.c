@@ -20,7 +20,6 @@
 #include "tlog.h"
 #include "tlosertree.h"
 #include "tscompression.h"
-#include "tstatus.h"
 #include "ttime.h"
 
 #include "qast.h"

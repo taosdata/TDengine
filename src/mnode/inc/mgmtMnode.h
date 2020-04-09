@@ -20,6 +20,19 @@
 extern "C" {
 #endif
 
+enum _TSDB_MN_STATUS {
+  TSDB_MN_STATUS_OFFLINE,
+  TSDB_MN_STATUS_UNSYNCED,
+  TSDB_MN_STATUS_SYNCING,
+  TSDB_MN_STATUS_SERVING
+};
+
+enum _TSDB_MN_ROLE {
+  TSDB_MN_ROLE_UNDECIDED,
+  TSDB_MN_ROLE_SLAVE,
+  TSDB_MN_ROLE_MASTER
+};
+
 int32_t mgmtInitMnodes();
 void    mgmtCleanupMnodes();
 

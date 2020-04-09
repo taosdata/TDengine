@@ -435,7 +435,7 @@ void sdbIncRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    if (0) {
+    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
       sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
     }
   }
@@ -446,7 +446,7 @@ void sdbDecRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     int32_t  refCount = atomic_sub_fetch_32(pRefCount, 1);
-    if (0) {
+    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
       sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
     }
     int8_t* updateEnd = pRow + pTable->refCountPos - 1;
@@ -520,6 +520,11 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
   
   if (pTable->keyType == SDB_KEY_TYPE_AUTO) {
     *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+
+    // let vgId increase from 2
+    if (pTable->autoIndex == 1 && strcmp(pTable->tableName, "vgroups") == 0) {
+      *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+    }
   }
   pTable->version++;
   sdbVersion++;

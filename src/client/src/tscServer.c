@@ -517,7 +517,8 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pRetrieveMsg->free = htons(pQueryInfo->type);
   pMsg += sizeof(pQueryInfo->type);
 
-  pRetrieveMsg->header.vgId = htonl(1);
+  STableMeta* pTableMeta = pQueryInfo->pTableMetaInfo[0]->pTableMeta;
+  pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
   pMsg += sizeof(SRetrieveTableMsg);
   
   pRetrieveMsg->header.contLen = htonl(pSql->cmd.payloadLen);
