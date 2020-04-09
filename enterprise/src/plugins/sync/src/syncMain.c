@@ -961,7 +961,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
     pPeer->pThread = taosAllocateTcpThread(tsTcpPool, pPeer, connFd);
     syncAddPeerRef(pPeer);
     sTrace("vgId:%d peer:%s, ready to exchange data", pNode->vgId, pPeer->ipstr);
-    syncSendPeersStatusMsgToPeer(pPeer, 0);
+    syncSendPeersStatusMsgToPeer(pPeer, 1);
   }
 
   return;
