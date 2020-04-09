@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+#define sError(...) if (sDebugFlag & DEBUG_ERROR) {tprintf("ERROR SYN ", sDebugFlag, __VA_ARGS__);}
+#define sWarn(...) if (sDebugFlag & DEBUG_WARN) {tprintf("WARN SYN ", sDebugFlag, __VA_ARGS__);}
+#define sTrace(...) if (sDebugFlag & DEBUG_TRACE) {tprintf("SYN ", sDebugFlag, __VA_ARGS__);}
+#define sPrint(...) {tprintf("SYN ", 255, __VA_ARGS__);}
+
 #define TAOS_SMSG_SYNC_DATA    1
 #define TAOS_SMSG_FORWARD      2
 #define TAOS_SMSG_FORWARD_RSP  3
@@ -58,7 +63,7 @@ typedef struct {
 typedef struct {
   char      name[TSDB_FILENAME_LEN];
   uint32_t  magic;
-  int32_t   index;
+  uint32_t  index;
   int32_t   size;
 } SFileInfo;
 
@@ -117,14 +122,13 @@ typedef struct _syncPeer {
 } SSyncPeer;
 
 typedef struct _sync_node {
-  char         label[20];
-  char         path[128];
+  char         path[TSDB_FILENAME_LEN];
   int8_t       replica;
   int8_t       quorum;
   uint32_t     vgId;
   void        *ahandle;
-  uint32_t   (*getFileInfo)(char *name, int *index, int *size);
-  int        (*getWalInfo)(char *name, int *index);
+  uint32_t   (*getFileInfo)(void *ahandle, char *name, uint32_t *index, int32_t *size);
+  int        (*getWalInfo)(void *ahdnle, char *name, uint32_t *index);
   int        (*writeToCache)(void *ahandle, void *pHead, int type); 
   void       (*confirmForward)(void *ahandle, void *mhandle, int32_t code);
   void       (*notifyRole)(void *ahandle, int8_t role);

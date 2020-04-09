@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <stdbool.h>
+//#include <stdint.h>
+//#include <stdbool.h>
 #include "os.h"
+#include "ihash.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "ttimer.h"
@@ -23,7 +24,6 @@
 #include "tsocket.h"
 #include "taoserror.h"
 #include "taosTcpPool.h"
-#include "taosHashId.h"
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"
@@ -35,11 +35,13 @@ int       tsSyncTcpThreads = 2;
 int       tsMaxWatchFiles = 100;
 int       tsMaxFwdInfo = 200;
 short     tsSyncPort = 6045;
+int       sDebugFlag = 135;
 
 // module global, not configurable
 int       tsSyncNum;    // number of sync in process in whole system
-int       tsNodeNum;    // number of nodes in system
-uint32_t  tsSyncServerIp;
+
+static int            tsNodeNum;    // number of nodes in system
+static uint32_t       tsSyncServerIp;
 static ttpool_h       tsTcpPool;
 static void          *syncTmrCtrl = NULL;
 static void          *vgIdHash;
@@ -86,7 +88,7 @@ static void syncModuleInitFunc() {
   tsTcpPool = taosOpenTcpThreadPool(&info);
 
   syncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
-  vgIdHash = taosOpenIdHash(100000);
+  vgIdHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SSyncNode *), taosHashInt); 
 }
 
 void *syncStart(SSyncInfo *pInfo) 
@@ -94,19 +96,15 @@ void *syncStart(SSyncInfo *pInfo)
   pthread_once(&syncModuleInit, syncModuleInitFunc); 
 
   if (tsTcpPool == NULL) {
-    dError("failed to init TCP thread pool(%s)", strerror(errno));
+    sError("failed to init TCP thread pool(%s)", strerror(errno));
     return NULL;
   }
     
   SSyncNode *pNode = (SSyncNode *) calloc(sizeof(SSyncNode), 1);
   SSyncCfg  *pCfg = &pInfo->syncCfg;
   
-  strcpy(pNode->label, "SYN");
   pNode->selfIndex = -1;
-
   pNode->vgId = pInfo->vgId;
-  nodeVersion = pInfo->version;    // set the initial version
-
   pNode->replica = pCfg->replica;
   pNode->quorum = pCfg->quorum;
   for (int i = 0; i < pCfg->replica; ++i) {
@@ -115,12 +113,13 @@ void *syncStart(SSyncInfo *pInfo)
   }
 
   if (pNode->selfIndex < 0) {
-    dPrint("%s, this node is not configured", pNode->label);
+    sPrint("vgId:%d, this node is not configured", pNode->vgId);
     free (pNode);
     return NULL;
   }
 
   strcpy(pNode->path, pInfo->path);
+  nodeVersion = pInfo->version;    // set the initial version
 
   pNode->ahandle = pInfo->ahandle;
   pNode->getFileInfo = pInfo->getFileInfo;
@@ -132,16 +131,18 @@ void *syncStart(SSyncInfo *pInfo)
   pNode->pSyncFwds = calloc(sizeof(SSyncFwds) + tsMaxFwdInfo*sizeof(SFwdInfo), 1);
   pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, pNode, syncTmrCtrl);
   nodeRole = (pNode->replica > 1) ? TAOS_SYNC_ROLE_UNSYNCED : TAOS_SYNC_ROLE_MASTER;
-  dPrint("%s, %d replicas are configured, role:%s", pNode->label, pNode->replica, syncRole[nodeRole]);
+  sPrint("vgId:%d, %d replicas are configured, role:%s", pNode->vgId, pNode->replica, syncRole[nodeRole]);
 
   syncAddArbitrator(pNode, pCfg->arbitratorIp);
   pthread_mutex_init(&pNode->mutex, NULL);
 
   atomic_add_fetch_32(&tsNodeNum, 1);
   syncAddNodeRef(pNode);
-  taosAddIdHash(vgIdHash, pNode, pInfo->vgId);
+  taosAddIntHash(vgIdHash, pNode->vgId, (char *)(&pNode));
 
-  (*pNode->notifyRole)(pNode->ahandle, nodeRole);
+  if (pNode->notifyRole) 
+   (*pNode->notifyRole)(pNode->ahandle, nodeRole);
+
   return pNode;
 }
 
@@ -150,21 +151,21 @@ void syncStop(void *param)
   SSyncNode  *pNode = (SSyncNode *)param;
   SSyncPeer  *pPeer;
 
-  dPrint("%s, cleanup sync", pNode->label);
+  sPrint("vgId:%d, cleanup sync", pNode->vgId);
 
   for (int i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
     if (pPeer) syncRemovePeer(pPeer); 
   }
 
-  taosDeleteIdHash(vgIdHash, pNode->vgId);
+  taosDeleteIntHash(vgIdHash, pNode->vgId);
   syncDecNodeRef(pNode);
   atomic_sub_fetch_32(&tsNodeNum, 1);
   taosTmrStop(pNode->pFwdTimer);
 
   if (tsNodeNum <=0) {
     taosCloseTcpThreadPool(tsTcpPool);
-    taosCloseIdHash(vgIdHash);
+    taosCleanUpIntHash(vgIdHash);
   }
 }
 
@@ -173,7 +174,7 @@ int syncReconfig(void *param, SSyncCfg *pNewCfg)
   SSyncNode  *pNode = (SSyncNode *)param;
   int         i, j;
 
-  dPrint("%s, reconfig, role:%s replica:%d old:%d", pNode->label, syncRole[nodeRole], 
+  sPrint("vgId:%d, reconfig, role:%s replica:%d old:%d", pNode->vgId, syncRole[nodeRole], 
          pNewCfg->replica, pNode->replica);
 
   for (i = 0; i < pNode->replica; ++i) {
@@ -219,7 +220,7 @@ int syncReconfig(void *param, SSyncCfg *pNewCfg)
   }
     
   if (pNode->selfIndex <0) {
-    dPrint("%s, this node is not configured", pNode->label);
+    sPrint("vgId:%d, this node is not configured", pNode->vgId);
     syncStop(pNode);
     return -1;
   }  
@@ -227,7 +228,7 @@ int syncReconfig(void *param, SSyncCfg *pNewCfg)
   syncAddArbitrator(pNode, pNewCfg->arbitratorIp);
 
   if (pNewCfg->replica <= 1) {
-    dPrint("%s, no peers are configured, work as master!", pNode->label);
+    sPrint("vgId:%d, no peers are configured, work as master!", pNode->vgId);
     nodeRole = TAOS_SYNC_ROLE_MASTER;
     (*pNode->notifyRole)(pNode->ahandle, nodeRole);
   }
@@ -246,7 +247,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   int         fwdLen;
   int         code = 0;
 
-  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return -1;
+  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return TSDB_CODE_NOT_READY;
 
   // always update version
   nodeVersion = pWalHead->version;
@@ -267,11 +268,11 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   
     int retLen = write(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
-      dTrace("%s peer:%s, forward is sent, ver:%d len:%d", 
-              pNode->label, pPeer->ipstr, pWalHead->version, pWalHead->len);
+      sTrace("vgId:%d peer:%s, forward is sent, ver:%d len:%d", 
+              pNode->vgId, pPeer->ipstr, pWalHead->version, pWalHead->len);
     } else {
-      dError("%s peer:%s, failed to forward, ver:%d retLen:%d", 
-              pNode->label, pPeer->ipstr, pWalHead->version, retLen);
+      sError("vgId:%d peer:%s, failed to forward, ver:%d retLen:%d", 
+              pNode->vgId, pPeer->ipstr, pWalHead->version, retLen);
       syncRestartConnection(pPeer);
     }
   }
@@ -300,9 +301,9 @@ void syncConfirmForward(void *param, uint64_t version, int32_t code)
   int retLen = write(pPeer->peerFd, msg, msgLen);
 
   if (retLen == msgLen) {
-    dTrace("%s peer:%s, forward-rsp is sent, ver:%d ", pNode->label, pPeer->ipstr, version);
+    sTrace("vgId:%d peer:%s, forward-rsp is sent, ver:%d ", pNode->vgId, pPeer->ipstr, version);
   } else {
-    dTrace("%s peer:%s, failed to send forward ack, restart", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, failed to send forward ack, restart", pNode->vgId, pPeer->ipstr);
     syncRestartConnection(pPeer);
   }
 }
@@ -395,7 +396,7 @@ static void syncRemovePeer(SSyncPeer *pPeer)
   if (pPeer->ip == 0) return;
   SSyncNode  *pNode = pPeer->pSyncNode;
 
-  dPrint("%s peer:%s, it is removed", pNode->label, pPeer->ipstr);
+  sPrint("vgId:%d peer:%s, it is removed", pNode->vgId, pPeer->ipstr);
 
   pPeer->ip = 0;
   taosTmrStopA(&pPeer->timer);
@@ -419,9 +420,9 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, SNodeInfo *pInfo)
   pPeer->pSyncNode = pNode;
   pPeer->refCount = 1;
 
-  dPrint("%s peer:%s, %s is configured", pNode->label, pPeer->ipstr, pInfo->name);
+  sPrint("vgId:%d peer:%s, %s is configured", pNode->vgId, pPeer->ipstr, pInfo->name);
   if (pInfo->nodeIp > tsSyncServerIp || pInfo->nodeId == 0) {
-    dTrace("%s peer:%s, start to check peer connection", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, start to check peer connection", pNode->vgId, pPeer->ipstr);
     taosTmrReset(syncCheckPeerConnection, 100, pPeer, syncTmrCtrl, &pPeer->timer);
   }
 
@@ -446,7 +447,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
   int8_t     onlineNum = 0;
   int8_t     index = -1;
 
-  dTrace("%s, choose master", pNode->label);
+  sTrace("vgId:%d, choose master", pNode->vgId);
 
   for (int i = 0; i < pNode->replica; ++i) {
     if (pNode->peerInfo[i]->role != TAOS_SYNC_ROLE_OFFLINE)
@@ -476,15 +477,15 @@ static void syncChooseMaster(SSyncNode *pNode) {
 
   if (index >= 0) {
     if (index == pNode->selfIndex) {
-      dPrint("%s, start to work as master", pNode->label);
+      sPrint("vgId:%d, start to work as master", pNode->vgId);
       nodeRole = TAOS_SYNC_ROLE_MASTER;
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
     } else {
       pPeer = pNode->peerInfo[index];
-      dPrint("%s peer:%s, it shall work as master", pNode->label, pPeer->ipstr);
+      sPrint("vgId:%d peer:%s, it shall work as master", pNode->vgId, pPeer->ipstr);
     }
   } else {
-    dTrace("%s, failed to choose master", pNode->label);
+    sTrace("vgId:%d, failed to choose master", pNode->vgId);
   }
 } 
  
@@ -507,7 +508,7 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       pNode->peerInfo[pNode->selfIndex]->role = nodeRole;
-      dPrint("%s, change to unsynced state, online:%d replica:%d", pNode->label, onlineNum, pNode->replica);
+      sPrint("vgId:%d, change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, pNode->replica);
     }
   } else {
     for (int i=0; i<pNode->replica; ++i) {
@@ -517,7 +518,7 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
         index = i;
       } else { // multiple masters, it shall not happen 
         if ( i == pNode->selfIndex ) {
-          dError("%s, peer:%s: is master, work as slave instead", pNode->label, pTemp->ipstr);
+          sError("vgId:%d, peer:%s: is master, work as slave instead", pNode->vgId, pTemp->ipstr);
           nodeRole = TAOS_SYNC_ROLE_SLAVE;
           (*pNode->notifyRole)(pNode->ahandle, nodeRole);
         }
@@ -541,7 +542,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
   pNode->peerInfo[pNode->selfIndex]->version = nodeVersion;
   pPeer->role = newRole;
 
-  dTrace("%s peer:%s, own role:%s, new peer role:%s", pNode->label, pPeer->ipstr, 
+  sTrace("vgId:%d peer:%s, own role:%s, new peer role:%s", pNode->vgId, pPeer->ipstr, 
           syncRole[nodeRole], syncRole[pPeer->role]);  
 
   SSyncPeer *pMaster = syncCheckMaster(pNode);
@@ -552,7 +553,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
       if ( nodeVersion < pMaster->version) {
         syncRequired = 1;
       } else {
-        dPrint("%s, peer:%s is master, work as slave, ver:%d", pNode->label, pMaster->ipstr, pMaster->version);
+        sPrint("vgId:%d, peer:%s is master, work as slave, ver:%d", pNode->vgId, pMaster->ipstr, pMaster->version);
         nodeRole = TAOS_SYNC_ROLE_SLAVE;
         (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       }
@@ -591,7 +592,7 @@ void syncRestartConnection(SSyncPeer *pPeer)
   if (pPeer->ip == 0) return;
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  dTrace("%s peer:%s, restart connection", pNode->label, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, restart connection", pNode->vgId, pPeer->ipstr);
   tclose(pPeer->peerFd);
   tclose(pPeer->syncFd);
   taosTmrStopA(&pPeer->timer);
@@ -607,18 +608,18 @@ void syncRestartConnection(SSyncPeer *pPeer)
 static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
-  dTrace("%s peer:%s, sync-req is received", pNode->label, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, sync-req is received", pNode->vgId, pPeer->ipstr);
 
   if (pPeer->ip == 0) return;
 
   if (nodeRole != TAOS_SYNC_ROLE_MASTER) {
-    dError("%s peer:%s, I am not master anymore", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, I am not master anymore", pNode->vgId, pPeer->ipstr);
     tclose(pPeer->syncFd);
     return;
   }
 
   if (pPeer->sstatus != TAOS_SYNC_STATUS_INIT) {
-    dTrace("%s peer:%s, sync is already started", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, sync is already started", pNode->vgId, pPeer->ipstr);
     return; // already started
   }
 
@@ -628,10 +629,10 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
   if (pthread_create(&thread, &thattr, syncRetrieveData, pPeer) != 0) {
-    dError("%s peer:%s, failed to create sync thread(%s)", pNode->label, pPeer->ipstr, strerror(errno));
+    sError("vgId:%d peer:%s, failed to create sync thread(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
   } else {
     pPeer->sstatus = TAOS_SYNC_STATUS_START;
-    dTrace("%s peer:%s, thread is created to retrieve data", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, thread is created to retrieve data", pNode->vgId, pPeer->ipstr);
   }
 }
 
@@ -642,7 +643,7 @@ static void syncNotStarted(void *param, void *tmrId)
   SSyncNode *pNode = pPeer->pSyncNode;
 
   pPeer->timer = NULL;
-  dPrint("%s peer:%s, sync connection is still not up, restart", pNode->label, pPeer->ipstr);
+  sPrint("vgId:%d peer:%s, sync connection is still not up, restart", pNode->vgId, pPeer->ipstr);
   syncRestartConnection(pPeer);
 }
 
@@ -653,18 +654,18 @@ static void syncRecoverFromMaster(void *param, void *tmrId)
   SSyncNode   *pNode = pPeer->pSyncNode;
 
   if ( nodeSStatus != TAOS_SYNC_STATUS_INIT) {
-    dTrace("%s peer:%s, sync is already started, status:%d", pNode->label, pPeer->ipstr, nodeSStatus);
+    sTrace("vgId:%d peer:%s, sync is already started, status:%d", pNode->vgId, pPeer->ipstr, nodeSStatus);
     return;
   } 
 
   taosTmrStopA(&pPeer->timer);
   if (tsSyncNum >= tsMaxSyncNum) {
-    dPrint("%s peer:%s, %d syncs are in process, try later", pNode->label, pPeer->ipstr, tsSyncNum);
+    sPrint("vgId:%d peer:%s, %d syncs are in process, try later", pNode->vgId, pPeer->ipstr, tsSyncNum);
     taosTmrReset(syncRecoverFromMaster, 500, pPeer, syncTmrCtrl, &pPeer->timer);
     return;
   }
 
-  dTrace("%s peer:%s, try to sync", pNode->label, pPeer->ipstr)
+  sTrace("vgId:%d peer:%s, try to sync", pNode->vgId, pPeer->ipstr)
 
   SSyncHead firstPkt;
   memset(&firstPkt, 0, sizeof(firstPkt));
@@ -673,10 +674,10 @@ static void syncRecoverFromMaster(void *param, void *tmrId)
   taosTmrReset(syncNotStarted, tsVnodePeerHBTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
 
   if (write(pPeer->peerFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt) ) {
-    dError("%s peer:%s, failed to send sync-req to peer", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to send sync-req to peer", pNode->vgId, pPeer->ipstr);
   } else {
     nodeSStatus = TAOS_SYNC_STATUS_START;
-    dPrint("%s peer:%s, sync-req is sent", pNode->label, pPeer->ipstr);
+    sPrint("vgId:%d peer:%s, sync-req is sent", pNode->vgId, pPeer->ipstr);
   }
 
   return;
@@ -692,7 +693,7 @@ static void syncProcessFwdResponse(char *cont, SSyncPeer *pPeer)
 
   pthread_mutex_lock(&(pNode->mutex));
   
-  dTrace("%s peer:%s, forward-rsp is received, ver:%d ", pNode->label, pPeer->ipstr, pFwdRsp->version);
+  sTrace("vgId:%d peer:%s, forward-rsp is received, ver:%d ", pNode->vgId, pPeer->ipstr, pFwdRsp->version);
 
   SFwdInfo *pFirst = pSyncFwds->fwdInfo + pSyncFwds->first;
 
@@ -716,7 +717,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer)
   SSyncNode   *pNode = pPeer->pSyncNode;
   SWalHead    *pHead = (SWalHead *)cont;
 
-  dTrace("%s peer:%s, forward is received, ver:%d ", pNode->label, pPeer->ipstr, pHead->version);
+  sTrace("vgId:%d peer:%s, forward is received, ver:%d ", pNode->vgId, pPeer->ipstr, pHead->version);
 
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     nodeVersion = pHead->version;
@@ -736,7 +737,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer)
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
       syncSaveIntoBuffer(pPeer, pHead);
     } else {
-      dError("%s peer:%s, forward discarded, ver:%d", pNode->label, pPeer->ipstr, pHead->version);
+      sError("vgId:%d peer:%s, forward discarded, ver:%d", pNode->vgId, pPeer->ipstr, pHead->version);
     }
   }
 
@@ -750,8 +751,8 @@ static void syncProcessPeersStatusMsg(char *cont, SSyncPeer *pPeer)
   SSyncNode    *pNode = pPeer->pSyncNode;
   SPeersStatus *pPeersStatus = (SPeersStatus *)cont;
 
-  dTrace("%s peer:%s, status msg received, self:%s ver:%d peer:%s ver:%d",
-         pNode->label, pPeer->ipstr, syncRole[nodeRole], nodeVersion,
+  sTrace("vgId:%d peer:%s, status msg received, self:%s ver:%d peer:%s ver:%d",
+         pNode->vgId, pPeer->ipstr, syncRole[nodeRole], nodeVersion,
          syncRole[pPeersStatus->role], pPeersStatus->version, pPeersStatus->ack);
 
   pPeer->version = pPeersStatus->version;
@@ -773,21 +774,21 @@ static void syncProcessPeerMsg(void *param, void *buffer)
 
   int hlen = taosReadMsg(pPeer->peerFd, &head, sizeof(head));
   if (hlen != sizeof(head)) {
-    dTrace("%s peer:%s, failed to read msg, hlen:%d", pNode->label, pPeer->ipstr, hlen);
+    sTrace("vgId:%d peer:%s, failed to read msg, hlen:%d", pNode->vgId, pPeer->ipstr, hlen);
     syncRestartConnection(pPeer);
     return;
   }
 
   // head.len = htonl(head.len);
   if (head.len > TSDB_DEFAULT_PKT_SIZE || head.len <0) {
-    dError("%s peer:%s, invalid pkt length, len:%d", pNode->label, pPeer->ipstr, head.len);
+    sError("vgId:%d peer:%s, invalid pkt length, len:%d", pNode->vgId, pPeer->ipstr, head.len);
     syncRestartConnection(pPeer);
     return;
   } 
 
   bytes = taosReadMsg(pPeer->peerFd, cont, head.len);
   if (bytes != head.len) {
-    dError("%s peer:%s, failed to read, bytes:%d len:%d", pNode->label, pPeer->ipstr, bytes, head.len);
+    sError("vgId:%d peer:%s, failed to read, bytes:%d len:%d", pNode->vgId, pPeer->ipstr, bytes, head.len);
     syncRestartConnection(pPeer);
     return;
   }
@@ -831,9 +832,9 @@ static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack)
 
   int retLen = write(pPeer->peerFd, msg, statusMsgLen);
   if (retLen == statusMsgLen) {
-    dTrace("%s peer:%s, status msg is sent", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, status msg is sent", pNode->vgId, pPeer->ipstr);
   } else {
-    dTrace("%s peer:%s, failed to send status msg, restart", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, failed to send status msg, restart", pNode->vgId, pPeer->ipstr);
     syncRestartConnection(pPeer);
   }
 
@@ -846,18 +847,18 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
   if (pPeer->ip == 0 ) return;
 
   SSyncNode *pNode = pPeer->pSyncNode;
-  dTrace("%s peer:%s, check peer connection", pNode->label, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, check peer connection", pNode->vgId, pPeer->ipstr);
 
   taosTmrStopA(&pPeer->timer);
   if (pPeer->peerFd >= 0) {
-    dTrace("%s peer:%s, send role version to peer", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, send role version to peer", pNode->vgId, pPeer->ipstr);
     syncSendPeersStatusMsgToPeer(pPeer, 1);
     return;
   }
 
   int connFd = taosOpenTcpClientSocket(pPeer->ipstr, tsVnodeVnodePort, tsPrivateIp);
   if (connFd < 0) {
-    dTrace("%s peer:%s, failed to open tcp socket(%s)", pNode->label, pPeer->ipstr, strerror(errno));
+    sTrace("vgId:%d peer:%s, failed to open tcp socket(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
     taosTmrReset(syncCheckPeerConnection, tsVnodePeerHBTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);
     return;
   }
@@ -870,7 +871,7 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
   firstPkt.type = TAOS_SMSG_STATUS;
 
   if ( write(connFd, &firstPkt, sizeof(firstPkt)) == sizeof(firstPkt)) {
-    dTrace("%s peer:%s, connection to peer server is setup", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, connection to peer server is setup", pNode->vgId, pPeer->ipstr);
     pPeer->peerFd = connFd; 
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
     pPeer->pThread = taosAllocateTcpThread(tsTcpPool, pPeer, connFd);
@@ -893,11 +894,11 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer)
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
 
   if (pthread_create(&(thread), &thattr, (void *)syncRestoreData, pPeer) < 0) {
-    dError("%s peer:%s, failed to create sync thread(%s)", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to create sync thread(%s)", pNode->vgId, pPeer->ipstr);
     tclose(pPeer->syncFd);
   } else { 
     pthread_attr_destroy(&thattr);
-    dPrint("%s peer:%s, sync connection is up", pNode->label, pPeer->ipstr);
+    sPrint("vgId:%d peer:%s, sync connection is up", pNode->vgId, pPeer->ipstr);
   }
 }
 
@@ -907,25 +908,25 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   int   i;
    
   tinet_ntoa(ipstr, sourceIp);
-  dTrace("peer TCP connection from ip:%s", ipstr);
+  sTrace("peer TCP connection from ip:%s", ipstr);
 
   SSyncHead firstPkt;
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
-    dError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
+    sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
     taosCloseTcpSocket(connFd);
     return;;
   }
 
   int32_t vgId = firstPkt.vgId;
   if (vgId == 0) {  // work as arbitrator
-    dTrace("work as arbitrator for ip:%s", ipstr);
+    sTrace("work as arbitrator for ip:%s", ipstr);
     taosAllocateTcpThread(tsTcpPool, NULL, connFd);
     return;
   }
 
-  SSyncNode *pNode = taosGetIdHash(vgIdHash, vgId); 
+  SSyncNode *pNode = *(SSyncNode **)taosGetIntHashData(vgIdHash, vgId); 
   if (pNode == NULL) {
-    dError("vgId:%d, vgId could not be found", vgId);
+    sError("vgId:%d, vgId could not be found", vgId);
     taosCloseTcpSocket(connFd);
     return;
   }
@@ -939,7 +940,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
 
   pPeer = (i < pNode->replica) ? pNode->peerInfo[i] : NULL;
   if (pPeer == NULL) {
-    dError("%s, peer:%s not configured", pNode->label, ipstr);
+    sError("vgId:%d, peer:%s not configured", pNode->vgId, ipstr);
     // syncSendVpeerCfgMsg(sync);
     taosCloseTcpSocket(connFd);
     return; 
@@ -951,7 +952,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
     syncCreateRestoreDataThread(pPeer);
   } else {
     if (pPeer->peerFd >= 0) {
-      dTrace("%s peer:%s, TCP connection is already up, close one", pNode->label, pPeer->ipstr);
+      sTrace("vgId:%d peer:%s, TCP connection is already up, close one", pNode->vgId, pPeer->ipstr);
       taosFreeTcpThread(pPeer->pThread, &pPeer->peerFd);
       syncDecPeerRef(pPeer);
     }
@@ -959,7 +960,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
     pPeer->peerFd = connFd;
     pPeer->pThread = taosAllocateTcpThread(tsTcpPool, pPeer, connFd);
     syncAddPeerRef(pPeer);
-    dTrace("%s peer:%s, ready to exchange data", pNode->label, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, ready to exchange data", pNode->vgId, pPeer->ipstr);
     syncSendPeersStatusMsgToPeer(pPeer, 0);
   }
 
@@ -972,7 +973,7 @@ static void syncProcessBrokenLink(void *param) {
   SSyncPeer *pPeer = (SSyncPeer *)param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  dTrace("%s peer:%s, TCP link is broken(%s)", pNode->label, pPeer->ipstr, strerror(errno));
+  sTrace("vgId:%d peer:%s, TCP link is broken(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
 
   tclose(pPeer->peerFd);
 
@@ -1002,7 +1003,7 @@ static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle)
   pFwdInfo->time = time;
 
   pSyncFwds->fwds++;
-  dTrace("%s, fwd info is saved, ver:%d fwds:%d ", pNode->label, version, pSyncFwds->fwds);
+  sTrace("vgId:%d, fwd info is saved, ver:%d fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
 
   pthread_mutex_unlock(&(pNode->mutex));
 }
@@ -1019,8 +1020,8 @@ static void syncRemoveConfirmedFwdInfo(SSyncNode *pNode)
     pSyncFwds->first = (pSyncFwds->first+1) % tsMaxFwdInfo;
     pSyncFwds->fwds--;
     if (pSyncFwds->fwds == 0) pSyncFwds->first = pSyncFwds->last;
-    //dTrace("%s, fwd info is removed, ver:%d, fwds:%d", 
-    //        pNode->label, pFwdInfo->version, pSyncFwds->fwds);
+    //sTrace("vgId:%d, fwd info is removed, ver:%d, fwds:%d", 
+    //        pNode->vgId, pFwdInfo->version, pSyncFwds->fwds);
     memset(pFwdInfo, 0, sizeof(SFwdInfo));
   }
 }
@@ -1041,7 +1042,7 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
   }
 
   if (confirm && pFwdInfo->confirmed ==0) {
-    dTrace("%s, forward is confirmed, ver:%d code:%x", pNode->label, pFwdInfo->version, pFwdInfo->code);
+    sTrace("vgId:%d, forward is confirmed, ver:%d code:%x", pNode->vgId, pFwdInfo->version, pFwdInfo->code);
     (*pNode->confirmForward)(pNode->ahandle, pFwdInfo->mhandle, pFwdInfo->code);
     pFwdInfo->confirmed = 1;
   }

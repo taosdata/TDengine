@@ -41,7 +41,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
 
     // if no more file, break;
     if (minfo.name[0] == 0 || minfo.magic == 0) {
-      dTrace("%s peer:%s, no more files to restore", pNode->label, pPeer->ipstr);
+      sTrace("vgId:%d peer:%s, no more files to restore", pNode->vgId, pPeer->ipstr);
       code = 0; 
       break;
     }
@@ -50,11 +50,11 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     //minfo.index = htonl(minfo.index);
     //minfo.size = htonl(minfo.size);
 
-    dTrace("%s peer:%s, get file info:%s", pNode->label, pPeer->ipstr, minfo.name);
+    sTrace("vgId:%d peer:%s, get file info:%s", pNode->vgId, pPeer->ipstr, minfo.name);
 
     // check the file info
     strcpy(sinfo.name, minfo.name);
-    sinfo.magic = (*pNode->getFileInfo)(sinfo.name, &sinfo.index, &sinfo.size);
+    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size);
 
     // if file not there or magic is not the same, file shall be synced
     if (sinfo.magic != minfo.magic || sinfo.name[0] == 0) fileAck.sync =1;
@@ -65,7 +65,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
  
     // if sync is not required, continue
     if (fileAck.sync == 0) {
-      dTrace("%s peer:%s, %s is the same", pNode->label, pPeer->ipstr, minfo.name);
+      sTrace("vgId:%d peer:%s, %s is the same", pNode->vgId, pPeer->ipstr, minfo.name);
       continue;
     }
 
@@ -75,7 +75,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
 
     int dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if ( dfd < 0 ) {
-      dError("%s peer:%s, failed to open file:%s", pNode->label, pPeer->ipstr, name);
+      sError("vgId:%d peer:%s, failed to open file:%s", pNode->vgId, pPeer->ipstr, name);
       break;
     }
 
@@ -83,11 +83,11 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     close(dfd);
     if (ret<0) break;
 
-    dTrace("%s peer:%s, %s is received, size:%d", pNode->label, pPeer->ipstr, minfo.name, minfo.size);
+    sTrace("vgId:%d peer:%s, %s is received, size:%d", pNode->vgId, pPeer->ipstr, minfo.name, minfo.size);
   }
 
   if (code < 0) {
-    dError("%s peer:%s, failed to restore %s(%s)", pNode->label, pPeer->ipstr, name, strerror(errno));
+    sError("vgId:%d peer:%s, failed to restore %s(%s)", pNode->vgId, pPeer->ipstr, name, strerror(errno));
   }
 
   return code;
@@ -112,12 +112,12 @@ static int syncRestoreWal(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret <0)  break;
 
-    dTrace("%s peer:%s, restore a record, ver:%d", pNode->label, pPeer->ipstr, pHead->version);
+    sTrace("vgId:%d peer:%s, restore a record, ver:%d", pNode->vgId, pPeer->ipstr, pHead->version);
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
   }
 
   if (code<0) {
-    dError("%s peer:%s, failed to restore wal(%s)", pNode->label, pPeer->ipstr, strerror(errno));
+    sError("vgId:%d peer:%s, failed to restore wal(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
   }
 
   free(buffer);
@@ -141,7 +141,7 @@ static int syncProcessBufferedFwd(SSyncPeer *pPeer)
   SRecvBuffer *pRecv = pNode->pRecv;
   int          forwards = 0;
 
-  dTrace("%s peer:%s, number of buffered forwards:%d", pNode->label, pPeer->ipstr, pRecv->forwards);
+  sTrace("vgId:%d peer:%s, number of buffered forwards:%d", pNode->vgId, pPeer->ipstr, pRecv->forwards);
 
   char *offset = pRecv->buffer;
   while (forwards < pRecv->forwards) {
@@ -157,7 +157,7 @@ static int syncProcessBufferedFwd(SSyncPeer *pPeer)
   }
 
   nodeRole = TAOS_SYNC_ROLE_SLAVE;
-  dTrace("%s peer:%s, finish processing buffered fwds:%d", pNode->label, pPeer->ipstr, forwards);
+  sTrace("vgId:%d peer:%s, finish processing buffered fwds:%d", pNode->vgId, pPeer->ipstr, forwards);
 
   pthread_mutex_unlock(&pNode->mutex);
 
@@ -175,10 +175,10 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
     memcpy(pRecv->offset, pHead, len);
     pRecv->offset += len;
     pRecv->forwards++;
-    dTrace("%s peer:%s, fwd is saved into queue, ver:%d fwds:%d", 
-           pNode->label, pPeer->ipstr, pHead->version, pRecv->forwards);
+    sTrace("vgId:%d peer:%s, fwd is saved into queue, ver:%d fwds:%d", 
+           pNode->vgId, pPeer->ipstr, pHead->version, pRecv->forwards);
   } else {
-    dError("%s peer:%s, buffer size:%d is too small", pRecv->bufferSize); 
+    sError("vgId:%d peer:%s, buffer size:%d is too small", pRecv->bufferSize); 
     pRecv->code = -1;  // set error code
   }
 
@@ -216,22 +216,22 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
   SSyncNode *pNode = pPeer->pSyncNode;
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
 
-  dTrace("%s peer:%s, start to restore file", pNode->label, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, start to restore file", pNode->vgId, pPeer->ipstr);
   if (syncRestoreFile(pPeer) < 0) {
-    dError("%s peer:%s, failed to restore file", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to restore file", pNode->vgId, pPeer->ipstr);
     return -1;
   }
 
-  dTrace("%s peer:%s, start to restore wal", pNode->label, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, start to restore wal", pNode->vgId, pPeer->ipstr);
   if (syncRestoreWal(pPeer) < 0) {
-    dError("%s peer:%s, failed to restore wal", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to restore wal", pNode->vgId, pPeer->ipstr);
     return -1;
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_CACHE;
-  dTrace("%s peer:%s, start to insert buffered points", pNode->label, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, start to insert buffered points", pNode->vgId, pPeer->ipstr);
   if (syncProcessBufferedFwd(pPeer) < 0) {
-    dError("%s peer:%s, failed to insert buffered points", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to insert buffered points", pNode->vgId, pPeer->ipstr);
     return -1;
   }
 
@@ -244,7 +244,7 @@ void *syncRestoreData(void *param)
   SSyncNode  *pNode = pPeer->pSyncNode;
 
   if (syncOpenRecvBuffer(pNode) < 0) {
-    dError("%s peer:%s, failed to allocate recv buffer", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to allocate recv buffer", pNode->vgId, pPeer->ipstr);
     tclose(pPeer->syncFd)
     return NULL;
   } 
@@ -253,12 +253,12 @@ void *syncRestoreData(void *param)
   __sync_fetch_and_add(&tsSyncNum, 1);
 
   if ( syncRestoreDataStepByStep(pPeer) == 0) {
-    dPrint("%s peer:%s, it is synced successfully", pNode->label, pPeer->ipstr);
+    sPrint("vgId:%d peer:%s, it is synced successfully", pNode->vgId, pPeer->ipstr);
     nodeRole = TAOS_SYNC_ROLE_SLAVE;
     syncBroadcastStatus(pNode);
     (*pNode->notifyRole)(pNode->ahandle, nodeRole);
   } else {
-    dError("%s peer:%s, failed to restore data, restart connection", pNode->label, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to restore data, restart connection", pNode->vgId, pPeer->ipstr);
     nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
     syncRestartConnection(pPeer);
   }
