@@ -148,7 +148,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
-  syncInfo.vgId = pVnode->version;
+  syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
   sprintf(syncInfo.path, "%s/tsdb/", rootDir);
   syncInfo.ahandle = pVnode;
@@ -370,7 +370,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "arbitratorIp") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (arbitratorIp == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
-  pVnode->syncCfg.arbitratorIp = arbitratorIp;
+  pVnode->syncCfg.arbitratorIp = 0;
 
   int32_t quorum = -1;
   num = fscanf(fp, "%s %d", option[0], &quorum);
