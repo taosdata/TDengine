@@ -2,7 +2,7 @@
 
 
 run general/table/basic1.sim
-#run general/table/basic2.sim
-#run general/table/basic3.sim
+run general/table/basic2.sim
+run general/table/basic3.sim
 
 ################################## 
