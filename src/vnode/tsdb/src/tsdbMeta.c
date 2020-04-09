@@ -312,6 +312,14 @@ int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
 //   return 0;
 // }
 
+static void tsdbFreeMemTable(SMemTable *pMemTable) {
+  if (pMemTable) {
+    tSkipListDestroy(pMemTable->pData);
+  }
+
+  free(pMemTable);
+}
+
 static int tsdbFreeTable(STable *pTable) {
   // TODO: finish this function
   if (pTable->type == TSDB_CHILD_TABLE) {
@@ -323,7 +331,10 @@ static int tsdbFreeTable(STable *pTable) {
   // Free content
   if (TSDB_TABLE_IS_SUPER_TABLE(pTable)) {
     tSkipListDestroy(pTable->pIndex);
-  } 
+  }
+
+  tsdbFreeMemTable(pTable->mem);
+  tsdbFreeMemTable(pTable->imem);
 
   free(pTable);
   return 0;
