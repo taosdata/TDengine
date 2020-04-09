@@ -37,10 +37,6 @@ typedef struct SField {
   // todo need the definition
 } SField;
 
-typedef struct SHeaderFileInfo {
-  int32_t fileId;
-} SHeaderFileInfo;
-
 typedef struct SQueryFilePos {
   int32_t fid;
   int32_t slot;
@@ -380,11 +376,12 @@ static bool loadQualifiedDataFromFileBlock(STsdbQueryHandle *pQueryHandle) {
   
   SArray *sa = getDefaultLoadColumns(pQueryHandle, true);
   if (QUERY_IS_ASC_QUERY(pQueryHandle->order)) {
-    
     // query ended in current block
     if (pQueryHandle->window.ekey < pBlock->keyLast) {
       doLoadDataFromFileBlock(pQueryHandle);
       filterDataInDataBlock(pQueryHandle, pCheckInfo->pDataCols, sa);
+    } else { // the whole block is loaded in to buffer
+      pQueryHandle->realNumOfRows = pBlock->numOfPoints;
     }
   } else {// todo desc query
     if (pQueryHandle->window.ekey > pBlock->keyFirst) {
@@ -932,10 +929,6 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
   
   if (pHandle->cur.fid < 0) {
-    
-    
-    
-    
     return pHandle->pColumns;
   } else {
     STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);

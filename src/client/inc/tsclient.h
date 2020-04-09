@@ -351,7 +351,7 @@ typedef struct SSqlObj {
   char *            sqlstr;
   char              retry;
   char              maxRetry;
-  SRpcIpSet        *ipList;
+  SRpcIpSet         ipList;
   char              freed : 4;
   char              listed : 4;
   tsem_t            rspSem;

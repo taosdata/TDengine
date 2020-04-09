@@ -860,12 +860,10 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
       pCmd->allocSize = size;
     }
     
-    memset(pCmd->payload, 0, pCmd->payloadLen);
+    memset(pCmd->payload, 0, pCmd->allocSize);
   }
 
-  //memset(pCmd->payload, 0, pCmd->allocSize);
   assert(pCmd->allocSize >= size);
-
   return TSDB_CODE_SUCCESS;
 }
 
