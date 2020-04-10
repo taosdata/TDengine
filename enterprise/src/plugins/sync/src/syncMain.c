@@ -102,7 +102,16 @@ void *syncStart(SSyncInfo *pInfo)
     
   SSyncNode *pNode = (SSyncNode *) calloc(sizeof(SSyncNode), 1);
   SSyncCfg  *pCfg = &pInfo->syncCfg;
-  
+
+  strcpy(pNode->path, pInfo->path);
+
+  pNode->ahandle = pInfo->ahandle;
+  pNode->getFileInfo = pInfo->getFileInfo;
+  pNode->getWalInfo = pInfo->getWalInfo;
+  pNode->writeToCache = pInfo->writeToCache;
+  pNode->notifyRole = pInfo->notifyRole;
+  pNode->confirmForward = pInfo->confirmForward;
+ 
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;
   pNode->replica = pCfg->replica;
@@ -118,20 +127,12 @@ void *syncStart(SSyncInfo *pInfo)
     return NULL;
   }
 
-  strcpy(pNode->path, pInfo->path);
   nodeVersion = pInfo->version;    // set the initial version
-
-  pNode->ahandle = pInfo->ahandle;
-  pNode->getFileInfo = pInfo->getFileInfo;
-  pNode->getWalInfo = pInfo->getWalInfo;
-  pNode->writeToCache = pInfo->writeToCache;
-  pNode->notifyRole = pInfo->notifyRole;
-  pNode->confirmForward = pInfo->confirmForward;
+  nodeRole = (pNode->replica > 1) ? TAOS_SYNC_ROLE_UNSYNCED : TAOS_SYNC_ROLE_MASTER;
+  sPrint("vgId:%d, %d replicas are configured, role:%s", pNode->vgId, pNode->replica, syncRole[nodeRole]);
 
   pNode->pSyncFwds = calloc(sizeof(SSyncFwds) + tsMaxFwdInfo*sizeof(SFwdInfo), 1);
   pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, pNode, syncTmrCtrl);
-  nodeRole = (pNode->replica > 1) ? TAOS_SYNC_ROLE_UNSYNCED : TAOS_SYNC_ROLE_MASTER;
-  sPrint("vgId:%d, %d replicas are configured, role:%s", pNode->vgId, pNode->replica, syncRole[nodeRole]);
 
   syncAddArbitrator(pNode, pCfg->arbitratorIp);
   pthread_mutex_init(&pNode->mutex, NULL);
@@ -423,7 +424,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, SNodeInfo *pInfo)
   sPrint("vgId:%d peer:%s, %s is configured", pNode->vgId, pPeer->ipstr, pInfo->name);
   if (pInfo->nodeIp > tsSyncServerIp || pInfo->nodeId == 0) {
     sTrace("vgId:%d peer:%s, start to check peer connection", pNode->vgId, pPeer->ipstr);
-    taosTmrReset(syncCheckPeerConnection, 100, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, 10, pPeer, syncTmrCtrl, &pPeer->timer);
   }
 
   syncAddPeerRef(pPeer);
@@ -877,6 +878,7 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
     pPeer->pThread = taosAllocateTcpThread(tsTcpPool, pPeer, connFd);
     syncAddPeerRef(pPeer);
   } else {
+    sTrace("try later");
     close(connFd);
     taosTmrReset(syncCheckPeerConnection, tsVnodePeerHBTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);
   }
@@ -961,7 +963,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
     pPeer->pThread = taosAllocateTcpThread(tsTcpPool, pPeer, connFd);
     syncAddPeerRef(pPeer);
     sTrace("vgId:%d peer:%s, ready to exchange data", pNode->vgId, pPeer->ipstr);
-    syncSendPeersStatusMsgToPeer(pPeer, 0);
+    syncSendPeersStatusMsgToPeer(pPeer, 1);
   }
 
   return;
