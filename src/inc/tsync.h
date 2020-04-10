@@ -99,6 +99,7 @@ extern  int   tsMaxSyncNum;
 extern  int   tsSyncTcpThreads;
 extern  int   tsMaxWatchFiles;
 extern  short tsSyncPort;
+extern  int   tsSyncTimer;
 extern  int   tsMaxFwdInfo; 
 extern  int   sDebugFlag;
 
