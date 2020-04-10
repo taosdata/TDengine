@@ -329,7 +329,10 @@ int taos_num_fields(TAOS_RES *res) {
   }
 
   SFieldInfo *pFieldsInfo = &pQueryInfo->fieldsInfo;
-  return (pFieldsInfo->numOfOutputCols - pFieldsInfo->numOfHiddenCols);
+  if (pFieldsInfo)
+    return (pFieldsInfo->numOfOutputCols - pFieldsInfo->numOfHiddenCols);
+  else
+    return 0;
 }
 
 int taos_field_count(TAOS *taos) {
@@ -351,7 +354,11 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  return pQueryInfo->fieldsInfo.pFields;
+
+  if (pQueryInfo)
+    return pQueryInfo->fieldsInfo.pFields;
+  else
+    return NULL;
 }
 
 int taos_retrieve(TAOS_RES *res) {
@@ -401,6 +408,9 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   }
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  if (pQueryInfo == NULL)
+    return 0;
+
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i);
   }
