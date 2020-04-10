@@ -25,7 +25,7 @@
 #include "tcluster.h"
 #include "tgrant.h"
 #include "vnode.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -265,8 +265,7 @@ static int32_t clusterDropDnodeByIp(uint32_t ip) {
 
 static void clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SCMCreateDnodeMsg *pCreate = pMsg->pCont;
 
   if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
@@ -286,8 +285,7 @@ static void clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
 
 static void clusterProcessDropDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SCMDropDnodeMsg *pDrop = pMsg->pCont;
   if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;

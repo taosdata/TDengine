@@ -26,7 +26,7 @@
 #include "tgrant.h"
 #include "mnode.h"
 #include "mgmtDb.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -697,8 +697,6 @@ static void acctCreateRootAcct() {
 }
 
 static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-  
   SCMCreateAcctMsg *pCreate = pMsg->pCont;
   SAcctObj *pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, pCreate->user);
   if (pAcct != NULL) {
@@ -736,8 +734,6 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
 }
 
 static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   SCMDropAcctMsg *pDrop = pMsg->pCont;
 
   SUserObj *pUser = pMsg->pUser;
@@ -758,8 +754,6 @@ static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
 }
 
 static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   SCMAlterAcctMsg *pAlter = pMsg->pCont;
   pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
   pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);

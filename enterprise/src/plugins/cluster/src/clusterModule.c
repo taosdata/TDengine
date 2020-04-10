@@ -18,7 +18,7 @@
 #include "tbalance.h"
 #include "tcluster.h"
 #include "mnode.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "dnodeModule.h"
 
 static void clusterSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
