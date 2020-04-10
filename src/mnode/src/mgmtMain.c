@@ -22,11 +22,11 @@
 #include "taccount.h"
 #include "tbalance.h"
 #include "tcluster.h"
+#include "tgrant.h"
+#include "mpeer.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDServer.h"
-#include "tgrant.h"
-#include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
@@ -117,8 +117,8 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitMnodes() < 0) {
-    mError("failed to init mnodes");
+  if (mpeerInit() < 0) {
+    mError("failed to init mpeers");
     return -1;
   }
 
@@ -135,7 +135,7 @@ int32_t mgmtStartSystem() {
 
 
 void mgmtStopSystem() {
-  if (mgmtIsMaster()) {
+  if (mpeerIsMaster()) {
     mTrace("it is a master mgmt node, it could not be stopped");
     return;
   }
@@ -147,7 +147,7 @@ void mgmtStopSystem() {
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
   grantCleanUp();
-  mgmtCleanupMnodes();
+  mpeerCleanup();
   balanceCleanUp();
   mgmtCleanUpShell();
   mgmtCleanupDClient();

@@ -19,8 +19,8 @@
 #include "tbalance.h"
 #include "tcluster.h"
 #include "mnode.h"
+#include "mpeer.h"
 #include "mgmtDClient.h"
-#include "mgmtMnode.h"
 #include "mgmtShell.h"
 #include "mgmtDServer.h"
 #include "mgmtUser.h"
@@ -141,7 +141,7 @@ static void clusterProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 }
 
 void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+  if (mpeerCheckRedirect(rpcMsg->handle)) return;
 
   SDMStatusMsg *pStatus = rpcMsg->pCont;
   pStatus->dnodeId = htonl(pStatus->dnodeId);
@@ -221,7 +221,7 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  mgmtGetMnodePrivateIpList(&pRsp->ipList);
+  mpeerGetPrivateIpList(&pRsp->ipList);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);

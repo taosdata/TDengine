@@ -19,7 +19,7 @@
 #include "taccount.h"
 #include "tcluster.h"
 #include "mgmtDb.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
 #include "mgmtTable.h"
@@ -681,7 +681,7 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
 
 void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
+  if (mpeerCheckRedirect(pMsg->thandle)) return;
 
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
   if (pUser == NULL) {
@@ -705,7 +705,7 @@ void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
 
 void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
+  if (mpeerCheckRedirect(pMsg->thandle)) return;
 
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
   if (pUser == NULL) {
@@ -729,7 +729,7 @@ void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
 
 void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
+  if (mpeerCheckRedirect(pMsg->thandle)) return;
 
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
   if (pUser == NULL) {

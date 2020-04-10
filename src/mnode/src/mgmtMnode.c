@@ -17,7 +17,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "trpc.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -28,7 +28,7 @@ static SMnodeObj tsMnodeObj = {0};
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-int32_t mgmtInitMnodes() {
+int32_t mpeerInit() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
 
@@ -38,16 +38,14 @@ int32_t mgmtInitMnodes() {
   tsMnodeObj.createdTime = taosGetTimestampMs();
   tsMnodeObj.role        = TSDB_MN_ROLE_MASTER;
   tsMnodeObj.status      = TSDB_MN_STATUS_SERVING;
-  tsMnodeObj.numOfMnodes = 1;
-  sprintf(tsMnodeObj.mnodeName, "%d", tsMnodeObj.mnodeId);
-
+  
   return TSDB_CODE_SUCCESS;
 }
 
-void mgmtCleanupMnodes() {}
-bool mgmtInServerStatus() { return tsMnodeObj.status == TSDB_MN_STATUS_SERVING; }
-bool mgmtIsMaster() { return tsMnodeObj.role == TSDB_MN_ROLE_MASTER; }
-bool mgmtCheckRedirect(void *thandle) { return false; }
+void mpeerCleanup() {}
+bool mpeerInServerStatus() { return tsMnodeObj.status == TSDB_MN_STATUS_SERVING; }
+bool mpeerIsMaster() { return tsMnodeObj.role == TSDB_MN_ROLE_MASTER; }
+bool mpeerCheckRedirect(void *thandle) { return false; }
 
 static int32_t mgmtGetMnodesNum() {
   return 1;
@@ -190,14 +188,14 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
   return numOfRows;
 }
 
-void mgmtGetMnodePrivateIpList(SRpcIpSet *ipSet) {
+void mpeerGetPrivateIpList(SRpcIpSet *ipSet) {
   ipSet->inUse = 0;
   ipSet->port = htons(tsMnodeDnodePort);
   ipSet->numOfIps = 1;
   ipSet->ip[0] = htonl(tsMnodeObj.privateIp);
 }
 
-void mgmtGetMnodePublicIpList(SRpcIpSet *ipSet) {
+void mpeerGetPublicIpList(SRpcIpSet *ipSet) {
   ipSet->inUse = 0;
   ipSet->port = htons(tsMnodeDnodePort);
   ipSet->numOfIps = 1;

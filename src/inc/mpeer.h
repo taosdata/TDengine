@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_MNODE_H
-#define TDENGINE_MGMT_MNODE_H
+#ifndef TDENGINE_MPEER_H
+#define TDENGINE_MPEER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,15 +33,15 @@ enum _TSDB_MN_ROLE {
   TSDB_MN_ROLE_MASTER
 };
 
-int32_t mgmtInitMnodes();
-void    mgmtCleanupMnodes();
+int32_t mpeerInit();
+void    mpeerCleanup();
 
-bool    mgmtInServerStatus();   
-bool    mgmtIsMaster();
+bool    mpeerInServerStatus();   
+bool    mpeerIsMaster();
 
-bool    mgmtCheckRedirect(void *handle);
-void    mgmtGetMnodePrivateIpList(SRpcIpSet *ipSet);
-void    mgmtGetMnodePublicIpList(SRpcIpSet *ipSet);
+bool    mpeerCheckRedirect(void *handle);
+void    mpeerGetPrivateIpList(SRpcIpSet *ipSet);
+void    mpeerGetPublicIpList(SRpcIpSet *ipSet);
 
 #ifdef __cplusplus
 }

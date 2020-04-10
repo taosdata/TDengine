@@ -35,7 +35,7 @@
 #include "tcluster.h"
 #include "mgmtDServer.h"
 #include "tgrant.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -1650,8 +1650,6 @@ static SChildTableObj* mgmtGetTableByPos(uint32_t dnodeId, int32_t vnode, int32_
 }
 
 static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg) {
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
-
   SDMConfigTableMsg *pCfg = (SDMConfigTableMsg *) rpcMsg->pCont;
   pCfg->dnode = htonl(pCfg->dnode);
   pCfg->vnode = htonl(pCfg->vnode);

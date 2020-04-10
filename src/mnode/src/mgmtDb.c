@@ -24,8 +24,8 @@
 #include "mgmtDb.h"
 #include "tcluster.h"
 #include "tgrant.h"
+#include "mpeer.h"
 #include "mgmtShell.h"
-#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtTable.h"
@@ -678,7 +678,7 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
 }
 
 static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
+  if (mpeerCheckRedirect(pMsg->thandle)) return;
 
   SCMCreateDbMsg *pCreate = pMsg->pCont;
   pCreate->maxSessions     = htonl(pCreate->maxSessions);

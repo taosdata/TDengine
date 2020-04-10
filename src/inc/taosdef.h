@@ -176,7 +176,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_COLUMNS          256
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_DNODE_NAME_LEN       64
+#define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       192
 #define TSDB_DB_NAME_LEN          32
 #define TSDB_COL_NAME_LEN         64
@@ -233,7 +233,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 /*
  * this is defined in CMakeList.txt
  */
-//#define TSDB_REPLICA_MAX_NUM      3
+#define TSDB_REPLICA_MAX_NUM      3
 
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta

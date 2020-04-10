@@ -20,7 +20,7 @@
 #include "tutil.h"
 #include "taccount.h"
 #include "tgrant.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -314,8 +314,6 @@ SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp) {
 }
 
 static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   int32_t code;
   SUserObj *pUser = pMsg->pUser;
   
@@ -333,8 +331,6 @@ static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
@@ -427,8 +423,6 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
 
