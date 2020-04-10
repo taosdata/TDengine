@@ -102,9 +102,9 @@ static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
 }
 
 static void balanceSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
-  SVnodeGid tmp = *pVnodeGid1;
-  *pVnodeGid1 = *pVnodeGid2;
-  *pVnodeGid2 = tmp;
+  // SVnodeGid tmp = *pVnodeGid1;
+  // *pVnodeGid1 = *pVnodeGid2;
+  // *pVnodeGid2 = tmp;
 }
 
 int32_t balanceAllocVnodes(SVgObj *pVgroup) {
@@ -146,9 +146,9 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
    */
   if (pVgroup->numOfVnodes == 1) {
   } else if (pVgroup->numOfVnodes == 2) {
-    //if (rand() % 2 == 0) {
+    if (rand() % 2 == 0) {
       balanceSwapVnodeGid(pVgroup->vnodeGid, pVgroup->vnodeGid + 1);
-    //}
+    }
   } else {
     int32_t randVal = rand() % 6;
     if (randVal == 1) {  // 1, 0, 2
