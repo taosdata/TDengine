@@ -1097,7 +1097,7 @@ static void rpcProcessConnError(void *param, void *id) {
  
   tTrace("%s connection error happens", pRpc->label);
 
-  if ( pContext->numOfTry >= pContext->ipSet.numOfIps*2 ) {
+  if (pContext->numOfTry >= pContext->ipSet.numOfIps) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.handle = pContext->ahandle;
     rpcMsg.code = pContext->code;
