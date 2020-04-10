@@ -202,11 +202,13 @@ int32_t vnodeClose(int32_t vgId) {
 
 void vnodeRelease(void *pVnodeRaw) {
   SVnodeObj *pVnode = pVnodeRaw;
+  int32_t    vgId = pVnode->vgId;
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
+  assert(refCount >= 0);
 
   if (refCount > 0) {
-    dTrace("pVnode:%p vgId:%d, release vnode, refCount:%d", pVnode, pVnode->vgId, refCount);
+    dTrace("pVnode:%p vgId:%d, release vnode, refCount:%d", pVnode, vgId, refCount);
     return;
   }
 
