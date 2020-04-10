@@ -344,7 +344,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
 
 // TODO: this is a simple implement
 static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
-  char option[3][16] = {0};
+  char option[4][16] = {0};
   char cfgFile[TSDB_FILENAME_LEN * 2] = {0};
   sprintf(cfgFile, "%s/vnode%d/config", tsVnodeDir, pVnode->vgId);
 
