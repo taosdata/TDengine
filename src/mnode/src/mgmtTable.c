@@ -540,7 +540,7 @@ static void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->pCont;
   
   pMsg->pTable = mgmtGetTable(pCreate->tableId);
-  if (pMsg->pTable != NULL) {
+  if (pMsg->pTable != NULL && pMsg->retry == 0) {
     if (pCreate->igExists) {
       mTrace("table:%s, is already exist", pCreate->tableId);
       mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
@@ -1300,7 +1300,11 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  pMsg->pTable = (STableObj *)mgmtDoCreateChildTable(pCreate, pVgroup, sid);
+  if (pMsg->retry == 0) {
+    pMsg->pTable = (STableObj *)mgmtDoCreateChildTable(pCreate, pVgroup, sid);
+  } else {
+    pMsg->pTable = mgmtGetTable(pCreate->tableId);
+  }
   if (pMsg->pTable == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, terrno);
     return;
@@ -1315,6 +1319,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
+  newMsg->maxRetry = 5;
   mgmtIncTableRef(pMsg->pTable);
   SRpcMsg rpcMsg = {
       .handle  = newMsg,
@@ -1737,30 +1742,40 @@ static void mgmtProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
   queueMsg->received++;
 
   SChildTableObj *pTable = queueMsg->ahandle;
-  mTrace("table:%s, create table rsp received, thandle:%p ahandle:%p result:%s", pTable->info.tableId, queueMsg->thandle,
-         rpcMsg->handle, tstrerror(rpcMsg->code));
+  mTrace("table:%s, create table rsp received, thandle:%p result:%s", pTable->info.tableId, queueMsg->thandle,
+         tstrerror(rpcMsg->code));
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
-    SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
-      .table = tsChildTableSdb,
-      .pObj = pTable
-    };
-    sdbDeleteRow(&oper);
+    if (queueMsg->retry++ < queueMsg->maxRetry) {
+      mTrace("table:%s, create table rsp received, retry:%d thandle:%p result:%s", pTable->info.tableId,
+             queueMsg->retry, queueMsg->thandle, tstrerror(rpcMsg->code));
+      mgmtDealyedAddToShellQueue(queueMsg);
+    } else {
+      mError("table:%s, failed to create in dnode, thandle:%p result:%s", pTable->info.tableId,
+             queueMsg->thandle, tstrerror(rpcMsg->code));
+      
+      SSdbOperDesc oper = {
+        .type = SDB_OPER_TYPE_GLOBAL,
+        .table = tsChildTableSdb,
+        .pObj = pTable
+      };
+      sdbDeleteRow(&oper);
     
-    mError("table:%s, failed to create in dnode, reason:%s", pTable->info.tableId, tstrerror(rpcMsg->code));
-    mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
+      mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
+      mgmtFreeQueuedMsg(queueMsg);
+    }    
   } else {
-    mTrace("table:%s, created in dnode", pTable->info.tableId);
+    mTrace("table:%s, created in dnode, thandle:%p result:%s", pTable->info.tableId, queueMsg->thandle,
+           tstrerror(rpcMsg->code));
+
     if (queueMsg->msgType != TSDB_MSG_TYPE_CM_CREATE_TABLE) {
       mTrace("table:%s, start to get meta", pTable->info.tableId);
-      mgmtAddToShellQueue(mgmtCloneQueuedMsg(queueMsg));
+      mgmtAddToShellQueue(queueMsg);
     } else {
       mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
+      mgmtFreeQueuedMsg(queueMsg);
     }
   }
-
-  mgmtFreeQueuedMsg(queueMsg);
 }
 
 // not implemented yet

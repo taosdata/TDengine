@@ -189,18 +189,21 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
  
   int32_t openVnodes = htons(pStatus->openVnodes);
   for (int32_t j = 0; j < openVnodes; ++j) {
-    pDnode->vload[j].vgId          = htonl(pStatus->load[j].vgId);
-    pDnode->vload[j].totalStorage  = htobe64(pStatus->load[j].totalStorage);
-    pDnode->vload[j].compStorage   = htobe64(pStatus->load[j].compStorage);
-    pDnode->vload[j].pointsWritten = htobe64(pStatus->load[j].pointsWritten);
+    SVnodeLoad *pVload = &pStatus->load[j];
+    pDnode->vload[j].vgId          = htonl(pVload->vgId);
+    pDnode->vload[j].totalStorage  = htobe64(pVload->totalStorage);
+    pDnode->vload[j].compStorage   = htobe64(pVload->compStorage);
+    pDnode->vload[j].pointsWritten = htobe64(pVload->pointsWritten);
     
     SVgObj *pVgroup = mgmtGetVgroup(pDnode->vload[j].vgId);
     if (pVgroup == NULL) {
       SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
       mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pDnode->vload[j].vgId);
       mgmtSendDropVnodeMsg(pDnode->vload[j].vgId, &ipSet, NULL);
+    } else {
+      mgmtUpdateVgroupStatus(pVgroup, pDnode->dnodeId, pVload);
+      mgmtReleaseVgroup(pVgroup);
     }
-    mgmtReleaseVgroup(pVgroup);
   }
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {

@@ -128,6 +128,15 @@ void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
   taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
 }
 
+static void mgmtDoDealyedAddToShellQueue(void *param, void *tmrId) {
+  mgmtAddToShellQueue(param);
+}
+
+void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
+  void *unUsed = NULL;
+  taosTmrReset(mgmtDoDealyedAddToShellQueue, 1000, queuedMsg, tsMgmtTmr, &unUsed);
+}
+
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   if (rpcMsg == NULL || rpcMsg->pCont == NULL) {
     return;
