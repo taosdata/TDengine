@@ -35,6 +35,7 @@ int       tsSyncTcpThreads = 2;
 int       tsMaxWatchFiles = 100;
 int       tsMaxFwdInfo = 200;
 short     tsSyncPort = 6045;
+int       tsSyncTimer = 1;
 int       sDebugFlag = 135;
 
 // module global, not configurable
@@ -353,6 +354,7 @@ static void syncAddArbitrator(SSyncNode *pNode, uint32_t ip)
   SNodeInfo nodeInfo;
   nodeInfo.nodeIp = ip;
   nodeInfo.nodeId = 0;
+  strcpy(nodeInfo.name, "arbitrator");
 
   pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = syncAddPeer(pNode, &nodeInfo);
 }
@@ -464,7 +466,12 @@ static void syncChooseMaster(SSyncNode *pNode) {
     }
   }
 
-  if ( index < 0 && onlineNum >= pNode->replica/2.0 ) {
+  // add arbitrator connection
+  SSyncPeer *pArb = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
+  if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE)
+    onlineNum++;
+
+  if (index < 0 && onlineNum > pNode->replica/2.0) {
     // over half of nodes are online
     for (int i = 0; i < pNode->replica; ++i) {
       //slave with highest version shall be master
@@ -504,7 +511,7 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
   if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE)
     onlineNum++;
 
-  if (onlineNum < pNode->replica * 0.5 ) {
+  if (onlineNum <= pNode->replica*0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
@@ -574,7 +581,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
       if (i >= pNode->replica) consistent = 1;
     } 
 
-    if (consistent || pNode->replica < 3)
+    if (consistent)
       syncChooseMaster(pNode);
   }
 
@@ -601,7 +608,7 @@ void syncRestartConnection(SSyncPeer *pPeer)
   pPeer->sstatus = TAOS_SYNC_STATUS_INIT;
 
   if (pPeer->ip > tsSyncServerIp)
-    taosTmrReset(syncCheckPeerConnection, tsVnodePeerHBTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, tsSyncTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
 
   syncCheckRole(pPeer, NULL, TAOS_SYNC_ROLE_OFFLINE);
 }
@@ -672,7 +679,7 @@ static void syncRecoverFromMaster(void *param, void *tmrId)
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.type = TAOS_SMSG_SYNC_REQ;
   firstPkt.vgId = pNode->vgId;
-  taosTmrReset(syncNotStarted, tsVnodePeerHBTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
+  taosTmrReset(syncNotStarted, tsSyncTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
 
   if (write(pPeer->peerFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt) ) {
     sError("vgId:%d peer:%s, failed to send sync-req to peer", pNode->vgId, pPeer->ipstr);
@@ -860,7 +867,7 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
   int connFd = taosOpenTcpClientSocket(pPeer->ipstr, tsVnodeVnodePort, tsPrivateIp);
   if (connFd < 0) {
     sTrace("vgId:%d peer:%s, failed to open tcp socket(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
-    taosTmrReset(syncCheckPeerConnection, tsVnodePeerHBTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, tsSyncTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);
     return;
   }
 
@@ -880,7 +887,7 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
   } else {
     sTrace("try later");
     close(connFd);
-    taosTmrReset(syncCheckPeerConnection, tsVnodePeerHBTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, tsSyncTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);
   }
 }
 
