@@ -104,6 +104,7 @@ void randKeyTest() {
 
   tSkipListDestroy(pSkipList);
 }
+
 void stringKeySkiplistTest() {
   const int32_t max_key_size = 12;
 

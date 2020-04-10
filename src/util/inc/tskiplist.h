@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_TSKIPLIST_H
-#define TBASE_TSKIPLIST_H
+#ifndef TDENGINE_TSKIPLIST_H
+#define TDENGINE_TSKIPLIST_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,10 +24,6 @@ extern "C" {
 #include "taosdef.h"
 #include "tarray.h"
 
-/*
- * key of each node
- * todo move to as the global structure in all search codes...
- */
 #define MAX_SKIP_LIST_LEVEL 15
 #define SKIP_LIST_RECORD_PERFORMANCE 0
 
@@ -35,11 +31,11 @@ typedef char *SSkipListKey;
 typedef char *(*__sl_key_fn_t)(const void *);
 
 /**
+ * the skip list node is located in a consecutive memory area,
  * the format of skip list node is as follows:
  * +------------+-----------------------+------------------------+-----+------+
  * | node level | forward pointer array | backward pointer array | key | data |
  * +------------+-----------------------+------------------------+-----+------+
- * the skiplist node is located in a consecutive memory area, key will not be copy to skip list
  */
 typedef struct SSkipListNode {
   uint8_t level;
@@ -136,7 +132,8 @@ typedef struct SSkipList {
 typedef struct SSkipListIterator {
   SSkipList *    pSkipList;
   SSkipListNode *cur;
-  int64_t        num;
+  int32_t        step;          // the number of nodes that have been checked already
+  int32_t        order;         // order of the iterator
 } SSkipListIterator;
 
 /**
@@ -206,6 +203,15 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel);
 SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList);
 
 /**
+ * create skip list iterator from the given node and specified the order
+ * @param pSkipList
+ * @param pNode     start position, instead of the first node in skip list
+ * @param order     traverse order of the iterator
+ * @return
+ */
+SSkipListIterator *tSkipListCreateIterFromVal(SSkipList* pSkipList, const char* val, int32_t type, int32_t order);
+
+/**
  * forward the skip list iterator
  * @param iter
  * @return
@@ -245,4 +251,4 @@ void tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode);
 }
 #endif
 
-#endif  // TBASE_TSKIPLIST_H
+#endif  // TDENGINE_TSKIPLIST_H

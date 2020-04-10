@@ -164,9 +164,10 @@ char* strtolower(char *dst, const char *src) {
   return dst;
 }
 
-char *paGetToken(char *string, char **token, int32_t *tokenLen) {
+char *paGetToken(char *string, size_t maxLen, char **token, int32_t *tokenLen) {
   char quote = 0;
-
+  char* start = string;
+  
   while (*string != 0) {
     if (*string == ' ' || *string == '\t') {
       ++string;
@@ -182,7 +183,7 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
 
   *token = string;
 
-  while (*string != 0) {
+  while (*string != 0 && *string != '\n' && (string - start < maxLen)) {
     if (*string == '@' && quote) {
       //*string = 0;
       ++string;

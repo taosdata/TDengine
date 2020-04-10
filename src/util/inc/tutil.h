@@ -125,7 +125,7 @@ char* strreplace(const char* str, const char* pattern, const char* rep);
 
 int32_t strdequote(char *src);
 
-char *paGetToken(char *src, char **token, int32_t *tokenLen);
+char *paGetToken(char *src, size_t maxLen, char **token, int32_t *tokenLen);
 
 void taosMsleep(int32_t mseconds);
 
