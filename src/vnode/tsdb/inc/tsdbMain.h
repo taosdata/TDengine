@@ -382,26 +382,27 @@ typedef struct {
   // Global configuration
   SHelperCfg config;
 
+  int8_t state;
+
+  // For file set usage
   SHelperFile files;
+  SCompIdx *  pCompIdx;
+  size_t      compIdxSize;
 
+  // For table set usage
   SHelperTable tableInfo;
-  SCompIdx     compIdx;  // SCompIdx of current table
+  SCompInfo *  pCompInfo;
+  size_t       compInfoSize;
+  bool         hasOldLastBlock;
 
-  int8_t state;  // current loading state
-
-  // Information in .head file
-  SCompIdx *pCompIdx;
-  size_t    compIdxSize;
-
-  SCompInfo *pCompInfo;
-  size_t     compInfoSize;
-  int        blockIter; // For write purpose
-
-  // Information in .data or .last file
+  // For block set usage
   SCompData *pCompData;
   size_t     compDataSize;
-
   SDataCols *pDataCols[2];
+
+  // ------ Perhaps no usage
+  SCompIdx compIdx;  // SCompIdx of current table
+  int    blockIter;  // For write purpose
 
   // Compression buffer
   void * cBuffer;
@@ -434,8 +435,8 @@ int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
 // --------- For read operations
 int tsdbLoadCompIdx(SRWHelper *pHelper, void *target);
 int tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
-int tsdbLoadCompData(SRWHelper *pHelper, int blkIdx, void *target);
-int tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int32_t *colIds, int numOfColIds);
+int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target);
+int tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, int16_t *colIds, int numOfColIds);
 int tsdbLoadBlockData(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
 
 // --------- For write operations
