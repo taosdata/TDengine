@@ -37,7 +37,7 @@ void simpleTest() {
 
   int64_t* list = createTsList(10, 10000000, 30);
   tsBufAppend(pTSBuf, 0, tag, (const char*)list, num * sizeof(int64_t));
-  EXPECT_EQ(pTSBuf->tsOrder, TSQL_SO_ASC);
+  EXPECT_EQ(pTSBuf->tsOrder, TSDB_ORDER_ASC);
 
   EXPECT_EQ(pTSBuf->tsData.len, sizeof(int64_t) * num);
   EXPECT_EQ(pTSBuf->block.tag, tag);
@@ -65,7 +65,7 @@ void largeTSTest() {
   EXPECT_EQ(pTSBuf->tsData.len, 0);
   EXPECT_EQ(pTSBuf->block.tag, tag);
   EXPECT_EQ(pTSBuf->numOfVnodes, 1);
-  EXPECT_EQ(pTSBuf->tsOrder, TSQL_SO_ASC);
+  EXPECT_EQ(pTSBuf->tsOrder, TSDB_ORDER_ASC);
 
   tsBufFlush(pTSBuf);
   EXPECT_EQ(pTSBuf->tsData.len, 0);
@@ -91,7 +91,7 @@ void multiTagsTest() {
     start += step * num;
   }
 
-  EXPECT_EQ(pTSBuf->tsOrder, TSQL_SO_ASC);
+  EXPECT_EQ(pTSBuf->tsOrder, TSDB_ORDER_ASC);
   EXPECT_EQ(pTSBuf->tsData.len, num * sizeof(int64_t));
 
   EXPECT_EQ(pTSBuf->block.tag, numOfTags - 1);
@@ -127,7 +127,7 @@ void multiVnodeTagsTest() {
     EXPECT_EQ(pTSBuf->numOfVnodes, j + 1);
   }
 
-  EXPECT_EQ(pTSBuf->tsOrder, TSQL_SO_ASC);
+  EXPECT_EQ(pTSBuf->tsOrder, TSDB_ORDER_ASC);
   EXPECT_EQ(pTSBuf->tsData.len, num * sizeof(int64_t));
   EXPECT_EQ(pTSBuf->block.tag, numOfTags - 1);
 
@@ -167,7 +167,7 @@ void loadDataTest() {
     EXPECT_EQ(pTSBuf->numOfVnodes, j + 1);
   }
 
-  EXPECT_EQ(pTSBuf->tsOrder, TSQL_SO_ASC);
+  EXPECT_EQ(pTSBuf->tsOrder, TSDB_ORDER_ASC);
 
   EXPECT_EQ(pTSBuf->tsData.len, num * sizeof(int64_t));
   EXPECT_EQ(pTSBuf->block.tag, numOfTags - 1);
@@ -252,7 +252,7 @@ void TSTraverse() {
   int64_t s = taosGetTimestampUs();
   printf("start:%" PRIu64 "\n", s);
 
-  pTSBuf->cur.order = TSQL_SO_DESC;
+  pTSBuf->cur.order = TSDB_ORDER_DESC;
 
   // complete reverse traverse
   int32_t x = 0;
@@ -263,7 +263,7 @@ void TSTraverse() {
 
   // specify the data block with vnode and tags value
   tsBufResetPos(pTSBuf);
-  pTSBuf->cur.order = TSQL_SO_DESC;
+  pTSBuf->cur.order = TSDB_ORDER_DESC;
 
   int32_t startVnode = 1;
   int32_t startTag = 2;
@@ -297,7 +297,7 @@ void TSTraverse() {
 
   /////////////////////////////////////////////////////////////////////////////////
   // traverse
-  pTSBuf->cur.order = TSQL_SO_ASC;
+  pTSBuf->cur.order = TSDB_ORDER_ASC;
   tsBufResetPos(pTSBuf);
 
   // complete forwards traverse
@@ -308,7 +308,7 @@ void TSTraverse() {
 
   // specify the data block with vnode and tags value
   tsBufResetPos(pTSBuf);
-  pTSBuf->cur.order = TSQL_SO_ASC;
+  pTSBuf->cur.order = TSDB_ORDER_ASC;
 
   startVnode = 1;
   startTag = 2;

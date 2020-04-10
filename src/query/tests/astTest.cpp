@@ -255,7 +255,7 @@ static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, tSkipLis
   printf("expr is: %s\n", str);
 
   SArray *result = NULL;
-  //  tSQLBinaryExprTraverse(pExpr, pSkipList, result, tSkipListNodeFilterCallback, &result);
+  //  tExprTreeTraverse(pExpr, pSkipList, result, tSkipListNodeFilterCallback, &result);
   //  printf("the result is:%lld\n", result.num);
   //
   //  bool findResult = false;
@@ -533,7 +533,7 @@ tExprNode* createExpr2() {
   auto *p2 = (tExprNode*) calloc(1, sizeof(tExprNode));
   p2->nodeType = TSQL_NODE_EXPR;
   
-  p2->_node.optr = TSDB_RELATION_LARGE_EQUAL;
+  p2->_node.optr = TSDB_RELATION_GREATER_EQUAL;
   p2->_node.pLeft = pLeft1;
   p2->_node.pRight = pRight1;
   p2->_node.hasPK = false;
@@ -556,7 +556,8 @@ void exprSerializeTest1() {
   ASSERT_TRUE(size > 0);
   char* b = tbufGetData(&buf, false);
   
-  tExprNode* p2 = exprTreeFromBinary(b, size);
+  tExprNode* p2 = NULL;
+  exprTreeFromBinary(b, size, &p2);
   ASSERT_EQ(p1->nodeType, p2->nodeType);
   
   ASSERT_EQ(p2->_node.optr, p1->_node.optr);
@@ -592,7 +593,8 @@ void exprSerializeTest2() {
   ASSERT_TRUE(size > 0);
   char* b = tbufGetData(&buf, false);
   
-  tExprNode* p2 = exprTreeFromBinary(b, size);
+  tExprNode* p2 = NULL;
+  exprTreeFromBinary(b, size, &p2);
   ASSERT_EQ(p1->nodeType, p2->nodeType);
   
   ASSERT_EQ(p2->_node.optr, p1->_node.optr);
@@ -617,7 +619,7 @@ void exprSerializeTest2() {
   
   ASSERT_EQ(c1Right->nodeType, c2Right->nodeType);
   ASSERT_EQ(c2Right->nodeType, TSQL_NODE_EXPR);
-  ASSERT_EQ(c2Right->_node.optr, TSDB_RELATION_LARGE_EQUAL);
+  ASSERT_EQ(c2Right->_node.optr, TSDB_RELATION_GREATER_EQUAL);
   ASSERT_EQ(c2Right->_node.pRight->pVal->dKey, 91.99);
   
   ASSERT_EQ(p2->_node.hasPK, true);
