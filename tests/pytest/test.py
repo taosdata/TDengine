@@ -73,7 +73,6 @@ if __name__ == "__main__":
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
-                tdLog.info("CBD LN78: %s" % (fileName))
                 tdCases.runOneLinux(conn, fileName)
             conn.close()
     else:
