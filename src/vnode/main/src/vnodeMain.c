@@ -375,7 +375,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   if (num != 2) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (strcmp(option[0], "arbitratorIp") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (arbitratorIp == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
-  pVnode->syncCfg.arbitratorIp = 0;
+  pVnode->syncCfg.arbitratorIp = arbitratorIp;
 
   int32_t quorum = -1;
   num = fscanf(fp, "%s %d", option[0], &quorum);
