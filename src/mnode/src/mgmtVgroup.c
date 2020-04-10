@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tlog.h"
 #include "tbalance.h"
+#include "tsync.h"
 #include "tcluster.h"
 #include "mnode.h"
 #include "mgmtDb.h"
@@ -207,6 +208,18 @@ void mgmtUpdateVgroup(SVgObj *pVgroup) {
 
   sdbUpdateRow(&oper);
   mgmtSendCreateVgroupMsg(pVgroup, NULL);
+}
+
+void mgmtUpdateVgroupStatus(SVgObj *pVgroup, int32_t dnodeId, SVnodeLoad *pVload) {
+  if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+      SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
+      if (pVgid->dnodeId == dnodeId) {
+        pVgroup->inUse = i;
+        break;
+      }
+    }
+  }
 }
 
 SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {

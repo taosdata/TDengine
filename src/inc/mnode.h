@@ -149,7 +149,8 @@ typedef struct _vg_obj {
   int32_t         lbDnodeId;
   int32_t         lbTime;
   int8_t          status;
-  int8_t          reserved[14];
+  int8_t          inUse;
+  int8_t          reserved[13];
   int8_t          updateEnd[1];
   int32_t         refCount;
   struct _vg_obj *prev, *next;
@@ -243,6 +244,8 @@ typedef struct {
   int8_t   received;
   int8_t   successed;
   int8_t   expected;
+  int8_t   retry;
+  int8_t   maxRetry;
   int32_t  contLen;
   int32_t  code;
   void     *ahandle;

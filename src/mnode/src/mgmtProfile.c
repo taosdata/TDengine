@@ -806,6 +806,8 @@ void* mgmtCloneQueuedMsg(SQueuedMsg *pSrcMsg) {
   pDestMsg->msgType = pSrcMsg->msgType;
   pDestMsg->pCont   = pSrcMsg->pCont;
   pDestMsg->contLen = pSrcMsg->contLen;
+  pDestMsg->retry   = pSrcMsg->retry;
+  pDestMsg->maxRetry= pSrcMsg->maxRetry;
   pDestMsg->pUser   = pSrcMsg->pUser;
   pDestMsg->usePublicIp = pSrcMsg->usePublicIp;
 
