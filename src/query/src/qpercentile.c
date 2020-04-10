@@ -83,7 +83,7 @@ static tFilePage *loadIntoBucketFromDisk(tMemBucket *pMemBucket, int32_t segIdx,
     pListItem = pListItem->pNext;
   }
   
-  tColDataQSort(pDesc, buffer->numOfElems, 0, buffer->numOfElems - 1, buffer->data, TSQL_SO_ASC);
+  tColDataQSort(pDesc, buffer->numOfElems, 0, buffer->numOfElems - 1, buffer->data, TSDB_ORDER_ASC);
   
   pDesc->pColumnModel->capacity = oldCapacity;  // restore value
   return buffer;

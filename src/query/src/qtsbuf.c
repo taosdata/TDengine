@@ -33,11 +33,11 @@ STSBuf* tsBufCreate(bool autoDelete) {
   }
   
   // update the header info
-  STSBufFileHeader header = {.magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = TSQL_SO_ASC};
+  STSBufFileHeader header = {.magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = TSDB_ORDER_ASC};
   STSBufUpdateHeader(pTSBuf, &header);
   
   tsBufResetPos(pTSBuf);
-  pTSBuf->cur.order = TSQL_SO_ASC;
+  pTSBuf->cur.order = TSDB_ORDER_ASC;
   
   pTSBuf->autoDelete = autoDelete;
   pTSBuf->tsOrder = -1;
@@ -88,7 +88,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   // check the ts order
   pTSBuf->tsOrder = header.tsOrder;
-  if (pTSBuf->tsOrder != TSQL_SO_ASC && pTSBuf->tsOrder != TSQL_SO_DESC) {
+  if (pTSBuf->tsOrder != TSDB_ORDER_ASC && pTSBuf->tsOrder != TSDB_ORDER_DESC) {
 //    tscError("invalid order info in buf:%d", pTSBuf->tsOrder);
     tsBufDestory(pTSBuf);
     return NULL;
@@ -118,7 +118,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   tsBufResetPos(pTSBuf);
   
   // ascending by default
-  pTSBuf->cur.order = TSQL_SO_ASC;
+  pTSBuf->cur.order = TSDB_ORDER_ASC;
   
   pTSBuf->autoDelete = autoDelete;
   
@@ -274,7 +274,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   memset(pBlock, 0, sizeof(STSBlock));
   pBlock->payload = tmp;
   
-  if (order == TSQL_SO_DESC) {
+  if (order == TSDB_ORDER_DESC) {
     /*
      * set the right position for the reversed traverse, the reversed traverse is started from
      * the end of each comp data block
@@ -303,7 +303,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
   
   // for backwards traverse, set the start position at the end of previous block
-  if (order == TSQL_SO_DESC) {
+  if (order == TSDB_ORDER_DESC) {
     int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
     int64_t r = fseek(pTSBuf->f, -offset, SEEK_CUR);
     UNUSED(r);
@@ -321,9 +321,9 @@ static int32_t setCheckTSOrder(STSBuf* pTSBuf, const char* pData, int32_t len) {
       TSKEY lastKey = *(TSKEY*)(ptsData->rawBuf + ptsData->len - TSDB_KEYSIZE);
       
       if (lastKey > *(TSKEY*)pData) {
-        pTSBuf->tsOrder = TSQL_SO_DESC;
+        pTSBuf->tsOrder = TSDB_ORDER_DESC;
       } else {
-        pTSBuf->tsOrder = TSQL_SO_ASC;
+        pTSBuf->tsOrder = TSDB_ORDER_ASC;
       }
     } else if (len > TSDB_KEYSIZE) {
       // no data in current vnode, more than one ts is added, check the orders
@@ -331,9 +331,9 @@ static int32_t setCheckTSOrder(STSBuf* pTSBuf, const char* pData, int32_t len) {
       TSKEY k2 = *(TSKEY*)(pData + TSDB_KEYSIZE);
       
       if (k1 < k2) {
-        pTSBuf->tsOrder = TSQL_SO_ASC;
+        pTSBuf->tsOrder = TSDB_ORDER_ASC;
       } else if (k1 > k2) {
-        pTSBuf->tsOrder = TSQL_SO_DESC;
+        pTSBuf->tsOrder = TSDB_ORDER_DESC;
       } else {
         // todo handle error
       }
@@ -432,13 +432,13 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
   bool    decomp = false;
   
   while ((i++) <= blockIndex) {
-    if (readDataFromDisk(pTSBuf, TSQL_SO_ASC, decomp) == NULL) {
+    if (readDataFromDisk(pTSBuf, TSDB_ORDER_ASC, decomp) == NULL) {
       return -1;
     }
   }
   
   // set the file position to be the end of previous comp block
-  if (pTSBuf->cur.order == TSQL_SO_DESC) {
+  if (pTSBuf->cur.order == TSDB_ORDER_DESC) {
     STSBlock* pBlock = &pTSBuf->block;
     int32_t   compBlockSize =
         pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
@@ -452,7 +452,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo
   bool decomp = false;
   
   int64_t offset = 0;
-  if (pTSBuf->cur.order == TSQL_SO_ASC) {
+  if (pTSBuf->cur.order == TSDB_ORDER_ASC) {
     offset = pBlockInfo->offset;
   } else {  // reversed traverse starts from the end of block
     offset = pBlockInfo->offset + pBlockInfo->compLen;
@@ -482,8 +482,8 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur->vnodeIndex == vnodeIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSQL_SO_ASC) ||
-      (pCur->blockIndex >= blockIndex && pCur->order == TSQL_SO_DESC))) {
+  if (pCur->vnodeIndex == vnodeIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
+      (pCur->blockIndex >= blockIndex && pCur->order == TSDB_ORDER_DESC))) {
     int32_t i = 0;
     bool    decomp = false;
     int32_t step = abs(blockIndex - pCur->blockIndex);
@@ -520,7 +520,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   pCur->vnodeIndex = vnodeIndex;
   pCur->blockIndex = blockIndex;
   
-  pCur->tsIndex = (pCur->order == TSQL_SO_ASC) ? 0 : pBlock->numOfElem - 1;
+  pCur->tsIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : pBlock->numOfElem - 1;
 }
 
 STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId) {
@@ -555,7 +555,7 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   
   // get the first/last position according to traverse order
   if (pCur->vnodeIndex == -1) {
-    if (pCur->order == TSQL_SO_ASC) {
+    if (pCur->order == TSDB_ORDER_ASC) {
       tsBufGetBlock(pTSBuf, 0, 0);
       
       if (pTSBuf->block.numOfElem == 0) {  // the whole list is empty, return
@@ -587,20 +587,20 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
     }
   }
   
-  int32_t step = pCur->order == TSQL_SO_ASC ? 1 : -1;
+  int32_t step = pCur->order == TSDB_ORDER_ASC ? 1 : -1;
   
   while (1) {
     assert(pTSBuf->tsData.len == pTSBuf->block.numOfElem * TSDB_KEYSIZE);
     
-    if ((pCur->order == TSQL_SO_ASC && pCur->tsIndex >= pTSBuf->block.numOfElem - 1) ||
-        (pCur->order == TSQL_SO_DESC && pCur->tsIndex <= 0)) {
+    if ((pCur->order == TSDB_ORDER_ASC && pCur->tsIndex >= pTSBuf->block.numOfElem - 1) ||
+        (pCur->order == TSDB_ORDER_DESC && pCur->tsIndex <= 0)) {
       int32_t vnodeId = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
       
       STSVnodeBlockInfo* pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
-      if (pBlockInfo == NULL || (pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSQL_SO_ASC) ||
-          (pCur->blockIndex <= 0 && pCur->order == TSQL_SO_DESC)) {
-        if ((pCur->vnodeIndex >= pTSBuf->numOfVnodes - 1 && pCur->order == TSQL_SO_ASC) ||
-            (pCur->vnodeIndex <= 0 && pCur->order == TSQL_SO_DESC)) {
+      if (pBlockInfo == NULL || (pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSDB_ORDER_ASC) ||
+          (pCur->blockIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
+        if ((pCur->vnodeIndex >= pTSBuf->numOfVnodes - 1 && pCur->order == TSDB_ORDER_ASC) ||
+            (pCur->vnodeIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
           pCur->vnodeIndex = -1;
           return false;
         }
@@ -609,7 +609,7 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
           return false;
         }
         
-        int32_t blockIndex = pCur->order == TSQL_SO_ASC ? 0 : pBlockInfo->numOfBlocks - 1;
+        int32_t blockIndex = pCur->order == TSDB_ORDER_ASC ? 0 : pBlockInfo->numOfBlocks - 1;
         tsBufGetBlock(pTSBuf, pCur->vnodeIndex + step, blockIndex);
         break;
         
@@ -766,7 +766,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   pTSBuf->fileSize += len;
   
   pTSBuf->tsOrder = order;
-  assert(order == TSQL_SO_ASC || order == TSQL_SO_DESC);
+  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
   
   STSBufFileHeader header = {
       .magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = pTSBuf->tsOrder};
@@ -850,7 +850,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   printf("number of vnode:%d\n", pTSBuf->numOfVnodes);
   
   int32_t old = pTSBuf->cur.order;
-  pTSBuf->cur.order = TSQL_SO_ASC;
+  pTSBuf->cur.order = TSDB_ORDER_ASC;
   
   tsBufResetPos(pTSBuf);
   

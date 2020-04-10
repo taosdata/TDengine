@@ -20,7 +20,7 @@
 #include "taosmsg.h"
 #include "tsqlfunction.h"
 
-#define INTERPOL_IS_ASC_INTERPOL(interp) ((interp)->order == TSQL_SO_ASC)
+#define INTERPOL_IS_ASC_INTERPOL(interp) ((interp)->order == TSDB_ORDER_ASC)
 
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit, int16_t precision) {
   if (timeRange == 0) {
@@ -96,7 +96,7 @@ void taosInterpoSetStartInfo(SInterpolationInfo* pInterpoInfo, int32_t numOfRawD
 }
 
 TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t intervalTimeUnit, int8_t precision) {
-  if (order == TSQL_SO_ASC) {
+  if (order == TSDB_ORDER_ASC) {
     return ekey;
   } else {
     return taosGetIntervalStartTimestamp(ekey, timeInterval, intervalTimeUnit, precision);

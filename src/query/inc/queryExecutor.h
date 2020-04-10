@@ -39,7 +39,7 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 typedef struct SSqlGroupbyExpr {
   int16_t     tableIndex;
   int16_t     numOfGroupCols;
-  SColIndexEx columnInfo[TSDB_MAX_TAGS];  // group by columns information
+  SColIndex columnInfo[TSDB_MAX_TAGS];  // group by columns information
   int16_t     orderIndex;                 // order by column index
   int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
@@ -63,7 +63,7 @@ typedef struct SWindowResult {
 
 typedef struct SResultRec {
   int64_t total;     // total generated result size in rows
-  int64_t size;      // current result set size in rows
+  int64_t rows;      // current result set size in rows
   int64_t capacity;  // capacity of current result output buffer
   
   // result size threshold in rows. If the result buffer is larger than this, pause query and return to client
@@ -125,7 +125,7 @@ typedef struct SQuery {
   int8_t            precision;
   int16_t           numOfOutputCols;
   int16_t           interpoType;
-  int16_t           checkBufferInLoop;  // check if the buffer is full during scan each block
+  int16_t           checkBuffer;  // check if the buffer is full during scan each block
   SLimitVal         limit;
   int32_t           rowSize;
   SSqlGroupbyExpr*  pGroupbyExpr;
