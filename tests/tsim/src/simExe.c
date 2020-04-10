@@ -576,6 +576,7 @@ bool simCreateRestFulConnect(SScript *script, char *user, char *pass) {
 bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
   simCloseTaosdConnect(script);
   void *taos = NULL;
+  taosMsleep(2000);
   for (int attempt = 0; attempt < 10; ++attempt) {
     taos = taos_connect(NULL, user, pass, NULL, tsMnodeShellPort);
     if (taos == NULL) {

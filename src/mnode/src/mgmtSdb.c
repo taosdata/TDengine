@@ -520,6 +520,11 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
   
   if (pTable->keyType == SDB_KEY_TYPE_AUTO) {
     *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+
+    // let vgId increase from 2
+    if (pTable->autoIndex == 1 && strcmp(pTable->tableName, "vgroups") == 0) {
+      *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+    }
   }
   pTable->version++;
   sdbVersion++;
@@ -695,6 +700,7 @@ int32_t sdbUpdateRow(SSdbOperDesc *pOper) {
   int32_t total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
   SRowHead *rowHead = (SRowHead *)calloc(1, total_size);
   if (rowHead == NULL) {
+    pthread_mutex_unlock(&pTable->mutex);
     sdbError("table:%s, failed to allocate row head memory", pTable->tableName);
     return -1;
   }

@@ -141,7 +141,7 @@ STSchema *tdDupSchema(STSchema *pSchema) {
  * Free the SSchema object created by tdNewSchema or tdDupSchema
  */
 void tdFreeSchema(STSchema *pSchema) {
-  if (pSchema == NULL) free(pSchema);
+  if (pSchema != NULL) free(pSchema);
 }
 
 /**

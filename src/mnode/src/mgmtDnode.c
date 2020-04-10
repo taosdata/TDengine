@@ -323,8 +323,7 @@ static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, 
   char       ipstr[32];
 
   while (numOfRows < rows) {
-    clusterReleaseDnode(pDnode);
-    pShow->pNode = clusterGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
+    pShow->pNode = clusterGetNextDnode(pShow->pNode, &pDnode);
     if (pDnode == NULL) break;
 
     cols = 0;
@@ -366,13 +365,14 @@ static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, 
 #endif    
 
     numOfRows++;
+    clusterReleaseDnode(pDnode);
   }
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
 
-static bool clusterCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+bool clusterCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   uint32_t status = pDnode->moduleStatus & (1 << moduleType);
   return status > 0;
 }

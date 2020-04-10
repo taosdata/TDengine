@@ -36,6 +36,7 @@ enum _TAOS_DN_STATUS {
 int32_t clusterInit();
 void    clusterCleanUp();
 char*   clusterGetDnodeStatusStr(int32_t dnodeStatus);
+bool    clusterCheckModuleInDnode(struct _dnode_obj *pDnode, int moduleType);
 
 int32_t clusterInitDnodes();
 void    clusterCleanupDnodes();
