@@ -874,12 +874,13 @@ void tsReadGlobalLogConfig() {
     olen = vlen = 0;
 
     getline(&line, &len, fp);
-
-    paGetToken(line, len, &option, &olen);
+    line[len - 1] = 0;
+    
+    paGetToken(line, &option, &olen);
     if (olen == 0) continue;
     option[olen] = 0;
 
-    paGetToken(option + olen + 1, len, &value, &vlen);
+    paGetToken(option + olen + 1, &value, &vlen);
     if (vlen == 0) continue;
     value[vlen] = 0;
 
@@ -911,18 +912,19 @@ bool tsReadGlobalConfig() {
       olen = vlen = 0;
 
       getline(&line, &len, fp);
-
-      paGetToken(line, len, &option, &olen);
+      line[len - 1] = 0;
+      
+      paGetToken(line, &option, &olen);
       if (olen == 0) continue;
       option[olen] = 0;
 
-      paGetToken(option + olen + 1, len, &value, &vlen);
+      paGetToken(option + olen + 1, &value, &vlen);
       if (vlen == 0) continue;
       value[vlen] = 0;
 
       // For dataDir, the format is:
       // dataDir    /mnt/disk1    0
-      paGetToken(value + vlen + 1, len, &value1, &vlen1);
+      paGetToken(value + vlen + 1, &value1, &vlen1);
       
       tsReadConfigOption(option, value);
     }
@@ -1005,11 +1007,10 @@ int tsCfgDynamicOptions(char *msg) {
   int   olen, vlen, code = 0;
   int   vint = 0;
 
-  size_t len = 120;
-  paGetToken(msg, len, &option, &olen);
+  paGetToken(msg, &option, &olen);
   if (olen == 0) return TSDB_CODE_INVALID_MSG_CONTENT;
 
-  paGetToken(option + olen + 1, len, &value, &vlen);
+  paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
     vint = 135;
   else {

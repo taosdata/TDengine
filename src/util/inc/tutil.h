@@ -121,19 +121,13 @@ int64_t strnatoi(char *num, int32_t len);
 
 char* strreplace(const char* str, const char* pattern, const char* rep);
 
-#define POW2(x) ((x) * (x))
-
-int32_t strdequote(char *src);
-
-char *paGetToken(char *src, size_t maxLen, char **token, int32_t *tokenLen);
+char *paGetToken(char *src, char **token, int32_t *tokenLen);
 
 void taosMsleep(int32_t mseconds);
 
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
-
-int64_t str2int64(char *str);
 
 int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
 
