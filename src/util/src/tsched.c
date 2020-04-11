@@ -94,10 +94,12 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
   }
 
   pTrace("%s scheduler is initialized, numOfThreads:%d", pSched->label, pSched->numOfThreads);
+  pthread_attr_destroy(&attr);
 
   return (void *)pSched;
 
 _error:
+  pthread_attr_destroy(&attr);
   taosCleanUpScheduler(pSched);
   return NULL;
 }
