@@ -2566,7 +2566,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   tsdb_query_handle_t pQueryHandle = pRuntimeEnv->pQueryHandle;
   while (tsdbNextDataBlock(pQueryHandle)) {
-    // check if query is killed or not set the status of query to pass the status check
+    
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       return 0;
     }
@@ -3865,7 +3865,7 @@ static int32_t doCopyToSData(SQInfo *pQInfo, SWindowResult *result, int32_t orde
   int32_t startIdx = 0;
   int32_t step = -1;
 
-  dTrace("QInfo:%p start to copy data from windowResInfo to pQuery buf", GET_QINFO_ADDR(pQuery));
+  dTrace("QInfo:%p start to copy data from windowResInfo to query buf", GET_QINFO_ADDR(pQuery));
   int32_t totalSubset = getNumOfSubset(pQInfo);
 
   if (orderType == TSDB_ORDER_ASC) {
@@ -3914,7 +3914,7 @@ static int32_t doCopyToSData(SQInfo *pQInfo, SWindowResult *result, int32_t orde
     }
   }
 
-  dTrace("QInfo:%p copy data to SQuery buf completed", pQInfo);
+  dTrace("QInfo:%p copy data to query buf completed", pQInfo);
 
 #ifdef _DEBUG_VIEW
   displayInterResult(pQuery->sdata, pQuery, numOfResult);
@@ -4830,7 +4830,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
       //      vnodePrintQueryStatistics(pSupporter);
     }
 
-    dTrace("QInfo:%p current:%lldd, total:%lldd", pQInfo, pQuery->rec.rows, pQuery->rec.total);
+    dTrace("QInfo:%p current:%lld, total:%lld", pQInfo, pQuery->rec.rows, pQuery->rec.total);
     return;
   }
   
@@ -4909,8 +4909,6 @@ static void tableFixedOutputProcessor(SQInfo *pQInfo) {
 
   // since the numOfOutputElems must be identical for all sql functions that are allowed to be executed simutanelously.
   pQuery->rec.rows = getNumOfResult(pRuntimeEnv);
-  //  assert(pQuery->size <= pQuery->pointsToRead &&
-  //         Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED));
 
   // must be top/bottom query if offset > 0
   if (pQuery->limit.offset > 0) {
@@ -4977,7 +4975,7 @@ static void tableIntervalProcessImpl(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   while (1) {
-    initCtxOutputBuf(pRuntimeEnv);
+//    initCtxOutputBuf(pRuntimeEnv);
     scanAllDataBlocks(pRuntimeEnv);
 
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -5058,13 +5056,7 @@ static void tableIntervalProcessor(SQInfo *pQInfo) {
     clearFirstNTimeWindow(pRuntimeEnv, pQInfo->subgroupIdx);
   }
 
-  pQuery->rec.rows += pQuery->rec.rows;
   pQInfo->pointsInterpo += numOfInterpo;
-
-  //  dTrace("%p vid:%d sid:%d id:%s, %d points returned %d points interpo, totalRead:%d totalInterpo:%d
-  //  totalReturn:%d",
-  //         pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->size, numOfInterpo,
-  //         pQInfo->size - pQInfo->pointsInterpo, pQInfo->pointsInterpo, pQInfo->pointsReturned);
 }
 
 static void tableQueryImpl(SQInfo* pQInfo) {
@@ -5129,7 +5121,6 @@ static void tableQueryImpl(SQInfo* pQInfo) {
   if (isIntervalQuery(pQuery) || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
     tableIntervalProcessor(pQInfo);
   } else if (isFixedOutputQuery(pQuery)) {
-    assert(pQuery->checkBuffer == 0);
     tableFixedOutputProcessor(pQInfo);
   } else {  // diff/add/multiply/subtract/division
     assert(pQuery->checkBuffer == 1);
@@ -5139,13 +5130,15 @@ static void tableQueryImpl(SQInfo* pQInfo) {
   
   // record the total elapsed time
   pQInfo->elapsedTime += (taosGetTimestampUs() - st);
+  assert(taosArrayGetSize(pQInfo->pTableIdList) == 1);
   
   /* check if query is killed or not */
   if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed", pQInfo);
   } else {
-    dTrace("QInfo:%p query task completed, %" PRId64 " rows will returned, total:%" PRId64 " rows", pQInfo, pQuery->rec.rows,
-        pQuery->rec.total);
+    STableId* pTableId = taosArrayGet(pQInfo->pTableIdList, 0);
+    dTrace("QInfo:%p uid:%" PRIu64 " tid:%d, query completed, %" PRId64 " rows returned, numOfTotal:%" PRId64 " rows",
+        pQInfo, pTableId->uid, pTableId->tid, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
   }
   
   sem_post(&pQInfo->dataReady);
