@@ -763,6 +763,8 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
   int numOfRows = 0;
 
   do {
+    if (numOfRows >= maxRowsToRead) break;
+
     SSkipListNode *node = tSkipListIterGet(pIter);
     if (node == NULL) break;
 
@@ -770,9 +772,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     if (dataRowKey(row) > maxKey) break;
 
     tdAppendDataRowToDataCol(row, pCols);
-
     numOfRows++;
-    if (numOfRows >= maxRowsToRead) break;
   } while (tSkipListIterNext(pIter));
 
   return numOfRows;
