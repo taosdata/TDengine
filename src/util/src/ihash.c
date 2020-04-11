@@ -28,7 +28,6 @@ typedef struct {
   int32_t     maxSessions;
   int32_t     dataSize;
   int32_t   (*hashFp)(void *, uint64_t key);
-  pthread_mutex_t mutex;
 } IHashObj;
 
 int32_t taosHashInt(void *handle, uint64_t key) {
