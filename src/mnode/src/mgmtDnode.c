@@ -141,8 +141,6 @@ static void clusterProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 }
 
 void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
-  if (mpeerCheckRedirect(rpcMsg->handle)) return;
-
   SDMStatusMsg *pStatus = rpcMsg->pCont;
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->privateIp = htonl(pStatus->privateIp);
@@ -221,7 +219,7 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  mpeerGetPrivateIpList(&pRsp->ipList);
+  mpeerGetMpeerInfos(&pRsp->mpeers);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);

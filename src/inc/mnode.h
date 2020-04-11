@@ -52,8 +52,10 @@ typedef struct _mnode_obj {
   int32_t  refCount;
   int8_t   role;
   int8_t   status;
+  uint16_t port;
   uint32_t privateIp;
   uint32_t publicIp;  
+  char     mnodeName[TSDB_NODE_NAME_LEN + 1];
 } SMnodeObj;
 
 typedef struct _dnode_obj {

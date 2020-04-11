@@ -20,28 +20,30 @@
 extern "C" {
 #endif
 
-enum _TSDB_MN_STATUS {
-  TSDB_MN_STATUS_OFFLINE,
-  TSDB_MN_STATUS_UNSYNCED,
-  TSDB_MN_STATUS_SYNCING,
-  TSDB_MN_STATUS_SERVING
-};
+struct _mnode_obj;
 
-enum _TSDB_MN_ROLE {
-  TSDB_MN_ROLE_UNDECIDED,
-  TSDB_MN_ROLE_SLAVE,
-  TSDB_MN_ROLE_MASTER
+enum _TAOS_MN_STATUS {
+  TAOS_MN_STATUS_OFFLINE,
+  TAOS_MN_STATUS_DROPPING,
+  TAOS_MN_STATUS_READY
 };
 
 int32_t mpeerInit();
 void    mpeerCleanup();
+int32_t mpeerGetMnodesNum();
+void *  mpeerGetNextMnode(void *pNode, struct _mnode_obj **pMnode);
+void    mpeerReleaseMnode(struct _mnode_obj *pMnode);
 
 bool    mpeerInServerStatus();   
 bool    mpeerIsMaster();
+bool    mpeerCheckRedirect();
 
-bool    mpeerCheckRedirect(void *handle);
 void    mpeerGetPrivateIpList(SRpcIpSet *ipSet);
 void    mpeerGetPublicIpList(SRpcIpSet *ipSet);
+void    mpeerGetMpeerInfos(void *mpeers);
+
+char *  mpeerGetMnodeStatusStr(int32_t status);
+char *  mpeerGetMnodeRoleStr(int32_t role);
 
 #ifdef __cplusplus
 }

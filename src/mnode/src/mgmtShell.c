@@ -142,7 +142,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  if (mpeerCheckRedirect(rpcMsg->handle)) {
+  if (mpeerCheckRedirect()) {
     // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
     rpcFreeCont(rpcMsg->pCont);

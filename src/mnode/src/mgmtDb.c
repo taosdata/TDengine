@@ -678,8 +678,6 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
 }
 
 static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
-  if (mpeerCheckRedirect(pMsg->thandle)) return;
-
   SCMCreateDbMsg *pCreate = pMsg->pCont;
   pCreate->maxSessions     = htonl(pCreate->maxSessions);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
