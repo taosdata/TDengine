@@ -14,10 +14,10 @@ typedef struct SDataStatis {
   int16_t numOfNull;
 } SDataStatis;
 
-typedef struct SColumnInfoEx {
+typedef struct SColumnInfoData {
   SColumnInfo info;
   void* pData;    // the corresponding block data in memory
-} SColumnInfoEx;
+} SColumnInfoData;
 
 void extractTableName(const char *tableId, char *name);
 

@@ -89,7 +89,7 @@ typedef struct SColumnFilterElem {
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {
-  SColumnInfoEx      info;
+  SColumnInfoData      info;
   int32_t            numOfFilters;
   SColumnFilterElem* pFilters;
   void*              pData;
@@ -130,7 +130,7 @@ typedef struct SQuery {
   int32_t           rowSize;
   SSqlGroupbyExpr*  pGroupbyExpr;
   SSqlFunctionExpr* pSelectExpr;
-  SColumnInfoEx*    colList;
+  SColumnInfoData*    colList;
   int32_t           numOfFilterCols;
   int64_t*          defaultVal;
   TSKEY             lastKey;

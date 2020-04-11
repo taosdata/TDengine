@@ -25,7 +25,7 @@
 #include "tsdbMain.h"
 
 #define EXTRA_BYTES 2
-#define PRIMARY_TSCOL_REQUIRED(c) (((SColumnInfoEx*)taosArrayGet(c, 0))->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)
+#define PRIMARY_TSCOL_REQUIRED(c) (((SColumnInfoData*)taosArrayGet(c, 0))->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)
 #define QUERY_IS_ASC_QUERY(o) (o == TSDB_ORDER_ASC)
 #define QH_GET_NUM_OF_COLS(handle) (taosArrayGetSize((handle)->pColumns))
 
@@ -65,7 +65,10 @@ typedef struct STableCheckInfo {
   int64_t    offsetInHeaderFile;
   int32_t    start;
   bool       checkFirstFileBlock;
+  
   SCompInfo* pCompInfo;
+  int32_t    compSize;
+  
   int32_t    numOfBlocks;  // number of qualified data blocks not the original blocks
 
   SDataCols*         pDataCols;
@@ -106,7 +109,7 @@ typedef struct STsdbQueryHandle {
   SCompBlock* pBlock;
   int32_t     numOfBlocks;
   SField**    pFields;
-  SArray*     pColumns;  // column list, SColumnInfoEx array list
+  SArray*     pColumns;  // column list, SColumnInfoData array list
   bool        locateStart;
   int32_t     realNumOfRows;
   bool        loadDataAfterSeek;  // load data after seek.
@@ -127,7 +130,7 @@ typedef struct STsdbQueryHandle {
 
 int32_t doAllocateBuf(STsdbQueryHandle* pQueryHandle, int32_t rowsPerFileBlock) {
   // record the maximum column width among columns of this meter/metric
-  SColumnInfoEx* pColumn = taosArrayGet(pQueryHandle->pColumns, 0);
+  SColumnInfoData* pColumn = taosArrayGet(pQueryHandle->pColumns, 0);
 
   int32_t maxColWidth = pColumn->info.bytes;
   for (int32_t i = 1; i < QH_GET_NUM_OF_COLS(pQueryHandle); ++i) {
@@ -177,7 +180,7 @@ tsdb_query_handle_t* tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond* pCond
         .lastKey = pQueryHandle->window.skey,
         .tableId = id,
         .pTableObj = tsdbGetTableByUid(tsdbGetMeta(tsdb), id.uid),  // todo this may be failed
-        .pCompInfo = calloc(1, 1024),
+        .pCompInfo = NULL,
     };
 
     assert(info.pTableObj != NULL);
@@ -193,10 +196,10 @@ tsdb_query_handle_t* tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond* pCond
   int32_t numOfCols = taosArrayGetSize(pColumnInfo);
   size_t  bufferCapacity = 4096;
 
-  pQueryHandle->pColumns = taosArrayInit(numOfCols, sizeof(SColumnInfoEx));
+  pQueryHandle->pColumns = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoEx* pCol = taosArrayGet(pColumnInfo, i);
-    SColumnInfoEx  pDest = {{0}, 0};
+    SColumnInfoData* pCol = taosArrayGet(pColumnInfo, i);
+    SColumnInfoData  pDest = {{0}, 0};
 
     pDest.pData = calloc(1, EXTRA_BYTES + bufferCapacity * pCol->info.bytes);
     pDest.info = pCol->info;
@@ -261,6 +264,15 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
     if (compIndex->len == 0 || compIndex->numOfSuperBlocks == 0) {  // no data block in this file, try next file
 
     } else {
+      if (pCheckInfo->compSize < compIndex->len) {
+        assert(compIndex->len > 0);
+        
+        char* t = realloc(pCheckInfo->pCompInfo, compIndex->len);
+        assert(t != NULL);
+        
+        pCheckInfo->pCompInfo = (SCompInfo*) t;
+      }
+      
       tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pCompInfo);
 
       int32_t index = 0;
@@ -589,7 +601,7 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
     int16_t colId = *(int16_t*)taosArrayGet(sa, i);
 
     for (int32_t j = 0; j < numOfCols; ++j) {
-      SColumnInfoEx* pCol = taosArrayGet(pQueryHandle->pColumns, j);
+      SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, j);
 
       if (pCol->info.colId == colId) {
         SDataCol* pDataCol = &pCols->cols[i];
@@ -610,7 +622,7 @@ static SArray* getColumnIdList(STsdbQueryHandle* pQueryHandle) {
   int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
   SArray* pIdList = taosArrayInit(numOfCols, sizeof(int16_t));
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoEx* pCol = taosArrayGet(pQueryHandle->pColumns, i);
+    SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
     taosArrayPush(pIdList, &pCol->info.colId);
   }
 
@@ -1067,7 +1079,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
 
     int32_t offset = 0;
     for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoEx* pColInfo = taosArrayGet(pHandle->pColumns, i);
+      SColumnInfoData* pColInfo = taosArrayGet(pHandle->pColumns, i);
       memcpy(pColInfo->pData + numOfRows * pColInfo->info.bytes, dataRowTuple(row) + offset, pColInfo->info.bytes);
       offset += pColInfo->info.bytes;
     }
@@ -1102,7 +1114,7 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
       /* not a whole disk block, only the qualified rows, so this block is loaded in to buffer during the
        * block next function
        */
-      SColumnInfoEx* pColInfoEx = taosArrayGet(pHandle->pColumns, 0);
+      SColumnInfoData* pColInfoEx = taosArrayGet(pHandle->pColumns, 0);
 
       rows = pHandle->realNumOfRows;
       skey = *(TSKEY*)pColInfoEx->pData;
@@ -1141,7 +1153,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t* pQueryHandle, SData
 
 SArray* tsdbRetrieveDataBlock(tsdb_query_handle_t* pQueryHandle, SArray* pIdList) {
   /**
-   * In the following two cases, the data has been loaded to SColumnInfoEx.
+   * In the following two cases, the data has been loaded to SColumnInfoData.
    * 1. data is from cache, 2. data block is not completed qualified to query time range
    */
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*)pQueryHandle;
@@ -1484,7 +1496,7 @@ void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle) {
 
   size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
   for (int32_t i = 0; i < cols; ++i) {
-    SColumnInfoEx* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+    SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
     tfree(pColInfo->pData);
   }
 
