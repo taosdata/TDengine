@@ -398,7 +398,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
   if (pSql->freed || pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
-    taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
+    //taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
     tscFreeSqlObj(pSql);
     return NULL;
   }
