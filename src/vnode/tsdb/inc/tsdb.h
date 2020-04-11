@@ -208,7 +208,7 @@ typedef struct SBlockInfo {
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
-  int32_t     size;
+  int32_t     rows;
   int32_t     numOfCols;
   int64_t     uid;
   int32_t     sid;
@@ -335,7 +335,7 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-SArray *tsdbQueryTableList(tsdb_repo_t* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len);
+int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char *pTagCond, size_t len, SArray* list);
 
 /**
  * clean up the query handle

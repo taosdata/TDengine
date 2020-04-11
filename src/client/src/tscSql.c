@@ -417,7 +417,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
   *rows = pRes->tsrow;
 
-  return (pQueryInfo->order.order == TSQL_SO_DESC) ? pRes->numOfRows : -pRes->numOfRows;
+  return (pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows;
 }
 
 static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
@@ -512,14 +512,14 @@ static void **doSetResultRowData(SSqlObj *pSql) {
       }
       
       for(int32_t k = 0; k < sas->numOfCols; ++k) {
-        int32_t columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIdxInBuf;
+        int32_t columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIndex;
         SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
         
         sas->elemSize[k] = pExpr->resBytes;
         sas->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
       }
 
-      tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC, getArithemicInputSrc);
+      tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSDB_ORDER_ASC, getArithemicInputSrc);
       pRes->tsrow[i] = pRes->buffer[i];
       
       free(sas); //todo optimization

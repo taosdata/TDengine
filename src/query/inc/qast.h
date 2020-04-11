@@ -48,7 +48,7 @@ typedef void (*__do_filter_suppl_fn_t)(void *, void *);
  */
 typedef struct tQueryInfo {
   int32_t       offset;   // offset value in tags
-  int32_t       colIdx;   // index of column in schema
+  int32_t       colIndex; // index of column in schema
   uint8_t       optr;     // expression operator
   SSchema       sch;      // schema of tags
   tVariant      q;        // query condition value on the specific schema, filter expression
@@ -83,7 +83,7 @@ void tSQLBinaryExprToString(tExprNode *pExpr, char *dst, int32_t *len);
 
 void tExprTreeDestroy(tExprNode **pExprs, void (*fp)(void*));
 
-void tSQLBinaryExprTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
+void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
 
 void tSQLBinaryExprCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*cb)(void *, char *, int32_t));
@@ -94,7 +94,7 @@ uint8_t getBinaryExprOptr(SSQLToken *pToken);
 
 SBuffer exprTreeToBinary(tExprNode* pExprTree);
 
-tExprNode* exprTreeFromBinary(const void* pBuf, size_t size);
+int32_t exprTreeFromBinary(const void* pBuf, size_t size, tExprNode** pExprNode);
 
 #ifdef __cplusplus
 }

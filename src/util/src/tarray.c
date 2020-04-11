@@ -160,6 +160,21 @@ void taosArrayCopy(SArray* pDst, SArray* pSrc) {
   pDst->size = pSrc->size;
 }
 
+SArray* taosArrayClone(SArray* pSrc) {
+  assert(pSrc != NULL);
+  
+  if (pSrc->size == 0) { // empty array list
+    return taosArrayInit(8, pSrc->elemSize);
+  }
+  
+  SArray* dst = taosArrayInit(pSrc->size, pSrc->elemSize);
+  
+  memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
+  dst->size = pSrc->size;
+  return dst;
+}
+
+
 void taosArrayDestroy(SArray* pArray) {
   if (pArray == NULL) {
     return;

@@ -464,13 +464,15 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
     } else {  // normal async query continues
       if (pCmd->isParseFinish) {
-        tscTrace("%p resend data to vnode in metermeta callback since sql has been parsed completed", pSql);
+        tscTrace("%p re-send data to vnode in table Meta callback since sql parsed completed", pSql);
         
         STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
         assert(code == TSDB_CODE_SUCCESS);
       
         if (pTableMetaInfo->pTableMeta) {
+          // todo update the submit message according to the new table meta
+          // 1. table uid, 2. ip address
           code = tscSendMsgToServer(pSql);
           if (code == TSDB_CODE_SUCCESS) return;
         }

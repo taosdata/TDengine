@@ -240,7 +240,7 @@ static int32_t tscBuildMeterSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   pCmd->numOfCols = numOfCols;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  pQueryInfo->order.order = TSQL_SO_ASC;
+  pQueryInfo->order.order = TSDB_ORDER_ASC;
 
   tscFieldInfoSetValue(&pQueryInfo->fieldsInfo, 0, TSDB_DATA_TYPE_BINARY, "Field", TSDB_COL_NAME_LEN);
   rowLen += TSDB_COL_NAME_LEN;
@@ -322,7 +322,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
       STableIdInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
       
       for (int32_t k = 0; k < pQueryInfo->fieldsInfo.numOfOutputCols; ++k) {
-        SColIndexEx *pColIndex = &tscSqlExprGet(pQueryInfo, k)->colInfo;
+        SColIndex *pColIndex = &tscSqlExprGet(pQueryInfo, k)->colInfo;
         int16_t      offsetId = pColIndex->colIdx;
 
         assert((pColIndex->flag & TSDB_COL_TAG) != 0);
@@ -460,7 +460,7 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   pCmd->numOfCols = 1;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  pQueryInfo->order.order = TSQL_SO_ASC;
+  pQueryInfo->order.order = TSDB_ORDER_ASC;
   
   tscClearFieldInfo(&pQueryInfo->fieldsInfo);
   
