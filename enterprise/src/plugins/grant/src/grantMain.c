@@ -20,7 +20,7 @@
 #include "mnode.h"
 #include "tcluster.h"
 #include "mgmtDServer.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "dnodeMClient.h"
