@@ -202,7 +202,7 @@ static int   rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen);
 static void  rpcLockConn(SRpcConn *pConn);
 static void  rpcUnlockConn(SRpcConn *pConn);
 
-void *rpcOpen(SRpcInit *pInit) {
+void *rpcOpen(const SRpcInit *pInit) {
   SRpcInfo *pRpc;
 
   tsRpcMaxRetry = tsRpcMaxTime * 1000 / tsRpcProgressTime;
@@ -344,22 +344,22 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
+void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
-  pMsg->contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
+  int contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
   pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
   pContext->ahandle = pMsg->handle;
   pContext->pRpc = (SRpcInfo *)shandle;
   pContext->ipSet = *pIpSet;
-  pContext->contLen = pMsg->contLen;
+  pContext->contLen = contLen;
   pContext->pCont = pMsg->pCont;
   pContext->msgType = pMsg->msgType;
   pContext->oldInUse = pIpSet->inUse;
 
   pContext->connType = RPC_CONN_UDPC; 
-  if (pMsg->contLen > tsRpcMaxUdpSize) pContext->connType = RPC_CONN_TCPC;
+  if (contLen > tsRpcMaxUdpSize) pContext->connType = RPC_CONN_TCPC;
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
@@ -374,10 +374,13 @@ void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
   return;
 }
 
-void rpcSendResponse(SRpcMsg *pMsg) {
+void rpcSendResponse(const SRpcMsg *pRsp) {
   int        msgLen = 0;
-  SRpcConn  *pConn = (SRpcConn *)pMsg->handle;
+  SRpcConn  *pConn = (SRpcConn *)pRsp->handle;
   SRpcInfo  *pRpc = pConn->pRpc;
+
+  SRpcMsg    rpcMsg = *pRsp;
+  SRpcMsg   *pMsg = &rpcMsg;
 
   if ( pMsg->pCont == NULL ) {
     pMsg->pCont = rpcMallocCont(0);
@@ -429,7 +432,7 @@ void rpcSendResponse(SRpcMsg *pMsg) {
   return;
 }
 
-void rpcSendRedirectRsp(void *thandle, SRpcIpSet *pIpSet) {
+void rpcSendRedirectRsp(void *thandle, const SRpcIpSet *pIpSet) {
   SRpcMsg  rpcMsg;
   
   rpcMsg.contLen = sizeof(SRpcIpSet);
@@ -458,7 +461,7 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   return 0;
 }
 
-void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pMsg, SRpcMsg *pRsp) {
   SRpcReqContext *pContext;
   pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
 

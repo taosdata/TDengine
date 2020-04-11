@@ -345,7 +345,7 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
     return 0;
   }
   
-  if (colIdx == 0 && tsOrder == TSQL_SO_DESC) {  // primary column desc order
+  if (colIdx == 0 && tsOrder == TSDB_ORDER_DESC) {  // primary column desc order
     return (f1 < f2) ? 1 : -1;
   } else {  // asc
     return (f1 < f2) ? -1 : 1;
@@ -628,7 +628,7 @@ static int32_t qsort_call = 0;
 void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
                    int32_t orderType) {
   // short array sort, incur another sort procedure instead of quick sort process
-  __col_compar_fn_t compareFn = (orderType == TSQL_SO_ASC) ? compare_sa : compare_sd;
+  __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
 
   if (end - start + 1 <= 8) {
     tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn);

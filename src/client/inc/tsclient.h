@@ -43,7 +43,7 @@ struct SSqlInfo;
 typedef struct SSqlGroupbyExpr {
   int16_t     tableIndex;
   int16_t     numOfGroupCols;
-  SColIndexEx columnInfo[TSDB_MAX_TAGS];  // group by columns information
+  SColIndex   columnInfo[TSDB_MAX_TAGS];  // group by columns information
   int16_t     orderIndex;                 // order by column index
   int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
@@ -86,7 +86,7 @@ typedef struct STableMetaInfo {
 /* the structure for sql function in select clause */
 typedef struct SSqlExpr {
   char        aliasName[TSDB_COL_NAME_LEN];  // as aliasName
-  SColIndexEx colInfo;
+  SColIndex   colInfo;
   int64_t     uid;            // refactor use the pointer
   int16_t     functionId;     // function id in aAgg array
   int16_t     resType;        // return value type
@@ -141,6 +141,7 @@ struct SLocalReducer;
 
 typedef struct SCond {
   uint64_t uid;
+  int32_t  len;   // length of tag query condition data
   char *   cond;
 } SCond;
 
@@ -167,8 +168,7 @@ typedef struct STagCond {
   SJoinInfo joinInfo;
 
   // for different table, the query condition must be seperated
-  SCond   cond[TSDB_MAX_JOIN_TABLE_NUM];
-  int16_t numOfTagCond;
+  SArray*  pCond;
 } STagCond;
 
 typedef struct SParamInfo {
@@ -267,19 +267,19 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  int32_t  clauseIndex;  // index of multiple subclause query
-  int8_t   isParseFinish;
-  short    numOfCols;
-  uint32_t allocSize;
-  char *   payload;
-  int      payloadLen;
-
+  int32_t      clauseIndex;  // index of multiple subclause query
+  int8_t       parseFinished;
+  short        numOfCols;
+  uint32_t     allocSize;
+  char *       payload;
+  int32_t      payloadLen;
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
-
-  // submit data blocks branched according to vnode
-  SDataBlockList *pDataBlocks;
-
+  
+  SDataBlockList *pDataBlocks; // submit data blocks after parsing sql
+  char *          curSql; // current sql, resume position of sql after parsing paused
+  void *          pTableList;  // referred table involved in sql
+  
   // for parameter ('?') binding and batch processing
   int32_t batchSize;
   int32_t numOfParams;
@@ -358,8 +358,6 @@ typedef struct SSqlObj {
   SSqlCmd           cmd;
   SSqlRes           res;
   uint8_t           numOfSubs;
-  char *            asyncTblPos;
-  void *            pTableHashList;
   struct SSqlObj **pSubs;
   struct SSqlObj * prev, *next;
 } SSqlObj;
@@ -422,7 +420,7 @@ void    tscRestoreSQLFunctionForMetricQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
-void tscFreeSqlCmdData(SSqlCmd *pCmd);
+void tscResetSqlCmdObj(SSqlCmd *pCmd);
 void tscFreeResData(SSqlObj *pSql);
 
 /**

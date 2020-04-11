@@ -166,7 +166,7 @@ char* strtolower(char *dst, const char *src) {
 
 char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   char quote = 0;
-
+  
   while (*string != 0) {
     if (*string == ' ' || *string == '\t') {
       ++string;
@@ -336,7 +336,7 @@ int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {
   char    hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
   for (i = 0; i < len; i++) {
-    hexstr[i * 2] = hexval[((bytes[i] >> 4) & 0xF)];
+    hexstr[i * 2] = hexval[((bytes[i] >> 4u) & 0xF)];
     hexstr[(i * 2) + 1] = hexval[(bytes[i]) & 0x0F];
   }
 

@@ -76,16 +76,16 @@ typedef struct {
   int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 } SRpcInit;
 
-void *rpcOpen(SRpcInit *pRpc);
+void *rpcOpen(const SRpcInit *pRpc);
 void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
 void *rpcReallocCont(void *ptr, int contLen);
-void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg);
-void  rpcSendResponse(SRpcMsg *pMsg);
-void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
+void  rpcSendRequest(void *thandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg);
+void  rpcSendResponse(const SRpcMsg *pMsg);
+void  rpcSendRedirectRsp(void *pConn, const SRpcIpSet *pIpSet); 
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
-void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pOut, SRpcMsg *pRsp);
+void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pReq, SRpcMsg *pRsp);
 
 #ifdef __cplusplus
 }

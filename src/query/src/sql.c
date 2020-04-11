@@ -2471,13 +2471,13 @@ static void yy_reduce(
   yymsp[-1].minor.yy380 = yylhsminor.yy380;
         break;
       case 152: /* sortorder ::= ASC */
-{yymsp[0].minor.yy250 = TSQL_SO_ASC; }
+{yymsp[0].minor.yy250 = TSDB_ORDER_ASC; }
         break;
       case 153: /* sortorder ::= DESC */
-{yymsp[0].minor.yy250 = TSQL_SO_DESC;}
+{yymsp[0].minor.yy250 = TSDB_ORDER_DESC;}
         break;
       case 154: /* sortorder ::= */
-{yymsp[1].minor.yy250 = TSQL_SO_ASC;}
+{yymsp[1].minor.yy250 = TSDB_ORDER_ASC;}
         break;
       case 157: /* grouplist ::= grouplist COMMA item */
 {

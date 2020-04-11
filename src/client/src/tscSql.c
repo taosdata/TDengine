@@ -232,15 +232,16 @@ void taos_close(TAOS *taos) {
 
 int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
-
-  pRes->numOfRows = 1;
+  SSqlCmd *pCmd = &pSql->cmd;
+  
+  pRes->numOfRows  = 1;
   pRes->numOfTotal = 0;
   pRes->numOfTotalInCurrentClause = 0;
 
-  pSql->asyncTblPos = NULL;
-  if (NULL != pSql->pTableHashList) {
-    taosHashCleanup(pSql->pTableHashList);
-    pSql->pTableHashList = NULL;
+  pCmd->curSql = NULL;
+  if (NULL != pCmd->pTableList) {
+    taosHashCleanup(pCmd->pTableList);
+    pCmd->pTableList = NULL;
   }
 
   tscDump("%p pObj:%p, SQL: %s", pSql, pObj, pSql->sqlstr);
@@ -329,7 +330,10 @@ int taos_num_fields(TAOS_RES *res) {
   }
 
   SFieldInfo *pFieldsInfo = &pQueryInfo->fieldsInfo;
-  return (pFieldsInfo->numOfOutputCols - pFieldsInfo->numOfHiddenCols);
+  if (pFieldsInfo)
+    return (pFieldsInfo->numOfOutputCols - pFieldsInfo->numOfHiddenCols);
+  else
+    return 0;
 }
 
 int taos_field_count(TAOS *taos) {
@@ -351,7 +355,11 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  return pQueryInfo->fieldsInfo.pFields;
+
+  if (pQueryInfo)
+    return pQueryInfo->fieldsInfo.pFields;
+  else
+    return NULL;
 }
 
 int taos_retrieve(TAOS_RES *res) {
@@ -401,13 +409,16 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   }
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  if (pQueryInfo == NULL)
+    return 0;
+
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i);
   }
 
   *rows = pRes->tsrow;
 
-  return (pQueryInfo->order.order == TSQL_SO_DESC) ? pRes->numOfRows : -pRes->numOfRows;
+  return (pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows;
 }
 
 static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
@@ -502,14 +513,14 @@ static void **doSetResultRowData(SSqlObj *pSql) {
       }
       
       for(int32_t k = 0; k < sas->numOfCols; ++k) {
-        int32_t columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIdxInBuf;
+        int32_t columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIndex;
         SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
         
         sas->elemSize[k] = pExpr->resBytes;
         sas->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
       }
 
-      tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC, getArithemicInputSrc);
+      tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSDB_ORDER_ASC, getArithemicInputSrc);
       pRes->tsrow[i] = pRes->buffer[i];
       
       free(sas); //todo optimization
@@ -757,7 +768,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
     
     if (tscShouldFreeAsyncSqlObj(pSql)) {
-      tscTrace("%p Async SqlObj is freed by app", pSql);
+      tscTrace("%p SqlObj is freed by app", pSql);
       tscFreeSqlObj(pSql);
     } else {
       if (keepCmd) {
@@ -841,7 +852,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
       assert(pRes->numOfRows == 0 || (pCmd->command > TSDB_SQL_LOCAL));
   
       tscFreeSqlObj(pSql);
-      tscTrace("%p Async sql result is freed by app", pSql);
+      tscTrace("%p sql result is freed by app", pSql);
     } else {
       if (keepCmd) {
         tscFreeSqlResult(pSql);
@@ -1017,8 +1028,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   SSqlObj *pSql = pObj->pSql;
   SSqlRes *pRes = &pSql->res;
-
-  pRes->numOfRows = 1;
+  SSqlCmd *pCmd = &pSql->cmd;
+  
+  pRes->numOfRows  = 1;
   pRes->numOfTotal = 0;
   pRes->numOfTotalInCurrentClause = 0;
 
@@ -1041,10 +1053,10 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   strtolower(pSql->sqlstr, sql);
 
-  pSql->asyncTblPos = NULL;
-  if (NULL != pSql->pTableHashList) {
-    taosHashCleanup(pSql->pTableHashList);
-    pSql->pTableHashList = NULL;
+  pCmd->curSql = NULL;
+  if (NULL != pCmd->pTableList) {
+    taosHashCleanup(pCmd->pTableList);
+    pCmd->pTableList = NULL;
   }
 
   pRes->code = (uint8_t)tsParseSql(pSql, false);

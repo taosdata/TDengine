@@ -147,10 +147,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
 #define TSDB_RELATION_LESS        1
-#define TSDB_RELATION_LARGE       2
+#define TSDB_RELATION_GREATER     2
 #define TSDB_RELATION_EQUAL       3
 #define TSDB_RELATION_LESS_EQUAL  4
-#define TSDB_RELATION_LARGE_EQUAL 5
+#define TSDB_RELATION_GREATER_EQUAL 5
 #define TSDB_RELATION_NOT_EQUAL   6
 #define TSDB_RELATION_LIKE        7
 
@@ -303,8 +303,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))
 #define TSDB_QUERY_RESET_TYPE(x)              ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
-#define TSQL_SO_ASC   1
-#define TSQL_SO_DESC  0
+#define TSDB_ORDER_ASC   1
+#define TSDB_ORDER_DESC  2
 
 #define TSDB_SESSIONS_PER_VNODE (300)
 #define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)

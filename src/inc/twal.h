@@ -36,17 +36,19 @@ typedef struct {
 typedef struct {
   int8_t    commitLog; // commitLog
   int8_t    wals;      // number of WAL files;
+  int8_t    keep;      // keep the wal file when closed
 } SWalCfg;
 
-typedef void* twal_h;  // WAL HANDLE
+typedef void* twalh;  // WAL HANDLE
+typedef int (*FWalWrite)(void *ahandle, void *pHead, int type);
 
-twal_h  walOpen(char *path, SWalCfg *pCfg);
-void    walClose(twal_h);
-int     walRenew(twal_h);
-int     walWrite(twal_h, SWalHead *);
-void    walFsync(twal_h);
-int     walRestore(twal_h, void *pVnode, int (*writeFp)(void *ahandle, void *pHead, int type));
-int     walGetWalFile(twal_h, char *name, uint32_t *index);
+twalh   walOpen(const char *path, const SWalCfg *pCfg);
+void    walClose(twalh);
+int     walRenew(twalh);
+int     walWrite(twalh, SWalHead *);
+void    walFsync(twalh);
+int     walRestore(twalh, void *pVnode, FWalWrite writeFp);
+int     walGetWalFile(twalh, char *name, uint32_t *index);
 
 extern int wDebugFlag;
 

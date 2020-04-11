@@ -101,6 +101,12 @@ void taosArrayRemove(SArray* pArray, size_t index);
 void taosArrayCopy(SArray* pDst, SArray* pSrc);
 
 /**
+ * clone a new array
+ * @param pSrc
+ */
+SArray* taosArrayClone(SArray* pSrc);
+
+/**
  * destroy array list
  * @param pArray
  */
