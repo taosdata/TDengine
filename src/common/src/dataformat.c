@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "dataformat.h"
+#include "tutil.h"
 
 static int tdFLenFromSchema(STSchema *pSchema);
 
@@ -338,6 +339,27 @@ void tdFreeDataCols(SDataCols *pCols) {
   }
 }
 
+SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
+  SDataCols *pRet = tdNewDataCols(pDataCols->maxRowSize, pDataCols->maxCols, pDataCols->maxPoints);
+  if (pRet == NULL) return NULL;
+
+  pRet->numOfCols = pDataCols->numOfCols;
+  pRet->sversion = pDataCols->sversion;
+  if (keepData) pRet->numOfPoints = pDataCols->numOfPoints;
+
+  for (int i = 0; i < pDataCols->numOfCols; i++) {
+    pRet->cols[i].type = pDataCols->cols[i].type;
+    pRet->cols[i].colId = pDataCols->cols[i].colId;
+    pRet->cols[i].bytes = pDataCols->cols[i].bytes;
+    pRet->cols[i].len = pDataCols->cols[i].len;
+    pRet->cols[i].offset = pDataCols->cols[i].offset;
+
+    if (keepData) memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pRet->cols[i].len);
+  }
+
+  return pRet;
+}
+
 void tdResetDataCols(SDataCols *pCols) {
   pCols->numOfPoints = 0;
   for (int i = 0; i < pCols->maxCols; i++) {
@@ -384,5 +406,45 @@ static int tdFLenFromSchema(STSchema *pSchema) {
 
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
   // TODO
+  ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfPoints);
+
+  SDataCols *pTarget = tdDupDataCols(target, true);
+  if (pTarget == NULL) goto _err;
+
+  int iter1 = 0;
+  int iter2 = 0;
+  while (true) {
+    if (iter1 >= pTarget->numOfPoints) {
+      // TODO: merge the source part
+      int rowsLeft = source->numOfPoints - iter2;
+      if (rowsLeft > 0) {
+        for (int i = 0; i < source->numOfCols; i++) {
+          ASSERT(target->cols[i].type == source->cols[i].type);
+
+          memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+                 (void *)((char *)(source->cols[i].pData) + TYPE_BYTES[source->cols[i].type] * iter2),
+                 TYPE_BYTES[target->cols[i].type] * rowsLeft);
+        }
+      }
+      break;
+    }
+
+    if (iter2 >= source->numOfPoints) {
+      // TODO: merge the pTemp part
+      int rowsLeft = pTarget->numOfPoints - iter1;
+      if (rowsLeft > 0) {
+
+      }
+      break;
+    }
+
+
+
+
+  }
+
   return 0;
+
+  _err:
+  return -1;
 }

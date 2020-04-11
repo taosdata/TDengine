@@ -43,6 +43,7 @@ static int tsdbGetRowsCanBeMergedWithBlock(SRWHelper *pHelper, int blkIdx, SData
 static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded);
 static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
+static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey);
 
 int tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg) {
   if (pHelper == NULL || pCfg == NULL || tsdbCheckHelperCfg(pCfg) < 0) return -1;
@@ -403,7 +404,7 @@ static int comparColIdDataCol(const void *arg1, const void *arg2) {
 
 static int tsdbLoadSingleColumnData(int fd, SCompBlock *pCompBlock, SCompCol *pCompCol, void *buf) {
   size_t tsize = sizeof(SCompData) + sizeof(SCompCol) * pCompBlock->numOfCols;
-  if (lseek(fd, pCompBlock->offset + tsize + pCompCol->offset) < 0) return -1;
+  if (lseek(fd, pCompBlock->offset + tsize + pCompCol->offset, SEEK_SET) < 0) return -1;
   if (tread(fd, buf, pCompCol->len) < pCompCol->len) return -1;
 
   return 0;
@@ -440,19 +441,38 @@ int tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, 
   SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + blkIdx;
 
   ASSERT(pCompBlock->numOfSubBlocks >= 1); // Must be super block
-  if (pCompBlock->numOfSubBlocks == 1) {
 
+  int numOfSubBlocks = pCompBlock->numOfSubBlocks;
+  SCompBlock *pStartBlock =
+      (numOfSubBlocks == 1) ? pCompBlock : (SCompBlock *)((char *)pHelper->pCompInfo->blocks + pCompBlock->offset);
+
+  if (tsdbLoadSingleBlockDataCols(pHelper, pStartBlock, colIds, numOfColIds, pDataCols) < 0) return -1;
+  for (int i = 1; i < numOfSubBlocks; i++) {
+    pStartBlock++;
+    if (tsdbLoadSingleBlockDataCols(pHelper, pStartBlock, colIds, numOfColIds, pHelper->pDataCols[1]) < 0) return -1;
+    tdMergeDataCols(pDataCols, pHelper->pDataCols[1], pHelper->pDataCols[1]->numOfPoints);
   }
-
-
-
 
   return 0;
 }
 
+// Load the whole block data
 int tsdbLoadBlockData(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols) {
-  // TODO
+  int16_t *colIds = (int16_t *)calloc(pDataCols->numOfCols, sizeof(int16_t));
+  if (colIds == NULL) goto _err;
+
+  for (int i = 0; i < pDataCols->numOfCols; i++) {
+    colIds[i] = pDataCols->cols[i].colId;
+  }
+
+  if (tsdbLoadBlockDataCols(pHelper, pDataCols, blkIdx, colIds, pDataCols->numOfCols) < 0) goto _err;
+
+  tfree(colIds);
   return 0;
+
+_err:
+  tfree(colIds);
+  return -1;
 }
 
 static int tsdbCheckHelperCfg(SHelperCfg *pCfg) {
@@ -672,7 +692,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 
   int rowsMustMerge = tsdbGetRowsInRange(pDataCols, 0, pCompBlock->keyLast);
   int maxRowsCanMerge =
-      MIN(pHelper->config.maxRowsPerFileBlock - pCompBlock->numOfPoints, tsdbGetRowsInRange(pDataCols, keyLimit));
+      MIN(pHelper->config.maxRowsPerFileBlock - pCompBlock->numOfPoints, tsdbGetRowsInRange(pDataCols, 0, keyLimit));
 
   if (pCompBlock->numOfPoints + rowsMustMerge > pHelper->config.maxRowsPerFileBlock) {
     // Need to load the block and split as two super block

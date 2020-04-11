@@ -111,7 +111,6 @@ typedef struct SDataCol {
   int     len;
   int     offset;
   void *  pData; // Original data
-  void *  pCData; // Compressed data
 } SDataCol;
 
 typedef struct {
@@ -133,6 +132,7 @@ typedef struct {
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
 void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
+SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
 void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);
