@@ -43,7 +43,7 @@ static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
 #ifndef _VPEER
-tsync_h syncStart(SSyncInfo *info) { return NULL; }
+tsync_h syncStart(const SSyncInfo *info) { return NULL; }
 int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle) { return 0; }
 #endif
 
