@@ -177,6 +177,7 @@ void tsdbCloseMetaFile(SMetaFile *mfh) {
   close(mfh->fd);
 
   taosHashCleanup(mfh->map);
+  tfree(mfh);
 }
 
 static int32_t tsdbGetMetaFileName(char *rootDir, char *fname) {

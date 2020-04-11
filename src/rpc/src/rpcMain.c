@@ -331,6 +331,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   char *start = ((char *)ptr) - sizeof(SRpcReqContext) - sizeof(SRpcHead);
   if (contLen == 0 ) {
     free(start); 
+    return NULL;
   }
 
   int size = contLen + RPC_MSG_OVERHEAD;
@@ -725,10 +726,6 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
     return TSDB_CODE_INVALID_RESPONSE_TYPE;
   }
 
-  if (pHead->code == TSDB_CODE_NOT_READY) {
-    return TSDB_CODE_ALREADY_PROCESSED;
-  }
-
   taosTmrStopA(&pConn->pTimer);
   pConn->retry = 0;
 
@@ -934,6 +931,9 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       memcpy(&pContext->ipSet, pHead->content, sizeof(pContext->ipSet));
       tTrace("%s %p, redirect is received, numOfIps:%d", pRpc->label, pConn, pContext->ipSet.numOfIps);
       rpcSendReqToServer(pRpc, pContext);
+    } else if (pHead->code == TSDB_CODE_NOT_READY) {
+      pContext->code = pHead->code;
+      rpcProcessConnError(pContext, NULL);
     } else {
       rpcNotifyClient(pContext, &rpcMsg);
     }
@@ -1078,7 +1078,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
     if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace( "%s %p, %s is sent to %s:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
           pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr, pConn->peerPort, 
-          pHead->code, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+          htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
   writtenLen = (*taosSendData[pConn->connType])(pConn->peerIp, pConn->peerPort, pHead, msgLen, pConn->chandle);
@@ -1102,7 +1102,7 @@ static void rpcProcessConnError(void *param, void *id) {
   
   tTrace("%s connection error happens", pRpc->label);
 
-  if ( pContext->numOfTry >= pContext->ipSet.numOfIps ) {
+  if (pContext->numOfTry >= pContext->ipSet.numOfIps) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.handle = pContext->ahandle;
     rpcMsg.code = pContext->code;

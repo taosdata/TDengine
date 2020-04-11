@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "os.h"
-
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "taoserror.h"
@@ -40,7 +39,8 @@ extern "C" {
 
 struct _vg_obj;
 struct _db_obj;
-struct _acctObj;
+struct _acct_obj;
+struct _user_obj;
 
 typedef struct {
   int32_t  mnodeId;
@@ -65,7 +65,7 @@ typedef struct {
   void    *pSync;
 } SMnodeObj;
 
-typedef struct {
+typedef struct _dnode_obj {
   int32_t    dnodeId;
   uint32_t   privateIp;
   uint32_t   publicIp;
@@ -79,16 +79,15 @@ typedef struct {
   uint16_t   slot;
   uint16_t   numOfCores;       // from dnode status msg
   int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
-  int8_t     lbStatus;         // set in balance function
-  float      lbScore;          // calc in balance function
+  int8_t     status;           // set in balance function
   int32_t    customScore;      // config by user
   char       dnodeName[TSDB_DNODE_NAME_LEN + 1];
   int8_t     reserved[15];
   int8_t     updateEnd[1];
   int32_t    refCount;
   SVnodeLoad vload[TSDB_MAX_VNODES];
-  int32_t    status;
   uint32_t   lastReboot;       // time stamp for last reboot
+  float      score;          // calc in balance function
   float      diskAvailable;    // from dnode status msg
   int16_t    diskAvgUsage;     // calc from sys.disk
   int16_t    cpuAvgUsage;      // calc from sys.cpu
@@ -105,10 +104,10 @@ typedef struct {
 typedef struct {
   char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t type;
-} STableInfo;
+} STableObj;
 
 typedef struct SSuperTableObj {
-  STableInfo info;
+  STableObj  info;
   uint64_t   uid;
   int64_t    createdTime;
   int32_t    sversion;
@@ -123,7 +122,7 @@ typedef struct SSuperTableObj {
 } SSuperTableObj;
 
 typedef struct {
-  STableInfo info;
+  STableObj  info;
   uint64_t   uid;
   int64_t    createdTime;
   int32_t    sversion;     //used by normal table
@@ -147,10 +146,11 @@ typedef struct _vg_obj {
   int64_t         createdTime;
   SVnodeGid       vnodeGid[TSDB_VNODES_SUPPORT];
   int32_t         numOfVnodes;
-  int32_t         lbIp;
+  int32_t         lbDnodeId;
   int32_t         lbTime;
-  int8_t          lbStatus;
-  int8_t          reserved[14];
+  int8_t          status;
+  int8_t          inUse;
+  int8_t          reserved[13];
   int8_t          updateEnd[1];
   int32_t         refCount;
   struct _vg_obj *prev, *next;
@@ -162,7 +162,7 @@ typedef struct _vg_obj {
 
 typedef struct _db_obj {
   char    name[TSDB_DB_NAME_LEN + 1];
-  int8_t  dirty;
+  int8_t  status;
   int64_t createdTime;
   SDbCfg  cfg;
   int8_t  reserved[15];
@@ -173,7 +173,7 @@ typedef struct _db_obj {
   int32_t numOfSuperTables;
   SVgObj *pHead;
   SVgObj *pTail;
-  struct _acctObj *pAcct;
+  struct _acct_obj *pAcct;
 } SDbObj;
 
 typedef struct _user_obj {
@@ -186,7 +186,7 @@ typedef struct _user_obj {
   int8_t            reserved[13];
   int8_t            updateEnd[1];
   int32_t           refCount;
-  struct _acctObj * pAcct;
+  struct _acct_obj * pAcct;
   SQqueryList *     pQList;  // query list
   SStreamList *     pSList;  // stream list
 } SUserObj;
@@ -209,7 +209,7 @@ typedef struct {
   int8_t  accessState;   // Checked by mgmt heartbeat message
 } SAcctInfo;
 
-typedef struct _acctObj {
+typedef struct _acct_obj {
   char      user[TSDB_USER_LEN + 1];
   char      pass[TSDB_KEY_LEN + 1];
   SAcctCfg  cfg;
@@ -244,6 +244,8 @@ typedef struct {
   int8_t   received;
   int8_t   successed;
   int8_t   expected;
+  int8_t   retry;
+  int8_t   maxRetry;
   int32_t  contLen;
   int32_t  code;
   void     *ahandle;
@@ -254,7 +256,7 @@ typedef struct {
   SUserObj *pUser;
   SDbObj   *pDb;
   SVgObj   *pVgroup;
-  STableInfo *pTable;
+  STableObj *pTable;
 } SQueuedMsg;
 
 int32_t mgmtInitSystem();

@@ -62,6 +62,7 @@ STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles) {
       // TODO
     }
   }
+  closedir(dir);
 
   return pFileH;
 }

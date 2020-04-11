@@ -29,7 +29,7 @@ if $data03 != 1 then
 endi
 
 sql show d1.vgroups
-if $data00 != 1 then 
+if $data00 != 2 then 
   return -1
 endi
 
@@ -43,11 +43,12 @@ sql_error insert into d1.n2 values(now, 1)
 
 print =============== insert data2
 sql insert into d1.n3 values(now, 1)
-sql insert into d1.n3 values(now, 2)
-sql insert into d1.n3 values(now, 3)
+sql insert into d1.n3 values(now+1s, 2)
+sql insert into d1.n3 values(now+2s, 3)
 
 print =============== query data
 sql select * from d1.n3
+print $rows
 if $rows != 3 then 
   return -1
 endi
@@ -64,6 +65,3 @@ if $data21 != 3 then
   return -1
 endi
 
-sql drop database d1
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -19,13 +19,13 @@
 #include "tmodule.h"
 #include "tsched.h"
 #include "mnode.h"
-#include "mgmtAcct.h"
-#include "mgmtBalance.h"
+#include "taccount.h"
+#include "tbalance.h"
+#include "tcluster.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
-#include "mgmtDnode.h"
 #include "mgmtDServer.h"
-#include "mgmtGrant.h"
+#include "tgrant.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtVgroup.h"
@@ -89,7 +89,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitDnodes() < 0) {
+  if (clusterInit() < 0) {
     mError("failed to init dnodes");
     return -1;
   }
@@ -122,7 +122,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitBalance() < 0) {
+  if (balanceInit() < 0) {
     mError("failed to init dnode balance")
   }
 
@@ -148,14 +148,14 @@ void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
   grantCleanUp();
   mgmtCleanupMnodes();
-  mgmtCleanupBalance();
+  balanceCleanUp();
   mgmtCleanUpShell();
   mgmtCleanupDClient();
   mgmtCleanupDServer();
   mgmtCleanUpTables();
   mgmtCleanUpVgroups();
   mgmtCleanUpDbs();
-  mgmtCleanUpDnodes();
+  clusterCleanUp();
   mgmtCleanUpUsers();
   acctCleanUp();
   taosTmrCleanUp(tsMgmtTmr);

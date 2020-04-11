@@ -25,6 +25,7 @@
 #include "dataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "tutil.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
 static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
@@ -41,21 +42,23 @@ void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = vnodeProcessDropStableMsg;
 }
 
-int32_t vnodeProcessWrite(void *param, int qtype, SWalHead *pHead, void *item) {
+int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   int32_t    code = 0;
-  SVnodeObj *pVnode = (SVnodeObj *)param;
+  SVnodeObj *pVnode = (SVnodeObj *)param1;
+  SWalHead  *pHead = param2;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
     return TSDB_CODE_MSG_NOT_PROCESSED; 
 
-  if (pVnode->status == VN_STATUS_DELETING || pVnode->status == VN_STATUS_CLOSING) 
+  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
     return TSDB_CODE_NOT_ACTIVE_VNODE; 
 
   if (pHead->version == 0) { // from client 
-    if (pVnode->status != VN_STATUS_READY) 
+    if (pVnode->status != TAOS_VN_STATUS_READY) 
       return TSDB_CODE_NOT_ACTIVE_VNODE;
 
-    // if (pVnode->replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
+    if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
+      return TSDB_CODE_NO_MASTER;
 
     // assign version
     pVnode->version++;
@@ -76,11 +79,8 @@ int32_t vnodeProcessWrite(void *param, int qtype, SWalHead *pHead, void *item) {
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
   if (code < 0) return code;
 
-/* forward
-  if (pVnode->replica > 1 && pVnode->role == TAOS_SYNC_ROLE_MASTER) {
+  if (pVnode->syncCfg.replica > 1) 
     code = syncForwardToPeer(pVnode->sync, pHead, item);
-  }
-*/
 
   return code;
 }
@@ -110,36 +110,27 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   int32_t code = 0;
 
   dTrace("pVnode:%p vgId:%d, table:%s, start to create", pVnode, pVnode->vgId, pTable->tableId);
-  pTable->numOfColumns  = htons(pTable->numOfColumns);
-  pTable->numOfTags     = htons(pTable->numOfTags);
-  pTable->sid           = htonl(pTable->sid);
-  pTable->sversion      = htonl(pTable->sversion);
-  pTable->tagDataLen    = htonl(pTable->tagDataLen);
-  pTable->sqlDataLen    = htonl(pTable->sqlDataLen);
-  pTable->uid           = htobe64(pTable->uid);
-  pTable->superTableUid = htobe64(pTable->superTableUid);
-  pTable->createdTime   = htobe64(pTable->createdTime);
+  int16_t numOfColumns  = htons(pTable->numOfColumns);
+  int16_t numOfTags     = htons(pTable->numOfTags);
+  int32_t sid           = htonl(pTable->sid);
+  uint64_t uid           = htobe64(pTable->uid);
   SSchema *pSchema = (SSchema *) pTable->data;
 
-  int totalCols = pTable->numOfColumns + pTable->numOfTags;
-  for (int i = 0; i < totalCols; i++) {
-    pSchema[i].colId = htons(pSchema[i].colId);
-    pSchema[i].bytes = htons(pSchema[i].bytes);
-  }
-
+  int32_t totalCols = numOfColumns + numOfTags;
+  
   STableCfg tCfg;
-  tsdbInitTableCfg(&tCfg, pTable->tableType, pTable->uid, pTable->sid);
+  tsdbInitTableCfg(&tCfg, pTable->tableType, uid, sid);
 
-  STSchema *pDestSchema = tdNewSchema(pTable->numOfColumns);
-  for (int i = 0; i < pTable->numOfColumns; i++) {
-    tdSchemaAppendCol(pDestSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
+  STSchema *pDestSchema = tdNewSchema(numOfColumns);
+  for (int i = 0; i < numOfColumns; i++) {
+    tdSchemaAppendCol(pDestSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
   }
   tsdbTableSetSchema(&tCfg, pDestSchema, false);
 
-  if (pTable->numOfTags != 0) {
-    STSchema *pDestTagSchema = tdNewSchema(pTable->numOfTags);
-    for (int i = pTable->numOfColumns; i < totalCols; i++) {
-      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
+  if (numOfTags != 0) {
+    STSchema *pDestTagSchema = tdNewSchema(numOfTags);
+    for (int i = numOfColumns; i < totalCols; i++) {
+      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
     }
     tsdbTableSetTagSchema(&tCfg, pDestTagSchema, false);
 
@@ -147,15 +138,17 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     int accumBytes = 0;
     SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
 
-    for (int i = 0; i < pTable->numOfTags; i++) {
+    for (int i = 0; i < numOfTags; i++) {
       tdAppendColVal(dataRow, pTagData + accumBytes, pDestTagSchema->columns + i);
-      accumBytes += pSchema[i + pTable->numOfColumns].bytes;
+      accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
   void *pTsdb = vnodeGetTsdb(pVnode);
   code = tsdbCreateTable(pTsdb, &tCfg);
+
+  tfree(pDestSchema);
 
   dTrace("pVnode:%p vgId:%d, table:%s is created, result:%x", pVnode, pVnode->vgId, pTable->tableId, code);
   return code; 
@@ -181,51 +174,46 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   int32_t code = 0;
 
   dTrace("pVnode:%p vgId:%d, table:%s, start to alter", pVnode, pVnode->vgId, pTable->tableId);
-  pTable->numOfColumns  = htons(pTable->numOfColumns);
-  pTable->numOfTags     = htons(pTable->numOfTags);
-  pTable->sid           = htonl(pTable->sid);
-  pTable->sversion      = htonl(pTable->sversion);
-  pTable->tagDataLen    = htonl(pTable->tagDataLen);
-  pTable->sqlDataLen    = htonl(pTable->sqlDataLen);
-  pTable->uid           = htobe64(pTable->uid);
-  pTable->superTableUid = htobe64(pTable->superTableUid);
-  pTable->createdTime   = htobe64(pTable->createdTime);
+  int16_t numOfColumns  = htons(pTable->numOfColumns);
+  int16_t numOfTags     = htons(pTable->numOfTags);
+  int32_t sid           = htonl(pTable->sid);
+  uint64_t uid           = htobe64(pTable->uid);
   SSchema *pSchema = (SSchema *) pTable->data;
 
-  int totalCols = pTable->numOfColumns + pTable->numOfTags;
-  for (int i = 0; i < totalCols; i++) {
-    pSchema[i].colId = htons(pSchema[i].colId);
-    pSchema[i].bytes = htons(pSchema[i].bytes);
-  }
-
+  int32_t totalCols = numOfColumns + numOfTags;
+  
   STableCfg tCfg;
-  tsdbInitTableCfg(&tCfg, pTable->tableType, pTable->uid, pTable->sid);
+  tsdbInitTableCfg(&tCfg, pTable->tableType, uid, sid);
 
-  STSchema *pDestSchema = tdNewSchema(pTable->numOfColumns);
-  for (int i = 0; i < pTable->numOfColumns; i++) {
-    tdSchemaAppendCol(pDestSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
+  STSchema *pDestSchema = tdNewSchema(numOfColumns);
+  for (int i = 0; i < numOfColumns; i++) {
+    tdSchemaAppendCol(pDestSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
   }
   tsdbTableSetSchema(&tCfg, pDestSchema, false);
 
-  if (pTable->numOfTags != 0) {
-    STSchema *pDestTagSchema = tdNewSchema(pTable->numOfTags);
-    for (int i = pTable->numOfColumns; i < totalCols; i++) {
-      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
+  if (numOfTags != 0) {
+    STSchema *pDestTagSchema = tdNewSchema(numOfTags);
+    for (int i = numOfColumns; i < totalCols; i++) {
+      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
     }
-    tsdbTableSetSchema(&tCfg, pDestTagSchema, false);
+    tsdbTableSetTagSchema(&tCfg, pDestTagSchema, false);
 
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
     SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
 
-    for (int i = 0; i < pTable->numOfTags; i++) {
+    for (int i = 0; i < numOfTags; i++) {
       tdAppendColVal(dataRow, pTagData + accumBytes, pDestTagSchema->columns + i);
-      accumBytes += pSchema[i + pTable->numOfColumns].bytes;
+      accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  code = tsdbAlterTable(pVnode->tsdb, &tCfg);
+  void *pTsdb = vnodeGetTsdb(pVnode);
+  code = tsdbAlterTable(pTsdb, &tCfg);
+
+  tfree(pDestSchema);
+
   dTrace("pVnode:%p vgId:%d, table:%s, alter table result:%d", pVnode, pVnode->vgId, pTable->tableId, code);
 
   return code;
@@ -236,7 +224,7 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   int32_t code = 0;
 
   dTrace("pVnode:%p vgId:%d, stable:%s, start to drop", pVnode, pVnode->vgId, pTable->tableId);
-  pTable->uid = htobe64(pTable->uid);
+  // int64_t uid = htobe64(pTable->uid);
 
   // TODO: drop stable in vvnode
   //void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
@@ -248,8 +236,9 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   return code;
 }
 
-int vnodeWriteToQueue(void *param, SWalHead *pHead, int type) {
+int vnodeWriteToQueue(void *param, void *data, int type) {
   SVnodeObj *pVnode = param;
+  SWalHead *pHead = data;
 
   int size = sizeof(SWalHead) + pHead->len;
   SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);

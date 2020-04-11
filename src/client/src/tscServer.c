@@ -364,8 +364,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
 
     if (shouldFree) {
-      tscFreeSqlObj(pSql);
       tscTrace("%p Async sql is automatically freed", pSql);
+      tscFreeSqlObj(pSql);
     }
   }
 
@@ -522,7 +522,8 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pRetrieveMsg->free = htons(pQueryInfo->type);
   pMsg += sizeof(pQueryInfo->type);
 
-  pRetrieveMsg->header.vgId = htonl(1);
+  STableMeta* pTableMeta = pQueryInfo->pTableMetaInfo[0]->pTableMeta;
+  pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
   pMsg += sizeof(SRetrieveTableMsg);
   
   pRetrieveMsg->header.contLen = htonl(pSql->cmd.payloadLen);
@@ -1801,6 +1802,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   size = tscEstimateHeartBeatMsgLength(pSql);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
+    pthread_mutex_unlock(&pObj->mutex);
     tscError("%p failed to malloc for heartbeat msg", pSql);
     return -1;
   }

@@ -49,18 +49,18 @@ int wDebugFlag = 135;
 
 static uint32_t walSignature = 0xFAFBFDFE;
 static int walHandleExistingFiles(char *path);
-static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SWalHead *, int));
+static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, void *, int));
 static int walRemoveWalFiles(char *path);
 
-void *walOpen(char *path, int max, int level) {
+void *walOpen(char *path, SWalCfg *pCfg) {
   SWal *pWal = calloc(sizeof(SWal), 1);
   if (pWal == NULL) return NULL;
 
   pWal->fd = -1;
-  pWal->max = max;
+  pWal->max = pCfg->wals;
   pWal->id = 0;
   pWal->num = 0;
-  pWal->level = level;
+  pWal->level = pCfg->commitLog;
   strcpy(pWal->path, path);
   pthread_mutex_init(&pWal->mutex, NULL);
 
@@ -80,7 +80,8 @@ void *walOpen(char *path, int max, int level) {
 }
 
 void walClose(void *handle) {
- 
+  if (handle == NULL) return;
+  
   SWal *pWal = (SWal *)handle;
   
   close(pWal->fd);
@@ -169,7 +170,7 @@ void walFsync(void *handle) {
     fsync(pWal->fd);
 }
 
-int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, SWalHead *, int)) {
+int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) {
   SWal    *pWal = (SWal *)handle;
   int      code = 0;
   struct   dirent *ent;
@@ -246,7 +247,7 @@ int walGetWalFile(void *handle, char *name, uint32_t *index) {
   return code;
 }  
 
-static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SWalHead *, int)) {
+static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, void *, int)) {
   int code = 0;
 
   char *buffer = malloc(1024000);  // size for one record

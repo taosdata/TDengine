@@ -13,31 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_ACCT_H
-#define TDENGINE_MGMT_ACCT_H
+#ifndef TDENGINE_ACCT_H
+#define TDENGINE_ACCT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "mnode.h"
 
+struct _acct_obj;
+struct _user_obj;
+struct _db_obj;
+ 
 typedef enum {
   TSDB_ACCT_USER,
   TSDB_ACCT_DB,
   TSDB_ACCT_TABLE
 } EAcctGrantType;
 
-int32_t   acctInit();
-void      acctCleanUp();
-SAcctObj *acctGetAcct(char *acctName);
-void      acctIncRef(SAcctObj *pAcct);
-void      acctDecRef(SAcctObj *pAcct);
-int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type);
+int32_t acctInit();
+void    acctCleanUp();
+void   *acctGetAcct(char *acctName);
+void    acctIncRef(struct _acct_obj *pAcct);
+void    acctReleaseAcct(struct _acct_obj *pAcct);
+int32_t acctCheck(struct _acct_obj *pAcct, EAcctGrantType type);
 
-void      acctAddDb(SAcctObj *pAcct, SDbObj *pDb);
-void      acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb);
-void      acctAddUser(SAcctObj *pAcct, SUserObj *pUser);
-void      acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser);
+void    acctAddDb(struct _acct_obj *pAcct, struct _db_obj *pDb);
+void    acctRemoveDb(struct _acct_obj *pAcct, struct _db_obj *pDb);
+void    acctAddUser(struct _acct_obj *pAcct, struct _user_obj *pUser);
+void    acctRemoveUser(struct _acct_obj *pAcct, struct _user_obj *pUser);
 
 #ifdef __cplusplus
 }

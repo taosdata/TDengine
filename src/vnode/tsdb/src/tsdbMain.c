@@ -269,6 +269,9 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
 
   tsdbFreeCache(pRepo->tsdbCache);
 
+  tfree(pRepo->rootDir);
+  tfree(pRepo);
+
   return 0;
 }
 
@@ -849,6 +852,7 @@ static void *tsdbCommitData(void *arg) {
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
+  tdListFree(pCache->imem->list);
   free(pCache->imem);
   pCache->imem = NULL;
   pRepo->commit = 0;
@@ -1127,11 +1131,11 @@ static int tsdbWriteBlockToFileImpl(SFile *pFile, SDataCols *pCols, int pointsTo
     *len += pCompCol->len;
   }
 
-  if (pCompData == NULL) free((void *)pCompData);
+  tfree(pCompData);
   return 0;
 
 _err:
-  if (pCompData == NULL) free((void *)pCompData);
+  tfree(pCompData);
   return -1;
 }
 

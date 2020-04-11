@@ -508,12 +508,11 @@ typedef struct SRetrieveTableRsp {
 
 typedef struct {
   int32_t vgId;
-  int32_t vnode;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
   uint8_t status;
-  uint8_t syncStatus;
+  uint8_t role;
   uint8_t accessState;
   uint8_t reserved[5];
 } SVnodeLoad;
@@ -751,12 +750,12 @@ typedef struct {
 
 typedef struct {
   int32_t    numOfQueries;
-  SQueryDesc qdesc[];
+  SQueryDesc *qdesc;
 } SQqueryList;
 
 typedef struct {
   int32_t     numOfStreams;
-  SStreamDesc sdesc[];
+  SStreamDesc *sdesc;
 } SStreamList;
 
 typedef struct {

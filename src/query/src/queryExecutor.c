@@ -20,7 +20,6 @@
 #include "tlog.h"
 #include "tlosertree.h"
 #include "tscompression.h"
-#include "tstatus.h"
 #include "ttime.h"
 
 #include "qast.h"
@@ -5705,7 +5704,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
                                SArray *pTableIdList) {
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
-    goto _clean_memory;
+    goto _clean_pQInfo_memory;
   }
 
   SQuery *pQuery = calloc(1, sizeof(SQuery));
@@ -5834,6 +5833,7 @@ _clean_memory:
   tfree(pExprs);
   tfree(pGroupbyExpr);
 
+_clean_pQInfo_memory:
   tfree(pQInfo);
 
   return NULL;

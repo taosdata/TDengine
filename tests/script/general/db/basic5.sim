@@ -36,7 +36,7 @@ sql show d1.vgroups
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data00 != 2 then 
   return -1
 endi
 if $data01 != 4 then 
@@ -46,7 +46,7 @@ if $data02 != ready then
   return -1
 endi
 
-print =============== drop table 
+print =============== drop database
 sql drop database d1
 
 sql show databases

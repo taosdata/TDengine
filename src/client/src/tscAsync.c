@@ -342,8 +342,8 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
   (*pSql->fp)(pSql->param, taosres, code);
 
   if (shouldFree) {
-    tscFreeSqlObj(pSql);
     tscTrace("%p Async sql is automatically freed in async res", pSql);
+    tscFreeSqlObj(pSql);
   }
 }
 

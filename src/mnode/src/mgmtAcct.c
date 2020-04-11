@@ -17,9 +17,10 @@
 #include "os.h"
 #include "taoserror.h"
 #include "mnode.h"
-#include "mgmtAcct.h"
+#include "taccount.h"
 #include "mgmtDb.h"
 #include "mgmtUser.h"
+
 #ifndef _ACCOUNT
 
 static SAcctObj tsAcctObj = {0};
@@ -30,11 +31,12 @@ int32_t acctInit() {
   return TSDB_CODE_SUCCESS;
 }
 
-void      acctCleanUp() {}
-SAcctObj *acctGetAcct(char *acctName) { return &tsAcctObj; }
-void      acctIncRef(SAcctObj *pAcct) {}
-void      acctDecRef(SAcctObj *pAcct) {}
-int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
+void    acctCleanUp() {}
+void   *acctGetAcct(char *acctName) { return &tsAcctObj; }
+void    acctIncRef(struct _acct_obj *pAcct) {}
+void    acctReleaseAcct(SAcctObj *pAcct) {}
+int32_t acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
+
 #endif
 
 void acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
@@ -46,7 +48,7 @@ void acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
 void acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfDbs, 1);
   pDb->pAcct = NULL;
-  acctIncRef(pAcct);
+  acctReleaseAcct(pAcct);
 }
 
 void acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
@@ -58,5 +60,5 @@ void acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
 void acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfUsers, 1);
   pUser->pAcct = NULL;
-  acctIncRef(pAcct);
+  acctReleaseAcct(pAcct);
 }
