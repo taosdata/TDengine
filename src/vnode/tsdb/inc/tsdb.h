@@ -188,7 +188,7 @@ typedef void* tsdb_query_handle_t;  // Use void to hide implementation details
 typedef struct STsdbQueryCond {
   STimeWindow       twindow;
   int32_t           order;  // desc/asc order to iterate the data block
-  SColumnInfoEx     colList;
+  SColumnInfoData*  colList;
 } STsdbQueryCond;
 
 typedef struct SBlockInfo {
