@@ -232,15 +232,16 @@ void taos_close(TAOS *taos) {
 
 int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
-
-  pRes->numOfRows = 1;
+  SSqlCmd *pCmd = &pSql->cmd;
+  
+  pRes->numOfRows  = 1;
   pRes->numOfTotal = 0;
   pRes->numOfTotalInCurrentClause = 0;
 
-  pSql->asyncTblPos = NULL;
-  if (NULL != pSql->pTableHashList) {
-    taosHashCleanup(pSql->pTableHashList);
-    pSql->pTableHashList = NULL;
+  pCmd->curSql = NULL;
+  if (NULL != pCmd->pTableList) {
+    taosHashCleanup(pCmd->pTableList);
+    pCmd->pTableList = NULL;
   }
 
   tscDump("%p pObj:%p, SQL: %s", pSql, pObj, pSql->sqlstr);
@@ -767,7 +768,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
     
     if (tscShouldFreeAsyncSqlObj(pSql)) {
-      tscTrace("%p Async SqlObj is freed by app", pSql);
+      tscTrace("%p SqlObj is freed by app", pSql);
       tscFreeSqlObj(pSql);
     } else {
       if (keepCmd) {
@@ -851,7 +852,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
       assert(pRes->numOfRows == 0 || (pCmd->command > TSDB_SQL_LOCAL));
   
       tscFreeSqlObj(pSql);
-      tscTrace("%p Async sql result is freed by app", pSql);
+      tscTrace("%p sql result is freed by app", pSql);
     } else {
       if (keepCmd) {
         tscFreeSqlResult(pSql);
@@ -1027,8 +1028,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   SSqlObj *pSql = pObj->pSql;
   SSqlRes *pRes = &pSql->res;
-
-  pRes->numOfRows = 1;
+  SSqlCmd *pCmd = &pSql->cmd;
+  
+  pRes->numOfRows  = 1;
   pRes->numOfTotal = 0;
   pRes->numOfTotalInCurrentClause = 0;
 
@@ -1051,10 +1053,10 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   strtolower(pSql->sqlstr, sql);
 
-  pSql->asyncTblPos = NULL;
-  if (NULL != pSql->pTableHashList) {
-    taosHashCleanup(pSql->pTableHashList);
-    pSql->pTableHashList = NULL;
+  pCmd->curSql = NULL;
+  if (NULL != pCmd->pTableList) {
+    taosHashCleanup(pCmd->pTableList);
+    pCmd->pTableList = NULL;
   }
 
   pRes->code = (uint8_t)tsParseSql(pSql, false);

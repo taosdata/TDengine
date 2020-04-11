@@ -406,10 +406,16 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
 
-void tscFreeSqlCmdData(SSqlCmd* pCmd) {
-  pCmd->command = 0;
+void tscResetSqlCmdObj(SSqlCmd* pCmd) {
+  pCmd->command   = 0;
   pCmd->numOfCols = 0;
-  pCmd->count = 0;
+  pCmd->count     = 0;
+  pCmd->curSql    = NULL;
+  pCmd->msgType   = 0;
+  pCmd->parseFinished = 0;
+  
+  taosHashCleanup(pCmd->pTableList);
+  pCmd->pTableList= NULL;
   
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   tscFreeSubqueryInfo(pCmd);
@@ -480,14 +486,10 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   tfree(pSql->pSubs);
   
-  taosHashCleanup(pSql->pTableHashList);
-  
   pSql->freed = 0;
   pSql->numOfSubs = 0;
-  pSql->pTableHashList = NULL;
-  pSql->asyncTblPos = NULL;
   
-  tscFreeSqlCmdData(pCmd);
+  tscResetSqlCmdObj(pCmd);
   
   tscTrace("%p partially free sqlObj completed", pSql);
 }

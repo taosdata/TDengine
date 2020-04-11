@@ -267,19 +267,19 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  int32_t  clauseIndex;  // index of multiple subclause query
-  int8_t   isParseFinish;
-  short    numOfCols;
-  uint32_t allocSize;
-  char *   payload;
-  int      payloadLen;
-
+  int32_t      clauseIndex;  // index of multiple subclause query
+  int8_t       parseFinished;
+  short        numOfCols;
+  uint32_t     allocSize;
+  char *       payload;
+  int32_t      payloadLen;
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
-
-  // submit data blocks branched according to vnode
-  SDataBlockList *pDataBlocks;
-
+  
+  SDataBlockList *pDataBlocks; // submit data blocks after parsing sql
+  char *          curSql; // current sql, resume position of sql after parsing paused
+  void *          pTableList;  // referred table involved in sql
+  
   // for parameter ('?') binding and batch processing
   int32_t batchSize;
   int32_t numOfParams;
@@ -358,8 +358,6 @@ typedef struct SSqlObj {
   SSqlCmd           cmd;
   SSqlRes           res;
   uint8_t           numOfSubs;
-  char *            asyncTblPos;
-  void *            pTableHashList;
   struct SSqlObj **pSubs;
   struct SSqlObj * prev, *next;
 } SSqlObj;
@@ -422,7 +420,7 @@ void    tscRestoreSQLFunctionForMetricQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
-void tscFreeSqlCmdData(SSqlCmd *pCmd);
+void tscResetSqlCmdObj(SSqlCmd *pCmd);
 void tscFreeResData(SSqlObj *pSql);
 
 /**
