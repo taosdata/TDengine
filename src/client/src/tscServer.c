@@ -350,7 +350,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     void *taosres = tscKeepConn[pCmd->command] ? pSql : NULL;
     rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
     
-    tscTrace("%p Async SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
+    tscTrace("%p SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
 
     /*
      * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
@@ -364,7 +364,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
 
     if (shouldFree) {
-      tscTrace("%p Async sql is automatically freed", pSql);
+      tscTrace("%p sqlObj is automatically freed", pSql);
       tscFreeSqlObj(pSql);
     }
   }

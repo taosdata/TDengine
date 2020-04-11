@@ -21,7 +21,6 @@
 #include "os.h"
 
 #include "hash.h"
-//#include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
@@ -656,7 +655,7 @@ void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
   }
 }
 
-static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char **str, SParsedDataColInfo *spd,
+static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **str, SParsedDataColInfo *spd,
                                       int32_t *totalNum) {
   SSqlCmd *       pCmd = &pSql->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
@@ -664,7 +663,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   STableDataBlocks *dataBuf = NULL;
-  int32_t ret = tscGetDataBlockFromList(pTableHashList, pCmd->pDataBlocks, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+  int32_t ret = tscGetDataBlockFromList(pTableList, pCmd->pDataBlocks, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                         sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name,
                                         pTableMeta, &dataBuf);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -942,7 +941,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
     code = tscGetTableMeta(pSql, pTableMetaInfo);
     
-    if (pSql->asyncTblPos == NULL) {
+    if (pCmd->curSql == NULL) {
       assert(code == TSDB_CODE_ACTION_IN_PROGRESS);
     }
   }
@@ -1008,23 +1007,23 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     return code;
   }
 
-  assert(((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList))
-      || ((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList)));
+  assert(((NULL == pCmd->curSql) && (NULL == pCmd->pTableList))
+      || ((NULL != pCmd->curSql) && (NULL != pCmd->pTableList)));
 
-  if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
-    pSql->pTableHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  if ((NULL == pCmd->curSql) && (NULL == pCmd->pTableList)) {
+    pCmd->pTableList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
 
     pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
-    if (NULL == pSql->pTableHashList || NULL == pSql->cmd.pDataBlocks) {
+    if (NULL == pCmd->pTableList || NULL == pSql->cmd.pDataBlocks) {
       code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       goto _error_clean;
     }
   } else {
-    assert((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList));
-    str = pSql->asyncTblPos;
+    assert((NULL != pCmd->curSql) && (NULL != pCmd->pTableList));
+    str = pCmd->curSql;
   }
   
-  tscTrace("%p create data block list for submit data:%p, asyncTblPos:%p, pTableHashList:%p", pSql, pSql->cmd.pDataBlocks, pSql->asyncTblPos, pSql->pTableHashList);
+  tscTrace("%p create data block list for submit data:%p, curSql:%p, pTableList:%p", pSql, pSql->cmd.pDataBlocks, pCmd->curSql, pCmd->pTableList);
 
   while (1) {
     int32_t   index = 0;
@@ -1052,7 +1051,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       }
     }
 
-    pSql->asyncTblPos = sToken.z;
+    pCmd->curSql = sToken.z;
 
     // Check if the table name available or not
     if (validateTableName(sToken.z, sToken.n) != TSDB_CODE_SUCCESS) {
@@ -1064,7 +1063,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
 
-    ptrdiff_t pos = pSql->asyncTblPos - pSql->sqlstr;
+    ptrdiff_t pos = pCmd->curSql - pSql->sqlstr;
     
     if ((code = tscCheckIfCreateTable(&str, pSql)) != TSDB_CODE_SUCCESS) {
       /*
@@ -1075,13 +1074,13 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        */
       if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
         tscTrace("%p waiting for get table meta during insert, then resume from offset: %" PRId64 " , %s", pSql,
-            pos, pSql->asyncTblPos);
+            pos, pCmd->curSql);
         return code;
       }
       
       // todo add to return
       tscError("%p async insert parse error, code:%d, %s", pSql, code, tstrerror(code));
-      pSql->asyncTblPos = NULL;
+      pCmd->curSql = NULL;
       goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
     }
 
@@ -1115,7 +1114,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * app here insert data in different vnodes, so we need to set the following
        * data in another submit procedure using async insert routines
        */
-      code = doParseInsertStatement(pSql, pSql->pTableHashList, &str, &spd, &totalNum);
+      code = doParseInsertStatement(pSql, pCmd->pTableList, &str, &spd, &totalNum);
       if (code != TSDB_CODE_SUCCESS) {
         goto _error_clean;
       }
@@ -1227,7 +1226,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
         goto _error_clean;
       }
 
-      code = doParseInsertStatement(pSql, pSql->pTableHashList, &str, &spd, &totalNum);
+      code = doParseInsertStatement(pSql, pCmd->pTableList, &str, &spd, &totalNum);
       if (code != TSDB_CODE_SUCCESS) {
         goto _error_clean;
       }
@@ -1257,11 +1256,11 @@ _error_clean:
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
 _clean:
-  taosHashCleanup(pSql->pTableHashList);
+  taosHashCleanup(pCmd->pTableList);
+  pCmd->pTableList = NULL;
   
-  pSql->pTableHashList = NULL;
-  pSql->asyncTblPos    = NULL;
-  pCmd->isParseFinish  = 1;
+  pCmd->curSql    = NULL;
+  pCmd->parseFinished  = 1;
   
   return code;
 }
@@ -1305,17 +1304,15 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
     tscFreeSqlObjPartial(pSql);
     pSql->sqlstr = p;
   } else {
-    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
+    tscTrace("continue parse sql: %s", pSql->cmd.curSql);
   }
   
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
-     * only for async multi-vnode insertion
-     * Set the fp before parse the sql string, in case of getmetermeta failed, in which
-     * the error handle callback function can rightfully restore the user defined function (fp)
+     * Set the fp before parse the sql string, in case of getTableMeta failed, in which
+     * the error handle callback function can rightfully restore the user-defined callback function (fp).
      */
     if (initialParse) {
-      // replace user defined callback function with multi-insert proxy function
       pSql->fetchFp = pSql->fp;
       pSql->fp = (void(*)())tscHandleMultivnodeInsert;
     }
@@ -1335,11 +1332,11 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
   }
 
   /*
-   * the pRes->code may be modified or even released by another thread in tscTableMetaCallBack
-   * function, so do NOT use pRes->code to determine if the getMeterMeta/getMetricMeta function
-   * invokes new threads to get data from mnode or simply retrieves data from cache.
+   * the pRes->code may be modified or released by another thread in tscTableMetaCallBack function,
+   * so do NOT use pRes->code to determine if the getTableMeta/getMetricMeta function
+   * invokes new threads to get data from mgmt node or simply retrieves data from cache.
    *
-   * do NOT assign return code to pRes->code for the same reason for it may be released by another thread
+   * do NOT assign return code to pRes->code for the same reason since it may be released by another thread
    * pRes->code = ret;
    */
   return ret;
@@ -1457,7 +1454,6 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   return numOfRows;
 }
 
-// multi-vnodes insertion in sync query model
 void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   if (pCmd->command != TSDB_SQL_INSERT) {
