@@ -127,11 +127,6 @@ typedef struct _sync_node {
   int8_t       quorum;
   uint32_t     vgId;
   void        *ahandle;
-  uint32_t   (*getFileInfo)(void *ahandle, char *name, uint32_t *index, int32_t *size);
-  int        (*getWalInfo)(void *ahdnle, char *name, uint32_t *index);
-  int        (*writeToCache)(void *ahandle, void *pHead, int type); 
-  void       (*confirmForward)(void *ahandle, void *mhandle, int32_t code);
-  void       (*notifyRole)(void *ahandle, int8_t role);
   int8_t       selfIndex;
   SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA+1];  // extra one for arbitrator
   SSyncPeer   *pMaster;
@@ -139,6 +134,11 @@ typedef struct _sync_node {
   SRecvBuffer *pRecv;
   SSyncFwds   *pSyncFwds;  // saved forward info if quorum >1
   void        *pFwdTimer;
+  FGetFileInfo    getFileInfo;
+  FGetWalInfo     getWalInfo;
+  FWriteToCache   writeToCache;
+  FConfirmForward confirmForward;
+  FNotifyRole     notifyRole;
   pthread_mutex_t mutex;
 } SSyncNode;
 

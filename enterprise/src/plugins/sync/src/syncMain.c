@@ -66,7 +66,7 @@ static void  syncRemoveConfirmedFwdInfo(SSyncNode *pNode);
 static void  syncMonitorFwdInfos(void *param, void *tmrId);
 static void  syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code);
 static void  syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle); 
-static SSyncPeer *syncAddPeer(SSyncNode *pNode, SNodeInfo *pInfo);
+static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo);
 
 char* syncRole[] = {
   "offline",
@@ -92,7 +92,7 @@ static void syncModuleInitFunc() {
   vgIdHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SSyncNode *), taosHashInt); 
 }
 
-void *syncStart(SSyncInfo *pInfo) 
+void *syncStart(const SSyncInfo *pInfo) 
 {
   pthread_once(&syncModuleInit, syncModuleInitFunc); 
 
@@ -102,7 +102,7 @@ void *syncStart(SSyncInfo *pInfo)
   }
     
   SSyncNode *pNode = (SSyncNode *) calloc(sizeof(SSyncNode), 1);
-  SSyncCfg  *pCfg = &pInfo->syncCfg;
+  const SSyncCfg *pCfg = &pInfo->syncCfg;
 
   strcpy(pNode->path, pInfo->path);
 
@@ -150,7 +150,7 @@ void *syncStart(SSyncInfo *pInfo)
 
 void syncStop(void *param) 
 {
-  SSyncNode  *pNode = (SSyncNode *)param;
+  SSyncNode  *pNode = param;
   SSyncPeer  *pPeer;
 
   sPrint("vgId:%d, cleanup sync", pNode->vgId);
@@ -171,9 +171,9 @@ void syncStop(void *param)
   }
 }
 
-int syncReconfig(void *param, SSyncCfg *pNewCfg) 
+int syncReconfig(void *param, const SSyncCfg *pNewCfg) 
 {
-  SSyncNode  *pNode = (SSyncNode *)param;
+  SSyncNode  *pNode = param;
   int         i, j;
 
   sPrint("vgId:%d, reconfig, role:%s replica:%d old:%d", pNode->vgId, syncRole[nodeRole], 
@@ -193,7 +193,7 @@ int syncReconfig(void *param, SSyncCfg *pNewCfg)
 
   SSyncPeer *newPeers[TAOS_SYNC_MAX_REPLICA];
   for (i = 0; i < pNewCfg->replica; ++i) {
-    SNodeInfo *pNewNode = &pNewCfg->nodeInfo[i];
+    const SNodeInfo *pNewNode = &pNewCfg->nodeInfo[i];
 
     for (j = 0; j < pNode->replica; ++j) {
       if (pNode->peerInfo[j]->ip == pNewNode->nodeIp)
@@ -242,7 +242,7 @@ int syncReconfig(void *param, SSyncCfg *pNewCfg)
 
 int syncForwardToPeer(void *param, void *data, void *mhandle)
 {
-  SSyncNode  *pNode = (SSyncNode *)param;
+  SSyncNode  *pNode = param;
   SSyncPeer  *pPeer;
   SSyncHead  *pSyncHead;
   SWalHead   *pWalHead = data;
@@ -284,7 +284,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
 
 void syncConfirmForward(void *param, uint64_t version, int32_t code)
 {
-  SSyncNode  *pNode = (SSyncNode *)param;
+  SSyncNode  *pNode = param;
   SSyncPeer  *pPeer = pNode->pMaster;
   char        msg[sizeof(SSyncHead) + sizeof(SFwdRsp)];
 
@@ -311,7 +311,7 @@ void syncConfirmForward(void *param, uint64_t version, int32_t code)
 }
 
 void syncRecover(void *param) {
-  SSyncNode *pNode = (SSyncNode *)param;
+  SSyncNode *pNode = param;
   SSyncPeer *pPeer;
 
   // to do: add a few lines to check if recover is OK 
@@ -331,7 +331,7 @@ void syncRecover(void *param) {
 
 int syncGetNodesRole(void *param, SNodesRole *pNodesRole)
 {
-  SSyncNode *pNode = (SSyncNode *)param;
+  SSyncNode *pNode = param;
   
   pNodesRole->selfIndex = pNode->selfIndex;
   for (int i=0; i<pNode->replica; ++i) {
@@ -409,7 +409,7 @@ static void syncRemovePeer(SSyncPeer *pPeer)
   syncDecPeerRef(pPeer);
 }
 
-static SSyncPeer *syncAddPeer(SSyncNode *pNode, SNodeInfo *pInfo) 
+static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) 
 {
   SSyncPeer *pPeer = (SSyncPeer *) calloc(1, sizeof(SSyncPeer));
 
@@ -646,7 +646,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
 
 static void syncNotStarted(void *param, void *tmrId)
 {
-  SSyncPeer *pPeer = (SSyncPeer *)param;
+  SSyncPeer *pPeer = param;
   if (pPeer->ip == 0) return;
   SSyncNode *pNode = pPeer->pSyncNode;
 
@@ -657,7 +657,7 @@ static void syncNotStarted(void *param, void *tmrId)
 
 static void syncRecoverFromMaster(void *param, void *tmrId)
 {
-  SSyncPeer   *pPeer = (SSyncPeer *)param;
+  SSyncPeer   *pPeer = param;
   if (pPeer->ip == 0) return;
   SSyncNode   *pNode = pPeer->pSyncNode;
 
@@ -772,7 +772,7 @@ static void syncProcessPeersStatusMsg(char *cont, SSyncPeer *pPeer)
 
 static void syncProcessPeerMsg(void *param, void *buffer)
 {
-  SSyncPeer  *pPeer = (SSyncPeer *)param;
+  SSyncPeer  *pPeer = param;
   SSyncHead   head;
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         bytes = 0;
@@ -851,7 +851,7 @@ static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack)
 
 static void syncCheckPeerConnection(void *param, void *tmrId) 
 {
-  SSyncPeer *pPeer = (SSyncPeer *)param;
+  SSyncPeer *pPeer = param;
   if (pPeer->ip == 0 ) return;
 
   SSyncNode *pNode = pPeer->pSyncNode;
@@ -979,7 +979,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
 static void syncProcessBrokenLink(void *param) {
   if (param == NULL) return;  // the connection for arbitrator
 
-  SSyncPeer *pPeer = (SSyncPeer *)param;
+  SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
   sTrace("vgId:%d peer:%s, TCP link is broken(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
@@ -1059,7 +1059,7 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
 
 static void syncMonitorFwdInfos(void *param, void *tmrId)
 {
-  SSyncNode *pNode = (SSyncNode *)param;
+  SSyncNode *pNode = param;
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   uint64_t   time = taosGetTimestampMs();
 
