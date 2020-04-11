@@ -368,6 +368,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   if (strcmp(option[0], "wals") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (wals == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
   pVnode->walCfg.wals = (int8_t)wals;
+  pVnode->walCfg.keep = 0;
 
   int32_t arbitratorIp = -1;
   num = fscanf(fp, "%s %u", option[0], &arbitratorIp);

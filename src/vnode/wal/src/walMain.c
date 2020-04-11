@@ -36,6 +36,7 @@
 
 typedef struct {
   int      fd;
+  int      keep;
   int      level;
   int      max;  // maximum number of wal files
   uint32_t id;   // increase continuously
@@ -61,6 +62,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
   pWal->id = 0;
   pWal->num = 0;
   pWal->level = pCfg->commitLog;
+  pWal->keep = pCfg->keep;
   strcpy(pWal->path, path);
   pthread_mutex_init(&pWal->mutex, NULL);
 
@@ -82,18 +84,21 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
 void walClose(void *handle) {
   if (handle == NULL) return;
   
-  SWal *pWal = handle;
-  
+  SWal *pWal = handle;  
   close(pWal->fd);
 
-  // remove all files in the directory
-  for (int i=0; i<pWal->num; ++i) {
-    sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
-    if (remove(pWal->name) <0) {
-      wError("wal:%s, failed to remove", pWal->name);
-    } else {
-      wTrace("wal:%s, it is removed", pWal->name);
+  if (pWal->keep == 0) {
+    // remove all files in the directory
+    for (int i=0; i<pWal->num; ++i) {
+      sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
+      if (remove(pWal->name) <0) {
+        wError("wal:%s, failed to remove", pWal->name);
+      } else {
+        wTrace("wal:%s, it is removed", pWal->name);
+      }
     }
+  } else {
+    wTrace("wal:%s, it is closed and kept", pWal->name);
   }
 
   pthread_mutex_destroy(&pWal->mutex);
