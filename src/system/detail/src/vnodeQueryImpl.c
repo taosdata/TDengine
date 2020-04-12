@@ -1088,7 +1088,7 @@ bool isCacheBlockValid(SQuery *pQuery, SCacheBlock *pBlock, SMeterObj *pMeterObj
   }
   
   SCacheInfo* pCacheInfo = (SCacheInfo*) pMeterObj->pCache;
-  if (pCacheInfo->commitPoint == pMeterObj->pointsPerBlock && pQuery->slot == pCacheInfo->currentSlot) {
+  if (pCacheInfo->commitPoint == pMeterObj->pointsPerBlock && pQuery->slot == pCacheInfo->commitSlot) {
     dWarn("QInfo:%p vid:%d sid:%d id:%s, cache block is committed, ignore. slot:%d first:%d, last:%d, numOfBlocks:%d",
         GET_QINFO_ADDR(pQuery), pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, slot, pQuery->firstSlot,
          pQuery->currentSlot, pQuery->numOfBlocks);
