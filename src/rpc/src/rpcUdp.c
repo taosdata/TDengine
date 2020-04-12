@@ -78,7 +78,6 @@ static SUdpBuf *taosCreateUdpBuf(SUdpConn *pConn, uint32_t ip, uint16_t port);
 static void taosProcessUdpBufTimer(void *param, void *tmrId);
 
 void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
-  pthread_attr_t thAttr;
   SUdpConn *     pConn;
   SUdpConnSet *  pSet;
 
@@ -105,9 +104,6 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
       return NULL;
     }
   }
-
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   uint16_t ownPort;
   for (int i = 0; i < threads; ++i) {
@@ -146,19 +142,21 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
       pConn->tmrCtrl = pSet->tmrCtrl;
     }
 
+    pthread_attr_t thAttr;
+    pthread_attr_init(&thAttr);
+    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
     int code = pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
+    pthread_attr_destroy(&thAttr);
     if (code != 0) {
       tError("%s failed to create thread to process UDP data, reason:%s", label, strerror(errno));
       taosCloseSocket(pConn->fd);
       taosCleanUpUdpConnection(pSet);
-      pthread_attr_destroy(&thAttr);
       return NULL;
     }
 
     ++pSet->threads;
   }
 
-  pthread_attr_destroy(&thAttr);
   tTrace("%s UDP connection is initialized, ip:%s port:%hu threads:%d", label, ip, port, threads);
 
   return pSet;
