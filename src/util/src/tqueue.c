@@ -117,7 +117,7 @@ int taosWriteQitem(taos_queue param, int type, void *item) {
   queue->numOfItems++;
   if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
 
-  pTrace("item:%p is put into queue, type:%d items:%d", item, type, queue->numOfItems);
+  pTrace("item:%p is put into queue:%p, type:%d items:%d", item, queue, type, queue->numOfItems);
 
   pthread_mutex_unlock(&queue->mutex);
 
@@ -297,14 +297,16 @@ int taosReadQitemFromQset(taos_qset param, int *type, void **pitem, void **phand
   STaosQset  *qset = (STaosQset *)param;
   STaosQnode *pNode = NULL;
   int         code = 0;
+   
+  pthread_mutex_lock(&qset->mutex);
 
   for(int i=0; i<qset->numOfQueues; ++i) {
-    pthread_mutex_lock(&qset->mutex);
+    //pthread_mutex_lock(&qset->mutex);
     if (qset->current == NULL) 
       qset->current = qset->head;   
     STaosQueue *queue = qset->current;
     if (queue) qset->current = queue->next;
-    pthread_mutex_unlock(&qset->mutex);
+    //pthread_mutex_unlock(&qset->mutex);
     if (queue == NULL) break;
 
     pthread_mutex_lock(&queue->mutex);
@@ -326,6 +328,8 @@ int taosReadQitemFromQset(taos_qset param, int *type, void **pitem, void **phand
     if (pNode) break;
   }
 
+  pthread_mutex_unlock(&qset->mutex);
+
   return code; 
 }
 
@@ -335,13 +339,15 @@ int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **phandle) {
   STaosQall  *qall = (STaosQall *)p2;
   int         code = 0;
 
+  pthread_mutex_lock(&qset->mutex);
+
   for(int i=0; i<qset->numOfQueues; ++i) {
-    pthread_mutex_lock(&qset->mutex);
+    // pthread_mutex_lock(&qset->mutex);
     if (qset->current == NULL) 
       qset->current = qset->head;   
     queue = qset->current;
     if (queue) qset->current = queue->next;
-    pthread_mutex_unlock(&qset->mutex);
+    // pthread_mutex_unlock(&qset->mutex);
     if (queue == NULL) break;
 
     pthread_mutex_lock(&queue->mutex);
@@ -365,6 +371,7 @@ int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **phandle) {
     if (code != 0) break;  
   }
 
+  pthread_mutex_unlock(&qset->mutex);
   return code;
 }
 

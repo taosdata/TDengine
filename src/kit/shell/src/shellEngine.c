@@ -284,7 +284,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 /* Function to do regular expression check */
 int regex_match(const char *s, const char *reg, int cflags) {
   regex_t regex;
-  char    msgbuf[100];
+  char    msgbuf[100] = {0};
 
   /* Compile regular expression */
   if (regcomp(&regex, reg, cflags) != 0) {

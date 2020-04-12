@@ -103,7 +103,8 @@ void rpcCloseConnCache(void *handle) {
   if (pCache->connHashMemPool) taosMemPoolCleanUp(pCache->connHashMemPool);
 
   tfree(pCache->connHashList);
-  tfree(pCache->count)
+  tfree(pCache->count);
+  tfree(pCache->lockedBy);
 
   pthread_mutex_unlock(&pCache->mutex);
 

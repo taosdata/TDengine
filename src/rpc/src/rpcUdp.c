@@ -146,10 +146,12 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
       pConn->tmrCtrl = pSet->tmrCtrl;
     }
 
-    if (pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn) != 0) {
+    int code = pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
+    if (code != 0) {
       tError("%s failed to create thread to process UDP data, reason:%s", label, strerror(errno));
       taosCloseSocket(pConn->fd);
       taosCleanUpUdpConnection(pSet);
+      pthread_attr_destroy(&thAttr);
       return NULL;
     }
 

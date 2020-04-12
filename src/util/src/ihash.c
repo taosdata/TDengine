@@ -189,7 +189,6 @@ void taosCleanUpIntHash(void *handle) {
     free(pObj->hashList);
   }
 
-  memset(pObj, 0, sizeof(IHashObj));
   free(pObj->lockedBy);
   free(pObj);
 }

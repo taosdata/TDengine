@@ -97,6 +97,8 @@ int main(int argc, char* argv[]) {
 
   /* Interupt handler. */
   struct sigaction act;
+  memset(&act, 0, sizeof(struct sigaction));
+  
   act.sa_handler = interruptHandler;
   sigaction(SIGTERM, &act, NULL);
   sigaction(SIGINT, &act, NULL);

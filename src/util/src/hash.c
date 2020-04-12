@@ -298,7 +298,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
  */
 static SHashNode *doCreateHashNode(const char *key, size_t keyLen, const char *pData, size_t dataSize,
                                    uint32_t hashVal) {
-  size_t totalSize = dataSize + sizeof(SHashNode) + keyLen;
+  size_t totalSize = dataSize + sizeof(SHashNode) + keyLen + 1;  // one extra byte for null
 
   SHashNode *pNewNode = calloc(1, totalSize);
   if (pNewNode == NULL) {
