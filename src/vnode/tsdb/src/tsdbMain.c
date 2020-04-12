@@ -813,6 +813,13 @@ static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables)
   return iters;
 }
 
+static void tsdbFreeMemTable(SMemTable *pMemTable) {
+  if (pMemTable) {
+    tSkipListDestroy(pMemTable->pData);
+    free(pMemTable);
+  }
+}
+
 // Commit to file
 static void *tsdbCommitData(void *arg) {
   // TODO
@@ -859,7 +866,8 @@ static void *tsdbCommitData(void *arg) {
   // TODO: free the skiplist
   for (int i = 0; i < pCfg->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
-    if (pTable && pTable->imem) { // Here has memory leak
+    if (pTable && pTable->imem) {
+      tsdbFreeMemTable(pTable->imem);
       pTable->imem = NULL;
     }
   }
