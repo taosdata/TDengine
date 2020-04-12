@@ -224,10 +224,11 @@ void vnodeRelease(void *pVnodeRaw) {
     // remove the whole directory
   }
 
-  dTrace("pVnode:%p vgId:%d, vnode is released", pVnode, pVnode->vgId);
   free(pVnode);
 
   int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
+  dTrace("pVnode:%p vgId:%d, vnode is released, vnodes:%d", pVnode, vgId, count);
+
   if (count <= 0) {
     taosCleanUpIntHash(tsDnodeVnodesHash);
     vnodeModuleInit = PTHREAD_ONCE_INIT;

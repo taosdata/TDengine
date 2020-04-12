@@ -84,7 +84,9 @@ void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp,
 
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  if (pthread_create(&(pTcp->thread), &thattr, taosReadTcpData, (void *)(pTcp)) != 0) {
+  int code = pthread_create(&(pTcp->thread), &thattr, taosReadTcpData, (void *)(pTcp));
+  pthread_attr_destroy(&thattr);
+  if (code != 0) {
     tError("%s failed to create TCP read data thread, reason:%s", label, strerror(errno));
     return NULL;
   }
