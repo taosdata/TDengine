@@ -817,7 +817,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
   
   tTrace("%s %p, link is broken", pRpc->label, pConn);
-  pConn->chandle = NULL;
+  // pConn->chandle = NULL;
 
   if (pConn->outType) {
     SRpcReqContext *pContext = pConn->pContext;

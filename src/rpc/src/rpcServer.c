@@ -177,7 +177,6 @@ void taosCloseTcpServerConnection(void *chandle) {
   SFdObj *pFdObj = chandle;
   if (pFdObj == NULL) return;
 
-  pFdObj->thandle = NULL;
   taosCleanUpFdObj(pFdObj);
 }
 
@@ -190,6 +189,25 @@ int taosSendTcpServerData(uint32_t ip, uint16_t port, void *data, int len, void 
 }
 
 #define maxEvents 10
+
+static void taosReportBrokenLink(SFdObj *pFdObj) {
+
+  SThreadObj *pThreadObj = pFdObj->pThreadObj;
+
+  // notify the upper layer, so it will clean the associated context
+  if (pFdObj->thandle) {
+    SRecvInfo recvInfo;
+    recvInfo.msg = NULL;
+    recvInfo.msgLen = 0;
+    recvInfo.ip = 0;
+    recvInfo.port = 0;
+    recvInfo.shandle = pThreadObj->shandle;
+    recvInfo.thandle = pFdObj->thandle;;
+    recvInfo.chandle = NULL;
+    recvInfo.connType = RPC_CONN_TCP;
+    (*(pThreadObj->processData))(&recvInfo);
+  } 
+}
 
 static void taosProcessTcpData(void *param) {
   SThreadObj *       pThreadObj;
@@ -214,29 +232,29 @@ static void taosProcessTcpData(void *param) {
       pFdObj = events[i].data.ptr;
 
       if (events[i].events & EPOLLERR) {
-        tTrace("%s TCP thread:%d, error happened on FD", pThreadObj->label, pThreadObj->threadId);
-        taosCleanUpFdObj(pFdObj);
+        tTrace("%s %p, error happened on FD", pThreadObj->label, pFdObj->thandle);
+        taosReportBrokenLink(pFdObj);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
-        tTrace("%s TCP thread:%d, FD hang up", pThreadObj->label, pThreadObj->threadId);
-        taosCleanUpFdObj(pFdObj);
+        tTrace("%s %p, FD hang up", pThreadObj->label, pFdObj->thandle);
+        taosReportBrokenLink(pFdObj);
         continue;
       }
 
       int32_t headLen = taosReadMsg(pFdObj->fd, &rpcHead, sizeof(SRpcHead));
       if (headLen != sizeof(SRpcHead)) {
-        tError("%s read error, headLen:%d, errno:%d", pThreadObj->label, headLen, errno);
-        taosCleanUpFdObj(pFdObj);
+        tError("%s %p, read error, headLen:%d", pThreadObj->label, pFdObj->thandle, headLen);
+        taosReportBrokenLink(pFdObj);
         continue;
       }
 
       int32_t msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
       char   *buffer = malloc(msgLen + tsRpcOverhead);
       if ( NULL == buffer) {
-        tError("%s TCP malloc(size:%d) fail\n", pThreadObj->label, msgLen);
-        taosCleanUpFdObj(pFdObj);
+        tError("%s %p, TCP malloc(size:%d) fail", pThreadObj->label, pFdObj->thandle, msgLen);
+        taosReportBrokenLink(pFdObj);
         continue;
       }
 
@@ -245,8 +263,9 @@ static void taosProcessTcpData(void *param) {
       int32_t retLen = taosReadMsg(pFdObj->fd, msg + headLen, leftLen);
 
       if (leftLen != retLen) {
-        tError("%s read error, leftLen:%d retLen:%d", pThreadObj->label, leftLen, retLen);
-        taosCleanUpFdObj(pFdObj);
+        tError("%s %p, read error, leftLen:%d retLen:%d", 
+                pThreadObj->label, pFdObj->thandle, leftLen, retLen);
+        taosReportBrokenLink(pFdObj);
         tfree(buffer);
         continue;
       }
@@ -339,7 +358,7 @@ static void taosAcceptTcpConnection(void *arg) {
     pthread_cond_signal(&pThreadObj->fdReady);
     pthread_mutex_unlock(&(pThreadObj->threadMutex));
 
-    tTrace("%s TCP thread:%d, a new connection from %s:%hu, FD:%p, numOfFds:%d", pServerObj->label, 
+    tTrace("%s TCP thread:%d, new connection from %s:%hu, FD:%p, numOfFds:%d", pServerObj->label, 
            pThreadObj->threadId, pFdObj->ipstr, pFdObj->port, pFdObj, pThreadObj->numOfFds);
 
     // pick up next thread for next connection
@@ -349,27 +368,12 @@ static void taosAcceptTcpConnection(void *arg) {
 }
 
 static void taosCleanUpFdObj(SFdObj *pFdObj) {
-  SThreadObj *pThreadObj;
 
   if (pFdObj == NULL) return;
   if (pFdObj->signature != pFdObj) return;
 
   pFdObj->signature = NULL;
-  pThreadObj = pFdObj->pThreadObj;
-
-  // notify the upper layer, so it will clean the associated context
-  if (pFdObj->thandle) {
-    SRecvInfo recvInfo;
-    recvInfo.msg = NULL;
-    recvInfo.msgLen = 0;
-    recvInfo.ip = 0;
-    recvInfo.port = 0;
-    recvInfo.shandle = pThreadObj->shandle;
-    recvInfo.thandle = pFdObj->thandle;;
-    recvInfo.chandle = NULL;
-    recvInfo.connType = RPC_CONN_TCP;
-    (*(pThreadObj->processData))(&recvInfo);
-  } 
+  SThreadObj *pThreadObj = pFdObj->pThreadObj;
 
   close(pFdObj->fd);
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
@@ -379,7 +383,8 @@ static void taosCleanUpFdObj(SFdObj *pFdObj) {
   pThreadObj->numOfFds--;
 
   if (pThreadObj->numOfFds < 0)
-    tError("%s TCP thread:%d, number of FDs shall never be negative", pThreadObj->label, pThreadObj->threadId);
+    tError("%s %p, TCP thread:%d, number of FDs is negative!!!", 
+            pThreadObj->label, pFdObj->thandle, pThreadObj->threadId);
 
   // remove from the FdObject list
 
@@ -395,8 +400,9 @@ static void taosCleanUpFdObj(SFdObj *pFdObj) {
 
   pthread_mutex_unlock(&pThreadObj->threadMutex);
 
-  tTrace("%s TCP thread:%d, FD:%p is cleaned up, numOfFds:%d", pThreadObj->label, pThreadObj->threadId,
-          pFdObj, pThreadObj->numOfFds);
+  tTrace("%s %p, FD:%p is cleaned, numOfFds:%d", 
+          pThreadObj->label, pFdObj->thandle, pFdObj, pThreadObj->numOfFds);
+
   tfree(pFdObj);
 }
 
