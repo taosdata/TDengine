@@ -160,7 +160,7 @@ typedef struct SQueryRuntimeEnv {
   SQueryCostSummary  summary;
   bool               stableQuery;  // super table query or not
   void*              pQueryHandle;
-
+  void*              pSubQueryHandle; // another thread for
   SDiskbasedResultBuf* pResultBuf;  // query result buffer based on blocked-wised disk file
 } SQueryRuntimeEnv;
 
@@ -172,6 +172,8 @@ typedef struct SQInfo {
   int32_t          code;          // error code to returned to client
   sem_t            dataReady;
   SArray*          pTableIdList;  // table id list
+  void*            tsdb;
+  
   SQueryRuntimeEnv runtimeEnv;
   int32_t          subgroupIdx;
   int32_t          offset; /* offset in group result set of subgroup */

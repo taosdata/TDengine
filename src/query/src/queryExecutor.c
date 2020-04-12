@@ -2565,7 +2565,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   dTrace("QInfo:%p query start, qrange:%" PRId64 "-%" PRId64 ", lastkey:%" PRId64 ", order:%d",
          GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
 
-  tsdb_query_handle_t pQueryHandle = pRuntimeEnv->pQueryHandle;
+  tsdb_query_handle_t pQueryHandle = pRuntimeEnv->scanFlag == MASTER_SCAN? pRuntimeEnv->pQueryHandle:pRuntimeEnv->pSubQueryHandle;
   while (tsdbNextDataBlock(pQueryHandle)) {
     
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -3520,8 +3520,9 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
 
   // store the start query position
-  void *pos = tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
-
+//  void *pos = tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
+  SQInfo* pQInfo = (SQInfo*) GET_QINFO_ADDR(pRuntimeEnv);
+  
   int64_t skey = pQuery->lastKey;
   int32_t status = pQuery->status;
   int32_t activeSlot = pRuntimeEnv->windowResInfo.curIndex;
@@ -3543,15 +3544,29 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     }
 
     // set the correct start position, and load the corresponding block in buffer for next round scan all data blocks.
-    /*int32_t ret =*/ tsdbDataBlockSeek(pRuntimeEnv->pQueryHandle, pos);
-
+//    /*int32_t ret =*/ tsdbDataBlockSeek(pRuntimeEnv->pQueryHandle, pos);
+  
+    STsdbQueryCond cond = {
+        .twindow = {pQuery->window.skey, pQuery->lastKey},
+        .order   = pQuery->order.order,
+        .colList = pQuery->colList,
+    };
+  
+    SArray *cols = taosArrayInit(pQuery->numOfCols, sizeof(pQuery->colList[0]));
+    for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
+      taosArrayPush(cols, &pQuery->colList[i]);
+    }
+  
+    pRuntimeEnv->pSubQueryHandle = tsdbQueryByTableId(pQInfo->tsdb, &cond, pQInfo->pTableIdList, cols);
+    taosArrayDestroy(cols);
+  
     status = pQuery->status;
     pRuntimeEnv->windowResInfo.curIndex = activeSlot;
 
     setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
 
-    /* check if query is killed or not */
+    // check if query is killed or not
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       return;
     }
@@ -4179,6 +4194,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void* tsdb, bool isSTableQuery)
   
   pRuntimeEnv->pQueryHandle = tsdbQueryByTableId(tsdb, &cond, pQInfo->pTableIdList, cols);
   taosArrayDestroy(cols);
+  pQInfo->tsdb = tsdb;
   
   pRuntimeEnv->pQuery = pQuery;
   pRuntimeEnv->pTSBuf = param;
@@ -4972,7 +4988,6 @@ static void tableIntervalProcessImpl(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   while (1) {
-//    initCtxOutputBuf(pRuntimeEnv);
     scanAllDataBlocks(pRuntimeEnv);
 
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {

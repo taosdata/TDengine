@@ -1,6 +1,8 @@
 #include "taosdef.h"
 #include "tcompare.h"
 
+#include "tutil.h"
+
 int32_t compareInt32Val(const void *pLeft, const void *pRight) {
   int32_t ret = GET_INT32_VAL(pLeft) - GET_INT32_VAL(pRight);
   if (ret == 0) {
@@ -100,6 +102,143 @@ int32_t compareWStrVal(const void *pLeft, const void *pRight) {
   //    return ret > 0 ? 1 : -1;
   //  }
   return 0;
+}
+
+/*
+ * Compare two strings
+ *    TSDB_MATCH:            Match
+ *    TSDB_NOMATCH:          No match
+ *    TSDB_NOWILDCARDMATCH:  No match in spite of having * or % wildcards.
+ * Like matching rules:
+ *      '%': Matches zero or more characters
+ *      '_': Matches one character
+ *
+ */
+int patternMatch(const char *patterStr, const char *str, size_t size, const SPatternCompareInfo *pInfo) {
+  char c, c1;
+  
+  int32_t i = 0;
+  int32_t j = 0;
+  
+  while ((c = patterStr[i++]) != 0) {
+    if (c == pInfo->matchAll) { /* Match "*" */
+      
+      while ((c = patterStr[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
+        if (c == pInfo->matchOne && (j > size || str[j++] == 0)) {
+          // empty string, return not match
+          return TSDB_PATTERN_NOWILDCARDMATCH;
+        }
+      }
+      
+      if (c == 0) {
+        return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
+      }
+      
+      char next[3] = {toupper(c), tolower(c), 0};
+      while (1) {
+        size_t n = strcspn(str, next);
+        str += n;
+        
+        if (str[0] == 0 || (n >= size - 1)) {
+          break;
+        }
+        
+        int32_t ret = patternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
+        if (ret != TSDB_PATTERN_NOMATCH) {
+          return ret;
+        }
+      }
+      return TSDB_PATTERN_NOWILDCARDMATCH;
+    }
+    
+    c1 = str[j++];
+    
+    if (j <= size) {
+      if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
+        continue;
+      }
+    }
+    
+    return TSDB_PATTERN_NOMATCH;
+  }
+  
+  return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
+}
+
+int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo) {
+  wchar_t c, c1;
+  wchar_t matchOne = L'_';  // "_"
+  wchar_t matchAll = L'%';  // "%"
+  
+  int32_t i = 0;
+  int32_t j = 0;
+  
+  while ((c = patterStr[i++]) != 0) {
+    if (c == matchAll) { /* Match "%" */
+      
+      while ((c = patterStr[i++]) == matchAll || c == matchOne) {
+        if (c == matchOne && (j > size || str[j++] == 0)) {
+          return TSDB_PATTERN_NOWILDCARDMATCH;
+        }
+      }
+      if (c == 0) {
+        return TSDB_PATTERN_MATCH;
+      }
+      
+      wchar_t accept[3] = {towupper(c), towlower(c), 0};
+      while (1) {
+        size_t n = wcsspn(str, accept);
+        
+        str += n;
+        if (str[0] == 0 || (n >= size - 1)) {
+          break;
+        }
+        
+        str++;
+        
+        int32_t ret = WCSPatternMatch(&patterStr[i], str, wcslen(str), pInfo);
+        if (ret != TSDB_PATTERN_NOMATCH) {
+          return ret;
+        }
+      }
+      
+      return TSDB_PATTERN_NOWILDCARDMATCH;
+    }
+    
+    c1 = str[j++];
+    
+    if (j <= size) {
+      if (c == c1 || towlower(c) == towlower(c1) || (c == matchOne && c1 != 0)) {
+        continue;
+      }
+    }
+    
+    return TSDB_PATTERN_NOMATCH;
+  }
+  
+  return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
+}
+
+static UNUSED_FUNC int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
+  SPatternCompareInfo pInfo = {'%', '_'};
+  
+  const char* pattern = pRight;
+  const char* str = pLeft;
+  
+  int32_t ret = patternMatch(pattern, str, strlen(str), &pInfo);
+  
+  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
+}
+
+static UNUSED_FUNC int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
+  SPatternCompareInfo pInfo = {'%', '_'};
+  
+  const wchar_t* pattern = pRight;
+  const wchar_t* str = pLeft;
+  
+  int32_t ret = WCSPatternMatch(pattern, str, wcslen(str), &pInfo);
+  
+  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
 __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType) {

@@ -15,19 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+
 #include "taosmsg.h"
-#include "tscompression.h"
-#include "tskiplist.h"
 #include "ttime.h"
 #include "tutil.h"
-#include "qast.h"
-#include "qextbuffer.h"
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "tscompression.h"
-#include "tskiplist.h"
-#include "tsqlfunction.h"
-#include "ttime.h"
 #include "name.h"
 #include "taccount.h"
 #include "mgmtDClient.h"
@@ -42,6 +36,7 @@
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
+#include "tcompare.h"
 
 void *  tsChildTableSdb;
 void *  tsSuperTableSdb;
