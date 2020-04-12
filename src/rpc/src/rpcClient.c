@@ -188,10 +188,19 @@ static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
   if (pFdObj == NULL) return;
   if (pFdObj->signature != pFdObj) return;
 
+  pFdObj->signature = NULL;
   pTcp = pFdObj->pTcp;
-  if (pTcp == NULL) {
-    tError("double free TcpFdObj!!!!");
-    return;
+
+  if (pFdObj->thandle) {
+    recvInfo.msg = NULL;
+    recvInfo.msgLen = 0;
+    recvInfo.ip = 0;
+    recvInfo.port = 0;
+    recvInfo.shandle = pTcp->shandle;
+    recvInfo.thandle = pFdObj->thandle;;
+    recvInfo.chandle = NULL;
+    recvInfo.connType = RPC_CONN_TCP;
+    (*(pTcp->processData))(&recvInfo);
   }
 
   epoll_ctl(pTcp->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
@@ -216,19 +225,8 @@ static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
 
   pthread_mutex_unlock(&pTcp->mutex);
 
-  recvInfo.msg = NULL;
-  recvInfo.msgLen = 0;
-  recvInfo.ip = 0;
-  recvInfo.port = 0;
-  recvInfo.shandle = pTcp->shandle;
-  recvInfo.thandle = pFdObj->thandle;;
-  recvInfo.chandle = NULL;
-  recvInfo.connType = RPC_CONN_TCP;
-
-  if (pFdObj->thandle) (*(pTcp->processData))(&recvInfo);
   tTrace("%s TCP is cleaned up, FD:%p numOfFds:%d", pTcp->label, pFdObj, pTcp->numOfFds);
 
-  memset(pFdObj, 0, sizeof(STcpFd));
   tfree(pFdObj);
 }
 
