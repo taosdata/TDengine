@@ -34,7 +34,7 @@ void *tsdbEncodeTable(STable *pTable, int *contLen) {
   *contLen = tsdbEstimateTableEncodeSize(pTable);
   if (*contLen < 0) return NULL;
 
-  void *ret = malloc(*contLen);
+  void *ret = calloc(1, *contLen);
   if (ret == NULL) return NULL;
 
   void *ptr = ret;
