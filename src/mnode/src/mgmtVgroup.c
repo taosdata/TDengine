@@ -166,7 +166,7 @@ int32_t mgmtInitVgroups() {
     .hashSessions = TSDB_MAX_VGROUPS,
     .maxRowSize   = tsVgUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_AUTO,
+    .keyType      = SDB_KEY_AUTO,
     .insertFp     = mgmtVgroupActionInsert,
     .deleteFp     = mgmtVgroupActionDelete,
     .updateFp     = mgmtVgroupActionUpdate,
@@ -203,7 +203,7 @@ SVgObj *mgmtGetVgroup(int32_t vgId) {
 
 void mgmtUpdateVgroup(SVgObj *pVgroup) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup,
     .rowSize = tsVgUpdateSize
@@ -247,7 +247,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup,
     .rowSize = sizeof(SVgObj)
@@ -279,7 +279,7 @@ void mgmtDropVgroup(SVgObj *pVgroup, void *ahandle) {
     mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
     mgmtSendDropVgroupMsg(pVgroup, NULL);
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsVgroupSdb,
       .pObj = pVgroup
     };
@@ -586,7 +586,7 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     mgmtAddToShellQueue(newMsg);
   } else {
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsVgroupSdb,
       .pObj = pVgroup
     };
@@ -649,7 +649,7 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   if (queueMsg->received != queueMsg->expected) return;
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup
   };
@@ -706,7 +706,7 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
 
     if (strncmp(pDropDb->name, pVgroup->dbName, dbNameLen) == 0) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
         .pObj = pVgroup,
       };

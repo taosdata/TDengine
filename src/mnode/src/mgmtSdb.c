@@ -31,8 +31,8 @@
 typedef struct {
   int32_t code;
   int64_t version;
-  void *  pSync;
-  void *  pWal;
+  void *  sync;
+  void *  wal;
   sem_t   sem;
   pthread_mutex_t mutex;
 } SSdbSync;
@@ -99,13 +99,13 @@ static char *sdbGetActionStr(int32_t action) {
 static char *sdbGetkeyStr(SSdbTable *pTable, void *row) {
   static char str[16];
   switch (pTable->keyType) {
-    case SDB_KEY_TYPE_STRING:
+    case SDB_KEY_STRING:
       return (char *)row;
-    case SDB_KEY_TYPE_AUTO:
+    case SDB_KEY_AUTO:
       sprintf(str, "%d", *(int32_t *)row);
       return str;
     default:
-      return "unknown";
+      return "invalid";
   }
 }
 
@@ -135,14 +135,14 @@ int32_t sdbInit() {
   pthread_mutex_init(&tsSdbSync->mutex, NULL);
 
   SWalCfg walCfg = {.commitLog = 2, .wals = 2, .keep = 1};
-  tsSdbSync->pWal = walOpen(tsMnodeDir, &walCfg);
-  if (tsSdbSync->pWal == NULL) {
+  tsSdbSync->wal = walOpen(tsMnodeDir, &walCfg);
+  if (tsSdbSync->wal == NULL) {
     sdbError("failed to open sdb in %s", tsMnodeDir);
     return -1;
   }
 
   sdbTrace("open sdb file for read");
-  walRestore(tsSdbSync->pWal, tsSdbSync, sdbProcessWrite);
+  walRestore(tsSdbSync->wal, tsSdbSync, sdbProcessWrite);
 
   int32_t totalRows = 0;
   int32_t numOfTables = 0;
@@ -166,7 +166,7 @@ void sdbCleanUp() {
   if (tsSdbSync) {
     sem_destroy(&tsSdbSync->sem);
     pthread_mutex_destroy(&tsSdbSync->mutex);
-    walClose(tsSdbSync->pWal);
+    walClose(tsSdbSync->wal);
     tsSdbSync = NULL;
   }
 }
@@ -174,25 +174,28 @@ void sdbCleanUp() {
 void sdbIncRef(void *handle, void *pRow) {
   if (pRow) {
     SSdbTable *pTable = handle;
-    int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+    int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    //if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
-      sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
-    //}
+    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
+      sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
+               *pRefCount);
+    }
   }
 }
 
 void sdbDecRef(void *handle, void *pRow) {
   if (pRow) {
     SSdbTable *pTable = handle;
-    int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
-    int32_t  refCount = atomic_sub_fetch_32(pRefCount, 1);
-    //if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
-      sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
-    //}
-    int8_t* updateEnd = pRow + pTable->refCountPos - 1;
+    int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+    int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
+    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
+      sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
+               *pRefCount);
+    }
+    int8_t *updateEnd = pRow + pTable->refCountPos - 1;
     if (refCount <= 0 && *updateEnd) {
-      sdbTrace("table:%s, record:%s:%s:%d is destroyed", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
+      sdbTrace("table:%s, record:%s:%s:%d is destroyed", pTable->tableName, pTable->tableName,
+               sdbGetkeyStr(pTable, pRow), *pRefCount);
       SSdbOperDesc oper = {.pObj = pRow};
       (*pTable->destroyFp)(&oper);
     }
@@ -228,7 +231,7 @@ void *sdbGetRow(void *handle, void *key) {
   return pMeta->row;
 }
 
-static int32_t sdbInsertLocal(SSdbTable* pTable, SSdbOperDesc *pOper) {
+static int32_t sdbInsertLocal(SSdbTable *pTable, SSdbOperDesc *pOper) {
   SRowMeta rowMeta;
   rowMeta.rowSize = pOper->rowSize;
   rowMeta.row = pOper->pObj;
@@ -239,41 +242,144 @@ static int32_t sdbInsertLocal(SSdbTable* pTable, SSdbOperDesc *pOper) {
   pTable->numOfRows++;
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, insert record:%s, numOfRows:%d", pTable->tableName,
-           sdbGetkeyStr(pTable, pOper->pObj), pTable->numOfRows);
+  sdbTrace("table:%s, insert record:%s, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
+           pTable->numOfRows);
 
   (*pTable->insertFp)(pOper);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sdbDeleteLocal(SSdbTable* pTable, SSdbOperDesc *pOper) {
+static int32_t sdbDeleteLocal(SSdbTable *pTable, SSdbOperDesc *pOper) {
   pthread_mutex_lock(&pTable->mutex);
   (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj);
   pTable->numOfRows--;
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, delete record:%s, numOfRows:%d", pTable->tableName,
-           sdbGetkeyStr(pTable, pOper->pObj), pTable->numOfRows);
+  sdbTrace("table:%s, delete record:%s, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
+           pTable->numOfRows);
 
   (*pTable->deleteFp)(pOper);
-  int8_t* updateEnd = pOper->pObj + pTable->refCountPos - 1;
+  int8_t *updateEnd = pOper->pObj + pTable->refCountPos - 1;
   *updateEnd = 1;
   sdbDecRef(pTable, pOper->pObj);
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sdbUpdateLocal(SSdbTable* pTable, SSdbOperDesc *pOper) {
-  sdbTrace("table:%s, update record:%s, numOfRows:%d", pTable->tableName,
-           sdbGetkeyStr(pTable, pOper->pObj), pTable->numOfRows);
+static int32_t sdbUpdateLocal(SSdbTable *pTable, SSdbOperDesc *pOper) {
+  sdbTrace("table:%s, update record:%s, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
+           pTable->numOfRows);
 
   (*pTable->updateFp)(pOper);
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sdbProcessWriteFromApp(SSdbTable *pTable, SWalHead *pHead, int32_t action) {
+  int32_t code = 0;
+
+  pthread_mutex_lock(&tsSdbSync->mutex);
+  tsSdbSync->version++;
+  pHead->version = tsSdbSync->version;
+
+  code = sdbForwardDbReqToPeer(pHead);
+  if (code != TSDB_CODE_SUCCESS) {
+    pthread_mutex_unlock(&tsSdbSync->mutex);
+    sdbError("table:%s, failed to forward %s record:%s from file, version:%" PRId64 ", reason:%s", pTable->tableName,
+             sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version, tstrerror(code));
+    return code;
+  }
+
+  code = walWrite(tsSdbSync->wal, pHead);
+  pthread_mutex_unlock(&tsSdbSync->mutex);
+
+  if (code < 0) {
+    sdbError("table:%s, failed to %s record:%s to file, version:%" PRId64 ", reason:%s", pTable->tableName,
+             sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version, tstrerror(code));
+  } else {
+    sdbTrace("table:%s, success to %s record:%s to file, version:%" PRId64, pTable->tableName, sdbGetActionStr(action),
+             sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+  }
+
+  walFsync(tsSdbSync->wal);
+  free(pHead);
+
+  return code;
+}
+
+static int32_t sdbProcessWriteFromWal(SSdbTable *pTable, SWalHead *pHead, int32_t action) {
+  pthread_mutex_lock(&tsSdbSync->mutex);
+  if (pHead->version <= tsSdbSync->version) {
+    pthread_mutex_unlock(&tsSdbSync->mutex);
+    return TSDB_CODE_SUCCESS;
+  } else if (pHead->version != tsSdbSync->version + 1) {
+    pthread_mutex_unlock(&tsSdbSync->mutex);
+    sdbError("table:%s, failed to restore %s record:%s from file, version:%" PRId64 " too large, sdb version:%" PRId64,
+             pTable->tableName, sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version,
+             tsSdbSync->version);
+    return TSDB_CODE_OTHERS;
+  }
+
+  tsSdbSync->version = pHead->version;
+  sdbTrace("table:%s, success to restore %s record:%s from file, version:%" PRId64, pTable->tableName,
+           sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+
+  int32_t code = -1;
+  if (action == SDB_ACTION_INSERT) {
+    SSdbOperDesc oper = {
+        .rowSize = pHead->len,
+        .rowData = pHead->cont,
+        .table = pTable,
+    };
+    code = (*pTable->decodeFp)(&oper);
+    if (code < 0) {
+      sdbTrace("table:%s, failed to decode %s record:%s from file, version:%" PRId64, pTable->tableName,
+               sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+      pthread_mutex_unlock(&tsSdbSync->mutex);
+      return code;
+    }
+
+    code = sdbInsertLocal(pTable, &oper);
+  } else if (action == SDB_ACTION_DELETE) {
+    SRowMeta *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
+    assert(rowMeta != NULL && rowMeta->row != NULL);
+
+    SSdbOperDesc oper = {
+        .table = pTable,
+        .pObj = rowMeta->row,
+    };
+
+    code = sdbDeleteLocal(pTable, &oper);
+  } else if (action == SDB_ACTION_UPDATE) {
+    SRowMeta *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
+    assert(rowMeta != NULL && rowMeta->row != NULL);
+
+    SSdbOperDesc oper1 = {
+        .table = pTable,
+        .pObj = rowMeta->row,
+    };
+    sdbDeleteLocal(pTable, &oper1);
+
+    SSdbOperDesc oper2 = {
+        .rowSize = pHead->len,
+        .rowData = pHead->cont,
+        .table = pTable,
+    };
+    code = (*pTable->decodeFp)(&oper2);
+    if (code < 0) {
+      sdbTrace("table:%s, failed to decode %s record:%s from file, version:%" PRId64, pTable->tableName,
+               sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+      pthread_mutex_unlock(&tsSdbSync->mutex);
+      return code;
+    }
+    code = sdbInsertLocal(pTable, &oper2);
+  }
+
+  pthread_mutex_unlock(&tsSdbSync->mutex);
+  return code;
+}
+
 static int sdbProcessWrite(void *param, void *data, int type) {
   SWalHead *pHead = data;
-  int32_t   code = 0;
   int32_t   tableId = pHead->msgType / 10;
   int32_t   action = pHead->msgType % 10;
 
@@ -281,108 +387,9 @@ static int sdbProcessWrite(void *param, void *data, int type) {
   assert(pTable != NULL);
 
   if (pHead->version == 0) {
-    // from mgmt, update version
-    pthread_mutex_lock(&tsSdbSync->mutex);
-    tsSdbSync->version++;
-    pHead->version = tsSdbSync->version;
-
-    code = sdbForwardDbReqToPeer(pHead);
-    if (code != TSDB_CODE_SUCCESS) {
-      pthread_mutex_unlock(&tsSdbSync->mutex);
-      sdbError("table:%s, failed to forward %s record:%s from file, version:%" PRId64 ", reason:%s", pTable->tableName,
-               sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version, tstrerror(code));
-      return code;
-    }
-
-    code = walWrite(tsSdbSync->pWal, pHead);
-    pthread_mutex_unlock(&tsSdbSync->mutex);
-
-    if (code < 0) {
-      sdbError("table:%s, failed to %s record:%s to file, version:%" PRId64 ", reason:%s", pTable->tableName,
-               sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version, tstrerror(code));
-    } else {
-      sdbTrace("table:%s, success to %s record:%s to file, version:%" PRId64, pTable->tableName, sdbGetActionStr(action),
-               sdbGetkeyStr(pTable, pHead->cont), pHead->version);
-    }
-
-    walFsync(tsSdbSync->pWal);
-    free(pHead);
-
-    return code;
+    return sdbProcessWriteFromApp(pTable, pHead, action);
   } else {
-    // for data from WAL or forward, version may be smaller
-    pthread_mutex_lock(&tsSdbSync->mutex);
-
-    if (pHead->version <= tsSdbSync->version) {
-      pthread_mutex_unlock(&tsSdbSync->mutex);
-      return TSDB_CODE_SUCCESS;
-    } else if (pHead->version != tsSdbSync->version + 1) {
-      pthread_mutex_unlock(&tsSdbSync->mutex);
-      sdbError("table:%s, failed to restore %s record:%s from file, version:%" PRId64 " too large, sdb version:%" PRId64,
-               pTable->tableName, sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version,
-               tsSdbSync->version);
-      return TSDB_CODE_OTHERS;
-    } else {
-      tsSdbSync->version = pHead->version;
-      sdbTrace("table:%s, success to restore %s record:%s from file, version:%" PRId64, pTable->tableName,
-               sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
-    }
-
-   
-
-    code = -1;
-    if (action == SDB_ACTION_INSERT) {      
-      SSdbOperDesc oper = {
-        .rowSize = pHead->len,
-        .rowData = pHead->cont,
-        .table = pTable,
-      };
-      code = (*pTable->decodeFp)(&oper);
-      if (code < 0) {
-        sdbTrace("table:%s, failed to decode %s record:%s from file, version:%" PRId64, pTable->tableName,
-                 sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
-        pthread_mutex_unlock(&tsSdbSync->mutex);
-        return code;
-      }
-
-      code = sdbInsertLocal(pTable, &oper);
-    } else if (action == SDB_ACTION_DELETE) {
-      SRowMeta *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
-      assert(rowMeta != NULL && rowMeta->row != NULL);
-
-      SSdbOperDesc oper = {
-        .table = pTable,
-        .pObj = rowMeta->row,
-      };
-
-      code = sdbDeleteLocal(pTable, &oper);
-    } else if (action == SDB_ACTION_UPDATE) {
-      SRowMeta *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
-      assert(rowMeta != NULL && rowMeta->row != NULL);
-
-      SSdbOperDesc oper1 = {
-        .table = pTable,
-        .pObj = rowMeta->row,
-      };
-      sdbDeleteLocal(pTable, &oper1);
-      
-      SSdbOperDesc oper2 = {
-        .rowSize = pHead->len,
-        .rowData = pHead->cont,
-        .table = pTable,
-      };
-      code = (*pTable->decodeFp)(&oper2);
-      if (code < 0) {
-        sdbTrace("table:%s, failed to decode %s record:%s from file, version:%" PRId64, pTable->tableName,
-                 sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
-        pthread_mutex_unlock(&tsSdbSync->mutex);
-        return code;
-      }
-      code = sdbInsertLocal(pTable, &oper2);
-    }
-    
-    pthread_mutex_unlock(&tsSdbSync->mutex);
-    return code;
+    return sdbProcessWriteFromWal(pTable, pHead, action);
   }
 }
 
@@ -396,7 +403,7 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
     return TSDB_CODE_ALREADY_THERE;
   }
 
-  if (pTable->keyType == SDB_KEY_TYPE_AUTO) {
+  if (pTable->keyType == SDB_KEY_AUTO) {
     pthread_mutex_lock(&pTable->mutex);
     *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
 
@@ -407,7 +414,7 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
     pthread_mutex_unlock(&pTable->mutex);
   }
 
-  if (pOper->type == SDB_OPER_TYPE_GLOBAL) {
+  if (pOper->type == SDB_OPER_GLOBAL) {
     int32_t   size = sizeof(SWalHead) + pTable->maxRowSize;
     SWalHead *pHead = calloc(1, size);
     pHead->version = 0;
@@ -439,13 +446,13 @@ int32_t sdbDeleteRow(SSdbOperDesc *pOper) {
   void * pMetaRow = pMeta->row;
   assert(pMetaRow != NULL);
 
-  if (pOper->type == SDB_OPER_TYPE_GLOBAL) {
+  if (pOper->type == SDB_OPER_GLOBAL) {
     int32_t rowSize = 0;
     switch (pTable->keyType) {
-      case SDB_KEY_TYPE_STRING:
+      case SDB_KEY_STRING:
         rowSize = strlen((char *)pOper->pObj) + 1;
         break;
-      case SDB_KEY_TYPE_AUTO:
+      case SDB_KEY_AUTO:
         rowSize = sizeof(uint64_t);
         break;
       default:
@@ -479,7 +486,7 @@ int32_t sdbUpdateRow(SSdbOperDesc *pOper) {
   void * pMetaRow = pMeta->row;
   assert(pMetaRow != NULL);
 
-  if (pOper->type == SDB_OPER_TYPE_GLOBAL) {
+  if (pOper->type == SDB_OPER_GLOBAL) {
     int32_t   size = sizeof(SWalHead) + pTable->maxRowSize;
     SWalHead *pHead = calloc(1, size);
     pHead->version = 0;

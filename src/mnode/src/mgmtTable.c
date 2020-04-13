@@ -240,7 +240,7 @@ static int32_t mgmtChildTableActionUpdateAll() {
     if (pDb == NULL) {
       mError("ctable:%s, failed to get db, discard it", pTable->info.tableId);
       SSdbOperDesc desc = {0};
-      desc.type = SDB_OPER_TYPE_LOCAL;
+      desc.type = SDB_OPER_LOCAL;
       desc.pObj = pTable;
       desc.table = tsChildTableSdb;
       sdbDeleteRow(&desc);
@@ -254,7 +254,7 @@ static int32_t mgmtChildTableActionUpdateAll() {
       mError("ctable:%s, failed to get vgroup:%d sid:%d, discard it", pTable->info.tableId, pTable->vgId, pTable->sid);
       pTable->vgId = 0;
       SSdbOperDesc desc = {0};
-      desc.type = SDB_OPER_TYPE_LOCAL;
+      desc.type = SDB_OPER_LOCAL;
       desc.pObj = pTable;
       desc.table = tsChildTableSdb;
       sdbDeleteRow(&desc);
@@ -268,7 +268,7 @@ static int32_t mgmtChildTableActionUpdateAll() {
              pTable->info.tableId, pDb->name, pTable->vgId, pVgroup->dbName, pTable->sid);
       pTable->vgId = 0;
       SSdbOperDesc desc = {0};
-      desc.type = SDB_OPER_TYPE_LOCAL;
+      desc.type = SDB_OPER_LOCAL;
       desc.pObj = pTable;
       desc.table = tsChildTableSdb;
       sdbDeleteRow(&desc);
@@ -280,7 +280,7 @@ static int32_t mgmtChildTableActionUpdateAll() {
       mError("ctable:%s, vgroup:%d tableList is null", pTable->info.tableId, pTable->vgId);
       pTable->vgId = 0;
       SSdbOperDesc desc = {0};
-      desc.type = SDB_OPER_TYPE_LOCAL;
+      desc.type = SDB_OPER_LOCAL;
       desc.pObj = pTable;
       desc.table = tsChildTableSdb;
       sdbDeleteRow(&desc);
@@ -294,7 +294,7 @@ static int32_t mgmtChildTableActionUpdateAll() {
         mError("ctable:%s, stable:%s not exist", pTable->info.tableId, pTable->superTableId);
         pTable->vgId = 0;
         SSdbOperDesc desc = {0};
-        desc.type = SDB_OPER_TYPE_LOCAL;
+        desc.type = SDB_OPER_LOCAL;
         desc.pObj = pTable;
         desc.table = tsChildTableSdb;
         sdbDeleteRow(&desc);
@@ -318,7 +318,7 @@ static int32_t mgmtInitChildTables() {
     .hashSessions = tsMaxTables,
     .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = mgmtChildTableActionInsert,
     .deleteFp     = mgmtChildTableActionDelete,
     .updateFp     = mgmtChildTableActionUpdate,
@@ -433,7 +433,7 @@ static int32_t mgmtInitSuperTables() {
     .hashSessions = TSDB_MAX_SUPER_TABLES,
     .maxRowSize   = tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = mgmtSuperTableActionInsert,
     .deleteFp     = mgmtSuperTableActionDelete,
     .updateFp     = mgmtSuperTableActionUpdate,
@@ -676,7 +676,7 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
     .pObj = pStable,
     .rowSize = sizeof(SSuperTableObj) + schemaSize
@@ -700,7 +700,7 @@ static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OTHERS);
   } else {
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsSuperTableSdb,
       .pObj = pStable
     };
@@ -751,7 +751,7 @@ static int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], i
   pStable->sversion++;
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
     .pObj = pStable,
     .rowSize = tsSuperTableUpdateSize
@@ -782,7 +782,7 @@ static int32_t mgmtDropSuperTableTag(SSuperTableObj *pStable, char *tagName) {
   pStable->schema = realloc(pStable->schema, schemaSize);
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
     .pObj = pStable,
     .rowSize = tsSuperTableUpdateSize
@@ -817,7 +817,7 @@ static int32_t mgmtModifySuperTableTagName(SSuperTableObj *pStable, char *oldTag
   strncpy(schema->name, newTagName, TSDB_COL_NAME_LEN);
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
     .pObj = pStable,
     .rowSize = tsSuperTableUpdateSize
@@ -876,7 +876,7 @@ static int32_t mgmtAddSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, SSc
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
     .pObj = pStable,
     .rowSize = tsSuperTableUpdateSize
@@ -913,7 +913,7 @@ static int32_t mgmtDropSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, ch
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
     .pObj = pStable,
     .rowSize = tsSuperTableUpdateSize
@@ -1061,7 +1061,7 @@ void mgmtDropAllSuperTables(SDbObj *pDropDb) {
 
     if (strncmp(pDropDb->name, pTable->info.tableId, dbNameLen) == 0) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsSuperTableSdb,
         .pObj = pTable,
       };
@@ -1276,7 +1276,7 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
   }
   
   SSdbOperDesc desc = {0};
-  desc.type = SDB_OPER_TYPE_GLOBAL;
+  desc.type = SDB_OPER_GLOBAL;
   desc.pObj = pTable;
   desc.table = tsChildTableSdb;
   
@@ -1430,7 +1430,7 @@ static int32_t mgmtAddNormalTableColumn(SDbObj *pDb, SChildTableObj *pTable, SSc
   }
  
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsChildTableSdb,
     .pObj = pTable,
     .rowSize = tsChildTableUpdateSize
@@ -1464,7 +1464,7 @@ static int32_t mgmtDropNormalTableColumn(SDbObj *pDb, SChildTableObj *pTable, ch
   }
  
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsChildTableSdb,
     .pObj = pTable,
     .rowSize = tsChildTableUpdateSize
@@ -1606,7 +1606,7 @@ void mgmtDropAllChildTables(SDbObj *pDropDb) {
 
     if (strncmp(pDropDb->name, pTable->info.tableId, dbNameLen) == 0) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsChildTableSdb,
         .pObj = pTable,
       };
@@ -1635,7 +1635,7 @@ static void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable) {
 
     if (pTable->superTable == pStable) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsChildTableSdb,
         .pObj = pTable,
       };
@@ -1724,7 +1724,7 @@ static void mgmtProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   }
   
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsChildTableSdb,
     .pObj = pTable
   };
@@ -1767,7 +1767,7 @@ static void mgmtProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
              queueMsg->thandle, tstrerror(rpcMsg->code));
       
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_GLOBAL,
+        .type = SDB_OPER_GLOBAL,
         .table = tsChildTableSdb,
         .pObj = pTable
       };

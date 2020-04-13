@@ -33,13 +33,13 @@ typedef enum {
 } ESdbTable;
 
 typedef enum {
-  SDB_KEY_TYPE_STRING, 
-  SDB_KEY_TYPE_AUTO
+  SDB_KEY_STRING, 
+  SDB_KEY_AUTO
 } ESdbKeyType;
 
 typedef enum {
-  SDB_OPER_TYPE_GLOBAL,
-  SDB_OPER_TYPE_LOCAL
+  SDB_OPER_GLOBAL,
+  SDB_OPER_LOCAL
 } ESdbOperType;
 
 typedef struct {

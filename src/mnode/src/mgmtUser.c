@@ -104,7 +104,7 @@ int32_t mgmtInitUsers() {
     .hashSessions = TSDB_MAX_USERS,
     .maxRowSize   = tsUserUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = mgmtUserActionInsert,
     .deleteFp     = mgmtUserActionDelete,
     .updateFp     = mgmtUserActionUpdate,
@@ -144,7 +144,7 @@ void mgmtReleaseUser(SUserObj *pUser) {
 
 static int32_t mgmtUpdateUser(SUserObj *pUser) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser,
     .rowSize = tsUserUpdateSize
@@ -192,7 +192,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser,
     .rowSize = sizeof(SUserObj)
@@ -209,7 +209,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
 
 static int32_t mgmtDropUser(SUserObj *pUser) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser
   };
@@ -483,7 +483,7 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
 
     if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsUserSdb,
         .pObj = pUser,
       };
