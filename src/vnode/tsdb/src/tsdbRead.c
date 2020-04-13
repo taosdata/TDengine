@@ -218,9 +218,31 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
   if (pTable->mem == NULL && pTable->imem == NULL) {
     return false;
   }
+  
+  STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
+  pTable = pCheckInfo->pTableObj;
+  
+  if (pCheckInfo->iter == NULL) {
+    pCheckInfo->iter = tSkipListCreateIter(pTable->mem->pData);
+    if (pCheckInfo->iter == NULL) {
+      return false;
+    }
+  }
+  
+  if (!tSkipListIterNext(pCheckInfo->iter)) {  // buffer is empty
+    return false;
+  }
 
+  SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
+  if (node == NULL) {
+    return false;
+  }
+
+  SDataRow row = SL_GET_NODE_DATA(node);
+  pCheckInfo->lastKey = dataRowKey(row);  // first timestamp in buffer
+  
   // all data in mem are checked already.
-  if (pTableCheckInfo->lastKey > pTable->mem->keyLast) {
+  if (pTableCheckInfo->lastKey > pHandle->window.ekey) {
     return false;
   }
 
@@ -522,13 +544,15 @@ static int vnodeBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
   int    numOfPoints;
   TSKEY* keyList;
 
+  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
+  
   if (num <= 0) return -1;
 
   keyList = (TSKEY*)pValue;
   firstPos = 0;
   lastPos = num - 1;
 
-  if (order == 0) {
+  if (order == TSDB_ORDER_DESC) {
     // find the first position which is smaller than the key
     while (1) {
       if (key >= keyList[lastPos]) return lastPos;
@@ -596,8 +620,8 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
     pQueryHandle->realNumOfRows = cur->pos + 1;
     pCheckInfo->lastKey = blockInfo.window.ekey - 1;
   } else {
-    endPos =
-        vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, pQueryHandle->window.ekey, pQueryHandle->order);
+    int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
+    endPos = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, pQueryHandle->window.ekey, order);
 
     if (QUERY_IS_ASC_QUERY(pQueryHandle->order)) {
       if (endPos < cur->pos) {
@@ -1042,7 +1066,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
   int32_t numOfCols = taosArrayGetSize(pQueryHandle->pColumns);
   *skey = INT64_MIN;
 
-  while (tSkipListIterNext(pIter)) {
+  do/* (1) */{
     SSkipListNode* node = tSkipListIterGet(pIter);
     if (node == NULL) break;
 
@@ -1063,8 +1087,11 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
     }
 
     numOfRows++;
-    if (numOfRows >= maxRowsToRead) break;
-  };
+    if (numOfRows >= maxRowsToRead) {
+      break;
+    }
+    
+  } while(tSkipListIterNext(pIter));
 
   return numOfRows;
 }
@@ -1107,10 +1134,8 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
 
     if (pTable->mem != NULL) {
       // create mem table iterator if it is not created yet
-      if (pCheckInfo->iter == NULL) {
-        pCheckInfo->iter = tSkipListCreateIter(pTable->mem->pData);
-      }
-      rows = tsdbReadRowsFromCache(pCheckInfo->iter, INT64_MAX, 2, &skey, &ekey, pHandle);
+      assert(pCheckInfo->iter != NULL);
+      rows = tsdbReadRowsFromCache(pCheckInfo->iter, pHandle->window.ekey, 2, &skey, &ekey, pHandle);
 
       // update the last key value
       pCheckInfo->lastKey = ekey + 1;

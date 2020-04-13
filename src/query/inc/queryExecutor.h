@@ -160,7 +160,7 @@ typedef struct SQueryRuntimeEnv {
   SQueryCostSummary  summary;
   bool               stableQuery;  // super table query or not
   void*              pQueryHandle;
-  void*              pSubQueryHandle; // another thread for
+  void*              pSecQueryHandle; // another thread for
   SDiskbasedResultBuf* pResultBuf;  // query result buffer based on blocked-wised disk file
 } SQueryRuntimeEnv;
 

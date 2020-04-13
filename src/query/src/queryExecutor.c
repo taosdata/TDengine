@@ -1552,6 +1552,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
+  tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
+  
   pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
 
@@ -2565,7 +2567,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   dTrace("QInfo:%p query start, qrange:%" PRId64 "-%" PRId64 ", lastkey:%" PRId64 ", order:%d",
          GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
 
-  tsdb_query_handle_t pQueryHandle = pRuntimeEnv->scanFlag == MASTER_SCAN? pRuntimeEnv->pQueryHandle:pRuntimeEnv->pSubQueryHandle;
+  tsdb_query_handle_t pQueryHandle = pRuntimeEnv->scanFlag == MASTER_SCAN? pRuntimeEnv->pQueryHandle:pRuntimeEnv->pSecQueryHandle;
   while (tsdbNextDataBlock(pQueryHandle)) {
     
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -3557,7 +3559,10 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
       taosArrayPush(cols, &pQuery->colList[i]);
     }
   
-    pRuntimeEnv->pSubQueryHandle = tsdbQueryByTableId(pQInfo->tsdb, &cond, pQInfo->pTableIdList, cols);
+    if (pRuntimeEnv->pSecQueryHandle != NULL) {
+      pRuntimeEnv->pSecQueryHandle = tsdbQueryByTableId(pQInfo->tsdb, &cond, pQInfo->pTableIdList, cols);
+    }
+    
     taosArrayDestroy(cols);
   
     status = pQuery->status;
