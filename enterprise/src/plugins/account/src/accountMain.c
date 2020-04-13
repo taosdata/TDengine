@@ -26,7 +26,7 @@
 #include "tgrant.h"
 #include "mnode.h"
 #include "mgmtDb.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -98,14 +98,9 @@ static int32_t acctActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t acctActionEncode(SSdbOperDesc *pOper) {
   SAcctObj *pAcct = pOper->pObj;
-
-  if (pOper->maxRowSize < tsAcctUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
-    pOper->rowSize = tsAcctUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
+  pOper->rowSize = tsAcctUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t acctAcctActionDecode(SSdbOperDesc *pOper) {
@@ -135,22 +130,30 @@ static void acctDoStatistic(void *handle, void *tmrId) {
   taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
+static int32_t acctActionUpdateAll() {
+  acctCreateRootAcct();
+  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  return 0;
+}
+
 int32_t acctInit() {
   SAcctObj tObj;
   tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_ACCOUNT,
     .tableName    = "accounts",
     .hashSessions = TSDB_MAX_ACCOUNTS,
     .maxRowSize   = tsAcctUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = acctAcctActionInsert,
     .deleteFp     = acctActionDelete,
     .updateFp     = acctActionUpdate,
     .encodeFp     = acctActionEncode,
     .decodeFp     = acctAcctActionDecode,
     .destroyFp    = acctActionDestroy,
+    .updateAllFp  = acctActionUpdateAll
   };
 
   tsAcctSdb = sdbOpenTable(&tableDesc);
@@ -158,9 +161,6 @@ int32_t acctInit() {
     mError("failed to init acct data");
     return -1;
   }
-
-  acctCreateRootAcct();
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
@@ -307,7 +307,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
    SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,
     .rowSize = sizeof(SAcctObj)
@@ -337,7 +337,7 @@ int32_t acctDropAcct(char *name) {
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct
   };
@@ -551,7 +551,7 @@ static int32_t acctCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
 
 static int32_t acctUpdateAcct(SAcctObj *pAcct) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,
     .rowSize = tsAcctUpdateSize
@@ -687,7 +687,7 @@ static void acctCreateRootAcct() {
     pAcct->createdTime = taosGetTimestampMs();
 
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsAcctSdb,
       .pObj = pAcct,
       .rowSize = sizeof(SAcctObj)
@@ -697,8 +697,6 @@ static void acctCreateRootAcct() {
 }
 
 static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-  
   SCMCreateAcctMsg *pCreate = pMsg->pCont;
   SAcctObj *pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, pCreate->user);
   if (pAcct != NULL) {
@@ -736,8 +734,6 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
 }
 
 static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   SCMDropAcctMsg *pDrop = pMsg->pCont;
 
   SUserObj *pUser = pMsg->pUser;
@@ -758,8 +754,6 @@ static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
 }
 
 static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   SCMAlterAcctMsg *pAlter = pMsg->pCont;
   pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
   pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);

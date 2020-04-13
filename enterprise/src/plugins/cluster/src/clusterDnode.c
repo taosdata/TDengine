@@ -25,7 +25,7 @@
 #include "tcluster.h"
 #include "tgrant.h"
 #include "vnode.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -67,7 +67,7 @@ static int32_t clusterDnodeActionDelete(SSdbOperDesc *pOper) {
 
     if (pVgroup->vnodeGid[0].dnodeId == pDnode->dnodeId) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
         .pObj = pVgroup,
       };
@@ -88,14 +88,9 @@ static int32_t clusterDnodeActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t clusterDnodeActionEncode(SSdbOperDesc *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
-
-  if (pOper->maxRowSize < tsDnodeUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pDnode, tsDnodeUpdateSize);
-    pOper->rowSize = tsDnodeUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pDnode, tsDnodeUpdateSize);
+  pOper->rowSize = tsDnodeUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t clusterDnodeActionDecode(SSdbOperDesc *pOper) {
@@ -107,35 +102,42 @@ static int32_t clusterDnodeActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+static int32_t clusterDnodeActionUpdateAll() {
+  int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
+  if (numOfRows <= 0) {
+    if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
+      clusterCreateDnode(inet_addr(tsPrivateIp));
+    }
+  }
+
+  return 0;
+}
+
 int32_t clusterInitDnodes() {
   SDnodeObj tObj;
   tsDnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_DNODE,
     .tableName    = "dnodes",
     .hashSessions = TSDB_MAX_DNODES,
     .maxRowSize   = tsDnodeUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_AUTO,
+    .keyType      = SDB_KEY_AUTO,
     .insertFp     = clusterDnodeActionInsert,
     .deleteFp     = clusterDnodeActionDelete,
     .updateFp     = clusterDnodeActionUpdate,
     .encodeFp     = clusterDnodeActionEncode,
     .decodeFp     = clusterDnodeActionDecode,
     .destroyFp    = clusterDnodeActionDestroy,
+    .updateAllFp  = clusterDnodeActionUpdateAll
   };
 
   tsDnodeSdb = sdbOpenTable(&tableDesc);
   if (tsDnodeSdb == NULL) {
     mError("failed to init dnodes data");
     return -1;
-  }
-
-  int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
-  if (numOfRows <= 0) {
-    if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
-      clusterCreateDnode(inet_addr(tsPrivateIp));
-    }
   }
 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DNODE, clusterProcessCreateDnodeMsg);
@@ -155,7 +157,7 @@ int32_t clusterGetDnodesNum() {
 
 void clusterUpdateDnode(SDnodeObj *pDnode) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode,
     .rowSize = tsDnodeUpdateSize
@@ -212,7 +214,7 @@ static int32_t clusterCreateDnode(uint32_t ip) {
   }
   
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode,
     .rowSize = sizeof(SDnodeObj)
@@ -230,7 +232,7 @@ static int32_t clusterCreateDnode(uint32_t ip) {
 
 int32_t clusterDropDnode(SDnodeObj *pDnode) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode
   };
@@ -265,8 +267,7 @@ static int32_t clusterDropDnodeByIp(uint32_t ip) {
 
 static void clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SCMCreateDnodeMsg *pCreate = pMsg->pCont;
 
   if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
@@ -286,8 +287,7 @@ static void clusterProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
 
 static void clusterProcessDropDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SCMDropDnodeMsg *pDrop = pMsg->pCont;
   if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;

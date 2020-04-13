@@ -20,7 +20,7 @@
 #include "mnode.h"
 #include "tcluster.h"
 #include "mgmtDServer.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "dnodeMClient.h"
@@ -541,7 +541,7 @@ static void grantCheckGrantInfo() {
   taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantCheckTimer);
   grantStatus.expired = false;
 
-  if (mgmtIsMaster()) {
+  if (mpeerIsMaster()) {
 
     /*
      * When all nodes are online, the grant time is judged

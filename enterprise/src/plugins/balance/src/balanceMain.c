@@ -21,7 +21,7 @@
 #include "tsync.h"
 #include "mnode.h"
 #include "mgmtDb.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -463,7 +463,7 @@ static bool balanceMontiorDropping() {
 }
 
 static bool balanceStart() {
-  if (!mgmtIsMaster()) return false;
+  if (!mpeerIsMaster()) return false;
 
   balanceLock();
 
