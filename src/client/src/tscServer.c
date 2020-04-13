@@ -191,7 +191,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   }
 
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
-    tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
+    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
     memcpy(pMsg, pSql->cmd.payload + tsRpcHeadSize, pSql->cmd.payloadLen);
 
     SRpcMsg rpcMsg = {
