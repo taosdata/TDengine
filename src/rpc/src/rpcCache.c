@@ -22,18 +22,18 @@
 #include "tutil.h"
 #include "rpcCache.h"
 
-typedef struct _c_hash_t {
+typedef struct SConnHash {
   uint32_t          ip;
   uint16_t          port;
   char              connType;
-  struct _c_hash_t *prev;
-  struct _c_hash_t *next;
-  void *            data;
+  struct SConnHash *prev;
+  struct SConnHash *next;
+  void             *data;
   uint64_t          time;
 } SConnHash;
 
 typedef struct {
-  SConnHash **    connHashList;
+  SConnHash     **connHashList;
   mpool_h         connHashMemPool;
   int             maxSessions;
   int             total;

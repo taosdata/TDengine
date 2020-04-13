@@ -17,13 +17,13 @@
 #include "tlog.h"
 #include "tmempool.h"
 
-typedef struct _ip_hash_t {
+typedef struct SIpHash {
   uint32_t           ip;
   uint16_t           port;
   int                hash;
-  struct _ip_hash_t *prev;
-  struct _ip_hash_t *next;
-  void *             data;
+  struct SIpHash    *prev;
+  struct SIpHash    *next;
+  void              *data;
 } SIpHash;
 
 typedef struct {
@@ -47,7 +47,7 @@ int rpcHashIp(void *handle, uint32_t ip, uint16_t port) {
 
 void *rpcAddIpHash(void *handle, void *data, uint32_t ip, uint16_t port) {
   int       hash;
-  SIpHash * pNode;
+  SIpHash  *pNode;
   SHashObj *pObj;
 
   pObj = (SHashObj *)handle;
@@ -70,7 +70,7 @@ void *rpcAddIpHash(void *handle, void *data, uint32_t ip, uint16_t port) {
 
 void rpcDeleteIpHash(void *handle, uint32_t ip, uint16_t port) {
   int       hash;
-  SIpHash * pNode;
+  SIpHash  *pNode;
   SHashObj *pObj;
 
   pObj = (SHashObj *)handle;
@@ -102,7 +102,7 @@ void rpcDeleteIpHash(void *handle, uint32_t ip, uint16_t port) {
 
 void *rpcGetIpHash(void *handle, uint32_t ip, uint16_t port) {
   int       hash;
-  SIpHash * pNode;
+  SIpHash  *pNode;
   SHashObj *pObj;
 
   pObj = (SHashObj *)handle;
