@@ -32,7 +32,7 @@
 int tsUdpDelay = 0;
 
 typedef struct {
-  void *          signature;
+  void           *signature;
   int             index;
   int             fd;
   uint16_t        port;       // peer port
@@ -53,23 +53,23 @@ typedef struct {
   int       server;
   char      ip[16];   // local IP
   uint16_t  port;     // local Port
-  void *    shandle;  // handle passed by upper layer during server initialization
+  void     *shandle;  // handle passed by upper layer during server initialization
   int       threads;
   char      label[12];
-  void *    tmrCtrl;
+  void     *tmrCtrl;
   void     *(*fp)(SRecvInfo *pPacket);
   SUdpConn  udpConn[];
 } SUdpConnSet;
 
 typedef struct {
-  void *             signature;
+  void              *signature;
   uint32_t           ip;    // dest IP
   uint16_t           port;  // dest Port
-  SUdpConn *         pConn;
+  SUdpConn          *pConn;
   struct sockaddr_in destAdd;
-  void *             msgHdr;
+  void              *msgHdr;
   int                totalLen;
-  void *             timer;
+  void              *timer;
   int                emptyNum;
 } SUdpBuf;
 
@@ -78,8 +78,8 @@ static SUdpBuf *taosCreateUdpBuf(SUdpConn *pConn, uint32_t ip, uint16_t port);
 static void taosProcessUdpBufTimer(void *param, void *tmrId);
 
 void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
-  SUdpConn *     pConn;
-  SUdpConnSet *  pSet;
+  SUdpConn    *pConn;
+  SUdpConnSet *pSet;
 
   int size = (int)sizeof(SUdpConnSet) + threads * (int)sizeof(SUdpConn);
   pSet = (SUdpConnSet *)malloc((size_t)size);
@@ -164,7 +164,7 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
 
 void taosCleanUpUdpConnection(void *handle) {
   SUdpConnSet *pSet = (SUdpConnSet *)handle;
-  SUdpConn *   pConn;
+  SUdpConn    *pConn;
 
   if (pSet == NULL) return;
 
@@ -205,10 +205,10 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t por
 }
 
 static void *taosRecvUdpData(void *param) {
+  SUdpConn          *pConn = param;
   struct sockaddr_in sourceAdd;
   int                dataLen;
   unsigned int       addLen;
-  SUdpConn *         pConn = (SUdpConn *)param;
   uint16_t           port;
   int                minSize = sizeof(SRpcHead);
   SRecvInfo          recvInfo;
@@ -274,7 +274,7 @@ static void *taosRecvUdpData(void *param) {
 
 int taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *chandle) {
   SUdpConn *pConn = (SUdpConn *)chandle;
-  SUdpBuf * pBuf;
+  SUdpBuf  *pBuf;
 
   if (pConn == NULL || pConn->signature != pConn) return -1;
 
