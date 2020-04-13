@@ -98,14 +98,9 @@ static int32_t acctActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t acctActionEncode(SSdbOperDesc *pOper) {
   SAcctObj *pAcct = pOper->pObj;
-
-  if (pOper->maxRowSize < tsAcctUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
-    pOper->rowSize = tsAcctUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
+  pOper->rowSize = tsAcctUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t acctAcctActionDecode(SSdbOperDesc *pOper) {

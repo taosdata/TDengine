@@ -88,14 +88,9 @@ static int32_t clusterDnodeActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t clusterDnodeActionEncode(SSdbOperDesc *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
-
-  if (pOper->maxRowSize < tsDnodeUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pDnode, tsDnodeUpdateSize);
-    pOper->rowSize = tsDnodeUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pDnode, tsDnodeUpdateSize);
+  pOper->rowSize = tsDnodeUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t clusterDnodeActionDecode(SSdbOperDesc *pOper) {

@@ -39,7 +39,7 @@ static int32_t tsMnodeUpdateSize = 0;
 static void   *tsMpeerSync = NULL;
 static void   *tsMpeerWal = NULL;
 static SSyncCfg tsMpeerSyncCfg = { .quorum = 1 };
-static SWalCfg  tsMpeerWalCfg = { .commitLog = 2, .wals = 2 };
+
 static int8_t   tsMpeerRole = TAOS_SYNC_ROLE_OFFLINE;
 static int8_t   tsMpeerStatus = TAOS_MN_STATUS_OFFLINE;
 
@@ -82,14 +82,9 @@ static int32_t mpeerActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t mpeerActionEncode(SSdbOperDesc *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
-
-  if (pOper->maxRowSize < tsMnodeUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pMnode, tsMnodeUpdateSize);
-    pOper->rowSize = tsMnodeUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pMnode, tsMnodeUpdateSize);
+  pOper->rowSize = tsMnodeUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mpeerActionDecode(SSdbOperDesc *pOper) {
