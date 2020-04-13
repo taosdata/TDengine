@@ -79,11 +79,11 @@ typedef struct {
 #pragma pack(pop)
 
 typedef struct {
-  char           *buffer;
-  int             bufferSize;
-  char           *offset;
-  int             forwards;
-  int             code;
+  char  *buffer;
+  int    bufferSize;
+  char  *offset;
+  int    forwards;
+  int    code;
 } SRecvBuffer;
 
 typedef struct {
@@ -103,7 +103,7 @@ typedef struct {
   SFwdInfo  fwdInfo[];
 } SSyncFwds;
 
-typedef struct _syncPeer {
+typedef struct SsyncPeer {
   int32_t     nodeId;
   uint32_t    ip;
   char        ipstr[20];  // peer ip string
@@ -118,10 +118,10 @@ typedef struct _syncPeer {
   int         watchNum;
   int        *watchFd;
   int8_t      refCount;   // reference count
-  struct _sync_node *pSyncNode;
+  struct SSyncNode *pSyncNode;
 } SSyncPeer;
 
-typedef struct _sync_node {
+typedef struct SSyncNode {
   char         path[TSDB_FILENAME_LEN];
   int8_t       replica;
   int8_t       quorum;
