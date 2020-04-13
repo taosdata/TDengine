@@ -130,22 +130,30 @@ static void acctDoStatistic(void *handle, void *tmrId) {
   taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
+static int32_t acctActionUpdateAll() {
+  acctCreateRootAcct();
+  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  return 0;
+}
+
 int32_t acctInit() {
   SAcctObj tObj;
   tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_ACCOUNT,
     .tableName    = "accounts",
     .hashSessions = TSDB_MAX_ACCOUNTS,
     .maxRowSize   = tsAcctUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = acctAcctActionInsert,
     .deleteFp     = acctActionDelete,
     .updateFp     = acctActionUpdate,
     .encodeFp     = acctActionEncode,
     .decodeFp     = acctAcctActionDecode,
     .destroyFp    = acctActionDestroy,
+    .updateAllFp  = acctActionUpdateAll
   };
 
   tsAcctSdb = sdbOpenTable(&tableDesc);
@@ -153,9 +161,6 @@ int32_t acctInit() {
     mError("failed to init acct data");
     return -1;
   }
-
-  acctCreateRootAcct();
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
@@ -302,7 +307,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
    SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,
     .rowSize = sizeof(SAcctObj)
@@ -332,7 +337,7 @@ int32_t acctDropAcct(char *name) {
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct
   };
@@ -546,7 +551,7 @@ static int32_t acctCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
 
 static int32_t acctUpdateAcct(SAcctObj *pAcct) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,
     .rowSize = tsAcctUpdateSize
@@ -682,7 +687,7 @@ static void acctCreateRootAcct() {
     pAcct->createdTime = taosGetTimestampMs();
 
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsAcctSdb,
       .pObj = pAcct,
       .rowSize = sizeof(SAcctObj)

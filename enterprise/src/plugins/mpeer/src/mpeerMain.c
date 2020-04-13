@@ -105,7 +105,7 @@ int32_t mpeerInit() {
     .hashSessions = TSDB_MAX_MNODES,
     .maxRowSize   = tsMnodeUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_AUTO,
+    .keyType      = SDB_KEY_AUTO,
     .insertFp     = mpeerActionInsert,
     .deleteFp     = mpeerActionDelete,
     .updateFp     = mpeerActionUpdate,

@@ -541,7 +541,7 @@ static void grantCheckGrantInfo() {
   taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantCheckTimer);
   grantStatus.expired = false;
 
-  if (mgmtIsMaster()) {
+  if (mpeerIsMaster()) {
 
     /*
      * When all nodes are online, the grant time is judged
