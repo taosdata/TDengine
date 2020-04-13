@@ -13,7 +13,7 @@ int32_t compareInt32Val(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt64Val(const void *pLeft, const void *pRight) {
-  int32_t ret = GET_INT64_VAL(pLeft) - GET_INT64_VAL(pRight);
+  int64_t ret = GET_INT64_VAL(pLeft) - GET_INT64_VAL(pRight);
   if (ret == 0) {
     return 0;
   } else {
@@ -248,8 +248,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT: {
-      if (filterDataType == TSDB_DATA_TYPE_BIGINT) {
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      if (filterDataType == TSDB_DATA_TYPE_BIGINT || filterDataType == TSDB_DATA_TYPE_TIMESTAMP) {
         comparFn = compareInt64Val;
         break;
       }

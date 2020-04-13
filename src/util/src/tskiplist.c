@@ -75,53 +75,6 @@ static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **forward, SSk
 static SSkipListNode* tSkipListDoAppend(SSkipList *pSkipList, SSkipListNode *pNode);
 static SSkipListIterator* doCreateSkipListIterator(SSkipList *pSkipList, int32_t order);
 
-//static __compar_fn_t getComparFunc(SSkipList *pSkipList, int32_t filterDataType) {
-//  __compar_fn_t comparFn = NULL;
-//
-//  switch (pSkipList->keyInfo.type) {
-//    case TSDB_DATA_TYPE_TINYINT:
-//    case TSDB_DATA_TYPE_SMALLINT:
-//    case TSDB_DATA_TYPE_INT:
-//    case TSDB_DATA_TYPE_BIGINT: {
-//      if (filterDataType == TSDB_DATA_TYPE_BIGINT) {
-//        comparFn = compareInt64Val;
-//        break;
-//      }
-//    }
-//    case TSDB_DATA_TYPE_BOOL: {
-//      if (filterDataType >= TSDB_DATA_TYPE_BOOL && filterDataType <= TSDB_DATA_TYPE_BIGINT) {
-//        comparFn = compareInt32Val;
-//      } else if (filterDataType >= TSDB_DATA_TYPE_FLOAT && filterDataType <= TSDB_DATA_TYPE_DOUBLE) {
-//        comparFn = compareIntDoubleVal;
-//      }
-//      break;
-//    }
-//    case TSDB_DATA_TYPE_FLOAT:
-//    case TSDB_DATA_TYPE_DOUBLE: {
-////      if (filterDataType >= TSDB_DATA_TYPE_BOOL && filterDataType <= TSDB_DATA_TYPE_BIGINT) {
-////        comparFn = compareDoubleIntVal;
-////      } else if (filterDataType >= TSDB_DATA_TYPE_FLOAT && filterDataType <= TSDB_DATA_TYPE_DOUBLE) {
-////        comparFn = compareDoubleVal;
-////      }
-//      if (filterDataType == TSDB_DATA_TYPE_DOUBLE) {
-//        comparFn = compareDoubleVal;
-//      }
-//      break;
-//    }
-//    case TSDB_DATA_TYPE_BINARY:
-//      comparFn = compareStrVal;
-//      break;
-//    case TSDB_DATA_TYPE_NCHAR:
-//      comparFn = compareWStrVal;
-//      break;
-//    default:
-//      comparFn = compareInt32Val;
-//      break;
-//  }
-//
-//  return comparFn;
-//}
-
 static bool initForwardBackwardPtr(SSkipList* pSkipList) {
   uint32_t maxLevel = pSkipList->maxLevel;
   
@@ -445,6 +398,11 @@ SSkipListIterator *tSkipListCreateIterFromVal(SSkipList* pSkipList, const char* 
       iter->cur = forward[0]; // greater equals than the value
     } else {
       iter->cur = SL_GET_FORWARD_POINTER(forward[0], 0);
+
+      if (ret == 0) {
+        assert(iter->cur != pSkipList->pTail);
+        iter->cur = SL_GET_FORWARD_POINTER(iter->cur, 0);
+      }
     }
     
     return iter;

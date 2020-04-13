@@ -362,10 +362,10 @@ bool isTSCompQuery(SQuery *pQuery) { return pQuery->pSelectExpr[0].pBase.functio
 bool doRevisedResultsByLimit(SQInfo *pQInfo) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
-  if ((pQuery->limit.limit > 0) && (pQuery->rec.rows + pQuery->rec.rows > pQuery->limit.limit)) {
-    pQuery->rec.rows = pQuery->limit.limit - pQuery->rec.rows;
-
-    // query completed
+  if ((pQuery->limit.limit > 0) && (pQuery->rec.total + pQuery->rec.rows > pQuery->limit.limit)) {
+    pQuery->rec.rows = pQuery->limit.limit - pQuery->rec.total;
+    assert(pQuery->rec.rows > 0);
+    
     setQueryStatus(pQuery, QUERY_COMPLETED);
     return true;
   }
@@ -2503,17 +2503,20 @@ SArray *loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBl
 }
 
 int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
-  int    firstPos, lastPos, midPos = -1;
-  int    numOfPoints;
-  TSKEY *keyList;
+  int32_t midPos = -1;
+  int32_t numOfPoints;
 
-  if (num <= 0) return -1;
+  if (num <= 0) {
+    return -1;
+  }
 
-  keyList = (TSKEY *)pValue;
-  firstPos = 0;
-  lastPos = num - 1;
+  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
+  
+  TSKEY* keyList   = (TSKEY *)pValue;
+  int32_t firstPos = 0;
+  int32_t lastPos  = num - 1;
 
-  if (order == 0) {
+  if (order == TSDB_ORDER_DESC) {
     // find the first position which is smaller than the key
     while (1) {
       if (key >= keyList[lastPos]) return lastPos;
