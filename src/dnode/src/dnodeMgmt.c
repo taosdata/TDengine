@@ -45,7 +45,7 @@ static void    *tsDnodeTmr = NULL;
 static void    *tsStatusTimer = NULL;
 static uint32_t tsRebootTime;
 static int32_t  tsDnodeId = 0;
-static char     tsDnodeName[TSDB_DNODE_NAME_LEN];
+static char     tsDnodeName[TSDB_NODE_NAME_LEN];
 
 int32_t dnodeInitMgmt() {
   dnodeReadDnodeId();

@@ -20,7 +20,7 @@
 #include "tutil.h"
 #include "taccount.h"
 #include "tgrant.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -70,14 +70,9 @@ static int32_t mgmtUserActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionEncode(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-
-  if (pOper->maxRowSize < tsUserUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pUser, tsUserUpdateSize);
-    pOper->rowSize = tsUserUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pUser, tsUserUpdateSize);
+  pOper->rowSize = tsUserUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
@@ -89,22 +84,34 @@ static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mgmtUserActionUpdateAll() {
+  SAcctObj *pAcct = acctGetAcct("root");
+  mgmtCreateUser(pAcct, "root", "taosdata");
+  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
+  mgmtCreateUser(pAcct, "_root", tsInternalPass);
+  acctReleaseAcct(pAcct);
+
+  return 0;
+}
+
 int32_t mgmtInitUsers() {
   SUserObj tObj;
   tsUserUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_USER,
     .tableName    = "users",
     .hashSessions = TSDB_MAX_USERS,
     .maxRowSize   = tsUserUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = mgmtUserActionInsert,
     .deleteFp     = mgmtUserActionDelete,
     .updateFp     = mgmtUserActionUpdate,
     .encodeFp     = mgmtUserActionEncode,
     .decodeFp     = mgmtUserActionDecode,
     .destroyFp    = mgmtUserActionDestroy,
+    .updateAllFp  = mgmtUserActionUpdateAll
   };
 
   tsUserSdb = sdbOpenTable(&tableDesc);
@@ -112,12 +119,6 @@ int32_t mgmtInitUsers() {
     mError("failed to init user data");
     return -1;
   }
-
-  SAcctObj *pAcct = acctGetAcct("root");
-  mgmtCreateUser(pAcct, "root", "taosdata");
-  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
-  mgmtCreateUser(pAcct, "_root", tsInternalPass);
-  acctReleaseAcct(pAcct);
 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);
@@ -143,7 +144,7 @@ void mgmtReleaseUser(SUserObj *pUser) {
 
 static int32_t mgmtUpdateUser(SUserObj *pUser) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser,
     .rowSize = tsUserUpdateSize
@@ -191,7 +192,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser,
     .rowSize = sizeof(SUserObj)
@@ -208,7 +209,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
 
 static int32_t mgmtDropUser(SUserObj *pUser) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser
   };
@@ -314,8 +315,6 @@ SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp) {
 }
 
 static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   int32_t code;
   SUserObj *pUser = pMsg->pUser;
   
@@ -333,8 +332,6 @@ static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
@@ -427,8 +424,6 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
 
@@ -488,7 +483,7 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
 
     if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsUserSdb,
         .pObj = pUser,
       };

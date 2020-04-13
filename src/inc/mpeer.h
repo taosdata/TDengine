@@ -13,35 +13,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_MNODE_H
-#define TDENGINE_MGMT_MNODE_H
+#ifndef TDENGINE_MPEER_H
+#define TDENGINE_MPEER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-enum _TSDB_MN_STATUS {
-  TSDB_MN_STATUS_OFFLINE,
-  TSDB_MN_STATUS_UNSYNCED,
-  TSDB_MN_STATUS_SYNCING,
-  TSDB_MN_STATUS_SERVING
+struct _mnode_obj;
+
+enum _TAOS_MN_STATUS {
+  TAOS_MN_STATUS_OFFLINE,
+  TAOS_MN_STATUS_DROPPING,
+  TAOS_MN_STATUS_READY
 };
 
-enum _TSDB_MN_ROLE {
-  TSDB_MN_ROLE_UNDECIDED,
-  TSDB_MN_ROLE_SLAVE,
-  TSDB_MN_ROLE_MASTER
-};
+int32_t mpeerInit();
+void    mpeerCleanup();
+int32_t mpeerGetMnodesNum();
+void *  mpeerGetNextMnode(void *pNode, struct _mnode_obj **pMnode);
+void    mpeerReleaseMnode(struct _mnode_obj *pMnode);
 
-int32_t mgmtInitMnodes();
-void    mgmtCleanupMnodes();
+bool    mpeerInServerStatus();   
+bool    mpeerIsMaster();
+bool    mpeerCheckRedirect();
 
-bool    mgmtInServerStatus();   
-bool    mgmtIsMaster();
+void    mpeerGetPrivateIpList(SRpcIpSet *ipSet);
+void    mpeerGetPublicIpList(SRpcIpSet *ipSet);
+void    mpeerGetMpeerInfos(void *mpeers);
 
-bool    mgmtCheckRedirect(void *handle);
-void    mgmtGetMnodePrivateIpList(SRpcIpSet *ipSet);
-void    mgmtGetMnodePublicIpList(SRpcIpSet *ipSet);
+char *  mpeerGetMnodeStatusStr(int32_t status);
+char *  mpeerGetMnodeRoleStr(int32_t role);
 
 #ifdef __cplusplus
 }

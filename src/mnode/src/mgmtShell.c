@@ -27,7 +27,7 @@
 #include "mgmtDb.h"
 #include "tcluster.h"
 #include "tgrant.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -142,14 +142,14 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  if (mgmtCheckRedirect(rpcMsg->handle)) {
+  if (mpeerCheckRedirect()) {
     // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
 
-  if (!mgmtInServerStatus()) {
+  if (!mpeerInServerStatus()) {
     mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
     return;
@@ -337,9 +337,9 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
   }
 
   if (pMsg->usePublicIp) {
-    mgmtGetMnodePublicIpList(&pHBRsp->ipList);
+    mpeerGetPublicIpList(&pHBRsp->ipList);
   } else {
-    mgmtGetMnodePrivateIpList(&pHBRsp->ipList);
+    mpeerGetPrivateIpList(&pHBRsp->ipList);
   }
 
   /*
@@ -423,9 +423,9 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   pConnectRsp->superAuth = pUser->superAuth;
 
   if (pMsg->usePublicIp) {
-    mgmtGetMnodePublicIpList(&pConnectRsp->ipList);
+    mpeerGetPublicIpList(&pConnectRsp->ipList);
   } else {
-    mgmtGetMnodePrivateIpList(&pConnectRsp->ipList);
+    mpeerGetPrivateIpList(&pConnectRsp->ipList);
   }
 
 connect_over:

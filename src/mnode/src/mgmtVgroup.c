@@ -24,7 +24,7 @@
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDServer.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -138,13 +138,9 @@ static int32_t mgmtVgroupActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t mgmtVgroupActionEncode(SSdbOperDesc *pOper) {
   SVgObj *pVgroup = pOper->pObj;
-  if (pOper->maxRowSize < tsVgUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pVgroup, tsVgUpdateSize);
-    pOper->rowSize = tsVgUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pVgroup, tsVgUpdateSize);
+  pOper->rowSize = tsVgUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtVgroupActionDecode(SSdbOperDesc *pOper) {
@@ -156,22 +152,28 @@ static int32_t mgmtVgroupActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mgmtVgroupActionUpdateAll() {
+  return 0;
+}
+
 int32_t mgmtInitVgroups() {
   SVgObj tObj;
   tsVgUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_VGROUP,
     .tableName    = "vgroups",
     .hashSessions = TSDB_MAX_VGROUPS,
     .maxRowSize   = tsVgUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_AUTO,
+    .keyType      = SDB_KEY_AUTO,
     .insertFp     = mgmtVgroupActionInsert,
     .deleteFp     = mgmtVgroupActionDelete,
     .updateFp     = mgmtVgroupActionUpdate,
     .encodeFp     = mgmtVgroupActionEncode,
     .decodeFp     = mgmtVgroupActionDecode,
     .destroyFp    = mgmtVgroupActionDestroy,
+    .updateAllFp  = mgmtVgroupActionUpdateAll,
   };
 
   tsVgroupSdb = sdbOpenTable(&tableDesc);
@@ -187,6 +189,7 @@ int32_t mgmtInitVgroups() {
   mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mgmtProcessVnodeCfgMsg);
 
   mTrace("vgroup is initialized");
+  
   return 0;
 }
 
@@ -200,7 +203,7 @@ SVgObj *mgmtGetVgroup(int32_t vgId) {
 
 void mgmtUpdateVgroup(SVgObj *pVgroup) {
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup,
     .rowSize = tsVgUpdateSize
@@ -244,7 +247,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
   }
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup,
     .rowSize = sizeof(SVgObj)
@@ -276,7 +279,7 @@ void mgmtDropVgroup(SVgObj *pVgroup, void *ahandle) {
     mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
     mgmtSendDropVgroupMsg(pVgroup, NULL);
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsVgroupSdb,
       .pObj = pVgroup
     };
@@ -583,7 +586,7 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     mgmtAddToShellQueue(newMsg);
   } else {
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsVgroupSdb,
       .pObj = pVgroup
     };
@@ -646,7 +649,7 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   if (queueMsg->received != queueMsg->expected) return;
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup
   };
@@ -663,8 +666,6 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
 }
 
 static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
-
   SDMConfigVnodeMsg *pCfg = (SDMConfigVnodeMsg *) rpcMsg->pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   pCfg->vgId    = htonl(pCfg->vgId);
@@ -705,7 +706,7 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
 
     if (strncmp(pDropDb->name, pVgroup->dbName, dbNameLen) == 0) {
       SSdbOperDesc oper = {
-        .type = SDB_OPER_TYPE_LOCAL,
+        .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
         .pObj = pVgroup,
       };

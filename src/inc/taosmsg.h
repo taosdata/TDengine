@@ -577,7 +577,7 @@ typedef struct {
 typedef struct {
   uint32_t   version;
   int32_t    dnodeId;
-  char       dnodeName[TSDB_DNODE_NAME_LEN];
+  char       dnodeName[TSDB_NODE_NAME_LEN + 1];
   uint32_t   privateIp;
   uint32_t   publicIp;
   uint32_t   lastReboot;        // time stamp for last reboot
@@ -591,7 +591,20 @@ typedef struct {
 } SDMStatusMsg;
 
 typedef struct {
-  SRpcIpSet    ipList;
+  int32_t   nodeId;
+  uint32_t  nodeIp;
+  uint16_t  nodePort;
+  char      nodeName[TSDB_NODE_NAME_LEN + 1];
+} SDMNodeInfo;
+
+typedef struct {
+  int8_t       inUse;
+  int8_t       nodeNum;
+  SDMNodeInfo  nodeInfos[TSDB_MAX_MPEERS];
+} SDMNodeInfos;
+
+typedef struct {
+  SDMNodeInfos mpeers;
   SDnodeState  dnodeState;
   SVnodeAccess vnodeAccess[];
 } SDMStatusRsp;
