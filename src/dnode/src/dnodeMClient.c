@@ -249,6 +249,7 @@ static bool dnodeReadMnodeIpList() {
 
 PARSE_OVER:
   free(content);
+  cJSON_Delete(root);
   fclose(fp);
   return ret;
 }

@@ -167,6 +167,7 @@ void sdbCleanUp() {
     sem_destroy(&tsSdbSync->sem);
     pthread_mutex_destroy(&tsSdbSync->mutex);
     walClose(tsSdbSync->wal);
+    free(tsSdbSync);
     tsSdbSync = NULL;
   }
 }
@@ -576,5 +577,5 @@ void sdbCloseTable(void *handle) {
   pthread_mutex_destroy(&pTable->mutex);
 
   sdbTrace("table:%s, is closed, numOfTables:%d", pTable->tableName, tsSdbNumOfTables);
-  tfree(pTable);
+  free(pTable);
 }
