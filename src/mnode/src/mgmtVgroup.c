@@ -138,13 +138,9 @@ static int32_t mgmtVgroupActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t mgmtVgroupActionEncode(SSdbOperDesc *pOper) {
   SVgObj *pVgroup = pOper->pObj;
-  if (pOper->maxRowSize < tsVgUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pVgroup, tsVgUpdateSize);
-    pOper->rowSize = tsVgUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pVgroup, tsVgUpdateSize);
+  pOper->rowSize = tsVgUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtVgroupActionDecode(SSdbOperDesc *pOper) {
@@ -156,11 +152,16 @@ static int32_t mgmtVgroupActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mgmtVgroupActionUpdateAll() {
+  return 0;
+}
+
 int32_t mgmtInitVgroups() {
   SVgObj tObj;
   tsVgUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_VGROUP,
     .tableName    = "vgroups",
     .hashSessions = TSDB_MAX_VGROUPS,
     .maxRowSize   = tsVgUpdateSize,
@@ -172,6 +173,7 @@ int32_t mgmtInitVgroups() {
     .encodeFp     = mgmtVgroupActionEncode,
     .decodeFp     = mgmtVgroupActionDecode,
     .destroyFp    = mgmtVgroupActionDestroy,
+    .updateAllFp  = mgmtVgroupActionUpdateAll,
   };
 
   tsVgroupSdb = sdbOpenTable(&tableDesc);
@@ -187,6 +189,7 @@ int32_t mgmtInitVgroups() {
   mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mgmtProcessVnodeCfgMsg);
 
   mTrace("vgroup is initialized");
+  
   return 0;
 }
 

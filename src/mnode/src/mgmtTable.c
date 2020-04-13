@@ -174,6 +174,7 @@ static int32_t mgmtChildTableActionUpdate(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtChildTableActionEncode(SSdbOperDesc *pOper) {
+  const int32_t maxRowSize = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS;
   SChildTableObj *pTable = pOper->pObj;
   assert(pTable != NULL && pOper->rowData != NULL);
 
@@ -182,7 +183,7 @@ static int32_t mgmtChildTableActionEncode(SSdbOperDesc *pOper) {
     pOper->rowSize = tsChildTableUpdateSize;
   } else {
     int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
-    if (pOper->maxRowSize < tsChildTableUpdateSize + schemaSize) {
+    if (maxRowSize < tsChildTableUpdateSize + schemaSize) {
       return TSDB_CODE_INVALID_MSG_LEN;
     }
     memcpy(pOper->rowData, pTable, tsChildTableUpdateSize);
@@ -224,35 +225,11 @@ static int32_t mgmtChildTableActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtInitChildTables() {
+static int32_t mgmtChildTableActionUpdateAll() {
   void *pNode = NULL;
   void *pLastNode = NULL;
   SChildTableObj *pTable = NULL;
 
-  SChildTableObj tObj;
-  tsChildTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
-
-  SSdbTableDesc tableDesc = {
-    .tableName    = "ctables",
-    .hashSessions = tsMaxTables,
-    .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
-    .insertFp     = mgmtChildTableActionInsert,
-    .deleteFp     = mgmtChildTableActionDelete,
-    .updateFp     = mgmtChildTableActionUpdate,
-    .encodeFp     = mgmtChildTableActionEncode,
-    .decodeFp     = mgmtChildTableActionDecode,
-    .destroyFp    = mgmtChildTableActionDestroy,
-  };
-
-  tsChildTableSdb = sdbOpenTable(&tableDesc);
-  if (tsChildTableSdb == NULL) {
-    mError("failed to init child table data");
-    return -1;
-  }
-
-  pNode = NULL;
   while (1) {
     pLastNode = pNode;
     mgmtDecTableRef(pTable);
@@ -328,6 +305,35 @@ static int32_t mgmtInitChildTables() {
     }
   }
 
+  return 0;
+}
+
+static int32_t mgmtInitChildTables() {
+  SChildTableObj tObj;
+  tsChildTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+
+  SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_CTABLE,
+    .tableName    = "ctables",
+    .hashSessions = tsMaxTables,
+    .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .keyType      = SDB_KEY_TYPE_STRING,
+    .insertFp     = mgmtChildTableActionInsert,
+    .deleteFp     = mgmtChildTableActionDelete,
+    .updateFp     = mgmtChildTableActionUpdate,
+    .encodeFp     = mgmtChildTableActionEncode,
+    .decodeFp     = mgmtChildTableActionDecode,
+    .destroyFp    = mgmtChildTableActionDestroy,
+    .updateAllFp  = mgmtChildTableActionUpdateAll
+  };
+
+  tsChildTableSdb = sdbOpenTable(&tableDesc);
+  if (tsChildTableSdb == NULL) {
+    mError("failed to init child table data");
+    return -1;
+  }
+
   mTrace("child table is initialized");
   return 0;
 }
@@ -374,12 +380,14 @@ static int32_t mgmtSuperTableActionUpdate(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtSuperTableActionEncode(SSdbOperDesc *pOper) {
+  const int32_t maxRowSize = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS;
+
   SSuperTableObj *pStable = pOper->pObj;
   assert(pOper->pObj != NULL && pOper->rowData != NULL);
 
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfColumns + pStable->numOfTags);
 
-  if (pOper->maxRowSize < tsSuperTableUpdateSize + schemaSize) {
+  if (maxRowSize < tsSuperTableUpdateSize + schemaSize) {
     return TSDB_CODE_INVALID_MSG_LEN;
   }
 
@@ -411,11 +419,16 @@ static int32_t mgmtSuperTableActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mgmtSuperTableActionUpdateAll() {
+  return 0;
+}
+
 static int32_t mgmtInitSuperTables() {
   SSuperTableObj tObj;
   tsSuperTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_STABLE,
     .tableName    = "stables",
     .hashSessions = TSDB_MAX_SUPER_TABLES,
     .maxRowSize   = tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
@@ -427,6 +440,7 @@ static int32_t mgmtInitSuperTables() {
     .encodeFp     = mgmtSuperTableActionEncode,
     .decodeFp     = mgmtSuperTableActionDecode,
     .destroyFp    = mgmtSuperTableActionDestroy,
+    .updateAllFp  = mgmtSuperTableActionUpdateAll
   };
 
   tsSuperTableSdb = sdbOpenTable(&tableDesc);

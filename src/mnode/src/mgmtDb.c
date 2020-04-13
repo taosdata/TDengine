@@ -88,14 +88,9 @@ static int32_t mgmtDbActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDbActionEncode(SSdbOperDesc *pOper) {
   SDbObj *pDb = pOper->pObj;
-
-  if (pOper->maxRowSize < tsDbUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pDb, tsDbUpdateSize);
-    pOper->rowSize = tsDbUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pDb, tsDbUpdateSize);
+  pOper->rowSize = tsDbUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtDbActionDecode(SSdbOperDesc *pOper) {
@@ -107,11 +102,16 @@ static int32_t mgmtDbActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mgmtDbActionUpdateAll() {
+  return 0;
+}
+
 int32_t mgmtInitDbs() {
   SDbObj tObj;
   tsDbUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_DB,
     .tableName    = "dbs",
     .hashSessions = TSDB_MAX_DBS,
     .maxRowSize   = tsDbUpdateSize,
@@ -123,6 +123,7 @@ int32_t mgmtInitDbs() {
     .encodeFp     = mgmtDbActionEncode,
     .decodeFp     = mgmtDbActionDecode,
     .destroyFp    = mgmtDbActionDestroy,
+    .updateAllFp  = mgmtDbActionUpdateAll
   };
 
   tsDbSdb = sdbOpenTable(&tableDesc);
@@ -136,7 +137,7 @@ int32_t mgmtInitDbs() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mgmtProcessDropDbMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
-
+  
   mTrace("db data is initialized");
   return 0;
 }

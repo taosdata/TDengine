@@ -289,6 +289,9 @@ loop_end:
     item->type = cJSON_Number;
 
     input_buffer->offset += (size_t)(after_end - number_c_string);
+
+    strncpy(item->numberstring, (const char *)number_c_string, 12);
+
     return true;
 }
 

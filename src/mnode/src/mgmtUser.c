@@ -70,14 +70,9 @@ static int32_t mgmtUserActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionEncode(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-
-  if (pOper->maxRowSize < tsUserUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pUser, tsUserUpdateSize);
-    pOper->rowSize = tsUserUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pUser, tsUserUpdateSize);
+  pOper->rowSize = tsUserUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
@@ -89,11 +84,22 @@ static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mgmtUserActionUpdateAll() {
+  SAcctObj *pAcct = acctGetAcct("root");
+  mgmtCreateUser(pAcct, "root", "taosdata");
+  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
+  mgmtCreateUser(pAcct, "_root", tsInternalPass);
+  acctReleaseAcct(pAcct);
+
+  return 0;
+}
+
 int32_t mgmtInitUsers() {
   SUserObj tObj;
   tsUserUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_USER,
     .tableName    = "users",
     .hashSessions = TSDB_MAX_USERS,
     .maxRowSize   = tsUserUpdateSize,
@@ -105,6 +111,7 @@ int32_t mgmtInitUsers() {
     .encodeFp     = mgmtUserActionEncode,
     .decodeFp     = mgmtUserActionDecode,
     .destroyFp    = mgmtUserActionDestroy,
+    .updateAllFp  = mgmtUserActionUpdateAll
   };
 
   tsUserSdb = sdbOpenTable(&tableDesc);
@@ -112,12 +119,6 @@ int32_t mgmtInitUsers() {
     mError("failed to init user data");
     return -1;
   }
-
-  SAcctObj *pAcct = acctGetAcct("root");
-  mgmtCreateUser(pAcct, "root", "taosdata");
-  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
-  mgmtCreateUser(pAcct, "_root", tsInternalPass);
-  acctReleaseAcct(pAcct);
 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);

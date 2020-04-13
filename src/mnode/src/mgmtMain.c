@@ -105,7 +105,12 @@ int32_t mgmtStartSystem() {
   }
 
   if (mgmtInitTables() < 0) {
-    mError("failed to init meters");
+    mError("failed to init tables");
+    return -1;
+  }
+
+  if (sdbInit() < 0) {
+    mError("failed to init sdb");
     return -1;
   }
 
@@ -158,6 +163,7 @@ void mgmtCleanUpSystem() {
   clusterCleanUp();
   mgmtCleanUpUsers();
   acctCleanUp();
+  sdbCleanUp();
   taosTmrCleanUp(tsMgmtTmr);
   mPrint("mgmt is cleaned up");
 }
