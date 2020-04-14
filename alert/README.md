@@ -1,4 +1,4 @@
-# Alert [DRAFT]
+# Alert
 
 The Alert application reads data from [TDEngine](https://www.taosdata.com/), calculating according to predefined rules to generate alerts, and pushes alerts to downstream applications like [AlertManager](https://github.com/prometheus/alertmanager).
 
@@ -6,12 +6,16 @@ The Alert application reads data from [TDEngine](https://www.taosdata.com/), cal
 
 ### From Binary
 
-TODO: 安装包具体位置
-
-Precompiled binaries is available at [taosdata website](https://www.taosdata.com/), please download and unpack it by below shell command.
+Precompiled binaries is available at [taosdata website](https://www.taosdata.com/en/getting-started/), please download and unpack it by below shell command.
 
 ```
-$ tar -xzf alert-$version-$OS-$ARCH.tar.gz 
+$ tar -xzf tdengine-alert-$version-$OS-$ARCH.tar.gz 
+```
+
+If you have no TDengine server or client installed, please execute below command to install the required driver library:
+
+```
+$ ./install_driver.sh
 ```
 
 ### From Source Code
