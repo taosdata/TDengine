@@ -401,13 +401,6 @@ typedef struct {
   size_t     compDataSize;
   SDataCols *pDataCols[2];
 
-  // ------ Perhaps no usage
-  SCompIdx compIdx;  // SCompIdx of current table
-  int    blockIter;  // For write purpose
-
-  // Compression buffer
-  void * cBuffer;
-  size_t cBufSize;
 } SRWHelper;
 
 // --------- Helper state

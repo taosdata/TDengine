@@ -302,7 +302,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
   }
 
   // load all the comp offset value for all tables in this file
-  tsdbLoadCompIdx(fileGroup, pQueryHandle->compIndex, 10000);  // todo set dynamic max tables
+  // tsdbLoadCompIdx(fileGroup, pQueryHandle->compIndex, 10000);  // todo set dynamic max tables
 
   *numOfBlocks = 0;
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
@@ -324,7 +324,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
         pCheckInfo->compSize = compIndex->len;
       }
       
-      tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pCompInfo);
+      // tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pCompInfo);
   
       SCompInfo* pCompInfo = pCheckInfo->pCompInfo;
       
@@ -421,15 +421,15 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
     pFile->fd = open(pFile->fname, O_RDONLY);
   }
 
-  if (tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data) == 0) {
-    SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
+  // if (tsdbLoadDataBlock(pFile, pBlock, 1, pCheckInfo->pDataCols, data) == 0) {
+  //   SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
 
-    pBlockLoadInfo->fileGroup = pQueryHandle->pFileGroup;
-    pBlockLoadInfo->slot = pQueryHandle->cur.slot;
-    pBlockLoadInfo->sid = pCheckInfo->pTableObj->tableId.tid;
+  //   pBlockLoadInfo->fileGroup = pQueryHandle->pFileGroup;
+  //   pBlockLoadInfo->slot = pQueryHandle->cur.slot;
+  //   pBlockLoadInfo->sid = pCheckInfo->pTableObj->tableId.tid;
 
-    blockLoaded = true;
-  }
+  //   blockLoaded = true;
+  // }
 
   taosArrayDestroy(sa);
   tfree(data);

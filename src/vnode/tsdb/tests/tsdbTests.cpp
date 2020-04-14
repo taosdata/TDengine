@@ -140,12 +140,12 @@ TEST(TsdbTest, DISABLED_createRepo) {
 
 // TEST(TsdbTest, DISABLED_openRepo) {
 TEST(TsdbTest, openRepo) {
-  tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/build/test/data/vnode/vnode2/tsdb", NULL);
-  ASSERT_NE(repo, nullptr);
+  // tsdb_repo_t *repo = tsdbOpenRepo("/home/ubuntu/work/build/test/data/vnode/vnode2/tsdb", NULL);
+  // ASSERT_NE(repo, nullptr);
 
-//   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  // STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1655);
+  // SFileGroup *pGroup = tsdbSearchFGroup(pRepo->tsdbFileH, 1655);
 
 //   for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
 //     tsdbOpenFile(&pGroup->files[type], O_RDONLY);
@@ -156,7 +156,7 @@ TEST(TsdbTest, openRepo) {
 
 //   SCompInfo *pCompInfo = (SCompInfo *)malloc(sizeof(SCompInfo) + pIdx[1].len);
 
-  tsdbLoadCompBlocks(pGroup, &pIdx[1], (void *)pCompInfo);
+  // tsdbLoadCompBlocks(pGroup, &pIdx[1], (void *)pCompInfo);
 
 //   int blockIdx = 0;
 //   SCompBlock *pBlock = &(pCompInfo->blocks[blockIdx]);
@@ -165,20 +165,20 @@ TEST(TsdbTest, openRepo) {
 
 //   tsdbLoadCompCols(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, (void *)pCompData);
 
-  STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, pCompData->uid);
-  SDataCols *pDataCols = tdNewDataCols(tdMaxRowBytesFromSchema(tsdbGetTableSchema(pRepo->tsdbMeta, pTable)), 5, 10);
-  tdInitDataCols(pDataCols, tsdbGetTableSchema(pRepo->tsdbMeta, pTable));
+  // STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, pCompData->uid);
+  // SDataCols *pDataCols = tdNewDataCols(tdMaxRowBytesFromSchema(tsdbGetTableSchema(pRepo->tsdbMeta, pTable)), 5, 10);
+  // tdInitDataCols(pDataCols, tsdbGetTableSchema(pRepo->tsdbMeta, pTable));
 
 //   tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, 1, pDataCols, pCompData);
 
-  tdResetDataCols(pDataCols);
+  // tdResetDataCols(pDataCols);
 
-  tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock + 1, 1, pDataCols, pCompData);
+  // tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock + 1, 1, pDataCols, pCompData);
 
 
 //   int k = 0;
 
-// }
+}
 
 TEST(TsdbTest, DISABLED_createFileGroup) {
   SFileGroup fGroup;

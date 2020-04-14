@@ -169,7 +169,7 @@ void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema
   ASSERT(helperHasState(pHelper, TSDB_HELPER_FILE_SET_AND_OPEN));
 
   // Clear members and state used by previous table
-  pHelper->blockIter = 0;
+  // pHelper->blockIter = 0;
   pHelper->state &= (TSDB_HELPER_TABLE_SET - 1);
 
   pHelper->tableInfo = *pHelperTable;
@@ -339,23 +339,25 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
 int tsdbLoadCompInfo(SRWHelper *pHelper, void *target) {
   ASSERT(helperHasState(pHelper, TSDB_HELPER_TABLE_SET));
 
-  SCompIdx curCompIdx = pHelper->compIdx;
+  SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
 
-  ASSERT(curCompIdx.offset > 0 && curCompIdx.len > 0);
+  // SCompIdx curCompIdx = pHelper->compIdx;
+
+  ASSERT(pIdx->offset > 0 && pIdx->len > 0);
 
   int fd = pHelper->files.headF.fd;
 
   if (!helperHasState(pHelper, TSDB_HELPER_INFO_LOAD)) {
-    if (lseek(fd, curCompIdx.offset, SEEK_SET) < 0) return -1;
+    if (lseek(fd, pIdx->offset, SEEK_SET) < 0) return -1;
 
-    adjustMem(pHelper->pCompInfo, pHelper->compInfoSize, curCompIdx.len);
-    if (tread(fd, (void *)(pHelper->pCompInfo), pHelper->compIdx.len) < pHelper->compIdx.len) return -1;
+    adjustMem(pHelper->pCompInfo, pHelper->compInfoSize, pIdx->len);
+    if (tread(fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) return -1;
     // TODO: check the checksum
 
     helperSetState(pHelper, TSDB_HELPER_INFO_LOAD);
   }
 
-  if (target) memcpy(target, (void *)(pHelper->pCompInfo), curCompIdx.len);
+  if (target) memcpy(target, (void *)(pHelper->pCompInfo), pIdx->len);
 
   return 0;
 }
