@@ -1,4 +1,4 @@
-# Alert [草稿]
+# Alert
 
 报警监测程序，从 [TDEngine](https://www.taosdata.com/) 读取数据后，根据预定义的规则计算和生成报警，并将它们推送到 [AlertManager](https://github.com/prometheus/alertmanager) 或其它下游应用。
 
@@ -6,12 +6,16 @@
 
 ### 使用编译好的二进制文件
 
-TODO: 安装包具体位置
-
-您可以从 [涛思数据](https://www.taosdata.com/) 官网下载最新的安装包。下载完成后，使用以下命令解压：
+您可以从 [涛思数据](https://www.taosdata.com/cn/getting-started/) 官网下载最新的安装包。下载完成后，使用以下命令解压：
 
 ```
-$ tar -xzf alert-$version-$OS-$ARCH.tar.gz 
+$ tar -xzf tdengine-alert-$version-$OS-$ARCH.tar.gz 
+```
+
+如果您之前没有安装过 TDengine 的服务端或客户端，您需要使用下面的命令安装 TDengine 的动态库：
+
+```
+$ ./install_driver.sh
 ```
 
 ### 从源码安装
