@@ -755,6 +755,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
 }
 
 static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
+  ASSERT(maxRowsToRead > 0);
   if (pIter == NULL) return 0;
 
   int numOfRows = 0;
@@ -914,13 +915,18 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
       ASSERT(rowsRead >= 0);
       if (pDataCols->numOfPoints == 0) break;
 
+      ASSERT(dataColsKeyFirst(pDataCols) >= minKey && dataColsKeyFirst(pDataCols) <= maxKey);
+      ASSERT(dataColsKeyLast(pDataCols) >= minKey && dataColsKeyLast(pDataCols) <= maxKey);
+
       int rowsWritten = tsdbWriteDataBlock(pHelper, pDataCols);
       if (rowsWritten < 0) goto _err;
-      assert(rowsWritten <= pDataCols->numOfPoints);
+      ASSERT(rowsWritten <= pDataCols->numOfPoints);
 
       tdPopDataColsPoints(pDataCols, rowsWritten);
       maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5 - pDataCols->numOfPoints;
     }
+
+    ASSERT(pDataCols->numOfPoints == 0);
 
     // Move the last block to the new .l file if neccessary
     if (tsdbMoveLastBlockIfNeccessary(pHelper) < 0) goto _err;

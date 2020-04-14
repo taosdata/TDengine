@@ -433,18 +433,13 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
       // TODO: merge the pTemp part
       int rowsLeft = pTarget->numOfPoints - iter1;
       if (rowsLeft > 0) {
-
       }
       break;
     }
-
-
-
-
   }
 
   return 0;
 
-  _err:
+_err:
   return -1;
 }
