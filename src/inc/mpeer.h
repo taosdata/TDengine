@@ -28,27 +28,28 @@ enum _TAOS_MN_STATUS {
   TAOS_MN_STATUS_READY
 };
 
+// general implementation
 int32_t mpeerInit();
 void    mpeerCleanup();
+
+// special implementation
+int32_t mpeerInitMnodes();
+void    mpeerCleanupMnodes();
+int32_t mpeerAddMnode(int32_t dnodeId);
+int32_t mpeerRemoveMnode(int32_t dnodeId);
+
+void *  mpeerGetMnode(int32_t mnodeId);
 int32_t mpeerGetMnodesNum();
 void *  mpeerGetNextMnode(void *pNode, struct _mnode_obj **pMnode);
 void    mpeerReleaseMnode(struct _mnode_obj *pMnode);
 
-bool    mpeerInServerStatus();   
 bool    mpeerIsMaster();
-bool    mpeerCheckRedirect();
 
 void    mpeerGetPrivateIpList(SRpcIpSet *ipSet);
 void    mpeerGetPublicIpList(SRpcIpSet *ipSet);
 void    mpeerGetMpeerInfos(void *mpeers);
 
-char *  mpeerGetMnodeStatusStr(int32_t status);
-char *  mpeerGetMnodeRoleStr(int32_t role);
-
-int32_t mpeerAddMnode(int32_t dnodeId);
-int32_t mpeerRemoveMnode(int32_t dnodeId);
-
-int32_t sdbForwardDbReqToPeer(void *pHead);
+int32_t mpeerForwardReqToPeer(void *pHead);
 
 #ifdef __cplusplus
 }

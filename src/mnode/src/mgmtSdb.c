@@ -15,18 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
 #include "taoserror.h"
-#include "tchecksum.h"
-#include "tglobalcfg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tutil.h"
 #include "twal.h"
-#include "tsync.h"
-#include "mpeer.h"
 #include "hashint.h"
 #include "hashstr.h"
+#include "mpeer.h"
 #include "mgmtSdb.h"
 
 typedef struct _SSdbTable {
@@ -39,13 +34,13 @@ typedef struct _SSdbTable {
   int32_t     autoIndex;
   int64_t     numOfRows;
   void *      iHandle;
-  int32_t (*insertFp)(SSdbOperDesc *pDesc);
-  int32_t (*deleteFp)(SSdbOperDesc *pOper);
-  int32_t (*updateFp)(SSdbOperDesc *pOper);
-  int32_t (*decodeFp)(SSdbOperDesc *pOper);
-  int32_t (*encodeFp)(SSdbOperDesc *pOper);
-  int32_t (*destroyFp)(SSdbOperDesc *pOper);
-  int32_t (*updateAllFp)();
+  int32_t   (*insertFp)(SSdbOperDesc *pDesc);
+  int32_t   (*deleteFp)(SSdbOperDesc *pOper);
+  int32_t   (*updateFp)(SSdbOperDesc *pOper);
+  int32_t   (*decodeFp)(SSdbOperDesc *pOper);
+  int32_t   (*encodeFp)(SSdbOperDesc *pOper);
+  int32_t   (*destroyFp)(SSdbOperDesc *pOper);
+  int32_t   (*restoredFp)();
   pthread_mutex_t mutex;
 } SSdbTable;
 
@@ -105,15 +100,8 @@ static void *sdbGetTableFromId(int32_t tableId) {
   return tsSdbTableList[tableId];
 }
 
-#ifndef _MPEER
-int32_t sdbForwardDbReqToPeer(void *pHead) {
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
 int32_t sdbInit() {
   tsSdbObj = calloc(1, sizeof(SSdbObject));
-  sem_init(&tsSdbObj->sem, 0, 0);
   pthread_mutex_init(&tsSdbObj->mutex, NULL);
 
   SWalCfg walCfg = {.commitLog = 2, .wals = 2, .keep = 1};
@@ -131,8 +119,8 @@ int32_t sdbInit() {
   for (int32_t tableId = SDB_TABLE_MNODE; tableId < SDB_TABLE_MAX; ++tableId) {
     SSdbTable *pTable = sdbGetTableFromId(tableId);
     if (pTable == NULL) continue;
-    if (pTable->updateAllFp) {
-      (*pTable->updateAllFp)();
+    if (pTable->restoredFp) {
+      (*pTable->restoredFp)();
     }
 
     totalRows += pTable->numOfRows;
@@ -146,7 +134,6 @@ int32_t sdbInit() {
 
 void sdbCleanUp() {
   if (tsSdbObj) {
-    sem_destroy(&tsSdbObj->sem);
     pthread_mutex_destroy(&tsSdbObj->mutex);
     walClose(tsSdbObj->wal);
     free(tsSdbObj);
@@ -268,7 +255,7 @@ static int32_t sdbProcessWriteFromApp(SSdbTable *pTable, SWalHead *pHead, int32_
   tsSdbObj->version++;
   pHead->version = tsSdbObj->version;
 
-  code = sdbForwardDbReqToPeer(pHead);
+  code = mpeerForwardReqToPeer(pHead);
   if (code != TSDB_CODE_SUCCESS) {
     pthread_mutex_unlock(&tsSdbObj->mutex);
     sdbError("table:%s, failed to forward %s record:%s from file, version:%" PRId64 ", reason:%s", pTable->tableName,
@@ -523,7 +510,7 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   pTable->encodeFp     = pDesc->encodeFp;
   pTable->decodeFp     = pDesc->decodeFp;
   pTable->destroyFp    = pDesc->destroyFp;
-  pTable->updateAllFp  = pDesc->updateAllFp;
+  pTable->restoredFp   = pDesc->restoredFp;
   
   if (sdbInitIndexFp[pTable->keyType] != NULL) {
     pTable->iHandle = (*sdbInitIndexFp[pTable->keyType])(pTable->maxRowSize, sizeof(SRowMeta));

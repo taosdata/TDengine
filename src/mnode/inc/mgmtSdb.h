@@ -64,25 +64,22 @@ typedef struct {
   int32_t (*encodeFp)(SSdbOperDesc *pOper);
   int32_t (*decodeFp)(SSdbOperDesc *pDesc);  
   int32_t (*destroyFp)(SSdbOperDesc *pDesc);
-  int32_t (*updateAllFp)();
+  int32_t (*restoredFp)();
 } SSdbTableDesc;
 
 typedef struct {
-  int32_t code;
   int64_t version;
-  void *  sync;
   void *  wal;
-  sem_t   sem;
   pthread_mutex_t mutex;
 } SSdbObject;
 
 int32_t sdbInit();
 void    sdbCleanUp();
 SSdbObject *sdbGetObj();
-int sdbProcessWrite(void *param, void *data, int type);
 
 void *  sdbOpenTable(SSdbTableDesc *desc);
 void    sdbCloseTable(void *handle);
+int     sdbProcessWrite(void *param, void *data, int type);
 
 int32_t sdbInsertRow(SSdbOperDesc *pOper);
 int32_t sdbDeleteRow(SSdbOperDesc *pOper);
