@@ -1,11 +1,11 @@
 set -e
 
-# releash.sh  -c [arm | arm64 | amd64 | 386] 
+# releash.sh  -c [arm | arm64 | x64 | x86] 
 #             -o [linux | darwin | windows]  
 
 # set parameters by default value
-cpuType=amd64    # [arm | arm64 | amd64 | 386]
-osType=linux     # [linux | darwin | windows]
+cpuType=x64    # [arm | arm64 | x64 | x86]
+osType=linux   # [linux | darwin | windows]
 
 while getopts "h:c:o:" arg
 do
@@ -19,7 +19,7 @@ do
       osType=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0` -c [arm | arm64 | amd64 | 386] -o [linux | darwin | windows]"
+      echo "Usage: `basename $0` -c [arm | arm64 | x64 | x86] -o [linux | darwin | windows]"
       exit 0
       ;;
     ?) #unknown option 
@@ -42,4 +42,4 @@ echo "version=${version}"
 
 GOOS=${osType} GOARCH=${cpuType} go build
 
-GZIP=-9 tar -zcf ${startdir}/alert-${version}-${osType}-${cpuType}.tar.gz alert alert.cfg
+GZIP=-9 tar -zcf ${startdir}/tdengine-alert-${version}-${osType}-${cpuType}.tar.gz alert alert.cfg install_driver.sh driver/
