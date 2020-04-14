@@ -27,8 +27,7 @@
 #include "taosmsg.h"
 #include "rpcUdp.h"
 #include "rpcCache.h"
-#include "rpcClient.h"
-#include "rpcServer.h"
+#include "rpcTcp.h"
 #include "rpcHead.h"
 #include "trpc.h"
 #include "hash.h"
@@ -67,7 +66,7 @@ typedef struct {
   void     *udphandle;// returned handle from UDP initialization
   void     *pCache;   // connection cache
   pthread_mutex_t  mutex;
-  struct _RpcConn *connList;  // connection list
+  struct SRpcConn *connList;  // connection list
 } SRpcInfo;
 
 typedef struct {
@@ -88,7 +87,7 @@ typedef struct {
   char      msg[0];     // RpcHead starts from here
 } SRpcReqContext;
 
-typedef struct _RpcConn {
+typedef struct SRpcConn {
   int       sid;     // session ID
   uint32_t  ownId;   // own link ID
   uint32_t  peerId;  // peer link ID
@@ -156,8 +155,8 @@ void (*taosCleanUpConn[])(void *thandle) = {
 int (*taosSendData[])(uint32_t ip, uint16_t port, void *data, int len, void *chandle) = {
     taosSendUdpData, 
     taosSendUdpData, 
-    taosSendTcpServerData, 
-    taosSendTcpClientData
+    taosSendTcpData, 
+    taosSendTcpData
 };
 
 void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, uint16_t port) = {
@@ -170,8 +169,8 @@ void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, uint16_t port) =
 void (*taosCloseConn[])(void *chandle) = {
     NULL, 
     NULL, 
-    taosCloseTcpServerConnection, 
-    taosCloseTcpClientConnection
+    taosCloseTcpConnection, 
+    taosCloseTcpConnection
 };
 
 static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort, int8_t connType);
@@ -817,7 +816,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
   
   tTrace("%s %p, link is broken", pRpc->label, pConn);
-  pConn->chandle = NULL;
+  // pConn->chandle = NULL;
 
   if (pConn->outType) {
     SRpcReqContext *pContext = pConn->pContext;

@@ -30,6 +30,7 @@
 #include "ttokendef.h"
 
 #include "name.h"
+#include "tcompare.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 

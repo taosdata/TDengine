@@ -26,7 +26,7 @@
 
 #define EXTRA_BYTES 2
 #define PRIMARY_TSCOL_REQUIRED(c) (((SColumnInfoData*)taosArrayGet(c, 0))->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)
-#define QUERY_IS_ASC_QUERY(o) (o == TSDB_ORDER_ASC)
+#define ASCENDING_ORDER_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
 #define QH_GET_NUM_OF_COLS(handle) ((size_t)(taosArrayGetSize((handle)->pColumns)))
 
 enum {
@@ -86,6 +86,13 @@ typedef struct STableBlockInfo {
   int32_t          blockIndex;
   int32_t          groupIdx; /* number of group is less than the total number of tables */
 } STableBlockInfo;
+
+typedef struct SBlockOrderSupporter {
+  int32_t             numOfTables;
+  STableBlockInfo** pDataBlockInfo;
+  int32_t*            blockIndexArray;
+  int32_t*            numOfBlocksPerMeter;
+} SBlockOrderSupporter;
 
 typedef struct STsdbQueryHandle {
   STsdbRepo*    pTsdb;
@@ -147,6 +154,7 @@ tsdb_query_handle_t* tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond* pCond
 
   pQueryHandle->loadDataAfterSeek = false;
   pQueryHandle->isFirstSlot = true;
+  pQueryHandle->cur.fid = -1;
 
   size_t size = taosArrayGetSize(idList);
   assert(size >= 1);
@@ -176,7 +184,7 @@ tsdb_query_handle_t* tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond* pCond
    * For ascending timestamp order query, query starts from data files. In contrast, buffer will be checked in the first place
    * in case of descending timestamp order query.
    */
-  pQueryHandle->checkFiles  = QUERY_IS_ASC_QUERY(pQueryHandle->order);
+  pQueryHandle->checkFiles  = ASCENDING_ORDER_TRAVERSE(pQueryHandle->order);
   pQueryHandle->activeIndex = 0;
 
   // allocate buffer in order to load data blocks from file
@@ -201,19 +209,44 @@ tsdb_query_handle_t* tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond* pCond
 
 static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
   assert(pHandle->activeIndex == 0 && taosArrayGetSize(pHandle->pTableCheckInfo) == 1);
+  pHandle->cur.fid = -1;
+  
+  STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
 
-  STableCheckInfo* pTableCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
-
-  STable* pTable = pTableCheckInfo->pTableObj;
+  STable* pTable = pCheckInfo->pTableObj;
   assert(pTable != NULL);
 
   // no data in cache, abort
   if (pTable->mem == NULL && pTable->imem == NULL) {
     return false;
   }
+  
+  if (pCheckInfo->iter == NULL) {
+    pCheckInfo->iter = tSkipListCreateIterFromVal(pTable->mem->pData, (const char*) &pCheckInfo->lastKey,
+        TSDB_DATA_TYPE_TIMESTAMP, pHandle->order);
+    
+    if (pCheckInfo->iter == NULL) {
+      return false;
+    }
+  }
+  
+  if (!tSkipListIterNext(pCheckInfo->iter)) {  // buffer is empty
+    return false;
+  }
 
+  SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
+  if (node == NULL) {
+    return false;
+  }
+
+  SDataRow row = SL_GET_NODE_DATA(node);
+  pCheckInfo->lastKey = dataRowKey(row);  // first timestamp in buffer
+  dTrace("%p uid:%" PRId64", tid:%d check data in buffer from skey:%" PRId64 ", order:%d", pHandle,
+      pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, pCheckInfo->lastKey, pHandle->order);
+  
   // all data in mem are checked already.
-  if (pTableCheckInfo->lastKey > pTable->mem->keyLast) {
+  if ((pCheckInfo->lastKey > pHandle->window.ekey && ASCENDING_ORDER_TRAVERSE(pHandle->order)) ||
+      (pCheckInfo->lastKey < pHandle->window.ekey && !ASCENDING_ORDER_TRAVERSE(pHandle->order))) {
     return false;
   }
 
@@ -222,7 +255,7 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
 
 // todo dynamic get the daysperfile
 static int32_t getFileIdFromKey(TSKEY key) {
-  int64_t fid = (int64_t)(key / 10);  // set the starting fileId
+  int64_t fid = (int64_t)(key / (10 * tsMsPerDay[0]));  // set the starting fileId
   if (fid > INT32_MAX) {
     fid = INT32_MAX;
   }
@@ -230,7 +263,32 @@ static int32_t getFileIdFromKey(TSKEY key) {
   return fid;
 }
 
-static int32_t binarySearchForBlockImpl(SCompBlock* pBlock, int32_t numOfBlocks, TSKEY skey, int32_t order);
+static int32_t binarySearchForBlockImpl(SCompBlock* pBlock, int32_t numOfBlocks, TSKEY skey, int32_t order) {
+  int32_t firstSlot = 0;
+  int32_t lastSlot = numOfBlocks - 1;
+  
+  int32_t midSlot = firstSlot;
+  
+  while (1) {
+    numOfBlocks = lastSlot - firstSlot + 1;
+    midSlot = (firstSlot + (numOfBlocks >> 1));
+    
+    if (numOfBlocks == 1) break;
+    
+    if (skey > pBlock[midSlot].keyLast) {
+      if (numOfBlocks == 2) break;
+      if ((order == TSDB_ORDER_DESC) && (skey < pBlock[midSlot + 1].keyFirst)) break;
+      firstSlot = midSlot + 1;
+    } else if (skey < pBlock[midSlot].keyFirst) {
+      if ((order == TSDB_ORDER_ASC) && (skey > pBlock[midSlot - 1].keyLast)) break;
+      lastSlot = midSlot - 1;
+    } else {
+      break;  // got the slot
+    }
+  }
+  
+  return midSlot;
+}
 
 static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlocks, int32_t type) {
   // todo check open file failed
@@ -299,33 +357,6 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t binarySearchForBlockImpl(SCompBlock* pBlock, int32_t numOfBlocks, TSKEY skey, int32_t order) {
-  int32_t firstSlot = 0;
-  int32_t lastSlot = numOfBlocks - 1;
-
-  int32_t midSlot = firstSlot;
-
-  while (1) {
-    numOfBlocks = lastSlot - firstSlot + 1;
-    midSlot = (firstSlot + (numOfBlocks >> 1));
-
-    if (numOfBlocks == 1) break;
-
-    if (skey > pBlock[midSlot].keyLast) {
-      if (numOfBlocks == 2) break;
-      if ((order == TSDB_ORDER_DESC) && (skey < pBlock[midSlot + 1].keyFirst)) break;
-      firstSlot = midSlot + 1;
-    } else if (skey < pBlock[midSlot].keyFirst) {
-      if ((order == TSDB_ORDER_ASC) && (skey > pBlock[midSlot - 1].keyLast)) break;
-      lastSlot = midSlot - 1;
-    } else {
-      break;  // got the slot
-    }
-  }
-
-  return midSlot;
-}
-
 static SDataBlockInfo getTrueDataBlockInfo(STableCheckInfo* pCheckInfo, SCompBlock* pBlock) {
   SDataBlockInfo info = {
       .window = {.skey = pBlock->keyFirst, .ekey = pBlock->keyLast},
@@ -338,7 +369,34 @@ static SDataBlockInfo getTrueDataBlockInfo(STableCheckInfo* pCheckInfo, SCompBlo
   return info;
 }
 
-SArray*        getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS);
+static SArray* getColumnIdList(STsdbQueryHandle* pQueryHandle) {
+  size_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
+  assert(numOfCols <= TSDB_MAX_COLUMNS);
+  
+  SArray* pIdList = taosArrayInit(numOfCols, sizeof(int16_t));
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
+    taosArrayPush(pIdList, &pCol->info.colId);
+  }
+  
+  return pIdList;
+}
+
+static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS) {
+  SArray* pLocalIdList = getColumnIdList(pQueryHandle);
+  
+  // check if the primary time stamp column needs to load
+  int16_t colId = *(int16_t*)taosArrayGet(pLocalIdList, 0);
+  
+  // the primary timestamp column does not be included in the the specified load column list, add it
+  if (loadTS && colId != 0) {
+    int16_t columnId = 0;
+    taosArrayInsert(pLocalIdList, 0, &columnId);
+  }
+  
+  return pLocalIdList;
+}
+
 static void    filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock,
                                      SArray* sa);
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
@@ -386,9 +444,9 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
   SArray*        sa = getDefaultLoadColumns(pQueryHandle, true);
   SQueryFilePos* cur = &pQueryHandle->cur;
 
-  if (QUERY_IS_ASC_QUERY(pQueryHandle->order)) {
+  if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
     // query ended in current block
-    if (pQueryHandle->window.ekey < pBlock->keyLast) {
+    if (pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst) {
       if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
         return false;
       }
@@ -430,73 +488,75 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
   return pQueryHandle->realNumOfRows > 0;
 }
 
-bool moveToNextBlock(STsdbQueryHandle* pQueryHandle, int32_t step) {
-  SQueryFilePos* cur = &pQueryHandle->cur;
+//bool moveToNextBlock(STsdbQueryHandle* pQueryHandle, int32_t step) {
+//  SQueryFilePos* cur = &pQueryHandle->cur;
+//
+//  if (pQueryHandle->cur.fid >= 0) {
+//    /*
+//     * 1. ascending  order. The last data block of data file
+//     * 2. descending order. The first block of file
+//     */
+//    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
+//    int32_t          tid = pCheckInfo->tableId.tid;
+//
+//    if ((step == QUERY_ASC_FORWARD_STEP &&
+//         (pQueryHandle->cur.slot == pQueryHandle->compIndex[tid].numOfSuperBlocks - 1)) ||
+//        (step == QUERY_DESC_FORWARD_STEP && (pQueryHandle->cur.slot == 0))) {
+//      // temporarily keep the position value, in case of no data qualified when move forwards(backwards)
+//      //      SQueryFilePos save = pQueryHandle->cur;
+//      pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter);
+//
+//      int32_t fid = -1;
+//      int32_t numOfBlocks = 0;
+//
+//      if (pQueryHandle->pFileGroup != NULL) {
+//        if ((fid = getFileCompInfo(pQueryHandle, &numOfBlocks, 1)) < 0) {
+//        } else {
+//          cur->slot = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pQueryHandle->numOfBlocks - 1;
+//          cur->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pQueryHandle->pBlock[cur->slot].numOfPoints - 1;
+//
+//          SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
+//          cur->fid = pQueryHandle->pFileGroup->fileId;
+//          assert(cur->pos >= 0 && cur->fid >= 0 && cur->slot >= 0);
+//
+//          if (pBlock->keyFirst > pQueryHandle->window.ekey) {  // done
+//            return false;
+//          }
+//
+//          return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
+//        }
+//      } else {  // check data in cache
+//        pQueryHandle->cur.fid = -1;
+//        return hasMoreDataInCache(pQueryHandle);
+//      }
+//    } else {  // next block in the same file
+//      cur->slot += step;
+//
+//      SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
+//      cur->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pBlock->numOfPoints - 1;
+//      return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
+//    }
+//  } else {  // data in cache
+//    return hasMoreDataInCache(pQueryHandle);
+//  }
+//
+//  return false;
+//}
 
-  if (pQueryHandle->cur.fid >= 0) {
-    /*
-     * 1. ascending  order. The last data block of data file
-     * 2. descending order. The first block of file
-     */
-    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
-    int32_t          tid = pCheckInfo->tableId.tid;
-
-    if ((step == QUERY_ASC_FORWARD_STEP &&
-         (pQueryHandle->cur.slot == pQueryHandle->compIndex[tid].numOfSuperBlocks - 1)) ||
-        (step == QUERY_DESC_FORWARD_STEP && (pQueryHandle->cur.slot == 0))) {
-      // temporarily keep the position value, in case of no data qualified when move forwards(backwards)
-      //      SQueryFilePos save = pQueryHandle->cur;
-      pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter);
-
-      int32_t fid = -1;
-      int32_t numOfBlocks = 0;
-
-      if (pQueryHandle->pFileGroup != NULL) {
-        if ((fid = getFileCompInfo(pQueryHandle, &numOfBlocks, 1)) < 0) {
-        } else {
-          cur->slot = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pQueryHandle->numOfBlocks - 1;
-          cur->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pQueryHandle->pBlock[cur->slot].numOfPoints - 1;
-
-          SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
-          cur->fid = pQueryHandle->pFileGroup->fileId;
-          assert(cur->pos >= 0 && cur->fid >= 0 && cur->slot >= 0);
-
-          if (pBlock->keyFirst > pQueryHandle->window.ekey) {  // done
-            return false;
-          }
-
-          return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
-        }
-      } else {  // check data in cache
-        pQueryHandle->cur.fid = -1;
-        return hasMoreDataInCache(pQueryHandle);
-      }
-    } else {  // next block in the same file
-      cur->slot += step;
-
-      SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
-      cur->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pBlock->numOfPoints - 1;
-      return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
-    }
-  } else {  // data in cache
-    return hasMoreDataInCache(pQueryHandle);
-  }
-
-  return false;
-}
-
-int vnodeBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
+static int vnodeBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
   int    firstPos, lastPos, midPos = -1;
   int    numOfPoints;
   TSKEY* keyList;
 
+  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
+  
   if (num <= 0) return -1;
 
   keyList = (TSKEY*)pValue;
   firstPos = 0;
   lastPos = num - 1;
 
-  if (order == 0) {
+  if (order == TSDB_ORDER_DESC) {
     // find the first position which is smaller than the key
     while (1) {
       if (key >= keyList[lastPos]) return lastPos;
@@ -555,24 +615,24 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
   SDataCols* pCols = pCheckInfo->pDataCols;
 
   int32_t endPos = cur->pos;
-  if (QUERY_IS_ASC_QUERY(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
+  if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
     endPos = blockInfo.rows - 1;
     pQueryHandle->realNumOfRows = endPos - cur->pos + 1;
     pCheckInfo->lastKey = blockInfo.window.ekey + 1;
-  } else if (!QUERY_IS_ASC_QUERY(pQueryHandle->order) && pQueryHandle->window.ekey < blockInfo.window.skey) {
+  } else if (!ASCENDING_ORDER_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey < blockInfo.window.skey) {
     endPos = 0;
     pQueryHandle->realNumOfRows = cur->pos + 1;
     pCheckInfo->lastKey = blockInfo.window.ekey - 1;
   } else {
-    endPos =
-        vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, pQueryHandle->window.ekey, pQueryHandle->order);
+    int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
+    endPos = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, pQueryHandle->window.ekey, order);
 
-    if (QUERY_IS_ASC_QUERY(pQueryHandle->order)) {
+    if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
       if (endPos < cur->pos) {
         pQueryHandle->realNumOfRows = 0;
         return;
       } else {
-        pQueryHandle->realNumOfRows = endPos - cur->pos;
+        pQueryHandle->realNumOfRows = endPos - cur->pos + 1;
       }
 
       pCheckInfo->lastKey = ((int64_t*)(pCols->cols[0].pData))[endPos] + 1;
@@ -581,10 +641,8 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
         pQueryHandle->realNumOfRows = 0;
         return;
       } else {
-        pQueryHandle->realNumOfRows = cur->pos - endPos;
+        pQueryHandle->realNumOfRows = cur->pos - endPos + 1;
       }
-
-      assert(0);
     }
   }
 
@@ -612,34 +670,6 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
 
   // forward(backward) the position for cursor
   cur->pos = endPos;
-}
-
-static SArray* getColumnIdList(STsdbQueryHandle* pQueryHandle) {
-  size_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
-  assert(numOfCols <= TSDB_MAX_COLUMNS);
-  
-  SArray* pIdList = taosArrayInit(numOfCols, sizeof(int16_t));
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
-    taosArrayPush(pIdList, &pCol->info.colId);
-  }
-
-  return pIdList;
-}
-
-SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS) {
-  SArray* pLocalIdList = getColumnIdList(pQueryHandle);
-
-  // check if the primary time stamp column needs to load
-  int16_t colId = *(int16_t*)taosArrayGet(pLocalIdList, 0);
-
-  // the primary timestamp column does not be included in the the specified load column list, add it
-  if (loadTS && colId != 0) {
-    int16_t columnId = 0;
-    taosArrayInsert(pLocalIdList, 0, &columnId);
-  }
-
-  return pLocalIdList;
 }
 
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
@@ -702,79 +732,72 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   return midPos;
 }
 
-static bool getQualifiedDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, int32_t type) {
-  STsdbFileH* pFileHandle = tsdbGetFile(pQueryHandle->pTsdb);
-  int32_t     fid = getFileIdFromKey(pCheckInfo->lastKey);
+//static bool getQualifiedDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, int32_t type) {
+//  STsdbFileH* pFileHandle = tsdbGetFile(pQueryHandle->pTsdb);
+//  int32_t     fid = getFileIdFromKey(pCheckInfo->lastKey);
+//
+//  tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, TSDB_FGROUP_ITER_FORWARD);
+//  tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
+//  pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter);
+//
+//  SQueryFilePos* cur = &pQueryHandle->cur;
+//
+//  int32_t tid = pCheckInfo->tableId.tid;
+//  int32_t numOfBlocks = 0;
+//
+//  while (pQueryHandle->pFileGroup != NULL) {
+//    if (getFileCompInfo(pQueryHandle, &numOfBlocks, 1) != TSDB_CODE_SUCCESS) {
+//      break;
+//    }
+//
+//    assert(pCheckInfo->numOfBlocks >= 0);
+//
+//    // no data block in current file, try next
+//    if (pCheckInfo->numOfBlocks > 0) {
+//      cur->fid = pQueryHandle->pFileGroup->fileId;
+//      break;
+//    }
+//
+//    dTrace("%p no data block in file, fid:%d, tid:%d, try next, %p", pQueryHandle, pQueryHandle->pFileGroup->fileId,
+//           tid, pQueryHandle->qinfo);
+//
+//    pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter);
+//  }
+//
+//  if (pCheckInfo->numOfBlocks == 0) {
+//    return false;
+//  }
+//
+//  cur->slot = 0;  // always start from the first slot
+//  SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
+//  return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
+//}
 
-  tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, TSDB_FGROUP_ITER_FORWARD);
-  tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
-  pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter);
+//static UNUSED_FUNC bool hasMoreDataForSingleTable(STsdbQueryHandle* pHandle) {
+//  assert(pHandle->activeIndex == 0 && taosArrayGetSize(pHandle->pTableCheckInfo) == 1);
+//
+//  STsdbFileH*      pFileHandle = tsdbGetFile(pHandle->pTsdb);
+//  STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
+//
+//  if (!pCheckInfo->checkFirstFileBlock) {
+//    pCheckInfo->checkFirstFileBlock = true;
+//
+//    if (pFileHandle != NULL) {
+//      bool found = getQualifiedDataBlock(pHandle, pCheckInfo, 1);
+//      if (found) {
+//        return true;
+//      }
+//    }
+//
+//    // no data in file, try cache
+//    pHandle->cur.fid = -1;
+//    return hasMoreDataInCache(pHandle);
+//  } else {  // move to next data block in file or in cache
+//    return moveToNextBlock(pHandle, 1);
+//  }
+//}
 
-  SQueryFilePos* cur = &pQueryHandle->cur;
-
-  int32_t tid = pCheckInfo->tableId.tid;
-  int32_t numOfBlocks = 0;
-
-  while (pQueryHandle->pFileGroup != NULL) {
-    if (getFileCompInfo(pQueryHandle, &numOfBlocks, 1) != TSDB_CODE_SUCCESS) {
-      break;
-    }
-
-    assert(pCheckInfo->numOfBlocks >= 0);
-
-    // no data block in current file, try next
-    if (pCheckInfo->numOfBlocks > 0) {
-      cur->fid = pQueryHandle->pFileGroup->fileId;
-      break;
-    }
-
-    dTrace("%p no data block in file, fid:%d, tid:%d, try next, %p", pQueryHandle, pQueryHandle->pFileGroup->fileId,
-           tid, pQueryHandle->qinfo);
-
-    pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter);
-  }
-
-  if (pCheckInfo->numOfBlocks == 0) {
-    return false;
-  }
-
-  cur->slot = 0;  // always start from the first slot
-  SCompBlock* pBlock = &pCheckInfo->pCompInfo->blocks[cur->slot];
-  return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
-}
-
-static UNUSED_FUNC bool hasMoreDataForSingleTable(STsdbQueryHandle* pHandle) {
-  assert(pHandle->activeIndex == 0 && taosArrayGetSize(pHandle->pTableCheckInfo) == 1);
-
-  STsdbFileH*      pFileHandle = tsdbGetFile(pHandle->pTsdb);
-  STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
-
-  if (!pCheckInfo->checkFirstFileBlock) {
-    pCheckInfo->checkFirstFileBlock = true;
-
-    if (pFileHandle != NULL) {
-      bool found = getQualifiedDataBlock(pHandle, pCheckInfo, 1);
-      if (found) {
-        return true;
-      }
-    }
-
-    // no data in file, try cache
-    pHandle->cur.fid = -1;
-    return hasMoreDataInCache(pHandle);
-  } else {  // move to next data block in file or in cache
-    return moveToNextBlock(pHandle, 1);
-  }
-}
-
-typedef struct SBlockOrderSupporter {
-  int32_t             numOfTables;
-  STableBlockInfo** pDataBlockInfo;
-  int32_t*            blockIndexArray;
-  int32_t*            numOfBlocksPerMeter;
-} SBlockOrderSupporter;
-
-void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t numOfTables) {
+static void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t numOfTables) {
   tfree(pSupporter->numOfBlocksPerMeter);
   tfree(pSupporter->blockIndexArray);
 
@@ -815,7 +838,7 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   return pLeftBlockInfoEx->pBlock.compBlock->offset > pRightBlockInfoEx->pBlock.compBlock->offset ? 1 : -1;
 }
 
-int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numOfBlocks, int32_t* numOfAllocBlocks) {
+static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numOfBlocks, int32_t* numOfAllocBlocks) {
   char* tmp = realloc(pQueryHandle->pDataBlockInfo, sizeof(STableBlockInfo) * numOfBlocks);
   if (tmp == NULL) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
@@ -912,6 +935,53 @@ int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numOfBlocks
   return TSDB_CODE_SUCCESS;
 }
 
+// todo opt for only one table case
+static bool getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle) {
+  pQueryHandle->numOfBlocks = 0;
+  SQueryFilePos* cur = &pQueryHandle->cur;
+  
+  int32_t numOfBlocks = 0;
+  int32_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  
+  while ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) != NULL) {
+    int32_t type = ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)? QUERY_RANGE_GREATER_EQUAL:QUERY_RANGE_LESS_EQUAL;
+    if (getFileCompInfo(pQueryHandle, &numOfBlocks, type) != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    
+    assert(numOfBlocks >= 0);
+    dTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks,
+           numOfTables, pQueryHandle->pFileGroup->fileId);
+    
+    // todo return error code to query engine
+    if (createDataBlocksInfo(pQueryHandle, numOfBlocks, &pQueryHandle->numOfBlocks) != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    
+    assert(numOfBlocks >= pQueryHandle->numOfBlocks);
+    if (pQueryHandle->numOfBlocks > 0) {
+      break;
+    }
+  }
+  
+  // no data in file anymore
+  if (pQueryHandle->numOfBlocks <= 0) {
+    assert(pQueryHandle->pFileGroup == NULL);
+    cur->fid = -1;
+    
+    return false;
+  }
+  
+  cur->slot = ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)? 0:pQueryHandle->numOfBlocks-1;
+  cur->fid = pQueryHandle->pFileGroup->fileId;
+  
+  STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
+  STableCheckInfo* pCheckInfo = pBlockInfo->pTableCheckInfo;
+  SCompBlock*      pBlock = pBlockInfo->pBlock.compBlock;
+  
+  return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
+}
+
 static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
   STsdbFileH*    pFileHandle = tsdbGetFile(pQueryHandle->pTsdb);
   SQueryFilePos* cur = &pQueryHandle->cur;
@@ -925,98 +995,18 @@ static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
 
-    int32_t numOfBlocks = -1;
-    
-    // todo opt for only one table case
-    pQueryHandle->numOfBlocks = 0;
-    int32_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-
-    while ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) != NULL) {
-      int32_t type = QUERY_IS_ASC_QUERY(pQueryHandle->order)? QUERY_RANGE_GREATER_EQUAL:QUERY_RANGE_LESS_EQUAL;
-      if (getFileCompInfo(pQueryHandle, &numOfBlocks, type) != TSDB_CODE_SUCCESS) {
-        break;
-      }
-
-      assert(numOfBlocks >= 0);
-      dTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks,
-             numOfTables, pQueryHandle->pFileGroup->fileId);
-      
-      // todo return error code to query engine
-      if (createDataBlocksInfo(pQueryHandle, numOfBlocks, &pQueryHandle->numOfBlocks) != TSDB_CODE_SUCCESS) {
-        break;
-      }
-  
-      assert(numOfBlocks >= pQueryHandle->numOfBlocks);
-      if (pQueryHandle->numOfBlocks > 0) {
-        break;
-      }
-    }
-
-    // no data in file anymore
-    if (pQueryHandle->numOfBlocks <= 0) {
-      assert(pQueryHandle->pFileGroup == NULL);
-      cur->fid = -1;
-      
-      return false;
-    }
-
-    cur->slot = QUERY_IS_ASC_QUERY(pQueryHandle->order)? 0:pQueryHandle->numOfBlocks-1;
-    cur->fid = pQueryHandle->pFileGroup->fileId;
-
-    STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
-    STableCheckInfo* pCheckInfo = pBlockInfo->pTableCheckInfo;
-    SCompBlock*      pBlock = pBlockInfo->pBlock.compBlock;
-    
-    return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
+    return getDataBlocksInFilesImpl(pQueryHandle);
   } else {
-    if ((cur->slot == pQueryHandle->numOfBlocks - 1 && QUERY_IS_ASC_QUERY(pQueryHandle->order)) ||
-        (cur->slot == 0 && !QUERY_IS_ASC_QUERY(pQueryHandle->order))) { // all blocks
-      int32_t numOfBlocks = -1;
+    if ((cur->slot == pQueryHandle->numOfBlocks - 1 && ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) ||
+        (cur->slot == 0 && !ASCENDING_ORDER_TRAVERSE(pQueryHandle->order))) { // all blocks
       
-      int32_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-      pQueryHandle->numOfBlocks = 0;
-      
-      while ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) != NULL) {
-        if (getFileCompInfo(pQueryHandle, &numOfBlocks, 1) != TSDB_CODE_SUCCESS) {
-          break;
-        }
-
-        assert(numOfBlocks >= 0);
-        dTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks, numOfTables,
-               pQueryHandle->pFileGroup->fileId);
-  
-        // todo return error code to query engine
-        if (createDataBlocksInfo(pQueryHandle, numOfBlocks, &pQueryHandle->numOfBlocks) != TSDB_CODE_SUCCESS) {
-          break;
-        }
-        
-        assert(numOfBlocks >= pQueryHandle->numOfBlocks);
-        if (pQueryHandle->numOfBlocks > 0) {
-          break;
-        }
-      }
-
-      // no data in file anymore
-      if (pQueryHandle->numOfBlocks <= 0) {
-        assert(pQueryHandle->pFileGroup == NULL);
-        cur->fid = -1;
-        return false;
-      }
-  
-      cur->slot = QUERY_IS_ASC_QUERY(pQueryHandle->order)? 0:pQueryHandle->numOfBlocks-1;
-      cur->fid = pQueryHandle->pFileGroup->fileId;
-      
-      STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
-      STableCheckInfo* pCheckInfo = pBlockInfo->pTableCheckInfo;
-      SCompBlock*      pBlock = pBlockInfo->pBlock.compBlock;
-      
-      return loadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
+      return getDataBlocksInFilesImpl(pQueryHandle);
     } else {  // next block of the same file
-      int32_t step = QUERY_IS_ASC_QUERY(pQueryHandle->order)? 1:-1;
+      int32_t step = ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)? 1:-1;
       cur->slot += step;
       
       STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
-      if (QUERY_IS_ASC_QUERY(pQueryHandle->order)) {
+      if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
         cur->pos = 0;
       } else {
         cur->pos = pBlockInfo->pBlock.compBlock->numOfPoints - 1;
@@ -1027,11 +1017,9 @@ static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
   }
 }
 
-
 static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   // todo add assert, the value of numOfTables should be less than the maximum value for each vnode capacity
-  assert(numOfTables > 0);
   
   while (pQueryHandle->activeIndex < numOfTables) {
     if (hasMoreDataInCache(pQueryHandle)) {
@@ -1051,7 +1039,7 @@ bool tsdbNextDataBlock(tsdb_query_handle_t* pqHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
   
-  if (QUERY_IS_ASC_QUERY(pQueryHandle->order)) {
+  if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
     if (pQueryHandle->checkFiles) {
       if (getDataBlocksInFiles(pQueryHandle)) {
         return true;
@@ -1082,12 +1070,23 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
   int32_t numOfCols = taosArrayGetSize(pQueryHandle->pColumns);
   *skey = INT64_MIN;
 
-  while (tSkipListIterNext(pIter)) {
+  do {
     SSkipListNode* node = tSkipListIterGet(pIter);
-    if (node == NULL) break;
+    if (node == NULL) {
+      break;
+    }
 
     SDataRow row = SL_GET_NODE_DATA(node);
-    if (dataRowKey(row) > maxKey) break;
+    TSKEY key = dataRowKey(row);
+    
+    if ((key > maxKey && ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) ||
+        (key < maxKey && !ASCENDING_ORDER_TRAVERSE(pQueryHandle->order))) {
+      
+      dTrace("%p key:%"PRIu64" beyond qrange:%"PRId64" - %"PRId64", no more data in buffer", pQueryHandle, key, pQueryHandle->window.skey,
+          pQueryHandle->window.ekey);
+      
+      break;
+    }
 
     if (*skey == INT64_MIN) {
       *skey = dataRowKey(row);
@@ -1096,16 +1095,40 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
     *ekey = dataRowKey(row);
 
     int32_t offset = 0;
+    char* pData = NULL;
+    
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-      memcpy(pColInfo->pData + numOfRows * pColInfo->info.bytes, dataRowTuple(row) + offset, pColInfo->info.bytes);
+      
+      if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
+        pData = pColInfo->pData + numOfRows * pColInfo->info.bytes;
+      } else {
+        pData = pColInfo->pData + (maxRowsToRead - numOfRows - 1) * pColInfo->info.bytes;
+      }
+      
+      memcpy(pData, dataRowTuple(row) + offset, pColInfo->info.bytes);
       offset += pColInfo->info.bytes;
     }
 
     numOfRows++;
-    if (numOfRows >= maxRowsToRead) break;
-  };
+    if (numOfRows >= maxRowsToRead) {
+      break;
+    }
+    
+  } while(tSkipListIterNext(pIter));
 
+  assert(numOfRows <= maxRowsToRead);
+  
+  // if the buffer is not full in case of descending order query, move the data in the front of the buffer
+  if (!ASCENDING_ORDER_TRAVERSE(pQueryHandle->order) && numOfRows < maxRowsToRead) {
+    int32_t emptySize = maxRowsToRead - numOfRows;
+    
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+      memmove(pColInfo->pData, pColInfo->pData + emptySize * pColInfo->info.bytes, numOfRows * pColInfo->info.bytes);
+    }
+  }
+  
   return numOfRows;
 }
 
@@ -1118,6 +1141,8 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
   TSKEY   skey = 0, ekey = 0;
   int32_t rows = 0;
 
+  int32_t step = ASCENDING_ORDER_TRAVERSE(pHandle->order)? 1:-1;
+  
   // data in file
   if (pHandle->cur.fid >= 0) {
     STableBlockInfo* pBlockInfo = &pHandle->pDataBlockInfo[pHandle->cur.slot];
@@ -1139,7 +1164,7 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
       ekey = *(TSKEY*)((char*)pColInfoEx->pData + TSDB_KEYSIZE * (rows - 1));
 
       // update the last key value
-      pBlockInfo->pTableCheckInfo->lastKey = ekey + 1;
+      pBlockInfo->pTableCheckInfo->lastKey = ekey + step;
     }
   } else {
     STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
@@ -1147,18 +1172,20 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
 
     if (pTable->mem != NULL) {
       // create mem table iterator if it is not created yet
-      if (pCheckInfo->iter == NULL) {
-        pCheckInfo->iter = tSkipListCreateIter(pTable->mem->pData);
-      }
-      rows = tsdbReadRowsFromCache(pCheckInfo->iter, INT64_MAX, 2, &skey, &ekey, pHandle);
+      assert(pCheckInfo->iter != NULL);
+      rows = tsdbReadRowsFromCache(pCheckInfo->iter, pHandle->window.ekey, 2, &skey, &ekey, pHandle);
 
       // update the last key value
-      pCheckInfo->lastKey = ekey + 1;
+      pCheckInfo->lastKey = ekey + step;
     }
   }
 
   SDataBlockInfo blockInfo = {
-      .uid = pTable->tableId.uid, .sid = pTable->tableId.tid, .rows = rows, .window = {.skey = skey, .ekey = ekey}};
+      .uid = pTable->tableId.uid,
+      .sid = pTable->tableId.tid,
+      .rows = rows,
+      .window = {.skey = MIN(skey, ekey), .ekey = MAX(skey, ekey)}
+  };
 
   return blockInfo;
 }
@@ -1259,7 +1286,7 @@ static void convertQueryResult(SArray* pRes, SArray* pTableList) {
   }
 }
 
-void destroyHelper(void* param) {
+static void destroyHelper(void* param) {
   if (param == NULL) {
     return;
   }
@@ -1268,86 +1295,6 @@ void destroyHelper(void* param) {
   tVariantDestroy(&(pInfo->q));
   free(param);
 }
-
-static UNUSED_FUNC int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
-  SPatternCompareInfo pInfo = {'%', '_'};
-
-  const char* pattern = pRight;
-  const char* str = pLeft;
-
-  int32_t ret = patternMatch(pattern, str, strlen(str), &pInfo);
-
-  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
-}
-
-static UNUSED_FUNC int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
-  SPatternCompareInfo pInfo = {'%', '_'};
-
-  const wchar_t* pattern = pRight;
-  const wchar_t* str = pLeft;
-
-  int32_t ret = WCSPatternMatch(pattern, str, wcslen(str), &pInfo);
-
-  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
-}
-
-// static __compar_fn_t getFilterComparator(int32_t type, int32_t filterType, int32_t optr) {
-//  __compar_fn_t comparator = NULL;
-//
-//  switch (type) {
-//    case TSDB_DATA_TYPE_TINYINT:
-//    case TSDB_DATA_TYPE_SMALLINT:
-//    case TSDB_DATA_TYPE_INT:
-//    case TSDB_DATA_TYPE_BIGINT:
-//    case TSDB_DATA_TYPE_BOOL: {
-//      if (filterType >= TSDB_DATA_TYPE_BOOL && filterType <= TSDB_DATA_TYPE_BIGINT) {
-//        comparator = compareIntVal;
-//      } else if (filterType >= TSDB_DATA_TYPE_FLOAT && filterType <= TSDB_DATA_TYPE_DOUBLE) {
-//        comparator = compareIntDoubleVal;
-//      }
-//      break;
-//    }
-//
-//    case TSDB_DATA_TYPE_FLOAT:
-//    case TSDB_DATA_TYPE_DOUBLE: {
-//      if (filterType >= TSDB_DATA_TYPE_BOOL && filterType <= TSDB_DATA_TYPE_BIGINT) {
-//        comparator = compareDoubleIntVal;
-//      } else if (filterType >= TSDB_DATA_TYPE_FLOAT && filterType <= TSDB_DATA_TYPE_DOUBLE) {
-//        comparator = compareDoubleVal;
-//      }
-//      break;
-//    }
-//
-//    case TSDB_DATA_TYPE_BINARY: {
-//      assert(filterType == TSDB_DATA_TYPE_BINARY);
-//
-//      if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
-//        comparator = compareStrPatternComp;
-//      } else { /* normal relational comparator */
-//        comparator = compareStrVal;
-//      }
-//
-//      break;
-//    }
-//
-//    case TSDB_DATA_TYPE_NCHAR: {
-//      assert(filterType == TSDB_DATA_TYPE_NCHAR);
-//
-//      if (optr == TSDB_RELATION_LIKE) {
-//        comparator = compareWStrPatternComp;
-//      } else {
-//        comparator = compareWStrVal;
-//      }
-//
-//      break;
-//    }
-//    default:
-//      comparator = compareIntVal;
-//      break;
-//  }
-//
-//  return comparator;
-//}
 
 static void getTagColumnInfo(SExprTreeSupporter* pSupporter, SSchema* pSchema, int32_t* index, int32_t* offset) {
   *index = 0;
@@ -1494,7 +1441,10 @@ int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size
 
 void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
-
+  if (pQueryHandle == NULL) {
+    return;
+  }
+  
   size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   for (int32_t i = 0; i < size; ++i) {
     STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);

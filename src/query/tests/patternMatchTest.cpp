@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "tsqlfunction.h"
+#include "tcompare.h"
 
 TEST(testCase, patternMatchTest) {
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;

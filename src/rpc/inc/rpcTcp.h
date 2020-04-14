@@ -13,19 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _rpc_server_header_
-#define _rpc_server_header_
+#ifndef _rpc_tcp_header_
+#define _rpc_tcp_header_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "taosdef.h"
-
 void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
 void taosCleanUpTcpServer(void *param);
-void taosCloseTcpServerConnection(void *param);
-int  taosSendTcpServerData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
+
+void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle);
+void taosCleanUpTcpClient(void *chandle);
+void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port);
+
+void taosCloseTcpConnection(void *chandle);
+int  taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
 
 #ifdef __cplusplus
 }
