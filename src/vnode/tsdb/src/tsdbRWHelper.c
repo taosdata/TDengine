@@ -243,27 +243,11 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
 
         rowsToWrite = tsdbMergeDataWithBlock(pHelper, blkIdx, pDataCols);
         if (rowsToWrite < 0) goto _err;
-
-      } else { // Either merge with the previous block or save as a super block in the middle
-        SCompBlock *prevBlock = (blkIdx == 0) ? NULL : (pCompBlock - 1);
-
-        int rows1 = nRowsLEThan(pDataCols, pCompBlock->keyFirst); // rows write as a super block in the middle
-        int rows2 = (prevBlock) ? (pHelper->config.maxRowsPerFileBlock - prevBlock->numOfPoints)
-                                : rows1;  // rows can merge with the previous block
-        if (rows1 >= rows2) {
-          rowsToWrite = tsdbWriteBlockToFile(pHelper, &(pHelper->files.dataF), pDataCols, rows1, &compBlock, false, true);
-          if (rowsToWrite < 0) goto _err;
-
-          ASSERT(rowsToWrite == rows1);
-
-          // Add the super block to it
-          pIdx->len += sizeof(SCompBlock);
-          pIdx->numOfSuperBlocks++;
-        } else {
-          rowsToWrite = tsdbMergeDataWithBlock(pHelper, blkIdx-1, pDataCols);
-          if (rowsToWrite < 0) goto _err;
-          ASSERT(rowsToWrite == rows2);
-        }
+      } else { // Save as a super block in the middle
+        int rowsToWrite = tsdbGetRowsInRange(pDataCols, 0, pCompBlock->keyFirst-1);
+        ASSERT(rowsToWrite > 0);
+        if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.dataF), pDataCols, rowsToWrite, &compBlock, false, true) < 0) goto _err;
+        if (tsdbInsertSuperBlock(pHelper, pCompBlock, pCompBlock - pHelper->pCompInfo->blocks) < 0) goto _err;
       }
     }
   }
@@ -671,7 +655,7 @@ static int nRowsLEThan(SDataCols *pDataCols, int maxKey) {
   return ((TSKEY *)ptr - (TSKEY *)(pDataCols->cols[0].pData)) + 1;
 }
 
-// Merge the data with a block
+// Merge the data with a block in file
 static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols) {
   // TODO: set pHelper->hasOldBlock
   int        rowsWritten = 0;
@@ -685,6 +669,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
   SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + blkIdx;
   ASSERT(pCompBlock->numOfSubBlocks >= 1);
   ASSERT(keyFirst >= pCompBlock->keyFirst);
+  ASSERT(compareKeyBlock((void *)&keyFirst, (void *)pCompBlock) == 0);
 
   // Start here
   TSKEY keyLimit =
