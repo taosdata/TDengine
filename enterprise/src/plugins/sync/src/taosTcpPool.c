@@ -19,15 +19,15 @@
 #include "tsocket.h"
 #include "taosTcpPool.h"
 
-typedef struct _thread_obj {
+typedef struct SThreadObj {
   pthread_t thread;
   int       threadId;
   int       pollFd;
   int       numOfFds;
-  struct _thread_pool *pPool;
+  struct SThreadPool *pPool;
 } SThreadObj;
 
-typedef struct _thread_pool {
+typedef struct SThreadPool {
   SPoolInfo    info;
   SThreadObj **pThread;
   pthread_t    thread;
