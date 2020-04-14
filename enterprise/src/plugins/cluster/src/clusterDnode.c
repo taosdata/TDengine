@@ -208,6 +208,7 @@ static int32_t clusterCreateDnode(uint32_t ip) {
   pDnode->createdTime = taosGetTimestampMs();
   pDnode->status = TAOS_DN_STATUS_OFFLINE; 
   pDnode->numOfTotalVnodes = TSDB_INVALID_VNODE_NUM; 
+  sprintf(pDnode->dnodeName, "n%d", 1);
 
   if (pDnode->privateIp == inet_addr(tsMasterIp)) {
     pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);

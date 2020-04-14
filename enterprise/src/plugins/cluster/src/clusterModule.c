@@ -25,20 +25,20 @@ static void clusterSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus |= (1 << moduleType);
   clusterUpdateDnode(pDnode);
 
-  // if (moduleType == TSDB_MOD_MGMT) {
-  //   mpeerAddMnode(pDnode->privateIp, pDnode->publicIp);
-  //   mPrint("dnode:%s, add mnode done", taosIpStr(pDnode->privateIp));
-  // }
+  if (moduleType == TSDB_MOD_MGMT) {
+    mpeerAddMnode(pDnode->dnodeId);
+    mPrint("dnode:%d, add it into mnode list", pDnode->dnodeId);
+  }
 }
 
 static void clusterUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus &= ~(1 << moduleType);
   clusterUpdateDnode(pDnode);
 
-  // if (moduleType == TSDB_MOD_MGMT) {
-  //   int32_t code = mpeerRemoveMnode(pDnode->privateIp);
-  //   mPrint("dnode:%s, drop mnode done, code:%d", taosIpStr(pDnode->privateIp), code);
-  // }
+  if (moduleType == TSDB_MOD_MGMT) {
+    mpeerRemoveMnode(pDnode->dnodeId);
+    mPrint("dnode:%d, remove it from mnode list", pDnode->dnodeId);
+  }
 }
 
 static void clusterStopAllModuleInDnode(SDnodeObj *pDnode) {
