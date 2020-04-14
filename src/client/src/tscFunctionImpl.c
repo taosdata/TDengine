@@ -4444,7 +4444,8 @@ static void rate_function(SQLFunctionCtx *pCtx) {
   pTrace("%p rate_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
   
   if (pCtx->order == TSQL_SO_ASC) {
-/*
+    
+    #ifdef  NOT_EQUINIX
     // prev interpolation exists
     if (pCtx->prev.key != -1) {
       pRateInfo->firstValue = pCtx->prev.data;
@@ -4464,7 +4465,8 @@ static void rate_function(SQLFunctionCtx *pCtx) {
         pTrace("lastValue:%f lastKey:%" PRId64, pRateInfo->lastValue, pRateInfo->lastKey);
       }
     }
-*/  
+    #endif
+    
     for (int32_t i = 0; i < pCtx->size; ++i) {
       char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
       if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4520,7 +4522,8 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     if (!pCtx->hasNull) {
       assert(pCtx->size == notNullElems);
     }
-  /*
+    
+    #ifdef  NOT_EQUINIX
     if (pCtx->next.key != -1) {
       if (pCtx->next.data < pRateInfo->lastValue) {
         pRateInfo->CorrectionValue += pRateInfo->lastValue;
@@ -4531,9 +4534,10 @@ static void rate_function(SQLFunctionCtx *pCtx) {
       pRateInfo->lastKey   = pCtx->next.key;
       pCtx->next.key = -1;
       pTrace("%p get next interpolation for lastValue:%f lastKey:%" PRId64, pCtx, pRateInfo->lastValue, pRateInfo->lastKey);
-    }*/
+    }
+    #endif
   } else {
-/*
+    #ifdef  NOT_EQUINIX
     if (pCtx->next.key != -1) {
       pRateInfo->lastValue = pCtx->next.data;
       pRateInfo->lastKey   = pCtx->next.key;
@@ -4551,7 +4555,8 @@ static void rate_function(SQLFunctionCtx *pCtx) {
         pTrace("firstValue:%f firstKey:%" PRId64, pRateInfo->firstValue, pRateInfo->firstKey);
       }      
     }
-  */
+    #endif
+    
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {
       char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
       if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4607,7 +4612,8 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     if (!pCtx->hasNull) {
       assert(pCtx->size == notNullElems);
     }
-  /*
+    
+    #ifdef  NOT_EQUINIX
     if (pCtx->prev.key != -1) {
       if (pCtx->prev.data > pRateInfo->firstValue) {
         pRateInfo->CorrectionValue += pCtx->prev.data;
@@ -4619,7 +4625,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
       pCtx->prev.key = -1;
       pTrace("%p get prev interpolation for firstValue:%f firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
     }
-    */
+    #endif
   };
 
   SET_VAL(pCtx, notNullElems, 1);
@@ -4755,11 +4761,11 @@ static void rate_finalizer(SQLFunctionCtx *pCtx) {
   pTrace("%p isIRate:%d firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%f lastValue:%f CorrectionValue:%f hasResult:%d", 
           pCtx, pRateInfo->isIRate, pRateInfo->firstKey, pRateInfo->lastKey, pRateInfo->firstValue, pRateInfo->lastValue, pRateInfo->CorrectionValue, pRateInfo->hasResult);
 
-  if (pRateInfo->hasResult != DATA_SET_FLAG) {
+  if ((pRateInfo->hasResult != DATA_SET_FLAG) || (INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey)) {
     setNull(pCtx->aOutputBuf, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
     return;
   }
-  
+
   *(double*)pCtx->aOutputBuf = do_calc_rate(pRateInfo);
   
   pTrace("rate_finalizer() output result:%f", *(double *)pCtx->aOutputBuf);
@@ -4786,7 +4792,8 @@ static void irate_function(SQLFunctionCtx *pCtx) {
   if (pCtx->size < 1) {
     return;
   }
-/*
+  
+  #ifdef  NOT_EQUINIX
   // next interpolation exists
   if (pCtx->next.key != -1) {
     pRateInfo->lastValue = pCtx->next.data;
@@ -4794,7 +4801,8 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     pCtx->next.key = -1; // clear the flag
     pTrace("%p irate_function() get next interpolation for lastValue:%f lastKey:%" PRId64, pCtx, pRateInfo->lastValue, pRateInfo->lastKey);
   }
-*/
+  #endif
+  
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
     if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4842,7 +4850,8 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     pTrace("%p irate_function() firstValue:%f firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
     break;
   }
-/*
+
+  #ifdef  NOT_EQUINIX
   if (pCtx->prev.key != -1) {
     if ((INT64_MIN == pRateInfo->firstKey) || (-DBL_MAX == pRateInfo->firstValue)) {   
       pRateInfo->firstValue = pCtx->prev.data;
@@ -4851,7 +4860,8 @@ static void irate_function(SQLFunctionCtx *pCtx) {
       pTrace("%p irate_function() get prev interpolation for firstValue:%f firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
     }
   }
-*/
+  #endif
+  
   SET_VAL(pCtx, notNullElems, 1);
 
   if (notNullElems > 0) {
@@ -4935,6 +4945,10 @@ static void do_sumrate_merge(SQLFunctionCtx *pCtx) {
     if (pInput->hasResult != DATA_SET_FLAG) {
       continue;
     } else if (pInput->num == 0) {
+      if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey)) {
+        continue;
+      }
+      
       pRateInfo->sum += do_calc_rate(pInput);
       pRateInfo->num++;
     } else {
@@ -4975,6 +4989,11 @@ static void sumrate_finalizer(SQLFunctionCtx *pCtx) {
 
   if (pRateInfo->num == 0) {
       // from meter
+      if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey)) {
+        setNull(pCtx->aOutputBuf, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
+        return;
+      }
+      
       *(double*)pCtx->aOutputBuf = do_calc_rate(pRateInfo);
   } else if (pCtx->functionId == TSDB_FUNC_SUM_RATE || pCtx->functionId == TSDB_FUNC_SUM_IRATE) {
       *(double*)pCtx->aOutputBuf = pRateInfo->sum;
