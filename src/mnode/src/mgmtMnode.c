@@ -79,7 +79,7 @@ void mpeerGetMpeerInfos(void *param) {
   strcpy(mpeers->nodeInfos[0].nodeName, tsMnodeObj.mnodeName);
 }
 
-void    mpeerCleanupDnodes() {}
+void    mpeerCleanupMnodes() {}
 int32_t mpeerGetMnodesNum() { return 1; }
 void    mpeerReleaseMnode(struct _mnode_obj *pMnode) {}
 bool    mpeerInServerStatus() { return tsMnodeObj.status == TAOS_MN_STATUS_READY; }
@@ -91,12 +91,11 @@ bool    mpeerCheckRedirect() { return false; }
 int32_t mpeerInit() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
-
   return mpeerInitMnodes();
 }
 
 void mpeerCleanup() {
-  mpeerCleanupDnodes();
+  mpeerCleanupMnodes();
 }
 
 char *mpeerGetMnodeStatusStr(int32_t status) {

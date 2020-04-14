@@ -31,6 +31,10 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
     TARGET_LINK_LIBRARIES(taosd balance sync)
   ENDIF ()
 
+    IF (TD_MPEER)
+    TARGET_LINK_LIBRARIES(taosd mpeer sync)
+  ENDIF ()
+
   SET(PREPARE_ENV_CMD "prepare_env_cmd")
   SET(PREPARE_ENV_TARGET "prepare_env_target")
   ADD_CUSTOM_COMMAND(OUTPUT ${PREPARE_ENV_CMD}

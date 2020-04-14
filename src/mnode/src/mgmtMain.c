@@ -109,6 +109,11 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
+  if (mpeerInit() < 0) {
+    mError("failed to init mpeers");
+    return -1;
+  }
+
   if (sdbInit() < 0) {
     mError("failed to init sdb");
     return -1;
@@ -119,11 +124,6 @@ int32_t mgmtStartSystem() {
   }
 
   if (mgmtInitDServer() < 0) {
-    return -1;
-  }
-
-  if (mpeerInit() < 0) {
-    mError("failed to init mpeers");
     return -1;
   }
 

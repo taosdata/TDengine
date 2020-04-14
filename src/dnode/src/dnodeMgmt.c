@@ -299,3 +299,7 @@ void dnodeUpdateDnodeId(int32_t dnodeId) {
     dnodeSaveDnodeId();
   }
 }
+
+int32_t dnodeGetDnodeId() {
+  return tsDnodeId;
+}

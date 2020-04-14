@@ -34,6 +34,7 @@ typedef enum {
 
 typedef enum {
   SDB_KEY_STRING, 
+  SDB_KEY_INT,
   SDB_KEY_AUTO
 } ESdbKeyType;
 
@@ -66,8 +67,19 @@ typedef struct {
   int32_t (*updateAllFp)();
 } SSdbTableDesc;
 
+typedef struct {
+  int32_t code;
+  int64_t version;
+  void *  sync;
+  void *  wal;
+  sem_t   sem;
+  pthread_mutex_t mutex;
+} SSdbObject;
+
 int32_t sdbInit();
 void    sdbCleanUp();
+SSdbObject *sdbGetObj();
+int sdbProcessWrite(void *param, void *data, int type);
 
 void *  sdbOpenTable(SSdbTableDesc *desc);
 void    sdbCloseTable(void *handle);

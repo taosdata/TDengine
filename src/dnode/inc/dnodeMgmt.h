@@ -24,6 +24,7 @@ int32_t dnodeInitMgmt();
 void    dnodeCleanupMgmt();
 void    dnodeMgmt(SRpcMsg *rpcMsg);
 void    dnodeUpdateDnodeId(int32_t dnodeId);
+int32_t dnodeGetDnodeId();
 
 void*   dnodeGetVnode(int32_t vgId);
 int32_t dnodeGetVnodeStatus(void *pVnode);

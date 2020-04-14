@@ -45,7 +45,6 @@ struct _mnode_obj;
 
 typedef struct _mnode_obj {
   int32_t  mnodeId;
-  int32_t  dnodeId;
   int64_t  createdTime;
   int8_t   reserved[14];
   int8_t   updateEnd[1];

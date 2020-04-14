@@ -45,6 +45,11 @@ void    mpeerGetMpeerInfos(void *mpeers);
 char *  mpeerGetMnodeStatusStr(int32_t status);
 char *  mpeerGetMnodeRoleStr(int32_t role);
 
+int32_t mpeerAddMnode(int32_t dnodeId);
+int32_t mpeerRemoveMnode(int32_t dnodeId);
+
+int32_t sdbForwardDbReqToPeer(void *pHead);
+
 #ifdef __cplusplus
 }
 #endif
