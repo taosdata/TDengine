@@ -691,7 +691,7 @@ static int32_t data_req_load_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, 
 
 // todo: if  column in current data block are null, opt for this case
 static int32_t first_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSQL_SO_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -704,7 +704,7 @@ static int32_t first_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end,
 }
 
 static int32_t last_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -716,7 +716,7 @@ static int32_t last_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, 
 }
 
 static int32_t first_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSQL_SO_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -732,7 +732,7 @@ static int32_t first_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY
 }
 
 static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -1483,7 +1483,7 @@ static bool first_last_function_setup(SQLFunctionCtx *pCtx) {
 
 // todo opt for null block
 static void first_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSQL_SO_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC) {
     return;
   }
   
@@ -1513,7 +1513,7 @@ static void first_function(SQLFunctionCtx *pCtx) {
 }
 
 static void first_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  if (pCtx->order == TSQL_SO_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC) {
     return;
   }
   
@@ -1561,7 +1561,7 @@ static void first_dist_function(SQLFunctionCtx *pCtx) {
    * 1. data block that are not loaded
    * 2. scan data files in desc order
    */
-  if (pCtx->order == TSQL_SO_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC) {
     return;
   }
   
@@ -1596,7 +1596,7 @@ static void first_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     return;
   }
   
-  if (pCtx->order == TSQL_SO_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC) {
     return;
   }
   
@@ -1654,7 +1654,7 @@ static void first_dist_func_second_merge(SQLFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     return;
   }
   
@@ -1683,7 +1683,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
 }
 
 static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     return;
   }
   
@@ -1730,7 +1730,7 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
    */
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     return;
   }
   
@@ -1768,7 +1768,7 @@ static void last_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
    */
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     return;
   }
   
@@ -2420,10 +2420,10 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   
   // user specify the order of output by sort the result according to timestamp
   if (pCtx->param[1].i64Key == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-    __compar_fn_t comparator = (pCtx->param[2].i64Key == TSQL_SO_ASC) ? resAscComparFn : resDescComparFn;
+    __compar_fn_t comparator = (pCtx->param[2].i64Key == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
     qsort(tvp, pResInfo->numOfRes, POINTER_BYTES, comparator);
   } else if (pCtx->param[1].i64Key > PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-    __compar_fn_t comparator = (pCtx->param[2].i64Key == TSQL_SO_ASC) ? resDataAscComparFn : resDataDescComparFn;
+    __compar_fn_t comparator = (pCtx->param[2].i64Key == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
     qsort(tvp, pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
   
@@ -2449,7 +2449,7 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   int32_t    orderIdx = 0;
   
   // tOrderDesc object
-  tOrderDescriptor *pDesc = tOrderDesCreate(&orderIdx, NUMOFCOLS, pModel, TSQL_SO_DESC);
+  tOrderDescriptor *pDesc = tOrderDesCreate(&orderIdx, NUMOFCOLS, pModel, TSDB_ORDER_DESC);
   
   ((SPercentileInfo *)(pResInfo->interResultBuf))->pMemBucket =
       tMemBucketCreate(1024, MAX_AVAILABLE_BUFFER_SIZE, pCtx->inputBytes, pCtx->inputType, pDesc);
@@ -2916,7 +2916,7 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
   INC_INIT_VAL(pCtx, pCtx->size);
   
   char *pData = GET_INPUT_CHAR(pCtx);
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     memcpy(pCtx->aOutputBuf, pData, (size_t)pCtx->size * pCtx->inputBytes);
   } else {
     for(int32_t i = 0; i < pCtx->size; ++i) {
@@ -3011,7 +3011,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  int32_t i = (pCtx->order == TSQL_SO_ASC) ? 0 : pCtx->size - 1;
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
   
   TSKEY * pTimestamp = pCtx->ptsOutputBuf;
   
@@ -3028,7 +3028,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
+        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           
@@ -3060,7 +3060,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
+        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           
@@ -3092,7 +3092,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].dKey = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
+        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
           pOutput += 1;
@@ -3122,7 +3122,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].dKey = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
+        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
           
@@ -3155,7 +3155,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
+        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           pOutput += 1;
@@ -3186,7 +3186,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
+        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           
@@ -3298,17 +3298,17 @@ char *arithmetic_callback_function(void *param, char *name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
   
   SSqlFunctionExpr *pExpr = pSupport->pExpr;
-  int32_t           colIndexInBuf = -1;
+  int32_t           colIndex = -1;
   
   for (int32_t i = 0; i < pExpr->binExprInfo.numOfCols; ++i) {
     if (colId == pExpr->binExprInfo.pReqColumns[i].colId) {
-      colIndexInBuf = pExpr->binExprInfo.pReqColumns[i].colIdxInBuf;
+      colIndex = pExpr->binExprInfo.pReqColumns[i].colIndex;
       break;
     }
   }
   
-  assert(colIndexInBuf >= 0 && colId >= 0);
-  return pSupport->data[colIndexInBuf] + pSupport->offset * pSupport->elemSize[colIndexInBuf];
+  assert(colIndex >= 0 && colId >= 0);
+  return pSupport->data[colIndex] + pSupport->offset * pSupport->elemSize[colIndex];
 }
 
 static void arithmetic_function(SQLFunctionCtx *pCtx) {
@@ -3576,121 +3576,6 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
   
   GET_RES_INFO(pCtx)->numOfRes = 1;  // todo add test case
   doFinalizer(pCtx);
-}
-
-/*
- * Compare two strings
- *    TSDB_MATCH:            Match
- *    TSDB_NOMATCH:          No match
- *    TSDB_NOWILDCARDMATCH:  No match in spite of having * or % wildcards.
- * Like matching rules:
- *      '%': Matches zero or more characters
- *      '_': Matches one character
- *
- */
-int patternMatch(const char *patterStr, const char *str, size_t size, const SPatternCompareInfo *pInfo) {
-  char c, c1;
-  
-  int32_t i = 0;
-  int32_t j = 0;
-  
-  while ((c = patterStr[i++]) != 0) {
-    if (c == pInfo->matchAll) { /* Match "*" */
-      
-      while ((c = patterStr[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
-        if (c == pInfo->matchOne && (j > size || str[j++] == 0)) {
-          // empty string, return not match
-          return TSDB_PATTERN_NOWILDCARDMATCH;
-        }
-      }
-      
-      if (c == 0) {
-        return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
-      }
-      
-      char next[3] = {toupper(c), tolower(c), 0};
-      while (1) {
-        size_t n = strcspn(str, next);
-        str += n;
-        
-        if (str[0] == 0 || (n >= size - 1)) {
-          break;
-        }
-        
-        int32_t ret = patternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
-        if (ret != TSDB_PATTERN_NOMATCH) {
-          return ret;
-        }
-      }
-      return TSDB_PATTERN_NOWILDCARDMATCH;
-    }
-    
-    c1 = str[j++];
-    
-    if (j <= size) {
-      if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
-        continue;
-      }
-    }
-    
-    return TSDB_PATTERN_NOMATCH;
-  }
-  
-  return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
-}
-
-int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo) {
-  wchar_t c, c1;
-  wchar_t matchOne = L'_';  // "_"
-  wchar_t matchAll = L'%';  // "%"
-  
-  int32_t i = 0;
-  int32_t j = 0;
-  
-  while ((c = patterStr[i++]) != 0) {
-    if (c == matchAll) { /* Match "%" */
-      
-      while ((c = patterStr[i++]) == matchAll || c == matchOne) {
-        if (c == matchOne && (j > size || str[j++] == 0)) {
-          return TSDB_PATTERN_NOWILDCARDMATCH;
-        }
-      }
-      if (c == 0) {
-        return TSDB_PATTERN_MATCH;
-      }
-      
-      wchar_t accept[3] = {towupper(c), towlower(c), 0};
-      while (1) {
-        size_t n = wcsspn(str, accept);
-        
-        str += n;
-        if (str[0] == 0 || (n >= size - 1)) {
-          break;
-        }
-        
-        str++;
-        
-        int32_t ret = WCSPatternMatch(&patterStr[i], str, wcslen(str), pInfo);
-        if (ret != TSDB_PATTERN_NOMATCH) {
-          return ret;
-        }
-      }
-      
-      return TSDB_PATTERN_NOWILDCARDMATCH;
-    }
-    
-    c1 = str[j++];
-    
-    if (j <= size) {
-      if (c == c1 || towlower(c) == towlower(c1) || (c == matchOne && c1 != 0)) {
-        continue;
-      }
-    }
-    
-    return TSDB_PATTERN_NOMATCH;
-  }
-  
-  return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
 static void getStatics_i8(int64_t *primaryKey, int32_t type, int8_t *data, int32_t numOfRow, int64_t *min, int64_t *max,
@@ -4327,7 +4212,7 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   const char *input = GET_INPUT_CHAR(pCtx);
   
   // primary ts must be existed, so no need to check its existance
-  if (pCtx->order == TSQL_SO_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
     tsBufAppend(pTSbuf, 0, pCtx->tag.i64Key, input, pCtx->size * TSDB_KEYSIZE);
   } else {
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {

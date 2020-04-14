@@ -358,7 +358,7 @@ typedef struct {
   int32_t vgId;
 } SMDDropVnodeMsg;
 
-typedef struct SColIndexEx {
+typedef struct SColIndex {
   int16_t colId;
   /*
    * colIdx is the index of column in latest schema of table
@@ -368,11 +368,10 @@ typedef struct SColIndexEx {
    * colIdxInBuf is used to denote the index of column in pQuery->colList,
    * this value is invalid in client side, as well as in cache block of vnode either.
    */
-  int16_t  colIdx;
-  int16_t  colIdxInBuf;
+  int16_t  colIndex;
   uint16_t flag;  // denote if it is a tag or not
   char     name[TSDB_COL_NAME_LEN];
-} SColIndexEx;
+} SColIndex;
 
 /* sql function msg, to describe the message to vnode about sql function
  * operations in select clause */
@@ -380,7 +379,7 @@ typedef struct SSqlFuncExprMsg {
   int16_t functionId;
   int16_t numOfParams;
 
-  SColIndexEx colInfo;
+  SColIndex colInfo;
   struct ArgElem {
     int16_t argType;
     int16_t argBytes;
@@ -395,7 +394,7 @@ typedef struct SSqlFuncExprMsg {
 typedef struct SSqlBinaryExprInfo {
   struct tExprNode *pBinExpr;    /*  for binary expression */
   int32_t           numOfCols;   /*  binary expression involves the readed number of columns*/
-  SColIndexEx *     pReqColumns; /*  source column list */
+  SColIndex *     pReqColumns;   /*  source column list */
 } SSqlBinaryExprInfo;
 
 typedef struct SSqlFunctionExpr {
@@ -467,7 +466,6 @@ typedef struct {
   int64_t     slidingTime;      // value for sliding window
   char        slidingTimeUnit;  // time interval type, for revisement of interval(1d)
   uint16_t    tagCondLen;       // tag length in current query
-  uint16_t    nameCondLen;      // table name in/like query expression string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -510,12 +508,11 @@ typedef struct SRetrieveTableRsp {
 
 typedef struct {
   int32_t vgId;
-  int32_t vnode;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
   uint8_t status;
-  uint8_t syncStatus;
+  uint8_t role;
   uint8_t accessState;
   uint8_t reserved[5];
 } SVnodeLoad;
@@ -580,7 +577,7 @@ typedef struct {
 typedef struct {
   uint32_t   version;
   int32_t    dnodeId;
-  char       dnodeName[TSDB_DNODE_NAME_LEN];
+  char       dnodeName[TSDB_NODE_NAME_LEN + 1];
   uint32_t   privateIp;
   uint32_t   publicIp;
   uint32_t   lastReboot;        // time stamp for last reboot
@@ -594,7 +591,20 @@ typedef struct {
 } SDMStatusMsg;
 
 typedef struct {
-  SRpcIpSet    ipList;
+  int32_t   nodeId;
+  uint32_t  nodeIp;
+  uint16_t  nodePort;
+  char      nodeName[TSDB_NODE_NAME_LEN + 1];
+} SDMNodeInfo;
+
+typedef struct {
+  int8_t       inUse;
+  int8_t       nodeNum;
+  SDMNodeInfo  nodeInfos[TSDB_MAX_MPEERS];
+} SDMNodeInfos;
+
+typedef struct {
+  SDMNodeInfos mpeers;
   SDnodeState  dnodeState;
   SVnodeAccess vnodeAccess[];
 } SDMStatusRsp;
@@ -670,7 +680,7 @@ typedef struct {
 typedef struct STableMetaMsg {
   int32_t    contLen;
   
-  char       tableId[TSDB_TABLE_ID_LEN];       // table id
+  char       tableId[TSDB_TABLE_ID_LEN];   // table id
   char       stableId[TSDB_TABLE_ID_LEN];  // stable name if it is created according to super table
   uint8_t    numOfTags;
   uint8_t    precision;

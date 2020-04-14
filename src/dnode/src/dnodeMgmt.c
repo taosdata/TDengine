@@ -20,7 +20,6 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tstatus.h"
 #include "tsdb.h"
 #include "ttime.h"
 #include "ttimer.h"
@@ -46,7 +45,7 @@ static void    *tsDnodeTmr = NULL;
 static void    *tsStatusTimer = NULL;
 static uint32_t tsRebootTime;
 static int32_t  tsDnodeId = 0;
-static char     tsDnodeName[TSDB_DNODE_NAME_LEN];
+static char     tsDnodeName[TSDB_NODE_NAME_LEN];
 
 int32_t dnodeInitMgmt() {
   dnodeReadDnodeId();
@@ -132,7 +131,7 @@ static int32_t dnodeOpenVnodes() {
   char vnodeDir[TSDB_FILENAME_LEN * 3];
   int32_t failed = 0;
 
-  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * 10000);
+  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
   int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
@@ -147,7 +146,7 @@ static int32_t dnodeOpenVnodes() {
 }
 
 static void dnodeCloseVnodes() {
-  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * 10000);
+  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
   int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {

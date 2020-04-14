@@ -32,27 +32,51 @@ typedef struct {
   SRpcMsg  rpcMsg;
 } SReadMsg;
 
+typedef struct {
+  pthread_t  thread;    // thread 
+  int32_t    workerId;  // worker ID
+} SReadWorker;
+
+typedef struct {
+  int32_t    max;       // max number of workers
+  int32_t    min;       // min number of workers
+  int32_t    num;       // current number of workers
+  SReadWorker *readWorker;
+} SReadWorkerPool;
+
 static void *dnodeProcessReadQueue(void *param);
-static void  dnodeHandleIdleReadWorker();
+static void  dnodeHandleIdleReadWorker(SReadWorker *);
 
 // module global variable
-static taos_qset readQset;
-static int32_t   threads;    // number of query threads
-static int32_t   maxThreads;
-static int32_t   minThreads;
+static SReadWorkerPool readPool;
+static taos_qset       readQset;
 
 int32_t dnodeInitRead() {
   readQset = taosOpenQset();
 
-  minThreads = 3;
-  maxThreads = tsNumOfCores * tsNumOfThreadsPerCore;
-  if (maxThreads <= minThreads * 2) maxThreads = 2 * minThreads;
+  readPool.min = 2;
+  readPool.max = tsNumOfCores * tsNumOfThreadsPerCore;
+  if (readPool.max <= readPool.min * 2) readPool.max = 2 * readPool.min;
+  readPool.readWorker = (SReadWorker *) calloc(sizeof(SReadWorker), readPool.max);
+
+  if (readPool.readWorker == NULL) return -1;
+  for (int i=0; i < readPool.max; ++i) {
+    SReadWorker *pWorker = readPool.readWorker + i;
+    pWorker->workerId = i;
+  }
 
   dPrint("dnode read is opened");
   return 0;
 }
 
 void dnodeCleanupRead() {
+
+  for (int i=0; i < readPool.max; ++i) {
+    SReadWorker *pWorker = readPool.readWorker + i;
+    if (pWorker->thread) 
+      pthread_join(pWorker->thread, NULL);
+  }
+
   taosCloseQset(readQset);
   dPrint("dnode read is closed");
 }
@@ -116,18 +140,25 @@ void *dnodeAllocateRqueue(void *pVnode) {
   taosAddIntoQset(readQset, queue, pVnode);
 
   // spawn a thread to process queue
-  if (threads < maxThreads) {
-    pthread_t thread;
-    pthread_attr_t thAttr;
-    pthread_attr_init(&thAttr);
-    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (readPool.num < readPool.max) {
+    do {
+      SReadWorker *pWorker = readPool.readWorker + readPool.num;
 
-    if (pthread_create(&thread, &thAttr, dnodeProcessReadQueue, readQset) != 0) {
-      dError("failed to create thread to process read queue, reason:%s", strerror(errno));
-    }
+      pthread_attr_t thAttr;
+      pthread_attr_init(&thAttr);
+      pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+
+      if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessReadQueue, pWorker) != 0) {
+        dError("failed to create thread to process read queue, reason:%s", strerror(errno));
+      }
+
+      pthread_attr_destroy(&thAttr);
+      readPool.num++;
+      dTrace("read worker:%d is launched, total:%d", pWorker->workerId, readPool.num);
+    } while (readPool.num < readPool.min);
   }
 
-  dTrace("pVnode:%p, queue:%p is allocated", pVnode, queue); 
+  dTrace("pVnode:%p, read queue:%p is allocated", pVnode, queue); 
 
   return queue;
 }
@@ -167,14 +198,14 @@ void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
 }
 
 static void *dnodeProcessReadQueue(void *param) {
-  taos_qset  qset = (taos_qset)param;
-  SReadMsg  *pReadMsg;
-  int        type;
-  void      *pVnode;
+  SReadWorker *pWorker = param;
+  SReadMsg    *pReadMsg;
+  int          type;
+  void        *pVnode;
 
   while (1) {
-    if (taosReadQitemFromQset(qset, &type, (void **)&pReadMsg, (void **)&pVnode) == 0) {
-      dnodeHandleIdleReadWorker();
+    if (taosReadQitemFromQset(readQset, &type, (void **)&pReadMsg, &pVnode) == 0) {
+      dnodeHandleIdleReadWorker(pWorker);
       continue;
     }
 
@@ -186,11 +217,12 @@ static void *dnodeProcessReadQueue(void *param) {
   return NULL;
 }
 
-static void dnodeHandleIdleReadWorker() {
+static void dnodeHandleIdleReadWorker(SReadWorker *pWorker) {
   int32_t num = taosGetQueueNumber(readQset);
 
-  if (num == 0 || (num <= minThreads && threads > minThreads)) {
-    threads--;
+  if (num == 0 || (num <= readPool.min && readPool.num > readPool.min)) {
+    readPool.num--;
+    dTrace("read worker:%d is released, total:%d", pWorker->workerId, readPool.num);
     pthread_exit(NULL);
   } else {
     usleep(100);

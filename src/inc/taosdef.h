@@ -147,10 +147,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
 #define TSDB_RELATION_LESS        1
-#define TSDB_RELATION_LARGE       2
+#define TSDB_RELATION_GREATER     2
 #define TSDB_RELATION_EQUAL       3
 #define TSDB_RELATION_LESS_EQUAL  4
-#define TSDB_RELATION_LARGE_EQUAL 5
+#define TSDB_RELATION_GREATER_EQUAL 5
 #define TSDB_RELATION_NOT_EQUAL   6
 #define TSDB_RELATION_LIKE        7
 
@@ -176,7 +176,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_COLUMNS          256
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_DNODE_NAME_LEN       64
+#define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       192
 #define TSDB_DB_NAME_LEN          32
 #define TSDB_COL_NAME_LEN         64
@@ -233,7 +233,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 /*
  * this is defined in CMakeList.txt
  */
-//#define TSDB_REPLICA_MAX_NUM      3
+#define TSDB_REPLICA_MAX_NUM      3
 
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
@@ -303,8 +303,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))
 #define TSDB_QUERY_RESET_TYPE(x)              ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
-#define TSQL_SO_ASC   1
-#define TSQL_SO_DESC  0
+#define TSDB_ORDER_ASC   1
+#define TSDB_ORDER_DESC  2
 
 #define TSDB_SESSIONS_PER_VNODE (300)
 #define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)

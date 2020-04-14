@@ -12,32 +12,26 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package taosSql
 
-import (
-	"context"
-	"database/sql"
-	"database/sql/driver"
-)
+#ifndef TDENGINE_ADMIN_H
+#define TDENGINE_ADMIN_H
 
-// taosSqlDriver is exported to make the driver directly accessible.
-// In general the driver is used via the database/sql package.
-type taosSQLDriver struct{}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// Open new Connection.
-// the DSN string is formatted
-func (d taosSQLDriver) Open(dsn string) (driver.Conn, error) {
-	cfg, err := parseDSN(dsn)
-	if err != nil {
-		return nil, err
-	}
-	c := &connector{
-		cfg: cfg,
-	}
-	return c.Connect(context.Background())
+#include <stdint.h>
+#include <stdbool.h>
+
+void adminInit();
+
+struct _http_server_obj_;
+
+extern void (*adminInitHandleFp)(struct _http_server_obj_* pServer);
+extern void (*opInitHandleFp)(struct _http_server_obj_* pServer);
+
+#ifdef __cplusplus
 }
+#endif
 
-func init() {
-	sql.Register("taosSql", &taosSQLDriver{})
-	taosLogInit()
-}
+#endif

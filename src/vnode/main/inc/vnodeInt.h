@@ -23,19 +23,11 @@ extern "C" {
 #include "tsync.h"
 #include "twal.h"
 
-typedef enum _VN_STATUS {
-  VN_STATUS_INIT,
-  VN_STATUS_CREATING,
-  VN_STATUS_READY,
-  VN_STATUS_CLOSING,
-  VN_STATUS_DELETING,
-} EVnStatus;
-
 typedef struct {
   int32_t      vgId;      // global vnode group ID
   int32_t      refCount;  // reference count
-  EVnStatus    status; 
-  int          role;   
+  int          status; 
+  int8_t       role;   
   int64_t      version;
   void        *wqueue;
   void        *rqueue;
@@ -49,7 +41,7 @@ typedef struct {
   SWalCfg     walCfg;
 } SVnodeObj;
 
-int  vnodeWriteToQueue(void *param, SWalHead *pHead, int type);
+int  vnodeWriteToQueue(void *param, void *pHead, int type);
 void vnodeInitWriteFp(void);
 void vnodeInitReadFp(void);
 

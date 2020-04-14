@@ -20,7 +20,6 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tstatus.h"
 #include "tsdb.h"
 #include "ttime.h"
 #include "ttimer.h"
@@ -29,15 +28,24 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 
-static void   *tsDnodeVnodesHash;
-static void    vnodeCleanUp(SVnodeObj *pVnode);
-static void    vnodeBuildVloadMsg(char *pNode, void * param);
-static int     vnodeWALCallback(void *arg);
-static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
-static int32_t vnodeReadCfg(SVnodeObj *pVnode);
+static int32_t  tsOpennedVnodes;
+static void    *tsDnodeVnodesHash;
+static void     vnodeCleanUp(SVnodeObj *pVnode);
+static void     vnodeBuildVloadMsg(char *pNode, void * param);
+static int      vnodeWalCallback(void *arg);
+static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
+static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
+static int      vnodeWalCallback(void *arg);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
+static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
+static void     vnodeNotifyRole(void *ahandle, int8_t role);
 
-static int32_t tsOpennedVnodes;
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
+
+#ifndef _VPEER
+tsync_h syncStart(const SSyncInfo *info) { return NULL; }
+int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle) { return 0; }
+#endif
 
 static void vnodeInit() {
   vnodeInitWriteFp();
@@ -54,7 +62,6 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj *pTemp = (SVnodeObj *)taosGetIntHashData(tsDnodeVnodesHash, pVnodeCfg->cfg.vgId);
-
   if (pTemp != NULL) {
     dPrint("vgId:%d, vnode already exist, pVnode:%p", pVnodeCfg->cfg.vgId, pTemp);
     return TSDB_CODE_SUCCESS;
@@ -104,14 +111,15 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeDrop(int32_t vgId) {
-  SVnodeObj *pVnode = *(SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
-  if (pVnode == NULL) {
+  SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
+  if (ppVnode == NULL || *ppVnode == NULL) {
     dTrace("vgId:%d, failed to drop, vgId not exist", vgId);
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
 
+  SVnodeObj *pVnode = *ppVnode;
   dTrace("pVnode:%p vgId:%d, vnode will be dropped", pVnode, pVnode->vgId);
-  pVnode->status = VN_STATUS_DELETING;
+  pVnode->status = TAOS_VN_STATUS_DELETING;
   vnodeCleanUp(pVnode);
  
   return TSDB_CODE_SUCCESS;
@@ -123,7 +131,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
   pVnode->vgId     = vnode;
-  pVnode->status   = VN_STATUS_INIT;
+  pVnode->status   = TAOS_VN_STATUS_INIT;
   pVnode->refCount = 1;
   pVnode->version  = 0;  
   taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
@@ -139,14 +147,27 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
   sprintf(temp, "%s/wal", rootDir);
-  pVnode->wal      = walOpen(temp, pVnode->walCfg.wals, pVnode->walCfg.commitLog);
-  pVnode->sync     = NULL;
+  pVnode->wal      = walOpen(temp, &pVnode->walCfg);
+
+  SSyncInfo syncInfo;
+  syncInfo.vgId = pVnode->vgId;
+  syncInfo.version = pVnode->version;
+  syncInfo.syncCfg = pVnode->syncCfg;
+  sprintf(syncInfo.path, "%s/tsdb/", rootDir);
+  syncInfo.ahandle = pVnode;
+  syncInfo.getWalInfo = vnodeGetWalInfo;
+  syncInfo.getFileInfo = vnodeGetFileInfo;
+  syncInfo.writeToCache = vnodeWriteToQueue;
+  syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
+  syncInfo.notifyRole = vnodeNotifyRole;
+  pVnode->sync     = syncStart(&syncInfo);;
+
   pVnode->events   = NULL;
   pVnode->cq       = NULL;
 
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
-  appH.walCallBack = vnodeWALCallback;
+  appH.walCallBack = vnodeWalCallback;
 
   sprintf(temp, "%s/tsdb", rootDir);
   void *pTsdb = tsdbOpenRepo(temp, &appH);
@@ -160,20 +181,20 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
 
-  pVnode->status = VN_STATUS_READY;
+  pVnode->status = TAOS_VN_STATUS_READY;
   dTrace("pVnode:%p vgId:%d, vnode is opened in %s", pVnode, pVnode->vgId, rootDir);
 
-  tsOpennedVnodes++;
+  atomic_add_fetch_32(&tsOpennedVnodes, 1);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t vnodeClose(int32_t vgId) {
+  SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
+  if (ppVnode == NULL || *ppVnode == NULL) return 0;
 
-  SVnodeObj *pVnode = *(SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
-  if (pVnode == NULL) return 0;
-
+  SVnodeObj *pVnode = *ppVnode;
   dTrace("pVnode:%p vgId:%d, vnode will be closed", pVnode, pVnode->vgId);
-  pVnode->status = VN_STATUS_CLOSING;
+  pVnode->status = TAOS_VN_STATUS_CLOSING;
   vnodeCleanUp(pVnode);
 
   return 0;
@@ -181,11 +202,13 @@ int32_t vnodeClose(int32_t vgId) {
 
 void vnodeRelease(void *pVnodeRaw) {
   SVnodeObj *pVnode = pVnodeRaw;
+  int32_t    vgId = pVnode->vgId;
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
+  assert(refCount >= 0);
 
   if (refCount > 0) {
-    dTrace("pVnode:%p vgId:%d, release vnode, refCount:%d", pVnode, pVnode->vgId, refCount);
+    dTrace("pVnode:%p vgId:%d, release vnode, refCount:%d", pVnode, vgId, refCount);
     return;
   }
 
@@ -197,15 +220,16 @@ void vnodeRelease(void *pVnodeRaw) {
   dnodeFreeWqueue(pVnode->wqueue);
   pVnode->wqueue = NULL;
 
-  if (pVnode->status == VN_STATUS_DELETING) {
+  if (pVnode->status == TAOS_VN_STATUS_DELETING) {
     // remove the whole directory
   }
 
-  dTrace("pVnode:%p vgId:%d, vnode is released", pVnode, pVnode->vgId);
   free(pVnode);
 
-  tsOpennedVnodes--;
-  if (tsOpennedVnodes <= 0) {
+  int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
+  dTrace("pVnode:%p vgId:%d, vnode is released, vnodes:%d", pVnode, vgId, count);
+
+  if (count <= 0) {
     taosCleanUpIntHash(tsDnodeVnodesHash);
     vnodeModuleInit = PTHREAD_ONCE_INIT;
     tsDnodeVnodesHash = NULL;
@@ -213,13 +237,13 @@ void vnodeRelease(void *pVnodeRaw) {
 }
 
 void *vnodeGetVnode(int32_t vgId) {
-  SVnodeObj *pVnode = *(SVnodeObj **) taosGetIntHashData(tsDnodeVnodesHash, vgId);
-  if (pVnode == NULL) {
+  SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
+  if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
-    return NULL;
+    assert(false);
   }
 
-  return pVnode;
+  return *ppVnode;
 }
 
 void *vnodeAccquireVnode(int32_t vgId) {
@@ -257,15 +281,15 @@ void vnodeBuildStatusMsg(void *param) {
 
 static void vnodeBuildVloadMsg(char *pNode, void * param) {
   SVnodeObj *pVnode = *(SVnodeObj **) pNode;
-  if (pVnode->status == VN_STATUS_DELETING) return;
+  if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
 
   SDMStatusMsg *pStatus = param;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
-  pLoad->vnode = htonl(pVnode->vgId);
   pLoad->status = pVnode->status;
+  pLoad->role = pVnode->role;
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
@@ -280,9 +304,25 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 }
 
 // TODO: this is a simple implement
-static int vnodeWALCallback(void *arg) {
+static int vnodeWalCallback(void *arg) {
   SVnodeObj *pVnode = arg;
   return walRenew(pVnode->wal);
+}
+
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
+  // SVnodeObj *pVnode = ahandle;
+  //tsdbGetFileInfo(pVnode->tsdb, name, index, size);
+  return 0;
+}
+
+static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
+  SVnodeObj *pVnode = ahandle;
+  return walGetWalFile(pVnode->wal, name, index);
+}
+
+static void vnodeNotifyRole(void *ahandle, int8_t role) {
+  SVnodeObj *pVnode = ahandle;
+  pVnode->role = role;
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
@@ -329,6 +369,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   if (strcmp(option[0], "wals") != 0) return TSDB_CODE_INVALID_FILE_FORMAT;
   if (wals == -1) return TSDB_CODE_INVALID_FILE_FORMAT;
   pVnode->walCfg.wals = (int8_t)wals;
+  pVnode->walCfg.keep = 0;
 
   int32_t arbitratorIp = -1;
   num = fscanf(fp, "%s %u", option[0], &arbitratorIp);

@@ -62,6 +62,7 @@ STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles) {
       // TODO
     }
   }
+  closedir(dir);
 
   return pFileH;
 }
@@ -165,7 +166,7 @@ void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) {
   }
   
   int flags = (pIter->direction == TSDB_FGROUP_ITER_FORWARD) ? TD_GE : TD_LE;
-  void *ptr = taosbsearch(&fid, pIter->base, sizeof(SFileGroup), pIter->numOfFGroups, compFGroupKey, flags);
+  void *ptr = taosbsearch(&fid, pIter->base, pIter->numOfFGroups, sizeof(SFileGroup), compFGroupKey, flags);
   if (ptr == NULL) {
     pIter->pFileGroup = NULL;
   } else {
@@ -184,7 +185,7 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
       pIter->pFileGroup += 1;
     }
   } else {
-    if (pIter->pFileGroup - 1 == pIter->base) {
+    if (pIter->pFileGroup == pIter->base) {
       pIter->pFileGroup = NULL;
     } else {
       pIter->pFileGroup -= 1;

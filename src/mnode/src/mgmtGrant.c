@@ -18,7 +18,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "mgmtGrant.h"
+#include "tgrant.h"
 
 int32_t grantInit() { return TSDB_CODE_SUCCESS; }
 void    grantCleanUp() {}

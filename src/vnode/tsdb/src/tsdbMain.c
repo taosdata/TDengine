@@ -6,9 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/sendfile.h>
+#include <tlog.h>
 #include <unistd.h>
 
 // #include "taosdef.h"
@@ -267,6 +268,9 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   tsdbFreeMeta(pRepo->tsdbMeta);
 
   tsdbFreeCache(pRepo->tsdbCache);
+
+  tfree(pRepo->rootDir);
+  tfree(pRepo);
 
   return 0;
 }
@@ -738,6 +742,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
   if (pTable == NULL) {
+    dError("failed to get table for insert, uid:%" PRIu64 ", tid:%d", tableId.uid, tableId.tid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
 
@@ -770,7 +775,6 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     if (dataRowKey(row) > maxKey) break;
 
     tdAppendDataRowToDataCol(row, pCols);
-
     numOfRows++;
   } while (tSkipListIterNext(pIter));
 
@@ -810,6 +814,13 @@ static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables)
   }
 
   return iters;
+}
+
+static void tsdbFreeMemTable(SMemTable *pMemTable) {
+  if (pMemTable) {
+    tSkipListDestroy(pMemTable->pData);
+    free(pMemTable);
+  }
 }
 
 // Commit to file
@@ -862,13 +873,15 @@ _exit:
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
+  tdListFree(pCache->imem->list);
   free(pCache->imem);
   pCache->imem = NULL;
   pRepo->commit = 0;
   // TODO: free the skiplist
   for (int i = 0; i < pCfg->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
-    if (pTable && pTable->imem) {  // Here has memory leak
+    if (pTable && pTable->imem) {
+      tsdbFreeMemTable(pTable->imem);
       pTable->imem = NULL;
     }
   }

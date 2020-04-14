@@ -19,7 +19,6 @@ tests/test/
 tests/taoshebei/
 tests/taoscsv/
 tests/taosdalipu/
-tests/pytest/
 tests/jenkins/
 tests/hdfs/
 *.iml

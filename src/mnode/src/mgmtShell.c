@@ -19,16 +19,15 @@
 #include "taoserror.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tstatus.h"
 #include "tsched.h"
 #include "dnode.h"
 #include "mnode.h"
-#include "mgmtAcct.h"
-#include "mgmtBalance.h"
+#include "taccount.h"
+#include "tbalance.h"
 #include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtGrant.h"
-#include "mgmtMnode.h"
+#include "tcluster.h"
+#include "tgrant.h"
+#include "mpeer.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -129,19 +128,28 @@ void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
   taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
 }
 
+static void mgmtDoDealyedAddToShellQueue(void *param, void *tmrId) {
+  mgmtAddToShellQueue(param);
+}
+
+void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
+  void *unUsed = NULL;
+  taosTmrReset(mgmtDoDealyedAddToShellQueue, 1000, queuedMsg, tsMgmtTmr, &unUsed);
+}
+
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   if (rpcMsg == NULL || rpcMsg->pCont == NULL) {
     return;
   }
 
-  if (mgmtCheckRedirect(rpcMsg->handle)) {
+  if (mpeerCheckRedirect()) {
     // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
 
-  if (!mgmtInServerStatus()) {
+  if (!mpeerInServerStatus()) {
     mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
     return;
@@ -179,6 +187,28 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   }
 }
 
+char *mgmtGetShowTypeStr(int32_t showType) {
+  switch (showType) {
+    case TSDB_MGMT_TABLE_ACCT:    return "show accounts";
+    case TSDB_MGMT_TABLE_USER:    return "show users";
+    case TSDB_MGMT_TABLE_DB:      return "show databases";
+    case TSDB_MGMT_TABLE_TABLE:   return "show tables";
+    case TSDB_MGMT_TABLE_DNODE:   return "show dnodes";
+    case TSDB_MGMT_TABLE_MNODE:   return "show mnodes";
+    case TSDB_MGMT_TABLE_VGROUP:  return "show vgroups";
+    case TSDB_MGMT_TABLE_METRIC:  return "show stables";
+    case TSDB_MGMT_TABLE_MODULE:  return "show modules";
+    case TSDB_MGMT_TABLE_QUERIES: return "show queries";
+    case TSDB_MGMT_TABLE_STREAMS: return "show streams";
+    case TSDB_MGMT_TABLE_CONFIGS: return "show configs";
+    case TSDB_MGMT_TABLE_CONNS:   return "show connections";
+    case TSDB_MGMT_TABLE_SCORES:  return "show scores";
+    case TSDB_MGMT_TABLE_GRANTS:  return "show grants";
+    case TSDB_MGMT_TABLE_VNODES:  return "show vnodes";
+    default:                      return "undefined";
+  }
+}
+
 static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
   SCMShowMsg *pShowMsg = pMsg->pCont;
   if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
@@ -187,7 +217,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
   }
 
   if (!tsMgmtShowMetaFp[pShowMsg->type] || !tsMgmtShowRetrieveFp[pShowMsg->type]) {
-    mError("show type:%s is not support", taosGetShowTypeStr(pShowMsg->type));
+    mError("show type:%s is not support", mgmtGetShowTypeStr(pShowMsg->type));
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OPS_NOT_SUPPORT);
     return;
   }
@@ -209,7 +239,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
   mgmtSaveQhandle(pShow);
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
-  mTrace("show:%p, type:%s, start to get meta", pShow, taosGetShowTypeStr(pShowMsg->type));
+  mTrace("show:%p, type:%s, start to get meta", pShow, mgmtGetShowTypeStr(pShowMsg->type));
   int32_t code = (*tsMgmtShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->thandle);
   if (code == 0) {
     SRpcMsg rpcRsp = {
@@ -220,7 +250,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
     };
     rpcSendResponse(&rpcRsp);
   } else {
-    mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, taosGetShowTypeStr(pShowMsg->type), tstrerror(code));
+    mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, mgmtGetShowTypeStr(pShowMsg->type), tstrerror(code));
     mgmtFreeQhandle(pShow);
     SRpcMsg rpcRsp = {
       .handle  = pMsg->thandle,
@@ -248,7 +278,7 @@ static void mgmtProcessRetrieveMsg(SQueuedMsg *pMsg) {
   }
 
   SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
-  mTrace("show:%p, type:%s, retrieve data", pShow, taosGetShowTypeStr(pShow->type));
+  mTrace("show:%p, type:%s, retrieve data", pShow, mgmtGetShowTypeStr(pShow->type));
 
   if (!mgmtCheckQhandle(pRetrieve->qhandle)) {
     mError("pShow:%p, query memory is corrupted", pShow);
@@ -307,9 +337,9 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
   }
 
   if (pMsg->usePublicIp) {
-    mgmtGetMnodePublicIpList(&pHBRsp->ipList);
+    mpeerGetPublicIpList(&pHBRsp->ipList);
   } else {
-    mgmtGetMnodePrivateIpList(&pHBRsp->ipList);
+    mpeerGetPrivateIpList(&pHBRsp->ipList);
   }
 
   /*
@@ -338,11 +368,11 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
   SUserObj *pUser = mgmtGetUser(user);
   if (pUser == NULL) {
     *secret = 0;
-    mgmtDecUserRef(pUser);
+    mgmtReleaseUser(pUser);
     return TSDB_CODE_INVALID_USER;
   } else {
     memcpy(secret, pUser->pass, TSDB_KEY_LEN);
-    mgmtDecUserRef(pUser);
+    mgmtReleaseUser(pUser);
     return TSDB_CODE_SUCCESS;
   }
 }
@@ -393,9 +423,9 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   pConnectRsp->superAuth = pUser->superAuth;
 
   if (pMsg->usePublicIp) {
-    mgmtGetMnodePublicIpList(&pConnectRsp->ipList);
+    mpeerGetPublicIpList(&pConnectRsp->ipList);
   } else {
-    mgmtGetMnodePrivateIpList(&pConnectRsp->ipList);
+    mpeerGetPrivateIpList(&pConnectRsp->ipList);
   }
 
 connect_over:

@@ -31,6 +31,7 @@ void mgmtAddShellShowMetaHandle(uint8_t showType, SShowMetaFp fp);
 void mgmtAddShellShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
 
 void mgmtAddToShellQueue(SQueuedMsg *queuedMsg);
+void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg);
 void mgmtSendSimpleResp(void *thandle, int32_t code);
 
 #ifdef __cplusplus

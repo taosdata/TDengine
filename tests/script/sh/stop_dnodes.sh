@@ -6,8 +6,10 @@ if [ -n "$PID" ]; then
 	sudo systemctl stop taosd
 fi
   
-PID=`ps -ef|grep taosd | grep -v grep | awk '{print $2}'`
-if [ -n "$PID" ]; then 
+PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+while [ -n "$PID" ]; do
 	echo sudo kill -9 $PID 
-	sudo kill -9 $PID
-fi 
+	sudo pkill -9 taosd
+  sudo fuser -k -n tcp 6030
+  PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+done

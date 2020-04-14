@@ -16,8 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
+#include "taccount.h"
+#include "tcluster.h"
 #include "mgmtDb.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
 #include "mgmtTable.h"
@@ -679,8 +681,7 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
 
 void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
@@ -703,8 +704,7 @@ void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
 
 void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
@@ -727,8 +727,7 @@ void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
 
 void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
+  
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
@@ -787,12 +786,12 @@ void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg) {
 void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
   if (pMsg != NULL) {
     rpcFreeCont(pMsg->pCont);
-    if (pMsg->pUser) mgmtDecUserRef(pMsg->pUser);
-    if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
-    if (pMsg->pVgroup) mgmtDecVgroupRef(pMsg->pVgroup);
+    if (pMsg->pUser) mgmtReleaseUser(pMsg->pUser);
+    if (pMsg->pDb) mgmtReleaseDb(pMsg->pDb);
+    if (pMsg->pVgroup) mgmtReleaseVgroup(pMsg->pVgroup);
     if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
-    // if (pMsg->pAcct) acctDecRef(pMsg->pAcct);
-    // if (pMsg->pDnode) mgmtDecTableRef(pMsg->pDnode);
+    if (pMsg->pAcct) acctReleaseAcct(pMsg->pAcct);
+    if (pMsg->pDnode) clusterReleaseDnode(pMsg->pDnode);
     free(pMsg);
   }
 }
@@ -804,6 +803,8 @@ void* mgmtCloneQueuedMsg(SQueuedMsg *pSrcMsg) {
   pDestMsg->msgType = pSrcMsg->msgType;
   pDestMsg->pCont   = pSrcMsg->pCont;
   pDestMsg->contLen = pSrcMsg->contLen;
+  pDestMsg->retry   = pSrcMsg->retry;
+  pDestMsg->maxRetry= pSrcMsg->maxRetry;
   pDestMsg->pUser   = pSrcMsg->pUser;
   pDestMsg->usePublicIp = pSrcMsg->usePublicIp;
 

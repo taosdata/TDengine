@@ -122,12 +122,14 @@ void httpStopSystem() {
   if (httpServer != NULL) {
     httpServer->online = false;
   }
+  tgCleanupHandle();
 }
 
 void httpCleanUpSystem() {
   httpPrint("http service cleanup");
   httpStopSystem();
-#if 0
+
+#if 1
   if (httpServer == NULL) {
     return;
   }

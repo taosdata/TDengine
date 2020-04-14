@@ -13,20 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _rpc_client_header_
-#define _rpc_client_header_
+#ifndef TDENGINE_GTANT_H
+#define TDENGINE_GTANT_H
 
 #ifdef __cplusplus
-extern "C" {
+"C" {
 #endif
 
-#include "taosdef.h"
+typedef enum {
+  TSDB_GRANT_ALL,
+  TSDB_GRANT_TIME,
+  TSDB_GRANT_USER,
+  TSDB_GRANT_DB,
+  TSDB_GRANT_TIMESERIES,
+  TSDB_GRANT_DNODE,
+  TSDB_GRANT_ACCT,
+  TSDB_GRANT_STORAGE,
+  TSDB_GRANT_SPEED,
+  TSDB_GRANT_QUERY_TIME,
+  TSDB_GRANT_CONNS,
+  TSDB_GRANT_STREAMS,
+  TSDB_GRANT_CPU_CORES,
+} EGrantType;
 
-void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle);
-void taosCleanUpTcpClient(void *chandle);
-void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port);
-void taosCloseTcpClientConnection(void *chandle);
-int  taosSendTcpClientData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
+int32_t grantInit();
+void    grantCleanUp();
+void    grantParseParameter();
+int32_t grantCheck(EGrantType grant);
+void    grantReset(EGrantType grant, uint64_t value);
+void    grantAdd(EGrantType grant, uint64_t value);
+void    grantRestore(EGrantType grant, uint64_t value);
 
 #ifdef __cplusplus
 }

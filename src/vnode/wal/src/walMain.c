@@ -36,6 +36,7 @@
 
 typedef struct {
   int      fd;
+  int      keep;
   int      level;
   int      max;  // maximum number of wal files
   uint32_t id;   // increase continuously
@@ -48,19 +49,20 @@ typedef struct {
 int wDebugFlag = 135;
 
 static uint32_t walSignature = 0xFAFBFDFE;
-static int walHandleExistingFiles(char *path);
-static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SWalHead *, int));
-static int walRemoveWalFiles(char *path);
+static int walHandleExistingFiles(const char *path);
+static int walRestoreWalFile(const char *name, void *pVnode, FWalWrite writeFp);
+static int walRemoveWalFiles(const char *path);
 
-void *walOpen(char *path, int max, int level) {
+void *walOpen(const char *path, const SWalCfg *pCfg) {
   SWal *pWal = calloc(sizeof(SWal), 1);
   if (pWal == NULL) return NULL;
 
   pWal->fd = -1;
-  pWal->max = max;
+  pWal->max = pCfg->wals;
   pWal->id = 0;
   pWal->num = 0;
-  pWal->level = level;
+  pWal->level = pCfg->commitLog;
+  pWal->keep = pCfg->keep;
   strcpy(pWal->path, path);
   pthread_mutex_init(&pWal->mutex, NULL);
 
@@ -82,18 +84,21 @@ void *walOpen(char *path, int max, int level) {
 void walClose(void *handle) {
   if (handle == NULL) return;
   
-  SWal *pWal = (SWal *)handle;
-  
+  SWal *pWal = handle;  
   close(pWal->fd);
 
-  // remove all files in the directory
-  for (int i=0; i<pWal->num; ++i) {
-    sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
-    if (remove(pWal->name) <0) {
-      wError("wal:%s, failed to remove", pWal->name);
-    } else {
-      wTrace("wal:%s, it is removed", pWal->name);
+  if (pWal->keep == 0) {
+    // remove all files in the directory
+    for (int i=0; i<pWal->num; ++i) {
+      sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
+      if (remove(pWal->name) <0) {
+        wError("wal:%s, failed to remove", pWal->name);
+      } else {
+        wTrace("wal:%s, it is removed", pWal->name);
+      }
     }
+  } else {
+    wTrace("wal:%s, it is closed and kept", pWal->name);
   }
 
   pthread_mutex_destroy(&pWal->mutex);
@@ -101,8 +106,8 @@ void walClose(void *handle) {
   free(pWal);
 }
 
-int walRenew(twal_h handle) {
-  SWal *pWal = (SWal *)handle;
+int walRenew(void *handle) {
+  SWal *pWal = handle;
   int   code = 0;
   
   pthread_mutex_lock(&pWal->mutex);
@@ -144,7 +149,7 @@ int walRenew(twal_h handle) {
 }
 
 int walWrite(void *handle, SWalHead *pHead) {
-  SWal *pWal = (SWal *)handle;
+  SWal *pWal = handle;
   int   code = 0;
 
   // no wal  
@@ -164,14 +169,14 @@ int walWrite(void *handle, SWalHead *pHead) {
 
 void walFsync(void *handle) {
 
-  SWal *pWal = (SWal *)handle;
+  SWal *pWal = handle;
 
   if (pWal->level == TAOS_WAL_FSYNC) 
     fsync(pWal->fd);
 }
 
-int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, SWalHead *, int)) {
-  SWal    *pWal = (SWal *)handle;
+int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) {
+  SWal    *pWal = handle;
   int      code = 0;
   struct   dirent *ent;
   int      count = 0;
@@ -223,7 +228,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, SWalHead *, in
 }
 
 int walGetWalFile(void *handle, char *name, uint32_t *index) {
-  SWal   *pWal = (SWal *)handle;
+  SWal   *pWal = handle;
   int     code = 1;
   int32_t first = 0; 
 
@@ -247,7 +252,7 @@ int walGetWalFile(void *handle, char *name, uint32_t *index) {
   return code;
 }  
 
-static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SWalHead *, int)) {
+static int walRestoreWalFile(const char *name, void *pVnode, FWalWrite writeFp) {
   int code = 0;
 
   char *buffer = malloc(1024000);  // size for one record
@@ -293,7 +298,7 @@ static int walRestoreWalFile(char *name, void *pVnode, int (*writeFp)(void *, SW
   return code;
 }
 
-int walHandleExistingFiles(char *path) {
+int walHandleExistingFiles(const char *path) {
   int    code = 0;
   char   oname[TSDB_FILENAME_LEN * 3];
   char   nname[TSDB_FILENAME_LEN * 3];
@@ -335,7 +340,7 @@ int walHandleExistingFiles(char *path) {
   return code;
 }
 
-static int walRemoveWalFiles(char *path) {
+static int walRemoveWalFiles(const char *path) {
   int    plen = strlen(walPrefix);
   char   name[TSDB_FILENAME_LEN * 3];
   int    code = 0;

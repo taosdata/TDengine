@@ -13,31 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_ACCT_H
-#define TDENGINE_MGMT_ACCT_H
+#ifndef _rpc_tcp_header_
+#define _rpc_tcp_header_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "mnode.h"
 
-typedef enum {
-  TSDB_ACCT_USER,
-  TSDB_ACCT_DB,
-  TSDB_ACCT_TABLE
-} EAcctGrantType;
+void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
+void taosCleanUpTcpServer(void *param);
 
-int32_t   acctInit();
-void      acctCleanUp();
-SAcctObj *acctGetAcct(char *acctName);
-void      acctIncRef(SAcctObj *pAcct);
-void      acctDecRef(SAcctObj *pAcct);
-int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type);
+void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle);
+void taosCleanUpTcpClient(void *chandle);
+void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port);
 
-void      acctAddDb(SAcctObj *pAcct, SDbObj *pDb);
-void      acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb);
-void      acctAddUser(SAcctObj *pAcct, SUserObj *pUser);
-void      acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser);
+void taosCloseTcpConnection(void *chandle);
+int  taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
 
 #ifdef __cplusplus
 }

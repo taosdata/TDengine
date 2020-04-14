@@ -21,8 +21,8 @@
 
 #define ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord)     \
   {                                                                                                   \
-    int32_t i = ((_ord) == TSQL_SO_ASC) ? 0 : MAX(len1, len2) - 1;                                    \
-    int32_t step = ((_ord) == TSQL_SO_ASC) ? 1 : -1;                                                  \
+    int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                    \
+    int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                                  \
                                                                                                       \
     if ((len1) == (len2)) {                                                                           \
       for (; i < (len2) && i >= 0; i += step, (out) += 1) {                                        \
@@ -53,8 +53,8 @@
 
 #define ARRAY_LIST_OP_REM(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord) \
   {                                                                                                   \
-    int32_t i = (_ord == TSQL_SO_ASC) ? 0 : MAX(len1, len2) - 1;                                      \
-    int32_t step = (_ord == TSQL_SO_ASC) ? 1 : -1;                                                    \
+    int32_t i = (_ord == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                      \
+    int32_t step = (_ord == TSDB_ORDER_ASC) ? 1 : -1;                                                    \
                                                                                                       \
     if (len1 == (len2)) {                                                                             \
       for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                        \
@@ -107,8 +107,8 @@ void calc_fn_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t *pRight = (int32_t *)right;
   double * pOutput = (double *)output;
 
-  int32_t i = (order == TSQL_SO_ASC) ? 0 : MAX(numLeft, numRight) - 1;
-  int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
+  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : MAX(numLeft, numRight) - 1;
+  int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
     for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
@@ -305,8 +305,8 @@ void calc_fn_i32_i32_sub(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t *pRight = (int32_t *)right;
   double * pOutput = (double *)output;
 
-  int32_t i = (order == TSQL_SO_ASC) ? 0 : MAX(numLeft, numRight) - 1;
-  int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
+  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : MAX(numLeft, numRight) - 1;
+  int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
     for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
@@ -516,8 +516,8 @@ void calc_fn_i32_i32_multi(void *left, void *right, int32_t numLeft, int32_t num
   int32_t *pRight = (int32_t *)right;
   double * pOutput = (double *)output;
 
-  int32_t i = (order == TSQL_SO_ASC) ? 0 : MAX(numLeft, numRight) - 1;
-  int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
+  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : MAX(numLeft, numRight) - 1;
+  int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
     for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
@@ -714,8 +714,8 @@ void calc_fn_i32_i32_div(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t *pRight = (int32_t *)right;
   double * pOutput = (double *)output;
 
-  int32_t i = (order == TSQL_SO_ASC) ? 0 : MAX(numLeft, numRight) - 1;
-  int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
+  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : MAX(numLeft, numRight) - 1;
+  int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
     for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
@@ -928,8 +928,8 @@ void calc_fn_i32_i32_rem(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t *pRight = (int32_t *)right;
   double * pOutput = (double *)output;
 
-  int32_t i = (order == TSQL_SO_ASC) ? 0 : MAX(numLeft, numRight) - 1;
-  int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
+  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : MAX(numLeft, numRight) - 1;
+  int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
     for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
@@ -986,8 +986,8 @@ void calc_fn_i32_d_rem(void *left, void *right, int32_t numLeft, int32_t numRigh
   double * pRight = (double *)right;
   double * pOutput = (double *)output;
 
-  int32_t i = (order == TSQL_SO_ASC) ? 0 : MAX(numLeft, numRight) - 1;
-  int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
+  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : MAX(numLeft, numRight) - 1;
+  int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
     for (; i >= 0 && i < numRight; i += step, pOutput += 1) {

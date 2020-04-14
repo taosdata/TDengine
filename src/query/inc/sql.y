@@ -466,9 +466,9 @@ item(A) ::= ids(X) cpxName(Y).   {
 }
 
 %type sortorder {int}
-sortorder(A) ::= ASC.           {A = TSQL_SO_ASC; }
-sortorder(A) ::= DESC.          {A = TSQL_SO_DESC;}
-sortorder(A) ::= .              {A = TSQL_SO_ASC;}  //default is descend order
+sortorder(A) ::= ASC.           {A = TSDB_ORDER_ASC; }
+sortorder(A) ::= DESC.          {A = TSDB_ORDER_DESC;}
+sortorder(A) ::= .              {A = TSDB_ORDER_ASC;}  //default is descend order
 
 //group by clause
 %type groupby_opt {tVariantList*}

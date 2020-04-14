@@ -225,8 +225,9 @@ SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
 int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
 int         tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname);
 
-#define TSDB_FGROUP_ITER_FORWARD 0
-#define TSDB_FGROUP_ITER_BACKWARD 1
+#define TSDB_FGROUP_ITER_FORWARD  TSDB_ORDER_ASC
+#define TSDB_FGROUP_ITER_BACKWARD TSDB_ORDER_DESC
+
 typedef struct {
   int         numOfFGroups;
   SFileGroup *base;

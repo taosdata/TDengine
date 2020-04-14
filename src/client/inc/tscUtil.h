@@ -24,6 +24,7 @@ extern "C" {
  * @date   2018/09/30
  */
 #include "os.h"
+#include "tbuffer.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
 #include "tscSecondaryMerge.h"
@@ -176,8 +177,8 @@ void tscIncStreamExecutionCount(void* pStream);
 bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
-SCond* tsGetSTableQueryCondPos(STagCond* pCond, uint64_t tableIndex);
-void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
+SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);
+void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBuffer* pBuf);
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);
@@ -199,7 +200,7 @@ int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQuer
 STableMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index);
 void            tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
 
-STableMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta, SSuperTableMeta* pMetricMeta,
+STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta, SArray* vgroupList,
                                     int16_t numOfTags, int16_t* tags);
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);

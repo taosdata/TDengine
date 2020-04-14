@@ -16,7 +16,7 @@
 #include "os.h"
 
 typedef struct _str_node_t {
-  uint64_t             key;
+  uint64_t            key;
   struct _str_node_t *prev;
   struct _str_node_t *next;
   char                data[];
@@ -24,10 +24,10 @@ typedef struct _str_node_t {
 
 typedef struct {
   IHashNode **hashList;
+  int64_t    *lockedBy;
   int32_t     maxSessions;
   int32_t     dataSize;
   int32_t   (*hashFp)(void *, uint64_t key);
-  pthread_mutex_t mutex;
 } IHashObj;
 
 int32_t taosHashInt(void *handle, uint64_t key) {
@@ -35,6 +35,9 @@ int32_t taosHashInt(void *handle, uint64_t key) {
   int32_t   hash = key % pObj->maxSessions;
   return hash;
 }
+
+static void taosLockIntHash(IHashObj *pObj, int hash);
+static void taosUnlockIntHash(IHashObj *pObj, int hash);
 
 char *taosAddIntHash(void *handle, uint64_t key, char *pData) {
   int32_t    hash;
@@ -50,7 +53,7 @@ char *taosAddIntHash(void *handle, uint64_t key, char *pData) {
   if (pNode == NULL)
     return NULL;
   
-  pthread_mutex_lock(&pObj->mutex);
+  taosLockIntHash(pObj, hash);
 
   pNode->key = key;
   if (pData != NULL) {
@@ -62,7 +65,7 @@ char *taosAddIntHash(void *handle, uint64_t key, char *pData) {
   if (pObj->hashList[hash] != 0) (pObj->hashList[hash])->prev = pNode;
   pObj->hashList[hash] = pNode;
 
-  pthread_mutex_unlock(&pObj->mutex);
+  taosUnlockIntHash(pObj, hash);
 
   return (char *)pNode->data;
 }
@@ -77,7 +80,7 @@ void taosDeleteIntHash(void *handle, uint64_t key) {
 
   hash = (*(pObj->hashFp))(pObj, key);
 
-  pthread_mutex_lock(&pObj->mutex);
+  taosLockIntHash(pObj, hash);
 
   pNode = pObj->hashList[hash];
   while (pNode) {
@@ -100,7 +103,7 @@ void taosDeleteIntHash(void *handle, uint64_t key) {
     free(pNode);
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
+  taosUnlockIntHash(pObj, hash);
 }
 
 char *taosGetIntHashData(void *handle, uint64_t key) {
@@ -113,7 +116,7 @@ char *taosGetIntHashData(void *handle, uint64_t key) {
 
   hash = (*pObj->hashFp)(pObj, key);
 
-  pthread_mutex_lock(&pObj->mutex);
+  taosLockIntHash(pObj, hash);
 
   pNode = pObj->hashList[hash];
 
@@ -125,7 +128,7 @@ char *taosGetIntHashData(void *handle, uint64_t key) {
     pNode = pNode->next;
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
+  taosUnlockIntHash(pObj, hash);
 
   if (pNode) return pNode->data;
 
@@ -152,7 +155,12 @@ void *taosInitIntHash(int32_t maxSessions, int32_t dataSize, int32_t (*fp)(void 
   }
   memset(pObj->hashList, 0, sizeof(IHashNode *) * (size_t)maxSessions);
 
-  pthread_mutex_init(&pObj->mutex, NULL);
+  pObj->lockedBy = (int64_t *)calloc(sizeof(int64_t), maxSessions);
+  if (pObj->lockedBy == NULL) {
+    free(pObj);
+    free(pObj->hashList);
+    pObj = NULL;
+  }
 
   return pObj;
 }
@@ -164,26 +172,24 @@ void taosCleanUpIntHash(void *handle) {
   pObj = (IHashObj *)handle;
   if (pObj == NULL || pObj->maxSessions <= 0) return;
 
-  pthread_mutex_lock(&pObj->mutex);
-
   if (pObj->hashList) {
     for (int32_t i = 0; i < pObj->maxSessions; ++i) {
+      taosLockIntHash(pObj, i);
+
       pNode = pObj->hashList[i];
       while (pNode) {
         pNext = pNode->next;
         free(pNode);
         pNode = pNext;
       }
+
+      taosUnlockIntHash(pObj, i);
     }
 
     free(pObj->hashList);
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
-
-  pthread_mutex_destroy(&pObj->mutex);
-
-  memset(pObj, 0, sizeof(IHashObj));
+  free(pObj->lockedBy);
   free(pObj);
 }
 
@@ -194,10 +200,10 @@ void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *)) {
   pObj = (IHashObj *)handle;
   if (pObj == NULL || pObj->maxSessions <= 0) return;
 
-  pthread_mutex_lock(&pObj->mutex);
-
   if (pObj->hashList) {
     for (int i = 0; i < pObj->maxSessions; ++i) {
+      taosLockIntHash(pObj, i);
+
       pNode = pObj->hashList[i];
       while (pNode) {
         pNext = pNode->next;
@@ -205,14 +211,12 @@ void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *)) {
         free(pNode);
         pNode = pNext;
       }
+
+      taosUnlockIntHash(pObj, i);
     }
 
     free(pObj->hashList);
   }
-
-  pthread_mutex_unlock(&pObj->mutex);
-
-  pthread_mutex_destroy(&pObj->mutex);
 
   memset(pObj, 0, sizeof(IHashObj));
   free(pObj);
@@ -225,20 +229,20 @@ void taosVisitIntHashWithFp(void *handle, int (*fp)(char *, void *), void *param
   pObj = (IHashObj *)handle;
   if (pObj == NULL || pObj->maxSessions <= 0) return;
 
-  pthread_mutex_lock(&pObj->mutex);
-
   if (pObj->hashList) {
     for (int i = 0; i < pObj->maxSessions; ++i) {
+      taosLockIntHash(pObj, i);
+
       pNode = pObj->hashList[i];
       while (pNode) {
         pNext = pNode->next;
         (*fp)(pNode->data, param);
         pNode = pNext;
       }
+
+      taosUnlockIntHash(pObj, i);
     }
   }
-
-  pthread_mutex_unlock(&pObj->mutex);
 }
 
 int32_t taosGetIntHashSize(void *handle) {
@@ -249,19 +253,38 @@ int32_t taosGetIntHashSize(void *handle) {
   pObj = (IHashObj *)handle;
   if (pObj == NULL || pObj->maxSessions <= 0) return 0;
 
-  pthread_mutex_lock(&pObj->mutex);
-
   if (pObj->hashList) {
     for (int i = 0; i < pObj->maxSessions; ++i) {
+      taosLockIntHash(pObj, i);
+
       pNode = pObj->hashList[i];
       while (pNode) {
         pNext = pNode->next;
         num++;
         pNode = pNext;
       }
+
+      taosUnlockIntHash(pObj, i);
     }
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
   return num;
 }
+
+static void taosLockIntHash(IHashObj *pObj, int hash) {
+  int64_t tid = taosGetPthreadId();
+  int     i = 0;
+  while (atomic_val_compare_exchange_64(&(pObj->lockedBy[hash]), 0, tid) != 0) {
+    if (++i % 1000 == 0) {
+      sched_yield();
+    }
+  }
+}
+
+static void taosUnlockIntHash(IHashObj *pObj, int hash) {
+  int64_t tid = taosGetPthreadId();
+  if (atomic_val_compare_exchange_64(&(pObj->lockedBy[hash]), tid, 0) != tid) {
+    assert(false);
+  }
+}
+

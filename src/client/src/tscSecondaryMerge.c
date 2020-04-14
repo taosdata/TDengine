@@ -45,7 +45,7 @@ int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
     return -1;
   }
 
-  if (pParam->groupOrderType == TSQL_SO_DESC) {  // desc
+  if (pParam->groupOrderType == TSDB_ORDER_DESC) {  // desc
     return compare_d(pDesc, pParam->numOfElems, pLocalData[pLeftIdx]->rowIdx, pLocalData[pLeftIdx]->filePage.data,
                      pParam->numOfElems, pLocalData[pRightIdx]->rowIdx, pLocalData[pRightIdx]->filePage.data);
   } else {
@@ -652,7 +652,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIdx);
+    SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
 
     int16_t inter = 0;
     int16_t type = -1;
@@ -990,7 +990,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
       savePrevRecordAndSetupInterpoInfo(pLocalReducer, pQueryInfo, pInterpoInfo);
     }
 
-    if (pQueryInfo->order.order == TSQL_SO_ASC) {
+    if (pQueryInfo->order.order == TSDB_ORDER_ASC) {
       for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
         TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
         int16_t     offset = getColumnModelOffset(pLocalReducer->resColModel, i);
@@ -1168,7 +1168,7 @@ bool needToMerge(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer, tFilePage
   } else {
     tOrderDescriptor *pDesc = pLocalReducer->pDesc;
     if (pDesc->orderIdx.numOfCols > 0) {
-      if (pDesc->tsOrder == TSQL_SO_ASC) {  // asc
+      if (pDesc->tsOrder == TSDB_ORDER_ASC) {  // asc
         // todo refactor comparator
         ret = compare_a(pLocalReducer->pDesc, 1, 0, pLocalReducer->prevRowOfInput, 1, 0, tmpBuffer->data);
       } else {  // desc

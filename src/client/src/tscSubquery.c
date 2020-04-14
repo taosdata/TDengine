@@ -26,7 +26,7 @@ typedef struct SInsertSupporter {
 static void freeSubqueryObj(SSqlObj* pSql);
 
 static bool doCompare(int32_t order, int64_t left, int64_t right) {
-  if (order == TSQL_SO_ASC) {
+  if (order == TSDB_ORDER_ASC) {
     return left < right;
   } else {
     return left > right;
@@ -136,8 +136,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
    * 2. only one element for each tag.
    */
   if (output1->tsOrder == -1) {
-    output1->tsOrder = TSQL_SO_ASC;
-    output2->tsOrder = TSQL_SO_ASC;
+    output1->tsOrder = TSDB_ORDER_ASC;
+    output2->tsOrder = TSDB_ORDER_ASC;
   }
 
   tsBufFlush(output1);
@@ -1005,8 +1005,8 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  int32_t numOfSubQueries = taosArrayGetSize(pTableMetaInfo->vgroupIdList);
-  assert(numOfSubQueries > 0);
+  pSql->numOfSubs = taosArrayGetSize(pTableMetaInfo->vgroupIdList);
+  assert(pSql->numOfSubs > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
   if (ret != 0) {
@@ -1017,16 +1017,15 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return pRes->code;
   }
   
-  pSql->pSubs = calloc(numOfSubQueries, POINTER_BYTES);
-  pSql->numOfSubs = numOfSubQueries;
+  pSql->pSubs = calloc(pSql->numOfSubs, POINTER_BYTES);
   
-  tscTrace("%p retrieved query data from %d vnode(s)", pSql, numOfSubQueries);
+  tscTrace("%p retrieved query data from %d vnode(s)", pSql, pSql->numOfSubs);
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
-  pState->numOfTotal = numOfSubQueries;
+  pState->numOfTotal = pSql->numOfSubs;
   pRes->code = TSDB_CODE_SUCCESS;
   
   int32_t i = 0;
-  for (; i < numOfSubQueries; ++i) {
+  for (; i < pSql->numOfSubs; ++i) {
     SRetrieveSupport *trs = (SRetrieveSupport *)calloc(1, sizeof(SRetrieveSupport));
     if (trs == NULL) {
       tscError("%p failed to malloc buffer for SRetrieveSupport, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
@@ -1070,22 +1069,22 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     tscTrace("%p sub:%p create subquery success. orderOfSub:%d", pSql, pNew, trs->subqueryIndex);
   }
   
-  if (i < numOfSubQueries) {
+  if (i < pSql->numOfSubs) {
     tscError("%p failed to prepare subquery structure and launch subqueries", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
     
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, numOfSubQueries);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->numOfSubs);
     doCleanupSubqueries(pSql, i, pState);
     return pRes->code;   // free all allocated resource
   }
   
   if (pRes->code == TSDB_CODE_QUERY_CANCELLED) {
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, numOfSubQueries);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->numOfSubs);
     doCleanupSubqueries(pSql, i, pState);
     return pRes->code;
   }
   
-  for(int32_t j = 0; j < numOfSubQueries; ++j) {
+  for(int32_t j = 0; j < pSql->numOfSubs; ++j) {
     SSqlObj* pSub = pSql->pSubs[j];
     SRetrieveSupport* pSupport = pSub->param;
     
@@ -1450,7 +1449,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
       tscTrace("%p sub:%p reach the max retry count,set global code:%d", pParentSql, pSql, code);
       atomic_val_compare_exchange_32(&pState->code, 0, code);
     } else {  // does not reach the maximum retry count, go on
-      tscTrace("%p sub:%p failed code:%d, retry:%d", pParentSql, pSql, code, trsupport->numOfRetry);
+      tscTrace("%p sub:%p failed code:%s, retry:%d", pParentSql, pSql, tstrerror(code), trsupport->numOfRetry);
       
       SSqlObj *pNew = tscCreateSqlObjForSubquery(pParentSql, trsupport, pSql);
       if (pNew == NULL) {

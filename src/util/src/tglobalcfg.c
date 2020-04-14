@@ -14,13 +14,12 @@
  */
 
 #include "os.h"
-#include <locale.h>
 
+#include "taosdef.h"
+#include "taoserror.h"
 #include "tglobalcfg.h"
 #include "tkey.h"
 #include "tlog.h"
-#include "taosdef.h"
-#include "taoserror.h"
 #include "tsocket.h"
 #include "tsystem.h"
 #include "tutil.h"
@@ -111,7 +110,12 @@ short tsDaysPerFile = 10;
 int   tsDaysToKeep = 3650;
 int   tsReplications = TSDB_REPLICA_MIN_NUM;
 
+#ifdef _MPEER
 int  tsNumOfMPeers = 3;
+#else
+int  tsNumOfMPeers = 1;
+#endif
+
 int  tsMaxShellConns = 2000;
 int  tsMaxTables = 100000;
 
@@ -552,9 +556,11 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "tblocks", &tsNumOfBlocksPerMeter, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      32, 4096, 0, TSDB_CFG_UTYPE_NONE);
+#ifdef _MPEER                     
   tsInitConfigOption(cfg++, "numOfMPeers", &tsNumOfMPeers, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
                      1, 3, 0, TSDB_CFG_UTYPE_NONE);
+#endif 
   tsInitConfigOption(cfg++, "balanceInterval", &tsBalanceStartInterval, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
                      1, 30000, 0, TSDB_CFG_UTYPE_NONE);
@@ -833,9 +839,8 @@ void tsReadGlobalLogConfig() {
 
   FILE * fp;
   char * line, *option, *value;
-  size_t len;
   int    olen, vlen;
-  char   fileName[128];
+  char   fileName[PATH_MAX] = {0};
 
   mdebugFlag = 135;
   sdbDebugFlag = 135;
@@ -851,22 +856,26 @@ void tsReadGlobalLogConfig() {
   wordfree(&full_path);
 
   tsReadLogOption("logDir", logDir);
+  
   sprintf(fileName, "%s/taos.cfg", configDir);
   fp = fopen(fileName, "r");
   if (fp == NULL) {
-    printf("\noption file:%s not found, all options are set to system default\n", fileName);
+    printf("\nconfig file:%s not found, all variables are set to default\n", fileName);
     return;
   }
-
-  line = NULL;
+  
+  size_t len = 1024;
+  line = calloc(1, len);
+  
   while (!feof(fp)) {
-    tfree(line);
-    line = option = value = NULL;
-    len = olen = vlen = 0;
+    memset(line, 0, len);
+    
+    option = value = NULL;
+    olen = vlen = 0;
 
     getline(&line, &len, fp);
-    if (line == NULL) break;
-
+    line[len - 1] = 0;
+    
     paGetToken(line, &option, &olen);
     if (olen == 0) continue;
     option[olen] = 0;
@@ -885,25 +894,26 @@ void tsReadGlobalLogConfig() {
 bool tsReadGlobalConfig() {
   tsInitGlobalConfig();
 
-  FILE * fp;
   char * line, *option, *value, *value1;
-  size_t len;
   int    olen, vlen, vlen1;
-  char   fileName[128];
+  char   fileName[PATH_MAX] = {0};
 
   sprintf(fileName, "%s/taos.cfg", configDir);
-  fp = fopen(fileName, "r");
-  if (fp == NULL) {
-  } else {
-    line = NULL;
+  FILE* fp = fopen(fileName, "r");
+  
+  size_t len = 1024;
+  line = calloc(1, len);
+  
+  if (fp != NULL) {
     while (!feof(fp)) {
-      tfree(line);
-      line = option = value = NULL;
-      len = olen = vlen = 0;
+      memset(line, 0, len);
+
+      option = value = NULL;
+      olen = vlen = 0;
 
       getline(&line, &len, fp);
-      if (line == NULL) break;
-
+      line[len - 1] = 0;
+      
       paGetToken(line, &option, &olen);
       if (olen == 0) continue;
       option[olen] = 0;
@@ -915,14 +925,15 @@ bool tsReadGlobalConfig() {
       // For dataDir, the format is:
       // dataDir    /mnt/disk1    0
       paGetToken(value + vlen + 1, &value1, &vlen1);
-
+      
       tsReadConfigOption(option, value);
     }
 
-    tfree(line);
     fclose(fp);
   }
 
+  tfree(line);
+  
   if (tsReadStorageConfig) {
     tsReadStorageConfig();
   }
@@ -976,6 +987,7 @@ bool tsReadGlobalConfig() {
     strcpy(tsLocalIp, tsPrivateIp);
   }
 
+  // todo refactor
   tsVersion = 0;
   for (int i = 0; i < 10; i++) {
     if (version[i] >= '0' && version[i] <= '9') {
@@ -984,6 +996,7 @@ bool tsReadGlobalConfig() {
       break;
     }
   }
+  
   tsVersion = 10 * tsVersion;
 
   return true;
