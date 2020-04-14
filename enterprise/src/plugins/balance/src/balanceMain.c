@@ -356,7 +356,7 @@ static bool balanceMonitorBalance() {
 // 1. reset balanceAccessSquence to zero
 // 2. reset state of dnodes to offline
 // 3. reset lastAccess of dnodes to zero
-static void balanceReset() {
+void balanceReset() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   while (1) {

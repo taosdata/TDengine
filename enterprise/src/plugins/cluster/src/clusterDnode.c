@@ -103,7 +103,7 @@ static int32_t clusterDnodeActionDecode(SSdbOperDesc *pOper) {
 }
 
 
-static int32_t clusterDnodeActionUpdateAll() {
+static int32_t clusterDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
@@ -131,7 +131,7 @@ int32_t clusterInitDnodes() {
     .encodeFp     = clusterDnodeActionEncode,
     .decodeFp     = clusterDnodeActionDecode,
     .destroyFp    = clusterDnodeActionDestroy,
-    .updateAllFp  = clusterDnodeActionUpdateAll
+    .restoredFp   = clusterDnodeActionRestored
   };
 
   tsDnodeSdb = sdbOpenTable(&tableDesc);

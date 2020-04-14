@@ -27,6 +27,7 @@
 #include "twal.h"
 #include "tgrant.h"
 #include "vnode.h"
+#include "tbalance.h"
 #include "mpeer.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -35,14 +36,19 @@
 #include "dnodeMClient.h"
 #include "dnodeMgmt.h"
 
+typedef struct {
+  void *      sync;
+  sem_t       sem;
+  int32_t     code;
+  int8_t      inUse;
+  int8_t      role;
+  SSyncCfg    cfg;
+  SSdbObject *sdb;
+} SSdbSyncObject;
+
+static SSdbSyncObject tsSdbSync = {0};
 static void *   tsMnodeSdb = NULL;
 static int32_t  tsMnodeUpdateSize = 0;
-static void *   tsMpeerSync = NULL;
-static SSyncCfg tsMpeerSyncCfg = {0};
-static int8_t   tsMpeerRole = TAOS_SYNC_ROLE_OFFLINE;
-static int8_t   tsMpeerStatus = TAOS_MN_STATUS_OFFLINE;
-static SSdbObject * tsSdbObj = NULL;
-
 static uint32_t mpeerGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
 static int      mpeerGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     mpeerNotifyRole(void *ahandle, int8_t role);
@@ -61,13 +67,11 @@ static int32_t mpeerActionInsert(SSdbOperDesc *pOper) {
     pMnode->publicIp = pDnode->publicIp;
     strcpy(pMnode->mnodeName, pDnode->dnodeName);
     pMnode->role = TAOS_SYNC_ROLE_OFFLINE;
-    pMnode->status = TAOS_MN_STATUS_OFFLINE;
   } else {
     pMnode->privateIp = inet_addr(tsPrivateIp);
     pMnode->publicIp = inet_addr(tsPublicIp);
     sprintf(pMnode->mnodeName, "n%d", 1);
-    pMnode->role = TAOS_SYNC_ROLE_MASTER;
-    pMnode->status = TAOS_MN_STATUS_READY;
+    pMnode->role = TAOS_SYNC_ROLE_OFFLINE;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -141,7 +145,7 @@ static int32_t mpeerUpdateSync() {
 
   SSyncInfo syncInfo;
   syncInfo.vgId = 1;
-  syncInfo.version = tsSdbObj->version;
+  syncInfo.version = tsSdbSync.sdb->version;
   syncInfo.syncCfg = syncCfg;
   sprintf(syncInfo.path, "%s/", tsMnodeDir);
   syncInfo.ahandle = NULL;
@@ -150,18 +154,32 @@ static int32_t mpeerUpdateSync() {
   syncInfo.writeToCache = sdbProcessWrite;
   syncInfo.confirmForward = mpeerConfirmForward; 
   syncInfo.notifyRole = mpeerNotifyRole;
-  tsMpeerSyncCfg = syncCfg;
+  tsSdbSync.cfg = syncCfg;
 
-  if (tsMpeerSync) {
-    syncReconfig(tsMpeerSync, &syncCfg);
+  if (tsSdbSync.sync) {
+    syncReconfig(tsSdbSync.sync, &syncCfg);
   } else {
-    tsMpeerSync = syncStart(&syncInfo);
+    tsSdbSync.sync = syncStart(&syncInfo);
   }
   
+  SNodesRole roles = {0};
+  syncGetNodesRole(tsSdbSync.sync, &roles);
+
+  for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
+    SMnodeObj *pMnode = mpeerGetMnode(roles.nodeId[i]);
+    if (pMnode != NULL) {
+      pMnode->role = roles.role[i];
+      if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
+        tsSdbSync.inUse = i;
+      }
+      mpeerReleaseMnode(pMnode);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mpeerActionUpdateAll() {
+static int32_t mpeerActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsMnodeSdb);
   if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
@@ -169,7 +187,8 @@ static int32_t mpeerActionUpdateAll() {
     }
   }
 
-  tsSdbObj = sdbGetObj();
+  tsSdbSync.sdb = sdbGetObj();
+  sem_init(&tsSdbSync.sem, 0, 0);
 
   return mpeerUpdateSync();
 }
@@ -191,7 +210,7 @@ int32_t mpeerInitMnodes() {
     .encodeFp     = mpeerActionEncode,
     .decodeFp     = mpeerActionDecode,
     .destroyFp    = mpeerActionDestroy,
-    .updateAllFp  = mpeerActionUpdateAll
+    .restoredFp   = mpeerActionRestored
   };
 
   tsMnodeSdb = sdbOpenTable(&tableDesc);
@@ -206,15 +225,20 @@ int32_t mpeerInitMnodes() {
 
 void mpeerCleanupMnodes() {
   sdbCloseTable(tsMnodeSdb);
-  if (tsMpeerSync) {
-    syncStop(tsMpeerSync);
-    free(tsMpeerSync);
-    tsMpeerSync = NULL;
+  if (tsSdbSync.sync) {
+    syncStop(tsSdbSync.sync);
+    free(tsSdbSync.sync);
+    sem_destroy(&tsSdbSync.sem);
+    memset(&tsSdbSync, 0, sizeof(tsSdbSync));
   }
 }
 
 int32_t mpeerGetMnodesNum() { 
   return sdbGetNumOfRows(tsMnodeSdb); 
+}
+
+void *mpeerGetMnode(int32_t mnodeId) {
+  return sdbGetRow(tsMnodeSdb, &mnodeId);
 }
 
 void *mpeerGetNextMnode(void *pNode, SMnodeObj **pMnode) { 
@@ -225,47 +249,39 @@ void mpeerReleaseMnode(struct _mnode_obj *pMnode) {
   sdbDecRef(tsMnodeSdb, pMnode);
 }
 
-bool mpeerInServerStatus() {
-  return tsMpeerStatus == TAOS_MN_STATUS_READY;
-}
-
 bool mpeerIsMaster() {
-  return tsMpeerRole == TAOS_SYNC_ROLE_MASTER;
-}
-
-bool mpeerCheckRedirect(void *handle) {
-  return !mpeerIsMaster();
+  return tsSdbSync.role == TAOS_SYNC_ROLE_MASTER;
 }
 
 void mpeerGetPrivateIpList(SRpcIpSet *ipSet) {
-  ipSet->numOfIps = tsMpeerSyncCfg.replica;
+  ipSet->numOfIps = tsSdbSync.cfg.replica;
   ipSet->inUse = 0;
   ipSet->port = htons(tsMnodeDnodePort);
-  for (int32_t i = 0; i < tsMpeerSyncCfg.replica; ++i) {
-    ipSet->ip[i] = htonl(tsMpeerSyncCfg.nodeInfo[i].nodeIp);
+  for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
+    ipSet->ip[i] = htonl(tsSdbSync.cfg.nodeInfo[i].nodeIp);
   }
 }
 
 void mpeerGetPublicIpList(SRpcIpSet *ipSet) {
-  ipSet->numOfIps = tsMpeerSyncCfg.replica;
-  ipSet->inUse = 0;
+  ipSet->numOfIps = tsSdbSync.cfg.replica;
+  ipSet->inUse = tsSdbSync.inUse;
   ipSet->port = htons(tsMnodeDnodePort);
-  for (int32_t i = 0; i < tsMpeerSyncCfg.replica; ++i) {
-    ipSet->ip[i] = htonl(tsMpeerSyncCfg.nodeInfo[i].nodeIp);
+  for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
+    ipSet->ip[i] = htonl(tsSdbSync.cfg.nodeInfo[i].nodeIp);
   }
 }
 
 void mpeerGetMpeerInfos(void *param) {
   int32_t dnodeId = dnodeGetDnodeId();
   SDMNodeInfos *mpeers = param;
-  mpeers->nodeNum = tsMpeerSyncCfg.replica;
+  mpeers->nodeNum = tsSdbSync.cfg.replica;
   mpeers->inUse = 0;
-  for (int32_t i = 0; i < tsMpeerSyncCfg.replica; ++i) {
-    mpeers->nodeInfos[0].nodeId = htonl(tsMpeerSyncCfg.nodeInfo[i].nodeId);
-    mpeers->nodeInfos[0].nodeIp = htonl(tsMpeerSyncCfg.nodeInfo[i].nodeIp);
+  for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
+    mpeers->nodeInfos[0].nodeId = htonl(tsSdbSync.cfg.nodeInfo[i].nodeId);
+    mpeers->nodeInfos[0].nodeIp = htonl(tsSdbSync.cfg.nodeInfo[i].nodeIp);
     mpeers->nodeInfos[0].nodePort = htons(tsMnodeDnodePort);
-    strcpy(mpeers->nodeInfos[0].nodeName, tsMpeerSyncCfg.nodeInfo[i].name);
-    if (tsMpeerSyncCfg.nodeInfo[i].nodeId == dnodeId) {
+    strcpy(mpeers->nodeInfos[0].nodeName, tsSdbSync.cfg.nodeInfo[i].name);
+    if (tsSdbSync.cfg.nodeInfo[i].nodeId == dnodeId) {
       mpeers->inUse = i;
     }
   }
@@ -282,28 +298,47 @@ static int mpeerGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 }
 
 static void mpeerNotifyRole(void *ahandle, int8_t role) {
-  mPrint("mnode role changed from %d to %d", tsMpeerRole, role);  
-  tsMpeerRole = role;
-  tsMpeerStatus = TAOS_MN_STATUS_READY;
+  mPrint("mnode role changed from %s to %s", syncRole[tsSdbSync.role], syncRole[role]);  
+
+  tsSdbSync.role = role;
+  if (role == TAOS_SYNC_ROLE_MASTER) {
+    balanceReset();
+  }
+  
+  if (tsSdbSync.sync != NULL) {
+    SNodesRole roles = {0};
+    syncGetNodesRole(tsSdbSync.sync, &roles);
+
+    for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
+      SMnodeObj *pMnode = mpeerGetMnode(roles.nodeId[i]);
+      if (pMnode != NULL) {
+        pMnode->role = roles.role[i];
+        if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
+          tsSdbSync.inUse = i;
+        }
+        mpeerReleaseMnode(pMnode);
+      }
+    }
+  }  
 }
 
 static void mpeerConfirmForward(void *ahandle, void *param, int32_t code) {
-  sem_post(&tsSdbObj->sem);
-  tsSdbObj->code = code;
+  sem_post(&tsSdbSync.sem);
+  tsSdbSync.code = code;
   mPrint("mpeerConfirmForward");
 }
 
-int32_t sdbForwardDbReqToPeer(void *pHead) {
-  if (tsMpeerSync == NULL) return TSDB_CODE_SUCCESS;
-  if (tsMpeerSyncCfg.replica <= 1) return TSDB_CODE_SUCCESS;
+int32_t mpeerForwardReqToPeer(void *pHead) {
+  if (tsSdbSync.sync == NULL) return TSDB_CODE_SUCCESS;
+  if (tsSdbSync.cfg.replica <= 1) return TSDB_CODE_SUCCESS;
 
   int32_t code = syncForwardToPeer(NULL, pHead, NULL);
   if (code < 0) {
     return code;
   }
   
-  sem_wait(&tsSdbObj->sem);
-  return tsSdbObj->code;
+  sem_wait(&tsSdbSync.sem);
+  return tsSdbSync.code;
 }
 
 int32_t mpeerAddMnode(int32_t dnodeId) {
@@ -347,25 +382,3 @@ int32_t mpeerRemoveMnode(int32_t dnodeId) {
   sdbDecRef(tsMnodeSdb, pMnode);
   return code;
 }
-
-// static void mpeerWorkAsMaster() {
-//   sdbLPrint("dnode:%s start to work as master", tsPrivateIp);
-
-//   pSelf->role = SDB_ROLE_MASTER;
-//   pSelf->status = SDB_STATUS_SERVING;
-//   sdbMaster = 1;
-//   tsMpeerMasterStartTime = taosGetTimestampSec();
-
-//   mpeerUpdateIpList();
-//   (*sdbWorkAsMasterCallback)();
-// }
-
-// void sdbStopWorkingAsMaster() {
-//   sdbLPrint("dnode:%s stop working as Master", tsPrivateIp);
-
-//   pSelf->role = SDB_ROLE_UNDECIDED;
-//   taosTmrReset(mpeerCheckRoleStatus, tsMgmtPeerHBTimer * 1000, NULL, tsMpeerTmr, &tsMpeerRoleTimer);
-//   sdbMaster = 0;
-
-//   mpeerUpdateIpList();
-// }
