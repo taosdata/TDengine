@@ -4444,6 +4444,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
   pTrace("%p rate_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
   
   if (pCtx->order == TSQL_SO_ASC) {
+/*
     // prev interpolation exists
     if (pCtx->prev.key != -1) {
       pRateInfo->firstValue = pCtx->prev.data;
@@ -4463,7 +4464,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
         pTrace("lastValue:%f lastKey:%" PRId64, pRateInfo->lastValue, pRateInfo->lastKey);
       }
     }
-  
+*/  
     for (int32_t i = 0; i < pCtx->size; ++i) {
       char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
       if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4519,7 +4520,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     if (!pCtx->hasNull) {
       assert(pCtx->size == notNullElems);
     }
-  
+  /*
     if (pCtx->next.key != -1) {
       if (pCtx->next.data < pRateInfo->lastValue) {
         pRateInfo->CorrectionValue += pRateInfo->lastValue;
@@ -4530,8 +4531,9 @@ static void rate_function(SQLFunctionCtx *pCtx) {
       pRateInfo->lastKey   = pCtx->next.key;
       pCtx->next.key = -1;
       pTrace("%p get next interpolation for lastValue:%f lastKey:%" PRId64, pCtx, pRateInfo->lastValue, pRateInfo->lastKey);
-    }
+    }*/
   } else {
+/*
     if (pCtx->next.key != -1) {
       pRateInfo->lastValue = pCtx->next.data;
       pRateInfo->lastKey   = pCtx->next.key;
@@ -4549,7 +4551,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
         pTrace("firstValue:%f firstKey:%" PRId64, pRateInfo->firstValue, pRateInfo->firstKey);
       }      
     }
-  
+  */
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {
       char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
       if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4605,7 +4607,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     if (!pCtx->hasNull) {
       assert(pCtx->size == notNullElems);
     }
-  
+  /*
     if (pCtx->prev.key != -1) {
       if (pCtx->prev.data > pRateInfo->firstValue) {
         pRateInfo->CorrectionValue += pCtx->prev.data;
@@ -4617,7 +4619,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
       pCtx->prev.key = -1;
       pTrace("%p get prev interpolation for firstValue:%f firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
     }
-    
+    */
   };
 
   SET_VAL(pCtx, notNullElems, 1);
@@ -4784,7 +4786,7 @@ static void irate_function(SQLFunctionCtx *pCtx) {
   if (pCtx->size < 1) {
     return;
   }
-
+/*
   // next interpolation exists
   if (pCtx->next.key != -1) {
     pRateInfo->lastValue = pCtx->next.data;
@@ -4792,7 +4794,7 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     pCtx->next.key = -1; // clear the flag
     pTrace("%p irate_function() get next interpolation for lastValue:%f lastKey:%" PRId64, pCtx, pRateInfo->lastValue, pRateInfo->lastKey);
   }
-
+*/
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
     if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4826,24 +4828,21 @@ static void irate_function(SQLFunctionCtx *pCtx) {
         assert(0);
     }
 
-    // TODO: calc once if only call this function once ????
-    if ((INT64_MIN == pRateInfo->lastKey) || (-DBL_MAX == pRateInfo->lastValue)) {
+    if (1 == notNullElems) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey   = primaryKey[i];
-    
+      
       pTrace("%p irate_function() lastValue:%f lastKey:%" PRId64, pCtx, pRateInfo->lastValue, pRateInfo->lastKey);
       continue;
     }
-
-    if ((INT64_MIN == pRateInfo->firstKey) || (-DBL_MAX == pRateInfo->firstValue)) {
-      pRateInfo->firstValue = v;
-      pRateInfo->firstKey = primaryKey[i];
     
-      pTrace("%p irate_function() firstValue:%f firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
-      break;
-    }
+    pRateInfo->firstValue = v;
+    pRateInfo->firstKey = primaryKey[i];
+  
+    pTrace("%p irate_function() firstValue:%f firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
+    break;
   }
-
+/*
   if (pCtx->prev.key != -1) {
     if ((INT64_MIN == pRateInfo->firstKey) || (-DBL_MAX == pRateInfo->firstValue)) {   
       pRateInfo->firstValue = pCtx->prev.data;
@@ -4852,7 +4851,7 @@ static void irate_function(SQLFunctionCtx *pCtx) {
       pTrace("%p irate_function() get prev interpolation for firstValue:%f firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
     }
   }
-
+*/
   SET_VAL(pCtx, notNullElems, 1);
 
   if (notNullElems > 0) {
