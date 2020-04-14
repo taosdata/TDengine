@@ -79,16 +79,9 @@ extern "C" {
 #define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF
 #define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF
 
-#define TSDB_PATTERN_MATCH            0
-#define TSDB_PATTERN_NOMATCH          1
-#define TSDB_PATTERN_NOWILDCARDMATCH  2
-#define TSDB_PATTERN_STRING_MAX_LEN   20
 
 #define TSDB_FUNCTIONS_NAME_MAX_LENGTH 16
 #define TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE 50
-
-#define PATTERN_COMPARE_INFO_INITIALIZER \
-  { '%', '_' }
 
 #define DATA_SET_FLAG ','  // to denote the output area has data, not null value
 #define DATA_SET_FLAG_SIZE sizeof(DATA_SET_FLAG)
@@ -222,19 +215,10 @@ typedef struct SQLAggFuncElem {
   int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId);
 } SQLAggFuncElem;
 
-typedef struct SPatternCompareInfo {
-  char matchAll;  // symbol for match all wildcard, default: '%'
-  char matchOne;  // symbol for match one wildcard, default: '_'
-} SPatternCompareInfo;
-
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *len, int16_t *interResBytes, int16_t extLength, bool isSuperTable);
-
-int patternMatch(const char *zPattern, const char *zString, size_t size, const SPatternCompareInfo *pInfo);
-
-int WCSPatternMatch(const wchar_t *zPattern, const wchar_t *zString, size_t size, const SPatternCompareInfo *pInfo);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)

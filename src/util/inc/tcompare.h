@@ -16,7 +16,23 @@
 #ifndef TDENGINE_TCOMPARE_H
 #define TDENGINE_TCOMPARE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "os.h"
+
+#define TSDB_PATTERN_MATCH 0
+#define TSDB_PATTERN_NOMATCH 1
+#define TSDB_PATTERN_NOWILDCARDMATCH 2
+#define TSDB_PATTERN_STRING_MAX_LEN 20
+
+#define PATTERN_COMPARE_INFO_INITIALIZER { '%', '_' }
+
+typedef struct SPatternCompareInfo {
+  char matchAll;  // symbol for match all wildcard, default: '%'
+  char matchOne;  // symbol for match one wildcard, default: '_'
+} SPatternCompareInfo;
 
 int32_t compareInt32Val(const void *pLeft, const void *pRight);
 
@@ -36,8 +52,16 @@ int32_t compareStrVal(const void *pLeft, const void *pRight);
 
 int32_t compareWStrVal(const void *pLeft, const void *pRight);
 
+int patternMatch(const char *zPattern, const char *zString, size_t size, const SPatternCompareInfo *pInfo);
+
+int WCSPatternMatch(const wchar_t *zPattern, const wchar_t *zString, size_t size, const SPatternCompareInfo *pInfo);
+
 __compar_fn_t getKeyComparFunc(int32_t keyType);
 
 __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TDENGINE_TCOMPARE_H
