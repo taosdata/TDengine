@@ -178,6 +178,13 @@ void taosDumpMemoryLeak();
 void *taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
                   int (*compar)(const void *, const void *), int flags);
 
+void * tmalloc(size_t size);
+void * tcalloc(size_t nmemb, size_t size);
+size_t tsizeof(void *ptr);
+void   tmemset(void *ptr, int c);
+void * trealloc(void *ptr, size_t size);
+void   tzfree(void *ptr);
+
 #ifdef TAOS_MEM_CHECK
 
 void *  taos_malloc(size_t size, const char *file, uint32_t line);
