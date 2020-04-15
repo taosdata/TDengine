@@ -25,20 +25,20 @@ static void clusterSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus |= (1 << moduleType);
   clusterUpdateDnode(pDnode);
 
-  // if (moduleType == TSDB_MOD_MGMT) {
-  //   mpeerAddMnode(pDnode->privateIp, pDnode->publicIp);
-  //   mPrint("dnode:%s, add mnode done", taosIpStr(pDnode->privateIp));
-  // }
+  if (moduleType == TSDB_MOD_MGMT) {
+    mpeerAddMnode(pDnode->dnodeId);
+    mPrint("dnode:%d, add it into mnode list", pDnode->dnodeId);
+  }
 }
 
 static void clusterUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus &= ~(1 << moduleType);
   clusterUpdateDnode(pDnode);
 
-  // if (moduleType == TSDB_MOD_MGMT) {
-  //   int32_t code = mpeerRemoveMnode(pDnode->privateIp);
-  //   mPrint("dnode:%s, drop mnode done, code:%d", taosIpStr(pDnode->privateIp), code);
-  // }
+  if (moduleType == TSDB_MOD_MGMT) {
+    mpeerRemoveMnode(pDnode->dnodeId);
+    mPrint("dnode:%d, remove it from mnode list", pDnode->dnodeId);
+  }
 }
 
 static void clusterStopAllModuleInDnode(SDnodeObj *pDnode) {
@@ -115,9 +115,9 @@ static void clusterStopModuleInOneDnode(int32_t moduleType) {
 void clusterMonitorDnodeModule() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
-  int32_t        onlineDnodes = 0;
+  int32_t    onlineDnodes = 0;
 
-  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
     tsModule[moduleType].curNum = 0;
   }
 
@@ -133,7 +133,7 @@ void clusterMonitorDnodeModule() {
       continue;
     }
 
-    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
       if (clusterCheckModuleInDnode(pDnode, moduleType)) {
         tsModule[moduleType].curNum ++;
       }
@@ -146,7 +146,7 @@ void clusterMonitorDnodeModule() {
     clusterReleaseDnode(pDnode);
   }
 
-  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
     if (tsModule[moduleType].num == -1) {
       clusterStartModuleInAllDnodes(moduleType);
       continue;

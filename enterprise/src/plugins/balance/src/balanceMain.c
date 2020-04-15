@@ -26,7 +26,6 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
-#include "balanceModule.h"
 #include "dnodeMClient.h"
 
 /*
@@ -356,7 +355,7 @@ static bool balanceMonitorBalance() {
 // 1. reset balanceAccessSquence to zero
 // 2. reset state of dnodes to offline
 // 3. reset lastAccess of dnodes to zero
-static void balanceReset() {
+void balanceReset() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   while (1) {
@@ -564,6 +563,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
 
   pDnode->status = TAOS_DN_STATUS_DROPPING;
   clusterUpdateDnode(pDnode);
+  clusterMonitorDnodeModule();
   
   balanceStartTimer(1100);
 

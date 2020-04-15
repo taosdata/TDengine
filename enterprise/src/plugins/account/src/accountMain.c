@@ -130,8 +130,10 @@ static void acctDoStatistic(void *handle, void *tmrId) {
   taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
-static int32_t acctActionUpdateAll() {
-  acctCreateRootAcct();
+static int32_t acctActionRestored() {
+  if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
+    acctCreateRootAcct();
+  }
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
   return 0;
 }
@@ -153,7 +155,7 @@ int32_t acctInit() {
     .encodeFp     = acctActionEncode,
     .decodeFp     = acctAcctActionDecode,
     .destroyFp    = acctActionDestroy,
-    .updateAllFp  = acctActionUpdateAll
+    .restoredFp   = acctActionRestored
   };
 
   tsAcctSdb = sdbOpenTable(&tableDesc);

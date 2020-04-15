@@ -103,7 +103,7 @@ static int32_t clusterDnodeActionDecode(SSdbOperDesc *pOper) {
 }
 
 
-static int32_t clusterDnodeActionUpdateAll() {
+static int32_t clusterDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
@@ -131,7 +131,7 @@ int32_t clusterInitDnodes() {
     .encodeFp     = clusterDnodeActionEncode,
     .decodeFp     = clusterDnodeActionDecode,
     .destroyFp    = clusterDnodeActionDestroy,
-    .updateAllFp  = clusterDnodeActionUpdateAll
+    .restoredFp   = clusterDnodeActionRestored
   };
 
   tsDnodeSdb = sdbOpenTable(&tableDesc);
@@ -208,6 +208,7 @@ static int32_t clusterCreateDnode(uint32_t ip) {
   pDnode->createdTime = taosGetTimestampMs();
   pDnode->status = TAOS_DN_STATUS_OFFLINE; 
   pDnode->numOfTotalVnodes = TSDB_INVALID_VNODE_NUM; 
+  sprintf(pDnode->dnodeName, "n%d", sdbGetId(tsDnodeSdb) + 1);
 
   if (pDnode->privateIp == inet_addr(tsMasterIp)) {
     pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);
