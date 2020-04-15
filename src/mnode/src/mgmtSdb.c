@@ -504,6 +504,7 @@ void *sdbFetchRow(void *handle, void *pNode, void **ppRow) {
 
 void *sdbOpenTable(SSdbTableDesc *pDesc) {
   SSdbTable *pTable = (SSdbTable *)calloc(1, sizeof(SSdbTable));
+  
   if (pTable == NULL) return NULL;
 
   strcpy(pTable->tableName, pDesc->tableName);
@@ -557,7 +558,7 @@ void sdbCloseTable(void *handle) {
   }
 
   pthread_mutex_destroy(&pTable->mutex);
-
+  
   sdbTrace("table:%s, is closed, numOfTables:%d", pTable->tableName, tsSdbNumOfTables);
   free(pTable);
 }

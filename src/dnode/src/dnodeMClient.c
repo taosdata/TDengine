@@ -59,7 +59,7 @@ int32_t dnodeInitMClient() {
     dError("failed to init dnode timer");
     return -1;
   }
-
+  
   if (!dnodeReadMnodeIpList()) {
     memset(&tsMnodeIpList, 0, sizeof(SRpcIpSet));
     memset(&tsMnodeInfos, 0, sizeof(SDMNodeInfos));

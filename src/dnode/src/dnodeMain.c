@@ -177,7 +177,6 @@ static int32_t dnodeInitSystem() {
 
 static void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
-    tclearModuleStatus(TSDB_MOD_MGMT);
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
     dnodeCleanupShell();
     dnodeCleanupMnode();
