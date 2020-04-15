@@ -258,7 +258,7 @@ void generateRandomPoints() {
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("Used to test the performance of TDengine, the insert method is table-by-table\n");
+  printf("Used to test the performance of TDengine\n After writing all the data in one table, start the next table\n");
 
   printf("%s%s\n", indent, "-d");
   printf("%s%s%s%s\n", indent, indent, "The name of the database to be created, default is ", dbName);
@@ -289,6 +289,8 @@ void shellParseArgument(int argc, char *argv[]) {
       exit(0);
     } else if (strcmp(argv[i], "-d") == 0) {
       strcpy(dbName, argv[++i]);
+    } else if (strcmp(argv[i], "-c") == 0) {
+      strcpy(configDir, argv[++i]);
     } else if (strcmp(argv[i], "-s") == 0) {
       strcpy(stableName, argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
