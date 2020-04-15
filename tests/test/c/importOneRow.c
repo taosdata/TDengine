@@ -20,6 +20,10 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+#define MAX_RANDOM_POINTS 20000
+#define GREEN "\033[1;32m"
+#define NC "\033[0m"
+
 void taos_error(TAOS *taos);
 void* taos_execute(void *param);
 
@@ -32,22 +36,42 @@ int threadNum = 1;
 int rowNum = 1000;
 int replica = 1;
 
-int main(int argc, char *argv[]) {
-  if (argc == 1) {
-    printf("usage: %s rowNum threadNum replica configDir\n", argv[0]);
-	printf("default rowNum %d\n", rowNum);
-	printf("default threadNum %d\n", threadNum);
-	printf("default replica %d\n", replica);
-    exit(0);
+void printHelp() {
+  char indent[10] = "        ";
+  printf("Used to test the performance of TDengine\n After writing one row of data to all tables, write the next row\n");
+
+  printf("%s%s\n", indent, "-r");
+  printf("%s%s%s%d\n", indent, indent, "Number of records to write table, default is ", rowNum);
+  printf("%s%s\n", indent, "-t");
+  printf("%s%s%s%d\n", indent, indent, "Number of threads to be used, default is ", threadNum);
+  printf("%s%s\n", indent, "-replica");
+  printf("%s%s%s%d\n", indent, indent, "Database parameters replica, default is ", replica);
+
+  exit(EXIT_SUCCESS);
+}
+
+void shellParseArgument(int argc, char *argv[]) {
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+      printHelp();
+      exit(0);
+    } else if (strcmp(argv[i], "-r") == 0) {
+      rowNum = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-t") == 0) {
+      threadNum = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-replica") == 0) {
+      replica = atoi(argv[++i]);
+    } else {
+    }
   }
 
-  // a simple way to parse input parameters
-  if (argc >= 2) rowNum = atoi(argv[1]);
-  if (argc >= 3) threadNum = atoi(argv[2]);
-  if (argc >= 4) replica = atoi(argv[3]);
-  if (argc >= 5) strcpy(configDir, argv[4]);
+  dPrint("%s rowNum:%d %s", GREEN, rowNum, NC);
+  dPrint("%s threadNum:%d %s", GREEN, threadNum, NC);
+  dPrint("%s replica:%d %s", GREEN, replica, NC);
+}
 
-  printf("rowNum:%d threadNum:%d replica:%d\n", threadNum, rowNum, replica);
+int main(int argc, char *argv[]) {
+  shellParseArgument(argc, argv);
 
   taos_init();
 
