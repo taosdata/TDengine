@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 typedef enum {
-  SDB_TABLE_MNODE   = 0,
-  SDB_TABLE_DNODE   = 1,
+  SDB_TABLE_DNODE   = 0,
+  SDB_TABLE_MNODE   = 1,
   SDB_TABLE_ACCOUNT = 2,
   SDB_TABLE_USER    = 3,
   SDB_TABLE_DB      = 4,
@@ -90,7 +90,7 @@ void    *sdbFetchRow(void *handle, void *pNode, void **ppRow);
 void     sdbIncRef(void *thandle, void *pRow);
 void     sdbDecRef(void *thandle, void *pRow);
 int64_t  sdbGetNumOfRows(void *handle);
-int64_t  sdbGetId(void *handle);
+int32_t  sdbGetId(void *handle);
 uint64_t sdbGetVersion();
 
 #ifdef __cplusplus

@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tlog.h"
 #include "trpc.h"
+#include "tqueue.h"
 #include "twal.h"
 #include "hashint.h"
 #include "hashstr.h"
@@ -67,7 +68,7 @@ static void  (*sdbCleanUpIndexFp[])(void *handle) = {sdbCloseStrHash, sdbCloseIn
 static void *(*sdbFetchRowFp[])(void *handle, void *ptr, void **ppRow) = {sdbFetchStrHashData, sdbFetchIntHashData, sdbFetchIntHashData};
 
 uint64_t sdbGetVersion() { return tsSdbObj->version; }
-int64_t  sdbGetId(void *handle) { return ((SSdbTable *)handle)->autoIndex; }
+int32_t  sdbGetId(void *handle) { return ((SSdbTable *)handle)->autoIndex; }
 int64_t  sdbGetNumOfRows(void *handle) { return ((SSdbTable *)handle)->numOfRows; }
 
 static char *sdbGetActionStr(int32_t action) {
@@ -116,7 +117,7 @@ int32_t sdbInit() {
 
   int32_t totalRows = 0;
   int32_t numOfTables = 0;
-  for (int32_t tableId = SDB_TABLE_MNODE; tableId < SDB_TABLE_MAX; ++tableId) {
+  for (int32_t tableId = SDB_TABLE_DNODE; tableId < SDB_TABLE_MAX; ++tableId) {
     SSdbTable *pTable = sdbGetTableFromId(tableId);
     if (pTable == NULL) continue;
     if (pTable->restoredFp) {
@@ -275,8 +276,7 @@ static int32_t sdbProcessWriteFromApp(SSdbTable *pTable, SWalHead *pHead, int32_
   }
 
   walFsync(tsSdbObj->wal);
-  free(pHead);
-
+  taosFreeQitem(pHead);
   return code;
 }
 
@@ -390,7 +390,7 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
 
   if (pOper->type == SDB_OPER_GLOBAL) {
     int32_t   size = sizeof(SWalHead) + pTable->maxRowSize;
-    SWalHead *pHead = calloc(1, size);
+    SWalHead *pHead = taosAllocateQitem(size);
     pHead->version = 0;
     pHead->len = pOper->rowSize;
     pHead->msgType = pTable->tableId * 10 + SDB_ACTION_INSERT;
@@ -435,7 +435,7 @@ int32_t sdbDeleteRow(SSdbOperDesc *pOper) {
     }
 
     int32_t   size = sizeof(SWalHead) + rowSize;
-    SWalHead *pHead = calloc(1, size);
+    SWalHead *pHead = taosAllocateQitem(size);
     pHead->version = 0;
     pHead->len = rowSize;
     pHead->msgType = pTable->tableId * 10 + SDB_ACTION_DELETE;
@@ -463,7 +463,7 @@ int32_t sdbUpdateRow(SSdbOperDesc *pOper) {
 
   if (pOper->type == SDB_OPER_GLOBAL) {
     int32_t   size = sizeof(SWalHead) + pTable->maxRowSize;
-    SWalHead *pHead = calloc(1, size);
+    SWalHead *pHead = taosAllocateQitem(size);
     pHead->version = 0;
     pHead->msgType = pTable->tableId * 10 + SDB_ACTION_UPDATE;
 

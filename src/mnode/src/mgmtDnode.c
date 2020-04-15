@@ -208,6 +208,7 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     balanceNotify();
+    clusterMonitorDnodeModule();
   }
 
   clusterReleaseDnode(pDnode);
