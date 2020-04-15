@@ -196,6 +196,12 @@ static int syncMonitorLastWal(SSyncPeer *pPeer, char *name)
     return -1;
   }
 
+  if (pPeer->watchFd == NULL) pPeer->watchFd = malloc(sizeof(int)*tsMaxWatchFiles);
+  if (pPeer->watchFd == NULL) {
+    sError("vgId:%d peer:%s, failed to allocate watchFd", pNode->vgId, pPeer->ipstr);
+    return -1;
+  }
+
   memset(pPeer->watchFd, -1, sizeof(int)*tsMaxWatchFiles);
   int *wd = pPeer->watchFd;
  

@@ -131,7 +131,9 @@ static void acctDoStatistic(void *handle, void *tmrId) {
 }
 
 static int32_t acctActionRestored() {
-  acctCreateRootAcct();
+  if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
+    acctCreateRootAcct();
+  }
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
   return 0;
 }
