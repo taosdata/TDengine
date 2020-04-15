@@ -419,7 +419,7 @@ typedef struct {
 
 int  tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg);
 void tsdbDestroyHelper(SRWHelper *pHelper);
-void tsdbClearHelper(SRWHelper *pHelper);
+void tsdbResetHelper(SRWHelper *pHelper);
 
 // --------- For set operations
 int  tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup);

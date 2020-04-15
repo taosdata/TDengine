@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tsdbMain.h"
+#include "tchecksum.h"
 
 #define adjustMem(ptr, size, expectedSize)    \
   do {                                        \
@@ -25,17 +26,11 @@
 
 // Local function definitions
 static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
-static void tsdbInitHelperFile(SHelperFile *pHFile);
-static int  tsdbInitHelperRead(SRWHelper *pHelper);
-// static int  tsdbInitHelperWrite(SRWHelper *pHelper);
+static int  tsdbInitHelperFile(SRWHelper *pHelper);
 static void tsdbClearHelperFile(SHelperFile *pHFile);
-static void tsdbDestroyHelperRead(SRWHelper *pHelper);
-static void tsdbDestroyHelperWrite(SRWHelper *pHelper);
-static void tsdbClearHelperRead(SRWHelper *pHelper);
-static void tsdbClearHelperWrite(SRWHelper *pHelper);
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper);
-static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDataCols, int rowsToWrite, SCompBlock *pCompBlock,
-                                bool isLast, bool isSuperBlock);
+static int  tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDataCols, int rowsToWrite,
+                                 SCompBlock *pCompBlock, bool isLast, bool isSuperBlock);
 static int compareKeyBlock(const void *arg1, const void *arg2);
 static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
 // static int nRowsLEThan(SDataCols *pDataCols, int maxKey);
@@ -45,23 +40,82 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
 static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey);
 
+// ---------- Operations on Helper File part
+static void tsdbResetHelperFileImpl(SRWHelper *pHelper) {
+  memset((void *)&pHelper->files, 0, sizeof(pHelper->files));
+  pHelper->files.fid = -1;
+  pHelper->files.headF.fd = -1;
+  pHelper->files.dataF.fd = -1;
+  pHelper->files.lastF.fd = -1;
+  pHelper->files.nHeadF.fd = -1;
+  pHelper->files.nLastF.fd = -1;
+}
+
+static int tsdbInitHelperFile(SRWHelper *pHelper) {
+  pHelper->compIdxSize = sizeof(SCompIdx) * pHelper->config.maxTables + sizeof(TSCKSUM);
+  pHelper->pCompIdx = (SCompIdx *)malloc(pHelper->compIdxSize);
+  if (pHelper->pCompIdx == NULL) return -1;
+
+  tsdbResetHelperFileImpl(pHelper);
+  return 0;
+}
+
+static void tsdbDestroyHelperFile(SRWHelper *pHelper) {
+  tsdbCloseHelperFile(pHelper, false);
+  tfree(pHelper->pCompIdx);
+}
+
+// ---------- Operations on Helper Table part
+static void tsdbResetHelperTableImpl(SRWHelper *pHelper) {
+  memset((void *)&pHelper->tableInfo, 0, sizeof(SHelperTable));
+  pHelper->hasOldLastBlock = false;
+}
+
+static void tsdbInitHelperTable(SRWHelper *pHelper) {
+  tsdbResetHelperTableImpl(pHelper);
+}
+
+static void tsdbDestroyHelperTable(SRWHelper *pHelper) { return; }
+
+// ---------- Operations on Helper Block part
+static void tsdbResetHelperBlockImpl(SRWHelper *pHelper) {
+  tdResetDataCols(pHelper->pDataCols[0]);
+  tdResetDataCols(pHelper->pDataCols[1]);
+}
+
+static int tsdbInitHelperBlock(SRWHelper *pHelper) {
+  pHelper->pDataCols[0] = tdNewDataCols(pHelper->config.maxRowSize, pHelper->config.maxCols, pHelper->config.maxRows);
+  pHelper->pDataCols[1] = tdNewDataCols(pHelper->config.maxRowSize, pHelper->config.maxCols, pHelper->config.maxRows);
+  if (pHelper->pDataCols[0] == NULL || pHelper->pDataCols[1] == NULL) return -1;
+
+  tsdbResetHelperBlockImpl(pHelper);
+
+  return 0;
+}
+
+static void tsdbDestroyHelperBlock(SRWHelper *pHelper) {
+  tdFreeDataCols(pHelper->pDataCols[0]);
+  tdFreeDataCols(pHelper->pDataCols[1]);
+}
+
+// ------------------------------------------ OPERATIONS FOR OUTSIDE ------------------------------------------
 int tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg) {
   if (pHelper == NULL || pCfg == NULL || tsdbCheckHelperCfg(pCfg) < 0) return -1;
 
   memset((void *)pHelper, 0, sizeof(*pHelper));
 
+  // Init global configuration
   pHelper->config = *pCfg;
-
-  tsdbInitHelperFile(&(pHelper->files));
-
-  if (tsdbInitHelperRead(pHelper) < 0) goto _err;
-
-  pHelper->pDataCols[0] = tdNewDataCols(pCfg->maxRowSize, pCfg->maxCols, pCfg->maxRows);
-  pHelper->pDataCols[1] = tdNewDataCols(pCfg->maxRowSize, pCfg->maxCols, pCfg->maxRows);
-  
-  if ((pHelper->pDataCols[0] == NULL) || (pHelper->pDataCols[1] == NULL)) goto _err;
-
   pHelper->state = TSDB_HELPER_CLEAR_STATE;
+
+  // Init file part
+  if (tsdbInitHelperFile(pHelper) < 0) goto _err;
+
+  // Init table part
+  tsdbInitHelperTable(pHelper);
+
+  // Init block part
+  if (tsdbInitHelperBlock(pHelper) < 0) goto _err;
 
   return 0;
 
@@ -71,25 +125,36 @@ _err:
 }
 
 void tsdbDestroyHelper(SRWHelper *pHelper) {
-  if (pHelper == NULL) return;
-
-  tsdbClearHelperFile(&(pHelper->files));
-  tsdbDestroyHelperRead(pHelper);
-  tsdbDestroyHelperWrite(pHelper);
+  if (pHelper) {
+    tsdbDestroyHelperFile(pHelper);
+    tsdbDestroyHelperTable(pHelper);
+    tsdbDestroyHelperBlock(pHelper);
+    memset((void *)pHelper, 0, sizeof(*pHelper));
+  }
 }
 
-void tsdbClearHelper(SRWHelper *pHelper) {
-  if (pHelper == NULL) return;
-  tsdbClearHelperFile(&(pHelper->files));
-  tsdbClearHelperRead(pHelper);
-  tsdbClearHelperWrite(pHelper);
+void tsdbResetHelper(SRWHelper *pHelper) {
+  if (pHelper) {
+    // Reset the block part
+    tsdbResetHelperBlockImpl(pHelper);
+
+    // Reset the table part
+    tsdbResetHelperTableImpl(pHelper);
+
+    // Reset the file part
+    tsdbCloseHelperFile(pHelper, false);
+    tsdbResetHelperFileImpl(pHelper);
+
+    pHelper->state = TSDB_HELPER_CLEAR_STATE;
+  }
 }
 
+// ------------ Operations for read/write purpose
 int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   ASSERT(pHelper != NULL && pGroup != NULL);
 
   // Clear the helper object
-  tsdbClearHelper(pHelper);
+  tsdbResetHelper(pHelper);
 
   ASSERT(pHelper->state == TSDB_HELPER_CLEAR_STATE);
 
@@ -519,14 +584,6 @@ static int tsdbCheckHelperCfg(SHelperCfg *pCfg) {
   return 0;
 }
 
-static void tsdbInitHelperFile(SHelperFile *pHFile) {
-  pHFile->fid = -1;
-  pHFile->headF.fd = -1;
-  pHFile->dataF.fd = -1;
-  pHFile->lastF.fd = -1;
-  pHFile->nHeadF.fd = -1;
-  pHFile->nLastF.fd = -1;
-}
 
 static void tsdbClearHelperFile(SHelperFile *pHFile) {
   pHFile->fid = -1;
@@ -551,57 +608,6 @@ static void tsdbClearHelperFile(SHelperFile *pHFile) {
     pHFile->nLastF.fd = -1;
   }
 
-}
-
-static int tsdbInitHelperRead(SRWHelper *pHelper) {
-  SHelperCfg *pCfg = &(pHelper->config);
-
-  pHelper->compIdxSize = pCfg->maxTables * sizeof(SCompIdx);
-  if ((pHelper->pCompIdx = (SCompIdx *)malloc(pHelper->compIdxSize)) == NULL) return -1;
-
-  return 0;
-}
-
-static void tsdbDestroyHelperRead(SRWHelper *pHelper) {
-  tfree(pHelper->pCompIdx);
-  pHelper->compIdxSize = 0;
-
-  tfree(pHelper->pCompInfo);
-  pHelper->compInfoSize = 0;
-
-  tfree(pHelper->pCompData);
-  pHelper->compDataSize = 0;
-
-  tdFreeDataCols(pHelper->pDataCols[0]);
-  tdFreeDataCols(pHelper->pDataCols[1]);
-}
-
-// static int tsdbInitHelperWrite(SRWHelper *pHelper) {
-//   SHelperCfg *pCfg = &(pHelper->config);
-
-//   // pHelper->wCompIdxSize = pCfg->maxTables * sizeof(SCompIdx);
-//   // if ((pHelper->pWCompIdx = (SCompIdx *)malloc(pHelper->wCompIdxSize)) == NULL) return -1;
-
-//   return 0;
-// }
-
-static void tsdbDestroyHelperWrite(SRWHelper *pHelper) {
-  // tfree(pHelper->pWCompIdx);
-  // pHelper->wCompIdxSize = 0;
-
-  // tfree(pHelper->pWCompInfo);
-  // pHelper->wCompInfoSize = 0;
-
-  // tfree(pHelper->pWCompData);
-  // pHelper->wCompDataSize = 0;
-}
-
-static void tsdbClearHelperRead(SRWHelper *pHelper) {
-  // TODO
-}
-
-static void tsdbClearHelperWrite(SRWHelper *pHelper) {
-  // TODO
 }
 
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper) {
