@@ -115,9 +115,9 @@ static void clusterStopModuleInOneDnode(int32_t moduleType) {
 void clusterMonitorDnodeModule() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
-  int32_t        onlineDnodes = 0;
+  int32_t    onlineDnodes = 0;
 
-  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
     tsModule[moduleType].curNum = 0;
   }
 
@@ -133,7 +133,7 @@ void clusterMonitorDnodeModule() {
       continue;
     }
 
-    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
       if (clusterCheckModuleInDnode(pDnode, moduleType)) {
         tsModule[moduleType].curNum ++;
       }
@@ -146,7 +146,7 @@ void clusterMonitorDnodeModule() {
     clusterReleaseDnode(pDnode);
   }
 
-  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
     if (tsModule[moduleType].num == -1) {
       clusterStartModuleInAllDnodes(moduleType);
       continue;

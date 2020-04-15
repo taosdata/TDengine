@@ -42,6 +42,7 @@ typedef struct {
   int32_t     code;
   int8_t      inUse;
   int8_t      role;
+  int8_t      loaded;
   SSyncCfg    cfg;
   SSdbObject *sdb;
 } SSdbSyncObject;
@@ -53,6 +54,7 @@ static uint32_t mpeerGetFileInfo(void *ahandle, char *name, uint32_t *index, int
 static int      mpeerGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     mpeerNotifyRole(void *ahandle, int8_t role);
 static void     mpeerConfirmForward(void *pVnode, void *param, int32_t code);
+static int32_t  mpeerUpdateSync();
 
 static int32_t mpeerActionDestroy(SSdbOperDesc *pOper) {
   tfree(pOper->pObj);
@@ -73,12 +75,14 @@ static int32_t mpeerActionInsert(SSdbOperDesc *pOper) {
     sprintf(pMnode->mnodeName, "n%d", 1);
     pMnode->role = TAOS_SYNC_ROLE_OFFLINE;
   }
-  
+
+  mpeerUpdateSync();
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mpeerActionDelete(SSdbOperDesc *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
+  mpeerUpdateSync();
   mTrace("mnode:%d, is dropped from sdb", pMnode->mnodeId);
   return TSDB_CODE_SUCCESS;
 }
@@ -104,6 +108,8 @@ static int32_t mpeerActionDecode(SSdbOperDesc *pOper) {
 }
 
 static int32_t mpeerUpdateSync() {
+  if (!tsSdbSync.loaded) return 0;
+  
   SSyncCfg syncCfg = {0};
 
   void *  pNode = NULL;
@@ -184,9 +190,12 @@ static int32_t mpeerActionRestored() {
   if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
       mpeerAddMnode(1);
+      tsSdbSync.loaded = true;
     }
+  } else {
+    tsSdbSync.loaded = true;
   }
-
+  
   tsSdbSync.sdb = sdbGetObj();
   sem_init(&tsSdbSync.sem, 0, 0);
 
@@ -277,10 +286,10 @@ void mpeerGetMpeerInfos(void *param) {
   mpeers->nodeNum = tsSdbSync.cfg.replica;
   mpeers->inUse = 0;
   for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
-    mpeers->nodeInfos[0].nodeId = htonl(tsSdbSync.cfg.nodeInfo[i].nodeId);
-    mpeers->nodeInfos[0].nodeIp = htonl(tsSdbSync.cfg.nodeInfo[i].nodeIp);
-    mpeers->nodeInfos[0].nodePort = htons(tsMnodeDnodePort);
-    strcpy(mpeers->nodeInfos[0].nodeName, tsSdbSync.cfg.nodeInfo[i].name);
+    mpeers->nodeInfos[i].nodeId = htonl(tsSdbSync.cfg.nodeInfo[i].nodeId);
+    mpeers->nodeInfos[i].nodeIp = htonl(tsSdbSync.cfg.nodeInfo[i].nodeIp);
+    mpeers->nodeInfos[i].nodePort = htons(tsMnodeDnodePort);
+    strcpy(mpeers->nodeInfos[i].nodeName, tsSdbSync.cfg.nodeInfo[i].name);
     if (tsSdbSync.cfg.nodeInfo[i].nodeId == dnodeId) {
       mpeers->inUse = i;
     }
@@ -303,6 +312,10 @@ static void mpeerNotifyRole(void *ahandle, int8_t role) {
   tsSdbSync.role = role;
   if (role == TAOS_SYNC_ROLE_MASTER) {
     balanceReset();
+  }
+
+  if (role == TAOS_SYNC_ROLE_MASTER || role == TAOS_SYNC_ROLE_SLAVE) {
+    tsSdbSync.loaded = true;
   }
   
   if (tsSdbSync.sync != NULL) {
@@ -332,7 +345,7 @@ int32_t mpeerForwardReqToPeer(void *pHead) {
   if (tsSdbSync.sync == NULL) return TSDB_CODE_SUCCESS;
   if (tsSdbSync.cfg.replica <= 1) return TSDB_CODE_SUCCESS;
 
-  int32_t code = syncForwardToPeer(NULL, pHead, NULL);
+  int32_t code = syncForwardToPeer(tsSdbSync.sync, pHead, NULL);
   if (code < 0) {
     return code;
   }

@@ -26,7 +26,6 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
-#include "balanceModule.h"
 #include "dnodeMClient.h"
 
 /*
@@ -564,6 +563,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
 
   pDnode->status = TAOS_DN_STATUS_DROPPING;
   clusterUpdateDnode(pDnode);
+  clusterMonitorDnodeModule();
   
   balanceStartTimer(1100);
 
