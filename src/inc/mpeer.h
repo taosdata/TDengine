@@ -50,6 +50,7 @@ void    mpeerGetPublicIpList(SRpcIpSet *ipSet);
 void    mpeerGetMpeerInfos(void *mpeers);
 
 int32_t mpeerForwardReqToPeer(void *pHead);
+void    mpeerUpdateSync();
 
 #ifdef __cplusplus
 }

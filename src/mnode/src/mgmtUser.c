@@ -85,11 +85,13 @@ static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtUserActionRestored() {
-  SAcctObj *pAcct = acctGetAcct("root");
-  mgmtCreateUser(pAcct, "root", "taosdata");
-  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
-  mgmtCreateUser(pAcct, "_root", tsInternalPass);
-  acctReleaseAcct(pAcct);
+  if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
+    SAcctObj *pAcct = acctGetAcct("root");
+    mgmtCreateUser(pAcct, "root", "taosdata");
+    mgmtCreateUser(pAcct, "monitor", tsInternalPass);
+    mgmtCreateUser(pAcct, "_root", tsInternalPass);
+    acctReleaseAcct(pAcct);
+  }
 
   return 0;
 }

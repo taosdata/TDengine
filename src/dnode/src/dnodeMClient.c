@@ -28,6 +28,7 @@
 #include "dnodeModule.h"
 #include "dnodeMgmt.h"
 #include "vnode.h"
+#include "mpeer.h"
 
 #define MPEER_CONTENT_LEN 2000
 
@@ -148,6 +149,15 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
     return;
   }
 
+  SDnodeState *pState  = &pStatusRsp->dnodeState;
+  pState->numOfVnodes  = htonl(pState->numOfVnodes);
+  pState->moduleStatus = htonl(pState->moduleStatus);
+  pState->createdTime  = htonl(pState->createdTime);
+  pState->dnodeId      = htonl(pState->dnodeId);
+  
+  dnodeProcessModuleStatus(pState->moduleStatus);
+  dnodeUpdateDnodeInfo(pState->dnodeId);
+
   SRpcIpSet mgmtIpSet = {0};
   mgmtIpSet.inUse = mpeers->inUse;
   mgmtIpSet.numOfIps = mpeers->nodeNum;
@@ -167,20 +177,13 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
       tsMnodeInfos.nodeInfos[i].nodePort = htons(mpeers->nodeInfos[i].nodePort);
       strcpy(tsMnodeInfos.nodeInfos[i].nodeName, mpeers->nodeInfos[i].nodeName);
       dPrint("mnode:%d, ip:%s:%u name:%s", tsMnodeInfos.nodeInfos[i].nodeId,
-             taosIpStr(tsMnodeInfos.nodeInfos[i].nodeId), tsMnodeInfos.nodeInfos[i].nodePort,
+             taosIpStr(tsMnodeInfos.nodeInfos[i].nodeIp), tsMnodeInfos.nodeInfos[i].nodePort,
              tsMnodeInfos.nodeInfos[i].nodeName);
     }
     dnodeSaveMnodeIpList();
+    mpeerUpdateSync();
   }
 
-  SDnodeState *pState  = &pStatusRsp->dnodeState;
-  pState->numOfVnodes  = htonl(pState->numOfVnodes);
-  pState->moduleStatus = htonl(pState->moduleStatus);
-  pState->createdTime  = htonl(pState->createdTime);
-  pState->dnodeId      = htonl(pState->dnodeId);
-  
-  dnodeProcessModuleStatus(pState->moduleStatus);
-  dnodeUpdateDnodeInfo(pState->dnodeId);
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
 }
 

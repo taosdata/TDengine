@@ -48,6 +48,7 @@ void *  mpeerGetMnode(int32_t mnodeId) { return &tsMnodeObj; }
 int32_t mpeerGetMnodesNum() { return 1; }
 void    mpeerReleaseMnode(struct _mnode_obj *pMnode) {}
 bool    mpeerIsMaster() { return tsMnodeObj.role == TAOS_SYNC_ROLE_MASTER; }
+void    mpeerUpdateSync() {}
 
 void *mpeerGetNextMnode(void *pNode, SMnodeObj **pMnode) {
   if (*pMnode == NULL) {

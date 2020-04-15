@@ -159,10 +159,10 @@ static int32_t dnodeInitSystem() {
   dPrint("starting to initialize TDengine ...");
 
   if (dnodeInitStorage() != 0) return -1;
-  if (dnodeInitModules() != 0) return -1;
   if (dnodeInitRead() != 0) return -1;
   if (dnodeInitWrite() != 0) return -1;
   if (dnodeInitMClient() != 0) return -1;
+  if (dnodeInitModules() != 0) return -1;
   if (dnodeInitMnode() != 0) return -1;
   if (dnodeInitMgmt() != 0) return -1;
   if (dnodeInitShell() != 0) return -1;

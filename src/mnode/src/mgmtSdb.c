@@ -130,6 +130,9 @@ int32_t sdbInit() {
   }
 
   sdbTrace("sdb is initialized, version:%d totalRows:%d numOfTables:%d", tsSdbObj->version, totalRows, numOfTables);
+  
+  mpeerUpdateSync();
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -215,6 +218,11 @@ static int32_t sdbInsertLocal(SSdbTable *pTable, SSdbOperDesc *pOper) {
   (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj, &rowMeta);
   sdbIncRef(pTable, pOper->pObj);
   pTable->numOfRows++;
+
+  if (pTable->keyType == SDB_KEY_AUTO) {
+    pTable->autoIndex = MAX(pTable->autoIndex, *((uint32_t *)pOper->pObj));
+  }
+
   pthread_mutex_unlock(&pTable->mutex);
 
   sdbTrace("table:%s, insert record:%s, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
