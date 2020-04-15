@@ -41,8 +41,8 @@ class TDTestCase:
 #        tdSql.execute('insert into tb values (now - 7m , 10)')
 #        tdSql.execute('insert into tb values (now - 8m , 10)')
 
-#        tdSql.query("select * from tb")
-#        tdSql.checkRows(insertRows)
+        tdSql.query("select * from tb")
+        tdSql.checkRows(insertRows)
 
     def stop(self):
         tdSql.close()
