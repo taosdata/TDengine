@@ -45,7 +45,7 @@ int32_t randomData[MAX_RANDOM_POINTS];
 int64_t rowsPerTable = 10000;
 int64_t pointsPerTable = 1;
 int64_t numOfThreads = 1;
-int64_t numOfTablesPerThread = 1;
+int64_t numOfTablesPerThread = 200;
 char    dbName[32] = "db";
 char    stableName[64] = "st";
 int32_t cache = 16384;
@@ -209,9 +209,9 @@ void *syncTest(void *param) {
   char  inserStr[] = "insert into";
   int   len = sprintf(sql, "%s", inserStr);
 
-  for (int64_t table = pInfo->tableBeginIndex; table < pInfo->tableEndIndex; ++table) {
-    len += sprintf(sql + len, " %s%ld values", pInfo->stableName, table);
-    for (int64_t row = 0; row < pInfo->rowsPerTable; row++) {
+  for (int64_t row = 0; row < pInfo->rowsPerTable; row++) {    
+    for (int64_t table = pInfo->tableBeginIndex; table < pInfo->tableEndIndex; ++table) {
+      len += sprintf(sql + len, " %s%ld values", pInfo->stableName, table);
       len += sprintf(sql + len, "(%ld", start + row * interval);
       for (int64_t point = 0; point < pInfo->pointsPerTable; ++point) {
         len += sprintf(sql + len, ",%d", randomData[(123 * table + 456 * row + 789 * point) % MAX_RANDOM_POINTS]);
@@ -226,11 +226,6 @@ void *syncTest(void *param) {
 
         // "insert into"
         len = sprintf(sql, "%s", inserStr);
-
-        // "insert into st1 values"
-        if (row != pInfo->rowsPerTable - 1) {
-          len += sprintf(sql + len, " %s%ld values", pInfo->stableName, table);
-        }
       }
     }
   }
@@ -258,7 +253,7 @@ void generateRandomPoints() {
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("Used to test the performance of TDengine, the insert method is table-by-table\n");
+  printf("Used to test the performance of TDengine\n After writing one row of data to all tables, write the next row\n");
 
   printf("%s%s\n", indent, "-d");
   printf("%s%s%s%s\n", indent, indent, "The name of the database to be created, default is ", dbName);
@@ -289,6 +284,8 @@ void shellParseArgument(int argc, char *argv[]) {
       exit(0);
     } else if (strcmp(argv[i], "-d") == 0) {
       strcpy(dbName, argv[++i]);
+    } else if (strcmp(argv[i], "-c") == 0) {
+      strcpy(configDir, argv[++i]);
     } else if (strcmp(argv[i], "-s") == 0) {
       strcpy(stableName, argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
