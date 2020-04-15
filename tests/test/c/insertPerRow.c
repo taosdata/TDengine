@@ -45,7 +45,7 @@ int32_t randomData[MAX_RANDOM_POINTS];
 int64_t rowsPerTable = 10000;
 int64_t pointsPerTable = 1;
 int64_t numOfThreads = 1;
-int64_t numOfTablesPerThread = 1;
+int64_t numOfTablesPerThread = 200;
 char    dbName[32] = "db";
 char    stableName[64] = "st";
 int32_t cache = 16384;
@@ -219,11 +219,11 @@ void *syncTest(void *param) {
       }
       len += sprintf(sql + len, ")");
       if (len > maxBytes) {
-        // if (taos_query(con, qstr)) {
-        //   dError("thread:%d, failed to insert table:%s%ld row:%ld, reason:%s", pInfo->threadIndex, pInfo->stableName,
-        //          table, row, taos_errstr(con));
-        // }
-        dPrint("%s ", qstr);
+        if (taos_query(con, qstr)) {
+          dError("thread:%d, failed to insert table:%s%ld row:%ld, reason:%s", pInfo->threadIndex, pInfo->stableName,
+                 table, row, taos_errstr(con));
+        }
+
         // "insert into"
         len = sprintf(sql, "%s", inserStr);
       }
