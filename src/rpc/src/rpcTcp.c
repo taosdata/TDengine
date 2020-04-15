@@ -158,8 +158,9 @@ void taosCleanUpTcpServer(void *handle) {
     pThreadObj = pServerObj->pThreadObj + i;
 
     while (pThreadObj->pHead) {
-      taosFreeFdObj(pThreadObj->pHead);
-      pThreadObj->pHead = pThreadObj->pHead;
+      SFdObj *pFdObj = pThreadObj->pHead;
+      pThreadObj->pHead = pFdObj->next;
+      taosFreeFdObj(pFdObj);
     }
 
     close(pThreadObj->pollFd);
@@ -269,8 +270,9 @@ void taosCleanUpTcpClient(void *chandle) {
   if (pThreadObj == NULL) return;
 
   while (pThreadObj->pHead) {
-    taosFreeFdObj(pThreadObj->pHead);
-    pThreadObj->pHead = pThreadObj->pHead->next;
+    SFdObj *pFdObj = pThreadObj->pHead;
+    pThreadObj->pHead = pFdObj->next;
+    taosFreeFdObj(pFdObj);
   }
 
   close(pThreadObj->pollFd);
@@ -456,13 +458,17 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
   if (pFdObj == NULL) return;
   if (pFdObj->signature != pFdObj) return;
 
-  pFdObj->signature = NULL;
   SThreadObj *pThreadObj = pFdObj->pThreadObj;
+  pthread_mutex_lock(&pThreadObj->mutex);
 
+  if (pFdObj->signature == NULL) {
+    pthread_mutex_unlock(&pThreadObj->mutex);
+    return;
+  }
+
+  pFdObj->signature = NULL;
   close(pFdObj->fd);
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
-
-  pthread_mutex_lock(&pThreadObj->mutex);
 
   pThreadObj->numOfFds--;
 
