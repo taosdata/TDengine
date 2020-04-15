@@ -220,7 +220,7 @@ static int32_t mgmtChildTableActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtChildTableActionUpdateAll() {
+static int32_t mgmtChildTableActionRestored() {
   void *pNode = NULL;
   void *pLastNode = NULL;
   SChildTableObj *pTable = NULL;
@@ -320,7 +320,7 @@ static int32_t mgmtInitChildTables() {
     .encodeFp     = mgmtChildTableActionEncode,
     .decodeFp     = mgmtChildTableActionDecode,
     .destroyFp    = mgmtChildTableActionDestroy,
-    .updateAllFp  = mgmtChildTableActionUpdateAll
+    .restoredFp   = mgmtChildTableActionRestored
   };
 
   tsChildTableSdb = sdbOpenTable(&tableDesc);
@@ -414,7 +414,7 @@ static int32_t mgmtSuperTableActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtSuperTableActionUpdateAll() {
+static int32_t mgmtSuperTableActionRestored() {
   return 0;
 }
 
@@ -435,7 +435,7 @@ static int32_t mgmtInitSuperTables() {
     .encodeFp     = mgmtSuperTableActionEncode,
     .decodeFp     = mgmtSuperTableActionDecode,
     .destroyFp    = mgmtSuperTableActionDestroy,
-    .updateAllFp  = mgmtSuperTableActionUpdateAll
+    .restoredFp   = mgmtSuperTableActionRestored
   };
 
   tsSuperTableSdb = sdbOpenTable(&tableDesc);

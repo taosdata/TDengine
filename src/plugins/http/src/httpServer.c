@@ -270,7 +270,7 @@ void httpCleanUpConnect(HttpServer *pServer) {
 
   for (i = 0; i < pServer->numOfThreads; ++i) {
     pThread = pServer->pThreads + i;
-    taosCloseSocket(pThread->pollFd);
+    //taosCloseSocket(pThread->pollFd);
 
     while (pThread->pHead) {
       httpCleanUpContext(pThread->pHead, 0);
@@ -591,7 +591,6 @@ void httpAcceptHttpConnection(void *arg) {
 
 bool httpInitConnect(HttpServer *pServer) {
   int            i;
-  pthread_attr_t thattr;
   HttpThread *   pThread;
 
   pServer->pThreads = (HttpThread *)malloc(sizeof(HttpThread) * (size_t)pServer->numOfThreads);
@@ -601,8 +600,6 @@ bool httpInitConnect(HttpServer *pServer) {
   }
   memset(pServer->pThreads, 0, sizeof(HttpThread) * (size_t)pServer->numOfThreads);
 
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   pThread = pServer->pThreads;
   for (i = 0; i < pServer->numOfThreads; ++i) {
     sprintf(pThread->label, "%s%d", pServer->label, i);
@@ -626,21 +623,27 @@ bool httpInitConnect(HttpServer *pServer) {
       return false;
     }
 
+    pthread_attr_t thattr;
+    pthread_attr_init(&thattr);
+    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
     if (pthread_create(&(pThread->thread), &thattr, (void *)httpProcessHttpData, (void *)(pThread)) != 0) {
       httpError("http thread:%s, failed to create HTTP process data thread, reason:%s",
                 pThread->label, strerror(errno));
       return false;
     }
+    pthread_attr_destroy(&thattr);
 
     httpTrace("http thread:%p:%s, initialized", pThread, pThread->label);
     pThread++;
   }
 
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pServer->thread), &thattr, (void *)httpAcceptHttpConnection, (void *)(pServer)) != 0) {
     httpError("http server:%s, failed to create Http accept thread, reason:%s", pServer->label, strerror(errno));
     return false;
   }
-
   pthread_attr_destroy(&thattr);
 
   httpTrace("http server:%s, initialized, ip:%s:%u, numOfThreads:%d", pServer->label, pServer->serverIp,

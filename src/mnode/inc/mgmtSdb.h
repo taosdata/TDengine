@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 typedef enum {
-  SDB_TABLE_MNODE   = 0,
-  SDB_TABLE_DNODE   = 1,
+  SDB_TABLE_DNODE   = 0,
+  SDB_TABLE_MNODE   = 1,
   SDB_TABLE_ACCOUNT = 2,
   SDB_TABLE_USER    = 3,
   SDB_TABLE_DB      = 4,
@@ -34,6 +34,7 @@ typedef enum {
 
 typedef enum {
   SDB_KEY_STRING, 
+  SDB_KEY_INT,
   SDB_KEY_AUTO
 } ESdbKeyType;
 
@@ -63,14 +64,22 @@ typedef struct {
   int32_t (*encodeFp)(SSdbOperDesc *pOper);
   int32_t (*decodeFp)(SSdbOperDesc *pDesc);  
   int32_t (*destroyFp)(SSdbOperDesc *pDesc);
-  int32_t (*updateAllFp)();
+  int32_t (*restoredFp)();
 } SSdbTableDesc;
+
+typedef struct {
+  int64_t version;
+  void *  wal;
+  pthread_mutex_t mutex;
+} SSdbObject;
 
 int32_t sdbInit();
 void    sdbCleanUp();
+SSdbObject *sdbGetObj();
 
 void *  sdbOpenTable(SSdbTableDesc *desc);
 void    sdbCloseTable(void *handle);
+int     sdbProcessWrite(void *param, void *data, int type);
 
 int32_t sdbInsertRow(SSdbOperDesc *pOper);
 int32_t sdbDeleteRow(SSdbOperDesc *pOper);
@@ -81,7 +90,7 @@ void    *sdbFetchRow(void *handle, void *pNode, void **ppRow);
 void     sdbIncRef(void *thandle, void *pRow);
 void     sdbDecRef(void *thandle, void *pRow);
 int64_t  sdbGetNumOfRows(void *handle);
-int64_t  sdbGetId(void *handle);
+int32_t  sdbGetId(void *handle);
 uint64_t sdbGetVersion();
 
 #ifdef __cplusplus
