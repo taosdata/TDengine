@@ -634,14 +634,13 @@ typedef struct SCMSTableVgroupMsg {
 } SCMSTableVgroupMsg;
 
 typedef struct {
-  SIpAddr   ipAddr;
-  int32_t   numOfVgroups;
-  int32_t   vgId[];
-} STableDnodeVgroupInfo;
+  int32_t   vgId;
+  SIpAddr   ipAddr[TSDB_REPLICA_MAX_NUM];
+} SCMVgroupInfo;
 
 typedef struct {
-  int32_t  numOfDnodes;
-  STableDnodeVgroupInfo dnodeVgroups[];
+  int32_t  numOfVgroups;
+  SCMVgroupInfo vgroups[];
 } SCMSTableVgroupRspMsg;
 
 typedef struct {

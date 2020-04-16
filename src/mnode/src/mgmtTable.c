@@ -1166,40 +1166,48 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
 
 static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   SCMSTableVgroupMsg *pInfo = pMsg->pCont;
-  pMsg->pTable = mgmtGetSuperTable(pInfo->tableId);
+  SSuperTableObj *pTable = mgmtGetSuperTable(pInfo->tableId);
+
+  pMsg->pTable = pTable;
   if (pMsg->pTable == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
     return;
   }
 
-  SCMSTableVgroupRspMsg *pRsp = rpcMallocCont(sizeof(SCMSTableVgroupRspMsg) + sizeof(uint32_t) * clusterGetDnodesNum());
+  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + sizeof(SCMVgroupInfo) * pTable->vgLen;
+  SCMSTableVgroupRspMsg *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return;
   }
   
-  int32_t numOfVgroups = 1;
-  int32_t numOfDnodes  = 1;
-  
-  pRsp->numOfDnodes = htonl(numOfDnodes);
-  STableDnodeVgroupInfo* pVgroupInfo = pRsp->dnodeVgroups;
-  pVgroupInfo->ipAddr.ip = htonl(inet_addr(tsPrivateIp));
-  
-  pVgroupInfo->ipAddr.port = htons(0);      // todo fix it
-  pVgroupInfo->numOfVgroups = htonl(numOfVgroups); // todo fix it
-  int32_t* vgIdList = pVgroupInfo->vgId;
-  
-  for(int32_t i = 0; i < numOfVgroups; ++i) {
-    vgIdList[i] = htonl(2);  // todo fix it
+  int32_t vg = 0;
+  for (; vg < pTable->vgLen; ++vg) {
+    int32_t vgId = pTable->vgList[vg];
+    if (vgId == 0) break;
+
+    SVgObj *pVgroup = mgmtGetVgroup(vgId);
+    if (pVgroup == NULL) break;
+
+    pRsp->vgroups[vg].vgId = htonl(vgId);
+    for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
+      SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[vn].dnodeId);
+      if (pDnode == NULL) break;
+
+      pRsp->vgroups[vg].ipAddr[vn].ip = htonl(pDnode->privateIp);
+      pRsp->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
+
+      clusterReleaseDnode(pDnode);
+    }
+
+    mgmtReleaseVgroup(pVgroup);
   }
-  
-  assert(numOfDnodes == 1);  // this size is valid only when numOfDnodes equals 1
-  int32_t msgLen = sizeof(SCMSTableVgroupRspMsg) + sizeof(STableDnodeVgroupInfo) + numOfVgroups * sizeof(int32_t);
-  
+  pRsp->numOfVgroups = htonl(vg);
+
   SRpcMsg rpcRsp = {0};
   rpcRsp.handle = pMsg->thandle;
   rpcRsp.pCont = pRsp;
-  rpcRsp.contLen = msgLen;
+  rpcRsp.contLen = sizeof(SCMSTableVgroupRspMsg) + sizeof(SCMVgroupInfo) * vg;
   rpcSendResponse(&rpcRsp);
 }
 

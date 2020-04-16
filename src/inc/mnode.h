@@ -88,6 +88,7 @@ typedef struct _dnode_obj {
 
 typedef struct {
   int32_t  dnodeId;
+  uint16_t port;
   uint32_t privateIp;
   uint32_t publicIp;
 } SVnodeGid;
