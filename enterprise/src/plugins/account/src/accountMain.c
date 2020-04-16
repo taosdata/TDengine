@@ -93,6 +93,12 @@ static int32_t acctActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t acctActionUpdate(SSdbOperDesc *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
+  SAcctObj *pSaved = acctGetAcct(pAcct->user);
+  if (pAcct != pSaved) {
+    memcpy(pSaved, pAcct, pOper->rowSize);
+    free(pAcct);
+  }
   return TSDB_CODE_SUCCESS;
 }
 

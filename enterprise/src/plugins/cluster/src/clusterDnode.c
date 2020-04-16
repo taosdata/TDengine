@@ -83,6 +83,12 @@ static int32_t clusterDnodeActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t clusterDnodeActionUpdate(SSdbOperDesc *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
+  SDnodeObj *pSaved = clusterGetDnode(pDnode->dnodeId);
+  if (pDnode != pSaved) {
+    memcpy(pSaved, pDnode, pOper->rowSize);
+    free(pDnode);
+  }
   return TSDB_CODE_SUCCESS;
 }
 

@@ -86,6 +86,13 @@ static int32_t mpeerActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t mpeerActionUpdate(SSdbOperDesc *pOper) {
+  SMnodeObj *pMnode = pOper->pObj;
+  SMnodeObj *pSaved = mpeerGetMnode(pMnode->mnodeId);
+  if (pMnode != pSaved) {
+    memcpy(pSaved, pMnode, pOper->rowSize);
+    free(pMnode);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
