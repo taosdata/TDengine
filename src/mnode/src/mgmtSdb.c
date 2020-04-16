@@ -18,11 +18,12 @@
 #include "taoserror.h"
 #include "tlog.h"
 #include "trpc.h"
+#include "treplica.h"
 #include "tqueue.h"
 #include "twal.h"
 #include "hashint.h"
 #include "hashstr.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtSdb.h"
 
 typedef struct _SSdbTable {
@@ -131,7 +132,7 @@ int32_t sdbInit() {
 
   sdbTrace("sdb is initialized, version:%d totalRows:%d numOfTables:%d", tsSdbObj->version, totalRows, numOfTables);
   
-  mpeerUpdateSync();
+  replicaNotify();
 
   return TSDB_CODE_SUCCESS;
 }
@@ -264,7 +265,7 @@ static int32_t sdbProcessWriteFromApp(SSdbTable *pTable, SWalHead *pHead, int32_
   tsSdbObj->version++;
   pHead->version = tsSdbObj->version;
 
-  code = mpeerForwardReqToPeer(pHead);
+  code = replicaForwardReqToPeer(pHead);
   if (code != TSDB_CODE_SUCCESS) {
     pthread_mutex_unlock(&tsSdbObj->mutex);
     sdbError("table:%s, failed to forward %s record:%s from file, version:%" PRId64 ", reason:%s", pTable->tableName,

@@ -13,27 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_H
-#define TDENGINE_BALANCE_H
+#ifndef TDENGINE_REPLICA_H
+#define TDENGINE_REPLICA_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
-
-struct _db_obj;
 struct _vg_obj;
 struct _dnode_obj;
 
-int32_t balanceInit();
-void    balanceCleanUp();
-void    balanceNotify();
-void    balanceReset();
-int32_t balanceAllocVnodes(struct _vg_obj *pVgroup);
-int32_t balanceDropDnode(struct _dnode_obj *pDnode);
+int32_t replicaInit();
+void    replicaCleanUp();
+void    replicaNotify();
+void    replicaReset();
+int32_t replicaAllocVnodes(struct _vg_obj *pVgroup);
+int32_t replicaForwardReqToPeer(void *pHead);
+int32_t replicaDropDnode(struct _dnode_obj *pDnode);
 
 #ifdef __cplusplus
 }

@@ -16,13 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tmodule.h"
-#include "tbalance.h"
 #include "tgrant.h"
-#include "mgmtDnode.h"
+#include "treplica.h"
 #include "mnode.h"
-#include "mpeer.h"
 #include "mgmtDClient.h"
 #include "mgmtDServer.h"
+#include "mgmtDnode.h"
+#include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -119,13 +119,15 @@ static int32_t mgmtDnodeActionDecode(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
-  if (numOfRows <= 0) {
-    if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
-      mgmtCreateDnode(inet_addr(tsPrivateIp));
-    }
+  if (numOfRows <= 0 && strcmp(tsMasterIp, tsPrivateIp) == 0) {
+    uint32_t ip = inet_addr(tsPrivateIp);
+    mgmtCreateDnode(ip);
+    SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+    mgmtAddMnode(pDnode->dnodeId);
+    mgmtReleaseDnode(pDnode);
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mgmtInitDnodes() {
@@ -326,7 +328,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
-    balanceNotify();
+    replicaNotify();
     mgmtMonitorDnodeModule();
   }
 
@@ -339,7 +341,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  mpeerGetMpeerInfos(&pRsp->mpeers);
+  mgmtGetMnodeList(&pRsp->mpeers);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);
@@ -417,7 +419,7 @@ int32_t mgmtDropDnode(SDnodeObj *pDnode) {
   return code;
 }
 
-static int32_t clusterDropDnodeByIp(uint32_t ip) {
+static int32_t mgmtDropDnodeByIp(uint32_t ip) {
   SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
   if (pDnode == NULL) {
     mError("dnode:%s, is not exist", taosIpStr(ip));
@@ -465,7 +467,7 @@ static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
     uint32_t ip = inet_addr(pDrop->ip);
-    rpcRsp.code = clusterDropDnodeByIp(ip);
+    rpcRsp.code = mgmtDropDnodeByIp(ip);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
       mLPrint("dnode:%s is dropped by %s", pDrop->ip, pMsg->pUser->user);
     } else {
@@ -709,7 +711,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-static bool clusterCheckConfigShow(SGlobalConfig *cfg) {
+static bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
   if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW))
     return false;
   return true;
@@ -746,7 +748,7 @@ static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pShow->numOfRows = 0;
   for (int32_t i = tsGlobalConfigNum - 1; i >= 0; --i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
-    if (!clusterCheckConfigShow(cfg)) continue;
+    if (!mgmtCheckConfigShow(cfg)) continue;
     pShow->numOfRows++;
   }
 
@@ -762,7 +764,7 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
 
   for (int32_t i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
-    if (!clusterCheckConfigShow(cfg)) continue;
+    if (!mgmtCheckConfigShow(cfg)) continue;
 
     char *pWrite;
     int32_t   cols = 0;
@@ -924,7 +926,7 @@ static void clusterSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   mgmtUpdateDnode(pDnode);
 
   if (moduleType == TSDB_MOD_MGMT) {
-    mpeerAddMnode(pDnode->dnodeId);
+    mgmtAddMnode(pDnode->dnodeId);
     mPrint("dnode:%d, add it into mnode list", pDnode->dnodeId);
   }
 }
@@ -934,7 +936,7 @@ static void clusterUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   mgmtUpdateDnode(pDnode);
 
   if (moduleType == TSDB_MOD_MGMT) {
-    mpeerRemoveMnode(pDnode->dnodeId);
+    mgmtDropMnode(pDnode->dnodeId);
     mPrint("dnode:%d, remove it from mnode list", pDnode->dnodeId);
   }
 }

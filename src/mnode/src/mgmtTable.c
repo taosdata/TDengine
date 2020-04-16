@@ -29,7 +29,7 @@
 #include "mgmtDnode.h"
 #include "mgmtDServer.h"
 #include "tgrant.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"

@@ -23,12 +23,12 @@
 #include "tsync.h"
 #include "ttime.h"
 #include "ttimer.h"
+#include "treplica.h"
 #include "dnode.h"
 #include "dnodeMClient.h"
 #include "dnodeModule.h"
 #include "dnodeMgmt.h"
 #include "vnode.h"
-#include "mpeer.h"
 
 #define MPEER_CONTENT_LEN 2000
 
@@ -181,7 +181,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
              tsMnodeInfos.nodeInfos[i].nodeName);
     }
     dnodeSaveMnodeIpList();
-    mpeerUpdateSync();
+    replicaNotify();
   }
 
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);

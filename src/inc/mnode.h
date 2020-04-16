@@ -43,19 +43,6 @@ struct _acct_obj;
 struct _user_obj;
 struct _mnode_obj;
 
-typedef struct _mnode_obj {
-  int32_t  mnodeId;
-  int64_t  createdTime;
-  int8_t   reserved[14];
-  int8_t   updateEnd[1];
-  int32_t  refCount;
-  uint32_t privateIp;
-  uint32_t publicIp;  
-  uint16_t port;
-  int8_t   role;
-  char     mnodeName[TSDB_NODE_NAME_LEN + 1];
-} SMnodeObj;
-
 typedef struct _dnode_obj {
   int32_t    dnodeId;
   uint32_t   privateIp;
@@ -87,6 +74,17 @@ typedef struct _dnode_obj {
   int16_t    memoryAvgUsage;   // calc from sys.mem
   int16_t    bandwidthUsage;   // calc from sys.band
 } SDnodeObj;
+
+typedef struct _mnode_obj {
+  int32_t    mnodeId;
+  int64_t    createdTime;
+  int8_t     reserved[14];
+  int8_t     updateEnd[1];
+  int32_t    refCount;
+  int8_t     role;
+  SDnodeObj *pDnode;
+} SMnodeObj;
+
 
 typedef struct {
   int32_t  dnodeId;

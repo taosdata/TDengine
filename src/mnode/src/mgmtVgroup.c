@@ -17,14 +17,14 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "tbalance.h"
 #include "tsync.h"
+#include "treplica.h"
 #include "mgmtDnode.h"
 #include "mnode.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDServer.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -244,7 +244,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
-  if (balanceAllocVnodes(pVgroup) != 0) {
+  if (replicaAllocVnodes(pVgroup) != 0) {
     mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_ENOUGH_DNODES);

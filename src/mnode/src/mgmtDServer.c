@@ -22,7 +22,7 @@
 #include "tutil.h"
 #include "dnode.h"
 #include "mnode.h"
-#include "tbalance.h"
+#include "treplica.h"
 #include "mgmtDb.h"
 #include "mgmtDServer.h"
 #include "tgrant.h"

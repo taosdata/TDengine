@@ -20,7 +20,7 @@
 #include "tutil.h"
 #include "mgmtAcct.h"
 #include "tgrant.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"

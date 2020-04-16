@@ -19,7 +19,7 @@
 #include "mgmtAcct.h"
 #include "mgmtDnode.h"
 #include "mgmtDb.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
 #include "mgmtTable.h"

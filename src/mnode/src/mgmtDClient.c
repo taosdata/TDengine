@@ -21,7 +21,7 @@
 #include "tutil.h"
 #include "dnode.h"
 #include "mnode.h"
-#include "tbalance.h"
+#include "mgmtMnode.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "tgrant.h"
