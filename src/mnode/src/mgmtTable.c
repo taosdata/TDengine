@@ -1168,7 +1168,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   SCMSTableVgroupMsg *pInfo = pMsg->pCont;
   SSuperTableObj *pTable = mgmtGetSuperTable(pInfo->tableId);
 
-  pMsg->pTable = pTable;
+  pMsg->pTable = (STableObj *)pTable;
   if (pMsg->pTable == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
     return;
@@ -1196,6 +1196,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
 
       pRsp->vgroups[vg].ipAddr[vn].ip = htonl(pDnode->privateIp);
       pRsp->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
+      pRsp->vgroups[vg].numOfIps++;
 
       clusterReleaseDnode(pDnode);
     }
@@ -1575,7 +1576,6 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
 
   pMeta->uid       = htobe64(pTable->uid);
   pMeta->sid       = htonl(pTable->sid);
-  pMeta->vgId      = htonl(pTable->vgId);
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
   strncpy(pMeta->tableId, pTable->info.tableId, tListLen(pTable->info.tableId));
@@ -1599,16 +1599,20 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
 
-  for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[i].dnodeId);
+    if (pDnode == NULL) break;
     if (usePublicIp) {
-      pMeta->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].publicIp);
+      pMeta->vgroup.ipAddr[i].ip = htonl(pDnode->publicIp);
+      pMeta->vgroup.ipAddr[i].port = htonl(tsDnodeShellPort);
     } else {
-      pMeta->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].privateIp);
+      pMeta->vgroup.ipAddr[i].ip = htonl(pDnode->privateIp);
+      pMeta->vgroup.ipAddr[i].port = htonl(tsDnodeShellPort);
     }
-//    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
-    pMeta->vpeerDesc[i].dnodeId = htonl(pVgroup->vnodeGid[i].dnodeId);
+    pMeta->vgroup.numOfIps++;
+    clusterReleaseDnode(pDnode);
   }
-  pMeta->numOfVpeers = pVgroup->numOfVnodes;
+  pMeta->vgroup.vgId = htonl(pVgroup->vgId);
 
   mTrace("table:%s, uid:%" PRIu64 " table meta is retrieved", pTable->info.tableId, pTable->uid);
 
