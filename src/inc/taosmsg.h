@@ -608,7 +608,7 @@ typedef struct {
 } SDMNodeInfos;
 
 typedef struct {
-  SDMNodeInfos mpeers;
+  SDMNodeInfos mnodes;
   SDnodeState  dnodeState;
   SVnodeAccess vnodeAccess[];
 } SDMStatusRsp;
