@@ -15,9 +15,9 @@
 #ifndef _TD_TSDB_MAIN_H_
 #define _TD_TSDB_MAIN_H_
 
-#include "tsdb.h"
-#include "tlist.h"
 #include "tglobalcfg.h"
+#include "tlist.h"
+#include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
 
@@ -90,9 +90,9 @@ typedef struct {
 
   STable *superList;  // super table list TODO: change  it to list container
 
-  void *map; // table map of (uid ===> table)
+  void *map;  // table map of (uid ===> table)
 
-  SMetaFile *mfh; // meta file handle
+  SMetaFile *mfh;  // meta file handle
   int        maxRowBytes;
   int        maxCols;
 } STsdbMeta;
@@ -119,14 +119,14 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
 #define TSDB_TABLE_OF_ID(pHandle, id) ((pHandle)->pTables)[id]
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
-STsdbMeta* tsdbGetMeta(tsdb_repo_t* pRepo);
+STsdbMeta *tsdbGetMeta(tsdb_repo_t *pRepo);
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
 int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
-char *getTupleKey(const void * data);
+char *  getTupleKey(const void *data);
 
 // ------------------------------ TSDB CACHE INTERFACES ------------------------------
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16 * 1024 * 1024 /* 16M */
@@ -192,8 +192,8 @@ typedef struct {
 } SFileInfo;
 
 typedef struct {
-  int     fd;
-  char    fname[128];
+  int       fd;
+  char      fname[128];
   SFileInfo info;
 } SFile;
 
@@ -217,13 +217,15 @@ typedef struct {
 
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
-int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose);
+int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader,
+                           int toClose);
 int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
-int         tsdbCloseFile(SFile *pFile); SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
+int         tsdbCloseFile(SFile *pFile);
+SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
 int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
 
-#define TSDB_FGROUP_ITER_FORWARD  TSDB_ORDER_ASC
+#define TSDB_FGROUP_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FGROUP_ITER_BACKWARD TSDB_ORDER_DESC
 
 typedef struct {
@@ -278,15 +280,15 @@ typedef struct {
 } SCompInfo;
 
 #define TSDB_COMPBLOCK_AT(pCompInfo, idx) ((pCompInfo)->blocks + (idx))
-#define TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pCompBlock, size)\
-do {\
-  if (pCompBlock->numOfSubBlocks > 1) {\
-    pCompBlock = pCompInfo->blocks + pCompBlock->offset;\
-    size = pCompBlock->numOfSubBlocks;\
-  } else {\
-    size = 1;\
-  }\
-} while (0)
+#define TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pCompBlock, size) \
+  do {                                                                 \
+    if (pCompBlock->numOfSubBlocks > 1) {                              \
+      pCompBlock = pCompInfo->blocks + pCompBlock->offset;             \
+      size = pCompBlock->numOfSubBlocks;                               \
+    } else {                                                           \
+      size = 1;                                                        \
+    }                                                                  \
+  } while (0)
 
 // TODO: take pre-calculation into account
 typedef struct {
@@ -304,9 +306,10 @@ typedef struct {
   SCompCol cols[];
 } SCompData;
 
-STsdbFileH* tsdbGetFile(tsdb_repo_t* pRepo);
+STsdbFileH *tsdbGetFile(tsdb_repo_t *pRepo);
 
-int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols);
+int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast,
+                            SDataCols *pCols);
 
 int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
 int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
@@ -350,6 +353,30 @@ typedef struct _tsdb_repo {
 
 } STsdbRepo;
 
+typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+int      tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
+SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+
+#define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
+
+// SSubmitMsg Iterator
+typedef struct {
+  int32_t     totalLen;
+  int32_t     len;
+  SSubmitBlk *pBlock;
+} SSubmitMsgIter;
+
+int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
+SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
+
+int32_t tsdbTriggerCommit(tsdb_repo_t *repo);
+int32_t tsdbLockRepo(tsdb_repo_t *repo);
+int32_t tsdbUnLockRepo(tsdb_repo_t *repo);
 
 #ifdef __cplusplus
 }
