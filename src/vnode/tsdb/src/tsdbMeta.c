@@ -105,8 +105,9 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   if (pTable == NULL) return -1;
   
   if (pTable->type == TSDB_SUPER_TABLE) {
-    pTable->pIndex =
-        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, 0, getTagIndexKey);
+    STColumn* pColSchema = schemaColAt(pTable->tagSchema, 0);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
+                                    1, 0, 0, getTagIndexKey);
   }
 
   tsdbAddTableToMeta(pMeta, pTable, false);
@@ -201,6 +202,18 @@ STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
+STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    return pTable->tagSchema;
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    STable *pSuper = tsdbGetTableByUid(pMeta, pTable->superUid);
+    if (pSuper == NULL) return NULL;
+    return pSuper->tagSchema;
+  } else {
+    return NULL;
+  }
+}
+
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 
@@ -222,8 +235,11 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->schema = tdDupSchema(pCfg->schema);
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
       super->tagVal = tdDataRowDup(pCfg->tagValues);
-      super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
-                                                0, 0, getTagIndexKey);  // Allow duplicate key, no lock
+  
+      // index the first tag column
+      STColumn* pColSchema = schemaColAt(super->tagSchema, 0);
+      super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
+          1, 0, 0, getTagIndexKey);  // Allow duplicate key, no lock
 
       if (super->pIndex == NULL) {
         tdFreeSchema(super->schema);
@@ -411,11 +427,11 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   int32_t level = 0;
   int32_t headSize = 0;
   
-  // first tag column
-  STColumn* s = schemaColAt(pSTable->tagSchema, 0);
+  tSkipListNewNodeInfo(pSTable->pIndex, &level, &headSize);
   
-  tSkipListRandNodeInfo(pSTable->pIndex, &level, &headSize);
-  SSkipListNode* pNode = calloc(1, headSize + s->bytes + POINTER_BYTES);
+  // NOTE: do not allocate the space for key, since in each skip list node, only keep the pointer to pTable, not the
+  // actual key value, and the key value will be retrieved during query through the pTable and getTagIndexKey function
+  SSkipListNode* pNode = calloc(1, headSize + POINTER_BYTES);
   pNode->level = level;
   
   SSkipList* list = pSTable->pIndex;
