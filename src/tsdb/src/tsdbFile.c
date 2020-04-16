@@ -25,6 +25,7 @@
 
 #include "tutil.h"
 #include "tsdbMain.h"
+#include "tchecksum.h"
 
 const char *tsdbFileSuffix[] = {
     ".head",  // TSDB_FILE_TYPE_HEAD
@@ -310,7 +311,7 @@ static int tsdbWriteFileHead(SFile *pFile) {
 }
 
 static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables) {
-  int   size = sizeof(SCompIdx) * maxTables;
+  int   size = sizeof(SCompIdx) * maxTables + sizeof(TSCKSUM);
   void *buf = calloc(1, size);
   if (buf == NULL) return -1;
 
@@ -318,6 +319,8 @@ static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables) {
     free(buf);
     return -1;
   }
+
+  taosCalcChecksumAppend(0, (uint8_t *)buf, size);
 
   if (write(pFile->fd, buf, size) < 0) {
     free(buf);

@@ -351,13 +351,14 @@ typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 
 typedef struct {
   tsdb_rw_helper_t type;  // helper type
-  int              maxTables;
-  int              maxRowSize;
-  int              maxRows;
-  int              maxCols;
-  int              minRowsPerFileBlock;
-  int              maxRowsPerFileBlock;
-  int8_t           compress;
+
+  int    maxTables;
+  int    maxRowSize;
+  int    maxRows;
+  int    maxCols;
+  int    minRowsPerFileBlock;
+  int    maxRowsPerFileBlock;
+  int8_t compress;
 } SHelperCfg;
 
 typedef struct {
@@ -388,17 +389,14 @@ typedef struct {
   // For file set usage
   SHelperFile files;
   SCompIdx *  pCompIdx;
-  // size_t      compIdxSize;
 
   // For table set usage
   SHelperTable tableInfo;
   SCompInfo *  pCompInfo;
-  // size_t       compInfoSize;
   bool         hasOldLastBlock;
 
   // For block set usage
   SCompData *pCompData;
-  // size_t     compDataSize;
   SDataCols *pDataCols[2];
 
 } SRWHelper;

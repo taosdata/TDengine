@@ -56,7 +56,8 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
 static void *  tsdbCommitData(void *arg);
-static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SRWHelper *pHelper, SDataCols *pDataCols);
+static int     tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SRWHelper *pHelper,
+                                SDataCols *pDataCols);
 static TSKEY   tsdbNextIterKey(SSkipListIterator *pIter);
 static int     tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey);
 // static int tsdbWriteBlockToFileImpl(SFile *pFile, SDataCols *pCols, int pointsToWrite, int64_t *offset, int32_t *len,
@@ -847,6 +848,7 @@ static void *tsdbCommitData(void *arg) {
       .maxRows = pCfg->maxRowsPerFileBlock,
       .maxCols = pMeta->maxCols,
       .minRowsPerFileBlock = pCfg->minRowsPerFileBlock,
+      .maxRowsPerFileBlock = pCfg->maxRowsPerFileBlock,
       .compress = 2  // TODO make it a configuration
   };
   if (tsdbInitHelper(&whelper, &hcfg) < 0) goto _exit;
@@ -911,6 +913,8 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   // Loop to commit data in each table
   for (int tid = 0; tid < pCfg->maxTables; tid++) {
     STable *           pTable = pMeta->tables[tid];
+    if (pTable == NULL) continue;
+
     SSkipListIterator *pIter = iters[tid];
 
     // Set the helper and the buffer dataCols object to help to write this table
@@ -929,6 +933,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
       ASSERT(dataColsKeyLast(pDataCols) >= minKey && dataColsKeyLast(pDataCols) <= maxKey);
 
       int rowsWritten = tsdbWriteDataBlock(pHelper, pDataCols);
+      ASSERT(rowsWritten != 0);
       if (rowsWritten < 0) goto _err;
       ASSERT(rowsWritten <= pDataCols->numOfPoints);
 

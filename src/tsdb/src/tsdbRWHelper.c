@@ -14,15 +14,7 @@
  */
 #include "tsdbMain.h"
 #include "tchecksum.h"
-
-#define adjustMem(ptr, size, expectedSize)    \
-  do {                                        \
-    if ((size) < (expectedSize)) {            \
-      (ptr) = realloc((void *)(ptr), (expectedSize)); \
-      if ((ptr) == NULL) return -1;           \
-      (size) = (expectedSize);                \
-    }                                         \
-  } while (0)
+#include "tscompression.h"
 
 // Local function definitions
 static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
@@ -33,12 +25,11 @@ static int  tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pD
                                  SCompBlock *pCompBlock, bool isLast, bool isSuperBlock);
 static int compareKeyBlock(const void *arg1, const void *arg2);
 static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
-// static int nRowsLEThan(SDataCols *pDataCols, int maxKey);
-// static int tsdbGetRowsCanBeMergedWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
 static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded);
 static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey);
+static void tsdbResetHelperBlock(SRWHelper *pHelper);
 
 // ---------- Operations on Helper File part
 static void tsdbResetHelperFileImpl(SRWHelper *pHelper) {
@@ -72,6 +63,12 @@ static void tsdbResetHelperTableImpl(SRWHelper *pHelper) {
   pHelper->hasOldLastBlock = false;
 }
 
+static void tsdbResetHelperTable(SRWHelper *pHelper) {
+  tsdbResetHelperBlock(pHelper);
+  tsdbResetHelperTableImpl(pHelper);
+  helperClearState(pHelper, TSDB_HELPER_TABLE_SET);
+}
+
 static void tsdbInitHelperTable(SRWHelper *pHelper) {
   tsdbResetHelperTableImpl(pHelper);
 }
@@ -82,6 +79,10 @@ static void tsdbDestroyHelperTable(SRWHelper *pHelper) { tzfree((void *)pHelper-
 static void tsdbResetHelperBlockImpl(SRWHelper *pHelper) {
   tdResetDataCols(pHelper->pDataCols[0]);
   tdResetDataCols(pHelper->pDataCols[1]);
+}
+
+static void tsdbResetHelperBlock(SRWHelper *pHelper) {
+  // TODO
 }
 
 static int tsdbInitHelperBlock(SRWHelper *pHelper) {
@@ -167,7 +168,6 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   pHelper->files.lastF = pGroup->files[TSDB_FILE_TYPE_LAST];
   if (TSDB_HELPER_TYPE(pHelper) == TSDB_WRITE_HELPER) {
     char *fnameDup = strdup(pHelper->files.headF.fname);
-    if (fnameDup == NULL) goto _err;
     if (fnameDup == NULL) return -1;
     char *dataDir = dirname(fnameDup);
 
@@ -183,8 +183,8 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
     if (tsdbOpenFile(&(pHelper->files.lastF), O_RDWR) < 0) goto _err;
 
     // Create and open .h
-    if (tsdbOpenFile(&(pHelper->files.nHeadF), O_WRONLY | O_CREAT) < 0) goto _err;
-    size_t tsize = TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pHelper->config.maxTables;
+    if (tsdbOpenFile(&(pHelper->files.nHeadF), O_WRONLY | O_CREAT) < 0) return -1;
+    size_t tsize = TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pHelper->config.maxTables + sizeof(TSCKSUM);
     if (tsendfile(pHelper->files.nHeadF.fd, pHelper->files.headF.fd, NULL, tsize) < tsize) goto _err;
 
     // Create and open .l file if should
@@ -221,23 +221,33 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   if (pHelper->files.nHeadF.fd > 0) {
     close(pHelper->files.nHeadF.fd);
     pHelper->files.nHeadF.fd = -1;
-    if (hasError) remove(pHelper->files.nHeadF.fname);
+    if (hasError) {
+      remove(pHelper->files.nHeadF.fname);
+    } else {
+      rename(pHelper->files.nHeadF.fname, pHelper->files.headF.fname);
+      pHelper->files.headF.info = pHelper->files.nHeadF.info;
+    }
   }
   
   if (pHelper->files.nLastF.fd > 0) {
     close(pHelper->files.nLastF.fd);
     pHelper->files.nLastF.fd = -1;
-    if (hasError) remove(pHelper->files.nLastF.fname);
+    if (hasError) {
+      remove(pHelper->files.nLastF.fname);
+    } else {
+      rename(pHelper->files.nLastF.fname, pHelper->files.lastF.fname);
+      pHelper->files.lastF.info = pHelper->files.nLastF.info;
+    }
   }
   return 0;
 }
 
 void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema *pSchema) {
-  ASSERT(helperHasState(pHelper, TSDB_HELPER_FILE_SET_AND_OPEN));
+  ASSERT(helperHasState(pHelper, TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD));
 
   // Clear members and state used by previous table
-  // pHelper->blockIter = 0;
-  pHelper->state &= (TSDB_HELPER_TABLE_SET - 1);
+  tsdbResetHelperTable(pHelper);
+  ASSERT(pHelper->state == (TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD));
 
   pHelper->tableInfo = *pHelperTable;
   tdInitDataCols(pHelper->pDataCols[0], pSchema);
@@ -248,9 +258,8 @@ void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema
     pHelper->hasOldLastBlock = true;
   }
 
-  // pHelper->compIdx = pHelper->pCompIdx[pHelper->tableInfo.tid];
-
   helperSetState(pHelper, TSDB_HELPER_TABLE_SET);
+  ASSERT(pHelper->state == ((TSDB_HELPER_TABLE_SET << 1) - 1));
 }
 
 /**
@@ -268,7 +277,6 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
   TSKEY      keyFirst = dataColsKeyFirst(pDataCols);
 
   ASSERT(helperHasState(pHelper, TSDB_HELPER_IDX_LOAD));
-  // SCompIdx  curIdx = pHelper->compIdx;                          // old table SCompIdx for sendfile usage
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;  // for change purpose
 
   // Load the SCompInfo part if neccessary
@@ -283,7 +291,7 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
     SFile *pWFile = NULL;
     bool   isLast = false;
 
-    if (rowsToWrite > pHelper->config.minRowsPerFileBlock) {
+    if (rowsToWrite >= pHelper->config.minRowsPerFileBlock) {
       pWFile = &(pHelper->files.dataF);
     } else {
       isLast = true;
@@ -314,7 +322,7 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
         rowsToWrite = tsdbGetRowsInRange(pDataCols, 0, pCompBlock->keyFirst-1);
         ASSERT(rowsToWrite > 0);
         if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.dataF), pDataCols, rowsToWrite, &compBlock, false, true) < 0) goto _err;
-        if (tsdbInsertSuperBlock(pHelper, pCompBlock, pCompBlock - pHelper->pCompInfo->blocks) < 0) goto _err;
+        if (tsdbInsertSuperBlock(pHelper, pCompBlock, blkIdx) < 0) goto _err;
       }
     }
   }
@@ -367,6 +375,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
       if (tsendfile(pHelper->files.nHeadF.fd, pHelper->files.headF.fd, NULL, pIdx->len) < pIdx->len) return -1;
     }
   } else {
+    taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompInfo, pIdx->len);
     pIdx->offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
     if (pIdx->offset < 0) return -1;
 
@@ -378,6 +387,8 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
 
 int tsdbWriteCompIdx(SRWHelper *pHelper) {
   if (lseek(pHelper->files.nHeadF.fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) return -1;
+
+  taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompIdx, tsizeof(pHelper->pCompIdx));
 
   if (twrite(pHelper->files.nHeadF.fd, (void *)pHelper->pCompIdx, tsizeof(pHelper->pCompIdx)) < tsizeof(pHelper->pCompIdx))
     return -1;
@@ -392,8 +403,11 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
     int fd = pHelper->files.headF.fd;
 
     if (lseek(fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) return -1;
-    if (tread(fd, (void *)(pHelper->pCompIdx), tsizeof(pHelper->pCompIdx)) < tsizeof(pHelper->pCompIdx)) return -1;
-    // TODO: check the correctness of the part
+    if (tread(fd, (void *)(pHelper->pCompIdx), tsizeof((void *)pHelper->pCompIdx)) < tsizeof(pHelper->pCompIdx)) return -1;
+    if (!taosCheckChecksumWhole((uint8_t *)(pHelper->pCompIdx), tsizeof((void *)pHelper->pCompIdx))) {
+      // TODO: File is broken, try to deal with it
+      return -1;
+    }
   }
   helperSetState(pHelper, TSDB_HELPER_IDX_LOAD);
 
@@ -408,19 +422,16 @@ int tsdbLoadCompInfo(SRWHelper *pHelper, void *target) {
 
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
 
-  // SCompIdx curCompIdx = pHelper->compIdx;
-
-  ASSERT(pIdx->offset > 0 && pIdx->len > 0);
-
   int fd = pHelper->files.headF.fd;
 
   if (!helperHasState(pHelper, TSDB_HELPER_INFO_LOAD)) {
-    if (lseek(fd, pIdx->offset, SEEK_SET) < 0) return -1;
+    if (pIdx->offset > 0) {
+      if (lseek(fd, pIdx->offset, SEEK_SET) < 0) return -1;
 
-    // adjustMem(pHelper->pCompInfo, pHelper->compInfoSize, pIdx->len);
-    pHelper->pCompInfo = trealloc((void *)pHelper->pCompInfo, pIdx->len);
-    if (tread(fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) return -1;
-    // TODO: check the checksum
+      pHelper->pCompInfo = trealloc((void *)pHelper->pCompInfo, pIdx->len);
+      if (tread(fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) return -1;
+      if (!taosCheckChecksumWhole((uint8_t *)pHelper->pCompInfo, pIdx->len)) return -1;
+    }
 
     helperSetState(pHelper, TSDB_HELPER_INFO_LOAD);
   }
@@ -519,16 +530,21 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
 
   int fd = (pCompBlock->last) ? pHelper->files.lastF.fd : pHelper->files.dataF.fd;
   if (tread(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) goto _err;
+  ASSERT(pCompData->numOfCols == pCompBlock->numOfCols);
 
-  { // TODO : check the correctness of the part 
+  // TODO : check the checksum
+  size_t tsize = sizeof(SCompData) + sizeof(SCompCol) * pCompBlock->numOfCols + sizeof(TSCKSUM);
+  if (!taosCheckChecksumWhole((uint8_t *)pCompData, tsize)) goto _err;
+  for (int i = 0; i < pCompData->numOfCols; i++) {
+    // TODO: check the data checksum
+    // if (!taosCheckChecksumWhole())
   }
 
   ASSERT(pCompBlock->numOfCols == pCompData->numOfCols);
 
   pDataCols->numOfPoints = pCompBlock->numOfPoints;
 
-  size_t tlen = sizeof(SCompData) + sizeof(SCompCol) * pCompBlock->numOfCols;
-  int    ccol = 0, dcol = 0;
+  int ccol = 0, dcol = 0;
   while (true) {
     if (ccol >= pDataCols->numOfCols) {
       // TODO: Fill rest NULL
@@ -541,7 +557,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
 
     if (pCompCol->colId == pDataCol->colId) {
       // TODO: uncompress
-      memcpy(pDataCol->pData, (void *)(((char *)pCompData) + tlen + pCompCol->offset), pCompCol->len);
+      memcpy(pDataCol->pData, (void *)(((char *)pCompData) + tsize + pCompCol->offset), pCompCol->len);
       ccol++;
       dcol++;
     } else if (pCompCol->colId > pDataCol->colId) {
@@ -567,8 +583,10 @@ int tsdbLoadBlockData(SRWHelper *pHelper, int blkIdx, SDataCols *target) {
   int numOfSubBlock = pCompBlock->numOfSubBlocks;
   if (numOfSubBlock > 1) pCompBlock = (SCompBlock *)((char *)pHelper->pCompInfo + pCompBlock->offset);
 
+  tdResetDataCols(pHelper->pDataCols[0]);
   if (tsdbLoadBlockDataImpl(pHelper, pCompBlock, pHelper->pDataCols[0]) < 0) goto _err;
   for (int i = 1; i < numOfSubBlock; i++) {
+    tdResetDataCols(pHelper->pDataCols[1]);
     pCompBlock++;
     if (tsdbLoadBlockDataImpl(pHelper, pCompBlock, pHelper->pDataCols[1]) < 0) goto _err;
     if (tdMergeDataCols(pHelper->pDataCols[0], pHelper->pDataCols[1], pHelper->pDataCols[1]->numOfPoints) < 0) goto _err;
@@ -614,8 +632,11 @@ static void tsdbClearHelperFile(SHelperFile *pHFile) {
 }
 
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper) {
-  // TODO
-  return 0;
+  ASSERT(pHelper->files.lastF.fd > 0);
+  struct stat st;
+  fstat(pHelper->files.lastF.fd, &st);
+  if (st.st_size > 32 * 1024 + TSDB_FILE_HEAD_SIZE) return true;
+  return false;
 }
 
 static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDataCols, int rowsToWrite, SCompBlock *pCompBlock,
@@ -629,7 +650,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
   offset = lseek(pFile->fd, 0, SEEK_END);
   if (offset < 0) goto _err;
 
-  pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * pDataCols->numOfCols);
+  pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * pDataCols->numOfCols + sizeof(TSCKSUM));
   if (pCompData == NULL) goto _err;
 
   int nColsNotAllNull = 0;
@@ -639,12 +660,14 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
     SCompCol *pCompCol = pCompData->cols + nColsNotAllNull;
 
     if (0) {
-      // TODO: all data are NULL
+      // TODO: all data to commit are NULL
       continue;
     }
 
     // Compress the data here
-    {}
+    {
+      // TODO
+    }
 
     pCompCol->colId = pDataCol->colId;
     pCompCol->type = pDataCol->type;
@@ -655,14 +678,17 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
     toffset += pCompCol->len;
   }
 
-  ASSERT(nColsNotAllNull > 0);
+  ASSERT(nColsNotAllNull > 0 && nColsNotAllNull <= pDataCols->numOfCols);
 
   pCompData->delimiter = TSDB_FILE_DELIMITER;
   pCompData->uid = pHelper->tableInfo.uid;
   pCompData->numOfCols = nColsNotAllNull;
 
-  size_t tsize = sizeof(SCompData) + sizeof(SCompCol) * nColsNotAllNull;
+  // Write SCompData + SCompCol part
+  size_t tsize = sizeof(SCompData) + sizeof(SCompCol) * nColsNotAllNull + sizeof(TSCKSUM);
+  taosCalcChecksumAppend(0, (uint8_t *)pCompData, tsize);
   if (twrite(pFile->fd, (void *)pCompData, tsize) < tsize) goto _err;
+  // Write true data part
   int nCompCol = 0;
   for (int ncol = 0; ncol < pDataCols->numOfCols; ncol++) {
     ASSERT(nCompCol < nColsNotAllNull);
@@ -679,7 +705,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
 
   pCompBlock->last = isLast;
   pCompBlock->offset = offset;
-  pCompBlock->algorithm = 2;  // TODO
+  pCompBlock->algorithm = 0;  // TODO
   pCompBlock->numOfPoints = rowsToWrite;
   pCompBlock->sversion = pHelper->tableInfo.sversion;
   pCompBlock->len = (int32_t)tsize;
@@ -713,18 +739,13 @@ static FORCE_INLINE int compKeyFunc(const void *arg1, const void *arg2) {
   return ((*(TSKEY *)arg1) - (*(TSKEY *)arg2));
 }
 
-// static int nRowsLEThan(SDataCols *pDataCols, int maxKey) {
-//   void *ptr = taosbsearch((void *)&maxKey, pDataCols->cols[0].pData, pDataCols->numOfPoints, sizeof(TSKEY), compKeyFunc, TD_LE);
-//   if (ptr == NULL) return 0;
-//   return ((TSKEY *)ptr - (TSKEY *)(pDataCols->cols[0].pData)) + 1;
-// }
-
 // Merge the data with a block in file
 static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols) {
   // TODO: set pHelper->hasOldBlock
   int        rowsWritten = 0;
   SCompBlock compBlock = {0};
 
+  ASSERT(pDataCols->numOfPoints > 0);
   TSKEY keyFirst = dataColsKeyFirst(pDataCols);
 
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
@@ -733,7 +754,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
   SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + blkIdx;
   ASSERT(pCompBlock->numOfSubBlocks >= 1);
   ASSERT(keyFirst >= pCompBlock->keyFirst);
-  ASSERT(compareKeyBlock((void *)&keyFirst, (void *)pCompBlock) == 0);
+  // ASSERT(compareKeyBlock((void *)&keyFirst, (void *)pCompBlock) == 0);
 
   if (keyFirst > pCompBlock->keyLast) { // Merge the last block by append
     ASSERT(pCompBlock->last && pCompBlock->numOfPoints < pHelper->config.minRowsPerFileBlock);
@@ -870,9 +891,13 @@ static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t spaceNeeded) {
   ASSERT(spaceLeft >= 0);
   if (spaceLeft < spaceNeeded) {
     size_t tsize = tsizeof(pHelper->pCompInfo) + sizeof(SCompBlock) * 16;
-    if (tsizeof(pHelper->pCompInfo) == 0) tsize += sizeof(SCompInfo);
+    if (tsizeof(pHelper->pCompInfo) == 0) {
+      pIdx->len = sizeof(SCompData) + sizeof(TSCKSUM);
+      tsize = tsize + sizeof(SCompInfo) + sizeof(TSCKSUM);
+    }
 
     pHelper->pCompInfo = (SCompInfo *)trealloc(pHelper->pCompInfo, tsize);
+    if (pHelper->pCompInfo == NULL) return -1;
   }
 
   return 0;
@@ -881,20 +906,23 @@ static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t spaceNeeded) {
 static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx) {
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
 
-  ASSERT(blkIdx >=0 && blkIdx <= pIdx->numOfSuperBlocks);
+  ASSERT(blkIdx >= 0 && blkIdx <= pIdx->numOfSuperBlocks);
   ASSERT(pCompBlock->numOfSubBlocks == 1);
 
   // Adjust memory if no more room
-  if (tsdbAdjustInfoSizeIfNeeded(pHelper, sizeof(SCompBlock)) < 0)  goto _err;
+  if (tsdbAdjustInfoSizeIfNeeded(pHelper, sizeof(SCompBlock)) < 0) goto _err;
 
-  // Insert the block
-  if (blkIdx < pIdx->numOfSuperBlocks) {
-    SCompBlock *pTCompBlock = pHelper->pCompInfo->blocks + blkIdx;
-    memmove((void *)(pTCompBlock + 1), (void *)pTCompBlock, pIdx->len - sizeof(SCompInfo) - sizeof(SCompBlock) *blkIdx);
-    pTCompBlock++;
-    for (int i = 0; i < pIdx->numOfSuperBlocks - blkIdx; i++) {
-      if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset += sizeof(SCompBlock);
-    }
+  // Change the offset
+  for (int i = 0; i < pIdx->numOfSuperBlocks; i++) {
+    SCompBlock *pTCompBlock = &pHelper->pCompInfo->blocks[i];
+    if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset += sizeof(SCompBlock);
+  }
+
+  // Memmove if needed
+  int tsize = pIdx->len - (sizeof(SCompData) + sizeof(SCompCol) * blkIdx);
+  if (tsize > 0) {
+    memmove((void *)((char *)pHelper->pCompInfo + sizeof(SCompData) + sizeof(SCompBlock) * (blkIdx + 1)),
+            (void *)((char *)pHelper->pCompInfo + sizeof(SCompData) + sizeof(SCompBlock) * blkIdx), tsize);
   }
   pHelper->pCompInfo->blocks[blkIdx] = *pCompBlock;
 
@@ -905,7 +933,7 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 
   return 0;
 
-  _err:
+_err:
   return -1;
 }
 
@@ -913,6 +941,8 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
   ASSERT(pCompBlock->numOfSubBlocks == 0);
 
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
+  ASSERT(blkIdx >= 0 && blkIdx < pIdx->numOfSuperBlocks);
+
   SCompBlock *pSCompBlock = pHelper->pCompInfo->blocks + blkIdx;
   ASSERT(pSCompBlock->numOfSubBlocks >= 1 && pSCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS);
 
@@ -926,7 +956,7 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
       memmove((void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len + sizeof(SCompBlock)),
               (void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len), tsize);
 
-      for (int i = blkIdx; i < pIdx->numOfSuperBlocks; i++) {
+      for (int i = blkIdx + 1; i < pIdx->numOfSuperBlocks; i++) {
         SCompBlock *pTCompBlock = &pHelper->pCompInfo->blocks[i];
         if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset += sizeof(SCompBlock);
       }
@@ -936,11 +966,15 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
     *(SCompBlock *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len) = *pCompBlock;
 
     pSCompBlock->numOfSubBlocks++;
+    ASSERT(pSCompBlock->numOfSubBlocks <= TSDB_MAX_SUBBLOCKS);
     pSCompBlock->len += sizeof(SCompBlock);
+    pSCompBlock->numOfPoints += rowsAdded;
+    pSCompBlock->keyFirst = MIN(pSCompBlock->keyFirst, pCompBlock->keyFirst);
+    pSCompBlock->keyLast = MAX(pSCompBlock->keyLast, pCompBlock->keyLast);
     pIdx->len += sizeof(SCompBlock);
   } else {  // Need to create two sub-blocks
     void *ptr = NULL;
-    for (int i = blkIdx - 1; i >= 0; i--) {
+    for (int i = blkIdx + 1; i < pIdx->numOfSuperBlocks; i++) {
       SCompBlock *pTCompBlock = pHelper->pCompInfo->blocks + i;
       if (pTCompBlock->numOfSubBlocks > 1) {
         ptr = (void *)((char *)(pHelper->pCompInfo) + pTCompBlock->offset + pTCompBlock->len);
@@ -948,8 +982,7 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
       }
     }
 
-    if (ptr == NULL)
-      ptr = (void *)((char *)(pHelper->pCompInfo) + sizeof(SCompInfo) + sizeof(SCompBlock) * pIdx->numOfSuperBlocks);
+    if (ptr == NULL) ptr = (void *)((char *)(pHelper->pCompInfo) + pIdx->len - sizeof(TSCKSUM));
 
     size_t tsize = pIdx->len - ((char *)ptr - (char *)(pHelper->pCompInfo));
     if (tsize > 0) {
@@ -1040,5 +1073,5 @@ static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey) {
 
   if ((TSKEY *)ptr2 - (TSKEY *)ptr1 < 0) return 0;
 
-  return (TSKEY *)ptr2 - (TSKEY *)ptr1;
+  return ((TSKEY *)ptr2 - (TSKEY *)ptr1) + 1;
 }
