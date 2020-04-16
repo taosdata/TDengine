@@ -388,17 +388,17 @@ typedef struct {
   // For file set usage
   SHelperFile files;
   SCompIdx *  pCompIdx;
-  size_t      compIdxSize;
+  // size_t      compIdxSize;
 
   // For table set usage
   SHelperTable tableInfo;
   SCompInfo *  pCompInfo;
-  size_t       compInfoSize;
+  // size_t       compInfoSize;
   bool         hasOldLastBlock;
 
   // For block set usage
   SCompData *pCompData;
-  size_t     compDataSize;
+  // size_t     compDataSize;
   SDataCols *pDataCols[2];
 
 } SRWHelper;

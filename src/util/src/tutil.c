@@ -710,11 +710,13 @@ void *tcalloc(size_t nmemb, size_t size) {
   return ret;
 }
 
-size_t tsizeof(void *ptr) { return *(size_t *)((char *)ptr - sizeof(size_t)); }
+size_t tsizeof(void *ptr) { return (ptr) ? (*(size_t *)((char *)ptr - sizeof(size_t))) : 0; }
 
 void tmemset(void *ptr, int c) { memset(ptr, c, tsizeof(ptr)); }
 
 void * trealloc(void *ptr, size_t size) {
+  if (ptr == NULL) return tmalloc(size);
+
   if (size <= tsizeof(ptr)) return ptr;
 
   void * tptr = (void *)((char *)ptr - sizeof(size_t));
@@ -727,4 +729,8 @@ void * trealloc(void *ptr, size_t size) {
   return (void *)((char *)tptr + sizeof(size_t));
 }
 
-void tzfree(void *ptr) { free((void *)((char *)ptr - sizeof(size_t))); }
+void tzfree(void *ptr) {
+  if (ptr) {
+    free((void *)((char *)ptr - sizeof(size_t)));
+  }
+}
