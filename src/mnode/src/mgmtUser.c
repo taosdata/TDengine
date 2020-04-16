@@ -18,7 +18,7 @@
 #include "trpc.h"
 #include "ttime.h"
 #include "tutil.h"
-#include "taccount.h"
+#include "mgmtAcct.h"
 #include "tgrant.h"
 #include "mpeer.h"
 #include "mgmtSdb.h"
@@ -40,10 +40,10 @@ static int32_t mgmtUserActionDestroy(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = acctGetAcct(pUser->acct);
+  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
-    acctAddUser(pAcct, pUser);
+    mgmtAddUserToAcct(pAcct, pUser);
   }
   else {
     mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
@@ -55,10 +55,10 @@ static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = acctGetAcct(pUser->acct);
+  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
-    acctRemoveUser(pAcct, pUser);
+    mgmtDropUserFromAcct(pAcct, pUser);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -92,11 +92,11 @@ static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionRestored() {
   if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
-    SAcctObj *pAcct = acctGetAcct("root");
+    SAcctObj *pAcct = mgmtGetAcct("root");
     mgmtCreateUser(pAcct, "root", "taosdata");
     mgmtCreateUser(pAcct, "monitor", tsInternalPass);
     mgmtCreateUser(pAcct, "_root", tsInternalPass);
-    acctReleaseAcct(pAcct);
+    mgmtDecAcctRef(pAcct);
   }
 
   return 0;
@@ -167,7 +167,7 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
 }
 
 int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
-  int32_t code = acctCheck(pAcct, TSDB_ACCT_USER);
+  int32_t code = acctCheck(pAcct, ACCT_GRANT_USER);
   if (code != 0) {
     return code;
   }

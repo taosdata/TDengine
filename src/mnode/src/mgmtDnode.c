@@ -17,91 +17,209 @@
 #include "os.h"
 #include "tmodule.h"
 #include "tbalance.h"
-#include "tcluster.h"
+#include "tgrant.h"
+#include "mgmtDnode.h"
 #include "mnode.h"
 #include "mpeer.h"
 #include "mgmtDClient.h"
-#include "mgmtShell.h"
 #include "mgmtDServer.h"
+#include "mgmtSdb.h"
+#include "mgmtShell.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
+#include "dnodeMClient.h"
 
-static void    clusterProcessCfgDnodeMsg(SQueuedMsg *pMsg);
-static void    clusterProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
-static void    clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg);
-static int32_t clusterGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t clusterRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t clusterGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t clusterRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t clusterGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t clusterRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t clusterGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+void   *tsDnodeSdb = NULL;
+int32_t tsDnodeUpdateSize = 0;
+extern void *  tsVgroupSdb;
 
-#ifndef _CLUSTER
+static int32_t mgmtCreateDnode(uint32_t ip);
+static void    mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
+static void    mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg);
+static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static SDnodeObj  tsDnodeObj = {0};
+static int32_t mgmtDnodeActionDestroy(SSdbOperDesc *pOper) {
+  tfree(pOper->pObj);
+  return TSDB_CODE_SUCCESS;
+}
 
-int32_t clusterInitDnodes() {
-  tsDnodeObj.dnodeId          = 1;
-  tsDnodeObj.privateIp        = inet_addr(tsPrivateIp);
-  tsDnodeObj.publicIp         = inet_addr(tsPublicIp);
-  tsDnodeObj.createdTime      = taosGetTimestampMs();
-  tsDnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
-  tsDnodeObj.status           = TAOS_DN_STATUS_OFFLINE;
-  tsDnodeObj.lastReboot       = taosGetTimestampSec();
-  sprintf(tsDnodeObj.dnodeName, "%d", tsDnodeObj.dnodeId);
-
-  tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MGMT);
-  if (tsEnableHttpModule) {
-    tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_HTTP);
+static int32_t mgmtDnodeActionInsert(SSdbOperDesc *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
+  if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
+    pDnode->status = TAOS_DN_STATUS_OFFLINE;
   }
-  if (tsEnableMonitorModule) {
-    tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MONITOR);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtDnodeActionDelete(SSdbOperDesc *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
+  void *     pNode = NULL;
+  void *     pLastNode = NULL;
+  SVgObj *   pVgroup = NULL;
+  int32_t    numOfVgroups = 0;
+
+  while (1) {
+    pLastNode = pNode;
+    pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
+    if (pVgroup == NULL) break;
+
+    if (pVgroup->vnodeGid[0].dnodeId == pDnode->dnodeId) {
+      SSdbOperDesc oper = {
+        .type = SDB_OPER_LOCAL,
+        .table = tsVgroupSdb,
+        .pObj = pVgroup,
+      };
+      sdbDeleteRow(&oper);
+      pNode = pLastNode;
+      numOfVgroups++;
+      continue;
+    }
   }
+
+  mTrace("dnode:%d, all vgroups:%d is dropped from sdb", pDnode->dnodeId, numOfVgroups);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtDnodeActionUpdate(SSdbOperDesc *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
+  SDnodeObj *pSaved = mgmtGetDnode(pDnode->dnodeId);
+  if (pDnode != pSaved) {
+    memcpy(pSaved, pDnode, pOper->rowSize);
+    free(pDnode);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtDnodeActionEncode(SSdbOperDesc *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
+  memcpy(pOper->rowData, pDnode, tsDnodeUpdateSize);
+  pOper->rowSize = tsDnodeUpdateSize;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtDnodeActionDecode(SSdbOperDesc *pOper) {
+  SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
+  if (pDnode == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+
+  memcpy(pDnode, pOper->rowData, tsDnodeUpdateSize);
+  pOper->pObj = pDnode;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtDnodeActionRestored() {
+  int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
+  if (numOfRows <= 0) {
+    if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
+      mgmtCreateDnode(inet_addr(tsPrivateIp));
+    }
+  }
+
   return 0;
 }
 
-void *clusterGetNextDnode(void *pNode, SDnodeObj **pDnode) {
-  if (*pDnode == NULL) {
-    *pDnode = &tsDnodeObj;
-  } else {
-    *pDnode = NULL;
+int32_t mgmtInitDnodes() {
+  SDnodeObj tObj;
+  tsDnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+
+  SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_DNODE,
+    .tableName    = "dnodes",
+    .hashSessions = TSDB_MAX_DNODES,
+    .maxRowSize   = tsDnodeUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .keyType      = SDB_KEY_AUTO,
+    .insertFp     = mgmtDnodeActionInsert,
+    .deleteFp     = mgmtDnodeActionDelete,
+    .updateFp     = mgmtDnodeActionUpdate,
+    .encodeFp     = mgmtDnodeActionEncode,
+    .decodeFp     = mgmtDnodeActionDecode,
+    .destroyFp    = mgmtDnodeActionDestroy,
+    .restoredFp   = mgmtDnodeActionRestored
+  };
+
+  tsDnodeSdb = sdbOpenTable(&tableDesc);
+  if (tsDnodeSdb == NULL) {
+    mError("failed to init dnodes data");
+    return -1;
   }
-  return *pDnode;
-}
 
-void    clusterCleanupDnodes() {}
-int32_t clusterGetDnodesNum() { return 1; }
-void *  clusterGetDnode(int32_t dnodeId) { return dnodeId == 1 ? &tsDnodeObj : NULL; }
-void *  clusterGetDnodeByIp(uint32_t ip) { return &tsDnodeObj; }
-void    clusterReleaseDnode(struct _dnode_obj *pDnode) {}
-void    clusterUpdateDnode(struct _dnode_obj *pDnode) {}
-void    clusterMonitorDnodeModule() {}
-
-#endif
-
-int32_t clusterInit() {
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, clusterProcessCfgDnodeMsg);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, clusterProcessCfgDnodeMsgRsp);
-  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, clusterProcessDnodeStatusMsg);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MODULE, clusterGetModuleMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, clusterRetrieveModules);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, clusterGetConfigMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, clusterRetrieveConfigs);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VNODES, clusterGetVnodeMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, clusterRetrieveVnodes);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DNODE, clusterGetDnodeMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, clusterRetrieveDnodes);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DNODE, mgmtProcessCreateDnodeMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DNODE, mgmtProcessDropDnodeMsg); 
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
+  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtGetConfigMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtRetrieveConfigs);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mgmtGetVnodeMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mgmtGetDnodeMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mgmtRetrieveDnodes);
  
-  return clusterInitDnodes();
+  mTrace("dnodes table is created");
+  return 0;
 }
 
-void clusterCleanUp() {
-  clusterCleanupDnodes();
+void mgmtCleanupDnodes() {
+  sdbCloseTable(tsDnodeSdb);
 }
 
-void clusterProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
+void *mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode) { 
+  return sdbFetchRow(tsDnodeSdb, pNode, (void **)pDnode); 
+}
+
+int32_t mgmtGetDnodesNum() {
+  return sdbGetNumOfRows(tsDnodeSdb);
+}
+
+void *mgmtGetDnode(int32_t dnodeId) {
+  return sdbGetRow(tsDnodeSdb, &dnodeId);
+}
+
+void *mgmtGetDnodeByIp(uint32_t ip) {
+  SDnodeObj *pDnode = NULL;
+  void *     pNode = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)&pDnode);
+    if (pDnode == NULL) break;
+    if (ip == pDnode->privateIp) {
+      return pDnode;
+    }
+    mgmtReleaseDnode(pDnode);
+  }
+
+  return NULL;
+}
+
+void mgmtReleaseDnode(SDnodeObj *pDnode) {
+  sdbDecRef(tsDnodeSdb, pDnode);
+}
+
+void mgmtUpdateDnode(SDnodeObj *pDnode) {
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode,
+    .rowSize = tsDnodeUpdateSize
+  };
+
+  sdbUpdateRow(&oper);
+}
+
+void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMCfgDnodeMsg *pCmCfgDnode = pMsg->pCont;
@@ -137,11 +255,11 @@ void clusterProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
-static void clusterProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
+static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
   mPrint("cfg vnode rsp is received, result:%s", tstrerror(rpcMsg->code));
 }
 
-void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
+void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   SDMStatusMsg *pStatus = rpcMsg->pCont;
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->privateIp = htonl(pStatus->privateIp);
@@ -159,14 +277,14 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
 
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
-    pDnode = clusterGetDnodeByIp(pStatus->privateIp);
+    pDnode = mgmtGetDnodeByIp(pStatus->privateIp);
     if (pDnode == NULL) {
       mTrace("dnode not created, privateIp:%s", taosIpStr(pStatus->privateIp));
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
   } else {
-    pDnode = clusterGetDnode(pStatus->dnodeId);
+    pDnode = mgmtGetDnode(pStatus->dnodeId);
     if (pDnode == NULL) {
       mError("dnode:%d, not exist, privateIp:%s", pStatus->dnodeId, taosIpStr(pStatus->privateIp));
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
@@ -180,7 +298,7 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->numOfCores       = pStatus->numOfCores;
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
-  pDnode->numOfTotalVnodes = pStatus->numOfTotalVnodes; 
+  pDnode->totalVnodes      = pStatus->numOfTotalVnodes; 
   
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d, first access, privateIp:%s, name:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
@@ -209,10 +327,10 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     balanceNotify();
-    clusterMonitorDnodeModule();
+    mgmtMonitorDnodeModule();
   }
 
-  clusterReleaseDnode(pDnode);
+  mgmtReleaseDnode(pDnode);
 
   int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SVnodeAccess);
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
@@ -242,7 +360,123 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
-static int32_t clusterGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtCreateDnode(uint32_t ip) {
+  int32_t grantCode = grantCheck(TSDB_GRANT_DNODE);
+  if (grantCode != TSDB_CODE_SUCCESS) {
+    return grantCode;
+  }
+
+  SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+  if (pDnode != NULL) {
+    mError("dnode:%d is alredy exist, ip:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp));
+    return TSDB_CODE_DNODE_ALREADY_EXIST;
+  }
+
+  pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
+  pDnode->privateIp = ip;
+  pDnode->publicIp = ip;
+  pDnode->createdTime = taosGetTimestampMs();
+  pDnode->status = TAOS_DN_STATUS_OFFLINE; 
+  pDnode->totalVnodes = TSDB_INVALID_VNODE_NUM; 
+  sprintf(pDnode->dnodeName, "n%d", sdbGetId(tsDnodeSdb) + 1);
+
+  if (pDnode->privateIp == inet_addr(tsMasterIp)) {
+    pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);
+  }
+  
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode,
+    .rowSize = sizeof(SDnodeObj)
+  };
+
+  int32_t code = sdbInsertRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(pDnode);
+    code = TSDB_CODE_SDB_ERROR;
+  }
+
+  mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
+  return code;
+}
+
+int32_t mgmtDropDnode(SDnodeObj *pDnode) {
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode
+  };
+
+  int32_t code = sdbDeleteRow(&oper); 
+  if (code != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_SDB_ERROR;
+  }
+
+  mLPrint("dnode:%d is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
+  return code;
+}
+
+static int32_t clusterDropDnodeByIp(uint32_t ip) {
+  SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+  if (pDnode == NULL) {
+    mError("dnode:%s, is not exist", taosIpStr(ip));
+    return TSDB_CODE_INVALID_VALUE;
+  }
+
+  if (pDnode->privateIp == dnodeGetMnodeMasteIp()) {
+    mError("dnode:%d, can't drop dnode which is master", pDnode->dnodeId);
+    return TSDB_CODE_NO_REMOVE_MASTER;
+  }
+
+#ifndef _VPEER
+  return mgmtDropDnode(pDnode);
+#else
+  return balanceDropDnode(pDnode);
+#endif
+}
+
+static void mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  
+  SCMCreateDnodeMsg *pCreate = pMsg->pCont;
+
+  if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    uint32_t ip = inet_addr(pCreate->ip);
+    rpcRsp.code = mgmtCreateDnode(ip);
+    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+      SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+      mLPrint("dnode:%d, ip:%s is created by %s", pDnode->dnodeId, pCreate->ip, pMsg->pUser->user);
+    } else {
+      mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(rpcRsp.code));
+    }
+  }
+  rpcSendResponse(&rpcRsp);
+}
+
+
+static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  
+  SCMDropDnodeMsg *pDrop = pMsg->pCont;
+  if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    uint32_t ip = inet_addr(pDrop->ip);
+    rpcRsp.code = clusterDropDnodeByIp(ip);
+    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+      mLPrint("dnode:%s is dropped by %s", pDrop->ip, pMsg->pUser->user);
+    } else {
+      mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(rpcRsp.code));
+    }
+  }
+
+  rpcSendResponse(&rpcRsp);
+}
+
+static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
@@ -309,7 +543,7 @@ static int32_t clusterGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = clusterGetDnodesNum();
+  pShow->numOfRows = mgmtGetDnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
 
@@ -318,7 +552,7 @@ static int32_t clusterGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
   return 0;
 }
 
-static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t    numOfRows = 0;
   int32_t    cols      = 0;
   SDnodeObj *pDnode   = NULL;
@@ -326,7 +560,7 @@ static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, 
   char       ipstr[32];
 
   while (numOfRows < rows) {
-    pShow->pNode = clusterGetNextDnode(pShow->pNode, &pDnode);
+    pShow->pNode = mgmtGetNextDnode(pShow->pNode, &pDnode);
     if (pDnode == NULL) break;
 
     cols = 0;
@@ -350,7 +584,7 @@ static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, clusterGetDnodeStatusStr(pDnode->status));
+    strcpy(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -358,29 +592,29 @@ static int32_t clusterRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDnode->numOfTotalVnodes;
+    *(int16_t *)pWrite = pDnode->totalVnodes;
     cols++;
 
 #ifdef _VPEER
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, clusterGetDnodeStatusStr(pDnode->status));
+    strcpy(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
     cols++;
 #endif    
 
     numOfRows++;
-    clusterReleaseDnode(pDnode);
+    mgmtReleaseDnode(pDnode);
   }
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
 
-bool clusterCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   uint32_t status = pDnode->moduleStatus & (1 << moduleType);
   return status > 0;
 }
 
-static int32_t clusterGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
@@ -419,10 +653,10 @@ static int32_t clusterGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pShow->numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   while (1) {
-    pShow->pNode = clusterGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
+    pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
     if (pDnode == NULL) break;
     for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-      if (clusterCheckModuleInDnode(pDnode, moduleType)) {
+      if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
         pShow->numOfRows++;
       }
     }
@@ -435,7 +669,7 @@ static int32_t clusterGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   return 0;
 }
 
-int32_t clusterRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t    numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
@@ -443,12 +677,12 @@ int32_t clusterRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *
   char       ipstr[20];
 
   while (numOfRows < rows) {
-    clusterReleaseDnode(pDnode);
-    pShow->pNode = clusterGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
+    mgmtReleaseDnode(pDnode);
+    pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
     if (pDnode == NULL) break;
 
     for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-      if (!clusterCheckModuleInDnode(pDnode, moduleType)) {
+      if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
         continue;
       }
 
@@ -464,7 +698,7 @@ int32_t clusterRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, clusterGetDnodeStatusStr(pDnode->status));
+      strcpy(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
       cols++;
 
       numOfRows++;
@@ -481,7 +715,7 @@ static bool clusterCheckConfigShow(SGlobalConfig *cfg) {
   return true;
 }
 
-static int32_t clusterGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
@@ -523,7 +757,7 @@ static int32_t clusterGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   return 0;
 }
 
-static int32_t clusterRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
 
   for (int32_t i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
@@ -570,7 +804,7 @@ static int32_t clusterRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows,
   return numOfRows;
 }
 
-static int32_t clusterGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
@@ -599,7 +833,7 @@ static int32_t clusterGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
   SDnodeObj *pDnode = NULL;
   if (pShow->payloadLen > 0 ) {
     uint32_t ip = ip2uint(pShow->payload);
-    pDnode = clusterGetDnodeByIp(ip);
+    pDnode = mgmtGetDnodeByIp(ip);
     if (NULL == pDnode) {
       return TSDB_CODE_NODE_OFFLINE;
     }
@@ -616,7 +850,7 @@ static int32_t clusterGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
     pShow->pNode = pDnode;
   } else {
     while (true) {
-      pShow->pNode = clusterGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
+      pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
       if (pDnode == NULL) break;
       pShow->numOfRows += pDnode->openVnodes;
 
@@ -627,13 +861,13 @@ static int32_t clusterGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
   } 
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  clusterReleaseDnode(pDnode);
+  mgmtReleaseDnode(pDnode);
   mgmtReleaseUser(pUser);
 
   return 0;
 }
 
-static int32_t clusterRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t    numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
@@ -674,7 +908,7 @@ static int32_t clusterRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, 
   return numOfRows;
 }
 
-char* clusterGetDnodeStatusStr(int32_t dnodeStatus) {
+char* mgmtGetDnodeStatusStr(int32_t dnodeStatus) {
   switch (dnodeStatus) {
     case TAOS_DN_STATUS_OFFLINE:   return "offline";
     case TAOS_DN_STATUS_DROPPING:  return "dropping";
@@ -683,3 +917,155 @@ char* clusterGetDnodeStatusStr(int32_t dnodeStatus) {
     default:                       return "undefined";
   }
 }
+
+
+static void clusterSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+  pDnode->moduleStatus |= (1 << moduleType);
+  mgmtUpdateDnode(pDnode);
+
+  if (moduleType == TSDB_MOD_MGMT) {
+    mpeerAddMnode(pDnode->dnodeId);
+    mPrint("dnode:%d, add it into mnode list", pDnode->dnodeId);
+  }
+}
+
+static void clusterUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+  pDnode->moduleStatus &= ~(1 << moduleType);
+  mgmtUpdateDnode(pDnode);
+
+  if (moduleType == TSDB_MOD_MGMT) {
+    mpeerRemoveMnode(pDnode->dnodeId);
+    mPrint("dnode:%d, remove it from mnode list", pDnode->dnodeId);
+  }
+}
+
+static void clusterStopAllModuleInDnode(SDnodeObj *pDnode) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
+      continue;
+    }
+
+    mPrint("dnode:%d, stop %s module for its offline or remove", pDnode->dnodeId, tsModule[moduleType].name);
+    clusterUnSetModuleInDnode(pDnode, moduleType);
+  }
+}
+
+static void clusterStartModuleInAllDnodes(int32_t moduleType) {
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
+
+  while (1) {
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    if (pDnode == NULL) break;
+
+    if (!mgmtCheckModuleInDnode(pDnode, moduleType) 
+        && pDnode->status != TAOS_DN_STATUS_OFFLINE 
+        && pDnode->status != TAOS_DN_STATUS_DROPPING) {
+      mPrint("dnode:%d, add %s module for schedule", pDnode->dnodeId, tsModule[moduleType].name);
+      clusterSetModuleInDnode(pDnode, moduleType);
+    }
+
+    mgmtReleaseDnode(pNode);
+  }
+}
+
+static void clusterStartModuleInOneDnode(int32_t moduleType) {
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
+
+  while (1) {
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    if (pDnode == NULL) break;
+
+    if (!mgmtCheckModuleInDnode(pDnode, moduleType) 
+        && pDnode->status != TAOS_DN_STATUS_OFFLINE 
+        && pDnode->status != TAOS_DN_STATUS_DROPPING
+        && !(moduleType == TSDB_MOD_MGMT && pDnode->alternativeRole == TSDB_DNODE_ROLE_VNODE)) {
+      mPrint("dnode:%d, add %s module for schedule", pDnode->dnodeId, tsModule[moduleType].name);
+      clusterSetModuleInDnode(pDnode, moduleType);
+      mgmtReleaseDnode(pNode);
+      break;
+    }
+
+    mgmtReleaseDnode(pNode);
+  }
+}
+
+static void clusterStopModuleInOneDnode(int32_t moduleType) {
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
+
+  while (1) {
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    if (pDnode == NULL) break;
+
+    if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
+      mPrint("dnode:%d, stop %s module for schedule", pDnode->dnodeId, tsModule[moduleType].name);
+      clusterUnSetModuleInDnode(pDnode, moduleType);
+      mgmtReleaseDnode(pNode);
+      break;
+    }
+
+    mgmtReleaseDnode(pNode);
+  }
+}
+
+void mgmtMonitorDnodeModule() {
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
+  int32_t    onlineDnodes = 0;
+
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
+    tsModule[moduleType].curNum = 0;
+  }
+
+  // dnode loop
+  while (1) {
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    if (pDnode == NULL) break;
+
+    if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
+      mPrint("dnode:%d, status:%d, remove all modules for removing", pDnode->dnodeId, pDnode->status);
+      clusterStopAllModuleInDnode(pDnode);
+      mgmtReleaseDnode(pDnode);
+      continue;
+    }
+
+    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
+      if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
+        tsModule[moduleType].curNum ++;
+      }
+    }
+
+    if (pDnode->status != TAOS_DN_STATUS_OFFLINE) {
+      onlineDnodes++;
+    }
+
+    mgmtReleaseDnode(pDnode);
+  }
+
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
+    if (tsModule[moduleType].num == -1) {
+      clusterStartModuleInAllDnodes(moduleType);
+      continue;
+    }
+    if (tsModule[moduleType].curNum < tsModule[moduleType].num) {
+      if (onlineDnodes <= tsModule[moduleType].curNum) {
+        continue;
+      }
+      mTrace("need add %s module, curNum:%d, expectNum:%d", tsModule[moduleType].name, tsModule[moduleType].curNum,
+             tsModule[moduleType].num);
+      for (int32_t i = tsModule[moduleType].curNum; i < tsModule[moduleType].num; ++i) {
+        clusterStartModuleInOneDnode(moduleType);
+      }
+    } else if (tsModule[moduleType].curNum > tsModule[moduleType].num) {
+      mTrace("need drop %s module, curNum:%d, expectNum:%d", tsModule[moduleType].name, tsModule[moduleType].curNum,
+             tsModule[moduleType].num);
+      for (int32_t i = tsModule[moduleType].num; i < tsModule[moduleType].curNum; ++i) {
+        clusterStopModuleInOneDnode(moduleType);
+      }
+    } else {
+    }
+  }
+}
+

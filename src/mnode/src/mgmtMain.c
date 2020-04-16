@@ -19,9 +19,9 @@
 #include "tmodule.h"
 #include "tsched.h"
 #include "mnode.h"
-#include "taccount.h"
+#include "mgmtAcct.h"
 #include "tbalance.h"
-#include "tcluster.h"
+#include "mgmtDnode.h"
 #include "tgrant.h"
 #include "mpeer.h"
 #include "mgmtDb.h"
@@ -74,7 +74,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (acctInit() < 0) {
+  if (mgmtInitAccts() < 0) {
     mError("failed to init accts");
     return -1;
   }
@@ -89,7 +89,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (clusterInit() < 0) {
+  if (mgmtInitDnodes() < 0) {
     mError("failed to init dnodes");
     return -1;
   }
@@ -160,9 +160,9 @@ void mgmtCleanUpSystem() {
   mgmtCleanUpTables();
   mgmtCleanUpVgroups();
   mgmtCleanUpDbs();
-  clusterCleanUp();
+  mgmtCleanupDnodes();
   mgmtCleanUpUsers();
-  acctCleanUp();
+  mgmtCleanUpAccts();
   sdbCleanUp();
   taosTmrCleanUp(tsMgmtTmr);
   mPrint("mgmt is cleaned up");

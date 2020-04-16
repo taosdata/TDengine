@@ -60,14 +60,16 @@ typedef struct _dnode_obj {
   int32_t    dnodeId;
   uint32_t   privateIp;
   uint32_t   publicIp;
+  uint16_t   mnodeShellPort;
+  uint16_t   mnodeDnodePort;
+  uint16_t   dnodeShellPort;
+  uint16_t   dnodeMnodePort;
+  uint16_t   syncPort;
   uint32_t   moduleStatus;
   int64_t    createdTime;
   uint32_t   lastAccess;
   int32_t    openVnodes;
-  int32_t    numOfTotalVnodes; // from dnode status msg, config information
-  uint32_t   rack;
-  uint16_t   idc;
-  uint16_t   slot;
+  int32_t    totalVnodes;      // from dnode status msg, config information
   uint16_t   numOfCores;       // from dnode status msg
   int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
   int8_t     status;           // set in balance function
@@ -88,7 +90,6 @@ typedef struct _dnode_obj {
 
 typedef struct {
   int32_t  dnodeId;
-  uint16_t port;
   uint32_t privateIp;
   uint32_t publicIp;
 } SVnodeGid;
@@ -209,10 +210,10 @@ typedef struct _acct_obj {
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
-  int8_t    dirty;
+  int8_t    status;
   int8_t    reserved[14];
   int8_t    updateEnd[1];
-  int32_t  refCount;
+  int32_t   refCount;
   SAcctInfo acctInfo;
   pthread_mutex_t  mutex;
 } SAcctObj;

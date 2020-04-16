@@ -229,3 +229,7 @@ static int32_t dnodeInitStorage() {
 }
 
 static void dnodeCleanupStorage() {}
+
+bool  dnodeIsFirstDeploy() {
+  return strcmp(tsMasterIp, tsPrivateIp) == 0;
+}

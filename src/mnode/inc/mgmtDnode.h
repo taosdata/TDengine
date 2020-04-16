@@ -33,21 +33,20 @@ enum _TAOS_DN_STATUS {
   TAOS_DN_STATUS_READY
 };
 
-int32_t clusterInit();
-void    clusterCleanUp();
-char*   clusterGetDnodeStatusStr(int32_t dnodeStatus);
-bool    clusterCheckModuleInDnode(struct _dnode_obj *pDnode, int moduleType);
-void    clusterMonitorDnodeModule();
+int32_t mgmtInitDnodes();
+void    mgmtCleanupDnodes();
 
-int32_t clusterInitDnodes();
-void    clusterCleanupDnodes();
-int32_t clusterGetDnodesNum();
-void *  clusterGetNextDnode(void *pNode, struct _dnode_obj **pDnode);
-void    clusterReleaseDnode(struct _dnode_obj *pDnode);
-void *  clusterGetDnode(int32_t dnodeId);
-void *  clusterGetDnodeByIp(uint32_t ip);
-void    clusterUpdateDnode(struct _dnode_obj *pDnode);
-int32_t clusterDropDnode(struct _dnode_obj *pDnode);
+char*   mgmtGetDnodeStatusStr(int32_t dnodeStatus);
+bool    mgmtCheckModuleInDnode(struct _dnode_obj *pDnode, int moduleType);
+void    mgmtMonitorDnodeModule();
+
+int32_t mgmtGetDnodesNum();
+void *  mgmtGetNextDnode(void *pNode, struct _dnode_obj **pDnode);
+void    mgmtReleaseDnode(struct _dnode_obj *pDnode);
+void *  mgmtGetDnode(int32_t dnodeId);
+void *  mgmtGetDnodeByIp(uint32_t ip);
+void    mgmtUpdateDnode(struct _dnode_obj *pDnode);
+int32_t mgmtDropDnode(struct _dnode_obj *pDnode);
 
 #ifdef __cplusplus
 }

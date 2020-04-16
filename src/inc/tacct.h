@@ -13,38 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_H
-#define TDENGINE_DNODE_H
+#ifndef TDENGINE_ACCT_H
+#define TDENGINE_ACCT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-
-typedef struct {
-  int32_t queryReqNum;
-  int32_t submitReqNum;
-  int32_t httpReqNum;
-} SDnodeStatisInfo;
-
 typedef enum {
-  TSDB_DNODE_RUN_STATUS_INITIALIZE,
-  TSDB_DNODE_RUN_STATUS_RUNING,
-  TSDB_DNODE_RUN_STATUS_STOPPED
-} SDnodeRunStatus;
+  ACCT_GRANT_USER,
+  ACCT_GRANT_DB,
+  ACCT_GRANT_TABLE
+} EAcctGrantType;
 
-SDnodeRunStatus dnodeGetRunStatus();
-SDnodeStatisInfo dnodeGetStatisInfo();
-
-void *dnodeAllocateWqueue(void *pVnode);
-void  dnodeFreeWqueue(void *queue);
-void *dnodeAllocateRqueue(void *pVnode);
-void  dnodeFreeRqueue(void *rqueue);
-void  dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code);
-
-bool  dnodeIsFirstDeploy();
+int32_t acctInit();
+void    acctCleanUp();
+int32_t acctCheck(void *pAcct, EAcctGrantType type);
 
 #ifdef __cplusplus
 }

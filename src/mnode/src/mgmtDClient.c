@@ -23,7 +23,7 @@
 #include "mnode.h"
 #include "tbalance.h"
 #include "mgmtDb.h"
-#include "tcluster.h"
+#include "mgmtDnode.h"
 #include "tgrant.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
