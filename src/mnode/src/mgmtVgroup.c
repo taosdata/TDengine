@@ -53,14 +53,6 @@ static int32_t mgmtVgroupActionDestroy(SSdbOperDesc *pOper) {
     tfree(pVgroup->tableList);
   }
 
-  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[i].dnodeId);
-    if (pDnode) {
-      atomic_sub_fetch_32(&pDnode->openVnodes, 1);
-    }
-    clusterReleaseDnode(pDnode);
-  }
-
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
@@ -115,13 +107,27 @@ static int32_t mgmtVgroupActionDelete(SSdbOperDesc *pOper) {
   }
 
   mgmtReleaseDb(pVgroup->pDb);
+
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[i].dnodeId);
+    if (pDnode) {
+      atomic_sub_fetch_32(&pDnode->openVnodes, 1);
+    }
+    clusterReleaseDnode(pDnode);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtVgroupActionUpdate(SSdbOperDesc *pOper) {
-  SVgObj  *pVgroup  = pOper->pObj;
-  int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
+  SVgObj *pNew = pOper->pObj;
+  SVgObj *pVgroup = mgmtGetVgroup(pNew->vgId);
+  if (pVgroup != pNew) {
+    memcpy(pVgroup, pNew, pOper->rowSize);
+    free(pNew);
+  }
 
+  int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
   SDbObj *pDb = pVgroup->pDb;
   if (pDb != NULL) {
     if (pDb->cfg.maxSessions != oldTables) {

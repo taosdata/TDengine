@@ -83,6 +83,12 @@ static int32_t mgmtDbActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtDbActionUpdate(SSdbOperDesc *pOper) {
+  SDbObj *pDb = pOper->pObj;
+  SDbObj *pSaved = mgmtGetDb(pDb->name);
+  if (pDb != pSaved) {
+    memcpy(pSaved, pDb, pOper->rowSize);
+    free(pDb);
+  }
   return TSDB_CODE_SUCCESS;
 }
 

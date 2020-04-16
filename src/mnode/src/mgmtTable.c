@@ -165,6 +165,19 @@ static int32_t mgmtChildTableActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtChildTableActionUpdate(SSdbOperDesc *pOper) {
+  SChildTableObj *pNew = pOper->pObj;
+  SChildTableObj *pTable = mgmtGetChildTable(pNew->info.tableId);
+  if (pTable != pNew) {
+    void *oldSql = pTable->sql;
+    void *oldSchema = pTable->schema;
+    memcpy(pTable, pNew, pOper->rowSize);
+    pTable->sql = pNew->sql;
+    pTable->schema = pNew->schema;
+    free(pNew);
+    free(oldSql);
+    free(oldSchema);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -371,6 +384,16 @@ static int32_t mgmtSuperTableActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtSuperTableActionUpdate(SSdbOperDesc *pOper) {
+  SChildTableObj *pNew = pOper->pObj;
+  SChildTableObj *pTable = mgmtGetChildTable(pNew->info.tableId);
+  if (pTable != pNew) {
+    void *oldSchema = pTable->schema;
+    memcpy(pTable, pNew, pOper->rowSize);
+    pTable->schema = pNew->schema;
+    free(pNew);
+    free(oldSchema);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

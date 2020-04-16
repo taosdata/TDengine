@@ -335,25 +335,19 @@ static int32_t sdbProcessWriteFromWal(SSdbTable *pTable, SWalHead *pHead, int32_
     SRowMeta *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
     assert(rowMeta != NULL && rowMeta->row != NULL);
 
-    SSdbOperDesc oper1 = {
-        .table = pTable,
-        .pObj = rowMeta->row,
-    };
-    sdbDeleteLocal(pTable, &oper1);
-
-    SSdbOperDesc oper2 = {
+    SSdbOperDesc oper = {
         .rowSize = pHead->len,
         .rowData = pHead->cont,
         .table = pTable,
     };
-    code = (*pTable->decodeFp)(&oper2);
+    code = (*pTable->decodeFp)(&oper);
     if (code < 0) {
       sdbTrace("table:%s, failed to decode %s record:%s from file, version:%" PRId64, pTable->tableName,
                sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
       pthread_mutex_unlock(&tsSdbObj->mutex);
       return code;
     }
-    code = sdbInsertLocal(pTable, &oper2);
+    code = sdbUpdateLocal(pTable, &oper);
   }
 
   pthread_mutex_unlock(&tsSdbObj->mutex);
