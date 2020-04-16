@@ -20,9 +20,37 @@
 extern "C" {
 #endif
 
+#define TD_EQ 0x1
+#define TD_GT 0x2
+#define TD_LT 0x4
+#define TD_GE (TD_EQ | TD_GT)
+#define TD_LE (TD_EQ | TD_LT)
+
 typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void *param);
 
-void tqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn);
+/**
+ * quick sort, with the compare function requiring additional parameters support
+ *
+ * @param src
+ * @param numOfElem
+ * @param size
+ * @param param
+ * @param comparFn
+ */
+void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn);
+
+/**
+ * binary search, with range support
+ *
+ * @param key
+ * @param base
+ * @param nmemb
+ * @param size
+ * @param fn
+ * @param flags
+ * @return
+ */
+void *taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, __compar_fn_t fn, int flags);
 
 #ifdef __cplusplus
 }

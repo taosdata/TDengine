@@ -1347,7 +1347,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
     pSupp->pTagSchema = pTagSchema;
     pSupp->pCols = pCols;
     
-    tqsort(pTableList->pData, size, POINTER_BYTES, pSupp, tableGroupComparFn);
+    taosqsort(pTableList->pData, size, POINTER_BYTES, pSupp, tableGroupComparFn);
     createTableGroupImpl(pTableGroup, pTableList->pData, size, pSupp, tableGroupComparFn);
 
 #ifdef _DEBUG_VIEW

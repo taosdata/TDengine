@@ -15,6 +15,7 @@
 // #include "taosdef.h"
 // #include "disk.h"
 #include "os.h"
+#include "talgo.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
 

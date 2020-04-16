@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "os.h"
 #include "tutil.h"
@@ -47,7 +61,7 @@ static void tInsertSort(void *src, size_t size, int32_t s, int32_t e, const void
   }
 }
 
-void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const void *param, __ext_compar_fn_t comparFn,
+static void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const void *param, __ext_compar_fn_t comparFn,
                 void* buf) {
   // short array sort, incur another sort procedure instead of quick sort process
   const int32_t THRESHOLD_SIZE = 6;
@@ -138,13 +152,13 @@ void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const void *
   }
 }
 
-void tqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn) {
+void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn) {
   char *buf = calloc(1, size);   // prepare the swap buffer
   tqsortImpl(src, 0, numOfElem - 1, size, param, comparFn, buf);
   tfree(buf);
 }
 
-void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *), int flags) {
+void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, __compar_fn_t compar, int flags) {
   // TODO: need to check the correctness of this function
   int l = 0;
   int r = nmemb;
