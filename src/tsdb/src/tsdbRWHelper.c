@@ -884,18 +884,11 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 
 static int compTSKEY(const void *key1, const void *key2) { return ((TSKEY *)key1 - (TSKEY *)key2); }
 
-static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t spaceNeeded) {
+static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t esize) {
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
 
-  size_t spaceLeft = tsizeof((void *)pHelper->pCompInfo) - pIdx->len;
-  ASSERT(spaceLeft >= 0);
-  if (spaceLeft < spaceNeeded) {
-    size_t tsize = tsizeof(pHelper->pCompInfo) + sizeof(SCompBlock) * 16;
-    if (tsizeof(pHelper->pCompInfo) == 0) {
-      pIdx->len = sizeof(SCompData) + sizeof(TSCKSUM);
-      tsize = tsize + sizeof(SCompInfo) + sizeof(TSCKSUM);
-    }
-
+  if (tsizeof((void *)pHelper->pCompInfo) <= esize) {
+    size_t tsize = esize + sizeof(SCompBlock) * 16;
     pHelper->pCompInfo = (SCompInfo *)trealloc(pHelper->pCompInfo, tsize);
     if (pHelper->pCompInfo == NULL) return -1;
   }
@@ -910,7 +903,8 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
   ASSERT(pCompBlock->numOfSubBlocks == 1);
 
   // Adjust memory if no more room
-  if (tsdbAdjustInfoSizeIfNeeded(pHelper, sizeof(SCompBlock)) < 0) goto _err;
+  if (pIdx->len == 0) pIdx->len = sizeof(SCompData) + sizeof(TSCKSUM);
+  if (tsdbAdjustInfoSizeIfNeeded(pHelper, pIdx->len + sizeof(SCompInfo)) < 0) goto _err;
 
   // Change the offset
   for (int i = 0; i < pIdx->numOfSuperBlocks; i++) {
@@ -949,7 +943,8 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
   SCompBlock *pSCompBlock = pHelper->pCompInfo->blocks + blkIdx;
   ASSERT(pSCompBlock->numOfSubBlocks >= 1 && pSCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS);
 
-  size_t spaceNeeded = (pSCompBlock->numOfSubBlocks == 1) ? sizeof(SCompBlock) * 2 : sizeof(SCompBlock);
+  size_t spaceNeeded =
+      (pSCompBlock->numOfSubBlocks == 1) ? pIdx->len + sizeof(SCompBlock) * 2 : pIdx->len + sizeof(SCompBlock);
   if (tsdbAdjustInfoSizeIfNeeded(pHelper, spaceNeeded) < 0)  goto _err;
 
   // Add the sub-block
