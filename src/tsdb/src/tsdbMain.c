@@ -924,10 +924,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
 
     // Loop to write the data in the cache to files. If no data to write, just break the loop 
     int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
+    int nLoop = 0;
     while (true) {
       int rowsRead = tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pDataCols);
       ASSERT(rowsRead >= 0);
       if (pDataCols->numOfPoints == 0) break;
+      nLoop++;
 
       ASSERT(dataColsKeyFirst(pDataCols) >= minKey && dataColsKeyFirst(pDataCols) <= maxKey);
       ASSERT(dataColsKeyLast(pDataCols) >= minKey && dataColsKeyLast(pDataCols) <= maxKey);
