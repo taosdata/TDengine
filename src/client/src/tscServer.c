@@ -269,8 +269,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
         return;
       } else {
         tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
-
-        pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;  // todo move away
+        
         pSql->res.code = rpcMsg->code;  // keep the previous error code
         if (pSql->retry > pSql->maxRetry) {
           tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
@@ -327,7 +326,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
      */
-    if (rpcMsg->msgType == TSDB_MSG_TYPE_SUBMIT_RSP) {
+    if (rpcMsg->msgType == TSDB_MSG_TYPE_SUBMIT_RSP && pRes->pRsp != NULL) {
       SShellSubmitRspMsg *pMsg = (SShellSubmitRspMsg*)pRes->pRsp;
       pMsg->code = htonl(pMsg->code);
       pMsg->numOfRows = htonl(pMsg->numOfRows);

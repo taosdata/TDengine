@@ -45,9 +45,10 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   SSqlRes *pRes = &pSql->res;
   
   pSql->signature = pSql;
-  pSql->pTscObj = pObj;
-  pSql->fp = fp;
   pSql->param = param;
+  pSql->pTscObj = pObj;
+  pSql->maxRetry = TSDB_VNODES_SUPPORT;
+  pSql->fp = fp;
   
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("failed to malloc payload");
