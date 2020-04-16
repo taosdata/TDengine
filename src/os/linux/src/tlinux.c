@@ -227,6 +227,11 @@ int taosOpenUDServerSocket(char *ip, uint16_t port) {
   return sockFd;
 }
 
+static void taosDeleteTimer(void *tharg) {
+  timer_t *pTimer = tharg;
+  timer_delete(*pTimer);
+}
+
 void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -235,7 +240,7 @@ void *taosProcessAlarmSignal(void *tharg) {
   sigprocmask(SIG_BLOCK, &sigset, NULL);
   void (*callback)(int) = tharg;
 
-  timer_t         timerId;
+  static timer_t         timerId;
   struct sigevent sevent = {0};
 
   #ifdef _ALPINE
@@ -251,6 +256,8 @@ void *taosProcessAlarmSignal(void *tharg) {
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
     tmrError("Failed to create timer");
   }
+
+  pthread_cleanup_push(taosDeleteTimer, &timerId);
 
   struct itimerspec ts;
   ts.it_value.tv_sec = 0;
@@ -273,6 +280,8 @@ void *taosProcessAlarmSignal(void *tharg) {
 
     callback(0);
   }
+  
+  pthread_cleanup_pop(1);
 
   return NULL;
 }
@@ -282,13 +291,15 @@ int taosInitTimer(void (*callback)(int), int ms) {
   pthread_attr_t tattr;
   pthread_attr_init(&tattr);
   pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
-  if (pthread_create(&thread, &tattr, taosProcessAlarmSignal, callback) != 0) {
+  int code = pthread_create(&thread, &tattr, taosProcessAlarmSignal, callback);
+  pthread_detach(thread);
+  pthread_attr_destroy(&tattr);
+  if (code != 0) {
     tmrError("failed to create timer thread");
     return -1;
   }
 
-  pthread_attr_destroy(&tattr);
-  return 0;
+  return thread;
 }
 
 ssize_t tread(int fd, void *buf, size_t count) {
