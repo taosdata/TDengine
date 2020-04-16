@@ -101,8 +101,6 @@ static void doUpdateHashTable(SHashObj *pHashObj, SHashNode *pNode) {
   if (pNode->next) {
     (pNode->next)->prev = pNode;
   }
-
-  pTrace("key:%s %p update hash table", pNode->key, pNode);
 }
 
 /**
@@ -153,18 +151,18 @@ static void taosHashTableResize(SHashObj *pHashObj) {
   SHashNode *pNode = NULL;
   SHashNode *pNext = NULL;
 
-  int32_t newSize = pHashObj->capacity << 1U;
+  int32_t newSize = pHashObj->capacity << 1u;
   if (newSize > HASH_MAX_CAPACITY) {
-    pTrace("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
-           pHashObj->capacity, HASH_MAX_CAPACITY);
+//    pTrace("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
+//           pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }
 
-  int64_t st = taosGetTimestampUs();
+//  int64_t st = taosGetTimestampUs();
 
   SHashEntry **pNewEntry = realloc(pHashObj->hashList, sizeof(SHashEntry *) * newSize);
   if (pNewEntry == NULL) {
-    pTrace("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
+//    pTrace("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
     return;
   }
 
@@ -230,10 +228,9 @@ static void taosHashTableResize(SHashObj *pHashObj) {
     }
   }
 
-  int64_t et = taosGetTimestampUs();
-
-  pTrace("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms", pHashObj->capacity,
-         ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
+//  int64_t et = taosGetTimestampUs();
+//  pTrace("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms", pHashObj->capacity,
+//         ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
 }
 
 /**

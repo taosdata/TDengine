@@ -71,7 +71,7 @@ extern void* shellLoopQuery(void* arg);
 extern void taos_error(TAOS* con);
 extern int regex_match(const char* s, const char* reg, int cflags);
 void shellReadCommand(TAOS* con, char command[]);
-void shellRunCommand(TAOS* con, char* command);
+int32_t shellRunCommand(TAOS* con, char* command);
 void shellRunCommandOnServer(TAOS* con, char command[]);
 void read_history();
 void write_history();
