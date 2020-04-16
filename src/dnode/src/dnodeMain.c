@@ -17,7 +17,6 @@
 #include "os.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tmodule.h"
 #include "trpc.h"
 #include "tutil.h"
 #include "dnode.h"

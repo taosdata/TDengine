@@ -16,13 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
-#include "tmodule.h"
 #include "tsched.h"
-#include "mnode.h"
-#include "mgmtAcct.h"
 #include "treplica.h"
-#include "mgmtDnode.h"
 #include "tgrant.h"
+#include "ttimer.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtAcct.h"
+#include "mgmtDnode.h"
 #include "mgmtMnode.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
@@ -33,39 +34,19 @@
 #include "mgmtTable.h"
 #include "mgmtShell.h"
 
-static int32_t mgmtCheckMgmtRunning();
 void *tsMgmtTmr = NULL;
-
-int32_t mgmtInitSystem() {
-  if (mgmtInitShell() != 0) {
-    mError("failed to init shell");
-    return -1;
-  }
-
-  struct stat dirstat;
-  bool fileExist  = (stat(tsMnodeDir, &dirstat) == 0);
-  bool asMaster = (strcmp(tsMasterIp, tsPrivateIp) == 0);
-
-  if (asMaster || fileExist) {
-    if (mgmtStartSystem() != 0) {
-      return -1;
-    }
-  }
-
-  return 0;
-}
+static bool tsMgmtIsRunning = false;
 
 int32_t mgmtStartSystem() {
-  mPrint("starting to initialize TDengine mgmt ...");
+  if (tsMgmtIsRunning) {
+    mPrint("TDengine mgmt module already started...");
+    return 0;
+  }
 
+  mPrint("starting to initialize TDengine mgmt ...");
   struct stat dirstat;
   if (stat(tsMnodeDir, &dirstat) < 0) {
     mkdir(tsMnodeDir, 0755);
-  }
-
-  if (mgmtCheckMgmtRunning() != 0) {
-    mPrint("TDengine mgmt module already started...");
-    return 0;
   }
 
   tsMgmtTmr = taosTmrInit((tsMaxShellConns) * 3, 200, 3600000, "MND");
@@ -132,21 +113,30 @@ int32_t mgmtStartSystem() {
   }
 
   grantReset(TSDB_GRANT_ALL, 0);
+  tsMgmtIsRunning = true;
 
   mPrint("TDengine mgmt is initialized successfully");
 
   return 0;
 }
 
-
-void mgmtStopSystem() {
-  if (mgmtIsMaster()) {
-    mTrace("it is a master mgmt node, it could not be stopped");
-    return;
+int32_t mgmtInitSystem() {
+  if (mgmtInitShell() != 0) {
+    mError("failed to init shell");
+    return -1;
   }
 
-  mgmtCleanUpSystem();
-  remove(tsMnodeDir);
+  struct stat dirstat;
+  bool fileExist  = (stat(tsMnodeDir, &dirstat) == 0);
+  bool asMaster = (strcmp(tsMasterIp, tsPrivateIp) == 0);
+
+  if (asMaster || fileExist) {
+    if (mgmtStartSystem() != 0) {
+      return -1;
+    }
+  }
+
+  return 0;
 }
 
 void mgmtCleanUpSystem() {
@@ -165,14 +155,18 @@ void mgmtCleanUpSystem() {
   mgmtCleanUpAccts();
   sdbCleanUp();
   taosTmrCleanUp(tsMgmtTmr);
+  tsMgmtIsRunning = false;
   mPrint("mgmt is cleaned up");
 }
 
-static int32_t mgmtCheckMgmtRunning() {
-  if (tsModuleStatus & (1 << TSDB_MOD_MGMT)) {
-    return -1;
+void mgmtStopSystem() {
+  if (mgmtIsMaster()) {
+    mTrace("it is a master mgmt node, it could not be stopped");
+    return;
   }
 
-  tsetModuleStatus(TSDB_MOD_MGMT);
-  return 0;
+  mgmtCleanUpSystem();
+
+  mPrint("mgmt file is removed");
+  remove(tsMnodeDir);
 }

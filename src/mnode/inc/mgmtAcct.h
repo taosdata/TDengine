@@ -22,20 +22,16 @@ extern "C" {
 
 #include "tacct.h"
 
-struct _acct_obj;
-struct _user_obj;
-struct _db_obj;
- 
 int32_t mgmtInitAccts();
 void    mgmtCleanUpAccts();
 void   *mgmtGetAcct(char *acctName);
-void    mgmtIncAcctRef(struct _acct_obj *pAcct);
-void    mgmtDecAcctRef(struct _acct_obj *pAcct);
+void    mgmtIncAcctRef(SAcctObj *pAcct);
+void    mgmtDecAcctRef(SAcctObj *pAcct);
 
-void    mgmtAddDbToAcct(struct _acct_obj *pAcct, struct _db_obj *pDb);
-void    mgmtDropDbFromAcct(struct _acct_obj *pAcct, struct _db_obj *pDb);
-void    mgmtAddUserToAcct(struct _acct_obj *pAcct, struct _user_obj *pUser);
-void    mgmtDropUserFromAcct(struct _acct_obj *pAcct, struct _user_obj *pUser);
+void    mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mgmtDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mgmtAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
+void    mgmtDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
 
 #ifdef __cplusplus
 }

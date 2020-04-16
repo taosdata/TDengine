@@ -16,11 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tmodule.h"
 #include "trpc.h"
 #include "tsync.h"
 #include "treplica.h"
-#include "mnode.h"
+#include "tutil.h"
+#include "ttime.h"
+#include "tsocket.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
 #include "mgmtMnode.h"
 #include "mgmtDnode.h"
 #include "mgmtSdb.h"
@@ -42,7 +45,9 @@ static int32_t mgmtMnodeActionInsert(SSdbOperDesc *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
   SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
   if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
+
   pMnode->pDnode = pDnode;
+  pDnode->isMgmt = true;
   mgmtReleaseDnode(pDnode);
   
   return TSDB_CODE_SUCCESS;
@@ -130,7 +135,7 @@ void *mgmtGetMnode(int32_t mnodeId) {
   return sdbGetRow(tsMnodeSdb, &mnodeId);
 }
 
-void mgmtReleaseMnode(struct _mnode_obj *pMnode) {
+void mgmtReleaseMnode(SMnodeObj *pMnode) {
   sdbDecRef(tsMnodeSdb, pMnode);
 }
 

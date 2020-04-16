@@ -23,6 +23,7 @@
 #include "twal.h"
 #include "hashint.h"
 #include "hashstr.h"
+#include "mgmtLog.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 

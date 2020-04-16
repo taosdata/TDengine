@@ -20,13 +20,13 @@
 extern "C" {
 #endif
 
-struct _mnode_obj;
+struct SMnodeObj;
 
-enum _TAOS_MN_STATUS {
+typedef enum {
   TAOS_MN_STATUS_OFFLINE,
   TAOS_MN_STATUS_DROPPING,
   TAOS_MN_STATUS_READY
-};
+} EMnodeStatus;
 
 int32_t mgmtInitMnodes();
 void    mgmtCleanupMnodes();
@@ -36,8 +36,8 @@ int32_t mgmtDropMnode(int32_t dnodeId);
 
 void *  mgmtGetMnode(int32_t mnodeId);
 int32_t mgmtGetMnodesNum();
-void *  mgmtGetNextMnode(void *pNode, struct _mnode_obj **pMnode);
-void    mgmtReleaseMnode(struct _mnode_obj *pMnode);
+void *  mgmtGetNextMnode(void *pNode, struct SMnodeObj **pMnode);
+void    mgmtReleaseMnode(struct SMnodeObj *pMnode);
 
 bool    mgmtIsMaster();
 

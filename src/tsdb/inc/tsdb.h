@@ -79,7 +79,7 @@ typedef struct {
 
 // --------- TSDB TABLE configuration
 typedef struct {
-  TSDB_TABLE_TYPE type;
+  ETableType      type;
   STableId        tableId;
   int32_t         sversion;
   int64_t         superUid;
@@ -88,7 +88,7 @@ typedef struct {
   SDataRow        tagValues;
 } STableCfg;
 
-int  tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid);
+int  tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t tid);
 int  tsdbTableSetSuperUid(STableCfg *config, int64_t uid);
 int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);

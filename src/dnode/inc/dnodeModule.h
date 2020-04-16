@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 int32_t dnodeInitModules();
-void dnodeCleanUpModules();
-void dnodeStartModules();
-void dnodeProcessModuleStatus(uint32_t moduleStatus);
+void    dnodeStartModules();
+void    dnodeCleanUpModules();
+void    dnodeProcessModuleStatus(uint32_t moduleStatus);
 
 #ifdef __cplusplus
 }

@@ -16,8 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
+#include "ttime.h"
+#include "tutil.h"
 #include "dnode.h"
-#include "mnode.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
 #include "mgmtSdb.h"

@@ -20,8 +20,11 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "tsched.h"
+#include "tutil.h"
+#include "ttimer.h"
 #include "dnode.h"
-#include "mnode.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
@@ -47,6 +50,7 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessUseMsg(SQueuedMsg *queuedMsg);
 
+extern void *tsMgmtTmr;
 static void *tsMgmtShellRpc = NULL;
 static void *tsMgmtTranQhandle = NULL;
 static void (*tsMgmtProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SQueuedMsg *) = {0};

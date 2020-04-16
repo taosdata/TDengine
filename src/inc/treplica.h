@@ -20,16 +20,16 @@
 extern "C" {
 #endif
 
-struct _vg_obj;
-struct _dnode_obj;
+struct SVgObj;
+struct SDnodeObj;
 
 int32_t replicaInit();
 void    replicaCleanUp();
 void    replicaNotify();
 void    replicaReset();
-int32_t replicaAllocVnodes(struct _vg_obj *pVgroup);
+int32_t replicaAllocVnodes(struct SVgObj *pVgroup);
 int32_t replicaForwardReqToPeer(void *pHead);
-int32_t replicaDropDnode(struct _dnode_obj *pDnode);
+int32_t replicaDropDnode(struct SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }

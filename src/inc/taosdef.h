@@ -319,11 +319,11 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_NORMAL_TABLES 1000
 #define TSDB_MAX_CHILD_TABLES  100000
 
-enum {
+typedef enum {
   TSDB_PRECISION_MILLI,
   TSDB_PRECISION_MICRO,
   TSDB_PRECISION_NANO
-};
+} EPrecisionType;
 
 typedef enum {
   TSDB_SUPER_TABLE        = 0,  // super table
@@ -331,7 +331,14 @@ typedef enum {
   TSDB_NORMAL_TABLE       = 2,  // ordinary table
   TSDB_STREAM_TABLE       = 3,  // table created from stream computing
   TSDB_TABLE_MAX          = 4
-} TSDB_TABLE_TYPE;
+} ETableType;
+
+typedef enum {
+  TSDB_MOD_MGMT,
+  TSDB_MOD_HTTP,
+  TSDB_MOD_MONITOR,
+  TSDB_MOD_MAX
+} EModuleType;
 
 #ifdef __cplusplus
 }

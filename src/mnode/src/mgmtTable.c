@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "taosmsg.h"
 #include "ttime.h"
 #include "tutil.h"
@@ -23,6 +22,9 @@
 #include "taosmsg.h"
 #include "tscompression.h"
 #include "name.h"
+#include "tidpool.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
 #include "mgmtAcct.h"
 #include "mgmtDClient.h"
 #include "mgmtDb.h"

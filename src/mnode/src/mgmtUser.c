@@ -18,6 +18,8 @@
 #include "trpc.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
 #include "mgmtAcct.h"
 #include "tgrant.h"
 #include "mgmtMnode.h"

@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "mnode.h"
+#include "mgmtDef.h"
 
 int32_t mgmtInitShell();
 void    mgmtCleanUpShell();

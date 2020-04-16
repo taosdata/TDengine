@@ -15,10 +15,15 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tmodule.h"
 #include "tgrant.h"
 #include "treplica.h"
-#include "mnode.h"
+#include "tglobalcfg.h"
+#include "ttime.h"
+#include "tutil.h"
+#include "tsocket.h"
+#include "dnode.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
 #include "mgmtDClient.h"
 #include "mgmtDServer.h"
 #include "mgmtDnode.h"
@@ -27,7 +32,6 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
-#include "dnodeMClient.h"
 
 void   *tsDnodeSdb = NULL;
 int32_t tsDnodeUpdateSize = 0;
@@ -329,7 +333,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     replicaNotify();
-    mgmtMonitorDnodeModule();
   }
 
   mgmtReleaseDnode(pDnode);
@@ -626,21 +629,27 @@ static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   SSchema *pSchema = pMeta->schema;
 
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "id");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 16;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "IP");
+  strcpy(pSchema[cols].name, "ip");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "module type");
+  strcpy(pSchema[cols].name, "module");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "module status");
+  strcpy(pSchema[cols].name, "status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -652,18 +661,7 @@ static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = 0;
-  SDnodeObj *pDnode = NULL;
-  while (1) {
-    pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
-    if (pDnode == NULL) break;
-    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-      if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
-        pShow->numOfRows++;
-      }
-    }
-  }
-
+  pShow->numOfRows = mgmtGetDnodesNum() * TSDB_MOD_MAX;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
   mgmtReleaseUser(pUser);
@@ -672,39 +670,52 @@ static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 }
 
 int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t    numOfRows = 0;
-  SDnodeObj *pDnode = NULL;
-  char *     pWrite;
-  int32_t    cols = 0;
-  char       ipstr[20];
+  int32_t numOfRows = 0;
+  char *  pWrite;
 
   while (numOfRows < rows) {
-    mgmtReleaseDnode(pDnode);
+    SDnodeObj *pDnode = NULL;
     pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
     if (pDnode == NULL) break;
 
     for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-      if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
-        continue;
-      }
+      int32_t cols = 0;
 
-      cols = 0;
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int16_t *)pWrite = pDnode->dnodeId;
+      cols++;
 
+      char ipstr[20];
       tinet_ntoa(ipstr, pDnode->privateIp);
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       strcpy(pWrite, ipstr);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, tsModule[moduleType].name);
+      switch (moduleType) {
+        case TSDB_MOD_MGMT:
+          strcpy(pWrite, "mgmt");
+          break;
+        case TSDB_MOD_HTTP:
+          strcpy(pWrite, "http");
+          break;
+        case TSDB_MOD_MONITOR:
+          strcpy(pWrite, "monitor");
+          break;
+        default:
+          strcpy(pWrite, "unknown");
+      }
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
+      bool enable = mgmtCheckModuleInDnode(pDnode, moduleType);
+      strcpy(pWrite, enable ? "enable" : "disable");
       cols++;
 
       numOfRows++;
     }
+
+    mgmtReleaseDnode(pDnode);
   }
 
   pShow->numOfReads += numOfRows;
@@ -919,155 +930,3 @@ char* mgmtGetDnodeStatusStr(int32_t dnodeStatus) {
     default:                       return "undefined";
   }
 }
-
-
-static void clusterSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
-  pDnode->moduleStatus |= (1 << moduleType);
-  mgmtUpdateDnode(pDnode);
-
-  if (moduleType == TSDB_MOD_MGMT) {
-    mgmtAddMnode(pDnode->dnodeId);
-    mPrint("dnode:%d, add it into mnode list", pDnode->dnodeId);
-  }
-}
-
-static void clusterUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
-  pDnode->moduleStatus &= ~(1 << moduleType);
-  mgmtUpdateDnode(pDnode);
-
-  if (moduleType == TSDB_MOD_MGMT) {
-    mgmtDropMnode(pDnode->dnodeId);
-    mPrint("dnode:%d, remove it from mnode list", pDnode->dnodeId);
-  }
-}
-
-static void clusterStopAllModuleInDnode(SDnodeObj *pDnode) {
-  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-    if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
-      continue;
-    }
-
-    mPrint("dnode:%d, stop %s module for its offline or remove", pDnode->dnodeId, tsModule[moduleType].name);
-    clusterUnSetModuleInDnode(pDnode, moduleType);
-  }
-}
-
-static void clusterStartModuleInAllDnodes(int32_t moduleType) {
-  void *     pNode = NULL;
-  SDnodeObj *pDnode = NULL;
-
-  while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
-    if (pDnode == NULL) break;
-
-    if (!mgmtCheckModuleInDnode(pDnode, moduleType) 
-        && pDnode->status != TAOS_DN_STATUS_OFFLINE 
-        && pDnode->status != TAOS_DN_STATUS_DROPPING) {
-      mPrint("dnode:%d, add %s module for schedule", pDnode->dnodeId, tsModule[moduleType].name);
-      clusterSetModuleInDnode(pDnode, moduleType);
-    }
-
-    mgmtReleaseDnode(pNode);
-  }
-}
-
-static void clusterStartModuleInOneDnode(int32_t moduleType) {
-  void *     pNode = NULL;
-  SDnodeObj *pDnode = NULL;
-
-  while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
-    if (pDnode == NULL) break;
-
-    if (!mgmtCheckModuleInDnode(pDnode, moduleType) 
-        && pDnode->status != TAOS_DN_STATUS_OFFLINE 
-        && pDnode->status != TAOS_DN_STATUS_DROPPING
-        && !(moduleType == TSDB_MOD_MGMT && pDnode->alternativeRole == TSDB_DNODE_ROLE_VNODE)) {
-      mPrint("dnode:%d, add %s module for schedule", pDnode->dnodeId, tsModule[moduleType].name);
-      clusterSetModuleInDnode(pDnode, moduleType);
-      mgmtReleaseDnode(pNode);
-      break;
-    }
-
-    mgmtReleaseDnode(pNode);
-  }
-}
-
-static void clusterStopModuleInOneDnode(int32_t moduleType) {
-  void *     pNode = NULL;
-  SDnodeObj *pDnode = NULL;
-
-  while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
-    if (pDnode == NULL) break;
-
-    if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
-      mPrint("dnode:%d, stop %s module for schedule", pDnode->dnodeId, tsModule[moduleType].name);
-      clusterUnSetModuleInDnode(pDnode, moduleType);
-      mgmtReleaseDnode(pNode);
-      break;
-    }
-
-    mgmtReleaseDnode(pNode);
-  }
-}
-
-void mgmtMonitorDnodeModule() {
-  void *     pNode = NULL;
-  SDnodeObj *pDnode = NULL;
-  int32_t    onlineDnodes = 0;
-
-  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
-    tsModule[moduleType].curNum = 0;
-  }
-
-  // dnode loop
-  while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
-    if (pDnode == NULL) break;
-
-    if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
-      mPrint("dnode:%d, status:%d, remove all modules for removing", pDnode->dnodeId, pDnode->status);
-      clusterStopAllModuleInDnode(pDnode);
-      mgmtReleaseDnode(pDnode);
-      continue;
-    }
-
-    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
-      if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
-        tsModule[moduleType].curNum ++;
-      }
-    }
-
-    if (pDnode->status != TAOS_DN_STATUS_OFFLINE) {
-      onlineDnodes++;
-    }
-
-    mgmtReleaseDnode(pDnode);
-  }
-
-  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MGMT+1; ++moduleType) {
-    if (tsModule[moduleType].num == -1) {
-      clusterStartModuleInAllDnodes(moduleType);
-      continue;
-    }
-    if (tsModule[moduleType].curNum < tsModule[moduleType].num) {
-      if (onlineDnodes <= tsModule[moduleType].curNum) {
-        continue;
-      }
-      mTrace("need add %s module, curNum:%d, expectNum:%d", tsModule[moduleType].name, tsModule[moduleType].curNum,
-             tsModule[moduleType].num);
-      for (int32_t i = tsModule[moduleType].curNum; i < tsModule[moduleType].num; ++i) {
-        clusterStartModuleInOneDnode(moduleType);
-      }
-    } else if (tsModule[moduleType].curNum > tsModule[moduleType].num) {
-      mTrace("need drop %s module, curNum:%d, expectNum:%d", tsModule[moduleType].name, tsModule[moduleType].curNum,
-             tsModule[moduleType].num);
-      for (int32_t i = tsModule[moduleType].num; i < tsModule[moduleType].curNum; ++i) {
-        clusterStopModuleInOneDnode(moduleType);
-      }
-    } else {
-    }
-  }
-}
-

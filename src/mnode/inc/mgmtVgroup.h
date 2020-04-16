@@ -20,9 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "mnode.h"
+#include "mgmtDef.h"
 
 enum _TSDB_VG_STATUS {
   TSDB_VG_STATUS_READY,
