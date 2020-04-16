@@ -189,6 +189,11 @@ extern char *taosMsg[];
 #pragma pack(push, 1)
 
 typedef struct {
+  uint32_t ip;
+  uint16_t port;
+} SIpAddr;
+
+typedef struct {
   int32_t numOfVnodes;
 } SMsgDesc;
 
@@ -469,7 +474,6 @@ typedef struct {
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
-  uint64_t    groupbyTagIds;
   int64_t     limit;
   int64_t     offset;
   uint16_t    queryType;        // denote another query process
@@ -617,8 +621,14 @@ typedef struct SCMSTableVgroupMsg {
 } SCMSTableVgroupMsg;
 
 typedef struct {
+  SIpAddr   ipAddr;
+  int32_t   numOfVgroups;
+  int32_t   vgId[];
+} STableDnodeVgroupInfo;
+
+typedef struct {
   int32_t  numOfDnodes;
-  uint32_t dnodeIps[];
+  STableDnodeVgroupInfo dnodeVgroups[];
 } SCMSTableVgroupRspMsg;
 
 typedef struct {
