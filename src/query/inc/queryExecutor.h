@@ -18,6 +18,7 @@
 #include "os.h"
 
 #include "hash.h"
+#include "tsdb.h"
 #include "qinterpolation.h"
 #include "qresultBuf.h"
 #include "qsqlparser.h"
@@ -89,7 +90,7 @@ typedef struct SColumnFilterElem {
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {
-  SColumnInfoData      info;
+  SColumnInfoData    info;
   int32_t            numOfFilters;
   SColumnFilterElem* pFilters;
   void*              pData;
@@ -108,8 +109,8 @@ typedef struct STableQueryInfo {
 } STableQueryInfo;
 
 typedef struct STableDataInfo {
-  int32_t          numOfBlocks;
-  int32_t          start;     // start block index
+//  int32_t          numOfBlocks;
+//  int32_t          start;     // start block index
   int32_t          tableIndex;
   int32_t          groupIdx;  // group id in table list
   STableQueryInfo* pTableQInfo;
@@ -171,7 +172,7 @@ typedef struct SQInfo {
   int32_t          pointsInterpo;
   int32_t          code;          // error code to returned to client
   sem_t            dataReady;
-  SArray*          pTableList;    // table id list
+  STableGroupInfo  groupInfo;     // table id list
   void*            tsdb;
   
   SQueryRuntimeEnv runtimeEnv;
@@ -187,7 +188,7 @@ typedef struct SQInfo {
    */
   int32_t         tableIndex;
   int32_t         numOfGroupResultPages;
-  STableDataInfo* pTableDataInfo;
+//  STableDataInfo* pTableDataInfo;
   TSKEY*          tsList;
 } SQInfo;
 
