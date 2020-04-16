@@ -2665,7 +2665,7 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
   int32_t j = 0;
   TSKEY   lastKey = -1;
   int32_t lastIndex = -1;
-  bool firstAccessedPoint = true;
+  //bool firstAccessedPoint = true;
   
   for (j = 0; j < (*forwardStep); ++j) {
     int32_t offset = GET_COL_DATA_POS(pQuery, j, step);

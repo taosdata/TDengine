@@ -27,7 +27,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char
     return startTime;
   }
 
-  if (slidingTimeUnit == 'a' || slidingTimeUnit == 'm' || slidingTimeUnit == 's' || slidingTimeUnit == 'h') {
+  if (slidingTimeUnit == 'a' || slidingTimeUnit == 'm' || slidingTimeUnit == 's' || slidingTimeUnit == 'h' || slidingTimeUnit == 'u') {
     return (startTime / timeRange) * timeRange;
   } else {
     /*

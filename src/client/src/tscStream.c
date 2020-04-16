@@ -374,8 +374,7 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
 }
 
 static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
-  int64_t minIntervalTime =
-      (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinIntervalTime * 1000L : tsMinIntervalTime;
+  int64_t minIntervalTime = tsMinIntervalTime;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
@@ -391,8 +390,7 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
   }
 
-  int64_t minSlidingTime =
-      (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinSlidingTime * 1000L : tsMinSlidingTime;
+  int64_t minSlidingTime = tsMinSlidingTime;
 
   if (pQueryInfo->slidingTime == -1) {
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;

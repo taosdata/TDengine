@@ -310,7 +310,7 @@ void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, char keyType, ch
   pTable->appTool = appTool;
   sprintf(pTable->fn, "%s/%s.db", directory, pTable->name);
 
-  if (sdbInitIndexFp[keyType] != NULL) pTable->iHandle = (*sdbInitIndexFp[keyType])(maxRows, sizeof(SRowMeta));
+  if (sdbInitIndexFp[(int)keyType] != NULL) pTable->iHandle = (*sdbInitIndexFp[(int)keyType])(maxRows, sizeof(SRowMeta));
 
   pthread_mutex_init(&pTable->mutex, NULL);
 
