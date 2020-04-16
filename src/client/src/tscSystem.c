@@ -188,7 +188,6 @@ void taos_init() { pthread_once(&tscinit, taos_init_imp); }
 void taos_cleanup() {
   if (tscCacheHandle != NULL) {
     taosCacheCleanup(tscCacheHandle);
-//    tscCacheHandle = NULL;
   }
   
   if (tscQhandle != NULL) {
@@ -212,7 +211,6 @@ void taos_cleanup() {
     tfree(tsGlobalConfig);
   }
   
-  taosMsleep(1000);
   taosTmrCleanUp(tscTmr);
 }
 
