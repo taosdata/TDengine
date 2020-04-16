@@ -166,10 +166,10 @@ void shellReplaceCtrlChar(char *str) {
   *pstr = '\0';
 }
 
-void shellRunCommand(TAOS *con, char *command) {
+int32_t shellRunCommand(TAOS *con, char *command) {
   /* If command is empty just return */
   if (regex_match(command, "^[ \t;]*$", REG_EXTENDED)) {
-    return;
+    return 0;
   }
 
   /* Update the history vector. */
@@ -193,11 +193,11 @@ void shellRunCommand(TAOS *con, char *command) {
   if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     taos_close(con);
     write_history();
-    exitShell();
+    return -1;
   } else if (regex_match(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     // If clear the screen.
     system("clear");
-    return;
+    return 0;
   } else if (regex_match(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     /* If source file. */
     char *c_ptr = strtok(command, " ;");
@@ -209,6 +209,8 @@ void shellRunCommand(TAOS *con, char *command) {
   } else {
     shellRunCommandOnServer(con, command);
   }
+  
+  return 0;
 }
 
 void shellRunCommandOnServer(TAOS *con, char command[]) {

@@ -382,7 +382,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       pSql->cmd.command = TSDB_SQL_SELECT;
       pQueryInfo->type = type;
 
-      tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->dnodeIndex = 0;
+      tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->vgroupIndex = 0;
     }
 
     tscDoQuery(pSql);

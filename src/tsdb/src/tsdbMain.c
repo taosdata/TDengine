@@ -732,7 +732,6 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
-//  pTable->mem->numOfPoints++;
 
   return 0;
 }

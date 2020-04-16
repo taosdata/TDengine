@@ -408,7 +408,7 @@ static int insertStmtReset(STscStmt* pStmt) {
   pCmd->batchSize = 0;
   
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  pTableMetaInfo->dnodeIndex = 0;
+  pTableMetaInfo->vgroupIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -438,7 +438,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     }
 
     // set the next sent data vnode index in data block arraylist
-    pTableMetaInfo->dnodeIndex = 1;
+    pTableMetaInfo->vgroupIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }

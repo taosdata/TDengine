@@ -45,9 +45,10 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   SSqlRes *pRes = &pSql->res;
   
   pSql->signature = pSql;
-  pSql->pTscObj = pObj;
-  pSql->fp = fp;
   pSql->param = param;
+  pSql->pTscObj = pObj;
+  pSql->maxRetry = TSDB_REPLICA_MAX_NUM;
+  pSql->fp = fp;
   
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("failed to malloc payload");
@@ -406,31 +407,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  if (pSql->fp == (void *)1) {
-    pSql->fp = NULL;
-
-    if (code != 0) {
-      pRes->code = code;
-      tscTrace("%p failed to renew tableMeta", pSql);
-//      tsem_post(&pSql->rspSem);
-    } else {
-      tscTrace("%p renew tableMeta successfully, command:%d, code:%d, retry:%d",
-          pSql, pSql->cmd.command, pSql->res.code, pSql->retry);
-  
-      STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
-      assert(pTableMetaInfo->pTableMeta == NULL);
-      
-      tscGetTableMeta(pSql, pTableMetaInfo);
-      code = tscSendMsgToServer(pSql);
-      if (code != 0) {
-        pRes->code = code;
-//        tsem_post(&pSql->rspSem);
-      }
-    }
-
-    return;
-  }
-
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscQueueAsyncRes(pSql);
@@ -443,12 +419,12 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->dnodeIndex >= 0 && pSql->param != NULL);
+      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->vgroupIndex >= 0 && pSql->param != NULL);
 
       SRetrieveSupport *trs = (SRetrieveSupport *)pSql->param;
       SSqlObj *         pParObj = trs->pParentSqlObj;
       
-      assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->dnodeIndex &&
+      assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vgroupIndex &&
           tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0);
 
       tscTrace("%p get metricMeta during super table query successfully", pSql);

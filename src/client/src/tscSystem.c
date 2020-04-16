@@ -171,16 +171,48 @@ void taos_init_imp() {
   if(0 == tscEmbedded){
     taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
+  
   int64_t refreshTime = tsMetricMetaKeepTimer < tsMeterMetaKeepTimer ? tsMetricMetaKeepTimer : tsMeterMetaKeepTimer;
   refreshTime = refreshTime > 2 ? 2 : refreshTime;
   refreshTime = refreshTime < 1 ? 1 : refreshTime;
 
-  if (tscCacheHandle == NULL) tscCacheHandle = taosCacheInit(tscTmr, refreshTime);
+  if (tscCacheHandle == NULL) {
+    tscCacheHandle = taosCacheInit(tscTmr, refreshTime);
+  }
 
   tscTrace("client is initialized successfully");
 }
 
 void taos_init() { pthread_once(&tscinit, taos_init_imp); }
+
+void taos_cleanup() {
+  if (tscCacheHandle != NULL) {
+    taosCacheCleanup(tscCacheHandle);
+  }
+  
+  if (tscQhandle != NULL) {
+    taosCleanUpScheduler(tscQhandle);
+    tscQhandle = NULL;
+  }
+  
+  taosCloseLogger();
+  
+  if (pVnodeConn != NULL) {
+    rpcClose(pVnodeConn);
+    pVnodeConn = NULL;
+  }
+  
+  if (pTscMgmtConn != NULL) {
+    rpcClose(pTscMgmtConn);
+    pTscMgmtConn = NULL;
+  }
+  
+  if (tsGlobalConfig != NULL) {
+    tfree(tsGlobalConfig);
+  }
+  
+  taosTmrCleanUp(tscTmr);
+}
 
 static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
   SGlobalConfig *cfg = NULL;
