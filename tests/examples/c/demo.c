@@ -75,17 +75,17 @@ int main(int argc, char *argv[]) {
   
   doQuery(taos, "create database if not exists test");
   doQuery(taos, "use test");
-  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:3', 3);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:4', 4);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:5', 5);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:6', 6);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:7', 7);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:8', 8);");
-  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:9', 9);");
-  doQuery(taos, "select * from tm0;");
+//  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:3', 3);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:4', 4);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:5', 5);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:6', 6);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:7', 7);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:8', 8);");
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:9', 9);");
+  doQuery(taos, "select sum(k),count(*) from m1 group by a");
   
   taos_close(taos);
   return 0;

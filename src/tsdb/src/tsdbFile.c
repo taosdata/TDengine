@@ -22,8 +22,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "tutil.h"
 #include "tsdbMain.h"
+#include "tutil.h"
+#include "talgo.h"
 
 const char *tsdbFileSuffix[] = {
     ".head",  // TSDB_FILE_TYPE_HEAD

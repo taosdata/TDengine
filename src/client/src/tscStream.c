@@ -517,7 +517,6 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
     return NULL;
   }
   
-  pSql->cmd.inStream = 1;  // 1 means sql in stream, allowed the sliding clause.
   pRes->code = tscToSQLCmd(pSql, &SQLInfo);
   SQLInfoDestroy(&SQLInfo);
 

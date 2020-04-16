@@ -19,9 +19,14 @@
 extern "C" {
 #endif
 
+
 #include "os.h"
 #include "taosmsg.h"
+
+#include "tarray.h"
 #include "tutil.h"
+#include "dataformat.h"
+#include "talgo.h"
 
 #define DEFAULT_PAGE_SIZE 16384  // 16k larger than the SHistoInfo
 #define MIN_BUFFER_SIZE (1 << 19)
@@ -55,12 +60,12 @@ typedef struct tFlushoutData {
   tFlushoutInfo *pFlushoutInfo;
 } tFlushoutData;
 
-typedef struct SFileInfo {
+typedef struct SExtFileInfo {
   uint32_t      nFileSize;  // in pages
   uint32_t      pageSize;
   uint32_t      numOfElemsInFile;
   tFlushoutData flushoutData;
-} SFileInfo;
+} SExtFileInfo;
 
 typedef struct tFilePage {
   uint64_t numOfElems;
@@ -109,26 +114,17 @@ typedef struct tExtMemBuffer {
 
   char *    path;
   FILE *    file;
-  SFileInfo fileMeta;
+  SExtFileInfo fileMeta;
 
   SColumnModel *         pColumnModel;
   EXT_BUFFER_FLUSH_MODEL flushModel;
 } tExtMemBuffer;
 
-typedef struct tTagSchema {
-  struct SSchema *pSchema;
-  int32_t         numOfCols;
-  int32_t         colOffset[];
-} tTagSchema;
-
-typedef struct tSidSet {
-  int32_t            numOfSids;
-  int32_t            numOfSubSet;
-  STableIdInfo     **pTableIdList;
-  int32_t *          starterPos;  // position of each subgroup, generated according to
-  SColumnModel      *pColumnModel;
-  SColumnOrderInfo   orderIdx;
-} tSidSet;
+//typedef struct tTagSchema {
+//  struct SSchema *pSchema;
+//  int32_t         numOfCols;
+//  int32_t         colOffset[];
+//} tTagSchema;
 
 /**
  *

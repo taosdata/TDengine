@@ -852,10 +852,9 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     }
   } else {
     // if no free resource msg is sent to vnode, we free this object immediately.
-    bool free = tscShouldFreeAsyncSqlObj(pSql);
-    if (free) {
-      assert(pRes->numOfRows == 0 || (pCmd->command > TSDB_SQL_LOCAL));
-  
+    STscObj* pTscObj = pSql->pTscObj;
+    
+    if (pTscObj->pSql != pSql) {
       tscFreeSqlObj(pSql);
       tscTrace("%p sql result is freed by app", pSql);
     } else {
