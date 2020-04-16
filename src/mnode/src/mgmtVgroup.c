@@ -152,7 +152,7 @@ static int32_t mgmtVgroupActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtVgroupActionUpdateAll() {
+static int32_t mgmtVgroupActionRestored() {
   return 0;
 }
 
@@ -173,7 +173,7 @@ int32_t mgmtInitVgroups() {
     .encodeFp     = mgmtVgroupActionEncode,
     .decodeFp     = mgmtVgroupActionDecode,
     .destroyFp    = mgmtVgroupActionDestroy,
-    .updateAllFp  = mgmtVgroupActionUpdateAll,
+    .restoredFp   = mgmtVgroupActionRestored,
   };
 
   tsVgroupSdb = sdbOpenTable(&tableDesc);

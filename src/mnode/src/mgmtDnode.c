@@ -77,6 +77,7 @@ void *  clusterGetDnode(int32_t dnodeId) { return dnodeId == 1 ? &tsDnodeObj : N
 void *  clusterGetDnodeByIp(uint32_t ip) { return &tsDnodeObj; }
 void    clusterReleaseDnode(struct _dnode_obj *pDnode) {}
 void    clusterUpdateDnode(struct _dnode_obj *pDnode) {}
+void    clusterMonitorDnodeModule() {}
 
 #endif
 
@@ -208,6 +209,7 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     balanceNotify();
+    clusterMonitorDnodeModule();
   }
 
   clusterReleaseDnode(pDnode);

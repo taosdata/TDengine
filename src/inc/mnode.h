@@ -45,16 +45,14 @@ struct _mnode_obj;
 
 typedef struct _mnode_obj {
   int32_t  mnodeId;
-  int32_t  dnodeId;
   int64_t  createdTime;
   int8_t   reserved[14];
   int8_t   updateEnd[1];
   int32_t  refCount;
-  int8_t   role;
-  int8_t   status;
-  uint16_t port;
   uint32_t privateIp;
   uint32_t publicIp;  
+  uint16_t port;
+  int8_t   role;
   char     mnodeName[TSDB_NODE_NAME_LEN + 1];
 } SMnodeObj;
 

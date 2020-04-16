@@ -42,7 +42,6 @@ static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *sec
 static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg);
 static void mgmtProcessMsgFromShell(SRpcMsg *pMsg);
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
-static void mgmtProcessMsgWhileNotReady(SRpcMsg *rpcMsg);
 static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
@@ -142,15 +141,9 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  if (mpeerCheckRedirect()) {
+  if (!mpeerIsMaster()) {
     // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
-    rpcFreeCont(rpcMsg->pCont);
-    return;
-  }
-
-  if (!mpeerInServerStatus()) {
-    mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -496,18 +489,6 @@ static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg) {
     .pCont   = 0,
     .contLen = 0,
     .code    = TSDB_CODE_OPS_NOT_SUPPORT,
-    .handle  = rpcMsg->handle
-  };
-  rpcSendResponse(&rpcRsp);
-}
-
-static void mgmtProcessMsgWhileNotReady(SRpcMsg *rpcMsg) {
-  mTrace("%s is ignored since SDB is not ready", taosMsg[rpcMsg->msgType]);
-  SRpcMsg rpcRsp = {
-    .msgType = 0,
-    .pCont   = 0,
-    .contLen = 0,
-    .code    = TSDB_CODE_NOT_READY,
     .handle  = rpcMsg->handle
   };
   rpcSendResponse(&rpcRsp);

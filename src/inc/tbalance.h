@@ -31,6 +31,7 @@ struct _dnode_obj;
 int32_t balanceInit();
 void    balanceCleanUp();
 void    balanceNotify();
+void    balanceReset();
 int32_t balanceAllocVnodes(struct _vg_obj *pVgroup);
 int32_t balanceDropDnode(struct _dnode_obj *pDnode);
 

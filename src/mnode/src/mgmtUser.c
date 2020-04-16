@@ -84,12 +84,14 @@ static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionUpdateAll() {
-  SAcctObj *pAcct = acctGetAcct("root");
-  mgmtCreateUser(pAcct, "root", "taosdata");
-  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
-  mgmtCreateUser(pAcct, "_root", tsInternalPass);
-  acctReleaseAcct(pAcct);
+static int32_t mgmtUserActionRestored() {
+  if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
+    SAcctObj *pAcct = acctGetAcct("root");
+    mgmtCreateUser(pAcct, "root", "taosdata");
+    mgmtCreateUser(pAcct, "monitor", tsInternalPass);
+    mgmtCreateUser(pAcct, "_root", tsInternalPass);
+    acctReleaseAcct(pAcct);
+  }
 
   return 0;
 }
@@ -111,7 +113,7 @@ int32_t mgmtInitUsers() {
     .encodeFp     = mgmtUserActionEncode,
     .decodeFp     = mgmtUserActionDecode,
     .destroyFp    = mgmtUserActionDestroy,
-    .updateAllFp  = mgmtUserActionUpdateAll
+    .restoredFp   = mgmtUserActionRestored
   };
 
   tsUserSdb = sdbOpenTable(&tableDesc);

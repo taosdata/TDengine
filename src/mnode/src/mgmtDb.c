@@ -102,7 +102,7 @@ static int32_t mgmtDbActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDbActionUpdateAll() {
+static int32_t mgmtDbActionRestored() {
   return 0;
 }
 
@@ -123,7 +123,7 @@ int32_t mgmtInitDbs() {
     .encodeFp     = mgmtDbActionEncode,
     .decodeFp     = mgmtDbActionDecode,
     .destroyFp    = mgmtDbActionDestroy,
-    .updateAllFp  = mgmtDbActionUpdateAll
+    .restoredFp   = mgmtDbActionRestored
   };
 
   tsDbSdb = sdbOpenTable(&tableDesc);

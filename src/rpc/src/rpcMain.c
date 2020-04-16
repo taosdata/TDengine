@@ -286,14 +286,14 @@ void *rpcOpen(const SRpcInit *pInit) {
 void rpcClose(void *param) {
   SRpcInfo *pRpc = (SRpcInfo *)param;
 
-  (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
-  (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
-
   for (int i = 0; i < pRpc->sessions; ++i) {
     if (pRpc->connList && pRpc->connList[i].user[0]) {
       rpcCloseConn((void *)(pRpc->connList + i));
     }
   }
+
+  (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
+  (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
   taosHashCleanup(pRpc->hash);
   taosTmrCleanUp(pRpc->tmrCtrl);
@@ -521,10 +521,14 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort,
 static void rpcCloseConn(void *thandle) {
   SRpcConn *pConn = (SRpcConn *)thandle;
   SRpcInfo *pRpc = pConn->pRpc;
-
   if (pConn->user[0] == 0) return;
 
   rpcLockConn(pConn);
+
+  if (pConn->user[0] == 0) {
+    rpcUnlockConn(pConn);
+    return;
+  }
 
   pConn->user[0] = 0;
   if (taosCloseConn[pConn->connType]) (*taosCloseConn[pConn->connType])(pConn->chandle);

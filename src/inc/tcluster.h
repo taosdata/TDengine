@@ -37,6 +37,7 @@ int32_t clusterInit();
 void    clusterCleanUp();
 char*   clusterGetDnodeStatusStr(int32_t dnodeStatus);
 bool    clusterCheckModuleInDnode(struct _dnode_obj *pDnode, int moduleType);
+void    clusterMonitorDnodeModule();
 
 int32_t clusterInitDnodes();
 void    clusterCleanupDnodes();
