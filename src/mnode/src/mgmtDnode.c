@@ -63,6 +63,12 @@ static int32_t mgmtDnodeActionInsert(SSdbOperDesc *pOper) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
   }
 
+  pDnode->mnodeShellPort = tsMnodeShellPort;
+  pDnode->mnodeDnodePort = tsMnodeDnodePort;
+  pDnode->dnodeShellPort = tsDnodeShellPort;
+  pDnode->dnodeMnodePort = tsDnodeMnodePort;
+  pDnode->syncPort       = 0;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -344,7 +350,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  mgmtGetMnodeList(&pRsp->mpeers);
+  mgmtGetMnodeList(&pRsp->mnodes);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);
