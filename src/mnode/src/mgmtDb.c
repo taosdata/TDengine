@@ -24,8 +24,8 @@
 #include "mgmtDb.h"
 #include "tcluster.h"
 #include "tgrant.h"
+#include "mpeer.h"
 #include "mgmtShell.h"
-#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtTable.h"
@@ -88,14 +88,9 @@ static int32_t mgmtDbActionUpdate(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDbActionEncode(SSdbOperDesc *pOper) {
   SDbObj *pDb = pOper->pObj;
-
-  if (pOper->maxRowSize < tsDbUpdateSize) {
-    return -1;
-  } else {
-    memcpy(pOper->rowData, pDb, tsDbUpdateSize);
-    pOper->rowSize = tsDbUpdateSize;
-    return TSDB_CODE_SUCCESS;
-  }
+  memcpy(pOper->rowData, pDb, tsDbUpdateSize);
+  pOper->rowSize = tsDbUpdateSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtDbActionDecode(SSdbOperDesc *pOper) {
@@ -107,22 +102,28 @@ static int32_t mgmtDbActionDecode(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mgmtDbActionRestored() {
+  return 0;
+}
+
 int32_t mgmtInitDbs() {
   SDbObj tObj;
   tsDbUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_DB,
     .tableName    = "dbs",
     .hashSessions = TSDB_MAX_DBS,
     .maxRowSize   = tsDbUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_TYPE_STRING,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = mgmtDbActionInsert,
     .deleteFp     = mgmtDbActionDelete,
     .updateFp     = mgmtDbActionUpdate,
     .encodeFp     = mgmtDbActionEncode,
     .decodeFp     = mgmtDbActionDecode,
     .destroyFp    = mgmtDbActionDestroy,
+    .restoredFp   = mgmtDbActionRestored
   };
 
   tsDbSdb = sdbOpenTable(&tableDesc);
@@ -136,7 +137,7 @@ int32_t mgmtInitDbs() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mgmtProcessDropDbMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
-
+  
   mTrace("db data is initialized");
   return 0;
 }
@@ -310,7 +311,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   pDb->cfg = *pCreate;
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
     .pObj = pDb,
     .rowSize = sizeof(SDbObj)
@@ -663,7 +664,7 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
 
   pDb->status = true;
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
     .pObj = pDb,
     .rowSize = tsDbUpdateSize
@@ -678,8 +679,6 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
 }
 
 static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
-  if (mgmtCheckRedirect(pMsg->thandle)) return;
-
   SCMCreateDbMsg *pCreate = pMsg->pCont;
   pCreate->maxSessions     = htonl(pCreate->maxSessions);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
@@ -750,7 +749,7 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
     SSdbOperDesc oper = {
-      .type = SDB_OPER_TYPE_GLOBAL,
+      .type = SDB_OPER_GLOBAL,
       .table = tsDbSdb,
       .pObj = pDb,
       .rowSize = tsDbUpdateSize
@@ -808,7 +807,7 @@ static void mgmtDropDb(SQueuedMsg *pMsg) {
   mPrint("db:%s, drop db from sdb", pDb->name);
 
   SSdbOperDesc oper = {
-    .type = SDB_OPER_TYPE_GLOBAL,
+    .type = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
     .pObj = pDb
   };

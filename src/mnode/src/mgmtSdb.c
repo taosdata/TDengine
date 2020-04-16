@@ -15,408 +15,169 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
 #include "taoserror.h"
-#include "tchecksum.h"
-#include "tglobalcfg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tutil.h"
+#include "tqueue.h"
+#include "twal.h"
 #include "hashint.h"
 #include "hashstr.h"
-
+#include "mpeer.h"
 #include "mgmtSdb.h"
 
-#define abs(x) (((x) < 0) ? -(x) : (x))
-#define SDB_MAX_PEERS 4
-#define SDB_DELIMITER 0xFFF00F00
-#define SDB_ENDCOMMIT 0xAFFFAAAF
-
-typedef struct {
-  uint64_t swVersion;
-  int16_t  sdbFileVersion;
-  char     reserved[2];
-  TSCKSUM  checkSum;
-} SSdbHeader;
-
 typedef struct _SSdbTable {
-  SSdbHeader  header;
-  char        tableName[TSDB_DB_NAME_LEN];
-  char        fileName[TSDB_FILENAME_LEN];
+  char        tableName[TSDB_DB_NAME_LEN + 1];
+  ESdbTable   tableId;
   ESdbKeyType keyType;
-  int32_t     tableId;
   int32_t     hashSessions;
   int32_t     maxRowSize;
   int32_t     refCountPos;
   int32_t     autoIndex;
-  int32_t     fd;
   int64_t     numOfRows;
-  int64_t     version;
-  int64_t     fileSize;
   void *      iHandle;
-  int32_t (*insertFp)(SSdbOperDesc *pDesc);
-  int32_t (*deleteFp)(SSdbOperDesc *pOper);
-  int32_t (*updateFp)(SSdbOperDesc *pOper);
-  int32_t (*decodeFp)(SSdbOperDesc *pOper);
-  int32_t (*encodeFp)(SSdbOperDesc *pOper);
-  int32_t (*destroyFp)(SSdbOperDesc *pOper);
+  int32_t   (*insertFp)(SSdbOperDesc *pDesc);
+  int32_t   (*deleteFp)(SSdbOperDesc *pOper);
+  int32_t   (*updateFp)(SSdbOperDesc *pOper);
+  int32_t   (*decodeFp)(SSdbOperDesc *pOper);
+  int32_t   (*encodeFp)(SSdbOperDesc *pOper);
+  int32_t   (*destroyFp)(SSdbOperDesc *pOper);
+  int32_t   (*restoredFp)();
   pthread_mutex_t mutex;
 } SSdbTable;
 
 typedef struct {
-  int64_t version;
-  int64_t offset;
   int32_t rowSize;
   void *  row;
 } SRowMeta;
 
-typedef struct {
-  int32_t delimiter;
-  int32_t rowSize;
-  int64_t version;
-  char    data[];
-} SRowHead;
-
 typedef enum {
-  SDB_FORWARD_TYPE_INSERT,
-  SDB_FORWARD_TYPE_DELETE,
-  SDB_FORWARD_TYPE_UPDATE
-} ESdbForwardType;
+  SDB_ACTION_INSERT,
+  SDB_ACTION_DELETE,
+  SDB_ACTION_UPDATE
+} ESdbActionType;
 
-typedef struct {
-  ESdbForwardType type;
-  int32_t tableId;
-  int64_t version;
-  int32_t rowSize;
-  void *  rowData;
-} SForwardMsg;
+static SSdbTable *tsSdbTableList[SDB_TABLE_MAX] = {0};
+static int32_t    tsSdbNumOfTables = 0;
+static SSdbObject * tsSdbObj;
 
-extern char   version[];
-const int16_t sdbFileVersion = 2;
-int32_t (*mpeerForwardRequestFp)(SForwardMsg *forwardMsg) = NULL;
+static void *(*sdbInitIndexFp[])(int32_t maxRows, int32_t dataSize) = {sdbOpenStrHash, sdbOpenIntHash, sdbOpenIntHash};
+static void *(*sdbAddIndexFp[])(void *handle, void *key, void *data) = {sdbAddStrHash, sdbAddIntHash, sdbAddIntHash};
+static void  (*sdbDeleteIndexFp[])(void *handle, void *key) = {sdbDeleteStrHash, sdbDeleteIntHash, sdbDeleteIntHash};
+static void *(*sdbGetIndexFp[])(void *handle, void *key) = {sdbGetStrHashData, sdbGetIntHashData, sdbGetIntHashData};
+static void  (*sdbCleanUpIndexFp[])(void *handle) = {sdbCloseStrHash, sdbCloseIntHash, sdbCloseIntHash};
+static void *(*sdbFetchRowFp[])(void *handle, void *ptr, void **ppRow) = {sdbFetchStrHashData, sdbFetchIntHashData, sdbFetchIntHashData};
 
-static SSdbTable *sdbTableList[10] = {0};
-static int32_t    sdbNumOfTables = 0;
-static uint64_t   sdbVersion = 0;
+uint64_t sdbGetVersion() { return tsSdbObj->version; }
+int32_t  sdbGetId(void *handle) { return ((SSdbTable *)handle)->autoIndex; }
+int64_t  sdbGetNumOfRows(void *handle) { return ((SSdbTable *)handle)->numOfRows; }
 
-static void *(*sdbInitIndexFp[])(int32_t maxRows, int32_t dataSize) = {sdbOpenStrHash, sdbOpenIntHash};
-static void *(*sdbAddIndexFp[])(void *handle, void *key, void *data) = {sdbAddStrHash, sdbAddIntHash};
-static void (*sdbDeleteIndexFp[])(void *handle, void *key) = {sdbDeleteStrHash, sdbDeleteIntHash};
-static void *(*sdbGetIndexFp[])(void *handle, void *key) = {sdbGetStrHashData, sdbGetIntHashData};
-static void (*sdbCleanUpIndexFp[])(void *handle) = {sdbCloseStrHash, sdbCloseIntHash};
-static void *(*sdbFetchRowFp[])(void *handle, void *ptr, void **ppRow) = {sdbFetchStrHashData, sdbFetchIntHashData};
-
-uint64_t sdbGetVersion() { return sdbVersion; }
-int64_t sdbGetId(void *handle) { return ((SSdbTable *)handle)->version; }
-int64_t sdbGetNumOfRows(void *handle) { return ((SSdbTable *)handle)->numOfRows; }
+static char *sdbGetActionStr(int32_t action) {
+  switch (action) {
+    case SDB_ACTION_INSERT:
+      return "insert";
+    case SDB_ACTION_DELETE:
+      return "delete";
+    case SDB_ACTION_UPDATE:
+      return "update";
+  }
+  return "invalid";
+}
 
 static char *sdbGetkeyStr(SSdbTable *pTable, void *row) {
   static char str[16];
   switch (pTable->keyType) {
-    case SDB_KEY_TYPE_STRING:
+    case SDB_KEY_STRING:
       return (char *)row;
-    case SDB_KEY_TYPE_AUTO:
+    case SDB_KEY_INT:
+    case SDB_KEY_AUTO:
       sprintf(str, "%d", *(int32_t *)row);
       return str;
     default:
-      return "unknown";
+      return "invalid";
   }
 }
 
-static int32_t sdbForwardDbReqToPeer(SForwardMsg *forwardMsg) {
-  if (mpeerForwardRequestFp) {
-    return mpeerForwardRequestFp(forwardMsg);
-  } else {
-    return 0;
-  }
+static void *sdbGetTableFromId(int32_t tableId) {
+  return tsSdbTableList[tableId];
 }
 
-static void sdbFinishCommit(SSdbTable *pTable) {
-  uint32_t sdbEcommit = SDB_ENDCOMMIT;
-  off_t offset = lseek(pTable->fd, 0, SEEK_END);
-  assert(offset == pTable->fileSize);
-  twrite(pTable->fd, &sdbEcommit, sizeof(sdbEcommit));
-  pTable->fileSize += sizeof(sdbEcommit);
-}
+int32_t sdbInit() {
+  tsSdbObj = calloc(1, sizeof(SSdbObject));
+  pthread_mutex_init(&tsSdbObj->mutex, NULL);
 
-static int32_t sdbOpenSdbFile(SSdbTable *pTable) {
-  struct stat fstat, ofstat;
-  uint64_t    size;
-  char *      dirc = NULL;
-  char *      basec = NULL;
-  union {
-    char     cversion[64];
-    uint64_t iversion;
-  } swVersion;
-
-  memcpy(swVersion.cversion, version, sizeof(uint64_t));
-
-  // check sdb.db and .sdb.db status
-  char fn[TSDB_FILENAME_LEN] = "\0";
-  dirc = strdup(pTable->fileName);
-  basec = strdup(pTable->fileName);
-  sprintf(fn, "%s/.%s", dirname(dirc), basename(basec));
-  tfree(dirc);
-  tfree(basec);
-  if (stat(fn, &ofstat) == 0) {  // .sdb.db file exists
-    if (stat(pTable->fileName, &fstat) == 0) {
-      remove(fn);
-    } else {
-      remove(pTable->fileName);
-      rename(fn, pTable->fileName);
-    }
-  }
-
-  pTable->fd = open(pTable->fileName, O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-  if (pTable->fd < 0) {
-    sdbError("table:%s, failed to open file:%s", pTable->tableName, pTable->fileName);
+  SWalCfg walCfg = {.commitLog = 2, .wals = 2, .keep = 1};
+  tsSdbObj->wal = walOpen(tsMnodeDir, &walCfg);
+  if (tsSdbObj->wal == NULL) {
+    sdbError("failed to open sdb in %s", tsMnodeDir);
     return -1;
   }
 
-  pTable->fileSize = 0;
-  stat(pTable->fileName, &fstat);
-  size = sizeof(pTable->header);
+  sdbTrace("open sdb file for read");
+  walRestore(tsSdbObj->wal, tsSdbObj, sdbProcessWrite);
 
-  if (fstat.st_size == 0) {
-    pTable->header.swVersion = swVersion.iversion;
-    pTable->header.sdbFileVersion = sdbFileVersion;
-    if (taosCalcChecksumAppend(0, (uint8_t *)(&pTable->header), size) < 0) {
-      sdbError("table:%s, failed to get file header checksum, file:%s", pTable->tableName, pTable->fileName);
-      tclose(pTable->fd);
-      return -1;
-    }
-    twrite(pTable->fd, &(pTable->header), size);
-    pTable->fileSize += size;
-    sdbFinishCommit(pTable);
-  } else {
-    uint32_t sdbEcommit = 0;
-    off_t    offset = lseek(pTable->fd, -(sizeof(sdbEcommit)), SEEK_END);
-    while (offset > 0) {
-      read(pTable->fd, &sdbEcommit, sizeof(sdbEcommit));
-      if (sdbEcommit == SDB_ENDCOMMIT) {
-        ftruncate(pTable->fd, offset + sizeof(sdbEcommit));
-        break;
-      }
-      offset = lseek(pTable->fd, -(sizeof(sdbEcommit) + 1), SEEK_CUR);
-    }
-    lseek(pTable->fd, 0, SEEK_SET);
-
-    ssize_t tsize = read(pTable->fd, &(pTable->header), size);
-    if (tsize < size) {
-      sdbError("table:%s, failed to read sdb file header, file:%s", pTable->tableName, pTable->fileName);
-      tclose(pTable->fd);
-      return -1;
+  int32_t totalRows = 0;
+  int32_t numOfTables = 0;
+  for (int32_t tableId = SDB_TABLE_DNODE; tableId < SDB_TABLE_MAX; ++tableId) {
+    SSdbTable *pTable = sdbGetTableFromId(tableId);
+    if (pTable == NULL) continue;
+    if (pTable->restoredFp) {
+      (*pTable->restoredFp)();
     }
 
-    if (pTable->header.swVersion != swVersion.iversion) {
-      sdbWarn("table:%s, sdb file:%s version not match software version", pTable->tableName, pTable->fileName);
-    }
-
-    if (!taosCheckChecksumWhole((uint8_t *)(&pTable->header), size)) {
-      sdbError("table:%s, sdb file header is broken since checksum mismatch, file:%s", pTable->tableName, pTable->fileName);
-      tclose(pTable->fd);
-      return -1;
-    }
-
-    pTable->fileSize += size;
-    // skip end commit symbol
-    lseek(pTable->fd, sizeof(sdbEcommit), SEEK_CUR);
-    pTable->fileSize += sizeof(sdbEcommit);
+    totalRows += pTable->numOfRows;
+    numOfTables++;
+    sdbTrace("table:%s, is initialized, numOfRows:%d", pTable->tableName, pTable->numOfRows);
   }
 
-  pTable->numOfRows = 0;
-
-  return pTable->fd;
-}
-
-static int32_t sdbInitTableByFile(SSdbTable *pTable) {
-  sdbTrace("table:%s, open sdb file:%s for read", pTable->tableName, pTable->fileName);
-  if (sdbOpenSdbFile(pTable) < 0) {
-    sdbError("table:%s, failed to open sdb file:%s for read", pTable->tableName, pTable->fileName);
-    return -1;
-  }
+  sdbTrace("sdb is initialized, version:%d totalRows:%d numOfTables:%d", tsSdbObj->version, totalRows, numOfTables);
   
-  int32_t total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
-  SRowHead *rowHead = (SRowHead *)malloc(total_size);
-  if (rowHead == NULL) {
-    sdbError("table:%s, failed to allocate row head memory, sdb:%s", pTable->tableName, pTable->tableName);
-    return -1;
-  }
+  mpeerUpdateSync();
 
-  int32_t numOfChanged = 0;
-  int32_t maxAutoIndex = 0;
-  while (1) {
-    memset(rowHead, 0, total_size);
-
-    int32_t bytes = read(pTable->fd, rowHead, sizeof(SRowHead));
-    if (bytes < 0) {
-      sdbError("table:%s, failed to read sdb file:%s", pTable->tableName, pTable->fileName);
-      tfree(rowHead);
-      return -1;
-    }
-
-    if (bytes == 0) break;
-
-    if (bytes < sizeof(SRowHead) || rowHead->delimiter != SDB_DELIMITER) {
-      pTable->fileSize++;
-      lseek(pTable->fd, -(bytes - 1), SEEK_CUR);
-      continue;
-    }
-
-    if (rowHead->rowSize < 0 || rowHead->rowSize > pTable->maxRowSize) {
-      sdbError("table:%s, error row size in sdb filesize:%d, version:%d rowSize:%d maxRowSize:%d", pTable->tableName,
-               pTable->fileSize, rowHead->version, rowHead->rowSize, pTable->maxRowSize);
-      pTable->fileSize += sizeof(SRowHead);
-      continue;
-    }
-
-    bytes = read(pTable->fd, rowHead->data, rowHead->rowSize + sizeof(TSCKSUM));
-    if (bytes < rowHead->rowSize + sizeof(TSCKSUM)) {
-      // TODO: Here may cause pTable->fileSize not end of the file
-      sdbError("table:%s, failed to read sdb file, version:%d rowSize:%d", pTable->tableName, rowHead->version,
-               rowHead->rowSize);
-      break;
-    }
-
-    int32_t real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
-    if (!taosCheckChecksumWhole((uint8_t *)rowHead, real_size)) {
-      sdbError("table:%s, error sdb checksum, version:%d, skip", pTable->tableName, rowHead->version);
-      pTable->fileSize += real_size;
-      continue;
-    }
-    
-    if (pTable->keyType == SDB_KEY_TYPE_AUTO) {
-      maxAutoIndex = MAX(maxAutoIndex, *(int32_t *) rowHead->data);
-    }
-
-    pTable->version = MAX(pTable->version, abs(rowHead->version));
-
-    void *pMetaRow = sdbGetRow(pTable, rowHead->data);
-    if (pMetaRow == NULL) {
-      if (rowHead->version < 0) {
-        sdbError("table:%s, error sdb negative version:%d, record:%s, skip", pTable->tableName, rowHead->version,
-                 sdbGetkeyStr(pTable, rowHead->data));
-      } else {
-        SRowMeta rowMeta;
-        rowMeta.version = rowHead->version;
-        rowMeta.offset = pTable->fileSize;
-        rowMeta.rowSize = rowHead->rowSize;
-        SSdbOperDesc oper = {
-          .table = pTable,
-          .rowData = rowHead->data,
-          .rowSize = rowHead->rowSize
-        };
-        int32_t code = (*pTable->decodeFp)(&oper);
-        if (code == TSDB_CODE_SUCCESS) {
-          rowMeta.row = oper.pObj;
-          (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
-          pTable->numOfRows++;
-          sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, read new record:%s",
-                   pTable->tableName, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, rowHead->data));
-        } else {
-          sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, failed to decode record:%s",
-                   pTable->tableName, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, rowHead->data));
-        }
-      }
-    } else {
-      if (rowHead->version < 0) {
-        (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
-        pTable->numOfRows--;
-        sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, read deleted record:%s",
-                   pTable->tableName, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, rowHead->data));
-      } else { 
-        SRowMeta rowMeta;
-        rowMeta.version = rowHead->version;
-        rowMeta.offset = pTable->fileSize;
-        rowMeta.rowSize = rowHead->rowSize;
-        SSdbOperDesc oper = {
-          .table = pTable,
-          .rowData = rowHead->data,
-          .rowSize = rowHead->rowSize,
-           .pObj = pMetaRow
-        };
-        (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
-        
-        int32_t code = (*pTable->decodeFp)(&oper);
-        if (code == TSDB_CODE_SUCCESS) {
-          rowMeta.row = oper.pObj;
-          (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
-          sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, read updated record:%s",
-                   pTable->tableName, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, rowHead->data));
-        } else {
-          sdbTrace("table:%s, version:%" PRId64 " numOfRows:%d, failed to decode record:%s",
-                   pTable->tableName, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, rowHead->data));
-        }
-      }
-      numOfChanged++;
-    }
-
-    pTable->fileSize += real_size;
-    pTable->fileSize += 4;
-    lseek(pTable->fd, 4, SEEK_CUR);
-  }
-
-  void *pNode = NULL;
-  while (1) {
-    SRowMeta * pMeta;
-    pNode = (*sdbFetchRowFp[pTable->keyType])(pTable->iHandle, pNode, (void **)&pMeta);
-    if (pMeta == NULL) break;
-
-    SSdbOperDesc oper = {
-      .pObj = pMeta->row,
-      .table = pTable,
-      .version = pMeta->version,
-    };
-
-    sdbIncRef(pTable, oper.pObj);
-    int32_t code = (*pTable->insertFp)(&oper);
-    if (code != TSDB_CODE_SUCCESS) {
-      sdbError("table:%s, failed to insert record:%s", pTable->tableName, sdbGetkeyStr(pTable, rowHead->data));
-    }    
-  }
-
-  sdbVersion += pTable->version;
-  
-  if (pTable->keyType == SDB_KEY_TYPE_AUTO) {
-    pTable->autoIndex = maxAutoIndex;
-  }
-
-  tfree(rowHead);
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-void *sdbOpenTable(SSdbTableDesc *pDesc) {
-  SSdbTable *pTable = (SSdbTable *)calloc(1, sizeof(SSdbTable));
-  if (pTable == NULL) return NULL;
-
-  pTable->keyType = pDesc->keyType;
-  pTable->hashSessions = pDesc->hashSessions;
-  pTable->maxRowSize = pDesc->maxRowSize;
-  pTable->refCountPos = pDesc->refCountPos;
-  pTable->insertFp = pDesc->insertFp;
-  pTable->deleteFp = pDesc->deleteFp;
-  pTable->updateFp = pDesc->updateFp;
-  pTable->encodeFp = pDesc->encodeFp;
-  pTable->decodeFp = pDesc->decodeFp;
-  pTable->destroyFp = pDesc->destroyFp;
-  strcpy(pTable->tableName, pDesc->tableName);
-  sprintf(pTable->fileName, "%s/%s.db", tsMnodeDir, pTable->tableName);
-
-  if (sdbInitIndexFp[pTable->keyType] != NULL) {
-    pTable->iHandle = (*sdbInitIndexFp[pTable->keyType])(pTable->maxRowSize, sizeof(SRowMeta));
+void sdbCleanUp() {
+  if (tsSdbObj) {
+    pthread_mutex_destroy(&tsSdbObj->mutex);
+    walClose(tsSdbObj->wal);
+    free(tsSdbObj);
+    tsSdbObj = NULL;
   }
+}
 
-  pthread_mutex_init(&pTable->mutex, NULL);
+SSdbObject *sdbGetObj() {
+  return tsSdbObj;
+}
 
-  if (sdbInitTableByFile(pTable) < 0) return NULL;
+void sdbIncRef(void *handle, void *pRow) {
+  if (pRow) {
+    SSdbTable *pTable = handle;
+    int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+    atomic_add_fetch_32(pRefCount, 1);
+    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
+      sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
+               *pRefCount);
+    }
+  }
+}
 
-  pTable->tableId = sdbNumOfTables++;
-  sdbTableList[pTable->tableId] = pTable;
-
-  sdbTrace("table:%s, is initialized, sdbversion:%" PRId64 " version:%" PRId64 " numOfRows:%d numOfTables:%d",
-           pTable->tableName, sdbVersion, pTable->version, pTable->numOfRows, sdbNumOfTables);
-
-  return pTable;
+void sdbDecRef(void *handle, void *pRow) {
+  if (pRow) {
+    SSdbTable *pTable = handle;
+    int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+    int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
+    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
+      sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
+               *pRefCount);
+    }
+    int8_t *updateEnd = pRow + pTable->refCountPos - 1;
+    if (refCount <= 0 && *updateEnd) {
+      sdbTrace("table:%s, record:%s:%s:%d is destroyed", pTable->tableName, pTable->tableName,
+               sdbGetkeyStr(pTable, pRow), *pRefCount);
+      SSdbOperDesc oper = {.pObj = pRow};
+      (*pTable->destroyFp)(&oper);
+    }
+  }
 }
 
 static SRowMeta *sdbGetRowMeta(void *handle, void *key) {
@@ -428,34 +189,6 @@ static SRowMeta *sdbGetRowMeta(void *handle, void *key) {
   pMeta = (*sdbGetIndexFp[pTable->keyType])(pTable->iHandle, key);
 
   return pMeta;
-}
-
-void sdbIncRef(void *handle, void *pRow) {
-  if (pRow) {
-    SSdbTable *pTable = handle;
-    int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
-    atomic_add_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
-      sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
-    }
-  }
-}
-
-void sdbDecRef(void *handle, void *pRow) {
-  if (pRow) {
-    SSdbTable *pTable = handle;
-    int32_t *pRefCount = (int32_t *)(pRow + pTable->refCountPos);
-    int32_t  refCount = atomic_sub_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
-      sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
-    }
-    int8_t* updateEnd = pRow + pTable->refCountPos - 1;
-    if (refCount <= 0 && *updateEnd) {
-      sdbTrace("table:%s, record:%s:%s:%d is destroyed", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow), *pRefCount);
-      SSdbOperDesc oper = {.pObj = pRow};
-      (*pTable->destroyFp)(&oper);
-    }
-  }
 }
 
 void *sdbGetRow(void *handle, void *key) {
@@ -476,12 +209,175 @@ void *sdbGetRow(void *handle, void *key) {
   return pMeta->row;
 }
 
-int32_t sdbInsertRow(SSdbOperDesc *pOper) {
-  SSdbTable *pTable = (SSdbTable *)pOper->table;
-  if (pTable == NULL) {
-    sdbError("sdb tables is null");
+static int32_t sdbInsertLocal(SSdbTable *pTable, SSdbOperDesc *pOper) {
+  SRowMeta rowMeta;
+  rowMeta.rowSize = pOper->rowSize;
+  rowMeta.row = pOper->pObj;
+
+  pthread_mutex_lock(&pTable->mutex);
+  (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj, &rowMeta);
+  sdbIncRef(pTable, pOper->pObj);
+  pTable->numOfRows++;
+
+  if (pTable->keyType == SDB_KEY_AUTO) {
+    pTable->autoIndex = MAX(pTable->autoIndex, *((uint32_t *)pOper->pObj));
+  }
+
+  pthread_mutex_unlock(&pTable->mutex);
+
+  sdbTrace("table:%s, insert record:%s, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
+           pTable->numOfRows);
+
+  (*pTable->insertFp)(pOper);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sdbDeleteLocal(SSdbTable *pTable, SSdbOperDesc *pOper) {
+  pthread_mutex_lock(&pTable->mutex);
+  (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj);
+  pTable->numOfRows--;
+  pthread_mutex_unlock(&pTable->mutex);
+
+  sdbTrace("table:%s, delete record:%s, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
+           pTable->numOfRows);
+
+  (*pTable->deleteFp)(pOper);
+  int8_t *updateEnd = pOper->pObj + pTable->refCountPos - 1;
+  *updateEnd = 1;
+  sdbDecRef(pTable, pOper->pObj);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sdbUpdateLocal(SSdbTable *pTable, SSdbOperDesc *pOper) {
+  sdbTrace("table:%s, update record:%s, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
+           pTable->numOfRows);
+
+  (*pTable->updateFp)(pOper);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sdbProcessWriteFromApp(SSdbTable *pTable, SWalHead *pHead, int32_t action) {
+  int32_t code = 0;
+
+  pthread_mutex_lock(&tsSdbObj->mutex);
+  tsSdbObj->version++;
+  pHead->version = tsSdbObj->version;
+
+  code = mpeerForwardReqToPeer(pHead);
+  if (code != TSDB_CODE_SUCCESS) {
+    pthread_mutex_unlock(&tsSdbObj->mutex);
+    sdbError("table:%s, failed to forward %s record:%s from file, version:%" PRId64 ", reason:%s", pTable->tableName,
+             sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version, tstrerror(code));
+    return code;
+  }
+
+  code = walWrite(tsSdbObj->wal, pHead);
+  pthread_mutex_unlock(&tsSdbObj->mutex);
+
+  if (code < 0) {
+    sdbError("table:%s, failed to %s record:%s to file, version:%" PRId64 ", reason:%s", pTable->tableName,
+             sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version, tstrerror(code));
+  } else {
+    sdbTrace("table:%s, success to %s record:%s to file, version:%" PRId64, pTable->tableName, sdbGetActionStr(action),
+             sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+  }
+
+  walFsync(tsSdbObj->wal);
+  taosFreeQitem(pHead);
+  return code;
+}
+
+static int32_t sdbProcessWriteFromWal(SSdbTable *pTable, SWalHead *pHead, int32_t action) {
+  pthread_mutex_lock(&tsSdbObj->mutex);
+  if (pHead->version <= tsSdbObj->version) {
+    pthread_mutex_unlock(&tsSdbObj->mutex);
+    return TSDB_CODE_SUCCESS;
+  } else if (pHead->version != tsSdbObj->version + 1) {
+    pthread_mutex_unlock(&tsSdbObj->mutex);
+    sdbError("table:%s, failed to restore %s record:%s from file, version:%" PRId64 " too large, sdb version:%" PRId64,
+             pTable->tableName, sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version,
+             tsSdbObj->version);
     return TSDB_CODE_OTHERS;
   }
+
+  tsSdbObj->version = pHead->version;
+  sdbTrace("table:%s, success to restore %s record:%s from file, version:%" PRId64, pTable->tableName,
+           sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+
+  int32_t code = -1;
+  if (action == SDB_ACTION_INSERT) {
+    SSdbOperDesc oper = {
+        .rowSize = pHead->len,
+        .rowData = pHead->cont,
+        .table = pTable,
+    };
+    code = (*pTable->decodeFp)(&oper);
+    if (code < 0) {
+      sdbTrace("table:%s, failed to decode %s record:%s from file, version:%" PRId64, pTable->tableName,
+               sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+      pthread_mutex_unlock(&tsSdbObj->mutex);
+      return code;
+    }
+
+    code = sdbInsertLocal(pTable, &oper);
+  } else if (action == SDB_ACTION_DELETE) {
+    SRowMeta *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
+    assert(rowMeta != NULL && rowMeta->row != NULL);
+
+    SSdbOperDesc oper = {
+        .table = pTable,
+        .pObj = rowMeta->row,
+    };
+
+    code = sdbDeleteLocal(pTable, &oper);
+  } else if (action == SDB_ACTION_UPDATE) {
+    SRowMeta *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
+    assert(rowMeta != NULL && rowMeta->row != NULL);
+
+    SSdbOperDesc oper1 = {
+        .table = pTable,
+        .pObj = rowMeta->row,
+    };
+    sdbDeleteLocal(pTable, &oper1);
+
+    SSdbOperDesc oper2 = {
+        .rowSize = pHead->len,
+        .rowData = pHead->cont,
+        .table = pTable,
+    };
+    code = (*pTable->decodeFp)(&oper2);
+    if (code < 0) {
+      sdbTrace("table:%s, failed to decode %s record:%s from file, version:%" PRId64, pTable->tableName,
+               sdbGetActionStr(action), sdbGetkeyStr(pTable, pHead->cont), pHead->version);
+      pthread_mutex_unlock(&tsSdbObj->mutex);
+      return code;
+    }
+    code = sdbInsertLocal(pTable, &oper2);
+  }
+
+  pthread_mutex_unlock(&tsSdbObj->mutex);
+  return code;
+}
+
+int sdbProcessWrite(void *param, void *data, int type) {
+  SWalHead *pHead = data;
+  int32_t   tableId = pHead->msgType / 10;
+  int32_t   action = pHead->msgType % 10;
+
+  SSdbTable *pTable = sdbGetTableFromId(tableId);
+  assert(pTable != NULL);
+
+  if (pHead->version == 0) {
+    return sdbProcessWriteFromApp(pTable, pHead, action);
+  } else {
+    return sdbProcessWriteFromWal(pTable, pHead, action);
+  }
+}
+
+int32_t sdbInsertRow(SSdbOperDesc *pOper) {
+  SSdbTable *pTable = (SSdbTable *)pOper->table;
+  if (pTable == NULL) return -1;
 
   if (sdbGetRow(pTable, pOper->pObj)) {
     sdbError("table:%s, failed to insert record:%s, already exist", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj));
@@ -489,87 +385,33 @@ int32_t sdbInsertRow(SSdbOperDesc *pOper) {
     return TSDB_CODE_ALREADY_THERE;
   }
 
-  pOper->maxRowSize = pTable->maxRowSize;
-  pthread_mutex_lock(&pTable->mutex);
-
-  if (pOper->type == SDB_OPER_TYPE_GLOBAL) {
-    SForwardMsg forward = {
-      .type = SDB_FORWARD_TYPE_INSERT,
-      .tableId = pTable->tableId,
-      .version = pTable->version + 1,
-      .rowSize = pOper->rowSize,
-      .rowData = pOper->rowData,
-    };
-
-    if (sdbForwardDbReqToPeer(&forward) != 0) {
-      sdbError("table:%s, failed to forward record:%s version:%" PRId64 " sdbversion:%" PRId64, 
-               pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj), pOper->version, sdbVersion);
-      pthread_mutex_unlock(&pTable->mutex);
-      return TSDB_CODE_OTHERS;
-    } 
-  }
-
-  int32_t total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
-  SRowHead *rowHead = (SRowHead *)calloc(1, total_size);
-  if (rowHead == NULL) {
-    pthread_mutex_unlock(&pTable->mutex);
-    sdbError("table:%s, failed to allocate row head memory for record:%s version:%" PRId64 " sdbversion:%" PRId64, 
-              pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj), pOper->version, sdbVersion);
-    return -1;
-  }
-  
-  if (pTable->keyType == SDB_KEY_TYPE_AUTO) {
+  if (pTable->keyType == SDB_KEY_AUTO) {
+    pthread_mutex_lock(&pTable->mutex);
     *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
 
     // let vgId increase from 2
     if (pTable->autoIndex == 1 && strcmp(pTable->tableName, "vgroups") == 0) {
       *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
     }
-  }
-  pTable->version++;
-  sdbVersion++;
-
-  pOper->rowData = rowHead->data;
-  (*pTable->encodeFp)(pOper);
-  rowHead->rowSize = pOper->rowSize;
-  rowHead->delimiter = SDB_DELIMITER;
-  rowHead->version = pTable->version;
-  assert(rowHead->rowSize > 0 && rowHead->rowSize <= pTable->maxRowSize);
-
-  int32_t real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
-  if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
-    sdbError("table:%s, failed to get checksum while inserting", pTable->tableName);
-    pTable->version--;
-    sdbVersion--;
     pthread_mutex_unlock(&pTable->mutex);
-    tfree(rowHead);
-    return -1;
   }
 
-  twrite(pTable->fd, rowHead, real_size);
-  pTable->fileSize += real_size;
-  sdbFinishCommit(pTable);
-  tfree(rowHead);
- 
-  // update in SDB layer
-  SRowMeta rowMeta;
-  rowMeta.version = pTable->version;
-  rowMeta.offset = pTable->fileSize;
-  rowMeta.rowSize = pOper->rowSize;
-  rowMeta.row = pOper->pObj;
-  (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj, &rowMeta);
-  sdbIncRef(pTable, pOper->pObj);
+  if (pOper->type == SDB_OPER_GLOBAL) {
+    int32_t   size = sizeof(SWalHead) + pTable->maxRowSize;
+    SWalHead *pHead = taosAllocateQitem(size);
+    pHead->version = 0;
+    pHead->len = pOper->rowSize;
+    pHead->msgType = pTable->tableId * 10 + SDB_ACTION_INSERT;
 
-  pTable->numOfRows++;  
+    pOper->rowData = pHead->cont;
+    (*pTable->encodeFp)(pOper);
+    pHead->len = pOper->rowSize;
+
+    int32_t code = sdbProcessWrite(tsSdbObj, pHead, pHead->msgType);
+    if (code < 0) return code;
+  } 
   
-  pthread_mutex_unlock(&pTable->mutex);
-
-  sdbTrace("table:%s, sdbversion:%" PRId64 " version:%" PRId64 " numOfRows:%d, insert record:%s, rowSize:%d fileSize:%" PRId64,
-          pTable->tableName, sdbVersion, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, pOper->pObj), pOper->rowSize, pTable->fileSize);
-
-  (*pTable->insertFp)(pOper);
-
-  return 0;
+  return sdbInsertLocal(pTable, pOper);
 }
 
 // row here can be object or null-terminated string
@@ -586,204 +428,62 @@ int32_t sdbDeleteRow(SSdbOperDesc *pOper) {
   void * pMetaRow = pMeta->row;
   assert(pMetaRow != NULL);
 
-  pthread_mutex_lock(&pTable->mutex);
+  if (pOper->type == SDB_OPER_GLOBAL) {
+    int32_t rowSize = 0;
+    switch (pTable->keyType) {
+      case SDB_KEY_STRING:
+        rowSize = strlen((char *)pOper->pObj) + 1;
+        break;
+      case SDB_KEY_INT:
+      case SDB_KEY_AUTO:
+        rowSize = sizeof(uint64_t);
+        break;
+      default:
+        return -1;
+    }
 
-  if (pOper->type == SDB_OPER_TYPE_GLOBAL) {
-    SForwardMsg forward = {
-      .type = SDB_FORWARD_TYPE_DELETE,
-      .tableId = pTable->tableId,
-      .version = pTable->version + 1,
-      .rowSize = pMeta->rowSize,
-      .rowData = pMeta->row,
-    };
+    int32_t   size = sizeof(SWalHead) + rowSize;
+    SWalHead *pHead = taosAllocateQitem(size);
+    pHead->version = 0;
+    pHead->len = rowSize;
+    pHead->msgType = pTable->tableId * 10 + SDB_ACTION_DELETE;
+    memcpy(pHead->cont, pOper->pObj, rowSize);
 
-   if (sdbForwardDbReqToPeer(&forward) != 0) {
-      sdbError("table:%s, failed to delete record", pTable->tableName);
-      pthread_mutex_unlock(&pTable->mutex);
-      return -1;
-    } 
-  }
-
-  int32_t total_size = sizeof(SRowHead) + pMeta->rowSize + sizeof(TSCKSUM);
-  SRowHead *rowHead = (SRowHead *)calloc(1, total_size);
-  if (rowHead == NULL) {
-    sdbError("failed to allocate row head memory, sdb:%s", pTable->tableName);
-    pthread_mutex_unlock(&pTable->mutex);
-    return -1;
-  }
-
-  pTable->version++;
-  sdbVersion++;
-
-  int32_t rowSize = 0;
-  switch (pTable->keyType) {
-    case SDB_KEY_TYPE_STRING:
-      rowSize = strlen((char *)pOper->pObj) + 1;
-      break;
-    case SDB_KEY_TYPE_AUTO:
-      rowSize = sizeof(uint64_t);
-      break;
-    default:
-      return -1;
-  }
-
-  rowHead->delimiter = SDB_DELIMITER;
-  rowHead->rowSize = rowSize;
-  rowHead->version = -(pTable->version);
-  memcpy(rowHead->data, pOper->pObj, rowSize);
-  int32_t real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
-  if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
-    sdbError("failed to get checksum while inserting, sdb:%s", pTable->tableName);
-    pTable->version--;
-    sdbVersion--;
-    pthread_mutex_unlock(&pTable->mutex);
-    tfree(rowHead);
-    return -1;
-  }
-
-  twrite(pTable->fd, rowHead, real_size);
-  pTable->fileSize += real_size;
-  sdbFinishCommit(pTable);
-
-  tfree(rowHead);
-
-
-  sdbTrace("table:%s, sdbversion:%" PRId64 " version:%" PRId64 " numOfRows:%d, delete record:%s, rowSize:%d fileSize:%" PRId64,
-          pTable->tableName, sdbVersion, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, pOper->pObj), pOper->rowSize, pTable->fileSize);
-     
-  // Delete from current layer
-  (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj);
-
-  pTable->numOfRows--;
-
-  pthread_mutex_unlock(&pTable->mutex);
-
-  (*pTable->deleteFp)(pOper);
-  int8_t* updateEnd = pOper->pObj + pTable->refCountPos - 1;
-  *updateEnd = 1;
-  sdbDecRef(pTable, pOper->pObj);
-  return 0;
+    int32_t code = sdbProcessWrite(tsSdbObj, pHead, pHead->msgType);
+    if (code < 0) return code;
+  } 
+  
+  return sdbDeleteLocal(pTable, pOper);
 }
 
-// row here can be the object or the string info (encoded string)
 int32_t sdbUpdateRow(SSdbOperDesc *pOper) {
   SSdbTable *pTable = (SSdbTable *)pOper->table;
   if (pTable == NULL) return -1;
 
   SRowMeta *pMeta = sdbGetRowMeta(pTable, pOper->pObj);
   if (pMeta == NULL) {
-    sdbError("table:%s, failed to update record:%s, record is not there, sdbversion:%" PRId64 " version:%" PRId64,
-            pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj), sdbVersion, pTable->version);
+    sdbTrace("table:%s, record is not there, delete failed", pTable->tableName);
     return -1;
   }
 
-  void *pMetaRow = pMeta->row;
+  void * pMetaRow = pMeta->row;
   assert(pMetaRow != NULL);
 
-  pthread_mutex_lock(&pTable->mutex);
+  if (pOper->type == SDB_OPER_GLOBAL) {
+    int32_t   size = sizeof(SWalHead) + pTable->maxRowSize;
+    SWalHead *pHead = taosAllocateQitem(size);
+    pHead->version = 0;
+    pHead->msgType = pTable->tableId * 10 + SDB_ACTION_UPDATE;
 
-  if (pOper->type == SDB_OPER_TYPE_GLOBAL) {
-    SForwardMsg forward = {
-      .type = SDB_FORWARD_TYPE_UPDATE,
-      .tableId = pTable->tableId,
-      .version = pTable->version + 1,
-      .rowSize = pOper->rowSize,
-      .rowData = pOper->rowData,
-    };
-    if (sdbForwardDbReqToPeer(&forward) != 0) {
-      sdbError("table:%s, failed to update record", pTable->tableName);
-      pthread_mutex_unlock(&pTable->mutex);
-      return -1;
-    } 
-  }
+    pOper->rowData = pHead->cont;
+    (*pTable->encodeFp)(pOper);
+    pHead->len = pOper->rowSize;
 
-  int32_t total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
-  SRowHead *rowHead = (SRowHead *)calloc(1, total_size);
-  if (rowHead == NULL) {
-    pthread_mutex_unlock(&pTable->mutex);
-    sdbError("table:%s, failed to allocate row head memory", pTable->tableName);
-    return -1;
+    int32_t code = sdbProcessWrite(tsSdbObj, pHead, pHead->msgType);
+    if (code < 0) return code;
   }
   
-  if (pMetaRow != pOper->pObj) {
-    memcpy(rowHead->data, pOper->rowData, pOper->rowSize);
-    rowHead->rowSize = pOper->rowSize;
-  } else {
-    SSdbOperDesc oper = {
-      .table = pTable,
-      .rowData = rowHead->data,
-      .maxRowSize = pTable->maxRowSize,
-      .pObj = pOper->pObj
-    };
-    (*pTable->encodeFp)(&oper);
-    rowHead->rowSize = oper.rowSize;
-  }
-
-  pTable->version++;
-  sdbVersion++;
-
-  int32_t real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
-  rowHead->delimiter = SDB_DELIMITER;
-  rowHead->version = pTable->version;
-  if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
-    sdbError("table:%s, failed to get checksum, version:%d", pTable->tableName, rowHead->version);
-    pTable->version--;
-    sdbVersion--;
-    pthread_mutex_unlock(&pTable->mutex);
-    tfree(rowHead);
-    return -1;
-  }
-  
-  twrite(pTable->fd, rowHead, real_size);
-  pTable->fileSize += real_size;
-  sdbFinishCommit(pTable);
-  
-  sdbTrace("table:%s, sdbversion:%" PRId64 " version:%" PRId64 " numOfRows:%d, update record:%s, rowSize:%d fileSize:%" PRId64,
-          pTable->tableName, sdbVersion, pTable->version, pTable->numOfRows, sdbGetkeyStr(pTable, pOper->pObj), pOper->rowSize, pTable->fileSize);
-     
-  pMeta->version = pTable->version;
-  pMeta->offset = pTable->fileSize;
-  pMeta->rowSize = rowHead->rowSize;
-  
-  pthread_mutex_unlock(&pTable->mutex);
-
-  (*pTable->updateFp)(pOper);  // update in upper layer
-
-  tfree(rowHead);
-
-  return 0;
-}
-
-void sdbCloseTable(void *handle) {
-  SSdbTable *pTable = (SSdbTable *)handle;
-  void *     pNode = NULL;
-  
-  if (pTable == NULL) return;
-
-  while (1) {
-    SRowMeta * pMeta;
-    pNode = (*sdbFetchRowFp[pTable->keyType])(pTable->iHandle, pNode, (void **)&pMeta);
-    if (pMeta == NULL) break;
-
-    SSdbOperDesc oper = {
-      .pObj = pMeta->row,
-      .table = pTable,
-      .version = pMeta->version,
-    };
-
-    (*pTable->destroyFp)(&oper);
-  }
-
-  if (sdbCleanUpIndexFp[pTable->keyType]) (*sdbCleanUpIndexFp[pTable->keyType])(pTable->iHandle);
-
-  if (pTable->fd) tclose(pTable->fd);
-
-  pthread_mutex_destroy(&pTable->mutex);
-
-  sdbNumOfTables--;
-  sdbTrace("table:%s, is closed, version:%" PRId64 " numOfTables:%d", pTable->tableName, pTable->version, sdbNumOfTables);
-
-  tfree(pTable);
+  return sdbUpdateLocal(pTable, pOper);
 }
 
 void *sdbFetchRow(void *handle, void *pNode, void **ppRow) {
@@ -800,4 +500,65 @@ void *sdbFetchRow(void *handle, void *pNode, void **ppRow) {
   sdbIncRef(handle, pMeta->row);
 
   return pNode;
+}
+
+void *sdbOpenTable(SSdbTableDesc *pDesc) {
+  SSdbTable *pTable = (SSdbTable *)calloc(1, sizeof(SSdbTable));
+  
+  if (pTable == NULL) return NULL;
+
+  strcpy(pTable->tableName, pDesc->tableName);
+  pTable->keyType      = pDesc->keyType;
+  pTable->tableId      = pDesc->tableId;
+  pTable->hashSessions = pDesc->hashSessions;
+  pTable->maxRowSize   = pDesc->maxRowSize;
+  pTable->refCountPos  = pDesc->refCountPos;
+  pTable->insertFp     = pDesc->insertFp;
+  pTable->deleteFp     = pDesc->deleteFp;
+  pTable->updateFp     = pDesc->updateFp;
+  pTable->encodeFp     = pDesc->encodeFp;
+  pTable->decodeFp     = pDesc->decodeFp;
+  pTable->destroyFp    = pDesc->destroyFp;
+  pTable->restoredFp   = pDesc->restoredFp;
+  
+  if (sdbInitIndexFp[pTable->keyType] != NULL) {
+    pTable->iHandle = (*sdbInitIndexFp[pTable->keyType])(pTable->maxRowSize, sizeof(SRowMeta));
+  }
+
+  pthread_mutex_init(&pTable->mutex, NULL);
+
+  tsSdbNumOfTables++;
+  tsSdbTableList[pTable->tableId] = pTable;
+  return pTable;
+}
+
+void sdbCloseTable(void *handle) {
+  SSdbTable *pTable = (SSdbTable *)handle;
+  if (pTable == NULL) return;
+  
+  tsSdbNumOfTables--;
+  tsSdbTableList[pTable->tableId] = NULL;
+
+  void *pNode = NULL;
+  while (1) {
+    SRowMeta *pMeta;
+    pNode = (*sdbFetchRowFp[pTable->keyType])(pTable->iHandle, pNode, (void **)&pMeta);
+    if (pMeta == NULL) break;
+
+    SSdbOperDesc oper = {
+      .pObj = pMeta->row,
+      .table = pTable,
+    };
+
+    (*pTable->destroyFp)(&oper);
+  }
+
+  if (sdbCleanUpIndexFp[pTable->keyType]) {
+    (*sdbCleanUpIndexFp[pTable->keyType])(pTable->iHandle);
+  }
+
+  pthread_mutex_destroy(&pTable->mutex);
+  
+  sdbTrace("table:%s, is closed, numOfTables:%d", pTable->tableName, tsSdbNumOfTables);
+  free(pTable);
 }

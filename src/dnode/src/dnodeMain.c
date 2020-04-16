@@ -159,10 +159,10 @@ static int32_t dnodeInitSystem() {
   dPrint("starting to initialize TDengine ...");
 
   if (dnodeInitStorage() != 0) return -1;
-  if (dnodeInitModules() != 0) return -1;
   if (dnodeInitRead() != 0) return -1;
   if (dnodeInitWrite() != 0) return -1;
   if (dnodeInitMClient() != 0) return -1;
+  if (dnodeInitModules() != 0) return -1;
   if (dnodeInitMnode() != 0) return -1;
   if (dnodeInitMgmt() != 0) return -1;
   if (dnodeInitShell() != 0) return -1;
@@ -177,7 +177,6 @@ static int32_t dnodeInitSystem() {
 
 static void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
-    tclearModuleStatus(TSDB_MOD_MGMT);
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
     dnodeCleanupShell();
     dnodeCleanupMnode();

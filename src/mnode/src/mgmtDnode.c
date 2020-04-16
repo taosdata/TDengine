@@ -19,8 +19,8 @@
 #include "tbalance.h"
 #include "tcluster.h"
 #include "mnode.h"
+#include "mpeer.h"
 #include "mgmtDClient.h"
-#include "mgmtMnode.h"
 #include "mgmtShell.h"
 #include "mgmtDServer.h"
 #include "mgmtUser.h"
@@ -77,6 +77,7 @@ void *  clusterGetDnode(int32_t dnodeId) { return dnodeId == 1 ? &tsDnodeObj : N
 void *  clusterGetDnodeByIp(uint32_t ip) { return &tsDnodeObj; }
 void    clusterReleaseDnode(struct _dnode_obj *pDnode) {}
 void    clusterUpdateDnode(struct _dnode_obj *pDnode) {}
+void    clusterMonitorDnodeModule() {}
 
 #endif
 
@@ -141,8 +142,6 @@ static void clusterProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 }
 
 void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
-
   SDMStatusMsg *pStatus = rpcMsg->pCont;
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->privateIp = htonl(pStatus->privateIp);
@@ -210,6 +209,7 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     balanceNotify();
+    clusterMonitorDnodeModule();
   }
 
   clusterReleaseDnode(pDnode);
@@ -221,7 +221,7 @@ void clusterProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  mgmtGetMnodePrivateIpList(&pRsp->ipList);
+  mpeerGetMpeerInfos(&pRsp->mpeers);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);

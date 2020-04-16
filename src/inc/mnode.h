@@ -41,28 +41,19 @@ struct _vg_obj;
 struct _db_obj;
 struct _acct_obj;
 struct _user_obj;
+struct _mnode_obj;
 
-typedef struct {
+typedef struct _mnode_obj {
   int32_t  mnodeId;
-  uint32_t privateIp;
-  uint32_t publicIp;
   int64_t  createdTime;
-  int64_t  lostTime;
-  uint64_t dbVersion;
-  uint32_t rack;
-  uint16_t idc;
-  uint16_t slot;
-  int8_t   role;
-  int8_t   status;
-  int8_t   numOfMnodes;
-  int32_t  numOfDnodes;
-  char     mnodeName[TSDB_DNODE_NAME_LEN + 1];
-  int8_t   reserved[15];
+  int8_t   reserved[14];
   int8_t   updateEnd[1];
   int32_t  refCount;
-  int      syncFd;
-  void    *hbTimer;
-  void    *pSync;
+  uint32_t privateIp;
+  uint32_t publicIp;  
+  uint16_t port;
+  int8_t   role;
+  char     mnodeName[TSDB_NODE_NAME_LEN + 1];
 } SMnodeObj;
 
 typedef struct _dnode_obj {
@@ -81,7 +72,7 @@ typedef struct _dnode_obj {
   int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
   int8_t     status;           // set in balance function
   int32_t    customScore;      // config by user
-  char       dnodeName[TSDB_DNODE_NAME_LEN + 1];
+  char       dnodeName[TSDB_NODE_NAME_LEN + 1];
   int8_t     reserved[15];
   int8_t     updateEnd[1];
   int32_t    refCount;

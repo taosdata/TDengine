@@ -22,11 +22,11 @@
 #include "taccount.h"
 #include "tbalance.h"
 #include "tcluster.h"
+#include "tgrant.h"
+#include "mpeer.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDServer.h"
-#include "tgrant.h"
-#include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
@@ -105,7 +105,17 @@ int32_t mgmtStartSystem() {
   }
 
   if (mgmtInitTables() < 0) {
-    mError("failed to init meters");
+    mError("failed to init tables");
+    return -1;
+  }
+
+  if (mpeerInit() < 0) {
+    mError("failed to init mpeers");
+    return -1;
+  }
+
+  if (sdbInit() < 0) {
+    mError("failed to init sdb");
     return -1;
   }
 
@@ -114,11 +124,6 @@ int32_t mgmtStartSystem() {
   }
 
   if (mgmtInitDServer() < 0) {
-    return -1;
-  }
-
-  if (mgmtInitMnodes() < 0) {
-    mError("failed to init mnodes");
     return -1;
   }
 
@@ -135,7 +140,7 @@ int32_t mgmtStartSystem() {
 
 
 void mgmtStopSystem() {
-  if (mgmtIsMaster()) {
+  if (mpeerIsMaster()) {
     mTrace("it is a master mgmt node, it could not be stopped");
     return;
   }
@@ -147,7 +152,7 @@ void mgmtStopSystem() {
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
   grantCleanUp();
-  mgmtCleanupMnodes();
+  mpeerCleanup();
   balanceCleanUp();
   mgmtCleanUpShell();
   mgmtCleanupDClient();
@@ -158,6 +163,7 @@ void mgmtCleanUpSystem() {
   clusterCleanUp();
   mgmtCleanUpUsers();
   acctCleanUp();
+  sdbCleanUp();
   taosTmrCleanUp(tsMgmtTmr);
   mPrint("mgmt is cleaned up");
 }

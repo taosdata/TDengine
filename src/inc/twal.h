@@ -36,12 +36,13 @@ typedef struct {
 typedef struct {
   int8_t    commitLog; // commitLog
   int8_t    wals;      // number of WAL files;
+  int8_t    keep;      // keep the wal file when closed
 } SWalCfg;
 
 typedef void* twalh;  // WAL HANDLE
 typedef int (*FWalWrite)(void *ahandle, void *pHead, int type);
 
-twalh  walOpen(const char *path, const SWalCfg *pCfg);
+twalh   walOpen(const char *path, const SWalCfg *pCfg);
 void    walClose(twalh);
 int     walRenew(twalh);
 int     walWrite(twalh, SWalHead *);

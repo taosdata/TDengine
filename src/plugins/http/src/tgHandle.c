@@ -116,6 +116,7 @@ void tgFreeSchemas() {
     }
     free(tgSchemas.schemas);
     tgSchemas.size = 0;
+    tgSchemas.schemas = NULL;
   }
 }
 
@@ -288,6 +289,10 @@ void tgInitHandle(HttpServer *pServer) {
   }
 
   httpAddMethod(pServer, &tgDecodeMethod);
+}
+
+void tgCleanupHandle() {
+  tgFreeSchemas();
 }
 
 bool tgGetUserFromUrl(HttpContext *pContext) {

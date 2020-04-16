@@ -33,6 +33,7 @@
 #define TG_PASS_URL_POS   3
 
 void tgInitHandle(HttpServer *pServer);
+void tgCleanupHandle();
 
 bool tgProcessRquest(struct HttpContext *pContext);
 

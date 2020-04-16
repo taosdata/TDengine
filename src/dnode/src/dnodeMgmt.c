@@ -21,8 +21,6 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "tsdb.h"
-#include "ttime.h"
-#include "ttimer.h"
 #include "twal.h"
 #include "dnodeMClient.h"
 #include "dnodeMgmt.h"
@@ -38,52 +36,23 @@ static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
 static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
-static void     dnodeSendStatusMsg(void *handle, void *tmrId);
-static void     dnodeReadDnodeId();
-
-static void    *tsDnodeTmr = NULL;
-static void    *tsStatusTimer = NULL;
-static uint32_t tsRebootTime;
-static int32_t  tsDnodeId = 0;
-static char     tsDnodeName[TSDB_DNODE_NAME_LEN];
 
 int32_t dnodeInitMgmt() {
-  dnodeReadDnodeId();
-
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
 
-  tsRebootTime = taosGetTimestampSec();
-
-  tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
-  if (tsDnodeTmr == NULL) {
-    dError("failed to init dnode timer");
-    return -1;
-  }
-
   int32_t code = dnodeOpenVnodes();
   if (code != TSDB_CODE_SUCCESS) {
     return -1;
   }
 
-  taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
   return TSDB_CODE_SUCCESS;
 }
 
 void dnodeCleanupMgmt() {
-  if (tsStatusTimer != NULL) {
-    taosTmrStopA(&tsStatusTimer);
-    tsStatusTimer = NULL;
-  }
-
-  if (tsDnodeTmr != NULL) {
-    taosTmrCleanUp(tsDnodeTmr);
-    tsDnodeTmr = NULL;
-  }
-
   dnodeCloseVnodes();
 }
 
@@ -212,90 +181,4 @@ static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
   SMDCfgDnodeMsg *pCfg = (SMDCfgDnodeMsg *)pMsg->pCont;
   return tsCfgDynamicOptions(pCfg->config);
-}
-
-static void dnodeSendStatusMsg(void *handle, void *tmrId) {
-  if (tsDnodeTmr == NULL) {
-    dError("dnode timer is already released");
-    return;
-  }
-
-  if (tsStatusTimer == NULL) {
-    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
-    dError("failed to start status timer");
-    return;
-  }
-
-  int32_t contLen = sizeof(SDMStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
-  SDMStatusMsg *pStatus = rpcMallocCont(contLen);
-  if (pStatus == NULL) {
-    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
-    dError("failed to malloc status message");
-    return;
-  }
-
-  strcpy(pStatus->dnodeName, tsDnodeName);
-  pStatus->version          = htonl(tsVersion);
-  pStatus->dnodeId          = htonl(tsDnodeId);
-  pStatus->privateIp        = htonl(inet_addr(tsPrivateIp));
-  pStatus->publicIp         = htonl(inet_addr(tsPublicIp));
-  pStatus->lastReboot       = htonl(tsRebootTime);
-  pStatus->numOfTotalVnodes = htons((uint16_t) tsNumOfTotalVnodes);
-  pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
-  pStatus->diskAvailable    = tsAvailDataDirGB;
-  pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
-
-  vnodeBuildStatusMsg(pStatus);
-  contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
-  pStatus->openVnodes = htons(pStatus->openVnodes);
-  
-  SRpcMsg rpcMsg = {
-    .pCont   = pStatus,
-    .contLen = contLen,
-    .msgType = TSDB_MSG_TYPE_DM_STATUS
-  };
-
-  dnodeSendMsgToMnode(&rpcMsg);
-  taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
-}
-
-static void dnodeReadDnodeId() {
-  char dnodeIdFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(dnodeIdFile, "%s/dnodeId", tsDnodeDir);
-
-  FILE *fp = fopen(dnodeIdFile, "r");
-  if (!fp) return;
-  
-  char option[32] = {0};
-  int32_t value = 0;
-  int32_t num = 0;
-  
-  num = fscanf(fp, "%s %d", option, &value);
-  if (num != 2) return;
-  if (strcmp(option, "dnodeId") != 0) return;
-  tsDnodeId = value;;
-
-  fclose(fp);
-  dPrint("read dnodeId:%d successed", tsDnodeId);
-}
-
-static void dnodeSaveDnodeId() {
-  char dnodeIdFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(dnodeIdFile, "%s/dnodeId", tsDnodeDir);
-
-  FILE *fp = fopen(dnodeIdFile, "w");
-  if (!fp) return;
-
-  fprintf(fp, "dnodeId %d\n", tsDnodeId);
-
-  fclose(fp);
-  dPrint("save dnodeId successed");
-}
-
-void dnodeUpdateDnodeId(int32_t dnodeId) {
-  if (tsDnodeId == 0) {
-    dPrint("dnodeId is set to %d", dnodeId);  
-    tsDnodeId = dnodeId;
-    dnodeSaveDnodeId();
-  }
 }

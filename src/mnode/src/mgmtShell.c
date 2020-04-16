@@ -27,7 +27,7 @@
 #include "mgmtDb.h"
 #include "tcluster.h"
 #include "tgrant.h"
-#include "mgmtMnode.h"
+#include "mpeer.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -42,7 +42,6 @@ static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *sec
 static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg);
 static void mgmtProcessMsgFromShell(SRpcMsg *pMsg);
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
-static void mgmtProcessMsgWhileNotReady(SRpcMsg *rpcMsg);
 static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
@@ -142,15 +141,9 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  if (mgmtCheckRedirect(rpcMsg->handle)) {
+  if (!mpeerIsMaster()) {
     // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
-    rpcFreeCont(rpcMsg->pCont);
-    return;
-  }
-
-  if (!mgmtInServerStatus()) {
-    mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -337,9 +330,9 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
   }
 
   if (pMsg->usePublicIp) {
-    mgmtGetMnodePublicIpList(&pHBRsp->ipList);
+    mpeerGetPublicIpList(&pHBRsp->ipList);
   } else {
-    mgmtGetMnodePrivateIpList(&pHBRsp->ipList);
+    mpeerGetPrivateIpList(&pHBRsp->ipList);
   }
 
   /*
@@ -423,9 +416,9 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   pConnectRsp->superAuth = pUser->superAuth;
 
   if (pMsg->usePublicIp) {
-    mgmtGetMnodePublicIpList(&pConnectRsp->ipList);
+    mpeerGetPublicIpList(&pConnectRsp->ipList);
   } else {
-    mgmtGetMnodePrivateIpList(&pConnectRsp->ipList);
+    mpeerGetPrivateIpList(&pConnectRsp->ipList);
   }
 
 connect_over:
@@ -496,18 +489,6 @@ static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg) {
     .pCont   = 0,
     .contLen = 0,
     .code    = TSDB_CODE_OPS_NOT_SUPPORT,
-    .handle  = rpcMsg->handle
-  };
-  rpcSendResponse(&rpcRsp);
-}
-
-static void mgmtProcessMsgWhileNotReady(SRpcMsg *rpcMsg) {
-  mTrace("%s is ignored since SDB is not ready", taosMsg[rpcMsg->msgType]);
-  SRpcMsg rpcRsp = {
-    .msgType = 0,
-    .pCont   = 0,
-    .contLen = 0,
-    .code    = TSDB_CODE_NOT_READY,
     .handle  = rpcMsg->handle
   };
   rpcSendResponse(&rpcRsp);

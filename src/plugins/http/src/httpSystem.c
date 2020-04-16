@@ -54,7 +54,7 @@ static HttpServer *httpServer = NULL;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 
 int httpInitSystem() {
-  taos_init();
+  // taos_init();
 
   httpServer = (HttpServer *)malloc(sizeof(HttpServer));
   memset(httpServer, 0, sizeof(HttpServer));
@@ -122,12 +122,14 @@ void httpStopSystem() {
   if (httpServer != NULL) {
     httpServer->online = false;
   }
+  tgCleanupHandle();
 }
 
 void httpCleanUpSystem() {
   httpPrint("http service cleanup");
   httpStopSystem();
-#if 0
+
+#if 1
   if (httpServer == NULL) {
     return;
   }
