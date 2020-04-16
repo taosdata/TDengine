@@ -674,7 +674,7 @@ typedef struct {
 } SSuperTableMetaMsg;
 
 typedef struct {
-  SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
+  SVnodeDesc vpeerDesc[TSDB_REPLICA_MAX_NUM];
   int16_t    index;  // used locally
   int32_t    numOfSids;
   int32_t    pSidExtInfoList[];  // offset value of STableIdInfo

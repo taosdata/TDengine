@@ -1937,9 +1937,9 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   pTableMetaInfo->numOfTags = numOfTags;
   
   if (vgroupList != NULL) {
-    assert(vgroupList->numOfDnodes == 1);  // todo fix me
-    size_t size = sizeof(SVgroupsInfo) + (sizeof(STableDnodeVgroupInfo) +
-        vgroupList->dnodeVgroups[0].numOfVgroups * sizeof(int32_t)) * vgroupList->numOfDnodes;
+    assert(vgroupList->numOfVgroups == 1);  // todo fix me
+    
+    size_t size = sizeof(SVgroupsInfo) + sizeof(SCMVgroupInfo) * vgroupList->numOfVgroups;
     
     pTableMetaInfo->vgroupList = malloc(size);
     memcpy(pTableMetaInfo->vgroupList, vgroupList, size);
@@ -2020,7 +2020,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
-    tscError("%p new subquery failed, tableIndex:%d, dnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->dnodeIndex);
+    tscError("%p new subquery failed, tableIndex:%d, vgroupIndex:%d", pSql, tableIndex, pTableMetaInfo->vgroupIndex);
 
     free(pNew);
     return NULL;
@@ -2064,7 +2064,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   if (tscAllocPayload(pnCmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
-    tscError("%p new subquery failed, tableIndex:%d, dnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->dnodeIndex);
+    tscError("%p new subquery failed, tableIndex:%d, vgroupIndex:%d", pSql, tableIndex, pTableMetaInfo->vgroupIndex);
     tscFreeSqlObj(pNew);
     return NULL;
   }
@@ -2155,13 +2155,13 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     tscTrace(
         "%p new subquery: %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
         "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
-        pSql, pNew, tableIndex, pTableMetaInfo->dnodeIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
+        pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
         pNewQueryInfo->colList.numOfCols, pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name, pNewQueryInfo->stime,
         pNewQueryInfo->etime, pNewQueryInfo->order.order, pNewQueryInfo->limit.limit);
     
     tscPrintSelectClause(pNew, 0);
   } else {
-    tscTrace("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->dnodeIndex);
+    tscTrace("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->vgroupIndex);
   }
 
   return pNew;
@@ -2258,7 +2258,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   
 //  int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
 //  return pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
-//         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->dnodeIndex < totalVnode - 1);
+//         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vgroupIndex < totalVnode - 1);
 }
 
 void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
@@ -2277,9 +2277,9 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   int32_t totalVnode = 0;
 //  int32_t         totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
 
-  while (++pTableMetaInfo->dnodeIndex < totalVnode) {
+  while (++pTableMetaInfo->vgroupIndex < totalVnode) {
     tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
-             pTableMetaInfo->dnodeIndex - 1, pTableMetaInfo->dnodeIndex, totalVnode, pRes->numOfTotalInCurrentClause);
+             pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVnode, pRes->numOfTotalInCurrentClause);
 
     /*
      * update the limit and offset value for the query on the next vnode,
@@ -2298,7 +2298,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     assert((pRes->offset >= 0 && pRes->numOfRows == 0) || (pRes->offset == 0 && pRes->numOfRows >= 0));
     tscTrace("%p new query to next vnode, vnode index:%d, limit:%" PRId64 ", offset:%" PRId64 ", glimit:%" PRId64, pSql,
-             pTableMetaInfo->dnodeIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
+             pTableMetaInfo->vgroupIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
 
     /*
      * For project query with super table join, the numOfSub is equalled to the number of all subqueries.

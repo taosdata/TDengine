@@ -129,7 +129,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
-  pSql->maxRetry = TSDB_VNODES_SUPPORT;
+  pSql->maxRetry = TSDB_REPLICA_MAX_NUM;
   
   tsem_init(&pSql->rspSem, 0, 0);
   

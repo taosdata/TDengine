@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
   
   doQuery(taos, "create database if not exists test");
   doQuery(taos, "use test");
+  doQuery(taos, "insert into tm99 values('2020-01-01 1:1:1', 99);");
 //  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
 //  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
 //  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");
