@@ -510,7 +510,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       /* here is the 1a/2s/3m/9y */
       if ((z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' || z[i] == 'y' ||
           z[i] == 'w' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
-          z[i] == 'Y' || z[i] == 'W') &&
+          z[i] == 'Y' || z[i] == 'W' || z[i] == 'u' || z[i] == 'U') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenType = TK_VARIABLE;
         i += 1;
