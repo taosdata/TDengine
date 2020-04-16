@@ -17,14 +17,16 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tutil.h"
-#include "name.h"
-#include "mnode.h"
-#include "taccount.h"
-#include "tbalance.h"
-#include "mgmtDb.h"
-#include "tcluster.h"
 #include "tgrant.h"
-#include "mpeer.h"
+#include "tglobalcfg.h"
+#include "ttime.h"
+#include "name.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtAcct.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtMnode.h"
 #include "mgmtShell.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
@@ -51,7 +53,7 @@ static int32_t mgmtDbActionDestroy(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
   SDbObj *pDb = pOper->pObj;
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
 
   pDb->pHead = NULL;
   pDb->pTail = NULL;
@@ -60,7 +62,7 @@ static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
   pDb->numOfSuperTables = 0;
 
   if (pAcct != NULL) {
-    acctAddDb(pAcct, pDb);
+    mgmtAddDbToAcct(pAcct, pDb);
   }
   else {
     mError("db:%s, acct:%s info not exist in sdb", pDb->name, pDb->cfg.acct);
@@ -72,9 +74,9 @@ static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDbActionDelete(SSdbOperDesc *pOper) {
   SDbObj *pDb = pOper->pObj;
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
 
-  acctRemoveDb(pAcct, pDb);
+  mgmtDropDbFromAcct(pAcct, pDb);
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
   mgmtDropAllVgroups(pDb);
@@ -83,6 +85,12 @@ static int32_t mgmtDbActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtDbActionUpdate(SSdbOperDesc *pOper) {
+  SDbObj *pDb = pOper->pObj;
+  SDbObj *pSaved = mgmtGetDb(pDb->name);
+  if (pDb != pSaved) {
+    memcpy(pSaved, pDb, pOper->rowSize);
+    free(pDb);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -150,7 +158,7 @@ void mgmtIncDbRef(SDbObj *pDb) {
   return sdbIncRef(tsDbSdb, pDb); 
 }
 
-void mgmtReleaseDb(SDbObj *pDb) { 
+void mgmtDecDbRef(SDbObj *pDb) { 
   return sdbDecRef(tsDbSdb, pDb); 
 }
 
@@ -282,14 +290,14 @@ static int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
 }
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
-  int32_t code = acctCheck(pAcct, TSDB_ACCT_DB);
+  int32_t code = acctCheck(pAcct, ACCT_GRANT_DB);
   if (code != 0) {
     return code;
   }
 
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb != NULL) {
-    mgmtReleaseDb(pDb);
+    mgmtDecDbRef(pDb);
     return TSDB_CODE_DB_ALREADY_EXIST;
   }
 
@@ -635,7 +643,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     cols++;
 
     numOfRows++;
-    mgmtReleaseDb(pDb);
+    mgmtDecDbRef(pDb);
   }
 
   pShow->numOfReads += numOfRows;
@@ -882,7 +890,7 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
       mgmtSetDbDropping(pDb);
       numOfDbs++;
     }
-    mgmtReleaseDb(pDb);
+    mgmtDecDbRef(pDb);
   }
 
   mTrace("acct:%s, all dbs is is set dirty", pAcct->user, numOfDbs);

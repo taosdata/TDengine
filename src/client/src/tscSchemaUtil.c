@@ -168,10 +168,8 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   
   pTableMeta->sid = pTableMetaMsg->sid;
   pTableMeta->uid = pTableMetaMsg->uid;
-  pTableMeta->vgId = pTableMetaMsg->vgId;
+  pTableMeta->vgroupInfo = pTableMetaMsg->vgroup;
   
-  pTableMeta->numOfVpeers = pTableMetaMsg->numOfVpeers;
-  memcpy(pTableMeta->vpeerDesc, pTableMetaMsg->vpeerDesc, sizeof(SVnodeDesc) * pTableMeta->numOfVpeers);
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
   
   int32_t numOfTotalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;

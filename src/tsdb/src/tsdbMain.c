@@ -387,7 +387,7 @@ int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
 /**
  * Initialize a table configuration
  */
-int tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid) {
+int tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t tid) {
   if (config == NULL) return -1;
   if (type != TSDB_NORMAL_TABLE && type != TSDB_CHILD_TABLE) return -1;
 
@@ -732,7 +732,6 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
-//  pTable->mem->numOfPoints++;
 
   return 0;
 }

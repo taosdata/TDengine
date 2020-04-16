@@ -16,10 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "taccount.h"
-#include "tcluster.h"
+#include "taoserror.h"
+#include "tutil.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtAcct.h"
+#include "mgmtDnode.h"
 #include "mgmtDb.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
 #include "mgmtTable.h"
@@ -787,11 +791,11 @@ void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
   if (pMsg != NULL) {
     rpcFreeCont(pMsg->pCont);
     if (pMsg->pUser) mgmtReleaseUser(pMsg->pUser);
-    if (pMsg->pDb) mgmtReleaseDb(pMsg->pDb);
+    if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
     if (pMsg->pVgroup) mgmtReleaseVgroup(pMsg->pVgroup);
     if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
-    if (pMsg->pAcct) acctReleaseAcct(pMsg->pAcct);
-    if (pMsg->pDnode) clusterReleaseDnode(pMsg->pDnode);
+    if (pMsg->pAcct) mgmtDecAcctRef(pMsg->pAcct);
+    if (pMsg->pDnode) mgmtReleaseDnode(pMsg->pDnode);
     free(pMsg);
   }
 }

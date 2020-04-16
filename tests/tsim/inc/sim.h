@@ -23,7 +23,6 @@
 #include "taos.h"
 #include "tidpool.h"
 #include "tlog.h"
-#include "tmodule.h"
 #include "tutil.h"
 
 #define MAX_MAIN_SCRIPT_NUM 10

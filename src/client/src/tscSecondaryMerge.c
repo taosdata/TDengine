@@ -636,7 +636,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   pModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
 
-  size_t numOfSubs = pTableMetaInfo->vgroupList->numOfDnodes;
+  size_t numOfSubs = pTableMetaInfo->vgroupList->numOfVgroups;
   for (int32_t i = 0; i < numOfSubs; ++i) {
     (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pModel);
     (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;

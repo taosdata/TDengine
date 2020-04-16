@@ -21,20 +21,13 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   IF (TD_ACCOUNT)
     TARGET_LINK_LIBRARIES(taosd account)
   ENDIF ()
+  
   IF (TD_GRANT)
     TARGET_LINK_LIBRARIES(taosd grant)
   ENDIF ()
 
-  IF (TD_CLUSTER)
-    TARGET_LINK_LIBRARIES(taosd cluster)
-  ENDIF ()
-  
-  IF (TD_VPEER)
-    TARGET_LINK_LIBRARIES(taosd balance sync)
-  ENDIF ()
-
-  IF (TD_MPEER)
-    TARGET_LINK_LIBRARIES(taosd mpeer sync)
+  IF (TD_SYNC)
+    TARGET_LINK_LIBRARIES(taosd replica sync)
   ENDIF ()
 
   SET(PREPARE_ENV_CMD "prepare_env_cmd")

@@ -634,14 +634,14 @@ typedef struct SCMSTableVgroupMsg {
 } SCMSTableVgroupMsg;
 
 typedef struct {
-  SIpAddr   ipAddr;
-  int32_t   numOfVgroups;
-  int32_t   vgId[];
-} STableDnodeVgroupInfo;
+  int32_t   vgId;
+  int8_t    numOfIps;
+  SIpAddr   ipAddr[TSDB_REPLICA_MAX_NUM];
+} SCMVgroupInfo;
 
 typedef struct {
-  int32_t  numOfDnodes;
-  STableDnodeVgroupInfo dnodeVgroups[];
+  int32_t  numOfVgroups;
+  SCMVgroupInfo vgroups[];
 } SCMSTableVgroupRspMsg;
 
 typedef struct {
@@ -674,7 +674,7 @@ typedef struct {
 } SSuperTableMetaMsg;
 
 typedef struct {
-  SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
+  SVnodeDesc vpeerDesc[TSDB_REPLICA_MAX_NUM];
   int16_t    index;  // used locally
   int32_t    numOfSids;
   int32_t    pSidExtInfoList[];  // offset value of STableIdInfo
@@ -688,21 +688,18 @@ typedef struct {
 } SSuperTableMeta;
 
 typedef struct STableMetaMsg {
-  int32_t    contLen;
-  
-  char       tableId[TSDB_TABLE_ID_LEN];   // table id
-  char       stableId[TSDB_TABLE_ID_LEN];  // stable name if it is created according to super table
-  uint8_t    numOfTags;
-  uint8_t    precision;
-  uint8_t    tableType;
-  int16_t    numOfColumns;
-  int16_t    sversion;
-  int8_t     numOfVpeers;
-  SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
-  int32_t    sid;
-  int32_t    vgId;
-  uint64_t   uid;
-  SSchema    schema[];
+  int32_t       contLen;
+  char          tableId[TSDB_TABLE_ID_LEN];   // table id
+  char          stableId[TSDB_TABLE_ID_LEN];  // stable name if it is created according to super table
+  uint8_t       numOfTags;
+  uint8_t       precision;
+  uint8_t       tableType;
+  int16_t       numOfColumns;
+  int16_t       sversion;
+  int32_t       sid;
+  uint64_t      uid;
+  SCMVgroupInfo vgroup;
+  SSchema       schema[];
 } STableMetaMsg;
 
 typedef struct SMultiTableMeta {

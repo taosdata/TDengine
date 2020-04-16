@@ -562,7 +562,7 @@ void taosTmrCleanUp(void* handle) {
   pthread_mutex_unlock(&tmrCtrlMutex);
 
   if (numOfTmrCtrl <=0) {
-    pthread_cancel(athread);
+//    pthread_cancel(athread);
     
     for (int i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;

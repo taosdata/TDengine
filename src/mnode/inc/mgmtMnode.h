@@ -13,44 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MPEER_H
-#define TDENGINE_MPEER_H
+#ifndef TDENGINE_MGMT_MNODE_H
+#define TDENGINE_MGMT_MNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct _mnode_obj;
+struct SMnodeObj;
 
-enum _TAOS_MN_STATUS {
+typedef enum {
   TAOS_MN_STATUS_OFFLINE,
   TAOS_MN_STATUS_DROPPING,
   TAOS_MN_STATUS_READY
-};
+} EMnodeStatus;
 
-// general implementation
-int32_t mpeerInit();
-void    mpeerCleanup();
+int32_t mgmtInitMnodes();
+void    mgmtCleanupMnodes();
 
-// special implementation
-int32_t mpeerInitMnodes();
-void    mpeerCleanupMnodes();
-int32_t mpeerAddMnode(int32_t dnodeId);
-int32_t mpeerRemoveMnode(int32_t dnodeId);
+int32_t mgmtAddMnode(int32_t dnodeId);
+int32_t mgmtDropMnode(int32_t dnodeId);
 
-void *  mpeerGetMnode(int32_t mnodeId);
-int32_t mpeerGetMnodesNum();
-void *  mpeerGetNextMnode(void *pNode, struct _mnode_obj **pMnode);
-void    mpeerReleaseMnode(struct _mnode_obj *pMnode);
+void *  mgmtGetMnode(int32_t mnodeId);
+int32_t mgmtGetMnodesNum();
+void *  mgmtGetNextMnode(void *pNode, struct SMnodeObj **pMnode);
+void    mgmtReleaseMnode(struct SMnodeObj *pMnode);
 
-bool    mpeerIsMaster();
+bool    mgmtIsMaster();
 
-void    mpeerGetPrivateIpList(SRpcIpSet *ipSet);
-void    mpeerGetPublicIpList(SRpcIpSet *ipSet);
-void    mpeerGetMpeerInfos(void *mpeers);
-
-int32_t mpeerForwardReqToPeer(void *pHead);
-void    mpeerUpdateSync();
+void    mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp);
+void    mgmtGetMnodeList(void *mpeers);
 
 #ifdef __cplusplus
 }

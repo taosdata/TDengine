@@ -177,26 +177,6 @@ extern uint32_t cdebugFlag;
     tprintf("DND QRY ", qdebugFlag, __VA_ARGS__); \
   }
 
-// mnode log function
-#define mError(...)                          \
-  if (mdebugFlag & DEBUG_ERROR) {            \
-    tprintf("ERROR MND ", 255, __VA_ARGS__); \
-  }
-#define mWarn(...)                                  \
-  if (mdebugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  MND ", mdebugFlag, __VA_ARGS__); \
-  }
-#define mTrace(...)                           \
-  if (mdebugFlag & DEBUG_TRACE) {             \
-    tprintf("MND ", mdebugFlag, __VA_ARGS__); \
-  }
-#define mPrint(...) \
-  { tprintf("MND ", 255, __VA_ARGS__); }
-
-#define mLError(...) taosLogError(__VA_ARGS__) mError(__VA_ARGS__)
-#define mLWarn(...) taosLogWarn(__VA_ARGS__) mWarn(__VA_ARGS__)
-#define mLPrint(...) taosLogPrint(__VA_ARGS__) mPrint(__VA_ARGS__)
-
 #define httpError(...)                       \
   if (httpDebugFlag & DEBUG_ERROR) {         \
     tprintf("ERROR HTP ", 255, __VA_ARGS__); \
@@ -238,25 +218,6 @@ extern uint32_t cdebugFlag;
 #define monitorLError(...) taosLogError(__VA_ARGS__) monitorError(__VA_ARGS__)
 #define monitorLWarn(...) taosLogWarn(__VA_ARGS__) monitorWarn(__VA_ARGS__)
 #define monitorLPrint(...) taosLogPrint(__VA_ARGS__) monitorPrint(__VA_ARGS__)
-
-#define sdbError(...)                            \
-  if (sdbDebugFlag & DEBUG_ERROR) {              \
-    tprintf("ERROR MND-SDB ", 255, __VA_ARGS__); \
-  }
-#define sdbWarn(...)                                      \
-  if (sdbDebugFlag & DEBUG_WARN) {                        \
-    tprintf("WARN  MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
-  }
-#define sdbTrace(...)                               \
-  if (sdbDebugFlag & DEBUG_TRACE) {                 \
-    tprintf("MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
-  }
-#define sdbPrint(...) \
-  { tprintf("MND-SDB ", 255, __VA_ARGS__); }
-
-#define sdbLError(...) taosLogError(__VA_ARGS__) sdbError(__VA_ARGS__)
-#define sdbLWarn(...) taosLogWarn(__VA_ARGS__) sdbWarn(__VA_ARGS__)
-#define sdbLPrint(...) taosLogPrint(__VA_ARGS__) sdbPrint(__VA_ARGS__)
 
 #ifdef __cplusplus
 }

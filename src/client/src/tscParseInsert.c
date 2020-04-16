@@ -699,7 +699,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   SSubmitBlk *pBlocks = (SSubmitBlk *)(dataBuf->pData);
   tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
 
-  dataBuf->vgId = pTableMeta->vgId;
+  dataBuf->vgId = pTableMeta->vgroupInfo.vgId;
   dataBuf->numOfTables = 1;
 
   /*

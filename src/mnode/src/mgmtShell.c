@@ -20,14 +20,16 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "tsched.h"
+#include "tutil.h"
+#include "ttimer.h"
 #include "dnode.h"
-#include "mnode.h"
-#include "taccount.h"
-#include "tbalance.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtAcct.h"
 #include "mgmtDb.h"
-#include "tcluster.h"
+#include "mgmtDnode.h"
 #include "tgrant.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -48,6 +50,7 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessUseMsg(SQueuedMsg *queuedMsg);
 
+extern void *tsMgmtTmr;
 static void *tsMgmtShellRpc = NULL;
 static void *tsMgmtTranQhandle = NULL;
 static void (*tsMgmtProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SQueuedMsg *) = {0};
@@ -141,7 +144,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  if (!mpeerIsMaster()) {
+  if (!mgmtIsMaster()) {
     // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
     rpcFreeCont(rpcMsg->pCont);
@@ -329,12 +332,8 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  if (pMsg->usePublicIp) {
-    mpeerGetPublicIpList(&pHBRsp->ipList);
-  } else {
-    mpeerGetPrivateIpList(&pHBRsp->ipList);
-  }
-
+  mgmtGetMnodeIpList(&pHBRsp->ipList, pMsg->usePublicIp);
+  
   /*
    * TODO
    * Dispose kill stream or kill query message
@@ -415,12 +414,8 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
 
-  if (pMsg->usePublicIp) {
-    mpeerGetPublicIpList(&pConnectRsp->ipList);
-  } else {
-    mpeerGetPrivateIpList(&pConnectRsp->ipList);
-  }
-
+  mgmtGetMnodeIpList(&pConnectRsp->ipList, pMsg->usePublicIp);
+  
 connect_over:
   rpcRsp.code = code;
   if (code != TSDB_CODE_SUCCESS) {

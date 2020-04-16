@@ -47,12 +47,12 @@ static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 static void tscSetDnodeIpList(SSqlObj* pSql, STableMeta* pTableMeta) {
   SRpcIpSet* pIpList = &pSql->ipList;
   
-  pIpList->numOfIps = pTableMeta->numOfVpeers;
+  pIpList->numOfIps = pTableMeta->vgroupInfo.numOfIps;
   pIpList->port     = tsDnodeShellPort;
   pIpList->inUse    = 0;
   
-  for(int32_t i = 0; i < pTableMeta->numOfVpeers; ++i) {
-    pIpList->ip[i] = pTableMeta->vpeerDesc[i].ip;
+  for(int32_t i = 0; i < pTableMeta->vgroupInfo.numOfIps; ++i) {
+    pIpList->ip[i] = pTableMeta->vgroupInfo.ipAddr[i].ip;
   }
 }
 
@@ -269,8 +269,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
         return;
       } else {
         tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
-
-        pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;  // todo move away
+        
         pSql->res.code = rpcMsg->code;  // keep the previous error code
         if (pSql->retry > pSql->maxRetry) {
           tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
@@ -327,7 +326,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
      */
-    if (rpcMsg->msgType == TSDB_MSG_TYPE_SUBMIT_RSP) {
+    if (rpcMsg->msgType == TSDB_MSG_TYPE_SUBMIT_RSP && pRes->pRsp != NULL) {
       SShellSubmitRspMsg *pMsg = (SShellSubmitRspMsg*)pRes->pRsp;
       pMsg->code = htonl(pMsg->code);
       pMsg->numOfRows = htonl(pMsg->numOfRows);
@@ -512,12 +511,12 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // todo valid the vgroupId at the client side
   if (UTIL_TABLE_IS_SUPERTABLE(pQueryInfo->pTableMetaInfo[0])) {
     SVgroupsInfo* pVgroupInfo = pQueryInfo->pTableMetaInfo[0]->vgroupList;
-    assert(pVgroupInfo->dnodeVgroups->numOfVgroups == 1); // todo fix me
+    assert(pVgroupInfo->numOfVgroups == 1); // todo fix me
     
-    pRetrieveMsg->header.vgId = htonl(pVgroupInfo->dnodeVgroups[0].vgId[0]);
+    pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[0].vgId);
   } else {
     STableMeta* pTableMeta = pQueryInfo->pTableMetaInfo[0]->pTableMeta;
-    pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
+    pRetrieveMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
   }
   
   pMsg += sizeof(SRetrieveTableMsg);
@@ -543,8 +542,9 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(SMsgDesc);
   
   SSubmitMsg *pShellMsg = (SSubmitMsg *)pMsg;
+  int32_t vgId = pTableMeta->vgroupInfo.vgId;
   
-  pShellMsg->header.vgId = htonl(pTableMeta->vgId);
+  pShellMsg->header.vgId = htonl(vgId);
   pShellMsg->header.contLen = htonl(size);
   pShellMsg->length = pShellMsg->header.contLen;
   
@@ -554,7 +554,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
   tscSetDnodeIpList(pSql, pTableMeta);
   
-  tscTrace("%p build submit msg, vgId:%d numOfVnodes:%d", pSql, pTableMeta->vgId, htonl(pMsgDesc->numOfVnodes));
+  tscTrace("%p build submit msg, vgId:%d numOfVgroup:%d", pSql, vgId, htonl(pMsgDesc->numOfVnodes));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -580,7 +580,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   
 #if 0
   SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
-  SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->dnodeIndex);
+  SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->vgroupIndex);
 
   int32_t meterInfoSize = (pMetricMeta->tagLen + sizeof(STableIdInfo)) * pVnodeSidList->numOfSids;
   int32_t outputColumnSize = pQueryInfo->exprsInfo.numOfExprs * sizeof(SSqlFuncExprMsg);
@@ -648,12 +648,12 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
     numOfTables = 1;
     tscSetDnodeIpList(pSql, pTableMeta);
-    pQueryMsg->head.vgId = htonl(pTableMeta->vgId);
+    pQueryMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
     tscTrace("%p queried tables:%d, table id: %s", pSql, 1, pTableMetaInfo->name);
   } else {  // query super table
     
-    if (pTableMetaInfo->dnodeIndex < 0) {
-      tscError("%p error vnodeIdx:%d", pSql, pTableMetaInfo->dnodeIndex);
+    if (pTableMetaInfo->vgroupIndex < 0) {
+      tscError("%p error vnodeIdx:%d", pSql, pTableMetaInfo->vgroupIndex);
       return -1;
     }
     
@@ -662,11 +662,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSql->ipList.inUse    = 0;
   
     // todo extract method
-    STableDnodeVgroupInfo* pVgroupInfo = &pTableMetaInfo->vgroupList->dnodeVgroups[pTableMetaInfo->dnodeIndex];
-    pSql->ipList.ip[0] = pVgroupInfo->ipAddr.ip;
+    SCMVgroupInfo* pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[pTableMetaInfo->vgroupIndex];
+    pSql->ipList.ip[0] = pVgroupInfo->ipAddr[0].ip;
     
 #if 0
-    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->dnodeIndex);
+    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->vgroupIndex);
     uint32_t       vnodeId = pVnodeSidList->vpeerDesc[pVnodeSidList->index].vnode;
 
     numOfTables = pVnodeSidList->numOfSids;
@@ -676,10 +676,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
 #endif
     
-    tscTrace("%p query on super table, numOfVgroup:%d, dnodeIndex:%d", pSql, pVgroupInfo->numOfVgroups,
-        pTableMetaInfo->dnodeIndex);
+    tscTrace("%p query on super table, numOfVgroup:%d, vgroupIndex:%d", pSql, pTableMetaInfo->vgroupList->numOfVgroups,
+        pTableMetaInfo->vgroupIndex);
     
-    pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId[0]);
+    pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
     numOfTables = 1;
   }
 
@@ -857,7 +857,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int32_t numOfBlocks = 0;
 
   if (pQueryInfo->tsBuf != NULL) {
-    STSVnodeBlockInfo *pBlockInfo = tsBufGetVnodeBlockInfo(pQueryInfo->tsBuf, pTableMetaInfo->dnodeIndex);
+    STSVnodeBlockInfo *pBlockInfo = tsBufGetVnodeBlockInfo(pQueryInfo->tsBuf, pTableMetaInfo->vgroupIndex);
     assert(QUERY_IS_JOIN_QUERY(pQueryInfo->type) && pBlockInfo != NULL);  // this query should not be sent
 
     // todo refactor
@@ -1828,13 +1828,15 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
   pMetaMsg->sid = htonl(pMetaMsg->sid);
   pMetaMsg->sversion = htons(pMetaMsg->sversion);
-  pMetaMsg->vgId = htonl(pMetaMsg->vgId);
+  
+  pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
+  
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
   pMetaMsg->contLen = htons(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
-  if (pMetaMsg->sid < 0 || pMetaMsg->vgId < 0) {
-    tscError("invalid meter vgId:%d, sid%d", pMetaMsg->vgId, pMetaMsg->sid);
+  if (pMetaMsg->sid < 0 || pMetaMsg->vgroup.numOfIps < 0) {
+    tscError("invalid meter vgId:%d, sid%d", pMetaMsg->vgroup.numOfIps, pMetaMsg->sid);
     return TSDB_CODE_INVALID_VALUE;
   }
 
@@ -1848,9 +1850,11 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_INVALID_VALUE;
   }
 
-  for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-    pMetaMsg->vpeerDesc[i].ip = htonl(pMetaMsg->vpeerDesc[i].ip);
-    pMetaMsg->vpeerDesc[i].dnodeId = htonl(pMetaMsg->vpeerDesc[i].dnodeId);
+  for (int i = 0; i < pMetaMsg->vgroup.numOfIps; ++i) {
+    pMetaMsg->vgroup.ipAddr[i].ip = htonl(pMetaMsg->vgroup.ipAddr[i].ip);
+    pMetaMsg->vgroup.ipAddr[i].port = htons(pMetaMsg->vgroup.ipAddr[i].port);
+    
+    assert(pMetaMsg->vgroup.ipAddr[i].ip != 0);
   }
 
   SSchema* pSchema = pMetaMsg->schema;
@@ -1859,6 +1863,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   for (int i = 0; i < numOfTotalCols; ++i) {
     pSchema->bytes = htons(pSchema->bytes);
     pSchema->colId = htons(pSchema->colId);
+    
+    assert(pSchema->type >= TSDB_DATA_TYPE_BOOL && pSchema->type <= TSDB_DATA_TYPE_NCHAR);
     pSchema++;
   }
 
@@ -1899,9 +1905,6 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
  *  |...... 1B        1B            4B
  **/
 int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
-//  uint8_t  ieType;
-//  int32_t  totalNum;
-//  int32_t  i;
 #if 0
   char *rsp = pSql->res.pRsp;
 
@@ -1958,7 +1961,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     //      return TSDB_CODE_OTHERS;
     //    }
     //
-    //    for (int j = 0; j < TSDB_VNODES_SUPPORT; ++j) {
+    //    for (int j = 0; j < TSDB_REPLICA_MAX_NUM; ++j) {
     //      pMeta->vpeerDesc[j].vnode = htonl(pMeta->vpeerDesc[j].vnode);
     //    }
     //
@@ -2116,7 +2119,7 @@ _error_clean:
   SSqlRes* pRes = &pSql->res;
   
   SCMSTableVgroupRspMsg *pStableVgroup = (SCMSTableVgroupRspMsg *)pRes->pRsp;
-  pStableVgroup->numOfDnodes = htonl(pStableVgroup->numOfDnodes);
+  pStableVgroup->numOfVgroups = htonl(pStableVgroup->numOfVgroups);
   
   // master sqlObj locates in param
   SSqlObj* parent = pSql->param;
@@ -2128,14 +2131,14 @@ _error_clean:
   pInfo->vgroupList = malloc(pRes->rspLen);
   memcpy(pInfo->vgroupList, pStableVgroup, pRes->rspLen);
   
-  for(int32_t i = 0; i < pInfo->vgroupList->numOfDnodes; ++i) {
-    STableDnodeVgroupInfo* pVgroups = &pInfo->vgroupList->dnodeVgroups[i];
-    pVgroups->numOfVgroups = htonl(pVgroups->numOfVgroups);
-    pVgroups->ipAddr.ip = htonl(pVgroups->ipAddr.ip);
-    pVgroups->ipAddr.port = htons(pVgroups->ipAddr.port);
+  for(int32_t i = 0; i < pInfo->vgroupList->numOfVgroups; ++i) {
+    SCMVgroupInfo* pVgroups = &pInfo->vgroupList->vgroups[i];
+    pVgroups->numOfIps = htonl(pVgroups->numOfIps);
+    pVgroups->vgId = htonl(pVgroups->vgId);
     
-    for(int32_t j = 0; j < pVgroups->numOfVgroups; ++j) {
-      pVgroups->vgId[j] = htonl(pVgroups->vgId[j]);
+    for(int32_t j = 0; j < tListLen(pVgroups->ipAddr); ++j) {
+      pVgroups->ipAddr[j].ip = htonl(pVgroups->ipAddr[j].ip);
+      pVgroups->ipAddr[j].port = htons(pVgroups->ipAddr[j].port);
     }
   }
   

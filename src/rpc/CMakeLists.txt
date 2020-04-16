@@ -24,7 +24,7 @@ ELSEIF (TD_WINDOWS_64)
 ENDIF ()
 
 ADD_LIBRARY(trpc ${SRC})
-TARGET_LINK_LIBRARIES(trpc tutil lz4)
+TARGET_LINK_LIBRARIES(trpc tutil lz4 common)
 
 ADD_SUBDIRECTORY(test)
 

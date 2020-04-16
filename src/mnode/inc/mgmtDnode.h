@@ -13,34 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_ACCT_H
-#define TDENGINE_ACCT_H
+#ifndef TDENGINE_CLUSTER_H
+#define TDENGINE_CLUSTER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct _acct_obj;
-struct _user_obj;
-struct _db_obj;
- 
 typedef enum {
-  TSDB_ACCT_USER,
-  TSDB_ACCT_DB,
-  TSDB_ACCT_TABLE
-} EAcctGrantType;
+  TAOS_DN_STATUS_OFFLINE,
+  TAOS_DN_STATUS_DROPPING,
+  TAOS_DN_STATUS_BALANCING,
+  TAOS_DN_STATUS_READY
+} EDnodeStatus;
 
-int32_t acctInit();
-void    acctCleanUp();
-void   *acctGetAcct(char *acctName);
-void    acctIncRef(struct _acct_obj *pAcct);
-void    acctReleaseAcct(struct _acct_obj *pAcct);
-int32_t acctCheck(struct _acct_obj *pAcct, EAcctGrantType type);
+int32_t mgmtInitDnodes();
+void    mgmtCleanupDnodes();
 
-void    acctAddDb(struct _acct_obj *pAcct, struct _db_obj *pDb);
-void    acctRemoveDb(struct _acct_obj *pAcct, struct _db_obj *pDb);
-void    acctAddUser(struct _acct_obj *pAcct, struct _user_obj *pUser);
-void    acctRemoveUser(struct _acct_obj *pAcct, struct _user_obj *pUser);
+char*   mgmtGetDnodeStatusStr(int32_t dnodeStatus);
+bool    mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
+void    mgmtMonitorDnodeModule();
+
+int32_t mgmtGetDnodesNum();
+void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode);
+void    mgmtReleaseDnode(SDnodeObj *pDnode);
+void *  mgmtGetDnode(int32_t dnodeId);
+void *  mgmtGetDnodeByIp(uint32_t ip);
+void    mgmtUpdateDnode(SDnodeObj *pDnode);
+int32_t mgmtDropDnode(SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }
