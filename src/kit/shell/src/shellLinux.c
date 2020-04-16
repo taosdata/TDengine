@@ -295,6 +295,7 @@ void *shellLoopQuery(void *arg) {
     tscError("failed to malloc command");
     return NULL;
   }
+  
   while (1) {
     // Read command from shell.
 
@@ -304,11 +305,16 @@ void *shellLoopQuery(void *arg) {
     reset_terminal_mode();
 
     // Run the command
-    shellRunCommand(con, command);
+    if (shellRunCommand(con, command) != 0) {
+      break;
+    }
   }
+  
+  tfree(command);
+  exitShell();
 
   pthread_cleanup_pop(1);
-
+  
   return NULL;
 }
 
@@ -487,6 +493,7 @@ void showOnScreen(Command *cmd) {
 void cleanup_handler(void *arg) { tcsetattr(0, TCSANOW, &oldtio); }
 
 void exitShell() {
-  tcsetattr(0, TCSANOW, &oldtio);
+  /*int32_t ret =*/ tcsetattr(STDIN_FILENO, TCSANOW, &oldtio);
+  taos_cleanup();
   exit(EXIT_SUCCESS);
 }

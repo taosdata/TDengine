@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  /* Interupt handler. */
+  /* Interrupt handler. */
   struct sigaction act;
   memset(&act, 0, sizeof(struct sigaction));
   
