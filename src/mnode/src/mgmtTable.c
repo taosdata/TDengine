@@ -45,6 +45,9 @@ static int32_t tsSuperTableUpdateSize;
 static void *  mgmtGetChildTable(char *tableId);
 static void *  mgmtGetSuperTable(char *tableId);
 static void    mgmtDropAllChildTablesInStable(SSuperTableObj *pStable);
+static void    mgmtAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable);
+static void    mgmtRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *pCtable);
+
 static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -109,7 +112,7 @@ static int32_t mgmtChildTableActionInsert(SSdbOperDesc *pOper) {
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pTable->superTable = mgmtGetSuperTable(pTable->superTableId);
-    pTable->superTable->numOfTables++;
+    mgmtAddTableIntoStable(pTable->superTable, pTable);
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
     pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
   } else {
@@ -152,7 +155,7 @@ static int32_t mgmtChildTableActionDelete(SSdbOperDesc *pOper) {
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     grantRestore(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
     pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
-    pTable->superTable->numOfTables--;
+    mgmtRemoveTableFromStable(pTable->superTable, pTable);
     mgmtDecTableRef(pTable->superTable);
   } else {
     grantRestore(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
@@ -350,8 +353,40 @@ static void mgmtCleanUpChildTables() {
   sdbCloseTable(tsChildTableSdb);
 }
 
+static void mgmtAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
+  if (pStable->vgLen == 0) {
+    pStable->vgLen = 10;
+    pStable->vgList = calloc(pStable->vgLen, sizeof(int32_t));
+  }
+  
+  bool find = false;
+  int32_t pos = 0;
+  for (int pos = 0; pos < pStable->vgLen; ++pos) {
+    if (pStable->vgList[pos] == 0) break;
+    if (pStable->vgList[pos] == pCtable->vgId) {
+      find = true;
+      break;
+    }
+  }
+
+  if (!find) {
+    if (pos >= pStable->vgLen) {
+      pStable->vgLen *= 2;
+      pStable->vgList = realloc(pStable->vgList, pStable->vgLen * sizeof(int32_t));
+    }
+    pStable->vgList[pos] = pCtable->vgId;
+  }
+
+  pStable->numOfTables++;
+}
+
+static void mgmtRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
+  pStable->numOfTables--;
+}
+
 static void mgmtDestroySuperTable(SSuperTableObj *pStable) {
   tfree(pStable->schema);
+  tfree(pStable->vgList)
   tfree(pStable);
 }
 
@@ -384,13 +419,14 @@ static int32_t mgmtSuperTableActionDelete(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtSuperTableActionUpdate(SSdbOperDesc *pOper) {
-  SChildTableObj *pNew = pOper->pObj;
-  SChildTableObj *pTable = mgmtGetChildTable(pNew->info.tableId);
+  SSuperTableObj *pNew = pOper->pObj;
+  SSuperTableObj *pTable = mgmtGetSuperTable(pNew->info.tableId);
   if (pTable != pNew) {
     void *oldSchema = pTable->schema;
     memcpy(pTable, pNew, pOper->rowSize);
     pTable->schema = pNew->schema;
     free(pNew);
+    free(pNew->vgList);
     free(oldSchema);
   }
 
