@@ -15,6 +15,7 @@
 // #include "taosdef.h"
 // #include "disk.h"
 #include "os.h"
+#include "talgo.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
 
@@ -704,7 +705,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
     pTable->mem->keyLast = 0;
   }
 
-  tSkipListRandNodeInfo(pTable->mem->pData, &level, &headSize);
+  tSkipListNewNodeInfo(pTable->mem->pData, &level, &headSize);
 
   TSKEY key = dataRowKey(row);
   // printf("insert:%lld, size:%d\n", key, pTable->mem->numOfPoints);

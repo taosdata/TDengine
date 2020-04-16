@@ -159,7 +159,7 @@ void *tSkipListDestroy(SSkipList *pSkipList);
  * @param level
  * @param headSize
  */
-void tSkipListRandNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize);
+void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize);
 
 /**
  * put the skip list node into the skip list.

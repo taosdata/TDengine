@@ -1178,8 +1178,9 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   pExprInfo->pExprs[index] = pExpr;
   
   pExpr->functionId = functionId;
+  
   int16_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-
+  
   // set the correct column index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
@@ -1190,7 +1191,6 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
 
   // tag columns require the column index revised.
   if (pColIndex->columnIndex >= numOfCols) {
-    pColIndex->columnIndex -= numOfCols;
     pExpr->colInfo.flag = TSDB_COL_TAG;
   } else {
     if (pColIndex->columnIndex != TSDB_TBNAME_COLUMN_INDEX) {
@@ -1916,7 +1916,7 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
 }
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
-                                    SArray* vgroupList, int16_t numOfTags, int16_t* tags) {
+                                    SVgroupsInfo* vgroupList, int16_t numOfTags, int16_t* tags) {
   void* pAlloc = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (pAlloc == NULL) {
     return NULL;
@@ -1937,7 +1937,12 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   pTableMetaInfo->numOfTags = numOfTags;
   
   if (vgroupList != NULL) {
-    pTableMetaInfo->vgroupIdList = taosArrayClone(vgroupList);
+    assert(vgroupList->numOfDnodes == 1);  // todo fix me
+    size_t size = sizeof(SVgroupsInfo) + (sizeof(STableDnodeVgroupInfo) +
+        vgroupList->dnodeVgroups[0].numOfVgroups * sizeof(int32_t)) * vgroupList->numOfDnodes;
+    
+    pTableMetaInfo->vgroupList = malloc(size);
+    memcpy(pTableMetaInfo->vgroupList, vgroupList, size);
   }
 
   if (tags != NULL) {
@@ -1952,7 +1957,7 @@ STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo* pQueryInfo) {
   return tscAddTableMetaInfo(pQueryInfo, NULL, NULL, NULL, 0, NULL);
 }
 
-void doRemoveMeterMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFromCache) {
+void doRemoveTableMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFromCache) {
   if (index < 0 || index >= pQueryInfo->numOfTables) {
     return;
   }
@@ -1975,7 +1980,7 @@ void tscRemoveAllMeterMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool
 
   int32_t index = pQueryInfo->numOfTables;
   while (index >= 0) {
-    doRemoveMeterMetaInfo(pQueryInfo, --index, removeFromCache);
+    doRemoveTableMetaInfo(pQueryInfo, --index, removeFromCache);
   }
 
   tfree(pQueryInfo->pTableMetaInfo);
@@ -1987,6 +1992,7 @@ void tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
   }
 
   taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
+  tfree(pTableMetaInfo->vgroupList);
 //  taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pMetricMeta), removeFromCache);
 }
 
@@ -2014,7 +2020,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
-    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->vnodeIndex);
+    tscError("%p new subquery failed, tableIndex:%d, dnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->dnodeIndex);
 
     free(pNew);
     return NULL;
@@ -2058,7 +2064,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   if (tscAllocPayload(pnCmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
-    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->vnodeIndex);
+    tscError("%p new subquery failed, tableIndex:%d, dnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->dnodeIndex);
     tscFreeSqlObj(pNew);
     return NULL;
   }
@@ -2128,7 +2134,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 //      pMetricMeta = taosCacheAcquireByName(tscCacheHandle, key);
 //    }
 
-    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupIdList, pTableMetaInfo->numOfTags,
+    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->numOfTags,
                                      pTableMetaInfo->tagColumnIndex);
   } else {  // transfer the ownership of pTableMeta/pMetricMeta to the newly create sql object.
 //    STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
@@ -2149,13 +2155,13 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     tscTrace(
         "%p new subquery: %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
         "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
-        pSql, pNew, tableIndex, pTableMetaInfo->vnodeIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
+        pSql, pNew, tableIndex, pTableMetaInfo->dnodeIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
         pNewQueryInfo->colList.numOfCols, pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name, pNewQueryInfo->stime,
         pNewQueryInfo->etime, pNewQueryInfo->order.order, pNewQueryInfo->limit.limit);
     
     tscPrintSelectClause(pNew, 0);
   } else {
-    tscTrace("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->vnodeIndex);
+    tscTrace("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->dnodeIndex);
   }
 
   return pNew;
@@ -2252,7 +2258,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   
 //  int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
 //  return pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
-//         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vnodeIndex < totalVnode - 1);
+//         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->dnodeIndex < totalVnode - 1);
 }
 
 void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
@@ -2271,9 +2277,9 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   int32_t totalVnode = 0;
 //  int32_t         totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
 
-  while (++pTableMetaInfo->vnodeIndex < totalVnode) {
+  while (++pTableMetaInfo->dnodeIndex < totalVnode) {
     tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
-             pTableMetaInfo->vnodeIndex - 1, pTableMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotalInCurrentClause);
+             pTableMetaInfo->dnodeIndex - 1, pTableMetaInfo->dnodeIndex, totalVnode, pRes->numOfTotalInCurrentClause);
 
     /*
      * update the limit and offset value for the query on the next vnode,
@@ -2292,7 +2298,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     assert((pRes->offset >= 0 && pRes->numOfRows == 0) || (pRes->offset == 0 && pRes->numOfRows >= 0));
     tscTrace("%p new query to next vnode, vnode index:%d, limit:%" PRId64 ", offset:%" PRId64 ", glimit:%" PRId64, pSql,
-             pTableMetaInfo->vnodeIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
+             pTableMetaInfo->dnodeIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
 
     /*
      * For project query with super table join, the numOfSub is equalled to the number of all subqueries.

@@ -302,6 +302,7 @@ void rpcClose(void *param) {
 
   tfree(pRpc->connList);
   pthread_mutex_destroy(&pRpc->mutex);
+  tTrace("%s RPC is closed", pRpc->label);
   tfree(pRpc);
 }
 

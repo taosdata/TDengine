@@ -28,7 +28,7 @@ void doubleSkipListTest() {
     int32_t level = 0;
     int32_t size = 0;
 
-    tSkipListRandNodeInfo(pSkipList, &level, &size);
+    tSkipListNewNodeInfo(pSkipList, &level, &size);
     auto d = (SSkipListNode*)calloc(1, size + sizeof(double) * 2);
     d->level = level;
 
@@ -81,7 +81,7 @@ void randKeyTest() {
     int32_t level = 0;
     int32_t s = 0;
 
-    tSkipListRandNodeInfo(pSkipList, &level, &s);
+    tSkipListNewNodeInfo(pSkipList, &level, &s);
     auto d = (SSkipListNode*)calloc(1, s + sizeof(int32_t) * 2);
     d->level = level;
 
@@ -112,7 +112,7 @@ void stringKeySkiplistTest() {
 
   int32_t level = 0;
   int32_t headsize = 0;
-  tSkipListRandNodeInfo(pSkipList, &level, &headsize);
+  tSkipListNewNodeInfo(pSkipList, &level, &headsize);
 
   auto pNode = (SSkipListNode*)calloc(1, headsize + max_key_size + sizeof(double));
   pNode->level = level;
@@ -124,7 +124,7 @@ void stringKeySkiplistTest() {
 
   tSkipListPut(pSkipList, pNode);
 
-  tSkipListRandNodeInfo(pSkipList, &level, &headsize);
+  tSkipListNewNodeInfo(pSkipList, &level, &headsize);
 
   pNode = (SSkipListNode*)calloc(1, headsize + max_key_size + sizeof(double));
   pNode->level = level;
@@ -164,7 +164,7 @@ void stringKeySkiplistTest() {
   int32_t total = 10000;
   for (int32_t i = 0; i < total; ++i) {
     int32_t n = sprintf(k, "abc_%d_%d", i, i);
-    tSkipListRandNodeInfo(pSkipList, &level, &headsize);
+    tSkipListNewNodeInfo(pSkipList, &level, &headsize);
 
     auto pNode = (SSkipListNode*)calloc(1, headsize + 20 + sizeof(double));
     pNode->level = level;
@@ -222,7 +222,7 @@ void skiplistPerformanceTest() {
   char* p = total;
 
   for (int32_t i = 0; i < size; ++i) {
-    tSkipListRandNodeInfo(pSkipList, &level, &headsize);
+    tSkipListNewNodeInfo(pSkipList, &level, &headsize);
 
     SSkipListNode* d = (SSkipListNode*)p;
     p += headsize + sizeof(double) * 2;

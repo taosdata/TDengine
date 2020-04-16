@@ -461,9 +461,7 @@ void taosHashRemove(SHashObj *pHashObj, const char *key, size_t keyLen) {
   pNode->next = NULL;
   pNode->prev = NULL;
 
-  pTrace("key:%s %p remove from hash table", pNode->key, pNode);
   tfree(pNode);
-
   __unlock(pHashObj->lock);
 }
 
