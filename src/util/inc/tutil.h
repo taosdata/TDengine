@@ -170,14 +170,6 @@ uint32_t ip2uint(const char *const ip_addr);
 void taosSetAllocMode(int mode, const char* path, bool autoDump);
 void taosDumpMemoryLeak();
 
-#define TD_EQ 0x1
-#define TD_GT 0x2
-#define TD_LT 0x4
-#define TD_GE (TD_EQ | TD_GT)
-#define TD_LE (TD_EQ | TD_LT)
-void *taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
-                  int (*compar)(const void *, const void *), int flags);
-
 void * tmalloc(size_t size);
 void * tcalloc(size_t nmemb, size_t size);
 size_t tsizeof(void *ptr);

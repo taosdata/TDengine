@@ -1117,12 +1117,26 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   if (pRsp == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
     return;
-  } 
-
-  pRsp->numOfDnodes = htonl(1);
-  pRsp->dnodeIps[0] = htonl(inet_addr(tsPrivateIp));
+  }
   
-  int32_t msgLen = sizeof(SSuperTableObj) + htonl(pRsp->numOfDnodes) * sizeof(int32_t);
+  int32_t numOfVgroups = 1;
+  int32_t numOfDnodes  = 1;
+  
+  pRsp->numOfDnodes = htonl(numOfDnodes);
+  STableDnodeVgroupInfo* pVgroupInfo = pRsp->dnodeVgroups;
+  pVgroupInfo->ipAddr.ip = htonl(inet_addr(tsPrivateIp));
+  
+  pVgroupInfo->ipAddr.port = htons(0);      // todo fix it
+  pVgroupInfo->numOfVgroups = htonl(numOfVgroups); // todo fix it
+  int32_t* vgIdList = pVgroupInfo->vgId;
+  
+  for(int32_t i = 0; i < numOfVgroups; ++i) {
+    vgIdList[i] = htonl(2);  // todo fix it
+  }
+  
+  assert(numOfDnodes == 1);  // this size is valid only when numOfDnodes equals 1
+  int32_t msgLen = sizeof(SCMSTableVgroupRspMsg) + sizeof(STableDnodeVgroupInfo) + numOfVgroups * sizeof(int32_t);
+  
   SRpcMsg rpcRsp = {0};
   rpcRsp.handle = pMsg->thandle;
   rpcRsp.pCont = pRsp;
@@ -1524,7 +1538,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
     } else {
       pMeta->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].privateIp);
     }
-    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
+//    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
     pMeta->vpeerDesc[i].dnodeId = htonl(pVgroup->vnodeGid[i].dnodeId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;

@@ -181,8 +181,10 @@ int32_t tsdbInsertData(tsdb_repo_t *pRepo, SSubmitMsg *pMsg);
 
 typedef void* tsdb_query_handle_t;  // Use void to hide implementation details
 
-// typedef struct {
-// } SColumnFilterInfo;
+typedef struct STableGroupList {    // qualified table object list in group
+  SArray*  pGroupList;
+  int32_t  numOfTables;
+} STableGroupList;
 
 // query condition to build vnode iterator
 typedef struct STsdbQueryCond {
@@ -233,7 +235,7 @@ typedef void *tsdbpos_t;
  * @param pTableList    table sid list
  * @return
  */
-tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
+tsdb_query_handle_t *tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
 
 /**
  * move to next block
@@ -335,7 +337,10 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char *pTagCond, size_t len, SArray* list);
+int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size_t len, SArray** pGroupList,
+                      SColIndex* pColIndex, int32_t numOfCols);
+
+int32_t tsdbGetOneTableGroup(tsdb_repo_t* tsdb, int64_t uid, SArray** pGroupList);
 
 /**
  * clean up the query handle

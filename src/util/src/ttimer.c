@@ -84,6 +84,8 @@ static tmr_ctrl_t*     tmrCtrls;
 static tmr_ctrl_t*     unusedTmrCtrl = NULL;
 static void*           tmrQhandle;
 static int             numOfTmrCtrl = 0;
+//static void*           tmrContext = NULL;
+static int             athread = 0;
 
 int taosTmrThreads = 1;
 
@@ -517,7 +519,7 @@ static void taosTmrModuleInit(void) {
   }
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr");
-  taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
+  athread = taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
 
   tmrTrace("timer module is initialized, number of threads: %d", taosTmrThreads);
 }
@@ -558,4 +560,22 @@ void taosTmrCleanUp(void* handle) {
   numOfTmrCtrl--;
   unusedTmrCtrl = ctrl;
   pthread_mutex_unlock(&tmrCtrlMutex);
+
+  if (numOfTmrCtrl <=0) {
+    pthread_cancel(athread);
+    
+    for (int i = 0; i < tListLen(wheels); i++) {
+      time_wheel_t* wheel = wheels + i;
+      pthread_mutex_destroy(&wheel->mutex); 
+      free(wheel->slots);
+    }
+
+    pthread_mutex_destroy(&tmrCtrlMutex);  
+    free(timerMap.slots); 
+    free(tmrCtrls);
+    taosCleanUpScheduler(tmrQhandle);
+    tmrModuleInit = PTHREAD_ONCE_INIT;
+
+    tmrTrace("timer module is cleaned up");
+  }
 }

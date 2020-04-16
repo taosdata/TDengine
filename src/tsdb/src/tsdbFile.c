@@ -23,9 +23,10 @@
 #include <unistd.h>
 #include <libgen.h>
 
-#include "tutil.h"
-#include "tsdbMain.h"
+#include "talgo.h"
 #include "tchecksum.h"
+#include "tsdbMain.h"
+#include "tutil.h"
 
 const char *tsdbFileSuffix[] = {
     ".head",  // TSDB_FILE_TYPE_HEAD

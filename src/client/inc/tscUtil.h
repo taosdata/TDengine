@@ -200,8 +200,9 @@ int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQuer
 STableMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index);
 void            tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
 
-STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta, SArray* vgroupList,
-                                    int16_t numOfTags, int16_t* tags);
+STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
+    SVgroupsInfo* vgroupList, int16_t numOfTags, int16_t* tags);
+
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 void tscFreeSubqueryInfo(SSqlCmd* pCmd);

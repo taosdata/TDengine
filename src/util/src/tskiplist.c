@@ -190,7 +190,7 @@ void *tSkipListDestroy(SSkipList *pSkipList) {
   return NULL;
 }
 
-void tSkipListRandNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize) {
+void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize) {
   if (pSkipList == NULL) {
     return;
   }

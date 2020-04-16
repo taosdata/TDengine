@@ -869,7 +869,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
       
       if (pQueryInfo->colIndex == 0 && pQueryInfo->optr != TSDB_RELATION_LIKE) {
         SQueryCond cond = {0};
-        /*int32_t ret = */setQueryCond(pQueryInfo, &cond);
+        /*int32_t ret = */ setQueryCond(pQueryInfo, &cond);
         tQueryOnSkipList(pSkipList, &cond, pQueryInfo->q.nType, result);
       } else {
         /* Brutal force scan the whole skip list to find the appropriate result,

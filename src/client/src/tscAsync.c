@@ -443,12 +443,12 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->vnodeIndex >= 0 && pSql->param != NULL);
+      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->dnodeIndex >= 0 && pSql->param != NULL);
 
       SRetrieveSupport *trs = (SRetrieveSupport *)pSql->param;
       SSqlObj *         pParObj = trs->pParentSqlObj;
       
-      assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vnodeIndex &&
+      assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->dnodeIndex &&
           tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0);
 
       tscTrace("%p get metricMeta during super table query successfully", pSql);

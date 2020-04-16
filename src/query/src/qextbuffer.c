@@ -43,7 +43,7 @@ tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, SColumnMo
   pMemBuffer->path = strdup(name);
   pTrace("create tmp file:%s", pMemBuffer->path);
   
-  SFileInfo *pFMeta = &pMemBuffer->fileMeta;
+  SExtFileInfo *pFMeta = &pMemBuffer->fileMeta;
 
   pFMeta->pageSize = DEFAULT_PAGE_SIZE;
 
@@ -63,7 +63,7 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
   }
 
   // release flush out info link
-  SFileInfo *pFileMeta = &pMemBuffer->fileMeta;
+  SExtFileInfo *pFileMeta = &pMemBuffer->fileMeta;
   if (pFileMeta->flushoutData.nAllocSize != 0 && pFileMeta->flushoutData.pFlushoutInfo != NULL) {
     tfree(pFileMeta->flushoutData.pFlushoutInfo);
   }
@@ -97,7 +97,7 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
 /*
  * alloc more memory for flush out info entries.
  */
-static bool allocFlushoutInfoEntries(SFileInfo *pFileMeta) {
+static bool allocFlushoutInfoEntries(SExtFileInfo *pFileMeta) {
   pFileMeta->flushoutData.nAllocSize = pFileMeta->flushoutData.nAllocSize << 1;
 
   tFlushoutInfo *tmp = (tFlushoutInfo *)realloc(pFileMeta->flushoutData.pFlushoutInfo,
@@ -208,7 +208,7 @@ int16_t tExtMemBufferPut(tExtMemBuffer *pMemBuffer, void *data, int32_t numOfRow
 }
 
 static bool tExtMemBufferUpdateFlushoutInfo(tExtMemBuffer *pMemBuffer) {
-  SFileInfo *pFileMeta = &pMemBuffer->fileMeta;
+  SExtFileInfo *pFileMeta = &pMemBuffer->fileMeta;
 
   if (pMemBuffer->flushModel == MULTIPLE_APPEND_MODEL) {
     if (pFileMeta->flushoutData.nLength == pFileMeta->flushoutData.nAllocSize && !allocFlushoutInfoEntries(pFileMeta)) {
@@ -238,7 +238,7 @@ static bool tExtMemBufferUpdateFlushoutInfo(tExtMemBuffer *pMemBuffer) {
 }
 
 static void tExtMemBufferClearFlushoutInfo(tExtMemBuffer *pMemBuffer) {
-  SFileInfo *pFileMeta = &pMemBuffer->fileMeta;
+  SExtFileInfo *pFileMeta = &pMemBuffer->fileMeta;
 
   pFileMeta->flushoutData.nLength = 0;
   memset(pFileMeta->flushoutData.pFlushoutInfo, 0, sizeof(tFlushoutInfo) * pFileMeta->flushoutData.nAllocSize);

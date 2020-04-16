@@ -39,7 +39,7 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 typedef struct SSqlGroupbyExpr {
   int16_t     tableIndex;
   int16_t     numOfGroupCols;
-  SColIndex columnInfo[TSDB_MAX_TAGS];  // group by columns information
+  SColIndex*  columnInfo;                 // group by columns information
   int16_t     orderIndex;                 // order by column index
   int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
@@ -171,7 +171,7 @@ typedef struct SQInfo {
   int32_t          pointsInterpo;
   int32_t          code;          // error code to returned to client
   sem_t            dataReady;
-  SArray*          pTableIdList;  // table id list
+  SArray*          pTableList;    // table id list
   void*            tsdb;
   
   SQueryRuntimeEnv runtimeEnv;

@@ -40,6 +40,8 @@ extern "C" {
 // forward declaration
 struct SSqlInfo;
 
+typedef SCMSTableVgroupRspMsg SVgroupsInfo;
+
 typedef struct SSqlGroupbyExpr {
   int16_t     tableIndex;
   int16_t     numOfGroupCols;
@@ -70,14 +72,12 @@ typedef struct STableMeta {
 
 typedef struct STableMetaInfo {
   STableMeta * pTableMeta;       // table meta, cached in client side and acquried by name
-//  SSuperTableMeta *pMetricMeta;  // metricmeta
-  SArray* vgroupIdList;
-  
+  SVgroupsInfo* vgroupList;
   /*
    * 1. keep the vnode index during the multi-vnode super table projection query
    * 2. keep the vnode index for multi-vnode insertion
    */
-  int32_t vnodeIndex;
+  int32_t dnodeIndex;
   char    name[TSDB_TABLE_ID_LEN];        // (super) table name
   int16_t numOfTags;                      // total required tags in query, including groupby tags
   int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
@@ -210,7 +210,6 @@ typedef struct STableDataBlocks {
 } STableDataBlocks;
 
 typedef struct SDataBlockList {
-  int32_t            idx;
   uint32_t           nSize;
   uint32_t           nAlloc;
   STableDataBlocks **pData;
@@ -257,7 +256,6 @@ typedef struct {
 
   union {
     bool   existsCheck;     // check if the table exists or not
-    bool   inStream;        // denote if current sql is executed in stream or not
     bool   autoCreated;  // if the table is missing, on-the-fly create it. during getmeterMeta
     int8_t dataSourceType;  // load data from file or not
   };

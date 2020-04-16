@@ -2470,7 +2470,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
   const char* msg8 = "not allowed column type for group by";
   const char* msg9 = "tags not allowed for table query";
 
-  // todo : handle two meter situation
+  // todo : handle two tables situation
   STableMetaInfo* pTableMetaInfo = NULL;
 
   if (pList == NULL) {
@@ -2493,7 +2493,6 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
     SSQLToken token = {pVar->nLen, pVar->nType, pVar->pz};
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-
     if (getColumnIndexByName(&token, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg2);
     }
@@ -2523,13 +2522,13 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
         return invalidSqlErrMsg(pQueryInfo->msg, msg9);
       }
 
-      int32_t relIndex = index.columnIndex;
-      if (index.columnIndex != TSDB_TBNAME_COLUMN_INDEX) {
-        relIndex -= tscGetNumOfColumns(pTableMeta);
-      }
+//      int32_t relIndex = index.columnIndex;
+//      if (index.columnIndex != TSDB_TBNAME_COLUMN_INDEX) {
+//        relIndex -= tscGetNumOfColumns(pTableMeta);
+//      }
 
       pQueryInfo->groupbyExpr.columnInfo[i] =
-          (SColIndex){.colIndex = relIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId};  // relIndex;
+          (SColIndex){.colIndex = index.columnIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId};  // relIndex;
       addRequiredTagColumn(pQueryInfo, pQueryInfo->groupbyExpr.columnInfo[i].colIndex, index.tableIndex);
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
@@ -5095,9 +5094,8 @@ static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
       bytes = TSDB_TABLE_NAME_LEN;
       name = TSQL_TBNAME_L;
     } else {
-      colIndex = (TSDB_COL_IS_TAG(pColIndex->flag)) ? tscGetNumOfColumns(pTableMetaInfo->pTableMeta) + pColIndex->colIndex
-                                                    : pColIndex->colIndex;
-
+//      colIndex = (TSDB_COL_IS_TAG(pColIndex->flag)) ? tscGetNumOfColumns(pTableMetaInfo->pTableMeta) + pColIndex->colIndex
+//                                                    : pColIndex->colIndex;
       type = pSchema[colIndex].type;
       bytes = pSchema[colIndex].bytes;
       name = pSchema[colIndex].name;
@@ -5108,11 +5106,14 @@ static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
 
       SSqlExpr* pExpr = tscSqlExprInsert(pQueryInfo, pQueryInfo->exprsInfo.numOfExprs, TSDB_FUNC_TAG, &index,
                                          type, bytes, bytes);
-
+      
+      memset(pExpr->aliasName, 0, tListLen(pExpr->aliasName));
+      strncpy(pExpr->aliasName, name, TSDB_COL_NAME_LEN);
+      
       pExpr->colInfo.flag = TSDB_COL_TAG;
 
       // NOTE: tag column does not add to source column list
-      SColumnList ids = {0};
+      SColumnList ids = getColumnList(1, 0, pColIndex->colIndex);
       insertResultField(pQueryInfo, pQueryInfo->exprsInfo.numOfExprs-1, &ids, bytes, type, name, pExpr);
     } else {
       // if this query is "group by" normal column, interval is not allowed
@@ -5693,7 +5694,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr);
   
   if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-   int32_t code = tscGetSTableVgroupInfo(pSql, index);
+   code = tscGetSTableVgroupInfo(pSql, index);
    if (code != TSDB_CODE_SUCCESS) {
      return code;
    }
