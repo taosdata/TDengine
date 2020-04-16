@@ -15,6 +15,7 @@
 #include "tsdbMain.h"
 #include "tchecksum.h"
 #include "tscompression.h"
+#include "talgo.h"
 
 // Local function definitions
 static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
@@ -885,7 +886,6 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 static int compTSKEY(const void *key1, const void *key2) { return ((TSKEY *)key1 - (TSKEY *)key2); }
 
 static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t esize) {
-  SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
 
   if (tsizeof((void *)pHelper->pCompInfo) <= esize) {
     size_t tsize = esize + sizeof(SCompBlock) * 16;

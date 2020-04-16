@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "tutil.h"
+#include "talgo.h"
 
 static int compareFunc(const void *arg1, const void *arg2) { return (*(int *)arg1) - (*(int *)arg2); }
 
