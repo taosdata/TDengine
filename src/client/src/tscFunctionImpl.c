@@ -4945,7 +4945,7 @@ static void do_sumrate_merge(SQLFunctionCtx *pCtx) {
     if (pInput->hasResult != DATA_SET_FLAG) {
       continue;
     } else if (pInput->num == 0) {
-      if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey)) {
+      if ((INT64_MIN == pInput->lastKey) || (INT64_MIN == pInput->firstKey)) {
         continue;
       }
       
