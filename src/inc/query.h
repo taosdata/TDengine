@@ -19,19 +19,6 @@
 extern "C" {
 #endif
 
-#include "os.h"
-
-#include "hash.h"
-#include "tsdb.h"
-#include "qinterpolation.h"
-#include "qresultBuf.h"
-#include "qsqlparser.h"
-#include "qtsbuf.h"
-#include "taosdef.h"
-#include "tref.h"
-#include "tsqlfunction.h"
-#include "tarray.h"
-
 typedef void* qinfo_t;
 
 /**
