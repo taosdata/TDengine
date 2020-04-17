@@ -64,7 +64,4 @@ int32_t replicaAllocVnodes(SVgObj *pVgroup) {
   return TSDB_CODE_SUCCESS;
 }
 
-tsync_h syncStart(const SSyncInfo *info) { return NULL; }
-int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle) { return 0; }
-
 #endif 
