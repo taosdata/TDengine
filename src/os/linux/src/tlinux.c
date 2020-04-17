@@ -286,20 +286,23 @@ void *taosProcessAlarmSignal(void *tharg) {
   return NULL;
 }
 
+static pthread_t timerThread;
+
 int taosInitTimer(void (*callback)(int), int ms) {
-  pthread_t      thread;
   pthread_attr_t tattr;
   pthread_attr_init(&tattr);
-  pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
-  int code = pthread_create(&thread, &tattr, taosProcessAlarmSignal, callback);
-  pthread_detach(thread);
+  int code = pthread_create(&timerThread, &tattr, taosProcessAlarmSignal, callback);
   pthread_attr_destroy(&tattr);
   if (code != 0) {
     tmrError("failed to create timer thread");
     return -1;
   }
+  return 0;
+}
 
-  return thread;
+void taosUninitTimer() {
+  pthread_cancel(timerThread);
+  pthread_join(timerThread, NULL);
 }
 
 ssize_t tread(int fd, void *buf, size_t count) {
