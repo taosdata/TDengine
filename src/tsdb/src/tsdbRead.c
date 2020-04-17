@@ -20,10 +20,8 @@
 #include "tutil.h"
 #include "tcompare.h"
 
-#include "../../../query/inc/qast.h"
-#include "../../../query/inc/qextbuffer.h"
-#include "../../../query/inc/tlosertree.h"
-#include "../../../query/inc/tsqlfunction.h"
+#include "../../../query/inc/qast.h"  // todo move to common module
+#include "../../../query/inc/tlosertree.h"  // todo move to util module
 #include "tsdb.h"
 #include "tsdbMain.h"
 

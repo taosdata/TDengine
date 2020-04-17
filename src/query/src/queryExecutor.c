@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <tsdbMain.h>
+#include "tsdbMain.h"   //todo use TableId instead of STable object
 #include "os.h"
 
 #include "hash.h"
@@ -28,7 +28,6 @@
 #include "qresultBuf.h"
 #include "queryExecutor.h"
 #include "queryUtil.h"
-#include "tsdb.h"
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 
@@ -4754,14 +4753,6 @@ static void createTableDataInfo(SQInfo* pQInfo) {
   SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
   
   // todo make sure the table are added the reference count to gauranteed that all involved tables are valid
-//  if (pQInfo->pTableDataInfo == NULL) {
-//    pQInfo->pTableDataInfo = (STableDataInfo *)calloc(1, sizeof(STableDataInfo) * pQInfo->groupInfo.numOfTables);
-//    if (pQInfo->pTableDataInfo == NULL) {
-//      dError("QInfo:%p failed to allocate memory, %s", pQInfo, strerror(errno));
-//      pQInfo->code = -TSDB_CODE_SERV_OUT_OF_MEMORY;
-//      return;
-//    }
-    
   size_t numOfGroups = taosArrayGetSize(pQInfo->groupInfo.pGroupList);
   int32_t index = 0;
   for (int32_t i = 0; i < numOfGroups; ++i) {  // load all meter meta info
