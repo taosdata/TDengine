@@ -23,7 +23,6 @@
 #define OP_USER_URL_POS 3
 #define OP_PASS_URL_POS 4
 
-void opInitHandleImp(HttpServer* pServer);
 bool opProcessRequest(struct HttpContext* pContext);
 
 #endif

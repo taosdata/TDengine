@@ -13,25 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_PLUGIN_STORAGE_H
-#define TDENGINE_PLUGIN_STORAGE_H
+#ifndef TDENGINE_PLUGIN_MPEER_STR_H
+#define TDENGINE_PLUGIN_MPEER_STR_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-
-void storageInit();
-
-// config storage
-extern bool (*tsReadStorageConfig)();
-extern void (*tsPrintStorageConfig)();
-
-// init & clean storage
-extern int32_t (*dnodeInitStorage)();
-extern void (*dnodeCleanupStorage)();
+int32_t mpeerInit();
+void    mpeerCleanUp();
+void    mpeerNotify();
+int32_t mpeerForwardReqToPeer(void *pHead);
 
 #ifdef __cplusplus
 }

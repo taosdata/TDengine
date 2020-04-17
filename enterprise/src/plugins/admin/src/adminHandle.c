@@ -33,7 +33,7 @@ static HttpEncodeMethod adminEncodeSqlsMethod = {adminStartSqlsJson,
                                                  NULL,
                                                  NULL};
 
-void adminInitHandleImp(HttpServer* pServer) {
+void adminInitHandle(HttpServer* pServer) {
   httpAddMethod(pServer, &adminDecodeMethod);
 }
 

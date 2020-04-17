@@ -19,14 +19,16 @@
 #include "taoserror.h"
 #include "trpc.h"
 #include "ttime.h"
+#include "ttimer.h"
 #include "tutil.h"
-#include "mnode.h"
-#include "taccount.h"
-#include "tcluster.h"
 #include "tgrant.h"
 #include "mnode.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtAcct.h"
+#include "mgmtDnode.h"
 #include "mgmtDb.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
@@ -49,74 +51,18 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
-void *         tsAcctSdb = NULL;
+extern void *  tsMgmtTmr;
+extern void *  tsAcctSdb;
+extern int32_t tsAcctUpdateSize;
 extern void   *tsDnodeSdb;
 static void   *tsMgmtStatisTimer = NULL;
-static int32_t tsAcctUpdateSize;
 
-static void    acctCreateRootAcct();
 static int64_t acctGetStatistic(SAcctObj *pAcct);
 static void    acctProcessCreateAcctMsg(SQueuedMsg *pMsg);
 static void    acctProcessDropAcctMsg(SQueuedMsg *pMsg);
 static void    acctProcessAlterAcctMsg(SQueuedMsg *pMsg);
 static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
-static int32_t acctActionDestroy(SSdbOperDesc *pOper) {
-  tfree(pOper->pObj);
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t acctAcctActionInsert(SSdbOperDesc *pOper) {
-  SAcctObj *pAcct = pOper->pObj;
-  pAcct->acctInfo.numOfUsers = 0;
-  pAcct->acctInfo.numOfDbs = 0;
-  pAcct->acctInfo.numOfTimeSeries = 0;
-  pAcct->acctInfo.numOfPointsPerSecond = 0;
-  pAcct->acctInfo.numOfConns = 0;
-  pAcct->acctInfo.numOfQueries = 0;
-  pAcct->acctInfo.numOfStreams = 0;
-  pAcct->acctInfo.totalStorage = 0;
-  pAcct->acctInfo.compStorage = 0;
-  pAcct->acctInfo.queryTime = 0;
-  pthread_mutex_init(&pAcct->mutex, NULL);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t acctActionDelete(SSdbOperDesc *pOper) {
-  SAcctObj *pAcct = pOper->pObj;
-  mgmtDropAllUsers(pAcct);
-  mgmtDropAllDbs(pAcct);
-  pthread_mutex_destroy(&pAcct->mutex);
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t acctActionUpdate(SSdbOperDesc *pOper) {
-  SAcctObj *pAcct = pOper->pObj;
-  SAcctObj *pSaved = acctGetAcct(pAcct->user);
-  if (pAcct != pSaved) {
-    memcpy(pSaved, pAcct, pOper->rowSize);
-    free(pAcct);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t acctActionEncode(SSdbOperDesc *pOper) {
-  SAcctObj *pAcct = pOper->pObj;
-  memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
-  pOper->rowSize = tsAcctUpdateSize;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t acctAcctActionDecode(SSdbOperDesc *pOper) {
-  SAcctObj *pAcct = (SAcctObj *) calloc(1, sizeof(SAcctObj));
-  if (pAcct == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
-
-  memcpy(pAcct, pOper->rowData, tsAcctUpdateSize);
-  pOper->pObj = pAcct;
-  return TSDB_CODE_SUCCESS;
-}
 
 static void acctDoStatistic(void *handle, void *tmrId) {
   SAcctObj *pAcct = NULL;
@@ -136,55 +82,18 @@ static void acctDoStatistic(void *handle, void *tmrId) {
   taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
-static int32_t acctActionRestored() {
-  if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
-    acctCreateRootAcct();
-  }
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
-  return 0;
-}
 
 int32_t acctInit() {
-  SAcctObj tObj;
-  tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
-
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_ACCOUNT,
-    .tableName    = "accounts",
-    .hashSessions = TSDB_MAX_ACCOUNTS,
-    .maxRowSize   = tsAcctUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_STRING,
-    .insertFp     = acctAcctActionInsert,
-    .deleteFp     = acctActionDelete,
-    .updateFp     = acctActionUpdate,
-    .encodeFp     = acctActionEncode,
-    .decodeFp     = acctAcctActionDecode,
-    .destroyFp    = acctActionDestroy,
-    .restoredFp   = acctActionRestored
-  };
-
-  tsAcctSdb = sdbOpenTable(&tableDesc);
-  if (tsAcctSdb == NULL) {
-    mError("failed to init acct data");
-    return -1;
-  }
-
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, acctProcessAlterAcctMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
 
+  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  
   mTrace("account is initialized");
   return 0;
-}
-
-void acctIncRef(SAcctObj *pAcct) { sdbIncRef(tsAcctSdb, pAcct); }
-void acctReleaseAcct(SAcctObj *pAcct) { sdbDecRef(tsAcctSdb, pAcct); }
-
-void *acctGetAcct(char *name) {
-  return sdbGetRow(tsAcctSdb, name);
 }
 
 static int32_t acctCheckAcctParams(SAcctCfg *pCfg) {
@@ -364,7 +273,6 @@ void acctCleanUp() {
     tsMgmtStatisTimer = NULL;
   }
 
-  sdbCloseTable(tsAcctSdb);
 }
 
 static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -577,7 +485,7 @@ static int32_t acctUpdateAcct(SAcctObj *pAcct) {
 static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
   SAcctObj *pAcct = NULL;
 
-  pAcct = acctGetAcct(name);
+  pAcct = mgmtGetAcct(name);
   if (pAcct == NULL) {
     mTrace("account: %s not exists", name);
     return TSDB_CODE_INVALID_ACCT;
@@ -673,37 +581,6 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   return totalStorage;
 }
 
-static void acctCreateRootAcct() {
-  int32_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
-  if (numOfAccts == 0) {
-    SAcctObj *pAcct = malloc(sizeof(SAcctObj));
-    memset(pAcct, 0, sizeof(SAcctObj));
-    strcpy(pAcct->user, "root");
-    taosEncryptPass((uint8_t*)"taosdata", strlen("taosdata"), pAcct->pass);
-    pAcct->cfg = (SAcctCfg){.maxUsers = TSDB_MAX_USERS_PER_ACCT,
-                            .maxDbs = TSDB_MAX_DBS_PER_ACCT,
-                            .maxTimeSeries = TSDB_MAX_TIMESERIES_PER_ACCT,
-                            .maxConnections = TSDB_MAX_CONNECTIONS_PER_ACCT,
-                            .maxStreams = TSDB_MAX_STREAMS_PER_ACCT,
-                            .maxPointsPerSecond = TSDB_MAX_SPOINTS_PER_ACCT,
-                            .maxStorage = TSDB_MAX_STORAGE_PER_ACCT,
-                            .maxQueryTime = TSDB_MAX_QUERYTIME_PER_ACCT,
-                            .maxInbound = 0,
-                            .maxOutbound = 0,
-                            .accessState = TSDB_VN_ALL_ACCCESS};
-    pAcct->acctId = sdbGetId(tsAcctSdb);
-    pAcct->createdTime = taosGetTimestampMs();
-
-    SSdbOperDesc oper = {
-      .type = SDB_OPER_GLOBAL,
-      .table = tsAcctSdb,
-      .pObj = pAcct,
-      .rowSize = sizeof(SAcctObj)
-    };
-    sdbInsertRow(&oper);
-  }
-}
-
 static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
   SCMCreateAcctMsg *pCreate = pMsg->pCont;
   SAcctObj *pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, pCreate->user);
@@ -791,7 +668,7 @@ static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
   mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-int32_t clusterCheckUserLimit(SAcctObj *pAcct) {
+static int32_t clusterCheckUserLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxUsers != 0 && pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
     mError("account:%s, users:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
     return TSDB_CODE_TOO_MANY_USERS;
@@ -799,7 +676,7 @@ int32_t clusterCheckUserLimit(SAcctObj *pAcct) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t clusterCheckDbLimit(SAcctObj *pAcct) {
+static int32_t clusterCheckDbLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxDbs != 0 && pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
     mError("account:%s, dbs:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
     return TSDB_CODE_TOO_MANY_DATABASES;
@@ -807,7 +684,7 @@ int32_t clusterCheckDbLimit(SAcctObj *pAcct) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t clusterCheckTableLimit(SAcctObj *pAcct) {
+static int32_t clusterCheckTableLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxTimeSeries != 0 && pAcct->acctInfo.numOfTimeSeries >= pAcct->cfg.maxTimeSeries) {
     mError("account:%s, timeSeries:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
     return TSDB_CODE_TOO_MANY_TIME_SERIES;
@@ -815,13 +692,14 @@ int32_t clusterCheckTableLimit(SAcctObj *pAcct) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t acctCheck(SAcctObj *pAcct, EAcctGrantType type) {
+int32_t acctCheck(void *param, EAcctGrantType type) {
+  SAcctObj *pAcct = param;
   switch (type) {
-    case TSDB_ACCT_USER:
+    case ACCT_GRANT_USER:
       return clusterCheckUserLimit(pAcct);
-    case TSDB_ACCT_DB:
+    case ACCT_GRANT_DB:
       return clusterCheckDbLimit(pAcct);
-    case TSDB_ACCT_TABLE:
+    case ACCT_GRANT_TABLE:
       return clusterCheckTableLimit(pAcct);
   }
 
