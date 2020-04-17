@@ -1,14 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
-IF (${CLUSTER} MATCHES "true")
-  SET(TD_CLUSTER TRUE)
-  MESSAGE(STATUS "Build with cluster plugins")
-ELSEIF (${CLUSTER} MATCHES "false")
-  SET(TD_CLUSTER FALSE)
-  MESSAGE(STATUS "Build without cluster plugins")
-ENDIF ()
-
 IF (${ACCOUNT} MATCHES "true")
   SET(TD_ACCOUNT TRUE)
   MESSAGE(STATUS "Build with account plugins")

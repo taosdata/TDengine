@@ -13,17 +13,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
-
+#include "tlog.h"
 #include "monitor.h"
 #include "dnode.h"
-#include "monitorSystem.h"
 #include "tsclient.h"
 #include "taosdef.h"
 #include "tsystem.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "monitorSystem.h"
+
+#define monitorError(...)                    \
+  if (monitorDebugFlag & DEBUG_ERROR) {      \
+    tprintf("ERROR MON ", 255, __VA_ARGS__); \
+  }
+#define monitorWarn(...)                                  \
+  if (monitorDebugFlag & DEBUG_WARN) {                    \
+    tprintf("WARN  MON ", monitorDebugFlag, __VA_ARGS__); \
+  }
+#define monitorTrace(...)                           \
+  if (monitorDebugFlag & DEBUG_TRACE) {             \
+    tprintf("MON ", monitorDebugFlag, __VA_ARGS__); \
+  }
+#define monitorPrint(...) \
+  { tprintf("MON ", 255, __VA_ARGS__); }
+
+#define monitorLError(...) taosLogError(__VA_ARGS__) monitorError(__VA_ARGS__)
+#define monitorLWarn(...) taosLogWarn(__VA_ARGS__) monitorWarn(__VA_ARGS__)
+#define monitorLPrint(...) taosLogPrint(__VA_ARGS__) monitorPrint(__VA_ARGS__)
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    80
