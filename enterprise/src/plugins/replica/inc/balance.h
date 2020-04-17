@@ -13,19 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_PLUGIN_MPEER_STR_H
-#define TDENGINE_PLUGIN_MPEER_STR_H
+#ifndef TDENGINE_PLUGIN_MPEER_ENGINE_H
+#define TDENGINE_PLUGIN_MPEER_ENGINE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
+struct SVgObj;
+struct SDnodeObj;
 
-const char *mpeerGetSdbRoleStr(int32_t role);
-const char *mpeerGetSdbStatusStr(int32_t status);
-const char *mpeerGetSdbTableName(int32_t table);
-const char *mpeerGetSdbOperName(int32_t oper);
+int32_t balanceInit();
+void    balanceCleanUp();
+void    balanceNotify();
+void    balanceReset();
+int32_t balanceAllocVnodes(struct SVgObj *pVgroup);
+int32_t balanceDropDnode(struct SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }

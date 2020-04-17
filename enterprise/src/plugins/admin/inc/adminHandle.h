@@ -28,7 +28,6 @@
 #define ADMIN_USER_URL_POS 2
 #define ADMIN_PASS_URL_POS 3
 
-void adminInitHandleImp(HttpServer* pServer);
 bool adminProcessRequest(struct HttpContext* pContext);
 
 #endif

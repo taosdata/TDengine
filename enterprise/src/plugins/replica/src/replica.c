@@ -13,25 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_SDB_REPLICA_H
-#define TDENGINE_MODULE_SDB_REPLICA_H
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "balance.h"
+#include "mpeer.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int32_t replicaInit() {
+  int32_t code = balanceInit();
+  if (code != 0) return code;
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
-
-void sdbReplicaInit();
-
-// mgmtDnode
-extern int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-extern int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
-#ifdef __cplusplus
+  return mpeerInit();
 }
-#endif
 
-#endif
+void replicaCleanUp() {
+  balanceCleanUp();
+  mpeerCleanUp();
+}
+
+void replicaNotify() {
+  mpeerNotify();
+  balanceNotify();
+}
+
+void replicaReset() { balanceReset(); }
+int32_t replicaAllocVnodes(struct SVgObj *pVgroup) { return balanceAllocVnodes(pVgroup); }
+int32_t replicaForwardReqToPeer(void *pHead) { return mpeerForwardReqToPeer(pHead); }
+int32_t replicaDropDnode(struct SDnodeObj *pDnode) { return balanceDropDnode(pDnode); }

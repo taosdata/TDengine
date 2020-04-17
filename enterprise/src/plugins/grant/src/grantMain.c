@@ -15,17 +15,24 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tlog.h"
+#include "ttime.h"
+#include "ttimer.h"
+#include "trpc.h"
+#include "tutil.h"
 #include "tgrant.h"
 #include "machine.h"
 #include "mnode.h"
-#include "tcluster.h"
+#include "mgmtDef.h"
 #include "mgmtDServer.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "dnodeMClient.h"
+
 #define min(x, y) (x)<(y)?(x):(y)
 
+extern void *tsMgmtTmr;
 extern void *tsDnodeSdb;
 extern void *tsUserSdb;
 extern void *tsAcctSdb;
@@ -70,7 +77,7 @@ int32_t grantInit() {
   mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
   taosTmrReset(grantSendMsgToMgmt, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantSendTimer);
 
-  mTrace("grant data is initialized");
+  pTrace("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -541,7 +548,7 @@ static void grantCheckGrantInfo() {
   taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantCheckTimer);
   grantStatus.expired = false;
 
-  if (mpeerIsMaster()) {
+  if (mgmtIsMaster()) {
 
     /*
      * When all nodes are online, the grant time is judged
