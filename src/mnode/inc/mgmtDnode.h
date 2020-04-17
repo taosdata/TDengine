@@ -31,7 +31,6 @@ int32_t mgmtInitDnodes();
 void    mgmtCleanupDnodes();
 
 char*   mgmtGetDnodeStatusStr(int32_t dnodeStatus);
-bool    mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
 void    mgmtMonitorDnodeModule();
 
 int32_t mgmtGetDnodesNum();

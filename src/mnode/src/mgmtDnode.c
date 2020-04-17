@@ -129,7 +129,7 @@ static int32_t mgmtDnodeActionDecode(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
-  if (numOfRows <= 0 && strcmp(tsMasterIp, tsPrivateIp) == 0) {
+  if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     uint32_t ip = inet_addr(tsPrivateIp);
     mgmtCreateDnode(ip);
     SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
@@ -276,6 +276,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->privateIp = htonl(pStatus->privateIp);
   pStatus->publicIp = htonl(pStatus->publicIp);
+  pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot = htonl(pStatus->lastReboot);
   pStatus->numOfCores = htons(pStatus->numOfCores);
   pStatus->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
@@ -311,6 +312,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
   pDnode->totalVnodes      = pStatus->numOfTotalVnodes; 
+  pDnode->moduleStatus     = pStatus->moduleStatus;
   
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d, first access, privateIp:%s, name:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
@@ -353,7 +355,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   mgmtGetMnodeList(&pRsp->mnodes);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
-  pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);
+  pRsp->dnodeState.moduleStatus = htonl((int32_t)pDnode->isMgmt);
   pRsp->dnodeState.createdTime  = htonl(pDnode->createdTime / 1000);
   pRsp->dnodeState.numOfVnodes = 0;
   
@@ -391,10 +393,6 @@ static int32_t mgmtCreateDnode(uint32_t ip) {
   pDnode->totalVnodes = TSDB_INVALID_VNODE_NUM; 
   sprintf(pDnode->dnodeName, "n%d", sdbGetId(tsDnodeSdb) + 1);
 
-  if (pDnode->privateIp == inet_addr(tsMasterIp)) {
-    pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);
-  }
-  
   SSdbOperDesc oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
@@ -620,7 +618,7 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
   return numOfRows;
 }
 
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+static bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   uint32_t status = pDnode->moduleStatus & (1 << moduleType);
   return status > 0;
 }

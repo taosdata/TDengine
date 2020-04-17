@@ -69,9 +69,15 @@ static void *(*sdbGetIndexFp[])(void *handle, void *key) = {sdbGetStrHashData, s
 static void  (*sdbCleanUpIndexFp[])(void *handle) = {sdbCloseStrHash, sdbCloseIntHash, sdbCloseIntHash};
 static void *(*sdbFetchRowFp[])(void *handle, void *ptr, void **ppRow) = {sdbFetchStrHashData, sdbFetchIntHashData, sdbFetchIntHashData};
 
-uint64_t sdbGetVersion() { return tsSdbObj->version; }
 int32_t  sdbGetId(void *handle) { return ((SSdbTable *)handle)->autoIndex; }
 int64_t  sdbGetNumOfRows(void *handle) { return ((SSdbTable *)handle)->numOfRows; }
+
+uint64_t sdbGetVersion() {
+  if (tsSdbObj)
+    return tsSdbObj->version;
+  else
+    return 0;
+}
 
 static char *sdbGetActionStr(int32_t action) {
   switch (action) {
@@ -145,10 +151,6 @@ void sdbCleanUp() {
     free(tsSdbObj);
     tsSdbObj = NULL;
   }
-}
-
-SSdbObject *sdbGetObj() {
-  return tsSdbObj;
 }
 
 void sdbIncRef(void *handle, void *pRow) {

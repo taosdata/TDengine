@@ -110,12 +110,7 @@ short tsDaysPerFile = 10;
 int   tsDaysToKeep = 3650;
 int   tsReplications = TSDB_REPLICA_MIN_NUM;
 
-#ifdef _MPEER
 int  tsNumOfMPeers = 3;
-#else
-int  tsNumOfMPeers = 1;
-#endif
-
 int  tsMaxShellConns = 2000;
 int  tsMaxTables = 100000;
 
@@ -556,7 +551,7 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "tblocks", &tsNumOfBlocksPerMeter, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      32, 4096, 0, TSDB_CFG_UTYPE_NONE);
-#ifdef _MPEER                     
+#ifdef _SYNC                    
   tsInitConfigOption(cfg++, "numOfMPeers", &tsNumOfMPeers, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
                      1, 3, 0, TSDB_CFG_UTYPE_NONE);
