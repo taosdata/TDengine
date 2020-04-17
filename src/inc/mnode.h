@@ -25,9 +25,6 @@ int32_t mgmtStartSystem();
 void    mgmtCleanUpSystem();
 void    mgmtStopSystem();
 
-extern char  version[];
-extern char  tsMnodeDir[];
-
 #ifdef __cplusplus
 }
 #endif

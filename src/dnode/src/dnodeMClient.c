@@ -332,7 +332,7 @@ uint32_t dnodeGetMnodeMasteIp() {
   return tsMnodeIpList.ip[tsMnodeIpList.inUse];
 }
 
-void* dnodeGetMpeerInfos() {
+void* dnodeGetMnodeList() {
   return &tsMnodeInfos;
 }
 

@@ -23,7 +23,7 @@
 #include "taosdef.h"
 #include "tutil.h"
 #include "zlib.h"
-
+#include "tlog.h"
 #include "http.h"
 #include "httpJson.h"
 
@@ -206,10 +206,10 @@ typedef struct HttpThread {
   int             threadId;
   char            label[HTTP_LABEL_SIZE];
   bool (*processData)(HttpContext *pContext);
-  struct _http_server_obj_ *pServer;  // handle passed by upper layer during pServer initialization
+  struct HttpServer *pServer;  // handle passed by upper layer during pServer initialization
 } HttpThread;
 
-typedef struct _http_server_obj_ {
+typedef struct HttpServer {
   char              label[HTTP_LABEL_SIZE];
   char              serverIp[16];
   uint16_t          serverPort;
@@ -312,5 +312,28 @@ const char* httpContextStateStr(HttpContextState state);
 
 bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState);
 void httpRemoveContextFromEpoll(HttpThread *pThread, HttpContext *pContext);
+
+#define httpError(...)                       \
+  if (httpDebugFlag & DEBUG_ERROR) {         \
+    tprintf("ERROR HTP ", 255, __VA_ARGS__); \
+  }
+#define httpWarn(...)                                  \
+  if (httpDebugFlag & DEBUG_WARN) {                    \
+    tprintf("WARN  HTP ", httpDebugFlag, __VA_ARGS__); \
+  }
+#define httpTrace(...)                           \
+  if (httpDebugFlag & DEBUG_TRACE) {             \
+    tprintf("HTP ", httpDebugFlag, __VA_ARGS__); \
+  }
+#define httpDump(...)                                        \
+  if (httpDebugFlag & DEBUG_TRACE) {                         \
+    taosPrintLongString("HTP ", httpDebugFlag, __VA_ARGS__); \
+  }
+#define httpPrint(...) \
+  { tprintf("HTP ", 255, __VA_ARGS__); }
+
+#define httpLError(...) taosLogError(__VA_ARGS__) httpError(__VA_ARGS__)
+#define httpLWarn(...) taosLogWarn(__VA_ARGS__) httpWarn(__VA_ARGS__)
+#define httpLPrint(...) taosLogPrint(__VA_ARGS__) httpPrint(__VA_ARGS__)
 
 #endif

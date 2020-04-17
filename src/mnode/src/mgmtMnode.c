@@ -30,9 +30,9 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
+int32_t tsMnodeIsMaster = true;
 static void *  tsMnodeSdb = NULL;
 static int32_t tsMnodeUpdateSize = 0;
-static int32_t tsMnodeIsMaster = true;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 

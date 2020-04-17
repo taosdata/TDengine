@@ -13,11 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tadmin.h"
 #include "http.h"
 #include "httpCode.h"
 #include "httpHandle.h"
@@ -27,28 +25,17 @@
 #include "tglobalcfg.h"
 #include "tsocket.h"
 #include "ttimer.h"
-
 #include "gcHandle.h"
 #include "httpHandle.h"
 #include "restHandle.h"
 #include "tgHandle.h"
-#include "tlog.h"
 
+#ifndef _ADMIN
 
-void (*adminInitHandleFp)(HttpServer* pServer) = NULL;
-void (*opInitHandleFp)(HttpServer* pServer) = NULL;
+void adminInitHandle(HttpServer* pServer) {}
+void opInitHandle(HttpServer* pServer) {}
 
-void adminInitHandle(HttpServer* pServer) {
-  if (adminInitHandleFp) {
-    (*adminInitHandleFp)(pServer);
-  }
-}
-
-void opInitHandle(HttpServer* pServer) {
-  if (opInitHandleFp) {
-    (*opInitHandleFp)(pServer);
-  }
-}
+#endif
 
 static HttpServer *httpServer = NULL;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);

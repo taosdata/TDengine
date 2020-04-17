@@ -41,12 +41,6 @@ static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
-
-#ifndef _VPEER
-tsync_h syncStart(const SSyncInfo *info) { return NULL; }
-int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle) { return 0; }
-#endif
-
 static void vnodeInit() {
   vnodeInitWriteFp();
   vnodeInitReadFp();

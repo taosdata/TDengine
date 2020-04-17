@@ -26,9 +26,9 @@
 #include "mgmtSdb.h"
 #include "mgmtUser.h"
 
-static void *  tsAcctSdb = NULL;
-static int32_t tsAcctUpdateSize;
-static void    mgmtCreateRootAcct();
+void *  tsAcctSdb = NULL;
+int32_t tsAcctUpdateSize;
+static void mgmtCreateRootAcct();
 
 static int32_t mgmtActionAcctDestroy(SSdbOperDesc *pOper) {
   SAcctObj *pAcct = pOper->pObj;
