@@ -832,7 +832,6 @@ static void tsdbFreeMemTable(SMemTable *pMemTable) {
 
 // Commit to file
 static void *tsdbCommitData(void *arg) {
-  // TODO
   printf("Starting to commit....\n");
   STsdbRepo * pRepo = (STsdbRepo *)arg;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
@@ -849,7 +848,7 @@ static void *tsdbCommitData(void *arg) {
     return NULL;
   }
 
-  // Create a write helper for commit data
+  // Create a write helper to commit data
   SHelperCfg hcfg = {.type = TSDB_WRITE_HELPER,
                      .maxTables = pCfg->maxTables,
                      .maxRowSize = pMeta->maxRowBytes,
@@ -883,7 +882,6 @@ _exit:
   free(pCache->imem);
   pCache->imem = NULL;
   pRepo->commit = 0;
-  // TODO: free the skiplist
   for (int i = 0; i < pCfg->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->imem) {

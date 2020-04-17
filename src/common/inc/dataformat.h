@@ -137,6 +137,7 @@ void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
 void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
+void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);
 
 #ifdef __cplusplus
 }

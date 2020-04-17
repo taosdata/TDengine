@@ -406,47 +406,48 @@ static int tdFLenFromSchema(STSchema *pSchema) {
 }
 
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
-  // TODO
   ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfPoints);
 
   SDataCols *pTarget = tdDupDataCols(target, true);
   if (pTarget == NULL) goto _err;
-  tdResetDataCols(target);
+  // tdResetDataCols(target);
 
   int iter1 = 0;
   int iter2 = 0;
-  while (true) {
-    if (iter1 >= pTarget->numOfPoints && iter2 >= source->numOfPoints) break;
+  tdMergeTwoDataCols(target,pTarget, &iter1, source, &iter2, pTarget->numOfPoints + rowsToMerge);
+  // while (true) {
+  //   if (iter1 >= pTarget->numOfPoints && iter2 >= source->numOfPoints) break;
 
-    TSKEY key1 = (iter1 >= pTarget->numOfPoints) ? INT64_MAX : ((TSKEY *)(pTarget->cols[0].pData))[iter1];
-    TSKEY key2 = (iter2 >= rowsToMerge) ? INT64_MAX : ((TSKEY *)(source->cols[0].pData))[iter2];
+  //   TSKEY key1 = (iter1 >= pTarget->numOfPoints) ? INT64_MAX : ((TSKEY *)(pTarget->cols[0].pData))[iter1];
+  //   TSKEY key2 = (iter2 >= rowsToMerge) ? INT64_MAX : ((TSKEY *)(source->cols[0].pData))[iter2];
 
-    if (key1 < key2) { // Copy from pTarget
-      for (int i = 0; i < pTarget->numOfCols; i++) {
-        ASSERT(target->cols[i].type == pTarget->cols[i].type);
-        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
-               (void *)((char *)(pTarget->cols[i].pData) + TYPE_BYTES[pTarget->cols[i].type] * iter1),
-               TYPE_BYTES[target->cols[i].type]);
-        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
-      }
+  //   if (key1 < key2) { // Copy from pTarget
+  //     for (int i = 0; i < pTarget->numOfCols; i++) {
+  //       ASSERT(target->cols[i].type == pTarget->cols[i].type);
+  //       memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+  //              (void *)((char *)(pTarget->cols[i].pData) + TYPE_BYTES[pTarget->cols[i].type] * iter1),
+  //              TYPE_BYTES[target->cols[i].type]);
+  //       target->cols[i].len += TYPE_BYTES[target->cols[i].type];
+  //     }
 
-      target->numOfPoints++;
-      iter1++;
-    } else if (key1 > key2) { // Copy from source
-      for (int i = 0; i < source->numOfCols; i++) {
-        ASSERT(target->cols[i].type == pTarget->cols[i].type);
-        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
-               (void *)((char *)(source->cols[i].pData) + TYPE_BYTES[source->cols[i].type] * iter2),
-               TYPE_BYTES[target->cols[i].type]);
-        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
-      }
+  //     target->numOfPoints++;
+  //     iter1++;
+  //   } else if (key1 > key2) { // Copy from source
+  //     for (int i = 0; i < source->numOfCols; i++) {
+  //       ASSERT(target->cols[i].type == pTarget->cols[i].type);
+  //       memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+  //              (void *)((char *)(source->cols[i].pData) + TYPE_BYTES[source->cols[i].type] * iter2),
+  //              TYPE_BYTES[target->cols[i].type]);
+  //       target->cols[i].len += TYPE_BYTES[target->cols[i].type];
+  //     }
 
-      target->numOfPoints++;
-      iter2++;
-    } else {
-      assert(false);
-    }
-  }
+  //     target->numOfPoints++;
+  //     iter2++;
+  //   } else {
+  //     // TODO
+  //     ASSERT(false);
+  //   }
+  // }
 
   tdFreeDataCols(pTarget);
   return 0;
@@ -454,4 +455,41 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
 _err:
   tdFreeDataCols(pTarget);
   return -1;
+}
+
+void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows) {
+  tdResetDataCols(target);
+
+  while (target->numOfPoints < tRows) {
+    if (*iter1 >= src1->numOfPoints && *iter2 >= src2->numOfPoints) break;
+
+    TSKEY key1 = (*iter1 >= src1->numOfPoints) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
+    TSKEY key2 = (*iter2 >= src2->numOfPoints) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
+
+    if (key1 < key2) {
+      for (int i = 0; i < src1->numOfCols; i++) {
+        ASSERT(target->cols[i].type == src1->cols[i].type);
+        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+               (void *)((char *)(src1->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * (*iter1)),
+               TYPE_BYTES[target->cols[i].type]);
+        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
+      }
+
+      target->numOfPoints++;
+      *iter1++;
+    } else if (key1 > key2) {
+      for (int i = 0; i < src2->numOfCols; i++) {
+        ASSERT(target->cols[i].type == src2->cols[i].type);
+        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+               (void *)((char *)(src2->cols[i].pData) + TYPE_BYTES[src2->cols[i].type] * (*iter2)),
+               TYPE_BYTES[target->cols[i].type]);
+        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
+      }
+
+      target->numOfPoints++;
+      *iter2++;
+    } else {
+      ASSERT(false);
+    }
+  }
 }

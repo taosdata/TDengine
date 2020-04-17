@@ -440,6 +440,7 @@ typedef struct {
 #define helperSetState(h, s) (((h)->state) |= (s))
 #define helperClearState(h, s) ((h)->state &= (~(s)))
 #define helperHasState(h, s) ((((h)->state) & (s)) == (s))
+#define blockAtIdx(h, idx) ((h)->pCompInfo->blocks + idx)
 
 int  tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg);
 void tsdbDestroyHelper(SRWHelper *pHelper);
