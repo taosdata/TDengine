@@ -30,8 +30,8 @@ void WINAPI taosWinOnTimer(UINT wTimerID, UINT msg, DWORD_PTR dwUser, DWORD_PTR 
   }
 }
 
+static MMRESULT timerId;
 int taosInitTimer(win_timer_f callback, int ms) {
-  MMRESULT timerId;
   DWORD_PTR param = *((int64_t *) & callback);
 
   timerId = timeSetEvent(ms, 1, (LPTIMECALLBACK)taosWinOnTimer, param, TIME_PERIODIC);
@@ -39,6 +39,10 @@ int taosInitTimer(win_timer_f callback, int ms) {
     return -1;
   }
   return 0;
+}
+
+void taosUninitTimer() {
+  timeKillEvent(timerId);
 }
 
 void taosMsleep(int mseconds) {

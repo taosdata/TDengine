@@ -107,8 +107,4 @@ ELSEIF(TD_DARWIN_64)
   TARGET_LINK_LIBRARIES(tutil iconv pthread os)
 ENDIF()
 
-#IF (TD_CLUSTER)
 #  TARGET_LINK_LIBRARIES(tutil mstorage)
-#ENDIF ()
-
-

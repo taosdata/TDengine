@@ -30,9 +30,9 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
+int32_t tsMnodeIsMaster = true;
 static void *  tsMnodeSdb = NULL;
 static int32_t tsMnodeUpdateSize = 0;
-static int32_t tsMnodeIsMaster = true;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -87,6 +87,14 @@ static int32_t mgmtMnodeActionDecode(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtMnodeActionRestored() {
+  if (mgmtGetMnodesNum() == 1) {
+    SMnodeObj *pMnode = NULL;
+    mgmtGetNextMnode(NULL, &pMnode);
+    if (pMnode != NULL) {
+      pMnode->role = TAOS_SYNC_ROLE_MASTER;
+      mgmtReleaseMnode(pMnode);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
