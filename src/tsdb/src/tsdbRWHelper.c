@@ -335,7 +335,7 @@ _err:
 int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
   SCompBlock compBlock;
-  if ((pHelper->files.nHeadF.fd > 0) && (pHelper->hasOldLastBlock)) {
+  if ((pHelper->files.nLastF.fd > 0) && (pHelper->hasOldLastBlock)) {
     if (tsdbLoadCompInfo(pHelper, NULL) < 0) return -1;
 
     SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + pIdx->numOfSuperBlocks - 1;
@@ -375,6 +375,8 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
       if (tsendfile(pHelper->files.nHeadF.fd, pHelper->files.headF.fd, NULL, pIdx->len) < pIdx->len) return -1;
     }
   } else {
+    pHelper->pCompInfo->delimiter = TSDB_FILE_DELIMITER;
+    pHelper->pCompInfo->uid = pHelper->tableInfo.uid;
     taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompInfo, pIdx->len);
     pIdx->offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
     ASSERT(pIdx->offset > TSDB_FILE_HEAD_SIZE);
@@ -530,6 +532,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
   if (pCompData == NULL) return -1;
 
   int fd = (pCompBlock->last) ? pHelper->files.lastF.fd : pHelper->files.dataF.fd;
+  if (lseek(fd, pCompBlock->offset, SEEK_SET) < 0) goto _err;
   if (tread(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) goto _err;
   ASSERT(pCompData->numOfCols == pCompBlock->numOfCols);
 
@@ -946,6 +949,8 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
   size_t spaceNeeded =
       (pSCompBlock->numOfSubBlocks == 1) ? pIdx->len + sizeof(SCompBlock) * 2 : pIdx->len + sizeof(SCompBlock);
   if (tsdbAdjustInfoSizeIfNeeded(pHelper, spaceNeeded) < 0)  goto _err;
+
+  pSCompBlock = pHelper->pCompInfo->blocks + blkIdx;
 
   // Add the sub-block
   if (pSCompBlock->numOfSubBlocks > 1) {

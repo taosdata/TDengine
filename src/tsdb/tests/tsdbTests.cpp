@@ -5,10 +5,82 @@
 #include "dataformat.h"
 #include "tsdbMain.h"
 
-double getCurTime() {
+static double getCurTime() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return tv.tv_sec + tv.tv_usec * 1E-6;
+}
+
+typedef struct {
+  tsdb_repo_t *pRepo;
+  int          tid;
+  int64_t      uid;
+  int          sversion;
+  TSKEY        startTime;
+  TSKEY        interval;
+  int          totalRows;
+  int          rowsPerSubmit;
+  STSchema *   pSchema;
+} SInsertInfo;
+
+static int insertData(SInsertInfo *pInfo) {
+  SSubmitMsg *pMsg =
+      (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(pInfo->pSchema) * pInfo->rowsPerSubmit);
+  if (pMsg == NULL) return -1;
+  TSKEY start_time = pInfo->startTime;
+
+  // Loop to write data
+  double stime = getCurTime();
+
+  for (int k = 0; k < pInfo->totalRows/pInfo->rowsPerSubmit; k++) {
+    memset((void *)pMsg, 0, sizeof(SSubmitMsg));
+    SSubmitBlk *pBlock = pMsg->blocks;
+    pBlock->uid = pInfo->uid;
+    pBlock->tid = pInfo->tid;
+    pBlock->sversion = pInfo->sversion;
+    pBlock->len = 0;
+    for (int i = 0; i < pInfo->rowsPerSubmit; i++) {
+      // start_time += 1000;
+      start_time += pInfo->interval;
+      SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
+      tdInitDataRow(row, pInfo->pSchema);
+
+      for (int j = 0; j < schemaNCols(pInfo->pSchema); j++) {
+        if (j == 0) {  // Just for timestamp
+          tdAppendColVal(row, (void *)(&start_time), schemaColAt(pInfo->pSchema, j));
+        } else {  // For int
+          int val = 10;
+          tdAppendColVal(row, (void *)(&val), schemaColAt(pInfo->pSchema, j));
+        }
+      }
+      pBlock->len += dataRowLen(row);
+    }
+    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
+    pMsg->numOfBlocks = 1;
+
+    pBlock->len = htonl(pBlock->len);
+    pBlock->numOfRows = htonl(pBlock->numOfRows);
+    pBlock->uid = htobe64(pBlock->uid);
+    pBlock->tid = htonl(pBlock->tid);
+
+    pBlock->sversion = htonl(pBlock->sversion);
+    pBlock->padding = htonl(pBlock->padding);
+
+    pMsg->length = htonl(pMsg->length);
+    pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+    pMsg->compressed = htonl(pMsg->numOfBlocks);
+
+    if (tsdbInsertData(pInfo->pRepo, pMsg) < 0) {
+      tfree(pMsg);
+      return -1;
+    }
+  }
+
+  double etime = getCurTime();
+
+  printf("Spent %f seconds to write %d records\n", etime - stime, pInfo->totalRows);
+  tfree(pMsg);
+  return 0;
 }
 
 TEST(TsdbTest, DISABLED_tableEncodeDecode) {
@@ -51,6 +123,7 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
 // TEST(TsdbTest, DISABLED_createRepo) {
 TEST(TsdbTest, createRepo) {
   STsdbCfg config;
+  STsdbRepo *repo;
 
   // 1. Create a tsdb repository
   tsdbSetDefaultCfg(&config);
@@ -79,64 +152,73 @@ TEST(TsdbTest, createRepo) {
 
   tsdbCreateTable(pRepo, &tCfg);
 
-  // // 3. Loop to write some simple data
-  int nRows = 10000000;
-  int rowsPerSubmit = 10;
-  int64_t start_time = 1584081000000;
+  // Insert Some Data
+  SInsertInfo iInfo = {
+    .pRepo = pRepo,
+    .tid = tCfg.tableId.tid,
+    .uid = tCfg.tableId.uid,
+    .sversion = tCfg.sversion,
+    .startTime = 1584081000000,
+    .interval = 1000,
+    .totalRows = 50,
+    .rowsPerSubmit = 1,
+    .pSchema = schema
+  };
 
-  SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
+  ASSERT_EQ(insertData(&iInfo), 0);
 
-  double stime = getCurTime();
-
-  for (int k = 0; k < nRows/rowsPerSubmit; k++) {
-    memset((void *)pMsg, 0, sizeof(SSubmitMsg));
-    SSubmitBlk *pBlock = pMsg->blocks;
-    pBlock->uid = 987607499877672L;
-    pBlock->tid = 0;
-    pBlock->sversion = 0;
-    pBlock->len = 0;
-    for (int i = 0; i < rowsPerSubmit; i++) {
-      // start_time += 1000;
-      start_time += 1000;
-      SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
-      tdInitDataRow(row, schema);
-
-      for (int j = 0; j < schemaNCols(schema); j++) {
-        if (j == 0) {  // Just for timestamp
-          tdAppendColVal(row, (void *)(&start_time), schemaColAt(schema, j));
-        } else {  // For int
-          int val = 10;
-          tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
-        }
-      }
-      pBlock->len += dataRowLen(row);
-    }
-    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
-    pMsg->numOfBlocks = 1;
-
-    pBlock->len = htonl(pBlock->len);
-    pBlock->numOfRows = htonl(pBlock->numOfRows);
-    pBlock->uid = htobe64(pBlock->uid);
-    pBlock->tid = htonl(pBlock->tid);
-
-    pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->padding = htonl(pBlock->padding);
-
-    pMsg->length = htonl(pMsg->length);
-    pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-    pMsg->compressed = htonl(pMsg->numOfBlocks);
-
-    tsdbInsertData(pRepo, pMsg);
-  }
-
-  double etime = getCurTime();
-
-  void *ptr = malloc(150000);
-  free(ptr);
-
-  printf("Spent %f seconds to write %d records\n", etime - stime, nRows);
-
+  // Close the repository
   tsdbCloseRepo(pRepo);
+
+  // Open the repository again
+  pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
+  repo = (STsdbRepo *)pRepo;
+  ASSERT_NE(pRepo, nullptr);
+
+  // Insert more data
+  iInfo.startTime = iInfo.startTime + iInfo.interval * iInfo.totalRows;
+  iInfo.totalRows = 10;
+  iInfo.pRepo = pRepo;
+  ASSERT_EQ(insertData(&iInfo), 0);
+
+  // Close the repository
+  tsdbCloseRepo(pRepo);
+
+  // Open the repository again
+  pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
+  repo = (STsdbRepo *)pRepo;
+  ASSERT_NE(pRepo, nullptr);
+
+  // Read from file
+  SRWHelper rhelper;
+  SHelperCfg helperCfg = {
+    .type = TSDB_READ_HELPER,
+    .maxTables = repo->config.maxTables,
+    .maxRowSize = repo->tsdbMeta->maxRowBytes,
+    .maxRows = repo->config.maxRowsPerFileBlock,
+    .maxCols = repo->tsdbMeta->maxCols,
+    .minRowsPerFileBlock = repo->config.minRowsPerFileBlock,
+    .maxRowsPerFileBlock = repo->config.maxRowsPerFileBlock,
+    .compress = repo->config.compression,
+
+  };
+  tsdbInitHelper(&rhelper, &helperCfg);
+
+  SFileGroup *pFGroup = tsdbSearchFGroup(repo->tsdbFileH, 1833);
+  ASSERT_NE(pFGroup, nullptr);
+  ASSERT_GE(tsdbSetAndOpenHelperFile(&rhelper, pFGroup), 0);
+
+  SHelperTable htable = {
+    .uid = tCfg.tableId.uid,
+    .tid = tCfg.tableId.tid,
+    .sversion = tCfg.sversion
+  };
+  tsdbSetHelperTable(&rhelper, &htable, schema);
+
+  ASSERT_EQ(tsdbLoadCompInfo(&rhelper, NULL), 0);
+  ASSERT_EQ(tsdbLoadBlockData(&rhelper, 0, NULL), 0);
+
+  int k = 0;
 }
 
 TEST(TsdbTest, DISABLED_openRepo) {

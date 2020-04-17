@@ -353,8 +353,9 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
     pRet->cols[i].bytes = pDataCols->cols[i].bytes;
     pRet->cols[i].len = pDataCols->cols[i].len;
     pRet->cols[i].offset = pDataCols->cols[i].offset;
+    pRet->cols[i].pData = (void *)((char *)pRet->buf + ((char *)(pDataCols->cols[i].pData) - (char *)(pDataCols->buf)));
 
-    if (keepData) memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pRet->cols[i].len);
+    if (keepData) memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pRet->cols[i].bytes * pDataCols->numOfPoints);
   }
 
   return pRet;
@@ -410,36 +411,47 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
 
   SDataCols *pTarget = tdDupDataCols(target, true);
   if (pTarget == NULL) goto _err;
+  tdResetDataCols(target);
 
   int iter1 = 0;
   int iter2 = 0;
   while (true) {
-    if (iter1 >= pTarget->numOfPoints) {
-      // TODO: merge the source part
-      int rowsLeft = source->numOfPoints - iter2;
-      if (rowsLeft > 0) {
-        for (int i = 0; i < source->numOfCols; i++) {
-          ASSERT(target->cols[i].type == source->cols[i].type);
+    if (iter1 >= pTarget->numOfPoints && iter2 >= source->numOfPoints) break;
 
-          memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
-                 (void *)((char *)(source->cols[i].pData) + TYPE_BYTES[source->cols[i].type] * iter2),
-                 TYPE_BYTES[target->cols[i].type] * rowsLeft);
-        }
-      }
-      break;
-    }
+    TSKEY key1 = (iter1 >= pTarget->numOfPoints) ? INT64_MAX : ((TSKEY *)(pTarget->cols[0].pData))[iter1];
+    TSKEY key2 = (iter2 >= rowsToMerge) ? INT64_MAX : ((TSKEY *)(source->cols[0].pData))[iter2];
 
-    if (iter2 >= source->numOfPoints) {
-      // TODO: merge the pTemp part
-      int rowsLeft = pTarget->numOfPoints - iter1;
-      if (rowsLeft > 0) {
+    if (key1 < key2) { // Copy from pTarget
+      for (int i = 0; i < pTarget->numOfCols; i++) {
+        ASSERT(target->cols[i].type == pTarget->cols[i].type);
+        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+               (void *)((char *)(pTarget->cols[i].pData) + TYPE_BYTES[pTarget->cols[i].type] * iter1),
+               TYPE_BYTES[target->cols[i].type]);
+        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
       }
-      break;
+
+      target->numOfPoints++;
+      iter1++;
+    } else if (key1 > key2) { // Copy from source
+      for (int i = 0; i < source->numOfCols; i++) {
+        ASSERT(target->cols[i].type == pTarget->cols[i].type);
+        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+               (void *)((char *)(source->cols[i].pData) + TYPE_BYTES[source->cols[i].type] * iter2),
+               TYPE_BYTES[target->cols[i].type]);
+        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
+      }
+
+      target->numOfPoints++;
+      iter2++;
+    } else {
+      assert(false);
     }
   }
 
+  tdFreeDataCols(pTarget);
   return 0;
 
 _err:
+  tdFreeDataCols(pTarget);
   return -1;
 }
