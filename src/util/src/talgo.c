@@ -168,6 +168,7 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
   if (flags == TD_EQ) {
     return bsearch(key, base, nmemb, size, compar);
   } else if (flags == TD_GE) {
+    if (nmemb <= 0) return NULL;
     if ((*compar)(key, elePtrAt(base, size, 0)) <= 0) return elePtrAt(base, size, 0);
     if ((*compar)(key, elePtrAt(base, size, nmemb - 1)) > 0) return NULL;
     
@@ -193,6 +194,7 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
       }
     }
   } else if (flags == TD_LE) {
+    if (nmemb <= 0) return NULL;
     if ((*compar)(key, elePtrAt(base, size, nmemb - 1)) >= 0) return elePtrAt(base, size, nmemb - 1);
     if ((*compar)(key, elePtrAt(base, size, 0)) < 0) return NULL;
     

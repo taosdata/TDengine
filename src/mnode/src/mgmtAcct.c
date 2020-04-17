@@ -16,49 +16,181 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "mnode.h"
-#include "taccount.h"
+#include "ttime.h"
+#include "tutil.h"
+#include "dnode.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtAcct.h"
 #include "mgmtDb.h"
+#include "mgmtSdb.h"
 #include "mgmtUser.h"
 
-#ifndef _ACCOUNT
+void *  tsAcctSdb = NULL;
+int32_t tsAcctUpdateSize;
+static void mgmtCreateRootAcct();
 
-static SAcctObj tsAcctObj = {0};
-
-int32_t acctInit() {
-  tsAcctObj.acctId = 0;
-  strcpy(tsAcctObj.user, "root");
+static int32_t mgmtActionAcctDestroy(SSdbOperDesc *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
+  pthread_mutex_destroy(&pAcct->mutex);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-void    acctCleanUp() {}
-void   *acctGetAcct(char *acctName) { return &tsAcctObj; }
-void    acctIncRef(struct _acct_obj *pAcct) {}
-void    acctReleaseAcct(SAcctObj *pAcct) {}
-int32_t acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
+static int32_t mgmtAcctActionInsert(SSdbOperDesc *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
+  memset(&pAcct->acctInfo, 0, sizeof(SAcctInfo));
+  pthread_mutex_init(&pAcct->mutex, NULL);
+  return TSDB_CODE_SUCCESS;
+}
 
-#endif
+static int32_t mgmtActionAcctDelete(SSdbOperDesc *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
+  mgmtDropAllUsers(pAcct);
+  mgmtDropAllDbs(pAcct);
+  return TSDB_CODE_SUCCESS;
+}
 
-void acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
+static int32_t mgmtActionAcctUpdate(SSdbOperDesc *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
+  SAcctObj *pSaved = mgmtGetAcct(pAcct->user);
+  if (pAcct != pSaved) {
+    memcpy(pSaved, pAcct, tsAcctUpdateSize);
+    free(pAcct);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtActionActionEncode(SSdbOperDesc *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
+  memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
+  pOper->rowSize = tsAcctUpdateSize;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtActionAcctDecode(SSdbOperDesc *pOper) {
+  SAcctObj *pAcct = (SAcctObj *) calloc(1, sizeof(SAcctObj));
+  if (pAcct == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+
+  memcpy(pAcct, pOper->rowData, tsAcctUpdateSize);
+  pOper->pObj = pAcct;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtActionAcctRestored() {
+  if (dnodeIsFirstDeploy()) {
+    mgmtCreateRootAcct();
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mgmtInitAccts() {
+  SAcctObj tObj;
+  tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+
+  SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_ACCOUNT,
+    .tableName    = "accounts",
+    .hashSessions = TSDB_MAX_ACCOUNTS,
+    .maxRowSize   = tsAcctUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .keyType      = SDB_KEY_STRING,
+    .insertFp     = mgmtAcctActionInsert,
+    .deleteFp     = mgmtActionAcctDelete,
+    .updateFp     = mgmtActionAcctUpdate,
+    .encodeFp     = mgmtActionActionEncode,
+    .decodeFp     = mgmtActionAcctDecode,
+    .destroyFp    = mgmtActionAcctDestroy,
+    .restoredFp   = mgmtActionAcctRestored
+  };
+
+  tsAcctSdb = sdbOpenTable(&tableDesc);
+  if (tsAcctSdb == NULL) {
+    mError("failed to init acct data");
+    return -1;
+  }
+
+  mTrace("account table is created");
+  return acctInit();
+}
+
+void mgmtCleanUpAccts() {
+  sdbCloseTable(tsAcctSdb);
+  acctCleanUp();
+}
+
+void *mgmtGetAcct(char *name) {
+  return sdbGetRow(tsAcctSdb, name);
+}
+
+void mgmtIncAcctRef(SAcctObj *pAcct) {
+  sdbIncRef(tsAcctSdb, pAcct);
+}
+
+void mgmtDecAcctRef(SAcctObj *pAcct) {
+  sdbDecRef(tsAcctSdb, pAcct);
+}
+
+void mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb) {
   atomic_add_fetch_32(&pAcct->acctInfo.numOfDbs, 1);
   pDb->pAcct = pAcct;
-  acctIncRef(pAcct);
+  mgmtIncAcctRef(pAcct);
 }
 
-void acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
+void mgmtDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfDbs, 1);
   pDb->pAcct = NULL;
-  acctReleaseAcct(pAcct);
+  mgmtDecAcctRef(pAcct);
 }
 
-void acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
+void mgmtAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser) {
   atomic_add_fetch_32(&pAcct->acctInfo.numOfUsers, 1);
   pUser->pAcct = pAcct;
-  acctIncRef(pAcct);
+  mgmtIncAcctRef(pAcct);
 }
 
-void acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
+void mgmtDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfUsers, 1);
   pUser->pAcct = NULL;
-  acctReleaseAcct(pAcct);
+  mgmtDecAcctRef(pAcct);
 }
+
+static void mgmtCreateRootAcct() {
+  int32_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
+  if (numOfAccts != 0) return;
+
+  SAcctObj *pAcct = malloc(sizeof(SAcctObj));
+  memset(pAcct, 0, sizeof(SAcctObj));
+  strcpy(pAcct->user, "root");
+  taosEncryptPass((uint8_t*)"taosdata", strlen("taosdata"), pAcct->pass);
+  pAcct->cfg = (SAcctCfg){
+    .maxUsers           = 10,
+    .maxDbs             = 64,
+    .maxTimeSeries      = INT32_MAX,
+    .maxConnections     = 1024,
+    .maxStreams         = 1000,
+    .maxPointsPerSecond = 10000000,
+    .maxStorage         = INT64_MAX,
+    .maxQueryTime       = INT64_MAX,
+    .maxInbound         = 0,
+    .maxOutbound        = 0,
+    .accessState        = TSDB_VN_ALL_ACCCESS
+  };
+  pAcct->acctId = sdbGetId(tsAcctSdb);
+  pAcct->createdTime = taosGetTimestampMs();
+
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsAcctSdb,
+    .pObj = pAcct,
+  };
+  sdbInsertRow(&oper);
+}
+
+#ifndef _ACCT
+
+int32_t acctInit() { return TSDB_CODE_SUCCESS; }
+void    acctCleanUp() {}
+int32_t acctCheck(void *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
+
+#endif

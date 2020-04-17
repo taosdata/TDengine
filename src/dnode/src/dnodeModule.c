@@ -15,55 +15,74 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosdef.h"
 #include "tlog.h"
-#include "tmodule.h"
 #include "tglobalcfg.h"
 #include "mnode.h"
 #include "http.h"
 #include "monitor.h"
 #include "dnodeModule.h"
-#include "dnode.h"
+
+typedef struct {
+  bool      enable;
+  char *    name;
+  int32_t (*initFp)();
+  int32_t (*startFp)();
+  void    (*cleanUpFp)();
+  void    (*stopFp)();
+} SModule;
+
+static SModule  tsModule[TSDB_MOD_MAX] = {0};
+static uint32_t tsModuleStatus = 0;
+
+static void dnodeSetModuleStatus(int32_t module) {
+  tsModuleStatus |= (1 << module);
+}
+
+static void dnodeUnSetModuleStatus(int32_t module) {
+  tsModuleStatus &= ~(1 << module);
+}
 
 static void dnodeAllocModules() {
-  tsModule[TSDB_MOD_MGMT].name          = "mgmt";
-  tsModule[TSDB_MOD_MGMT].initFp        = mgmtInitSystem;
-  tsModule[TSDB_MOD_MGMT].cleanUpFp     = mgmtCleanUpSystem;
-  tsModule[TSDB_MOD_MGMT].startFp       = mgmtStartSystem;
-  tsModule[TSDB_MOD_MGMT].stopFp        = mgmtStopSystem;
-  tsModule[TSDB_MOD_MGMT].num           = tsNumOfMPeers;
-  tsModule[TSDB_MOD_MGMT].curNum        = 0;
-  tsModule[TSDB_MOD_MGMT].equalVnodeNum = tsMgmtEqualVnodeNum;
-
-  tsModule[TSDB_MOD_HTTP].name          = "http";
-  tsModule[TSDB_MOD_HTTP].initFp        = httpInitSystem;
-  tsModule[TSDB_MOD_HTTP].cleanUpFp     = httpCleanUpSystem;
-  tsModule[TSDB_MOD_HTTP].startFp       = httpStartSystem;
-  tsModule[TSDB_MOD_HTTP].stopFp        = httpStopSystem;
-  tsModule[TSDB_MOD_HTTP].num           = (tsEnableHttpModule == 1) ? -1 : 0;
-  tsModule[TSDB_MOD_HTTP].curNum        = 0;
-  tsModule[TSDB_MOD_HTTP].equalVnodeNum = 0;
-
-  tsModule[TSDB_MOD_MONITOR].name          = "monitor";
-  tsModule[TSDB_MOD_MONITOR].initFp        = monitorInitSystem;
-  tsModule[TSDB_MOD_MONITOR].cleanUpFp     = monitorCleanUpSystem;
-  tsModule[TSDB_MOD_MONITOR].startFp       = monitorStartSystem;
-  tsModule[TSDB_MOD_MONITOR].stopFp        = monitorStopSystem;
-  tsModule[TSDB_MOD_MONITOR].num           = (tsEnableMonitorModule == 1) ? -1 : 0;
-  tsModule[TSDB_MOD_MONITOR].curNum        = 0;
-  tsModule[TSDB_MOD_MONITOR].equalVnodeNum = 0;
+  tsModule[TSDB_MOD_MGMT].name         = false;
+  tsModule[TSDB_MOD_MGMT].name         = "mgmt";
+  tsModule[TSDB_MOD_MGMT].initFp       = mgmtInitSystem;
+  tsModule[TSDB_MOD_MGMT].cleanUpFp    = mgmtCleanUpSystem;
+  tsModule[TSDB_MOD_MGMT].startFp      = mgmtStartSystem;
+  tsModule[TSDB_MOD_MGMT].stopFp       = mgmtStopSystem;
+ 
+  tsModule[TSDB_MOD_HTTP].enable       = (tsEnableHttpModule == 1);
+  tsModule[TSDB_MOD_HTTP].name         = "http";
+  tsModule[TSDB_MOD_HTTP].initFp       = httpInitSystem;
+  tsModule[TSDB_MOD_HTTP].cleanUpFp    = httpCleanUpSystem;
+  tsModule[TSDB_MOD_HTTP].startFp      = httpStartSystem;
+  tsModule[TSDB_MOD_HTTP].stopFp       = httpStopSystem;
+  if (tsEnableHttpModule) {
+    dnodeSetModuleStatus(TSDB_MOD_HTTP);
+  }
+  
+  tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
+  tsModule[TSDB_MOD_MONITOR].name      = "monitor";
+  tsModule[TSDB_MOD_MONITOR].initFp    = monitorInitSystem;
+  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
+  tsModule[TSDB_MOD_MONITOR].startFp   = monitorStartSystem;
+  tsModule[TSDB_MOD_MONITOR].stopFp    = monitorStopSystem;
+  if (tsEnableMonitorModule) {
+    dnodeSetModuleStatus(TSDB_MOD_MONITOR);
+  }
 }
 
 void dnodeCleanUpModules() {
-  for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
-    if (tsModule[mod].num != 0 && tsModule[mod].stopFp) {
-      (*tsModule[mod].stopFp)();
+  for (int32_t module = 1; module < TSDB_MOD_MAX; ++module) {
+    if (tsModule[module].enable && tsModule[module].stopFp) {
+      (*tsModule[module].stopFp)();
     }
-    if (tsModule[mod].num != 0 && tsModule[mod].cleanUpFp) {
-      (*tsModule[mod].cleanUpFp)();
+    if (tsModule[module].cleanUpFp) {
+      (*tsModule[module].cleanUpFp)();
     }
   }
 
-  if (tsModule[TSDB_MOD_MGMT].num != 0 && tsModule[TSDB_MOD_MGMT].cleanUpFp) {
+  if (tsModule[TSDB_MOD_MGMT].enable && tsModule[TSDB_MOD_MGMT].cleanUpFp) {
     (*tsModule[TSDB_MOD_MGMT].cleanUpFp)();
   }
 }
@@ -71,57 +90,41 @@ void dnodeCleanUpModules() {
 int32_t dnodeInitModules() {
   dnodeAllocModules();
 
-  for (int mod = 0; mod < TSDB_MOD_MAX; ++mod) {
-    if (tsModule[mod].num != 0 && tsModule[mod].initFp) {
-      if ((*tsModule[mod].initFp)() != 0) {
-        dError("failed to init modules");
+  for (int32_t module = 0; module < TSDB_MOD_MAX; ++module) {
+    if (tsModule[module].initFp) {
+      if ((*tsModule[module].initFp)() != 0) {
+        dError("failed to init module:%s", tsModule[module].name);
         return -1;
       }
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }
 
 void dnodeStartModules() {
-  // for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
-  //   if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
-  //     if ((*tsModule[mod].startFp)() != 0) {
-  //       dError("failed to start module:%d", mod);
-  //     }
-  //   }
-  // }
+  for (int32_t module = 1; module < TSDB_MOD_MAX; ++module) {
+    if (tsModule[module].enable && tsModule[module].startFp) {
+      if ((*tsModule[module].startFp)() != 0) {
+        dError("failed to start module:%s", tsModule[module].name);
+      }
+    }
+  }
 }
 
 void dnodeProcessModuleStatus(uint32_t moduleStatus) {
-  if (moduleStatus == tsModuleStatus) return;
-
-  dPrint("module status is received, old:%d, new:%d", tsModuleStatus, moduleStatus);
-
-  int news = moduleStatus;
-  int olds = tsModuleStatus;
-
-  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-    int newStatus = news & (1 << moduleType);
-    int oldStatus = olds & (1 << moduleType);
-
-    if (oldStatus > 0) {
-      if (newStatus == 0) {
-        if (tsModule[moduleType].stopFp) {
-          dPrint("module:%s is stopped on this node", tsModule[moduleType].name);
-          (*tsModule[moduleType].stopFp)();
-        }
-      }
-    } else if (oldStatus == 0) {
-      if (newStatus > 0) {
-        if (tsModule[moduleType].startFp) {
-          dPrint("module:%s is started on this node", tsModule[moduleType].name);
-          (*tsModule[moduleType].startFp)();
-        }
-      }
-    } else {
-    }
+  bool enableMgmtModule = moduleStatus & (1 << TSDB_MOD_MGMT);
+  if (!tsModule[TSDB_MOD_MGMT].enable && enableMgmtModule) {
+    dPrint("module status is received, start mgmt module", tsModuleStatus, moduleStatus);
+    tsModule[TSDB_MOD_MGMT].enable = true;
+    dnodeSetModuleStatus(TSDB_MOD_MGMT);
+    (*tsModule[TSDB_MOD_MGMT].startFp)();
   }
 
-  tsModuleStatus = moduleStatus;
+  if (tsModule[TSDB_MOD_MGMT].enable && !enableMgmtModule) {
+    dPrint("module status is received, stop mgmt module", tsModuleStatus, moduleStatus);
+    tsModule[TSDB_MOD_MGMT].enable = false;
+    dnodeUnSetModuleStatus(TSDB_MOD_MGMT);
+    (*tsModule[TSDB_MOD_MGMT].stopFp)();
+  }
 }

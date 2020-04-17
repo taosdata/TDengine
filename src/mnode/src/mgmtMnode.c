@@ -18,89 +18,146 @@
 #include "taoserror.h"
 #include "trpc.h"
 #include "tsync.h"
-#include "mpeer.h"
+#include "treplica.h"
+#include "tutil.h"
+#include "ttime.h"
+#include "tsocket.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtMnode.h"
+#include "mgmtDnode.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
+int32_t tsMnodeIsMaster = true;
+static void *  tsMnodeSdb = NULL;
+static int32_t tsMnodeUpdateSize = 0;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-#ifndef _MPEER
+static int32_t mgmtMnodeActionDestroy(SSdbOperDesc *pOper) {
+  tfree(pOper->pObj);
+  return TSDB_CODE_SUCCESS;
+}
 
-static SMnodeObj tsMnodeObj = {0};
+static int32_t mgmtMnodeActionInsert(SSdbOperDesc *pOper) {
+  SMnodeObj *pMnode = pOper->pObj;
+  SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
+  if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
 
-int32_t mpeerInitMnodes() {
-  tsMnodeObj.mnodeId     = 1;
-  tsMnodeObj.privateIp   = inet_addr(tsPrivateIp);
-  tsMnodeObj.publicIp    = inet_addr(tsPublicIp);
-  tsMnodeObj.createdTime = taosGetTimestampMs();
-  tsMnodeObj.role        = TAOS_SYNC_ROLE_MASTER;
-  tsMnodeObj.port        = tsMnodeDnodePort;
-  sprintf(tsMnodeObj.mnodeName, "m%d", tsMnodeObj.mnodeId);
+  pMnode->pDnode = pDnode;
+  pDnode->isMgmt = true;
+  mgmtReleaseDnode(pDnode);
   
   return TSDB_CODE_SUCCESS;
 }
 
-void    mpeerCleanupMnodes() {}
-int32_t mpeerAddMnode(int32_t dnodeId) { return TSDB_CODE_SUCCESS; }
-int32_t mpeerRemoveMnode(int32_t dnodeId) { return TSDB_CODE_SUCCESS; }
-void *  mpeerGetMnode(int32_t mnodeId) { return &tsMnodeObj; }
-int32_t mpeerGetMnodesNum() { return 1; }
-void    mpeerReleaseMnode(struct _mnode_obj *pMnode) {}
-bool    mpeerIsMaster() { return tsMnodeObj.role == TAOS_SYNC_ROLE_MASTER; }
-void    mpeerUpdateSync() {}
+static int32_t mgmtMnodeActionDelete(SSdbOperDesc *pOper) {
+  SMnodeObj *pMnode = pOper->pObj;
 
-void *mpeerGetNextMnode(void *pNode, SMnodeObj **pMnode) {
-  if (*pMnode == NULL) {
-    *pMnode = &tsMnodeObj;
-  } else {
-    *pMnode = NULL;
-  }
+  SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
+  if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
+  pDnode->isMgmt = false;
+  mgmtReleaseDnode(pDnode);
 
-  return *pMnode;
-}
-
-void mpeerGetPrivateIpList(SRpcIpSet *ipSet) {
-  ipSet->inUse = 0;
-  ipSet->numOfIps = 1;
-  ipSet->port = htons(tsMnodeObj.port);
-  ipSet->ip[0] = htonl(tsMnodeObj.privateIp);
-}
-
-void mpeerGetPublicIpList(SRpcIpSet *ipSet) {
-  ipSet->inUse = 0;
-  ipSet->numOfIps = 1;
-  ipSet->port = htons(tsMnodeObj.port);
-  ipSet->ip[0] = htonl(tsMnodeObj.publicIp);
-}
-
-void mpeerGetMpeerInfos(void *param) {
-  SDMNodeInfos *mpeers = param;
-  mpeers->inUse = 0;
-  mpeers->nodeNum = 1;
-  mpeers->nodeInfos[0].nodeId = htonl(tsMnodeObj.mnodeId);
-  mpeers->nodeInfos[0].nodeIp = htonl(tsMnodeObj.privateIp);
-  mpeers->nodeInfos[0].nodePort = htons(tsMnodeObj.port);
-  strcpy(mpeers->nodeInfos[0].nodeName, tsMnodeObj.mnodeName);
-}
-
-int32_t mpeerForwardReqToPeer(void *pHead) {
+  mTrace("mnode:%d, is dropped from sdb", pMnode->mnodeId);
   return TSDB_CODE_SUCCESS;
 }
 
-#endif
+static int32_t mgmtMnodeActionUpdate(SSdbOperDesc *pOper) {
+  SMnodeObj *pMnode = pOper->pObj;
+  SMnodeObj *pSaved = mgmtGetMnode(pMnode->mnodeId);
+  if (pMnode != pSaved) {
+    memcpy(pSaved, pMnode, pOper->rowSize);
+    free(pMnode);
+  }
 
-int32_t mpeerInit() {
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtMnodeActionEncode(SSdbOperDesc *pOper) {
+  SMnodeObj *pMnode = pOper->pObj;
+  memcpy(pOper->rowData, pMnode, tsMnodeUpdateSize);
+  pOper->rowSize = tsMnodeUpdateSize;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtMnodeActionDecode(SSdbOperDesc *pOper) {
+  SMnodeObj *pMnode = calloc(1, sizeof(SMnodeObj));
+  if (pMnode == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+
+  memcpy(pMnode, pOper->rowData, tsMnodeUpdateSize);
+  pOper->pObj = pMnode;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtMnodeActionRestored() {
+  if (mgmtGetMnodesNum() == 1) {
+    SMnodeObj *pMnode = NULL;
+    mgmtGetNextMnode(NULL, &pMnode);
+    if (pMnode != NULL) {
+      pMnode->role = TAOS_SYNC_ROLE_MASTER;
+      mgmtReleaseMnode(pMnode);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mgmtInitMnodes() {
+  SMnodeObj tObj;
+  tsMnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+
+  SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_MNODE,
+    .tableName    = "mnodes",
+    .hashSessions = TSDB_MAX_MNODES,
+    .maxRowSize   = tsMnodeUpdateSize,
+    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .keyType      = SDB_KEY_INT,
+    .insertFp     = mgmtMnodeActionInsert,
+    .deleteFp     = mgmtMnodeActionDelete,
+    .updateFp     = mgmtMnodeActionUpdate,
+    .encodeFp     = mgmtMnodeActionEncode,
+    .decodeFp     = mgmtMnodeActionDecode,
+    .destroyFp    = mgmtMnodeActionDestroy,
+    .restoredFp   = mgmtMnodeActionRestored
+  };
+
+  tsMnodeSdb = sdbOpenTable(&tableDesc);
+  if (tsMnodeSdb == NULL) {
+    mError("failed to init mnodes data");
+    return -1;
+  }
+
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
-  return mpeerInitMnodes();
+
+  mTrace("mnodes table is created");
+  return TSDB_CODE_SUCCESS;
 }
 
-void mpeerCleanup() {
-  mpeerCleanupMnodes();
+void mgmtCleanupMnodes() {
+  sdbCloseTable(tsMnodeSdb);
 }
 
-static char *mpeerGetMnodeRoleStr(int32_t role) {
+int32_t mgmtGetMnodesNum() { 
+  return sdbGetNumOfRows(tsMnodeSdb); 
+}
+
+void *mgmtGetMnode(int32_t mnodeId) {
+  return sdbGetRow(tsMnodeSdb, &mnodeId);
+}
+
+void mgmtReleaseMnode(SMnodeObj *pMnode) {
+  sdbDecRef(tsMnodeSdb, pMnode);
+}
+
+void *mgmtGetNextMnode(void *pNode, SMnodeObj **pMnode) { 
+  return sdbFetchRow(tsMnodeSdb, pNode, (void **)pMnode); 
+}
+
+static char *mgmtGetMnodeRoleStr(int32_t role) {
   switch (role) {
     case TAOS_SYNC_ROLE_OFFLINE:
       return "offline";
@@ -113,6 +170,101 @@ static char *mpeerGetMnodeRoleStr(int32_t role) {
     default:
       return "undefined";
   }
+}
+
+bool mgmtIsMaster() { return tsMnodeIsMaster; }
+
+void mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp) {
+  void *pNode = NULL;
+  while (1) {
+    SMnodeObj *pMnode = NULL;
+    pNode = mgmtGetNextMnode(pNode, &pMnode);
+    if (pMnode == NULL) break;
+
+    if (usePublicIp) {
+      ipSet->ip[ipSet->numOfIps] = htonl(pMnode->pDnode->publicIp);
+    } else {
+      ipSet->ip[ipSet->numOfIps] = htonl(pMnode->pDnode->privateIp);
+    }
+
+    if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
+      ipSet->inUse = ipSet->numOfIps;
+    }
+
+    ipSet->numOfIps++;
+    ipSet->port = htons(pMnode->pDnode->mnodeShellPort);
+    
+    mgmtReleaseMnode(pMnode);
+  }
+}
+
+void mgmtGetMnodeList(void *param) {
+  SDMNodeInfos *mnodes = param;
+  mnodes->inUse = 0;
+  
+  int32_t index = 0;
+  void *pNode = NULL;
+  while (1) {
+    SMnodeObj *pMnode = NULL;
+    pNode = mgmtGetNextMnode(pNode, &pMnode);
+    if (pMnode == NULL) break;
+
+    mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
+    mnodes->nodeInfos[index].nodeIp = htonl(pMnode->pDnode->privateIp);
+    mnodes->nodeInfos[index].nodePort = htons(pMnode->pDnode->mnodeDnodePort);
+    strcpy(mnodes->nodeInfos[index].nodeName, pMnode->pDnode->dnodeName);
+    mPrint("node:%d role:%s", pMnode->mnodeId, mgmtGetMnodeRoleStr(pMnode->role));
+    if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
+      mnodes->inUse = index;
+      mPrint("node:%d inUse:%d", pMnode->mnodeId, mnodes->inUse);
+    }
+
+    index++;
+    mgmtReleaseMnode(pMnode);
+  }
+
+  mnodes->nodeNum = index;
+}
+
+int32_t mgmtAddMnode(int32_t dnodeId) {
+  SMnodeObj *pMnode = calloc(1, sizeof(SMnodeObj));
+  pMnode->mnodeId = dnodeId;
+  pMnode->createdTime = taosGetTimestampMs();
+
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsMnodeSdb,
+    .pObj = pMnode,
+  };
+
+  int32_t code = sdbInsertRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(pMnode);
+    code = TSDB_CODE_SDB_ERROR;
+  }
+
+  return code;
+}
+
+int32_t mgmtDropMnode(int32_t dnodeId) {
+  SMnodeObj *pMnode = sdbGetRow(tsMnodeSdb, &dnodeId);
+  if (pMnode == NULL) {
+    return TSDB_CODE_DNODE_NOT_EXIST;
+  }
+  
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsMnodeSdb,
+    .pObj = pMnode
+  };
+
+  int32_t code = sdbDeleteRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_SDB_ERROR;
+  }
+
+  sdbDecRef(tsMnodeSdb, pMnode);
+  return code;
 }
 
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -162,7 +314,7 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = mpeerGetMnodesNum();
+  pShow->numOfRows = mgmtGetMnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
   mgmtReleaseUser(pUser);
@@ -178,7 +330,7 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
   char       ipstr[32];
 
   while (numOfRows < rows) {
-    pShow->pNode = mpeerGetNextMnode(pShow->pNode, &pMnode);
+    pShow->pNode = mgmtGetNextMnode(pShow->pNode, &pMnode);
     if (pMnode == NULL) break;
 
     cols = 0;
@@ -187,12 +339,12 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     *(int16_t *)pWrite = pMnode->mnodeId;
     cols++;
 
-    tinet_ntoa(ipstr, pMnode->privateIp);
+    tinet_ntoa(ipstr, pMnode->pDnode->privateIp);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     strcpy(pWrite, ipstr);
     cols++;
 
-    tinet_ntoa(ipstr, pMnode->publicIp);
+    tinet_ntoa(ipstr, pMnode->pDnode->publicIp);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     strcpy(pWrite, ipstr);
     cols++;
@@ -202,12 +354,12 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mpeerGetMnodeRoleStr(pMnode->role));
+    strcpy(pWrite, mgmtGetMnodeRoleStr(pMnode->role));
     cols++;
 
     numOfRows++;
 
-    mpeerReleaseMnode(pMnode);
+    mgmtReleaseMnode(pMnode);
   }
 
   pShow->numOfReads += numOfRows;

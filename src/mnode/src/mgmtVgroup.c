@@ -17,14 +17,19 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "tbalance.h"
+#include "tutil.h"
+#include "tsocket.h"
+#include "tidpool.h"
 #include "tsync.h"
-#include "tcluster.h"
-#include "mnode.h"
+#include "ttime.h"
+#include "treplica.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDServer.h"
-#include "mpeer.h"
+#include "mgmtDnode.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -63,7 +68,7 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
   if (pDb == NULL) {
     return TSDB_CODE_INVALID_DB;
   }
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
   pVgroup->pDb = pDb;
   pVgroup->prev = NULL;
@@ -84,12 +89,12 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
   }
 
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[i].dnodeId);
+    SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
     if (pDnode != NULL) {
       pVgroup->vnodeGid[i].privateIp = pDnode->privateIp;
       pVgroup->vnodeGid[i].publicIp = pDnode->publicIp;
       atomic_add_fetch_32(&pDnode->openVnodes, 1);    
-      clusterReleaseDnode(pDnode);
+      mgmtReleaseDnode(pDnode);
     }     
   }
 
@@ -106,14 +111,14 @@ static int32_t mgmtVgroupActionDelete(SSdbOperDesc *pOper) {
     mgmtRemoveVgroupFromDb(pVgroup);
   }
 
-  mgmtReleaseDb(pVgroup->pDb);
+  mgmtDecDbRef(pVgroup->pDb);
 
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[i].dnodeId);
+    SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
     if (pDnode) {
       atomic_sub_fetch_32(&pDnode->openVnodes, 1);
     }
-    clusterReleaseDnode(pDnode);
+    mgmtReleaseDnode(pDnode);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -244,7 +249,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
-  if (balanceAllocVnodes(pVgroup) != 0) {
+  if (replicaAllocVnodes(pVgroup) != 0) {
     mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_ENOUGH_DNODES);
@@ -381,18 +386,18 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
     pShow->pNode = pVgroup;
   }
 
-   mgmtReleaseDb(pDb);
+   mgmtDecDbRef(pDb);
 
   return 0;
 }
 
 char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
-  SDnodeObj *pDnode = clusterGetDnode(pVnode->dnodeId);
+  SDnodeObj *pDnode = mgmtGetDnode(pVnode->dnodeId);
   if (pDnode == NULL) {
     mError("vgroup:%d, not exist in dnode:%d", pVgroup->vgId, pDnode->dnodeId);
     return "null";
   }
-  clusterReleaseDnode(pDnode);
+  mgmtReleaseDnode(pDnode);
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     return "offline";
@@ -467,7 +472,7 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
   }
 
   pShow->numOfReads += numOfRows;
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
   return numOfRows;
 }
@@ -676,13 +681,13 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   pCfg->vgId    = htonl(pCfg->vgId);
 
-  SDnodeObj *pDnode = clusterGetDnode(pCfg->dnodeId);
+  SDnodeObj *pDnode = mgmtGetDnode(pCfg->dnodeId);
   if (pDnode == NULL) {
     mTrace("dnode:%s, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NOT_ACTIVE_VNODE);
     return;
   }
-  clusterReleaseDnode(pDnode);
+  mgmtReleaseDnode(pDnode);
 
   SVgObj *pVgroup = mgmtGetVgroup(pCfg->vgId);
   if (pVgroup == NULL) {

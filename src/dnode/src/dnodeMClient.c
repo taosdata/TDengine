@@ -23,12 +23,12 @@
 #include "tsync.h"
 #include "ttime.h"
 #include "ttimer.h"
+#include "treplica.h"
 #include "dnode.h"
 #include "dnodeMClient.h"
 #include "dnodeModule.h"
 #include "dnodeMgmt.h"
 #include "vnode.h"
-#include "mpeer.h"
 
 #define MPEER_CONTENT_LEN 2000
 
@@ -142,9 +142,9 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   }
 
   SDMStatusRsp *pStatusRsp = pMsg->pCont;
-  SDMNodeInfos *mpeers = &pStatusRsp->mpeers;
-  if (mpeers->nodeNum <= 0) {
-    dError("status msg is invalid, num of ips is %d", mpeers->nodeNum);
+  SDMNodeInfos *mnodes = &pStatusRsp->mnodes;
+  if (mnodes->nodeNum <= 0) {
+    dError("status msg is invalid, num of ips is %d", mnodes->nodeNum);
     taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     return;
   }
@@ -159,29 +159,29 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   dnodeUpdateDnodeInfo(pState->dnodeId);
 
   SRpcIpSet mgmtIpSet = {0};
-  mgmtIpSet.inUse = mpeers->inUse;
-  mgmtIpSet.numOfIps = mpeers->nodeNum;
-  mgmtIpSet.port = htons(mpeers->nodeInfos[0].nodePort);
-  for (int32_t i = 0; i < mpeers->nodeNum; i++) {
-    mgmtIpSet.ip[i] = htonl(mpeers->nodeInfos[i].nodeIp);
+  mgmtIpSet.inUse = mnodes->inUse;
+  mgmtIpSet.numOfIps = mnodes->nodeNum;
+  mgmtIpSet.port = htons(mnodes->nodeInfos[0].nodePort);
+  for (int32_t i = 0; i < mnodes->nodeNum; i++) {
+    mgmtIpSet.ip[i] = htonl(mnodes->nodeInfos[i].nodeIp);
   }
 
   if (memcmp(&mgmtIpSet, &tsMnodeIpList, sizeof(SRpcIpSet)) != 0 || tsMnodeInfos.nodeNum == 0) {
     memcpy(&tsMnodeIpList, &mgmtIpSet, sizeof(SRpcIpSet));  
-    tsMnodeInfos.inUse = mpeers->inUse;
-    tsMnodeInfos.nodeNum = mpeers->nodeNum;
+    tsMnodeInfos.inUse = mnodes->inUse;
+    tsMnodeInfos.nodeNum = mnodes->nodeNum;
     dPrint("mnode ip list is changed, numOfIps:%d inUse:%d", tsMnodeInfos.nodeNum, tsMnodeInfos.inUse);
-    for (int32_t i = 0; i < mpeers->nodeNum; i++) {
-      tsMnodeInfos.nodeInfos[i].nodeId = htonl(mpeers->nodeInfos[i].nodeId);
-      tsMnodeInfos.nodeInfos[i].nodeIp = htonl(mpeers->nodeInfos[i].nodeIp);
-      tsMnodeInfos.nodeInfos[i].nodePort = htons(mpeers->nodeInfos[i].nodePort);
-      strcpy(tsMnodeInfos.nodeInfos[i].nodeName, mpeers->nodeInfos[i].nodeName);
+    for (int32_t i = 0; i < mnodes->nodeNum; i++) {
+      tsMnodeInfos.nodeInfos[i].nodeId = htonl(mnodes->nodeInfos[i].nodeId);
+      tsMnodeInfos.nodeInfos[i].nodeIp = htonl(mnodes->nodeInfos[i].nodeIp);
+      tsMnodeInfos.nodeInfos[i].nodePort = htons(mnodes->nodeInfos[i].nodePort);
+      strcpy(tsMnodeInfos.nodeInfos[i].nodeName, mnodes->nodeInfos[i].nodeName);
       dPrint("mnode:%d, ip:%s:%u name:%s", tsMnodeInfos.nodeInfos[i].nodeId,
              taosIpStr(tsMnodeInfos.nodeInfos[i].nodeIp), tsMnodeInfos.nodeInfos[i].nodePort,
              tsMnodeInfos.nodeInfos[i].nodeName);
     }
     dnodeSaveMnodeIpList();
-    mpeerUpdateSync();
+    replicaNotify();
   }
 
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
@@ -332,7 +332,7 @@ uint32_t dnodeGetMnodeMasteIp() {
   return tsMnodeIpList.ip[tsMnodeIpList.inUse];
 }
 
-void* dnodeGetMpeerInfos() {
+void* dnodeGetMnodeList() {
   return &tsMnodeInfos;
 }
 

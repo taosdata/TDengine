@@ -17,7 +17,6 @@
 #include "os.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tmodule.h"
 #include "trpc.h"
 #include "tutil.h"
 #include "dnode.h"
@@ -229,3 +228,7 @@ static int32_t dnodeInitStorage() {
 }
 
 static void dnodeCleanupStorage() {}
+
+bool  dnodeIsFirstDeploy() {
+  return strcmp(tsMasterIp, tsPrivateIp) == 0;
+}

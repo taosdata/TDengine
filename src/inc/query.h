@@ -38,57 +38,57 @@ typedef void* qinfo_t;
  * create the qinfo object according to QueryTableMsg
  * @param pVnode
  * @param pQueryTableMsg
- * @param pQInfo
+ * @param qinfo
  * @return
  */
-int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, qinfo_t* pQInfo);
+int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo);
 
 /**
  * Destroy QInfo object
  *
- * @param pQInfo
+ * @param qinfo
  * @return
  */
-void qDestroyQueryInfo(qinfo_t pQInfo);
+void qDestroyQueryInfo(qinfo_t qinfo);
 
 /**
  * the main query execution function, including query on both table and multitables,
  * which are decided according to the tag or table name query conditions
  *
- * @param pQInfo
+ * @param qinfo
  * @return
  */
-void qTableQuery(qinfo_t pQInfo);
+void qTableQuery(qinfo_t qinfo);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
  * this function will be blocked to wait for the query execution completed or paused,
  * in which case enough results have been produced already.
  *
- * @param pQInfo
+ * @param qinfo
  * @return
  */
-int32_t qRetrieveQueryResultInfo(qinfo_t pQInfo);
+int32_t qRetrieveQueryResultInfo(qinfo_t qinfo);
 
 /**
  *
  * Retrieve the actual results to fill the response message payload.
  * Note that this function must be executed after qRetrieveQueryResultInfo is invoked.
  *
- * @param pQInfo  qinfo object
+ * @param qinfo  qinfo object
  * @param pRsp    response message
  * @param contLen payload length
  * @return
  */
-int32_t qDumpRetrieveResult(qinfo_t pQInfo, SRetrieveTableRsp** pRsp, int32_t* contLen);
+int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen);
 
 /**
  * Decide if more results will be produced or not
  *
- * @param pQInfo
+ * @param qinfo
  * @return
  */
-bool qHasMoreResultsToRetrieve(qinfo_t pQInfo);
+bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
 
 #ifdef __cplusplus
 }

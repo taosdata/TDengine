@@ -23,9 +23,6 @@ extern "C" {
 int32_t  dnodeInitMClient();
 void     dnodeCleanupMClient();
 void     dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
-uint32_t dnodeGetMnodeMasteIp();
-void *   dnodeGetMpeerInfos();
-int32_t  dnodeGetDnodeId();
 
 #ifdef __cplusplus
 }

@@ -14,34 +14,41 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tbalance.h"
-#include "mnode.h"
-#include "tcluster.h"
+#include "os.h"
+#include "trpc.h"
+#include "treplica.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtMnode.h"
+#include "mgmtDnode.h"
 #include "mgmtVgroup.h"
 
-#ifndef _VPEER
-int32_t balanceInit() { return 0; }
-void    balanceCleanUp() {}
-void    balanceNotify() {}
+#ifndef _SYNC
 
-int32_t balanceAllocVnodes(SVgObj *pVgroup) {
+int32_t replicaInit() { return TSDB_CODE_SUCCESS; }
+void    replicaCleanUp() {}
+void    replicaNotify() {}
+void    replicaReset() {}
+int32_t replicaForwardReqToPeer(void *pHead) { return TSDB_CODE_SUCCESS; }
+
+int32_t replicaAllocVnodes(SVgObj *pVgroup) {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   SDnodeObj *pSelDnode = NULL;
   float      vnodeUsage = 1.0;
 
   while (1) {
-    pNode = clusterGetNextDnode(pNode, &pDnode);
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
 
-    if (pDnode->numOfTotalVnodes > 0 && pDnode->openVnodes < pDnode->numOfTotalVnodes) {
-      float usage = (float)pDnode->openVnodes / pDnode->numOfTotalVnodes;
+    if (pDnode->totalVnodes > 0 && pDnode->openVnodes < pDnode->totalVnodes) {
+      float usage = (float)pDnode->openVnodes / pDnode->totalVnodes;
       if (usage <= vnodeUsage) {
         pSelDnode = pDnode;
         vnodeUsage = usage;
       }
     }
-    clusterReleaseDnode(pDnode);
+    mgmtReleaseDnode(pDnode);
   }
 
   if (pSelDnode == NULL) {

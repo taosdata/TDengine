@@ -387,7 +387,7 @@ int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
 /**
  * Initialize a table configuration
  */
-int tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid) {
+int tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t tid) {
   if (config == NULL) return -1;
   if (type != TSDB_NORMAL_TABLE && type != TSDB_CHILD_TABLE) return -1;
 

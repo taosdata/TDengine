@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "taosmsg.h"
 #include "ttime.h"
 #include "tutil.h"
@@ -23,13 +22,16 @@
 #include "taosmsg.h"
 #include "tscompression.h"
 #include "name.h"
-#include "taccount.h"
+#include "tidpool.h"
+#include "mgmtDef.h"
+#include "mgmtLog.h"
+#include "mgmtAcct.h"
 #include "mgmtDClient.h"
 #include "mgmtDb.h"
-#include "tcluster.h"
+#include "mgmtDnode.h"
 #include "mgmtDServer.h"
 #include "tgrant.h"
-#include "mpeer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -101,14 +103,14 @@ static int32_t mgmtChildTableActionInsert(SSdbOperDesc *pOper) {
     mError("ctable:%s, vgroup:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_INVALID_DB;
   }
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
   }
-  acctReleaseAcct(pAcct);
+  mgmtDecAcctRef(pAcct);
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pTable->superTable = mgmtGetSuperTable(pTable->superTableId);
@@ -143,14 +145,14 @@ static int32_t mgmtChildTableActionDelete(SSdbOperDesc *pOper) {
     mError("ctable:%s, vgroup:%d not in DB:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_INVALID_DB;
   }
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
   }
-  acctReleaseAcct(pAcct);
+  mgmtDecAcctRef(pAcct);
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     grantRestore(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
@@ -258,7 +260,7 @@ static int32_t mgmtChildTableActionRestored() {
       pNode = pLastNode;
       continue;
     }
-    mgmtReleaseDb(pDb);
+    mgmtDecDbRef(pDb);
 
     SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
     if (pVgroup == NULL) {
@@ -401,7 +403,7 @@ static int32_t mgmtSuperTableActionInsert(SSdbOperDesc *pOper) {
   if (pDb != NULL) {
     mgmtAddSuperTableIntoDb(pDb);
   }
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -413,7 +415,7 @@ static int32_t mgmtSuperTableActionDelete(SSdbOperDesc *pOper) {
     mgmtRemoveSuperTableFromDb(pDb);
     mgmtDropAllChildTablesInStable((SSuperTableObj *)pStable);
   }
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -923,10 +925,10 @@ static int32_t mgmtAddSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, SSc
   pStable->numOfColumns += ncols;
   pStable->sversion++;
 
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct != NULL) {
     pAcct->acctInfo.numOfTimeSeries += (ncols * pStable->numOfTables);
-    acctReleaseAcct(pAcct);
+    mgmtDecAcctRef(pAcct);
   }
 
   SSdbOperDesc oper = {
@@ -960,10 +962,10 @@ static int32_t mgmtDropSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, ch
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
   pStable->schema = realloc(pStable->schema, schemaSize);
 
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct != NULL) {
     pAcct->acctInfo.numOfTimeSeries -= pStable->numOfTables;
-    acctReleaseAcct(pAcct);
+    mgmtDecAcctRef(pAcct);
   }
 
   SSdbOperDesc oper = {
@@ -1029,7 +1031,7 @@ static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, 
   pShow->numOfRows = pDb->numOfSuperTables;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
   return 0;
 }
 
@@ -1094,7 +1096,7 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
   }
 
   pShow->numOfReads += numOfRows;
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
   return numOfRows;
 }
@@ -1191,14 +1193,14 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
 
     pRsp->vgroups[vg].vgId = htonl(vgId);
     for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
-      SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[vn].dnodeId);
+      SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[vn].dnodeId);
       if (pDnode == NULL) break;
 
       pRsp->vgroups[vg].ipAddr[vn].ip = htonl(pDnode->privateIp);
       pRsp->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
       pRsp->vgroups[vg].numOfIps++;
 
-      clusterReleaseDnode(pDnode);
+      mgmtReleaseDnode(pDnode);
     }
 
     mgmtReleaseVgroup(pVgroup);
@@ -1500,10 +1502,10 @@ static int32_t mgmtAddNormalTableColumn(SDbObj *pDb, SChildTableObj *pTable, SSc
   pTable->numOfColumns += ncols;
   pTable->sversion++;
   
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct != NULL) {
      pAcct->acctInfo.numOfTimeSeries += ncols;
-    acctReleaseAcct(pAcct);
+    mgmtDecAcctRef(pAcct);
   }
  
   SSdbOperDesc oper = {
@@ -1534,10 +1536,10 @@ static int32_t mgmtDropNormalTableColumn(SDbObj *pDb, SChildTableObj *pTable, ch
   pTable->numOfColumns--;
   pTable->sversion++;
 
-  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct != NULL) {
     pAcct->acctInfo.numOfTimeSeries--;
-    acctReleaseAcct(pAcct);
+    mgmtDecAcctRef(pAcct);
   }
  
   SSdbOperDesc oper = {
@@ -1600,7 +1602,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
   }
 
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    SDnodeObj *pDnode = clusterGetDnode(pVgroup->vnodeGid[i].dnodeId);
+    SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
     if (pDnode == NULL) break;
     if (usePublicIp) {
       pMeta->vgroup.ipAddr[i].ip = htonl(pDnode->publicIp);
@@ -1610,7 +1612,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
       pMeta->vgroup.ipAddr[i].port = htonl(tsDnodeShellPort);
     }
     pMeta->vgroup.numOfIps++;
-    clusterReleaseDnode(pDnode);
+    mgmtReleaseDnode(pDnode);
   }
   pMeta->vgroup.vgId = htonl(pVgroup->vgId);
 
@@ -1730,7 +1732,7 @@ static void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable) {
 }
 
 static SChildTableObj* mgmtGetTableByPos(uint32_t dnodeId, int32_t vnode, int32_t sid) {
-  SDnodeObj *pObj = clusterGetDnode(dnodeId);
+  SDnodeObj *pObj = mgmtGetDnode(dnodeId);
   SVgObj *pVgroup = mgmtGetVgroup(vnode);
 
   if (pObj == NULL || pVgroup == NULL) {
@@ -1968,7 +1970,7 @@ static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pShow->numOfRows = pDb->numOfTables;
   pShow->rowSize   = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
   return 0;
 }
 
@@ -2045,7 +2047,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
   const int32_t NUM_OF_COLUMNS = 4;
 
   mgmtVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
-  mgmtReleaseDb(pDb);
+  mgmtDecDbRef(pDb);
 
   return numOfRows;
 }

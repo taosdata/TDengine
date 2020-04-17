@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-
 typedef struct {
   int32_t queryReqNum;
   int32_t submitReqNum;
@@ -43,6 +40,11 @@ void  dnodeFreeWqueue(void *queue);
 void *dnodeAllocateRqueue(void *pVnode);
 void  dnodeFreeRqueue(void *rqueue);
 void  dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code);
+
+bool  dnodeIsFirstDeploy();
+uint32_t dnodeGetMnodeMasteIp();
+void *   dnodeGetMnodeList();
+int32_t  dnodeGetDnodeId();
 
 #ifdef __cplusplus
 }

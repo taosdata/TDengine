@@ -13,42 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TMODULE_H
-#define TDENGINE_TMODULE_H
+#ifndef TDENGINE_MGMT_ACCT_H
+#define TDENGINE_MGMT_ACCT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
+#include "tacct.h"
 
-enum _module {
-  TSDB_MOD_MGMT,
-  TSDB_MOD_HTTP,
-  TSDB_MOD_MONITOR,
-  TSDB_MOD_MAX
-};
+int32_t mgmtInitAccts();
+void    mgmtCleanUpAccts();
+void   *mgmtGetAcct(char *acctName);
+void    mgmtIncAcctRef(SAcctObj *pAcct);
+void    mgmtDecAcctRef(SAcctObj *pAcct);
 
-#define tsetModuleStatus(mod) \
-  { tsModuleStatus |= (1 << mod); }
-#define tclearModuleStatus(mod) \
-  { tsModuleStatus &= ~(1 << mod); }
-
-typedef struct {
-  char  *name;
-  int  (*initFp)();
-  void (*cleanUpFp)();
-  int  (*startFp)();
-  void (*stopFp)();
-  int    num;
-  int    curNum;
-  int    equalVnodeNum;
-} SModule;
-
-extern uint32_t tsModuleStatus;
-extern SModule tsModule[];
+void    mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mgmtDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mgmtAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
+void    mgmtDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
 
 #ifdef __cplusplus
 }

@@ -13,8 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "tmodule.h"
+#ifndef TDENGINE_REPLICA_H
+#define TDENGINE_REPLICA_H
 
-SModule  tsModule[TSDB_MOD_MAX] = {0};
-uint32_t tsModuleStatus         = 0;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct SVgObj;
+struct SDnodeObj;
+
+int32_t replicaInit();
+void    replicaCleanUp();
+void    replicaNotify();
+void    replicaReset();
+int32_t replicaAllocVnodes(struct SVgObj *pVgroup);
+int32_t replicaForwardReqToPeer(void *pHead);
+int32_t replicaDropDnode(struct SDnodeObj *pDnode);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -20,10 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include "mnode.h"
+#include "mgmtDef.h"
 
 int32_t     mgmtInitTables();
 void        mgmtCleanUpTables();

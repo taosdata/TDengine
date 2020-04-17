@@ -189,5 +189,4 @@ typedef struct SQInfo {
   TSKEY*          tsList;
 } SQInfo;
 
-
 #endif  // TDENGINE_QUERYEXECUTOR_H

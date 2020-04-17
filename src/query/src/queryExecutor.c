@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "tsdbMain.h"   //todo use TableId instead of STable object
 #include "os.h"
 
 #include "hash.h"
@@ -28,6 +27,8 @@
 #include "qresultBuf.h"
 #include "queryExecutor.h"
 #include "queryUtil.h"
+#include "query.h"
+#include "tsdbMain.h"   //todo use TableId instead of STable object
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 
@@ -6031,7 +6032,7 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   // todo if interpolation exists, the result may be dump to client by several rounds
 }
 
-int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, SQInfo **pQInfo) {
+int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo) {
   assert(pQueryMsg != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -6121,12 +6122,14 @@ _query_over:
   return TSDB_CODE_SUCCESS;
 }
 
-void qDestroyQueryInfo(SQInfo* pQInfo) {
+void qDestroyQueryInfo(qinfo_t pQInfo) {
   dTrace("QInfo:%p query completed", pQInfo);
   freeQInfo(pQInfo);
 }
 
-void qTableQuery(SQInfo *pQInfo) {
+void qTableQuery(qinfo_t qinfo) {
+  SQInfo* pQInfo = (SQInfo*) qinfo;
+  
   if (pQInfo == NULL || pQInfo->signature != pQInfo) {
     dTrace("%p freed abort query", pQInfo);
     return;
@@ -6148,7 +6151,9 @@ void qTableQuery(SQInfo *pQInfo) {
   //  vnodeDecRefCount(pQInfo);
 }
 
-int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo) {
+int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
+  SQInfo* pQInfo = (SQInfo*) qinfo;
+  
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
     return TSDB_CODE_INVALID_QHANDLE;
   }
@@ -6166,7 +6171,9 @@ int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo) {
   return pQInfo->code;
 }
 
-bool qHasMoreResultsToRetrieve(SQInfo* pQInfo) {
+bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
+  SQInfo* pQInfo = (SQInfo*) qinfo;
+  
   if (pQInfo == NULL || pQInfo->signature != pQInfo || pQInfo->code != TSDB_CODE_SUCCESS) {
     return false;
   }
@@ -6183,7 +6190,9 @@ bool qHasMoreResultsToRetrieve(SQInfo* pQInfo) {
   }
 }
 
-int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* contLen) {
+int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen) {
+  SQInfo* pQInfo = (SQInfo*) qinfo;
+  
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
     return TSDB_CODE_INVALID_QHANDLE;
   }

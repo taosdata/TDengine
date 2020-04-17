@@ -20,22 +20,17 @@
 extern "C" {
 #endif
 
-typedef struct _sched_msg {
-  void (*fp)(struct _sched_msg *);
-
+typedef struct SSchedMsg {
+  void (*fp)(struct SSchedMsg *);
   void (*tfp)(void *, void *);
-
   void *msg;
   void *ahandle;
   void *thandle;
 } SSchedMsg;
 
 void *taosInitScheduler(int queueSize, int numOfThreads, const char *label);
-
 void *taosInitSchedulerWithInfo(int queueSize, int numOfThreads, const char *label, void *tmrCtrl);
-
-int taosScheduleTask(void *qhandle, SSchedMsg *pMsg);
-
+int  taosScheduleTask(void *qhandle, SSchedMsg *pMsg);
 void taosCleanUpScheduler(void *param);
 
 #ifdef __cplusplus

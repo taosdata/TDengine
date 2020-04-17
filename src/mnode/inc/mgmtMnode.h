@@ -13,34 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_ACCT_H
-#define TDENGINE_ACCT_H
+#ifndef TDENGINE_MGMT_MNODE_H
+#define TDENGINE_MGMT_MNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct _acct_obj;
-struct _user_obj;
-struct _db_obj;
- 
+struct SMnodeObj;
+
 typedef enum {
-  TSDB_ACCT_USER,
-  TSDB_ACCT_DB,
-  TSDB_ACCT_TABLE
-} EAcctGrantType;
+  TAOS_MN_STATUS_OFFLINE,
+  TAOS_MN_STATUS_DROPPING,
+  TAOS_MN_STATUS_READY
+} EMnodeStatus;
 
-int32_t acctInit();
-void    acctCleanUp();
-void   *acctGetAcct(char *acctName);
-void    acctIncRef(struct _acct_obj *pAcct);
-void    acctReleaseAcct(struct _acct_obj *pAcct);
-int32_t acctCheck(struct _acct_obj *pAcct, EAcctGrantType type);
+int32_t mgmtInitMnodes();
+void    mgmtCleanupMnodes();
 
-void    acctAddDb(struct _acct_obj *pAcct, struct _db_obj *pDb);
-void    acctRemoveDb(struct _acct_obj *pAcct, struct _db_obj *pDb);
-void    acctAddUser(struct _acct_obj *pAcct, struct _user_obj *pUser);
-void    acctRemoveUser(struct _acct_obj *pAcct, struct _user_obj *pUser);
+int32_t mgmtAddMnode(int32_t dnodeId);
+int32_t mgmtDropMnode(int32_t dnodeId);
+
+void *  mgmtGetMnode(int32_t mnodeId);
+int32_t mgmtGetMnodesNum();
+void *  mgmtGetNextMnode(void *pNode, struct SMnodeObj **pMnode);
+void    mgmtReleaseMnode(struct SMnodeObj *pMnode);
+
+bool    mgmtIsMaster();
+
+void    mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp);
+void    mgmtGetMnodeList(void *mpeers);
 
 #ifdef __cplusplus
 }

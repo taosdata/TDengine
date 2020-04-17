@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "mnode.h"
+#include "mgmtDef.h"
 
 enum _TSDB_DB_STATUS {
   TSDB_DB_STATUS_READY,
@@ -33,7 +33,7 @@ void    mgmtCleanUpDbs();
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByTableId(char *db);
 void    mgmtIncDbRef(SDbObj *pDb);
-void    mgmtReleaseDb(SDbObj *pDb);
+void    mgmtDecDbRef(SDbObj *pDb);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 void    mgmtDropAllDbs(SAcctObj *pAcct);
 
