@@ -5432,8 +5432,6 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     
     pQueryMsg->orderByIdx = htons(pQueryMsg->orderByIdx);
     pQueryMsg->orderType = htons(pQueryMsg->orderType);
-
-    pMsg += sizeof(SColIndex) * pQueryMsg->numOfGroupCols;
   }
 
   pQueryMsg->interpoType = htons(pQueryMsg->interpoType);

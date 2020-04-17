@@ -34,31 +34,13 @@ typedef struct SPatternCompareInfo {
   char matchOne;  // symbol for match one wildcard, default: '_'
 } SPatternCompareInfo;
 
-int32_t compareInt32Val(const void *pLeft, const void *pRight);
-
-int32_t compareInt64Val(const void *pLeft, const void *pRight);
-
-int32_t compareInt16Val(const void *pLeft, const void *pRight);
-
-int32_t compareInt8Val(const void *pLeft, const void *pRight);
-
-int32_t compareIntDoubleVal(const void *pLeft, const void *pRight);
-
-int32_t compareDoubleIntVal(const void *pLeft, const void *pRight);
-
-int32_t compareDoubleVal(const void *pLeft, const void *pRight);
-
-int32_t compareStrVal(const void *pLeft, const void *pRight);
-
-int32_t compareWStrVal(const void *pLeft, const void *pRight);
-
 int patternMatch(const char *zPattern, const char *zString, size_t size, const SPatternCompareInfo *pInfo);
 
 int WCSPatternMatch(const wchar_t *zPattern, const wchar_t *zString, size_t size, const SPatternCompareInfo *pInfo);
 
 __compar_fn_t getKeyComparFunc(int32_t keyType);
 
-__compar_fn_t getComparFunc(int32_t type, int32_t filterDataType);
+__compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr);
 
 #ifdef __cplusplus
 }

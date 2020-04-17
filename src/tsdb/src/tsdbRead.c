@@ -18,6 +18,7 @@
 #include "talgo.h"
 #include "tlog.h"
 #include "tutil.h"
+#include "tcompare.h"
 
 #include "../../../query/inc/qast.h"
 #include "../../../query/inc/qextbuffer.h"
@@ -1170,7 +1171,7 @@ static void convertQueryResult(SArray* pRes, SArray* pTableList) {
   size_t size = taosArrayGetSize(pTableList);
   for (int32_t i = 0; i < size; ++i) {
     STable* pTable = taosArrayGetP(pTableList, i);
-    taosArrayPush(pRes, &pTable->tableId);
+    taosArrayPush(pRes, &pTable);
   }
 }
 
@@ -1184,24 +1185,20 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
-static void getTagColumnInfo(SExprTreeSupporter* pSupporter, SSchema* pSchema, int32_t* index, int32_t* offset) {
+static void getTagColumnInfo(SExprTreeSupporter* pSupporter, SSchema* pSchema, int32_t* index) {
   *index = 0;
-  *offset = 0;
 
   // filter on table name(TBNAME)
   if (strcasecmp(pSchema->name, TSQL_TBNAME_L) == 0) {
     *index = TSDB_TBNAME_COLUMN_INDEX;
-    *offset = TSDB_TBNAME_COLUMN_INDEX;
     return;
   }
 
   while ((*index) < pSupporter->numOfTags) {
     if (pSupporter->pTagSchema[*index].bytes == pSchema->bytes &&
-        pSupporter->pTagSchema[*index].type == pSchema->type &&
+        pSupporter->pTagSchema[*index].type  == pSchema->type  &&
         pSupporter->pTagSchema[*index].colId == pSchema->colId) {
       break;
-    } else {
-      (*offset) += pSupporter->pTagSchema[(*index)++].bytes;
     }
   }
 }
@@ -1222,15 +1219,14 @@ void filterPrepare(void* expr, void* param) {
   tVariant* pCond = pExpr->_node.pRight->pVal;
   SSchema*  pSchema = pExpr->_node.pLeft->pSchema;
 
-  getTagColumnInfo(pSupporter, pSchema, &i, &offset);
+  getTagColumnInfo(pSupporter, pSchema, &i);
   assert((i >= 0 && i < TSDB_MAX_TAGS) || (i == TSDB_TBNAME_COLUMN_INDEX));
   assert((offset >= 0 && offset < TSDB_MAX_TAGS_LEN) || (offset == TSDB_TBNAME_COLUMN_INDEX));
 
-  pInfo->sch = *pSchema;
+  pInfo->sch      = *pSchema;
   pInfo->colIndex = i;
-  pInfo->optr = pExpr->_node.optr;
-  pInfo->offset = offset;
-  //  pInfo->compare  = getFilterComparator(pSchema->type, pCond->nType, pInfo->optr);
+  pInfo->optr     = pExpr->_node.optr;
+  pInfo->compare  = getComparFunc(pSchema->type, pCond->nType, pInfo->optr);
 
   tVariantAssign(&pInfo->q, pCond);
   tVariantTypeSetType(&pInfo->q, pInfo->sch.type);
@@ -1329,6 +1325,8 @@ void createTableGroupImpl(SArray* pGroups, STable** pTables, size_t numOfTables,
       taosArrayPush(g, &p1);
     }
   }
+  
+  taosArrayPush(pGroups, &g);
 }
 
 SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pCols, int32_t numOfOrderCols) {
@@ -1380,7 +1378,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
   tQueryInfo* pInfo = (tQueryInfo*)param;
 
-  STable* pTable = (STable*)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
+  STable* pTable = *(STable**)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
 
   char*  val = dataRowTuple(pTable->tagVal);  // todo not only the first column
   int8_t type = pInfo->sch.type;
@@ -1437,7 +1435,8 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr)
   SExprTreeSupporter s = {.pTagSchema = schema, .numOfTags = schemaNCols(pSTable->tagSchema)};
 
   SBinaryFilterSupp supp = {
-      .fp = (__result_filter_fn_t)tSkipListNodeFilterCallback, .setupInfoFn = filterPrepare, .pExtInfo = &s};
+      .fp = (__result_filter_fn_t)tSkipListNodeFilterCallback, .setupInfoFn = filterPrepare, .pExtInfo = &s,
+      };
 
   SArray* pTableList = taosArrayInit(8, POINTER_BYTES);
 

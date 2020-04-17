@@ -774,8 +774,9 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
   if (pRes == NULL || pRes->qhandle == 0) {
     /* Query rsp is not received from vnode, so the qhandle is NULL */
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
+    STscObj* pTscObj = pSql->pTscObj;
     
-    if (tscShouldFreeAsyncSqlObj(pSql)) {
+    if (pTscObj->pSql != pSql) {
       tscTrace("%p SqlObj is freed by app", pSql);
       tscFreeSqlObj(pSql);
     } else {
