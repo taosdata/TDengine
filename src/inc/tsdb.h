@@ -46,6 +46,7 @@ typedef struct {
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
 typedef struct {
   int8_t  precision;
+  int8_t  compression;
   int32_t tsdbId;
   int32_t maxTables;            // maximum number of tables this repository can have
   int32_t daysPerFile;          // day per file sharding policy

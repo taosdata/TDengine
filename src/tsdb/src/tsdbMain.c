@@ -12,15 +12,16 @@
 #include <tlog.h>
 #include <unistd.h>
 
-// #include "taosdef.h"
-// #include "disk.h"
 #include "os.h"
 #include "talgo.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
+#include "tscompression.h"
 
 #define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
 #define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
+#define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
+#define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 #define TSDB_MIN_ID 0
 #define TSDB_MAX_ID INT_MAX
 #define TSDB_MIN_TABLES 10
@@ -83,6 +84,7 @@ void tsdbSetDefaultCfg(STsdbCfg *pCfg) {
   pCfg->maxRowsPerFileBlock = -1;
   pCfg->keep = -1;
   pCfg->maxCacheSize = -1;
+  pCfg->compression = TWO_STAGE_COMP;
 }
 
 /**
@@ -547,6 +549,13 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
     if (!IS_VALID_PRECISION(pCfg->precision)) return -1;
   }
 
+  // Check compression
+  if (pCfg->compression == -1) {
+    pCfg->compression = TSDB_DEFAULT_COMPRESSION;
+  } else {
+    if (!IS_VALID_COMPRESSION(pCfg->compression)) return -1;
+  }
+
   // Check tsdbId
   if (pCfg->tsdbId < 0) return -1;
 
@@ -841,16 +850,14 @@ static void *tsdbCommitData(void *arg) {
   }
 
   // Create a write helper for commit data
-  SHelperCfg hcfg = {
-      .type = TSDB_WRITE_HELPER,
-      .maxTables = pCfg->maxTables,
-      .maxRowSize = pMeta->maxRowBytes,
-      .maxRows = pCfg->maxRowsPerFileBlock,
-      .maxCols = pMeta->maxCols,
-      .minRowsPerFileBlock = pCfg->minRowsPerFileBlock,
-      .maxRowsPerFileBlock = pCfg->maxRowsPerFileBlock,
-      .compress = 2  // TODO make it a configuration
-  };
+  SHelperCfg hcfg = {.type = TSDB_WRITE_HELPER,
+                     .maxTables = pCfg->maxTables,
+                     .maxRowSize = pMeta->maxRowBytes,
+                     .maxRows = pCfg->maxRowsPerFileBlock,
+                     .maxCols = pMeta->maxCols,
+                     .minRowsPerFileBlock = pCfg->minRowsPerFileBlock,
+                     .maxRowsPerFileBlock = pCfg->maxRowsPerFileBlock,
+                     .compress = pCfg->compression};
   if (tsdbInitHelper(&whelper, &hcfg) < 0) goto _exit;
   if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) goto _exit;
 

@@ -88,6 +88,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 
   STsdbCfg tsdbCfg = {0};
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
+  tsdbCfg.compression         = -1;
   tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
   tsdbCfg.maxTables           = pVnodeCfg->cfg.maxSessions;
   tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
