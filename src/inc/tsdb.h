@@ -20,10 +20,10 @@
 #include <stdint.h>
 
 #include "dataformat.h"
+#include "name.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"
-#include "name.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,14 +62,11 @@ void      tsdbFreeCfg(STsdbCfg *pCfg);
 // --------- TSDB REPOSITORY DEFINITION
 typedef void tsdb_repo_t;  // use void to hide implementation details from outside
 
-int            tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
-int32_t        tsdbDropRepo(tsdb_repo_t *repo);
-tsdb_repo_t *  tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH);
-int32_t        tsdbCloseRepo(tsdb_repo_t *repo);
-int32_t        tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
-int32_t        tsdbTriggerCommit(tsdb_repo_t *repo);
-int32_t        tsdbLockRepo(tsdb_repo_t *repo);
-int32_t        tsdbUnLockRepo(tsdb_repo_t *repo);
+int          tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
+int32_t      tsdbDropRepo(tsdb_repo_t *repo);
+tsdb_repo_t *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH);
+int32_t      tsdbCloseRepo(tsdb_repo_t *repo);
+int32_t      tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
 
 // --------- TSDB TABLE DEFINITION
 typedef struct {
@@ -79,7 +76,7 @@ typedef struct {
 
 // --------- TSDB TABLE configuration
 typedef struct {
-  TSDB_TABLE_TYPE type;
+  ETableType      type;
   STableId        tableId;
   int32_t         sversion;
   int64_t         superUid;
@@ -88,7 +85,7 @@ typedef struct {
   SDataRow        tagValues;
 } STableCfg;
 
-int  tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid);
+int  tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t tid);
 int  tsdbTableSetSuperUid(STableCfg *config, int64_t uid);
 int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
@@ -98,27 +95,6 @@ void tsdbClearTableCfg(STableCfg *config);
 int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
 int tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 int tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
-
-typedef struct {
-  int32_t  totalLen;
-  int32_t  len;
-  SDataRow row;
-} SSubmitBlkIter;
-
-int      tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
-SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
-
-#define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
-
-// SSubmitMsg Iterator
-typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  SSubmitBlk *pBlock;
-} SSubmitMsgIter;
-
-int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
-SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
 
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
@@ -137,35 +113,7 @@ typedef struct {
   int64_t   tableTotalDataSize;  // In bytes
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
-STableInfo *   tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
-
-// -- For table manipulation
-
-/**
- * Create/Alter a table in a TSDB repository handle
- * @param repo the TSDB repository handle
- * @param pCfg the table configurations, the upper layer should free the pointer
- *
- * @return 0 for success, -1 for failure and the error number is set
- */
-
-/**
- * Drop a table in a repository and free all the resources it takes
- * @param pRepo the TSDB repository handle
- * @param tid the ID of the table to drop
- * @param error the error number to set when failure occurs
- *
- * @return 0 for success, -1 for failure and the error number is set
- */
-
-/**
- * Get the information of a table in the repository
- * @param pRepo the TSDB repository handle
- * @param tid the ID of the table to drop
- * @param error the error number to set when failure occurs
- *
- * @return a table information handle for success, NULL for failure and the error number is set
- */
+STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
 
 // -- FOR INSERT DATA
 /**
@@ -179,18 +127,18 @@ int32_t tsdbInsertData(tsdb_repo_t *pRepo, SSubmitMsg *pMsg);
 
 // -- FOR QUERY TIME SERIES DATA
 
-typedef void* tsdb_query_handle_t;  // Use void to hide implementation details
+typedef void *tsdb_query_handle_t;  // Use void to hide implementation details
 
-typedef struct STableGroupList {    // qualified table object list in group
-  SArray*  pGroupList;
-  int32_t  numOfTables;
+typedef struct STableGroupList {  // qualified table object list in group
+  SArray *pGroupList;
+  int32_t numOfTables;
 } STableGroupList;
 
 // query condition to build vnode iterator
 typedef struct STsdbQueryCond {
-  STimeWindow       twindow;
-  int32_t           order;  // desc/asc order to iterate the data block
-  SColumnInfoData*  colList;
+  STimeWindow      twindow;
+  int32_t          order;  // desc/asc order to iterate the data block
+  SColumnInfoData *colList;
 } STsdbQueryCond;
 
 typedef struct SBlockInfo {
@@ -201,12 +149,6 @@ typedef struct SBlockInfo {
 
   STableId tableId;
 } SBlockInfo;
-
-//  TODO: move this data struct out of the module
-//typedef struct SData {
-//  int32_t num;
-//  char *  data;
-//} SData;
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
@@ -235,7 +177,7 @@ typedef void *tsdbpos_t;
  * @param pTableList    table sid list
  * @return
  */
-tsdb_query_handle_t *tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
+tsdb_query_handle_t *tsdbQueryTables(tsdb_repo_t *tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
 
 /**
  * move to next block
@@ -284,7 +226,7 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
  * @param order ascending order or descending order
  * @return
  */
-int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow* window, tsdbpos_t position, int16_t order);
+int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow *window, tsdbpos_t position, int16_t order);
 
 /**
  * return the access position of current query handle
@@ -337,10 +279,10 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size_t len, SArray** pGroupList,
-                      SColIndex* pColIndex, int32_t numOfCols);
+int32_t tsdbQueryTags(tsdb_repo_t *tsdb, int64_t uid, const char *pTagCond, size_t len, SArray **pGroupList,
+                      SColIndex *pColIndex, int32_t numOfCols);
 
-int32_t tsdbGetOneTableGroup(tsdb_repo_t* tsdb, int64_t uid, SArray** pGroupList);
+int32_t tsdbGetOneTableGroup(tsdb_repo_t *tsdb, int64_t uid, SArray **pGroupList);
 
 /**
  * clean up the query handle

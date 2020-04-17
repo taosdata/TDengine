@@ -13,27 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_H
-#define TDENGINE_BALANCE_H
+#ifndef TDENGINE_ACCT_H
+#define TDENGINE_ACCT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
+typedef enum {
+  ACCT_GRANT_USER,
+  ACCT_GRANT_DB,
+  ACCT_GRANT_TABLE
+} EAcctGrantType;
 
-struct _db_obj;
-struct _vg_obj;
-struct _dnode_obj;
-
-int32_t balanceInit();
-void    balanceCleanUp();
-void    balanceNotify();
-void    balanceReset();
-int32_t balanceAllocVnodes(struct _vg_obj *pVgroup);
-int32_t balanceDropDnode(struct _dnode_obj *pDnode);
+int32_t acctInit();
+void    acctCleanUp();
+int32_t acctCheck(void *pAcct, EAcctGrantType type);
 
 #ifdef __cplusplus
 }

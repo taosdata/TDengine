@@ -15,9 +15,9 @@
 #ifndef _TD_TSDB_MAIN_H_
 #define _TD_TSDB_MAIN_H_
 
-#include "tsdb.h"
-#include "tlist.h"
 #include "tglobalcfg.h"
+#include "tlist.h"
+#include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
 
@@ -226,7 +226,7 @@ SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
 int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
 int         tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname);
 
-#define TSDB_FGROUP_ITER_FORWARD  TSDB_ORDER_ASC
+#define TSDB_FGROUP_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FGROUP_ITER_BACKWARD TSDB_ORDER_DESC
 
 typedef struct {
@@ -347,6 +347,31 @@ typedef struct _tsdb_repo {
   int8_t state;
 
 } STsdbRepo;
+
+typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+int      tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
+SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+
+#define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
+
+// SSubmitMsg Iterator
+typedef struct {
+  int32_t     totalLen;
+  int32_t     len;
+  SSubmitBlk *pBlock;
+} SSubmitMsgIter;
+
+int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
+SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
+
+int32_t tsdbTriggerCommit(tsdb_repo_t *repo);
+int32_t tsdbLockRepo(tsdb_repo_t *repo);
+int32_t tsdbUnLockRepo(tsdb_repo_t *repo);
 
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 

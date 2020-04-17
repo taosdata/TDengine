@@ -17,8 +17,8 @@
 #ifndef _GRANT
 #include "os.h"
 #include "taoserror.h"
-#include "tlog.h"
 #include "tgrant.h"
+#include "mgmtLog.h"
 
 int32_t grantInit() { return TSDB_CODE_SUCCESS; }
 void    grantCleanUp() {}

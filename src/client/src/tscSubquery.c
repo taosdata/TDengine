@@ -341,8 +341,8 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   
     tscPrintSelectClause(pNew, 0);
   
-    tscTrace("%p subquery:%p tableIndex:%d, dnodeIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
-             pSql, pNew, 0, pTableMetaInfo->dnodeIndex, pNewQueryInfo->type,
+    tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+             pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
              pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
   }
@@ -457,7 +457,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         assert(pQueryInfo->numOfTables == 1);  // for subquery, only one metermetaInfo
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-        tsBufMerge(pSupporter->pTSBuf, pBuf, pTableMetaInfo->dnodeIndex);
+        tsBufMerge(pSupporter->pTSBuf, pBuf, pTableMetaInfo->vgroupIndex);
         tsBufDestory(pBuf);
       }
 
@@ -478,9 +478,9 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         // for projection query, need to try next vnode
 //        int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
         int32_t totalVnode = 0;
-        if ((++pTableMetaInfo->dnodeIndex) < totalVnode) {
+        if ((++pTableMetaInfo->vgroupIndex) < totalVnode) {
           tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
-                   pTableMetaInfo->dnodeIndex - 1, pTableMetaInfo->dnodeIndex, totalVnode, pRes->numOfTotal);
+                   pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVnode, pRes->numOfTotal);
   
           pSql->cmd.command = TSDB_SQL_SELECT;
           pSql->fp = tscJoinQueryCallback;
@@ -542,7 +542,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       assert(pQueryInfo->numOfTables == 1);
 
       // for projection query, need to try next vnode if current vnode is exhausted
-//      if ((++pTableMetaInfo->dnodeIndex) < pTableMetaInfo->pMetricMeta->numOfVnodes) {
+//      if ((++pTableMetaInfo->vgroupIndex) < pTableMetaInfo->pMetricMeta->numOfVnodes) {
 //        pSupporter->pState->numOfCompleted = 0;
 //        pSupporter->pState->numOfTotal = 1;
 //
@@ -609,7 +609,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
 //    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
     if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-//      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->dnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes &&
+//      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vgroupIndex < pTableMetaInfo->pMetricMeta->numOfVnodes &&
 //          (!tscHasReachLimitation(pQueryInfo, pRes))) {
 //        numOfFetch++;
 //      }
@@ -647,8 +647,8 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     
     if (pRes1->row >= pRes1->numOfRows) {
-      tscTrace("%p subquery:%p retrieve data from vnode, subquery:%d, dnodeIndex:%d", pSql, pSql1,
-               pSupporter->subqueryIndex, pTableMetaInfo->dnodeIndex);
+      tscTrace("%p subquery:%p retrieve data from vnode, subquery:%d, vgroupIndex:%d", pSql, pSql1,
+               pSupporter->subqueryIndex, pTableMetaInfo->vgroupIndex);
 
       tscResetForNextRetrieve(pRes1);
       pSql1->fp = joinRetrieveCallback;
@@ -785,11 +785,11 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
         /**
-         * if the query is a continue query (dnodeIndex > 0 for projection query) for next vnode, do the retrieval of
+         * if the query is a continue query (vgroupIndex > 0 for projection query) for next vnode, do the retrieval of
          * data instead of returning to its invoker
          */
-        if (pTableMetaInfo->dnodeIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-//          assert(pTableMetaInfo->dnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes);
+        if (pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+//          assert(pTableMetaInfo->vgroupIndex < pTableMetaInfo->pMetricMeta->numOfVnodes);
           pSupporter->pState->numOfCompleted = 0;  // reset the record value
 
           pSql->fp = joinRetrieveCallback;  // continue retrieve data
@@ -897,14 +897,14 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     
     tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
              "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
-             pSql, pNew, tableIndex, pTableMetaInfo->dnodeIndex, pNewQueryInfo->type,
+             pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
              pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
     tscPrintSelectClause(pNew, 0);
     
     tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
              "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
-             pSql, pNew, tableIndex, pTableMetaInfo->dnodeIndex, pNewQueryInfo->type,
+             pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
              pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
     tscPrintSelectClause(pNew, 0);
@@ -1005,7 +1005,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  pSql->numOfSubs = pTableMetaInfo->vgroupList->numOfDnodes;
+  pSql->numOfSubs = pTableMetaInfo->vgroupList->numOfVgroups;
   assert(pSql->numOfSubs > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
@@ -1241,7 +1241,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   // data in from current vnode is stored in cache and disk
   uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
     tscTrace("%p sub:%p all data retrieved from ip:%u,vgId:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql,
-        pTableMetaInfo->vgroupList->dnodeVgroups[0].ipAddr.ip, pTableMetaInfo->vgroupList->dnodeVgroups[0].vgId[0],
+        pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].ip, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
   
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
@@ -1401,9 +1401,9 @@ static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
     
     assert(pQueryInfo->numOfTables == 1 && pNew->cmd.numOfClause == 1);
     
-    // launch subquery for each vnode, so the subquery index equals to the dnodeIndex.
+    // launch subquery for each vnode, so the subquery index equals to the vgroupIndex.
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, table_index);
-    pTableMetaInfo->dnodeIndex = trsupport->subqueryIndex;
+    pTableMetaInfo->vgroupIndex = trsupport->subqueryIndex;
     
     pSql->pSubs[trsupport->subqueryIndex] = pNew;
   }
@@ -1421,7 +1421,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   assert(pSql->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
-  STableDnodeVgroupInfo* pVgroupInfo = &pTableMetaInfo->vgroupList->dnodeVgroups[0];
+  SCMVgroupInfo* pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
   
   SSubqueryState* pState = trsupport->pState;
   assert(pState->numOfCompleted < pState->numOfTotal && pState->numOfCompleted >= 0 &&
@@ -1459,7 +1459,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
       SSqlObj *pNew = tscCreateSqlObjForSubquery(pParentSql, trsupport, pSql);
       if (pNew == NULL) {
         tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vgId:%d, orderOfSub:%d",
-                 trsupport->pParentSqlObj, pSql, pVgroupInfo->vgId[0], trsupport->subqueryIndex);
+                 trsupport->pParentSqlObj, pSql, pVgroup->vgId, trsupport->subqueryIndex);
         
         pState->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
@@ -1475,12 +1475,12 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   
   if (pState->code != TSDB_CODE_SUCCESS) {  // at least one peer subquery failed, abort current query
     tscTrace("%p sub:%p query failed,ip:%u,vgId:%d,orderOfSub:%d,global code:%d", pParentSql, pSql,
-               pVgroupInfo->ipAddr.ip, pVgroupInfo->vgId[0], trsupport->subqueryIndex, pState->code);
+               pVgroup->ipAddr[0].ip, pVgroup->vgId, trsupport->subqueryIndex, pState->code);
   
     tscHandleSubqueryError(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
     tscTrace("%p sub:%p query complete, ip:%u, vgId:%d, orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
-               pVgroupInfo->ipAddr.ip, pVgroupInfo->vgId[0], trsupport->subqueryIndex);
+               pVgroup->ipAddr[0].ip, pVgroup->vgId, trsupport->subqueryIndex);
     
     taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
   }
