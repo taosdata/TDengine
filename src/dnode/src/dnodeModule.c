@@ -118,7 +118,7 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
     dPrint("module status is received, start mgmt module", tsModuleStatus, moduleStatus);
     tsModule[TSDB_MOD_MGMT].enable = true;
     dnodeSetModuleStatus(TSDB_MOD_MGMT);
-    (*tsModule[TSDB_MOD_MGMT].stopFp)();
+    (*tsModule[TSDB_MOD_MGMT].startFp)();
   }
 
   if (tsModule[TSDB_MOD_MGMT].enable && !enableMgmtModule) {

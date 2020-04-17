@@ -55,6 +55,12 @@ static int32_t mgmtMnodeActionInsert(SSdbOperDesc *pOper) {
 
 static int32_t mgmtMnodeActionDelete(SSdbOperDesc *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
+
+  SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
+  if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
+  pDnode->isMgmt = false;
+  mgmtReleaseDnode(pDnode);
+
   mTrace("mnode:%d, is dropped from sdb", pMnode->mnodeId);
   return TSDB_CODE_SUCCESS;
 }

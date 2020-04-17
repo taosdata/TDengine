@@ -22,11 +22,11 @@
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
+#include "vnode.h"
 #include "dnodeMClient.h"
 #include "dnodeMgmt.h"
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
-#include "vnode.h"
 
 static int32_t  dnodeOpenVnodes();
 static void     dnodeCloseVnodes();

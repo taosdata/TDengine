@@ -52,6 +52,7 @@ static uint32_t walSignature = 0xFAFBFDFE;
 static int walHandleExistingFiles(const char *path);
 static int walRestoreWalFile(const char *name, void *pVnode, FWalWrite writeFp);
 static int walRemoveWalFiles(const char *path);
+static int walMoveOldWalFilesBack(const char *path);
 
 void *walOpen(const char *path, const SWalCfg *pCfg) {
   SWal *pWal = calloc(sizeof(SWal), 1);
@@ -213,7 +214,11 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
   }
 
   if (code == 0) {
-    code = walRemoveWalFiles(opath);
+    if (pWal->keep) {
+      code = walMoveOldWalFilesBack(pWal->path);
+    } else {
+      code = walRemoveWalFiles(opath);
+    }
     if (code == 0) {
       if (remove(opath) < 0) {
         wError("wal:%s, failed to remove directory(%s)", opath, strerror(errno));
@@ -362,6 +367,42 @@ static int walRemoveWalFiles(const char *path) {
 
   closedir(dir);
 
+  return code;
+}
+
+int walMoveOldWalFilesBack(const char *path) {
+  char   oname[TSDB_FILENAME_LEN * 3];
+  char   nname[TSDB_FILENAME_LEN * 3];
+  char   opath[TSDB_FILENAME_LEN];
+  struct dirent *ent;
+  int    plen = strlen(walPrefix);
+  int    code = 0;
+
+  sprintf(opath, "%s/old", path);
+
+  if (access(opath, F_OK) == 0) {
+    // move all old files to wal directory
+    int count = 0;
+
+    DIR   *dir = opendir(opath);
+    while ((ent = readdir(dir))!= NULL) {  
+      if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
+        sprintf(oname, "%s/%s", opath, ent->d_name);
+        sprintf(nname, "%s/%s", path, ent->d_name);
+        if (rename(oname, nname) < 0) {
+          wError("wal:%s, failed to move to new:%s", oname, nname);
+          code = -1;
+          break;
+        } 
+
+        count++;
+      }
+    }
+
+    wTrace("wal:%s, %d old files are move back for keep option is set", path, count);
+    closedir(dir);
+  }
+  
   return code;
 }
 
