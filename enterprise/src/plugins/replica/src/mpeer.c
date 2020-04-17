@@ -15,26 +15,17 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobalcfg.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "taoserror.h"
 #include "tutil.h"
 #include "tsync.h"
-#include "twal.h"
-#include "tgrant.h"
 #include "balance.h"
 #include "mpeer.h"
-#include "vnode.h"
+#include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtMnode.h"
-#include "mgmtDnode.h"
 #include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
-#include "dnodeMClient.h"
-#include "dnodeMgmt.h"
 
 typedef struct {
   void *      sync;
@@ -84,6 +75,17 @@ void mpeerNotify() {
   syncCfg.quorum = 1;
   syncCfg.arbitratorIp = syncCfg.nodeInfo[0].nodeIp;
 
+  bool hasThisDnode = false;
+  for (int32_t i = 0; i < syncCfg.replica; ++i) {
+    if (syncCfg.nodeInfo[i].nodeId == dnodeGetDnodeId()) {
+      hasThisDnode = true;
+      break;
+    }
+  }
+
+  if (!hasThisDnode) return;
+  if (memcmp(&syncCfg, &tsSdbSync.cfg, sizeof(SSyncCfg)) == 0) return;
+
   mPrint("work as mpeer, replica:%d arbitratorIp:%s", syncCfg.replica, taosIpStr(syncCfg.arbitratorIp));
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
     mPrint("mpeer:%d, ip:%s name:%s", syncCfg.nodeInfo[i].nodeId, taosIpStr(syncCfg.nodeInfo[i].nodeIp),
@@ -125,8 +127,26 @@ void mpeerCleanUp() {
   }
 }
 
+static void mpeerUpdateMnodeRoles() {
+  if (tsSdbSync.sync != NULL) {
+    SNodesRole roles = {0};
+    syncGetNodesRole(tsSdbSync.sync, &roles);
+
+    mPrint("update mnodes:%d sync roles", tsSdbSync.cfg.replica);  
+  
+    for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
+      SMnodeObj *pMnode = mgmtGetMnode(roles.nodeId[i]);
+      if (pMnode != NULL) {
+        pMnode->role = roles.role[i];
+        mPrint("mnode:%d, role:%s", pMnode->mnodeId, syncRole[pMnode->role]);  
+        mgmtReleaseMnode(pMnode);
+      }
+    }
+  }  
+}
+
 static uint32_t mpeerGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
-  mPrint("mpeerGetFileInfo");
+  mpeerUpdateMnodeRoles();
   return 0;
 }
 
@@ -140,30 +160,21 @@ static void mpeerNotifyRole(void *ahandle, int8_t role) {
 
   tsSdbSync.role = role;
   if (role == TAOS_SYNC_ROLE_MASTER) {
-    tsMnodeIsMaster = true;
-    balanceReset();
+    if (!tsMnodeIsMaster) {
+      tsMnodeIsMaster = true;
+      balanceReset();
+    }   
   } else {
     tsMnodeIsMaster = false;
   }
 
-  if (tsSdbSync.sync != NULL) {
-    SNodesRole roles = {0};
-    syncGetNodesRole(tsSdbSync.sync, &roles);
-
-    for (int32_t i = 0; i < tsSdbSync.cfg.replica; ++i) {
-      SMnodeObj *pMnode = mgmtGetMnode(roles.nodeId[i]);
-      if (pMnode != NULL) {
-        pMnode->role = roles.role[i];
-        mgmtReleaseMnode(pMnode);
-      }
-    }
-  }  
+  mpeerUpdateMnodeRoles();
 }
 
 static void mpeerConfirmForward(void *ahandle, void *param, int32_t code) {
   sem_post(&tsSdbSync.sem);
   tsSdbSync.code = code;
-  mPrint("mpeerConfirmForward");
+  mPrint("sdb forward request confirmed, result:%s", tstrerror(code));
 }
 
 int32_t mpeerForwardReqToPeer(void *pHead) {
@@ -172,6 +183,7 @@ int32_t mpeerForwardReqToPeer(void *pHead) {
 
   int32_t code = syncForwardToPeer(tsSdbSync.sync, pHead, NULL);
   if (code < 0) {
+    mPrint("failed to forward sdb request, result:%s", tstrerror(code));
     return code;
   }
   
