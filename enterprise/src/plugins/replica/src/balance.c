@@ -493,6 +493,8 @@ static bool balanceStart() {
 }
 
 static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
+  if (!mgmtIsMaster()) return;
+
   tsBalanceTimer = NULL;
   tsAccessSquence ++;
 
@@ -526,14 +528,12 @@ int32_t balanceInit() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_SCORES, balanceGetScoresMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_SCORES, balanceRetrieveScores);
   
+  pthread_mutex_init(&tsBalanceMutex, NULL);
+  balanceInitDnodeList();
+  balanceStartTimer(3000);
+  mTrace("balance start fp:%p initialized", balanceProcessBalanceTimer);
+
   balanceReset();
-  
-  if (tsBalanceTimer == NULL) {
-    pthread_mutex_init(&tsBalanceMutex, NULL);
-    balanceInitDnodeList();
-    balanceStartTimer(3000);
-    mTrace("balance start fp:%p initialized", balanceProcessBalanceTimer);
-  }
   
   return 0;
 }
@@ -857,13 +857,13 @@ static void balanceMonitorDnodeModule() {
     SDnodeObj *pDnode = tsBalanceDnodeList[i];
     if (pDnode == NULL) break;
 
-    if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
-      mLPrint("dnode:%d, add mnode", pDnode->dnodeId);
-      mgmtAddMnode(pDnode->dnodeId);
+    if (pDnode->isMgmt || pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       mgmtReleaseDnode(pDnode);
-      break;
+      continue;
     }
 
+    mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMPeers);
+    mgmtAddMnode(pDnode->dnodeId);
     mgmtReleaseDnode(pDnode);
   }
 }
