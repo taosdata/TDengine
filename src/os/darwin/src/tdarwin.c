@@ -243,6 +243,11 @@ int taosInitTimer(void (*callback)(int), int ms) {
   return setitimer(ITIMER_REAL, &tv, NULL);
 }
 
+void taosUninitTimer() {
+  struct itimerval tv = { 0 };
+  return setitimer(ITIMER_REAL, &tv, NULL);
+}
+
 void taosGetSystemTimezone() {
   // get and set default timezone
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
