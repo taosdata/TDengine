@@ -87,6 +87,14 @@ static int32_t mgmtMnodeActionDecode(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtMnodeActionRestored() {
+  if (mgmtGetMnodesNum() == 1) {
+    SMnodeObj *pMnode = NULL;
+    mgmtGetNextMnode(NULL, &pMnode);
+    if (pMnode != NULL) {
+      pMnode->role = TAOS_SYNC_ROLE_MASTER;
+      mgmtReleaseMnode(pMnode);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
