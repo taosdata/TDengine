@@ -715,7 +715,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
 
   pCompBlock->last = isLast;
   pCompBlock->offset = offset;
-  pCompBlock->algorithm = 0;  // TODO
+  pCompBlock->algorithm = pHelper->config.compress;
   pCompBlock->numOfPoints = rowsToWrite;
   pCompBlock->sversion = pHelper->tableInfo.sversion;
   pCompBlock->len = (int32_t)tsize;
