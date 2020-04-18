@@ -146,8 +146,8 @@ matrix:
           fi
 
           cd ${TRAVIS_BUILD_DIR}
-          lcov -d . --capture -o coverage.info
-          lcov -l coverage.info || exit $?
+          lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info
+          lcov -l --rc lcov_branch_coverage=1 coverage.info || exit $?
 
           gem install coveralls-lcov
 
