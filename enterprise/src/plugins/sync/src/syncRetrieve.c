@@ -316,7 +316,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
       }
 
       // if all data up to fversion is read out, it is over
-      if (pPeer->version == fversion) {code = 0; break;}  
+      if (pPeer->version >= fversion) {code = 0; break;}  
 
       // if all data are read out, and no update
       if ((bytes == 0) && ((event & IN_MODIFY) == 0)) {

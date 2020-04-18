@@ -253,6 +253,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
 
   // always update version
   nodeVersion = pWalHead->version;
+  if (pNode->replica == 1) return 0;
 
   // a hacker way to improve the performance
   pSyncHead = (SSyncHead *) ( ((char *)pWalHead) - sizeof(SSyncHead));
@@ -261,7 +262,10 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   pSyncHead->len = sizeof(SWalHead) + pWalHead->len;
   fwdLen = pSyncHead->len + sizeof(SSyncHead);
 
-  if (pNode->quorum > 1) syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
+  if (pNode->quorum > 1) {
+    syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
+    code = 1;
+  }
 
   for (int i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
