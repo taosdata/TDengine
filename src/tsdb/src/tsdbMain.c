@@ -957,7 +957,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     int nLoop = 0;
     while (true) {
       int rowsRead = tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pDataCols);
-      ASSERT(rowsRead >= 0);
+      assert(rowsRead >= 0);
       if (pDataCols->numOfPoints == 0) break;
       nLoop++;
 

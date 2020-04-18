@@ -415,39 +415,6 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
   int iter1 = 0;
   int iter2 = 0;
   tdMergeTwoDataCols(target,pTarget, &iter1, source, &iter2, pTarget->numOfPoints + rowsToMerge);
-  // while (true) {
-  //   if (iter1 >= pTarget->numOfPoints && iter2 >= source->numOfPoints) break;
-
-  //   TSKEY key1 = (iter1 >= pTarget->numOfPoints) ? INT64_MAX : ((TSKEY *)(pTarget->cols[0].pData))[iter1];
-  //   TSKEY key2 = (iter2 >= rowsToMerge) ? INT64_MAX : ((TSKEY *)(source->cols[0].pData))[iter2];
-
-  //   if (key1 < key2) { // Copy from pTarget
-  //     for (int i = 0; i < pTarget->numOfCols; i++) {
-  //       ASSERT(target->cols[i].type == pTarget->cols[i].type);
-  //       memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
-  //              (void *)((char *)(pTarget->cols[i].pData) + TYPE_BYTES[pTarget->cols[i].type] * iter1),
-  //              TYPE_BYTES[target->cols[i].type]);
-  //       target->cols[i].len += TYPE_BYTES[target->cols[i].type];
-  //     }
-
-  //     target->numOfPoints++;
-  //     iter1++;
-  //   } else if (key1 > key2) { // Copy from source
-  //     for (int i = 0; i < source->numOfCols; i++) {
-  //       ASSERT(target->cols[i].type == pTarget->cols[i].type);
-  //       memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
-  //              (void *)((char *)(source->cols[i].pData) + TYPE_BYTES[source->cols[i].type] * iter2),
-  //              TYPE_BYTES[target->cols[i].type]);
-  //       target->cols[i].len += TYPE_BYTES[target->cols[i].type];
-  //     }
-
-  //     target->numOfPoints++;
-  //     iter2++;
-  //   } else {
-  //     // TODO
-  //     ASSERT(false);
-  //   }
-  // }
 
   tdFreeDataCols(pTarget);
   return 0;
@@ -476,7 +443,7 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCol
       }
 
       target->numOfPoints++;
-      *iter1++;
+      (*iter1)++;
     } else if (key1 > key2) {
       for (int i = 0; i < src2->numOfCols; i++) {
         ASSERT(target->cols[i].type == src2->cols[i].type);
@@ -487,7 +454,7 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCol
       }
 
       target->numOfPoints++;
-      *iter2++;
+      (*iter2)++;
     } else {
       ASSERT(false);
     }

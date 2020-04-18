@@ -20,7 +20,7 @@
 // Local function definitions
 static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
 static int  tsdbInitHelperFile(SRWHelper *pHelper);
-static void tsdbClearHelperFile(SHelperFile *pHFile);
+// static void tsdbClearHelperFile(SHelperFile *pHFile);
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper);
 static int  tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDataCols, int rowsToWrite,
                                  SCompBlock *pCompBlock, bool isLast, bool isSuperBlock);
@@ -615,31 +615,30 @@ static int tsdbCheckHelperCfg(SHelperCfg *pCfg) {
   return 0;
 }
 
+// static void tsdbClearHelperFile(SHelperFile *pHFile) {
+//   pHFile->fid = -1;
+//   if (pHFile->headF.fd > 0) {
+//     close(pHFile->headF.fd);
+//     pHFile->headF.fd = -1;
+//   }
+//   if (pHFile->dataF.fd > 0) {
+//     close(pHFile->dataF.fd);
+//     pHFile->dataF.fd = -1;
+//   }
+//   if (pHFile->lastF.fd > 0) {
+//     close(pHFile->lastF.fd);
+//     pHFile->lastF.fd = -1;
+//   }
+//   if (pHFile->nHeadF.fd > 0) {
+//     close(pHFile->nHeadF.fd);
+//     pHFile->nHeadF.fd = -1;
+//   }
+//   if (pHFile->nLastF.fd > 0) {
+//     close(pHFile->nLastF.fd);
+//     pHFile->nLastF.fd = -1;
+//   }
 
-static void tsdbClearHelperFile(SHelperFile *pHFile) {
-  pHFile->fid = -1;
-  if (pHFile->headF.fd > 0) {
-    close(pHFile->headF.fd);
-    pHFile->headF.fd = -1;
-  }
-  if (pHFile->dataF.fd > 0) {
-    close(pHFile->dataF.fd);
-    pHFile->dataF.fd = -1;
-  }
-  if (pHFile->lastF.fd > 0) {
-    close(pHFile->lastF.fd);
-    pHFile->lastF.fd = -1;
-  }
-  if (pHFile->nHeadF.fd > 0) {
-    close(pHFile->nHeadF.fd);
-    pHFile->nHeadF.fd = -1;
-  }
-  if (pHFile->nLastF.fd > 0) {
-    close(pHFile->nLastF.fd);
-    pHFile->nLastF.fd = -1;
-  }
-
-}
+// }
 
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper) {
   ASSERT(pHelper->files.lastF.fd > 0);
