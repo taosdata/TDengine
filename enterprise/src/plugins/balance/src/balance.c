@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tutil.h"
-#include "treplica.h"
+#include "tbalance.h"
 #include "tsync.h"
 #include "ttime.h"
 #include "ttimer.h"
@@ -467,7 +467,7 @@ static bool balanceMontiorDropping() {
 }
 
 static bool balanceStart() {
-  if (!mgmtIsMaster()) return false;
+  if (!sdbIsMaster()) return false;
 
   balanceLock();
 
@@ -493,7 +493,7 @@ static bool balanceStart() {
 }
 
 static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
-  if (!mgmtIsMaster()) return;
+  if (!sdbIsMaster()) return;
 
   tsBalanceTimer = NULL;
   tsAccessSquence ++;
