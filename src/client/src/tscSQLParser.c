@@ -4675,8 +4675,8 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     }
 
     // No tables included. No results generated. Query results are empty.
-    if (pTableMetaInfo->pTableMeta == NULL) {
-      tscTrace("%p no table in metricmeta, no output result", pSql);
+    if (pTableMetaInfo->vgroupList->numOfVgroups == 0) {
+      tscTrace("%p no table in super table, no output result", pSql);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     }
 
