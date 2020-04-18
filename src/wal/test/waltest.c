@@ -29,8 +29,6 @@ int writeToQueue(void *pVnode, void *data, int type) {
     ver = pHead->version;
 
   walWrite(pWal, pHead);
-  
-  free(pHead);
 
   return 0;
 }
@@ -42,6 +40,7 @@ int main(int argc, char *argv[]) {
   int  total = 5;
   int  rows = 10000;
   int  size = 128;
+  int  keep = 0;
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
@@ -52,6 +51,8 @@ int main(int argc, char *argv[]) {
       level = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r")==0 && i < argc-1) {
       rows = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-k")==0 && i < argc-1) {
+      keep = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       total = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-s")==0 && i < argc-1) {
@@ -67,6 +68,7 @@ int main(int argc, char *argv[]) {
       printf("  [-l level]: log level, default is:%d\n", level);
       printf("  [-t total]: total wal files, default is:%d\n", total);
       printf("  [-r rows]: rows of records per wal file, default is:%d\n", rows);
+      printf("  [-k keep]: keep the wal after closing, default is:%d\n", keep);
       printf("  [-v version]: initial version, default is:%ld\n", ver);
       printf("  [-d debugFlag]: debug flag, default:%d\n", ddebugFlag);
       printf("  [-h help]: print out this help\n\n");
@@ -79,6 +81,7 @@ int main(int argc, char *argv[]) {
   SWalCfg walCfg;
   walCfg.commitLog = level;
   walCfg.wals = max;
+  walCfg.keep = keep;
 
   pWal = walOpen(path, &walCfg);
   if (pWal == NULL) {
