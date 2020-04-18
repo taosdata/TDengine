@@ -98,31 +98,23 @@ typedef struct SBlockOrderSupporter {
 typedef struct STsdbQueryHandle {
   STsdbRepo*    pTsdb;
   SQueryFilePos cur;    // current position
-  SQueryFilePos start;  // the start position, used for secondary/third iteration
 
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
   SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
 
-  int16_t     numOfRowsPerPage;
-  uint16_t    flag;  // denotes reversed scan of data or not
   int16_t     order;
   STimeWindow window;  // the primary query time window that applies to all queries
-  int32_t     blockBufferSize;
   SCompBlock* pBlock;
   int32_t     numOfBlocks;
   SField**    pFields;
   SArray*     pColumns;  // column list, SColumnInfoData array list
   bool        locateStart;
   int32_t     realNumOfRows;
-  bool        loadDataAfterSeek;  // load data after seek.
   SArray*     pTableCheckInfo;
   int32_t     activeIndex;
-
-  bool    checkFiles;  // check file stage
-  int32_t tableIndex;
-  bool    isFirstSlot;
-  void*   qinfo;  // query info handle, for debug purpose
-
+  bool        checkFiles;  // check file stage
+  void*       qinfo;  // query info handle, for debug purpose
+  
   STableBlockInfo* pDataBlockInfo;
 
   SFileGroup*    pFileGroup;
@@ -152,8 +144,6 @@ tsdb_query_handle_t* tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond* pCond, S
   pQueryHandle->pTsdb  = tsdb;
   pQueryHandle->compIndex = calloc(10000, sizeof(SCompIdx)),
 
-  pQueryHandle->loadDataAfterSeek = false;
-  pQueryHandle->isFirstSlot = true;
   pQueryHandle->cur.fid = -1;
 
   size_t sizeOfGroup = taosArrayGetSize(groupList->pGroupList);

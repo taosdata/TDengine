@@ -225,18 +225,27 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-int32_t tsdbGetTableTagVal(tsdb_repo_t* repo, STableId id, int32_t col, int16_t* type, int16_t* bytes, char** val) {
+int32_t tsdbGetTableTagVal(tsdb_repo_t* repo, STableId id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id.uid);
   
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
-  STColumn* pCol = schemaColAt(pSchema, col);
+  
+  STColumn* pCol = NULL;
+  for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
+    STColumn* p = schemaColAt(pSchema, col);
+    if (p->colId == colId) {
+      pCol = p;
+    }
+  }
+  
+  assert(pCol != NULL);
   
   SDataRow row = (SDataRow)pTable->tagVal;
   char* d = dataRowAt(row, TD_DATA_ROW_HEAD_SIZE);
   
   *val = d;
-  *type = pCol->type;
+  *type  = pCol->type;
   *bytes = pCol->bytes;
   
   return 0;
