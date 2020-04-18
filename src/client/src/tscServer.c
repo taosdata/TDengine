@@ -651,19 +651,22 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
     tscTrace("%p queried tables:%d, table id: %s", pSql, 1, pTableMetaInfo->name);
   } else {  // query super table
+    int32_t index = pTableMetaInfo->vgroupIndex;
     
-    if (pTableMetaInfo->vgroupIndex < 0) {
-      tscError("%p error vnodeIdx:%d", pSql, pTableMetaInfo->vgroupIndex);
+    if (index < 0) {
+      tscError("%p error vgroupIndex:%d", pSql, index);
       return -1;
     }
     
-    pSql->ipList.numOfIps = 1; // todo fix me
+    SCMVgroupInfo* pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
+    
+    pSql->ipList.numOfIps = pVgroupInfo->numOfIps; // todo fix me
     pSql->ipList.port     = tsDnodeShellPort;
     pSql->ipList.inUse    = 0;
   
-    // todo extract method
-    SCMVgroupInfo* pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[pTableMetaInfo->vgroupIndex];
-    pSql->ipList.ip[0] = pVgroupInfo->ipAddr[0].ip;
+    for(int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
+      pSql->ipList.ip[i] = pVgroupInfo->ipAddr[i].ip;
+    }
     
 #if 0
     SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->vgroupIndex);
@@ -676,8 +679,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
 #endif
     
-    tscTrace("%p query on super table, numOfVgroup:%d, vgroupIndex:%d", pSql, pTableMetaInfo->vgroupList->numOfVgroups,
-        pTableMetaInfo->vgroupIndex);
+    tscTrace("%p query on super table, numOfVgroup:%d, vgroupIndex:%d", pSql, pTableMetaInfo->vgroupList->numOfVgroups, index);
     
     pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
     numOfTables = 1;
@@ -823,7 +825,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg = doSerializeTableInfo(pSql, htons(pQueryMsg->head.vgId), pMsg);
 
   SSqlGroupbyExpr *pGroupbyExpr = &pQueryInfo->groupbyExpr;
-  if (pGroupbyExpr->numOfGroupCols != 0) {
+  if (pGroupbyExpr->numOfGroupCols > 0) {
     pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
     pQueryMsg->orderType = htons(pGroupbyExpr->orderType);
 
@@ -2133,10 +2135,11 @@ _error_clean:
   
   for(int32_t i = 0; i < pInfo->vgroupList->numOfVgroups; ++i) {
     SCMVgroupInfo* pVgroups = &pInfo->vgroupList->vgroups[i];
-    pVgroups->numOfIps = htonl(pVgroups->numOfIps);
-    pVgroups->vgId = htonl(pVgroups->vgId);
     
-    for(int32_t j = 0; j < tListLen(pVgroups->ipAddr); ++j) {
+    pVgroups->vgId = htonl(pVgroups->vgId);
+    assert(pVgroups->numOfIps >= 1);
+    
+    for(int32_t j = 0; j < pVgroups->numOfIps; ++j) {
       pVgroups->ipAddr[j].ip = htonl(pVgroups->ipAddr[j].ip);
       pVgroups->ipAddr[j].port = htons(pVgroups->ipAddr[j].port);
     }

@@ -18,6 +18,7 @@
 #include "os.h"
 
 #include "hash.h"
+#include "tsdb.h"
 #include "qinterpolation.h"
 #include "qresultBuf.h"
 #include "qsqlparser.h"
@@ -89,7 +90,7 @@ typedef struct SColumnFilterElem {
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {
-  SColumnInfoData      info;
+  SColumnInfoData    info;
   int32_t            numOfFilters;
   SColumnFilterElem* pFilters;
   void*              pData;
@@ -108,8 +109,6 @@ typedef struct STableQueryInfo {
 } STableQueryInfo;
 
 typedef struct STableDataInfo {
-  int32_t          numOfBlocks;
-  int32_t          start;     // start block index
   int32_t          tableIndex;
   int32_t          groupIdx;  // group id in table list
   STableQueryInfo* pTableQInfo;
@@ -171,7 +170,7 @@ typedef struct SQInfo {
   int32_t          pointsInterpo;
   int32_t          code;          // error code to returned to client
   sem_t            dataReady;
-  SArray*          pTableList;    // table id list
+  STableGroupInfo  groupInfo;     // table id list
   void*            tsdb;
   
   SQueryRuntimeEnv runtimeEnv;
@@ -187,50 +186,7 @@ typedef struct SQInfo {
    */
   int32_t         tableIndex;
   int32_t         numOfGroupResultPages;
-  STableDataInfo* pTableDataInfo;
   TSKEY*          tsList;
 } SQInfo;
-
-/**
- * create the qinfo object before adding the query task to each tsdb query worker
- *
- * @param pReadMsg
- * @param pQInfo
- * @return
- */
-int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
-
-/**
- * destroy the query info struct
- * @param pQInfo
- */
-void qDestroyQueryInfo(SQInfo* pQInfo);
-
-/**
- * query on single table
- * @param pReadMsg
- */
-void qTableQuery(SQInfo* pQInfo);
-
-/**
- * wait for the query completed, and retrieve final results to client
- * @param pQInfo
- */
-int32_t qRetrieveQueryResultInfo(SQInfo* pQInfo);
-
-/**
- *
- * @param pQInfo
- * @param pRsp
- * @return
- */
-int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* contLen);
-
-/**
- *
- * @param pQInfo
- * @return
- */
-bool qHasMoreResultsToRetrieve(SQInfo* pQInfo);
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

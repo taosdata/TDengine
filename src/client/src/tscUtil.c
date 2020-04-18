@@ -2128,27 +2128,23 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   if (pPrevSql == NULL) {
     STableMeta* pTableMeta = taosCacheAcquireByName(tscCacheHandle, name);
-    
-//    SSuperTableMeta* pMetricMeta = NULL;
-//    if (cmd == TSDB_SQL_SELECT) {
-//      pMetricMeta = taosCacheAcquireByName(tscCacheHandle, key);
-//    }
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->numOfTags,
                                      pTableMetaInfo->tagColumnIndex);
-  } else {  // transfer the ownership of pTableMeta/pMetricMeta to the newly create sql object.
-//    STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
+  } else {  // transfer the ownership of pTableMeta to the newly create sql object.
+    STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
-//    STableMeta*  pPrevMeterMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
-//    SSuperTableMeta* pPrevMetricMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
-
-//    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevMeterMeta, pPrevMetricMeta, pTableMetaInfo->numOfTags,
-//                                     pTableMetaInfo->tagColumnIndex);
+    STableMeta*  pPrevTableMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
+    SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
+    pPrevInfo->vgroupList = NULL;
+    
+    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->numOfTags,
+                                     pTableMetaInfo->tagColumnIndex);
   }
 
   assert(pFinalInfo->pTableMeta != NULL && pNewQueryInfo->numOfTables == 1);
   if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-//    assert(pFinalInfo->pMetricMeta != NULL);
+    assert(pFinalInfo->vgroupList != NULL);
   }
   
   if (cmd == TSDB_SQL_SELECT) {

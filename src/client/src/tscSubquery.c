@@ -1207,7 +1207,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   
   // all subqueries are failed
   tscError("%p retrieve from %d vnode(s) completed,code:%d.FAILED.", pPObj, pState->numOfTotal, pState->code);
-  pPObj->res.code = -(pState->code);
+  pPObj->res.code = pState->code;
   
   // release allocated resource
   tscLocalReducerEnvDestroy(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor, trsupport->pFinalColModel,
@@ -1336,12 +1336,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   SSqlRes *   pRes = &pSql->res;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-//  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  
-//  SVnodeSidList *vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx);
-//  SVnodeSidList *vnodeInfo = 0;
-//  SVnodeDesc *   pSvd = &vnodeInfo->vpeerDesc[vnodeInfo->index];
-  
   if (numOfRows > 0) {
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
@@ -1384,11 +1378,11 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
       pthread_mutex_unlock(&trsupport->queryMutex);
       taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
     }
+    
+    pthread_mutex_unlock(&trsupport->queryMutex);
   } else { // all data has been retrieved to client
     tscAllDataRetrievedFromDnode(trsupport, pSql);
   }
-  
-  pthread_mutex_unlock(&trsupport->queryMutex);
 }
 
 static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj) {
@@ -1479,10 +1473,15 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   
     tscHandleSubqueryError(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
-    tscTrace("%p sub:%p query complete, ip:%u, vgId:%d, orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
+    tscTrace("%p sub:%p query complete, ip:%u, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSqlObj, pSql,
                pVgroup->ipAddr[0].ip, pVgroup->vgId, trsupport->subqueryIndex);
     
-    taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
+    if (pSql->res.qhandle == 0) { // qhandle is NULL, code is TSDB_CODE_SUCCESS means no results generated from this vnode
+      tscRetrieveFromDnodeCallBack(param, pSql, 0);
+    } else {
+      taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
+    }
+    
   }
 }
 

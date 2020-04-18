@@ -214,6 +214,23 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
+int32_t tsdbGetTableTagVal(tsdb_repo_t* repo, STableId id, int32_t col, int16_t* type, int16_t* bytes, char** val) {
+  STsdbMeta* pMeta = tsdbGetMeta(repo);
+  STable* pTable = tsdbGetTableByUid(pMeta, id.uid);
+  
+  STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
+  STColumn* pCol = schemaColAt(pSchema, col);
+  
+  SDataRow row = (SDataRow)pTable->tagVal;
+  char* d = dataRowAt(row, TD_DATA_ROW_HEAD_SIZE);
+  
+  *val = d;
+  *type = pCol->type;
+  *bytes = pCol->bytes;
+  
+  return 0;
+}
+
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 
