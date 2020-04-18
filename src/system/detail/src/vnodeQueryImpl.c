@@ -2557,7 +2557,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
   // compare tag first
-  if (pCtx[0].tag.i64Key != elem.tag) {
+  if (0 != tVariantCompare(&pCtx[0].tag,&elem.tag)) {
     return TS_JOIN_TAG_NOT_EQUALS;
   }
 
@@ -7461,7 +7461,8 @@ int32_t setAdditionalInfo(STableQuerySupportObj *pSupporter, int32_t meterIdx, S
   // both the master and supplement scan needs to set the correct ts comp start position
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pMeterQueryInfo->cur.vnodeIndex == -1) {
-      pMeterQueryInfo->tag = pRuntimeEnv->pCtx[0].tag.i64Key;
+      //pMeterQueryInfo->tag = pRuntimeEnv->pCtx[0].tag.i64Key;
+      tVariantAssign(&pMeterQueryInfo->tag,&pRuntimeEnv->pCtx[0].tag);
 
       tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, pMeterQueryInfo->tag);
 

@@ -500,7 +500,8 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
 
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pRuntimeEnv->cur.vnodeIndex == -1) {
-      int64_t tag = pRuntimeEnv->pCtx[0].tag.i64Key;
+      tVariant tag;
+      tVariantAssign(&tag,&pRuntimeEnv->pCtx[0].tag);
       STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, tag);
 
       // failed to find data with the specified tag value

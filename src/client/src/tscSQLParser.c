@@ -3199,10 +3199,10 @@ static bool validateJoinExprNode(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SColum
   } else if (pLeftIndex->tableIndex == rightIndex.tableIndex) {
     invalidSqlErrMsg(pQueryInfo->msg, msg4);
     return false;
-  } else if (leftType == TSDB_DATA_TYPE_BINARY || leftType == TSDB_DATA_TYPE_NCHAR) {
+  } /*else if (leftType == TSDB_DATA_TYPE_BINARY || leftType == TSDB_DATA_TYPE_NCHAR) {
     invalidSqlErrMsg(pQueryInfo->msg, msg6);
     return false;
-  }
+  }*/
 
   // table to table/ super table to super table are allowed
   if (UTIL_METER_IS_SUPERTABLE(pLeftMeterMeta) != UTIL_METER_IS_SUPERTABLE(pRightMeterMeta)) {

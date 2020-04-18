@@ -82,14 +82,14 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
     // for debug purpose
     tscPrint("%" PRId64 ", tags:%d \t %" PRId64 ", tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
 #endif
-
-    if (elem1.tag < elem2.tag || (elem1.tag == elem2.tag && doCompare(order, elem1.ts, elem2.ts))) {
+    int32_t ret = tVariantCompare(&elem1.tag,&elem2.tag );
+    if (ret < 0 || (ret == 0 && doCompare(order, elem1.ts, elem2.ts))) {
       if (!tsBufNextPos(pSupporter1->pTSBuf)) {
         break;
       }
 
       numOfInput1++;
-    } else if (elem1.tag > elem2.tag || (elem1.tag == elem2.tag && doCompare(order, elem2.ts, elem1.ts))) {
+    } else if (ret > 0 || (ret == 0 && doCompare(order, elem2.ts, elem1.ts))) {
       if (!tsBufNextPos(pSupporter2->pTSBuf)) {
         break;
       }
@@ -870,6 +870,11 @@ static STSBuf* allocResForTSBuf(STSBuf* pTSBuf) {
     return NULL;
   }
 
+  pTSBuf->block.tag.pz = malloc(MEM_TAG_SIZE); //Need to define the length
+  if (pTSBuf->block.tag.pz == NULL) {
+    tsBufDestory(pTSBuf);
+    return NULL;
+  }
   pTSBuf->fileSize += getDataStartOffset();
   return pTSBuf;
 }
@@ -1005,6 +1010,7 @@ void* tsBufDestory(STSBuf* pTSBuf) {
 
   tfree(pTSBuf->pData);
   tfree(pTSBuf->block.payload);
+  tfree(pTSBuf->block.tag.pz);
 
   fclose(pTSBuf->f);
 
@@ -1098,7 +1104,9 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    *
    * both side has the compressed length is used to support load data forwards/backwords.
    */
-  fwrite(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
+  fwrite(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
+  fwrite(&pBlock->tag.nLen, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  fwrite(pBlock->tag.pz,(size_t)pBlock->tag.nLen,1,pTSBuf->f);
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
 
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
@@ -1107,7 +1115,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
 
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
 
-  int32_t blockSize = sizeof(pBlock->tag) + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
+  int32_t blockSize = sizeof(pBlock->tag.nType) + sizeof(pBlock->tag.nLen) + pBlock->tag.nLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
   pTSBuf->fileSize += blockSize;
 
   pTSBuf->tsData.len = 0;
@@ -1150,11 +1158,13 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
 
     pBlock->compLen = pBlock->padding;
-    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
+    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag.nType) + sizeof(pBlock->tag.nLen) + pBlock->tag.nLen ;
     fseek(pTSBuf->f, -offset, SEEK_CUR);
   }
 
-  fread(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
+  fread(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
+  fread(&pBlock->tag.nLen, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  fread(pBlock->tag.pz,(size_t)pBlock->tag.nLen,1,pTSBuf->f);  
   fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
 
   fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
@@ -1212,9 +1222,10 @@ static int32_t setCheckTSOrder(STSBuf* pTSBuf, const char* pData, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len) {
+void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant tag, const char* pData, int32_t len) {
   STSVnodeBlockInfoEx* pBlockInfo = NULL;
   STSList*             ptsData = &pTSBuf->tsData;
+  int32_t tagEqual = 0;
 
   if (pTSBuf->numOfVnodes == 0 || tsBufGetLastVnodeInfo(pTSBuf)->info.vnode != vnodeId) {
     writeDataToDisk(pTSBuf);
@@ -1226,15 +1237,17 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData
   }
 
   assert(pBlockInfo->info.vnode == vnodeId);
+  tagEqual = tVariantCompare(&pTSBuf->block.tag,&tag);
 
-  if (pTSBuf->block.tag != tag && ptsData->len > 0) {
+  if (tagEqual !=0  && ptsData->len > 0) {
     // new arrived data with different tags value, save current value into disk first
     writeDataToDisk(pTSBuf);
   } else {
     expandBuffer(ptsData, len);
   }
 
-  pTSBuf->block.tag = tag;
+  //pTSBuf->block.tag = tag;
+  tVariantAssign(&pTSBuf->block.tag,&tag);
   memcpy(ptsData->rawBuf + ptsData->len, pData, (size_t)len);
 
   // todo check return value
@@ -1315,7 +1328,7 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
   return 0;
 }
 
-static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int64_t tag) {
+static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, tVariant tag) {
   bool decomp = false;
 
   int64_t offset = 0;
@@ -1334,7 +1347,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo
       return -1;
     }
 
-    if (pTSBuf->block.tag == tag) {
+    if (0 == tVariantCompare(&pTSBuf->block.tag,&tag)) {
       return i;
     }
   }
@@ -1513,7 +1526,9 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
 
   elem1.vnode = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
   elem1.ts = *(TSKEY*)(pTSBuf->tsData.rawBuf + pCur->tsIndex * TSDB_KEYSIZE);
-  elem1.tag = pBlock->tag;
+  elem1.tag.nType = pBlock->tag.nType;
+  elem1.tag.nLen = pBlock->tag.nLen;
+  elem1.tag.pz = pBlock->tag.pz;
 
   return elem1;
 }
@@ -1644,7 +1659,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   return pTSBuf;
 }
 
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag) {
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant tag) {
   STSElem elem = {.vnode = -1};
 
   if (pTSBuf == NULL) {
@@ -1723,7 +1738,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
 
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, *(int64_t*) elem.tag, elem.ts);
+    printf("%d-%" PRId64 "\n", elem.vnode, elem.ts);
   }
 
   pTSBuf->cur.order = old;

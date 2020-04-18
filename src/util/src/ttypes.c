@@ -184,6 +184,34 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
     memcpy(pDst->pz, pSrc->pz, len);
   }
 }
+/* compare two tVariant, if same, return 0; else return nonezero */
+int32_t tVariantCompare(tVariant *pDst, const tVariant *pSrc) { 
+  if (pSrc == NULL || pDst == NULL) return 1;
+  if (pSrc->nType != pDst->nType) return 1;
+  switch (pSrc->nType) {
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      if (pSrc->i64Key > pDst->i64Key){
+        return 1;
+      }else if (pSrc->i64Key < pDst->i64Key) {
+        return -1;
+      }else {
+        return 0;
+      }
+      
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      return strncasecmp(pSrc->pz,pDst->pz,pSrc->nLen);
+    default:
+      return 1;
+  }
+}
 
 int32_t tVariantToString(tVariant *pVar, char *dst) {
   if (pVar == NULL || dst == NULL) return 0;
