@@ -36,54 +36,47 @@ typedef enum {
   SDB_KEY_STRING, 
   SDB_KEY_INT,
   SDB_KEY_AUTO
-} ESdbKeyType;
+} ESdbKey;
 
 typedef enum {
   SDB_OPER_GLOBAL,
   SDB_OPER_LOCAL
-} ESdbOperType;
+} ESdbOper;
 
 typedef struct {
-  ESdbOperType type;
-  void *  table;
-  void *  pObj;
-  int32_t rowSize;
-  void *  rowData;
-} SSdbOperDesc;
+  ESdbOper type;
+  void *   table;
+  void *   pObj;
+  int32_t  rowSize;
+  void *   rowData;
+} SSdbOper;
 
 typedef struct {
   char   *tableName;
   int32_t hashSessions;
   int32_t maxRowSize;
   int32_t refCountPos;
-  ESdbTable   tableId;
-  ESdbKeyType keyType;
-  int32_t (*insertFp)(SSdbOperDesc *pOper);
-  int32_t (*deleteFp)(SSdbOperDesc *pOper);
-  int32_t (*updateFp)(SSdbOperDesc *pOper);
-  int32_t (*encodeFp)(SSdbOperDesc *pOper);
-  int32_t (*decodeFp)(SSdbOperDesc *pDesc);  
-  int32_t (*destroyFp)(SSdbOperDesc *pDesc);
+  ESdbTable tableId;
+  ESdbKey   keyType;
+  int32_t (*insertFp)(SSdbOper *pOper);
+  int32_t (*deleteFp)(SSdbOper *pOper);
+  int32_t (*updateFp)(SSdbOper *pOper);
+  int32_t (*encodeFp)(SSdbOper *pOper);
+  int32_t (*decodeFp)(SSdbOper *pDesc);  
+  int32_t (*destroyFp)(SSdbOper *pDesc);
   int32_t (*restoredFp)();
 } SSdbTableDesc;
 
-typedef struct {
-  int64_t version;
-  void *  wal;
-  pthread_mutex_t mutex;
-} SSdbObject;
-
 int32_t sdbInit();
 void    sdbCleanUp();
-SSdbObject *sdbGetObj();
-
 void *  sdbOpenTable(SSdbTableDesc *desc);
 void    sdbCloseTable(void *handle);
-int     sdbProcessWrite(void *param, void *data, int type);
+bool    sdbIsMaster();
+void    sdbUpdateMnodeRoles();
 
-int32_t sdbInsertRow(SSdbOperDesc *pOper);
-int32_t sdbDeleteRow(SSdbOperDesc *pOper);
-int32_t sdbUpdateRow(SSdbOperDesc *pOper);
+int32_t sdbInsertRow(SSdbOper *pOper);
+int32_t sdbDeleteRow(SSdbOper *pOper);
+int32_t sdbUpdateRow(SSdbOper *pOper);
 
 void    *sdbGetRow(void *handle, void *key);
 void    *sdbFetchRow(void *handle, void *pNode, void **ppRow);

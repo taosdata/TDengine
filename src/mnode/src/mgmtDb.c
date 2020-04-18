@@ -46,12 +46,12 @@ static void    mgmtProcessCreateDbMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessAlterDbMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessDropDbMsg(SQueuedMsg *pMsg);
 
-static int32_t mgmtDbActionDestroy(SSdbOperDesc *pOper) {
+static int32_t mgmtDbActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
+static int32_t mgmtDbActionInsert(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
 
@@ -72,7 +72,7 @@ static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDbActionDelete(SSdbOperDesc *pOper) {
+static int32_t mgmtDbActionDelete(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
 
@@ -84,7 +84,7 @@ static int32_t mgmtDbActionDelete(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDbActionUpdate(SSdbOperDesc *pOper) {
+static int32_t mgmtDbActionUpdate(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
   SDbObj *pSaved = mgmtGetDb(pDb->name);
   if (pDb != pSaved) {
@@ -94,14 +94,14 @@ static int32_t mgmtDbActionUpdate(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDbActionEncode(SSdbOperDesc *pOper) {
+static int32_t mgmtDbActionEncode(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
   memcpy(pOper->rowData, pDb, tsDbUpdateSize);
   pOper->rowSize = tsDbUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDbActionDecode(SSdbOperDesc *pOper) {
+static int32_t mgmtDbActionDecode(SSdbOper *pOper) {
   SDbObj *pDb = (SDbObj *) calloc(1, sizeof(SDbObj));
   if (pDb == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
   
@@ -146,7 +146,7 @@ int32_t mgmtInitDbs() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
   
-  mTrace("db data is initialized");
+  mTrace("table:dbs table is created");
   return 0;
 }
 
@@ -318,7 +318,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   pDb->createdTime = taosGetTimestampMs();
   pDb->cfg = *pCreate;
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
     .pObj = pDb,
@@ -671,7 +671,7 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
   if (pDb->status) return TSDB_CODE_SUCCESS;
 
   pDb->status = true;
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
     .pObj = pDb,
@@ -756,7 +756,7 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
-    SSdbOperDesc oper = {
+    SSdbOper oper = {
       .type = SDB_OPER_GLOBAL,
       .table = tsDbSdb,
       .pObj = pDb,
@@ -814,7 +814,7 @@ static void mgmtDropDb(SQueuedMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
   mPrint("db:%s, drop db from sdb", pDb->name);
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
     .pObj = pDb
