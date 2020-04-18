@@ -126,6 +126,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     tdSchemaAppendCol(pDestSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
   }
   tsdbTableSetSchema(&tCfg, pDestSchema, false);
+  tsdbTableSetName(&tCfg, pTable->tableId, false);
 
   if (numOfTags != 0) {
     STSchema *pDestTagSchema = tdNewSchema(numOfTags);
@@ -133,6 +134,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
       tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
     }
     tsdbTableSetTagSchema(&tCfg, pDestTagSchema, false);
+    tsdbTableSetSName(&tCfg, pTable->superTableId, false);
 
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
