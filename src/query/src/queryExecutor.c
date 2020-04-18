@@ -2226,105 +2226,96 @@ char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWi
          pQuery->pSelectExpr[columnIndex].resBytes * realRowId;
 }
 
-int32_t UNUSED_FUNC vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
-  if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey > pQuery->window.ekey)) ||
-      (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.ekey > pQuery->window.skey))) {
-    dTrace("QInfo:%p no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo, pQuery->window.skey,
-           pQuery->window.ekey, pQuery->order.order);
-
-    sem_post(&pQInfo->dataReady);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  pQuery->status = 0;
-  pQuery->rec = (SResultRec){0};
-
-  changeExecuteScanOrder(pQuery, true);
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-
-  /*
-   * since we employ the output control mechanism in main loop.
-   * so, disable it during data block scan procedure.
-   */
-  setScanLimitationByResultBuffer(pQuery);
-
-  // save raw query range for applying to each subgroup
-  pQuery->lastKey = pQuery->window.skey;
-
-  // create runtime environment
-  //  SColumnModel *pTagSchemaInfo = pQInfo->pSidSet->pColumnModel;
-
-  // get one queried meter
-  assert(0);
-  //  SMeterObj *pMeter = getMeterObj(pQInfo->groupInfo, pQInfo->pSidSet->pTableIdList[0]->sid);
-
-  pRuntimeEnv->pTSBuf = param;
-  pRuntimeEnv->cur.vnodeIndex = -1;
-
-  // set the ts-comp file traverse order
-  if (param != NULL) {
-    int16_t order = (pQuery->order.order == pRuntimeEnv->pTSBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
-    tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
-  }
-
-  assert(0);
-  //  int32_t ret = setupQueryRuntimeEnv(pMeter, pQuery, &pQInfo->runtimeEnv, pTagSchemaInfo, TSDB_ORDER_ASC, true);
-  //  if (ret != TSDB_CODE_SUCCESS) {
-  //    return ret;
-  //  }
-
-  //  createTableGroup(pQInfo->pSidSet);
-
-  int32_t size = getInitialPageNum(pQInfo);
-  int32_t ret = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, size, pQuery->rowSize);
-  if (ret != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  if (pQuery->intervalTime == 0) {
-    int16_t type = TSDB_DATA_TYPE_NULL;
-
-    if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // group by columns not tags;
-      type = getGroupbyColumnType(pQuery, pQuery->pGroupbyExpr);
-    } else {
-      type = TSDB_DATA_TYPE_INT;  // group id
-    }
-
-    initWindowResInfo(&pRuntimeEnv->windowResInfo, pRuntimeEnv, 512, 4096, type);
-  }
-
-  pRuntimeEnv->numOfRowsPerPage = getNumOfRowsInResultPage(pQuery, true);
-
-  STsdbQueryCond cond = {
-    .twindow = (STimeWindow) {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey},
-    .order = pQuery->order.order,
-    .colList = pQuery->colList,
-  };
-  
-  //  for(int32_t i = 0; i < pQInfo->pSidSet->numOfTables; ++i) {
-  //    SMeterObj *p1 = getMeterObj(pQInfo->groupInfo, pQInfo->pSidSet->pTableIdList[i]->sid);
-  //    taosArrayPush(sa, &p1);
-  //  }
-
-  SArray *cols = taosArrayInit(pQuery->numOfCols, sizeof(pQuery->colList[0]));
-  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
-    taosArrayPush(cols, &pQuery->colList[i]);
-  }
-
-  pRuntimeEnv->pQueryHandle = tsdbQueryTables(NULL, &cond, &pQInfo->groupInfo, cols);
-
-  // metric query do not invoke interpolation, it will be done at the second-stage merge
-  if (!isPointInterpoQuery(pQuery)) {
-    pQuery->interpoType = TSDB_INTERPO_NONE;
-  }
-
-  TSKEY revisedStime = taosGetIntervalStartTimestamp(pQuery->window.skey, pQuery->intervalTime, pQuery->slidingTimeUnit,
-                                                     pQuery->precision);
-  taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, revisedStime, 0, 0);
-  pRuntimeEnv->stableQuery = true;
-
-  return TSDB_CODE_SUCCESS;
-}
+//int32_t UNUSED_FUNC vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
+//  if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey > pQuery->window.ekey)) ||
+//      (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.ekey > pQuery->window.skey))) {
+//    dTrace("QInfo:%p no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo, pQuery->window.skey,
+//           pQuery->window.ekey, pQuery->order.order);
+//
+//    sem_post(&pQInfo->dataReady);
+//    return TSDB_CODE_SUCCESS;
+//  }
+//
+//  pQuery->status = 0;
+//  pQuery->rec = (SResultRec){0};
+//
+//  changeExecuteScanOrder(pQuery, true);
+//  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+//
+//  /*
+//   * since we employ the output control mechanism in main loop.
+//   * so, disable it during data block scan procedure.
+//   */
+//  setScanLimitationByResultBuffer(pQuery);
+//
+//  // save raw query range for applying to each subgroup
+//  pQuery->lastKey = pQuery->window.skey;
+//
+//  // create runtime environment
+//  //  SColumnModel *pTagSchemaInfo = pQInfo->pSidSet->pColumnModel;
+//
+//  // get one queried meter
+//  assert(0);
+//  //  SMeterObj *pMeter = getMeterObj(pQInfo->groupInfo, pQInfo->pSidSet->pTableIdList[0]->sid);
+//
+//  pRuntimeEnv->pTSBuf = param;
+//  pRuntimeEnv->cur.vnodeIndex = -1;
+//
+//  // set the ts-comp file traverse order
+//  if (param != NULL) {
+//    int16_t order = (pQuery->order.order == pRuntimeEnv->pTSBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+//    tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
+//  }
+//
+//  assert(0);
+//  //  int32_t ret = setupQueryRuntimeEnv(pMeter, pQuery, &pQInfo->runtimeEnv, pTagSchemaInfo, TSDB_ORDER_ASC, true);
+//  //  if (ret != TSDB_CODE_SUCCESS) {
+//  //    return ret;
+//  //  }
+//
+//  //  createTableGroup(pQInfo->pSidSet);
+//
+//  int32_t size = getInitialPageNum(pQInfo);
+//  int32_t ret = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, size, pQuery->rowSize);
+//  if (ret != TSDB_CODE_SUCCESS) {
+//    return ret;
+//  }
+//
+//  if (pQuery->intervalTime == 0) {
+//    int16_t type = TSDB_DATA_TYPE_NULL;
+//
+//    if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // group by columns not tags;
+//      type = getGroupbyColumnType(pQuery, pQuery->pGroupbyExpr);
+//    } else {
+//      type = TSDB_DATA_TYPE_INT;  // group id
+//    }
+//
+//    initWindowResInfo(&pRuntimeEnv->windowResInfo, pRuntimeEnv, 512, 4096, type);
+//  }
+//
+//  pRuntimeEnv->numOfRowsPerPage = getNumOfRowsInResultPage(pQuery, true);
+//
+//  STsdbQueryCond cond = {
+//    .twindow = (STimeWindow) {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey},
+//    .order = pQuery->order.order,
+//    .colList = pQuery->colList,
+//
+//  };
+//
+//  pRuntimeEnv->pQueryHandle = tsdbQueryTables(NULL, &cond, &pQInfo->groupInfo);
+//
+//  // metric query do not invoke interpolation, it will be done at the second-stage merge
+//  if (!isPointInterpoQuery(pQuery)) {
+//    pQuery->interpoType = TSDB_INTERPO_NONE;
+//  }
+//
+//  TSKEY revisedStime = taosGetIntervalStartTimestamp(pQuery->window.skey, pQuery->intervalTime, pQuery->slidingTimeUnit,
+//                                                     pQuery->precision);
+//  taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, revisedStime, 0, 0);
+//  pRuntimeEnv->stableQuery = true;
+//
+//  return TSDB_CODE_SUCCESS;
+//}
 
 /**
  * decrease the refcount for each table involved in this query
@@ -3440,11 +3431,11 @@ static void doSingleMeterSupplementScan(SQueryRuntimeEnv *pRuntimeEnv) {
   disableFunctForTableSuppleScan(pRuntimeEnv, pQuery->order.order);
   queryStatusSave(pRuntimeEnv, &qStatus);
 
-  STimeWindow w = {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
+//  STimeWindow w = {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
 
   // reverse scan from current position
-  tsdbpos_t current = tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
-  tsdbResetQuery(pRuntimeEnv->pQueryHandle, &w, current, pQuery->order.order);
+//  tsdbpos_t current = tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
+//  tsdbResetQuery(pRuntimeEnv->pQueryHandle, &w, current, pQuery->order.order);
 
   doScanAllDataBlocks(pRuntimeEnv);
 
@@ -3535,26 +3526,17 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
       break;
     }
 
-    // set the correct start position, and load the corresponding block in buffer for next round scan all data blocks.
-//    /*int32_t ret =*/ tsdbDataBlockSeek(pRuntimeEnv->pQueryHandle, pos);
-  
     STsdbQueryCond cond = {
-        .twindow = {pQuery->window.skey, pQuery->lastKey},
-        .order   = pQuery->order.order,
-        .colList = pQuery->colList,
+        .twindow   = {pQuery->window.skey, pQuery->lastKey},
+        .order     = pQuery->order.order,
+        .colList   = pQuery->colList,
+        .numOfCols = pQuery->numOfCols,
     };
   
-    SArray *cols = taosArrayInit(pQuery->numOfCols, sizeof(pQuery->colList[0]));
-    for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
-      taosArrayPush(cols, &pQuery->colList[i]);
-    }
-  
     if (pRuntimeEnv->pSecQueryHandle != NULL) {
-      pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->groupInfo, cols);
+      pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->groupInfo);
     }
     
-    taosArrayDestroy(cols);
-  
     status = pQuery->status;
     pRuntimeEnv->windowResInfo.curIndex = activeSlot;
 
@@ -3573,7 +3555,7 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   pQuery->window.skey = skey;
   pQuery->window.ekey = pQuery->lastKey - step;
-  /*tsdbpos_t current =*/ tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
+//  /*tsdbpos_t current =*/ tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
 
   doSingleMeterSupplementScan(pRuntimeEnv);
 
@@ -4176,18 +4158,13 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void* tsdb, bool isSTableQuery)
   pQuery->lastKey = pQuery->window.skey;
 
   STsdbQueryCond cond = {
-    .twindow = pQuery->window,
-    .order   = pQuery->order.order,
-    .colList = pQuery->colList,
+    .twindow   = pQuery->window,
+    .order     = pQuery->order.order,
+    .colList   = pQuery->colList,
+    .numOfCols = pQuery->numOfCols,
   };
-
-  SArray *cols = taosArrayInit(pQuery->numOfCols, sizeof(pQuery->colList[0]));
-  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
-    taosArrayPush(cols, &pQuery->colList[i]);
-  }
   
-  pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->groupInfo, cols);
-  taosArrayDestroy(cols);
+  pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->groupInfo);
   pQInfo->tsdb = tsdb;
   
   pRuntimeEnv->pQuery = pQuery;
@@ -4405,25 +4382,19 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
       .twindow = {pInfo->pTableQInfo->lastKey, pInfo->pTableQInfo->win.ekey},
       .order   = pQuery->order.order,
       .colList = pQuery->colList,
+      .numOfCols = pQuery->numOfCols,
   };
   
-  SArray *cols = taosArrayInit(pQuery->numOfCols, sizeof(pQuery->colList[0]));
-  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
-    taosArrayPush(cols, &pQuery->colList[i]);
-  }
   
   SArray* g1 = taosArrayInit(1, POINTER_BYTES);
+  SArray* tx = taosArrayInit(1, sizeof(SPair));
+  
+  taosArrayPush(tx, p);
+  taosArrayPush(g1, &tx);
   STableGroupInfo gp = {.numOfTables = 1, .pGroupList = g1};
   
-  SArray* tx = taosArrayInit(1, sizeof(SPair));
-  taosArrayPush(tx, p);
-  
-  taosArrayPush(g1, &tx);
   // include only current table
-  pRuntimeEnv->pQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &gp, cols);
-
-//  vnodeUpdateQueryColumnIndex(pQuery, pRuntimeEnv->pMeterObj);
-//  vnodeUpdateFilterColumnIndex(pQuery);
+  pRuntimeEnv->pQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &gp);
 
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pRuntimeEnv->cur.vnodeIndex == -1) {
@@ -4587,13 +4558,11 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
     assert(taosArrayGetSize(group) == pQInfo->groupInfo.numOfTables && 1 == taosArrayGetSize(pQInfo->groupInfo.pGroupList));
     
     while (pQInfo->tableIndex < pQInfo->groupInfo.numOfTables) {
-      int32_t k = pQInfo->tableIndex;
-      
       if (isQueryKilled(pQInfo)) {
         return;
       }
       
-      SPair *p = taosArrayGet(group, k);
+      SPair *p = taosArrayGet(group, pQInfo->tableIndex);
       STableDataInfo* pInfo = p->sec;
       
       TSKEY skey = pInfo->pTableQInfo->lastKey;
@@ -4601,7 +4570,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
         pQuery->window.skey = skey;
       }
       
-      if (!multiTableMultioutputHelper(pQInfo, k)) {
+      if (!multiTableMultioutputHelper(pQInfo, pQInfo->tableIndex)) {
         pQInfo->tableIndex++;
         continue;
       }
@@ -6046,7 +6015,7 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
     STableId* id = taosArrayGet(pTableIdList, 0);
     id->uid = -1;  //todo fix me
     
-    /*int32_t ret =*/ tsdbQueryTags(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, groupInfo, pGroupColIndex, pQueryMsg->numOfGroupCols);
+    /*int32_t ret =*/ tsdbQueryByTagsCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, groupInfo, pGroupColIndex, pQueryMsg->numOfGroupCols);
     if (groupInfo->numOfTables == 0) { // no qualified tables no need to do query
       code = TSDB_CODE_SUCCESS;
       goto _query_over;

@@ -144,6 +144,7 @@ typedef struct STableGroupList {  // qualified table object list in group
 typedef struct STsdbQueryCond {
   STimeWindow      twindow;
   int32_t          order;  // desc/asc order to iterate the data block
+  int32_t          numOfCols;
   SColumnInfoData *colList;
 } STsdbQueryCond;
 
@@ -188,7 +189,7 @@ typedef void *tsdbpos_t;
  * @param pTableList    table sid list
  * @return
  */
-tsdb_query_handle_t *tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo, SArray *pColumnInfo);
+tsdb_query_handle_t *tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo);
 
 /**
  * move to next block
@@ -240,20 +241,6 @@ SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList
 int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow *window, tsdbpos_t position, int16_t order);
 
 /**
- * return the access position of current query handle
- * @param pQueryHandle
- * @return
- */
-int32_t tsdbDataBlockSeek(tsdb_query_handle_t *pQueryHandle, tsdbpos_t pos);
-
-/**
- * todo remove this function later
- * @param pQueryHandle
- * @return
- */
-tsdbpos_t tsdbDataBlockTell(tsdb_query_handle_t *pQueryHandle);
-
-/**
  * todo remove this function later
  * @param pQueryHandle
  * @param pIdList
@@ -290,7 +277,7 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size_t len, STableGroupInfo* pGroupList,
+int32_t tsdbQueryByTagsCond(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size_t len, STableGroupInfo* pGroupList,
                       SColIndex* pColIndex, int32_t numOfCols);
 
 int32_t tsdbGetOneTableGroup(tsdb_repo_t* tsdb, int64_t uid, STableGroupInfo* pGroupInfo);
