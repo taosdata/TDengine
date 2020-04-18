@@ -82,7 +82,6 @@ static void acctDoStatistic(void *handle, void *tmrId) {
   taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
-
 int32_t acctInit() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
@@ -92,7 +91,7 @@ int32_t acctInit() {
 
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
   
-  mTrace("account is initialized");
+  mTrace("table:accounts is initialized");
   return 0;
 }
 
@@ -223,7 +222,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   int32_t grantCode = grantCheck(TSDB_GRANT_ACCT);
   if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
-   SSdbOperDesc oper = {
+   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,
@@ -253,7 +252,7 @@ int32_t acctDropAcct(char *name) {
     return TSDB_CODE_INVALID_ACCT;
   }
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct
@@ -466,7 +465,7 @@ static int32_t acctCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
 }
 
 static int32_t acctUpdateAcct(SAcctObj *pAcct) {
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,
