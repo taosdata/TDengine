@@ -462,10 +462,35 @@ int tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup) {
   return 0;
 }
 
+int tsdbTableSetName(STableCfg *config, char *name, bool dup) {
+  if (dup) {
+    config->name = strdup(name);
+    if (config->name == NULL) return -1;
+  } else {
+    config->name = name;
+  }
+
+  return 0;
+}
+
+int tsdbTableSetSName(STableCfg *config, char *sname, bool dup) {
+  if (config->type != TSDB_CHILD_TABLE) return -1;
+
+  if (dup) {
+    config->sname = strdup(sname);
+    if (config->sname == NULL) return -1;
+  } else {
+    config->sname = sname;
+  }
+  return 0;
+}
+
 void tsdbClearTableCfg(STableCfg *config) {
   if (config->schema) tdFreeSchema(config->schema);
   if (config->tagSchema) tdFreeSchema(config->tagSchema);
   if (config->tagValues) tdFreeDataRow(config->tagValues);
+  tfree(config->name);
+  tfree(config->sname);
 }
 
 int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {

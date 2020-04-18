@@ -78,8 +78,10 @@ typedef struct {
 // --------- TSDB TABLE configuration
 typedef struct {
   ETableType      type;
+  char *          name;
   STableId        tableId;
   int32_t         sversion;
+  char *          sname; // super table name
   int64_t         superUid;
   STSchema *      schema;
   STSchema *      tagSchema;
@@ -91,6 +93,8 @@ int  tsdbTableSetSuperUid(STableCfg *config, int64_t uid);
 int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
+int  tsdbTableSetName(STableCfg *config, char *name, bool dup);
+int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
 int32_t tsdbGetTableTagVal(tsdb_repo_t *repo, STableId id, int32_t col, int16_t* type, int16_t* bytes, char** val);

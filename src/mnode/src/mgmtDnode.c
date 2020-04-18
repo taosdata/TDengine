@@ -402,8 +402,10 @@ static int32_t mgmtCreateDnode(uint32_t ip) {
 
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
+    int dnodeId = pDnode->dnodeId;
     tfree(pDnode);
-    code = TSDB_CODE_SDB_ERROR;
+    mError("failed to create dnode:%d, result:%s", dnodeId, tstrerror(code));
+    return TSDB_CODE_SDB_ERROR;
   }
 
   mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));

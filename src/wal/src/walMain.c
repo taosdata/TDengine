@@ -208,7 +208,10 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     }
   }
 
-  if (count == 0) return 0;
+  if (count == 0) {
+    if (pWal->keep) code = walRenew(pWal);
+    return code;
+  }
 
   if ( count != (maxId-minId+1) ) {
     wError("wal:%s, messed up, count:%d max:%d min:%d", opath, count, maxId, minId);

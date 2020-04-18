@@ -62,6 +62,7 @@ typedef struct {
 // ---------- TSDB TABLE DEFINITION
 typedef struct STable {
   int8_t         type;
+  char *         name;
   STableId       tableId;
   int64_t        superUid;  // Super table UID
   int32_t        sversion;

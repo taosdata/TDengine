@@ -39,6 +39,11 @@ void *tsdbEncodeTable(STable *pTable, int *contLen) {
 
   void *ptr = ret;
   T_APPEND_MEMBER(ptr, pTable, STable, type);
+  // Encode name
+  *(int *)ptr = strlen(pTable->name);
+  ptr = (char *)ptr + sizeof(int);
+  memcpy(ptr, pTable->name, strlen(pTable->name));
+  ptr = (char *)ptr + strlen(pTable->name);
   T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, uid);
   T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, tid);
   T_APPEND_MEMBER(ptr, pTable, STable, superUid);
@@ -72,6 +77,12 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
 
   void *ptr = cont;
   T_READ_MEMBER(ptr, int8_t, pTable->type);
+  int len = *(int *)ptr;
+  ptr = (char *)ptr + sizeof(int);
+  pTable->name = calloc(1, len + 1);
+  if (pTable->name == NULL) return NULL;
+  memcpy(pTable->name, ptr, len);
+  ptr = (char *)ptr + len;
   T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
   T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
   T_READ_MEMBER(ptr, int64_t, pTable->superUid);
@@ -252,7 +263,8 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->schema = tdDupSchema(pCfg->schema);
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
       super->tagVal = tdDataRowDup(pCfg->tagValues);
-  
+      super->name = strdup(pCfg->sname);
+
       // index the first tag column
       STColumn* pColSchema = schemaColAt(super->tagSchema, 0);
       super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
@@ -277,6 +289,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   }
 
   table->tableId = pCfg->tableId;
+  table->name = strdup(pCfg->name);
   if (IS_CREATE_STABLE(pCfg)) { // TSDB_CHILD_TABLE
     table->type = TSDB_CHILD_TABLE;
     table->superUid = pCfg->superUid;
@@ -374,6 +387,7 @@ static int tsdbFreeTable(STable *pTable) {
   tsdbFreeMemTable(pTable->mem);
   tsdbFreeMemTable(pTable->imem);
 
+  tfree(pTable->name);
   free(pTable);
   return 0;
 }
@@ -468,6 +482,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
 static int tsdbEstimateTableEncodeSize(STable *pTable) {
   int size = 0;
   size += T_MEMBER_SIZE(STable, type);
+  size += sizeof(int) + strlen(pTable->name);
   size += T_MEMBER_SIZE(STable, tableId);
   size += T_MEMBER_SIZE(STable, superUid);
   size += T_MEMBER_SIZE(STable, sversion);
