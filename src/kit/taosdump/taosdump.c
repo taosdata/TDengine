@@ -325,6 +325,7 @@ int taosDumpOut(struct arguments *arguments);
 int taosDumpIn(struct arguments *arguments);
 void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty, FILE *fp);
 int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *taosCon);
+int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon);
 void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, FILE *fp);
 void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, FILE *fp);
 int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FILE *fp, TAOS* taosCon);
@@ -616,7 +617,7 @@ int taosDumpOut(struct arguments *arguments) {
   int32_t count = 0;
   STableRecordInfo tableRecordInfo;
 
-  char tmpBuf[TSDB_FILENAME_LEN+1] = {0};
+  char tmpBuf[TSDB_FILENAME_LEN+9] = {0};
   if (arguments->outpath[0] != 0) {
       sprintf(tmpBuf, "%s/dbs.sql", arguments->outpath);
   } else {
@@ -927,7 +928,7 @@ void* taosDumpOutWorkThreadFp(void *arg)
   STableRecord    tableRecord;
   int fd;  
   
-  char tmpFileName[TSDB_FILENAME_LEN + 1] = {0};
+  char tmpFileName[TSDB_FILENAME_LEN + 128] = {0};
   sprintf(tmpFileName, ".tables.tmp.%d", pThread->threadIndex);
   fd = open(tmpFileName, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
   if (fd == -1) {
@@ -936,7 +937,7 @@ void* taosDumpOutWorkThreadFp(void *arg)
   }
 
   FILE *fp = NULL;
-  memset(tmpFileName, 0, TSDB_FILENAME_LEN);
+  memset(tmpFileName, 0, TSDB_FILENAME_LEN + 128);
   
   if (tsArguments.outpath[0] != 0) {
     sprintf(tmpFileName, "%s/%s.tables.%d.sql", tsArguments.outpath, pThread->dbName, pThread->threadIndex);

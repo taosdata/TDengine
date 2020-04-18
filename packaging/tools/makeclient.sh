@@ -13,6 +13,7 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
+cloudVer=$9
 
 if [ "$osType" != "Darwin" ]; then
     script_dir="$(dirname $(readlink -f $0))"
@@ -122,7 +123,11 @@ fi
 cd ${release_dir} 
 
 if [ "$verMode" == "cluster" ]; then
-  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  if [ "$cloudVer" == "yes" ]; then
+    pkg_name=${install_dir}-cloud-${version}-${osType}-${cpuType}
+  else
+    pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  fi 
 elif [ "$verMode" == "edge" ]; then
   pkg_name=${install_dir}-${version}-${osType}-${cpuType}
 else

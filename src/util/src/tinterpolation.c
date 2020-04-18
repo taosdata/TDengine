@@ -22,12 +22,12 @@
 
 #define INTERPOL_IS_ASC_INTERPOL(interp) ((interp)->order == TSQL_SO_ASC)
 
-int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit, int16_t precision) {
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char slidingTimeUnit, int16_t precision) {
   if (timeRange == 0) {
     return startTime;
   }
 
-  if (intervalTimeUnit == 'a' || intervalTimeUnit == 'm' || intervalTimeUnit == 's' || intervalTimeUnit == 'h') {
+  if (slidingTimeUnit == 'a' || slidingTimeUnit == 'm' || slidingTimeUnit == 's' || slidingTimeUnit == 'h' || slidingTimeUnit == 'u') {
     return (startTime / timeRange) * timeRange;
   } else {
     /*
@@ -95,11 +95,11 @@ void taosInterpoSetStartInfo(SInterpolationInfo* pInterpoInfo, int32_t numOfRawD
   pInterpoInfo->numOfRawDataInRows = numOfRawDataInRows;
 }
 
-TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t intervalTimeUnit, int8_t precision) {
+TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t slidingTimeUnit, int8_t precision) {
   if (order == TSQL_SO_ASC) {
     return ekey;
   } else {
-    return taosGetIntervalStartTimestamp(ekey, timeInterval, intervalTimeUnit, precision);
+    return taosGetIntervalStartTimestamp(ekey, timeInterval, slidingTimeUnit, precision);
   }
 }
 
@@ -190,6 +190,49 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
 
   return 0;
 }
+
+int taosDoLinearInterpolationD(int32_t type, SPoint* point1, SPoint* point2, SPoint* point) {
+  switch (type) {
+    case TSDB_DATA_TYPE_INT: {
+      *(double*) point->val = doLinearInterpolationImpl(*(int32_t*)point1->val, *(int32_t*)point2->val, point1->key,
+                                                        point2->key, point->key);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      *(double*)point->val =
+          doLinearInterpolationImpl(*(float*)point1->val, *(float*)point2->val, point1->key, point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_DOUBLE: {
+      *(double*)point->val =
+          doLinearInterpolationImpl(*(double*)point1->val, *(double*)point2->val, point1->key, point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: {
+      *(double*)point->val = doLinearInterpolationImpl(*(int64_t*)point1->val, *(int64_t*)point2->val, point1->key,
+                                                        point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_SMALLINT: {
+      *(double*)point->val = doLinearInterpolationImpl(*(int16_t*)point1->val, *(int16_t*)point2->val, point1->key,
+                                                        point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_TINYINT: {
+      *(double*)point->val =
+          doLinearInterpolationImpl(*(int8_t*)point1->val, *(int8_t*)point2->val, point1->key, point2->key, point->key);
+      break;
+    };
+    default: {
+      // TODO: Deal with interpolation with bool and strings and timestamp
+      return -1;
+    }
+  }
+  
+  return 0;
+}
+
 
 static char* getPos(char* data, int32_t bytes, int32_t index) { return data + index * bytes; }
 

@@ -10,6 +10,7 @@ set -e
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  
 #             -V [stable | beta]
 #             -l [full | lite]
+#             -u [yes | no]
 
 # set parameters by default value
 verMode=edge     # [cluster, edge]
@@ -17,8 +18,9 @@ verType=stable   # [stable, beta]
 cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]
 pagMode=full     # [full | lite]
+cloudVer=no      # [yes | no]
 
-while getopts "hv:V:c:o:l:" arg
+while getopts "hv:V:c:o:l:u:" arg
 do
   case $arg in
     v)
@@ -41,8 +43,12 @@ do
       #echo "osType=$OPTARG"
       osType=$(echo $OPTARG)
       ;;
+    u)
+      #echo "cloudVer=$OPTARG"
+      cloudVer=$(echo $OPTARG)
+      ;;
     h)
-      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite]"
+      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite] -u [yes | no]"
       exit 0
       ;;
     ?) #unknow option 
@@ -52,7 +58,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} cloudVer=${cloudVer}"
 
 curr_dir=$(pwd)
 
@@ -204,7 +210,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
     if [ "$verMode" != "cluster" ]; then
       cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode}
     else
-      cmake ../../ -DCPUTYPE=${cpuType}
+      cmake ../../ -DCPUTYPE=${cpuType} -DCLOUDVER=${cloudVer}
     fi
 else
     echo "input cpuType=${cpuType} error!!!"
@@ -244,8 +250,8 @@ if [ "$osType" != "Darwin" ]; then
     echo "====do tar.gz package for all systems===="
     cd ${script_dir}/tools
     
-	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${cloudVer}
+	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${cloudVer}
 else
     cd ${script_dir}/tools
     ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}

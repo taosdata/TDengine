@@ -446,6 +446,8 @@ int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t *result) {
       break;
     case 'a':
       break;
+    case 'u':
+      return 0;
     default: {
       ;
       return -1;

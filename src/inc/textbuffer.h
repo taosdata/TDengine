@@ -136,7 +136,7 @@ tExtMemBuffer *createExtMemBuffer(int32_t inMemSize, int32_t elemSize, SColumnMo
  * @param pMemBuffer
  * @return
  */
-void *destoryExtMemBuffer(tExtMemBuffer *pMemBuffer);
+void *destroyExtMemBuffer(tExtMemBuffer *pMemBuffer);
 
 /**
  * @param pMemBuffer

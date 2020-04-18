@@ -254,7 +254,9 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       if (pToken->type == TK_NULL) {
         *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
       } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
+                ((strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)
+              || (strncasecmp("nan", pToken->z, pToken->n) == 0)
+              || (strncasecmp("-nan", pToken->z, pToken->n) == 0))) {
         *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
       } else {
         double dv;
@@ -278,8 +280,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
     case TSDB_DATA_TYPE_DOUBLE:
       if (pToken->type == TK_NULL) {
         *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
-      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
+      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) && 
+                ((strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0) 
+              || (strncasecmp("nan", pToken->z, pToken->n) == 0)
+              || (strncasecmp("-nan", pToken->z, pToken->n) == 0))) {
         *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
       } else {
         double dv;

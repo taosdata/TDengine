@@ -32,7 +32,7 @@ tExtMemBuffer *releaseBucketsExceptFor(tMemBucket *pMemBucket, int16_t segIdx, i
         pBuffer = pSeg->pBuffer[j];
       } else {
         if (pSeg->pBuffer && pSeg->pBuffer[j]) {
-          pSeg->pBuffer[j] = destoryExtMemBuffer(pSeg->pBuffer[j]);
+          pSeg->pBuffer[j] = destroyExtMemBuffer(pSeg->pBuffer[j]);
         }
       }
     }
@@ -338,7 +338,7 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
 
       for (int32_t j = 0; j < pSeg->numOfSlots; ++j) {
         if (pSeg->pBuffer[j] != NULL) {
-          pSeg->pBuffer[j] = destoryExtMemBuffer(pSeg->pBuffer[j]);
+          pSeg->pBuffer[j] = destroyExtMemBuffer(pSeg->pBuffer[j]);
         }
       }
       tfree(pSeg->pBuffer);
@@ -588,7 +588,7 @@ void releaseBucket(tMemBucket *pMemBucket, int32_t segIdx, int32_t slotIdx) {
     return;
   }
 
-  pSeg->pBuffer[slotIdx] = destoryExtMemBuffer(pSeg->pBuffer[slotIdx]);
+  pSeg->pBuffer[slotIdx] = destroyExtMemBuffer(pSeg->pBuffer[slotIdx]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -853,7 +853,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
             tMemBucketSegment *pSeg = &pMemBucket->pSegs[tt];
             for (int32_t ttx = 0; ttx < pSeg->numOfSlots; ++ttx) {
               if (pSeg->pBuffer && pSeg->pBuffer[ttx]) {
-                pSeg->pBuffer[ttx] = destoryExtMemBuffer(pSeg->pBuffer[ttx]);
+                pSeg->pBuffer[ttx] = destroyExtMemBuffer(pSeg->pBuffer[ttx]);
               }
             }
           }

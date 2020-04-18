@@ -85,12 +85,6 @@ typedef enum {
   QUERY_NO_DATA_TO_CHECK = 0x8u,
 } vnodeQueryStatus;
 
-typedef struct SPointInterpoSupporter {
-  int32_t numOfCols;
-  char**  pPrevPoint;
-  char**  pNextPoint;
-} SPointInterpoSupporter;
-
 typedef struct SBlockInfo {
   TSKEY   keyFirst;
   TSKEY   keyLast;
@@ -285,6 +279,7 @@ void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);
 void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
 void    closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
+SWindowResult* getWindowRes(SWindowResInfo* pWindowResInfo, size_t index);
 
 #ifdef __cplusplus
 }

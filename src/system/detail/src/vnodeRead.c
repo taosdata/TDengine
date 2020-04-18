@@ -269,7 +269,7 @@ static SQInfo *vnodeAllocateQInfoEx(SQueryMeterMsg *pQueryMsg, SSqlGroupbyExpr *
   pQuery->intervalTime = pQueryMsg->intervalTime;
   pQuery->slidingTime = pQueryMsg->slidingTime;
   pQuery->interpoType = pQueryMsg->interpoType;
-  pQuery->intervalTimeUnit = pQueryMsg->intervalTimeUnit;
+  pQuery->slidingTimeUnit = pQueryMsg->slidingTimeUnit;
 
   pQInfo->query.pointsToRead = vnodeList[pMeterObj->vnode].cfg.rowsInFileBlock;
 
@@ -649,17 +649,27 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     }
 
     STableQuerySupportObj *pSupporter = (STableQuerySupportObj *)calloc(1, sizeof(STableQuerySupportObj));
+    if (pSupporter == NULL) {
+        *code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+        goto _error;
+    }
     pSupporter->numOfMeters = 1;
-
-    pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
-    taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
-        (char *)&pMetersObj[0], POINTER_BYTES);
-
     pSupporter->pSidSet = NULL;
     pSupporter->subgroupIdx = -1;
     pSupporter->pMeterSidExtInfo = NULL;
 
     pQInfo->pTableQuerySupporter = pSupporter;
+
+    pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
+    if (pSupporter->pMetersHashTable == NULL) {
+        *code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+        goto _error;
+    }
+    if (taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
+                (char *)&pMetersObj[0], POINTER_BYTES) != 0) {
+        *code = TSDB_CODE_APP_ERROR;
+        goto _error;
+    }
 
     STSBuf *pTSBuf = NULL;
     if (pQueryMsg->tsLen > 0) {

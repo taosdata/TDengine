@@ -398,9 +398,9 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
   if (pSql->freed || pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
-    taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
+    //taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
     tscFreeSqlObj(pSql);
-    return ahandle;
+    return NULL;
   }
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
@@ -600,8 +600,8 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
           taos_close(pObj);
           tscTrace("%p Async sql close failed connection", pSql);
         } else {
-          tscFreeSqlObj(pSql);
           tscTrace("%p Async sql is automatically freed", pSql);
+          tscFreeSqlObj(pSql);
         }
       }
     }
@@ -1681,7 +1681,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   pQueryMsg->intervalTime = htobe64(pQueryInfo->intervalTime);
-  pQueryMsg->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
+  pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
   pQueryMsg->slidingTime = htobe64(pQueryInfo->slidingTime);
   
   if (pQueryInfo->intervalTime < 0) {
@@ -2148,7 +2148,12 @@ int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(SDropUserMsg);
 
   pCmd->payloadLen = pMsg - pStart;
-  pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
+
+  if (pInfo->type == TSDB_SQL_DROP_ACCT) {
+    pCmd->msgType = TSDB_MSG_TYPE_DROP_ACCT;
+  } else {
+    pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

@@ -68,9 +68,7 @@ bool restProcessSqlRequest(HttpContext* pContext, int timestampFmt) {
   }
 
 
-  /*
-   * for async test
-   * /
+  // for async test
   /*
   if (httpCheckUsedbSql(sql)) {
     httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);

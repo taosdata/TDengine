@@ -1,0 +1,13 @@
+{
+    "name": "test1",
+    "period": "10s",
+    "sql": "select avg(speed) as avgspeed from test.cars group by id",
+    "expr": "avgSpeed >= 3",
+    "for": "0s",
+    "labels": {
+        "ruleName": "test1"
+    },
+    "annotations": {
+        "summary": "speed of car(id = {{$labels.id}}) is too high: {{$values.avgSpeed}}"
+    }
+}

@@ -141,6 +141,12 @@ typedef struct SWindowResInfo {
   int64_t             threshold;  // threshold for return completed results.
 } SWindowResInfo;
 
+typedef struct SPointInterpoSupporter {
+  int32_t numOfCols;
+  char**  pPrevPoint;
+  char**  pNextPoint;
+} SPointInterpoSupporter;
+
 typedef struct SQueryRuntimeEnv {
   SPositionInfo       startPos; /* the start position, used for secondary/third iteration */
   SPositionInfo       endPos;   /* the last access position in query, served as the start pos of reversed order query */
@@ -171,6 +177,10 @@ typedef struct SQueryRuntimeEnv {
   SQueryCostSummary   summary;
   bool                stableQuery;  // is super table query or not
   SQueryDiskbasedResultBuf*    pResultBuf;   // query result buffer based on blocked-wised disk file
+  
+  bool hasTimeWindow;
+  char** lastRowInBlock;
+  bool interpoSearch;
   
   /*
    * Temporarily hold the in-memory cache block info during scan cache blocks

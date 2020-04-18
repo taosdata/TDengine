@@ -292,7 +292,7 @@ void tscKillConnection(STscObj *pObj) {
 
   pthread_mutex_unlock(&pObj->mutex);
 
-  taos_close(pObj);
-
   tscTrace("connection:%p is killed", pObj);
+
+  taos_close(pObj);
 }

@@ -233,6 +233,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   }
   assert(idx >= pReducer->numOfBuffer);
   if (idx == 0) {
+    free(pReducer);
     return;
   }
 
@@ -324,7 +325,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
   int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, prec);
+      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
   SInterpolationInfo *pInterpoInfo = &pReducer->interpolationInfo;
   taosInitInterpoInfo(pInterpoInfo, pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
@@ -613,6 +614,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   pSchema = (SSchema *)calloc(1, sizeof(SSchema) * pQueryInfo->exprsInfo.numOfExprs);
   if (pSchema == NULL) {
+    tfree(*pMemBuffer);
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
     return pRes->code;
@@ -634,15 +636,27 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   }
 
   pModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
+  if (pModel == NULL) {
+    goto _error_memory;
+  }
 
   for (int32_t i = 0; i < pMeterMetaInfo->pMetricMeta->numOfVnodes; ++i) {
     (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pModel);
+
+    if ((*pMemBuffer)[i] == NULL) {
+      for (int32_t j=0; j < i; ++j ) {
+        destroyExtMemBuffer((*pMemBuffer)[j]);
+      }
+      goto _error_memory;
+    }
     (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;
   }
 
   if (createOrderDescriptor(pOrderDesc, pCmd, pModel) != TSDB_CODE_SUCCESS) {
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    return pRes->code;
+    for (int32_t i = 0; i < pMeterMetaInfo->pMetricMeta->numOfVnodes; ++i) {
+        destroyExtMemBuffer((*pMemBuffer)[i]);
+    }
+    goto _error_memory;
   }
 
   // final result depends on the fields number
@@ -685,6 +699,13 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   tfree(pSchema);
 
   return TSDB_CODE_SUCCESS;
+
+_error_memory:
+  tfree(pSchema);
+  tfree(*pMemBuffer);
+  tscError("%p failed to allocate memory", pSql);
+  pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+  return pRes->code;
 }
 
 /**
@@ -698,7 +719,7 @@ void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDe
   destroyColumnModel(pFinalModel);
   tOrderDescDestroy(pDesc);
   for (int32_t i = 0; i < numOfVnodes; ++i) {
-    pMemBuffer[i] = destoryExtMemBuffer(pMemBuffer[i]);
+    pMemBuffer[i] = destroyExtMemBuffer(pMemBuffer[i]);
   }
 
   tfree(pMemBuffer);
@@ -779,7 +800,7 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo 
 
   int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
   int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, prec);
+      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
   taosInitInterpoInfo(pInterpoInfo, pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
                       pLocalReducer->rowSize);
@@ -923,7 +944,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   while (1) {
     int32_t remains = taosNumOfRemainPoints(pInterpoInfo);
     TSKEY   etime = taosGetRevisedEndKey(actualETime, pQueryInfo->order.order, pQueryInfo->intervalTime,
-                                       pQueryInfo->intervalTimeUnit, precision);
+                                       pQueryInfo->slidingTimeUnit, precision);
     int32_t nrows = taosGetNumOfResultWithInterpo(pInterpoInfo, pPrimaryKeys, remains, pQueryInfo->intervalTime, etime,
                                                   pLocalReducer->resColModel->capacity);
 
@@ -1275,7 +1296,7 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
   if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
     int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
     int64_t newTime =
-        taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, precision);
+        taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
 
     taosInitInterpoInfo(&pLocalReducer->interpolationInfo, pQueryInfo->order.order, newTime,
                         pQueryInfo->groupbyExpr.numOfGroupCols, pLocalReducer->rowSize);
@@ -1305,7 +1326,7 @@ static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
 
     int32_t remain = taosNumOfRemainPoints(pInterpoInfo);
     TSKEY   ekey =
-        taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, p);
+        taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, p);
     int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, (TSKEY *)pLocalReducer->pBufForInterpo, remain,
                                                  pQueryInfo->intervalTime, ekey, pLocalReducer->resColModel->capacity);
     if (rows > 0) {  // do interpo
@@ -1338,7 +1359,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       int64_t etime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->etime : pQueryInfo->stime;
 
       etime = taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime,
-                                   pQueryInfo->intervalTimeUnit, precision);
+                                   pQueryInfo->slidingTimeUnit, precision);
       int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, NULL, 0, pQueryInfo->intervalTime, etime,
                                                    pLocalReducer->resColModel->capacity);
       if (rows > 0) {  // do interpo
