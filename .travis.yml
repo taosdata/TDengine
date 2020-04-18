@@ -166,7 +166,7 @@ matrix:
             exit $?
           fi
 
-          bash <(curl -s https://codecov.io/bash) -f coverage.info
+          bash <(curl -s https://codecov.io/bash) -y .codecov.yml -f coverage.info
           if [ "$?" -eq "0" ]; then
             echo -e "${GREEN} ## Uploaded to Codecov! ## ${NC} "
           else
