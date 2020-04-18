@@ -22,7 +22,7 @@
 #include "tidpool.h"
 #include "tsync.h"
 #include "ttime.h"
-#include "treplica.h"
+#include "tbalance.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtDb.h"
@@ -48,7 +48,7 @@ static void    mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) ;
 static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
 static void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
-static int32_t mgmtVgroupActionDestroy(SSdbOperDesc *pOper) {
+static int32_t mgmtVgroupActionDestroy(SSdbOper *pOper) {
   SVgObj *pVgroup = pOper->pObj;
   if (pVgroup->idPool) {
     taosIdPoolCleanUp(pVgroup->idPool);
@@ -62,7 +62,7 @@ static int32_t mgmtVgroupActionDestroy(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
+static int32_t mgmtVgroupActionInsert(SSdbOper *pOper) {
   SVgObj *pVgroup = pOper->pObj;
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
@@ -104,7 +104,7 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtVgroupActionDelete(SSdbOperDesc *pOper) {
+static int32_t mgmtVgroupActionDelete(SSdbOper *pOper) {
   SVgObj *pVgroup = pOper->pObj;
   
   if (pVgroup->pDb != NULL) {
@@ -124,7 +124,7 @@ static int32_t mgmtVgroupActionDelete(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtVgroupActionUpdate(SSdbOperDesc *pOper) {
+static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
   SVgObj *pNew = pOper->pObj;
   SVgObj *pVgroup = mgmtGetVgroup(pNew->vgId);
   if (pVgroup != pNew) {
@@ -147,14 +147,14 @@ static int32_t mgmtVgroupActionUpdate(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtVgroupActionEncode(SSdbOperDesc *pOper) {
+static int32_t mgmtVgroupActionEncode(SSdbOper *pOper) {
   SVgObj *pVgroup = pOper->pObj;
   memcpy(pOper->rowData, pVgroup, tsVgUpdateSize);
   pOper->rowSize = tsVgUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtVgroupActionDecode(SSdbOperDesc *pOper) {
+static int32_t mgmtVgroupActionDecode(SSdbOper *pOper) {
   SVgObj *pVgroup = (SVgObj *) calloc(1, sizeof(SVgObj));
   if (pVgroup == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -199,7 +199,7 @@ int32_t mgmtInitVgroups() {
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mgmtProcessDropVnodeRsp);
   mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mgmtProcessVnodeCfgMsg);
 
-  mTrace("vgroup is initialized");
+  mTrace("table:vgroups is created");
   
   return 0;
 }
@@ -213,7 +213,7 @@ SVgObj *mgmtGetVgroup(int32_t vgId) {
 }
 
 void mgmtUpdateVgroup(SVgObj *pVgroup) {
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup,
@@ -249,7 +249,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
-  if (replicaAllocVnodes(pVgroup) != 0) {
+  if (balanceAllocVnodes(pVgroup) != 0) {
     mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_ENOUGH_DNODES);
@@ -257,7 +257,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
     return;
   }
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup,
@@ -289,7 +289,7 @@ void mgmtDropVgroup(SVgObj *pVgroup, void *ahandle) {
   } else {
     mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
     mgmtSendDropVgroupMsg(pVgroup, NULL);
-    SSdbOperDesc oper = {
+    SSdbOper oper = {
       .type = SDB_OPER_GLOBAL,
       .table = tsVgroupSdb,
       .pObj = pVgroup
@@ -596,7 +596,7 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     SQueuedMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
     mgmtAddToShellQueue(newMsg);
   } else {
-    SSdbOperDesc oper = {
+    SSdbOper oper = {
       .type = SDB_OPER_GLOBAL,
       .table = tsVgroupSdb,
       .pObj = pVgroup
@@ -659,7 +659,7 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
 
   if (queueMsg->received != queueMsg->expected) return;
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
     .pObj = pVgroup
@@ -716,7 +716,7 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
     if (pVgroup == NULL) break;
 
     if (strncmp(pDropDb->name, pVgroup->dbName, dbNameLen) == 0) {
-      SSdbOperDesc oper = {
+      SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
         .pObj = pVgroup,

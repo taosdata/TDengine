@@ -18,7 +18,7 @@
 #include "taoserror.h"
 #include "trpc.h"
 #include "tsync.h"
-#include "treplica.h"
+#include "tbalance.h"
 #include "tutil.h"
 #include "ttime.h"
 #include "tsocket.h"
@@ -30,18 +30,17 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-int32_t tsMnodeIsMaster = true;
 static void *  tsMnodeSdb = NULL;
 static int32_t tsMnodeUpdateSize = 0;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static int32_t mgmtMnodeActionDestroy(SSdbOperDesc *pOper) {
+static int32_t mgmtMnodeActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtMnodeActionInsert(SSdbOperDesc *pOper) {
+static int32_t mgmtMnodeActionInsert(SSdbOper *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
   SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
   if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
@@ -53,7 +52,7 @@ static int32_t mgmtMnodeActionInsert(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtMnodeActionDelete(SSdbOperDesc *pOper) {
+static int32_t mgmtMnodeActionDelete(SSdbOper *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
 
   SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
@@ -65,7 +64,7 @@ static int32_t mgmtMnodeActionDelete(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtMnodeActionUpdate(SSdbOperDesc *pOper) {
+static int32_t mgmtMnodeActionUpdate(SSdbOper *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
   SMnodeObj *pSaved = mgmtGetMnode(pMnode->mnodeId);
   if (pMnode != pSaved) {
@@ -76,14 +75,14 @@ static int32_t mgmtMnodeActionUpdate(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtMnodeActionEncode(SSdbOperDesc *pOper) {
+static int32_t mgmtMnodeActionEncode(SSdbOper *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
   memcpy(pOper->rowData, pMnode, tsMnodeUpdateSize);
   pOper->rowSize = tsMnodeUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtMnodeActionDecode(SSdbOperDesc *pOper) {
+static int32_t mgmtMnodeActionDecode(SSdbOper *pOper) {
   SMnodeObj *pMnode = calloc(1, sizeof(SMnodeObj));
   if (pMnode == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -133,7 +132,7 @@ int32_t mgmtInitMnodes() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
 
-  mTrace("mnodes table is created");
+  mTrace("table:mnodes table is created");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -157,7 +156,7 @@ void *mgmtGetNextMnode(void *pNode, SMnodeObj **pMnode) {
   return sdbFetchRow(tsMnodeSdb, pNode, (void **)pMnode); 
 }
 
-static char *mgmtGetMnodeRoleStr(int32_t role) {
+char *mgmtGetMnodeRoleStr(int32_t role) {
   switch (role) {
     case TAOS_SYNC_ROLE_OFFLINE:
       return "offline";
@@ -171,8 +170,6 @@ static char *mgmtGetMnodeRoleStr(int32_t role) {
       return "undefined";
   }
 }
-
-bool mgmtIsMaster() { return tsMnodeIsMaster; }
 
 void mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp) {
   void *pNode = NULL;
@@ -213,10 +210,8 @@ void mgmtGetMnodeList(void *param) {
     mnodes->nodeInfos[index].nodeIp = htonl(pMnode->pDnode->privateIp);
     mnodes->nodeInfos[index].nodePort = htons(pMnode->pDnode->mnodeDnodePort);
     strcpy(mnodes->nodeInfos[index].nodeName, pMnode->pDnode->dnodeName);
-    mPrint("node:%d role:%s", pMnode->mnodeId, mgmtGetMnodeRoleStr(pMnode->role));
     if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
       mnodes->inUse = index;
-      mPrint("node:%d inUse:%d", pMnode->mnodeId, mnodes->inUse);
     }
 
     index++;
@@ -231,7 +226,7 @@ int32_t mgmtAddMnode(int32_t dnodeId) {
   pMnode->mnodeId = dnodeId;
   pMnode->createdTime = taosGetTimestampMs();
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsMnodeSdb,
     .pObj = pMnode,
@@ -252,7 +247,7 @@ int32_t mgmtDropMnode(int32_t dnodeId) {
     return TSDB_CODE_DNODE_NOT_EXIST;
   }
   
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsMnodeSdb,
     .pObj = pMnode
@@ -268,6 +263,7 @@ int32_t mgmtDropMnode(int32_t dnodeId) {
 }
 
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  sdbUpdateMnodeRoles();
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 

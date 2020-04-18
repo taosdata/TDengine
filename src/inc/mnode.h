@@ -24,6 +24,7 @@ int32_t mgmtInitSystem();
 int32_t mgmtStartSystem();
 void    mgmtCleanUpSystem();
 void    mgmtStopSystem();
+void    sdbUpdateSync();
 
 #ifdef __cplusplus
 }

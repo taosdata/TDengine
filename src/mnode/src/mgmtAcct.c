@@ -30,28 +30,28 @@ void *  tsAcctSdb = NULL;
 int32_t tsAcctUpdateSize;
 static void mgmtCreateRootAcct();
 
-static int32_t mgmtActionAcctDestroy(SSdbOperDesc *pOper) {
+static int32_t mgmtActionAcctDestroy(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   pthread_mutex_destroy(&pAcct->mutex);
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtAcctActionInsert(SSdbOperDesc *pOper) {
+static int32_t mgmtAcctActionInsert(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memset(&pAcct->acctInfo, 0, sizeof(SAcctInfo));
   pthread_mutex_init(&pAcct->mutex, NULL);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionAcctDelete(SSdbOperDesc *pOper) {
+static int32_t mgmtActionAcctDelete(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   mgmtDropAllUsers(pAcct);
   mgmtDropAllDbs(pAcct);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionAcctUpdate(SSdbOperDesc *pOper) {
+static int32_t mgmtActionAcctUpdate(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   SAcctObj *pSaved = mgmtGetAcct(pAcct->user);
   if (pAcct != pSaved) {
@@ -61,14 +61,14 @@ static int32_t mgmtActionAcctUpdate(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionActionEncode(SSdbOperDesc *pOper) {
+static int32_t mgmtActionActionEncode(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
   pOper->rowSize = tsAcctUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionAcctDecode(SSdbOperDesc *pOper) {
+static int32_t mgmtActionAcctDecode(SSdbOper *pOper) {
   SAcctObj *pAcct = (SAcctObj *) calloc(1, sizeof(SAcctObj));
   if (pAcct == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -110,7 +110,7 @@ int32_t mgmtInitAccts() {
     return -1;
   }
 
-  mTrace("account table is created");
+  mTrace("table:accounts table is created");
   return acctInit();
 }
 
@@ -179,7 +179,7 @@ static void mgmtCreateRootAcct() {
   pAcct->acctId = sdbGetId(tsAcctSdb);
   pAcct->createdTime = taosGetTimestampMs();
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,

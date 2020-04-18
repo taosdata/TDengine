@@ -21,7 +21,7 @@
 #include "tsystem.h"
 #include "tutil.h"
 #include "tgrant.h"
-#include "treplica.h"
+#include "tbalance.h"
 #include "tglobalcfg.h"
 #include "dnode.h"
 #include "mgmtDef.h"
