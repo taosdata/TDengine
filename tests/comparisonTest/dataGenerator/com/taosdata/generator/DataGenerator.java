@@ -108,7 +108,6 @@ public class DataGenerator {
     }
 
     private static void getDataInOneFile(String path, int rowsPerDevice, int num, int humidityDistRadius, int tempDistRadius) throws IOException {
-        DecimalFormat df = new DecimalFormat("0.0000");
         long startTime = dataStartTime;
 
         FileWriter fw = new FileWriter(new File(path));
@@ -135,13 +134,13 @@ public class DataGenerator {
 
             for (int j = 0; j < rowsPerDevice; ++j) {
                 int humidity = (int) humidityDataGen.next();
-                double temp = tempDataGen.next();
+                int temp = (int) tempDataGen.next();
                 int deviceGroup = deviceId % 100;
 
                 StringBuffer sb = new StringBuffer();
                 sb.append(deviceId).append(" ").append(tagPrefix).append(deviceId).append(" ").append(deviceGroup)
                         .append(" ").append(dataStartTime).append(" ").append(humidity).append(" ")
-                        .append(df.format(temp));
+                        .append(temp);
                 bw.write(sb.toString());
                 bw.write("\n");
 
