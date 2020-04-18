@@ -107,6 +107,11 @@ extern "C" {
 
 #define POW2(x) ((x) * (x))
 
+typedef struct SPair {
+  void* first;
+  void* sec;
+} SPair;
+
 int32_t strdequote(char *src);
 
 void strtrim(char *src);

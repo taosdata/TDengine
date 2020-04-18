@@ -690,7 +690,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   
   // current data are exhausted, fetch more data
   if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows && pRes->completed != true &&
-      (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_METRIC || pCmd->command == TSDB_SQL_FETCH))) {
+      (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_METRIC ||
+      pCmd->command == TSDB_SQL_FETCH || pCmd->command == TSDB_SQL_DESCRIBE_TABLE))) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     
     sem_wait(&pSql->rspSem);
@@ -773,8 +774,9 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
   if (pRes == NULL || pRes->qhandle == 0) {
     /* Query rsp is not received from vnode, so the qhandle is NULL */
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
+    STscObj* pTscObj = pSql->pTscObj;
     
-    if (tscShouldFreeAsyncSqlObj(pSql)) {
+    if (pTscObj->pSql != pSql) {
       tscTrace("%p SqlObj is freed by app", pSql);
       tscFreeSqlObj(pSql);
     } else {

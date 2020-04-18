@@ -35,6 +35,7 @@
 #define wPrint(...) {tprintf("WAL ", 255, __VA_ARGS__);}
 
 typedef struct {
+  uint64_t version;
   int      fd;
   int      keep;
   int      level;
@@ -50,7 +51,7 @@ int wDebugFlag = 135;
 
 static uint32_t walSignature = 0xFAFBFDFE;
 static int walHandleExistingFiles(const char *path);
-static int walRestoreWalFile(const char *name, void *pVnode, FWalWrite writeFp);
+static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp);
 static int walRemoveWalFiles(const char *path);
 
 void *walOpen(const char *path, const SWalCfg *pCfg) {
@@ -68,6 +69,8 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
 
   if (access(path, F_OK) != 0) mkdir(path, 0755);
   
+  if (pCfg->keep == 1) return pWal;
+
   if (walHandleExistingFiles(path) == 0) 
     walRenew(pWal);
 
@@ -154,6 +157,7 @@ int walWrite(void *handle, SWalHead *pHead) {
 
   // no wal  
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
+  if (pHead->version <= pWal->version) return 0;
 
   pHead->signature = walSignature;
   taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
@@ -162,7 +166,9 @@ int walWrite(void *handle, SWalHead *pHead) {
   if(write(pWal->fd, pHead, contLen) != contLen) {
     wError("wal:%s, failed to write(%s)", pWal->name, strerror(errno));
     code = -1;
-  }  
+  } else {
+    pWal->version = pHead->version;
+  }
 
   return code;
 }
@@ -184,7 +190,10 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
 
   int   plen = strlen(walPrefix);
   char  opath[TSDB_FILENAME_LEN+5];
-  sprintf(opath, "%s/old", pWal->path);
+   
+  int slen = sprintf(opath, "%s", pWal->path);
+  if ( pWal->keep == 0) 
+    strcpy(opath+slen, "/old");
 
   // is there old directory?
   if (access(opath, F_OK)) return 0; 
@@ -199,6 +208,8 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     }
   }
 
+  if (count == 0) return 0;
+
   if ( count != (maxId-minId+1) ) {
     wError("wal:%s, messed up, count:%d max:%d min:%d", opath, count, maxId, minId);
     code = -1;
@@ -206,17 +217,29 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     wTrace("wal:%s, %d files will be restored", opath, count);
 
     for (index = minId; index<=maxId; ++index) {
-      sprintf(pWal->name, "%s/old/%s%d", pWal->path, walPrefix, index);
-      code = walRestoreWalFile(pWal->name, pVnode, writeFp);
+      sprintf(pWal->name, "%s/%s%d", opath, walPrefix, index);
+      code = walRestoreWalFile(pWal, pVnode, writeFp);
       if (code < 0) break;
     }
   }
 
   if (code == 0) {
-    code = walRemoveWalFiles(opath);
-    if (code == 0) {
-      if (remove(opath) < 0) {
-        wError("wal:%s, failed to remove directory(%s)", opath, strerror(errno));
+    if (pWal->keep == 0) {
+      code = walRemoveWalFiles(opath);
+      if (code == 0) {
+        if (remove(opath) < 0) {
+          wError("wal:%s, failed to remove directory(%s)", opath, strerror(errno));
+          code = -1;
+        }
+      }
+    } else { 
+      // open the existing WAL file in append mode
+      pWal->num = count;
+      pWal->id = maxId;
+      sprintf(pWal->name, "%s/%s%d", opath, walPrefix, maxId);
+      pWal->fd = open(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+      if (pWal->fd < 0) {
+        wError("wal:%s, failed to open file(%s)", pWal->name, strerror(errno));
         code = -1;
       }
     }
@@ -252,8 +275,9 @@ int walGetWalFile(void *handle, char *name, uint32_t *index) {
   return code;
 }  
 
-static int walRestoreWalFile(const char *name, void *pVnode, FWalWrite writeFp) {
-  int code = 0;
+static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
+  int   code = 0;
+  char *name = pWal->name;
 
   char *buffer = malloc(1024000);  // size for one record
   if (buffer == NULL) return -1;
@@ -289,10 +313,11 @@ static int walRestoreWalFile(const char *name, void *pVnode, FWalWrite writeFp) 
       break;
     }
 
-    // write into queue
+    if (pWal->keep) pWal->version = pHead->version;
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);
   }
 
+  close(fd);
   free(buffer);
 
   return code;
@@ -364,5 +389,4 @@ static int walRemoveWalFiles(const char *path) {
 
   return code;
 }
-
 

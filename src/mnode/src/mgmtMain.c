@@ -20,6 +20,7 @@
 #include "treplica.h"
 #include "tgrant.h"
 #include "ttimer.h"
+#include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
@@ -100,16 +101,16 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
+  if (replicaInit() < 0) {
+    mError("failed to init replica")
+  }
+
   if (mgmtInitDClient() < 0) {
     return -1;
   }
 
   if (mgmtInitDServer() < 0) {
     return -1;
-  }
-
-  if (replicaInit() < 0) {
-    mError("failed to init dnode balance")
   }
 
   grantReset(TSDB_GRANT_ALL, 0);

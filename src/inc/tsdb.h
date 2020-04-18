@@ -93,6 +93,8 @@ int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
+int32_t tsdbGetTableTagVal(tsdb_repo_t *repo, STableId id, int32_t col, int16_t* type, int16_t* bytes, char** val);
+
 int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
 int tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 int tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
@@ -160,10 +162,15 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct {
+  size_t  numOfTables;
+  SArray* pGroupList;
+} STableGroupInfo;
+
+typedef struct {
 } SFields;
 
 #define TSDB_TS_GREATER_EQUAL 1
-#define TSDB_TS_LESS_EQUAL 2
+#define TSDB_TS_LESS_EQUAL    2
 
 typedef struct SQueryRowCond {
   int32_t rel;
@@ -178,7 +185,7 @@ typedef void *tsdbpos_t;
  * @param pTableList    table sid list
  * @return
  */
-tsdb_query_handle_t *tsdbQueryTables(tsdb_repo_t *tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
+tsdb_query_handle_t *tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo, SArray *pColumnInfo);
 
 /**
  * move to next block
@@ -280,10 +287,10 @@ SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-int32_t tsdbQueryTags(tsdb_repo_t *tsdb, int64_t uid, const char *pTagCond, size_t len, SArray **pGroupList,
-                      SColIndex *pColIndex, int32_t numOfCols);
+int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size_t len, STableGroupInfo* pGroupList,
+                      SColIndex* pColIndex, int32_t numOfCols);
 
-int32_t tsdbGetOneTableGroup(tsdb_repo_t *tsdb, int64_t uid, SArray **pGroupList);
+int32_t tsdbGetOneTableGroup(tsdb_repo_t* tsdb, int64_t uid, STableGroupInfo* pGroupInfo);
 
 /**
  * clean up the query handle

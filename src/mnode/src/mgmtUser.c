@@ -18,6 +18,7 @@
 #include "trpc.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
@@ -93,7 +94,7 @@ static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtUserActionRestored() {
-  if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
+  if (dnodeIsFirstDeploy()) {
     SAcctObj *pAcct = mgmtGetAcct("root");
     mgmtCreateUser(pAcct, "root", "taosdata");
     mgmtCreateUser(pAcct, "monitor", tsInternalPass);

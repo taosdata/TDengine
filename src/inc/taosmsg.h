@@ -584,6 +584,7 @@ typedef struct {
   char       dnodeName[TSDB_NODE_NAME_LEN + 1];
   uint32_t   privateIp;
   uint32_t   publicIp;
+  uint32_t   moduleStatus;
   uint32_t   lastReboot;        // time stamp for last reboot
   uint16_t   numOfTotalVnodes;  // from config file
   uint16_t   openVnodes;
