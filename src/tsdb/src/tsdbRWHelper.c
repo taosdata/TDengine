@@ -67,7 +67,7 @@ static void tsdbResetHelperTableImpl(SRWHelper *pHelper) {
 static void tsdbResetHelperTable(SRWHelper *pHelper) {
   tsdbResetHelperBlock(pHelper);
   tsdbResetHelperTableImpl(pHelper);
-  helperClearState(pHelper, TSDB_HELPER_TABLE_SET);
+  helperClearState(pHelper, (TSDB_HELPER_TABLE_SET|TSDB_HELPER_INFO_LOAD));
 }
 
 static void tsdbInitHelperTable(SRWHelper *pHelper) {
@@ -83,7 +83,8 @@ static void tsdbResetHelperBlockImpl(SRWHelper *pHelper) {
 }
 
 static void tsdbResetHelperBlock(SRWHelper *pHelper) {
-  // TODO
+  tsdbResetHelperBlockImpl(pHelper);
+  // helperClearState(pHelper, TSDB_HELPER_)
 }
 
 static int tsdbInitHelperBlock(SRWHelper *pHelper) {
@@ -264,7 +265,7 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
 
   // Clear members and state used by previous table
   tsdbResetHelperTable(pHelper);
-  ASSERT(pHelper->state == (TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD));
+  ASSERT(helperHasState(pHelper, (TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD)));
 
   pHelper->tableInfo.tid = pTable->tableId.tid;
   pHelper->tableInfo.uid = pTable->tableId.uid;
