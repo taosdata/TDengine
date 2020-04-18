@@ -176,6 +176,13 @@ uint32_t ip2uint(const char *const ip_addr);
 void taosSetAllocMode(int mode, const char* path, bool autoDump);
 void taosDumpMemoryLeak();
 
+void * tmalloc(size_t size);
+void * tcalloc(size_t nmemb, size_t size);
+size_t tsizeof(void *ptr);
+void   tmemset(void *ptr, int c);
+void * trealloc(void *ptr, size_t size);
+void   tzfree(void *ptr);
+
 #ifdef TAOS_MEM_CHECK
 
 void *  taos_malloc(size_t size, const char *file, uint32_t line);
