@@ -3208,7 +3208,7 @@ static void doDisableFunctsForSupplementaryScan(SQuery *pQuery, SWindowResInfo *
   }
 }
 
-void disableFunctForTableSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
+void disableFuncInReverseScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   // group by normal columns and interval query on normal table
@@ -3416,7 +3416,7 @@ static void queryStatusRestore(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus *pSta
   tsBufSetCursor(pRuntimeEnv->pTSBuf, &pStatus->cur);
 }
 
-static void doSingleMeterSupplementScan(SQueryRuntimeEnv *pRuntimeEnv) {
+static void doReverseScan(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *     pQuery = pRuntimeEnv->pQuery;
   SQueryStatus qStatus = {0};
 
@@ -3424,11 +3424,11 @@ static void doSingleMeterSupplementScan(SQueryRuntimeEnv *pRuntimeEnv) {
     return;
   }
 
-  dTrace("QInfo:%p start to supp scan", GET_QINFO_ADDR(pQuery));
+  dTrace("QInfo:%p start to reverse scan", GET_QINFO_ADDR(pRuntimeEnv));
   SET_SUPPLEMENT_SCAN_FLAG(pRuntimeEnv);
 
   // close necessary function execution during supplementary scan
-  disableFunctForTableSuppleScan(pRuntimeEnv, pQuery->order.order);
+  disableFuncInReverseScan(pRuntimeEnv, pQuery->order.order);
   queryStatusSave(pRuntimeEnv, &qStatus);
 
 //  STimeWindow w = {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
@@ -3557,7 +3557,7 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   pQuery->window.ekey = pQuery->lastKey - step;
 //  /*tsdbpos_t current =*/ tsdbDataBlockTell(pRuntimeEnv->pQueryHandle);
 
-  doSingleMeterSupplementScan(pRuntimeEnv);
+  doReverseScan(pRuntimeEnv);
 
   // update the pQuery->window.skey and pQuery->window.ekey to limit the scan scope of sliding query during reverse scan
   pQuery->lastKey = lkey;
@@ -5866,13 +5866,6 @@ static void freeQInfo(SQInfo *pQInfo) {
   sem_destroy(&(pQInfo->dataReady));
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
   
-//  if (pQInfo->pTableDataInfo != NULL) {
-    //    size_t num = taosHashGetSize(pQInfo->groupInfo);
-//    for (int32_t j = 0; j < 0; ++j) {
-//      destroyMeterQueryInfo(pQInfo->pTableDataInfo[j].pTableQInfo, pQuery->numOfOutputCols);
-//    }
-//  }
-  
   for (int32_t i = 0; i < pQuery->numOfFilterCols; ++i) {
     SSingleColumnFilterInfo *pColFilter = &pQuery->pFilterInfo[i];
     if (pColFilter->numOfFilters > 0) {
@@ -5904,8 +5897,13 @@ static void freeQInfo(SQInfo *pQInfo) {
   tfree(pQuery->pGroupbyExpr);
   tfree(pQuery);
   
-  taosArrayDestroy(pQInfo->groupInfo.pGroupList);
+  int32_t numOfGroups = taosArrayGetSize(pQInfo->groupInfo.pGroupList);
+  for(int32_t i = 0; i < numOfGroups; ++i) {
+    SArray* p = taosArrayGetP(pQInfo->groupInfo.pGroupList, i);
+    taosArrayDestroy(p);
+  }
   
+  taosArrayDestroy(pQInfo->groupInfo.pGroupList);
   dTrace("QInfo:%p QInfo is freed", pQInfo);
   
   // destroy signature, in order to avoid the query process pass the object safety check
@@ -6007,7 +6005,7 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
   }
   
   bool isSTableQuery = false;
-  STableGroupInfo* groupInfo = calloc(1, sizeof(STableGroupInfo));
+  STableGroupInfo groupInfo = {0};
   
   if ((pQueryMsg->queryType & TSDB_QUERY_TYPE_STABLE_QUERY) != 0) {
     isSTableQuery = true;
@@ -6015,8 +6013,8 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
     STableId* id = taosArrayGet(pTableIdList, 0);
     id->uid = -1;  //todo fix me
     
-    /*int32_t ret =*/ tsdbQueryByTagsCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, groupInfo, pGroupColIndex, pQueryMsg->numOfGroupCols);
-    if (groupInfo->numOfTables == 0) { // no qualified tables no need to do query
+    /*int32_t ret =*/ tsdbQueryByTagsCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, &groupInfo, pGroupColIndex, pQueryMsg->numOfGroupCols);
+    if (groupInfo.numOfTables == 0) { // no qualified tables no need to do query
       code = TSDB_CODE_SUCCESS;
       goto _query_over;
     }
@@ -6024,12 +6022,12 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
     assert(taosArrayGetSize(pTableIdList) == 1);
   
     STableId* id = taosArrayGet(pTableIdList, 0);
-    if ((code = tsdbGetOneTableGroup(tsdb, id->uid, groupInfo)) != TSDB_CODE_SUCCESS) {
+    if ((code = tsdbGetOneTableGroup(tsdb, id->uid, &groupInfo)) != TSDB_CODE_SUCCESS) {
       goto _query_over;
     }
   }
   
-  (*pQInfo) = createQInfoImpl(pQueryMsg, pGroupbyExpr, pExprs, groupInfo);
+  (*pQInfo) = createQInfoImpl(pQueryMsg, pGroupbyExpr, pExprs, &groupInfo);
   if ((*pQInfo) == NULL) {
     code = TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
@@ -6037,24 +6035,9 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
   code = initQInfo(pQueryMsg, tsdb, *pQInfo, isSTableQuery);
   
 _query_over:
-  if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(pTableIdList);
-  }
+  taosArrayDestroy(pTableIdList);
 
   // if failed to add ref for all meters in this query, abort current query
-  //  if (code != TSDB_CODE_SUCCESS) {
-  //    vnodeDecQueryRefCount(pQueryMsg, pMeterObjList, incNumber);
-  //  }
-  //
-  //  tfree(pQueryMsg->pSqlFuncExprs);
-  //  tfree(pMeterObjList);
-  //  ret = vnodeSendQueryRspMsg(pObj, code, pObj->qhandle);
-  //
-  //  tfree(pQueryMsg->pSidExtInfo);
-  //  for(int32_t i = 0; i < pQueryMsg->numOfCols; ++i) {
-  //    vnodeFreeColumnInfo(&pQueryMsg->colList[i]);
-  //  }
-  //
   //  atomic_fetch_add_32(&vnodeSelectReqNum, 1);
   return TSDB_CODE_SUCCESS;
 }
