@@ -363,7 +363,7 @@ int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
     ASSERT(pCompBlock->last);
 
     if (pCompBlock->numOfSubBlocks > 1) {
-      if (tsdbLoadBlockData(pHelper, pIdx->numOfSuperBlocks - 1, NULL) < 0) return -1;
+      if (tsdbLoadBlockData(pHelper, blockAtIdx(pHelper, pIdx->numOfSuperBlocks - 1), NULL) < 0) return -1;
       ASSERT(pHelper->pDataCols[0]->numOfPoints > 0 &&
              pHelper->pDataCols[0]->numOfPoints < pHelper->config.minRowsPerFileBlock);
       if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.nLastF), pHelper->pDataCols[0],
@@ -607,8 +607,8 @@ _err:
 }
 
 // Load the whole block data
-int tsdbLoadBlockData(SRWHelper *pHelper, int blkIdx, SDataCols *target) {
-  SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + blkIdx;
+int tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *target) {
+  // SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + blkIdx;
 
   int numOfSubBlock = pCompBlock->numOfSubBlocks;
   if (numOfSubBlock > 1) pCompBlock = (SCompBlock *)((char *)pHelper->pCompInfo + pCompBlock->offset);
@@ -797,7 +797,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
       if (tsdbAddSubBlock(pHelper, &compBlock, blkIdx, rowsWritten) < 0) goto _err;
     } else {
       // Load
-      if (tsdbLoadBlockData(pHelper, blkIdx, NULL) < 0) goto _err;
+      if (tsdbLoadBlockData(pHelper, blockAtIdx(pHelper, blkIdx), NULL) < 0) goto _err;
       ASSERT(pHelper->pDataCols[0]->numOfPoints == blockAtIdx(pHelper, blkIdx)->numOfPoints);
       // Merge
       if (tdMergeDataCols(pHelper->pDataCols[0], pDataCols, rowsWritten) < 0) goto _err;
@@ -852,7 +852,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
       if (tsdbAddSubBlock(pHelper, &compBlock, blkIdx, rowsWritten) < 0) goto _err;
     } else { // Load-Merge-Write
       // Load
-      if (tsdbLoadBlockData(pHelper, blkIdx, NULL) < 0) goto _err;
+      if (tsdbLoadBlockData(pHelper, blockAtIdx(pHelper, blkIdx), NULL) < 0) goto _err;
       if (blockAtIdx(pHelper, blkIdx)->last) pHelper->hasOldLastBlock = false;
 
       rowsWritten = rows3;

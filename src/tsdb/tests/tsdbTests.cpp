@@ -202,7 +202,7 @@ TEST(TsdbTest, createRepo) {
   tsdbSetHelperTable(&rhelper, pTable, repo);
 
   ASSERT_EQ(tsdbLoadCompInfo(&rhelper, NULL), 0);
-  ASSERT_EQ(tsdbLoadBlockData(&rhelper, 0, NULL), 0);
+  ASSERT_EQ(tsdbLoadBlockData(&rhelper, blockAtIdx(&rhelper, 0), NULL), 0);
 
   int k = 0;
 }
