@@ -191,29 +191,15 @@ TEST(TsdbTest, createRepo) {
 
   // Read from file
   SRWHelper rhelper;
-  SHelperCfg helperCfg = {
-    .type = TSDB_READ_HELPER,
-    .maxTables = repo->config.maxTables,
-    .maxRowSize = repo->tsdbMeta->maxRowBytes,
-    .maxRows = repo->config.maxRowsPerFileBlock,
-    .maxCols = repo->tsdbMeta->maxCols,
-    .minRowsPerFileBlock = repo->config.minRowsPerFileBlock,
-    .maxRowsPerFileBlock = repo->config.maxRowsPerFileBlock,
-    .compress = repo->config.compression,
-
-  };
-  tsdbInitHelper(&rhelper, &helperCfg);
+  tsdbInitReadHelper(&rhelper, repo);
 
   SFileGroup *pFGroup = tsdbSearchFGroup(repo->tsdbFileH, 1833);
   ASSERT_NE(pFGroup, nullptr);
   ASSERT_GE(tsdbSetAndOpenHelperFile(&rhelper, pFGroup), 0);
 
-  SHelperTable htable = {
-    .uid = tCfg.tableId.uid,
-    .tid = tCfg.tableId.tid,
-    .sversion = tCfg.sversion
-  };
-  tsdbSetHelperTable(&rhelper, &htable, schema);
+  STable *pTable = tsdbGetTableByUid(repo->tsdbMeta, tCfg.tableId.uid);
+  ASSERT_NE(pTable, nullptr);
+  tsdbSetHelperTable(&rhelper, pTable, repo);
 
   ASSERT_EQ(tsdbLoadCompInfo(&rhelper, NULL), 0);
   ASSERT_EQ(tsdbLoadBlockData(&rhelper, 0, NULL), 0);

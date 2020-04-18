@@ -18,7 +18,7 @@
 #include "talgo.h"
 
 // Local function definitions
-static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
+// static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
 static int  tsdbInitHelperFile(SRWHelper *pHelper);
 // static void tsdbClearHelperFile(SHelperFile *pHFile);
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper);
@@ -102,14 +102,21 @@ static void tsdbDestroyHelperBlock(SRWHelper *pHelper) {
   tdFreeDataCols(pHelper->pDataCols[1]);
 }
 
-// ------------------------------------------ OPERATIONS FOR OUTSIDE ------------------------------------------
-int tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg) {
-  if (pHelper == NULL || pCfg == NULL || tsdbCheckHelperCfg(pCfg) < 0) return -1;
+static int tsdbInitHelper(SRWHelper *pHelper, STsdbRepo *pRepo, tsdb_rw_helper_t type) {
+  if (pHelper == NULL || pRepo == NULL) return -1;
 
   memset((void *)pHelper, 0, sizeof(*pHelper));
 
   // Init global configuration
-  pHelper->config = *pCfg;
+  pHelper->config.type = type;
+  pHelper->config.maxTables = pRepo->config.maxTables;
+  pHelper->config.maxRowSize = pRepo->tsdbMeta->maxRowBytes;
+  pHelper->config.maxRows = pRepo->config.maxRowsPerFileBlock;
+  pHelper->config.maxCols = pRepo->tsdbMeta->maxCols;
+  pHelper->config.minRowsPerFileBlock = pRepo->config.minRowsPerFileBlock;
+  pHelper->config.maxRowsPerFileBlock = pRepo->config.maxRowsPerFileBlock;
+  pHelper->config.compress = pRepo->config.compression;
+
   pHelper->state = TSDB_HELPER_CLEAR_STATE;
 
   // Init file part
@@ -126,6 +133,15 @@ int tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg) {
 _err:
   tsdbDestroyHelper(pHelper);
   return -1;
+}
+
+// ------------------------------------------ OPERATIONS FOR OUTSIDE ------------------------------------------
+int tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo) {
+  return tsdbInitHelper(pHelper, pRepo, TSDB_READ_HELPER);
+}
+
+int tsdbInitWriteHelper(SRWHelper *pHelper, STsdbRepo *pRepo) {
+  return tsdbInitHelper(pHelper, pRepo, TSDB_WRITE_HELPER);
 }
 
 void tsdbDestroyHelper(SRWHelper *pHelper) {
@@ -243,18 +259,22 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   return 0;
 }
 
-void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema *pSchema) {
+void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
   ASSERT(helperHasState(pHelper, TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD));
 
   // Clear members and state used by previous table
   tsdbResetHelperTable(pHelper);
   ASSERT(pHelper->state == (TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD));
 
-  pHelper->tableInfo = *pHelperTable;
+  pHelper->tableInfo.tid = pTable->tableId.tid;
+  pHelper->tableInfo.uid = pTable->tableId.uid;
+  pHelper->tableInfo.sversion = pTable->sversion;
+  STSchema *pSchema = tsdbGetTableSchema(pRepo->tsdbMeta, pTable);
+
   tdInitDataCols(pHelper->pDataCols[0], pSchema);
   tdInitDataCols(pHelper->pDataCols[1], pSchema);
 
-  SCompIdx *pIdx = pHelper->pCompIdx + pHelperTable->tid;
+  SCompIdx *pIdx = pHelper->pCompIdx + pTable->tableId.tid;
   if (pIdx->offset > 0 && pIdx->hasLast) {
     pHelper->hasOldLastBlock = true;
   }
@@ -610,10 +630,10 @@ _err:
   return -1;
 }
 
-static int tsdbCheckHelperCfg(SHelperCfg *pCfg) {
-  // TODO
-  return 0;
-}
+// static int tsdbCheckHelperCfg(SHelperCfg *pCfg) {
+//   // TODO
+//   return 0;
+// }
 
 // static void tsdbClearHelperFile(SHelperFile *pHFile) {
 //   pHFile->fid = -1;

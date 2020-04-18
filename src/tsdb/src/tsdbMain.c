@@ -400,6 +400,7 @@ int tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t ti
   config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
   config->tableId.uid = uid;
   config->tableId.tid = tid;
+  config->name = strdup("test1");
   return 0;
 }
 
@@ -873,16 +874,7 @@ static void *tsdbCommitData(void *arg) {
     return NULL;
   }
 
-  // Create a write helper to commit data
-  SHelperCfg hcfg = {.type = TSDB_WRITE_HELPER,
-                     .maxTables = pCfg->maxTables,
-                     .maxRowSize = pMeta->maxRowBytes,
-                     .maxRows = pCfg->maxRowsPerFileBlock,
-                     .maxCols = pMeta->maxCols,
-                     .minRowsPerFileBlock = pCfg->minRowsPerFileBlock,
-                     .maxRowsPerFileBlock = pCfg->maxRowsPerFileBlock,
-                     .compress = pCfg->compression};
-  if (tsdbInitHelper(&whelper, &hcfg) < 0) goto _exit;
+  if (tsdbInitWriteHelper(&whelper, pRepo) < 0) goto _exit;
   if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) goto _exit;
 
   int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
@@ -898,7 +890,6 @@ static void *tsdbCommitData(void *arg) {
 
 _exit:
   tdFreeDataCols(pDataCols);
-  tsdbDestroyHelper(&whelper);
   tsdbDestroyTableIters(iters, pCfg->maxTables);
 
   tsdbLockRepo(arg);
@@ -948,8 +939,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     SSkipListIterator *pIter = iters[tid];
 
     // Set the helper and the buffer dataCols object to help to write this table
-    SHelperTable hTable = {.uid = pTable->tableId.uid, .tid = pTable->tableId.tid, .sversion = pTable->sversion};
-    tsdbSetHelperTable(pHelper, &hTable, tsdbGetTableSchema(pMeta, pTable));
+    tsdbSetHelperTable(pHelper, pTable, pRepo);
     tdInitDataCols(pDataCols, tsdbGetTableSchema(pMeta, pTable));
 
     // Loop to write the data in the cache to files. If no data to write, just break the loop 
