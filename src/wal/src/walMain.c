@@ -208,6 +208,8 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     }
   }
 
+  closedir(dir);
+
   if (count == 0) {
     if (pWal->keep) code = walRenew(pWal);
     return code;
@@ -247,8 +249,6 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
       }
     }
   }
-
-  closedir(dir);
 
   return code;
 }
