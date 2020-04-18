@@ -1531,14 +1531,15 @@ void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle) {
   taosArrayDestroy(pQueryHandle->pTableCheckInfo);
   tfree(pQueryHandle->compIndex);
 
-  size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
-  for (int32_t i = 0; i < cols; ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-    // tfree(pColInfo->pData);
-  }
+  // size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
+  // for (int32_t i = 0; i < cols; ++i) {
+  //   SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+  //   // tfree(pColInfo->pData);
+  // }
 
   taosArrayDestroy(pQueryHandle->pColumns);
   
   tfree(pQueryHandle->pDataBlockInfo);
+  tsdbDestroyHelper(&pQueryHandle->rhelper);
   tfree(pQueryHandle);
 }
