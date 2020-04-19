@@ -12,7 +12,7 @@ static double getCurTime() {
 }
 
 typedef struct {
-  tsdb_repo_t *pRepo;
+  TsdbRepoT *pRepo;
   int          tid;
   int64_t      uid;
   int          sversion;
@@ -129,7 +129,7 @@ TEST(TsdbTest, createRepo) {
   tsdbSetDefaultCfg(&config);
   ASSERT_EQ(tsdbCreateRepo("/home/ubuntu/work/ttest/vnode0", &config, NULL), 0);
 
-  tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
+  TsdbRepoT *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
   ASSERT_NE(pRepo, nullptr);
 
   // 2. Create a normal table

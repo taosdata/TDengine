@@ -54,7 +54,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 // static int     tsdbOpenMetaFile(char *tsdbDir);
-static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
+static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
 static void *  tsdbCommitData(void *arg);
@@ -156,7 +156,7 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) 
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbDropRepo(tsdb_repo_t *repo) {
+int32_t tsdbDropRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
@@ -182,7 +182,7 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-tsdb_repo_t *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
+TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
   char dataDir[128] = "\0";
   if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
@@ -205,7 +205,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1, (tsdb_repo_t *)pRepo);
+  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1, (TsdbRepoT *)pRepo);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
@@ -225,7 +225,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
 
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
-  return (tsdb_repo_t *)pRepo;
+  return (TsdbRepoT *)pRepo;
 }
 
 // static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
@@ -240,7 +240,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
+int32_t tsdbCloseRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   if (pRepo == NULL) return 0;
 
@@ -285,7 +285,7 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
+int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   pRepo->config = *pCfg;
@@ -293,7 +293,7 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   return 0;
 }
 
-int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
+int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   
   tsdbLockRepo(repo);
@@ -325,12 +325,12 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   return 0;
 }
 
-int32_t tsdbLockRepo(tsdb_repo_t *repo) {
+int32_t tsdbLockRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   return pthread_mutex_lock(&(pRepo->mutex));
 }
 
-int32_t tsdbUnLockRepo(tsdb_repo_t *repo) {
+int32_t tsdbUnLockRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   return pthread_mutex_unlock(&(pRepo->mutex));
 }
@@ -343,35 +343,35 @@ int32_t tsdbUnLockRepo(tsdb_repo_t *repo) {
  * @return a info struct handle on success, NULL for failure and the error number is set. The upper
  *         layers should free the info handle themselves or memory leak will occur
  */
-STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
+STsdbRepoInfo *tsdbGetStatus(TsdbRepoT *pRepo) {
   // TODO
   return NULL;
 }
 
-int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
+int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   return tsdbCreateTableImpl(pRepo->tsdbMeta, pCfg);
 }
 
-int tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
+int tsdbAlterTable(TsdbRepoT *pRepo, STableCfg *pCfg) {
   // TODO
   return 0;
 }
 
-int tsdbDropTable(tsdb_repo_t *repo, STableId tableId) {
+int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
   if (repo == NULL) return -1;
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   return tsdbDropTableImpl(pRepo->tsdbMeta, tableId);
 }
 
-STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tableId) {
+STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tableId) {
   // TODO
   return NULL;
 }
 
 // TODO: need to return the number of data inserted
-int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
+int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg) {
   SSubmitMsgIter msgIter;
 
   tsdbInitSubmitMsgIter(pMsg, &msgIter);
@@ -556,12 +556,12 @@ SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter) {
   return pBlock;
 }
 
-STsdbMeta* tsdbGetMeta(tsdb_repo_t* pRepo) {
+STsdbMeta* tsdbGetMeta(TsdbRepoT* pRepo) {
   STsdbRepo *tsdb = (STsdbRepo *)pRepo;
   return tsdb->tsdbMeta;
 }
 
-STsdbFileH* tsdbGetFile(tsdb_repo_t* pRepo) {
+STsdbFileH* tsdbGetFile(TsdbRepoT* pRepo) {
   STsdbRepo* tsdb = (STsdbRepo*) pRepo;
   return tsdb->tsdbFileH;
 }
@@ -772,7 +772,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   return 0;
 }
 
-static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
+static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};

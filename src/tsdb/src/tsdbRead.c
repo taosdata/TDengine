@@ -135,7 +135,7 @@ static void tsdbInitCompBlockLoadInfo(SLoadCompBlockInfo* pCompBlockLoadInfo) {
   pCompBlockLoadInfo->fileListIndex = -1;
 }
 
-tsdb_query_handle_t* tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, SArray* pColumnInfo) {
+TsdbQueryHandleT* tsdbQueryTables(TsdbRepoT* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, SArray* pColumnInfo) {
   // todo 1. filter not exist table
   // todo 2. add the reference count for each table that is involved in query
 
@@ -199,7 +199,7 @@ tsdb_query_handle_t* tsdbQueryTables(tsdb_repo_t* tsdb, STsdbQueryCond* pCond, S
   tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
 
-  return (tsdb_query_handle_t)pQueryHandle;
+  return (TsdbQueryHandleT)pQueryHandle;
 }
 
 static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
@@ -914,7 +914,7 @@ static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
 }
 
 // handle data in cache situation
-bool tsdbNextDataBlock(tsdb_query_handle_t* pqHandle) {
+bool tsdbNextDataBlock(TsdbQueryHandleT* pqHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pqHandle;
   
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
@@ -1014,7 +1014,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
 }
 
 // copy data from cache into data block
-SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
+SDataBlockInfo tsdbRetrieveDataBlockInfo(TsdbQueryHandleT* pQueryHandle) {
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*)pQueryHandle;
 
   STable* pTable = NULL;
@@ -1072,12 +1072,12 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
 }
 
 // return null for data block in cache
-int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t* pQueryHandle, SDataStatis** pBlockStatis) {
+int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataStatis** pBlockStatis) {
   *pBlockStatis = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
-SArray* tsdbRetrieveDataBlock(tsdb_query_handle_t* pQueryHandle, SArray* pIdList) {
+SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
   /**
    * In the following two cases, the data has been loaded to SColumnInfoData.
    * 1. data is from cache, 2. data block is not completed qualified to query time range
@@ -1114,21 +1114,21 @@ SArray* tsdbRetrieveDataBlock(tsdb_query_handle_t* pQueryHandle, SArray* pIdList
   }
 }
 
-int32_t tsdbResetQuery(tsdb_query_handle_t* pQueryHandle, STimeWindow* window, tsdbpos_t position, int16_t order) {
+int32_t tsdbResetQuery(TsdbQueryHandleT* pQueryHandle, STimeWindow* window, TsdbPosT position, int16_t order) {
   return 0;
 }
 
-int32_t tsdbDataBlockSeek(tsdb_query_handle_t* pQueryHandle, tsdbpos_t pos) { return 0; }
+int32_t tsdbDataBlockSeek(TsdbQueryHandleT* pQueryHandle, TsdbPosT pos) { return 0; }
 
-tsdbpos_t tsdbDataBlockTell(tsdb_query_handle_t* pQueryHandle) { return NULL; }
+TsdbPosT tsdbDataBlockTell(TsdbQueryHandleT* pQueryHandle) { return NULL; }
 
-SArray* tsdbRetrieveDataRow(tsdb_query_handle_t* pQueryHandle, SArray* pIdList, SQueryRowCond* pCond) { return NULL; }
+SArray* tsdbRetrieveDataRow(TsdbQueryHandleT* pQueryHandle, SArray* pIdList, SQueryRowCond* pCond) { return NULL; }
 
-tsdb_query_handle_t* tsdbQueryFromTagConds(STsdbQueryCond* pCond, int16_t stableId, const char* pTagFilterStr) {
+TsdbQueryHandleT* tsdbQueryFromTagConds(STsdbQueryCond* pCond, int16_t stableId, const char* pTagFilterStr) {
   return NULL;
 }
 
-SArray* tsdbGetTableList(tsdb_query_handle_t* pQueryHandle) { return NULL; }
+SArray* tsdbGetTableList(TsdbQueryHandleT* pQueryHandle) { return NULL; }
 
 static int32_t getAllTableIdList(STsdbRepo* tsdb, int64_t uid, SArray* list) {
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
@@ -1439,7 +1439,7 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size_t len, STableGroupInfo* pGroupInfo,
+int32_t tsdbQueryTags(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, size_t len, STableGroupInfo* pGroupInfo,
     SColIndex* pColIndex, int32_t numOfCols) {
   
   STable* pSTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
@@ -1481,7 +1481,7 @@ int32_t tsdbQueryTags(tsdb_repo_t* tsdb, int64_t uid, const char* pTagCond, size
   return ret;
 }
 
-int32_t tsdbGetOneTableGroup(tsdb_repo_t* tsdb, int64_t uid, STableGroupInfo* pGroupInfo) {
+int32_t tsdbGetOneTableGroup(TsdbRepoT* tsdb, int64_t uid, STableGroupInfo* pGroupInfo) {
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pTable == NULL) {
     return TSDB_CODE_INVALID_TABLE_ID;
@@ -1498,7 +1498,7 @@ int32_t tsdbGetOneTableGroup(tsdb_repo_t* tsdb, int64_t uid, STableGroupInfo* pG
   
   return TSDB_CODE_SUCCESS;
 }
-void tsdbCleanupQueryHandle(tsdb_query_handle_t queryHandle) {
+void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
   if (pQueryHandle == NULL) {
     return;
