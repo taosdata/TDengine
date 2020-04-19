@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "dataformat.h"
+#include "tutil.h"
 
 static int tdFLenFromSchema(STSchema *pSchema);
 
@@ -338,6 +339,28 @@ void tdFreeDataCols(SDataCols *pCols) {
   }
 }
 
+SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
+  SDataCols *pRet = tdNewDataCols(pDataCols->maxRowSize, pDataCols->maxCols, pDataCols->maxPoints);
+  if (pRet == NULL) return NULL;
+
+  pRet->numOfCols = pDataCols->numOfCols;
+  pRet->sversion = pDataCols->sversion;
+  if (keepData) pRet->numOfPoints = pDataCols->numOfPoints;
+
+  for (int i = 0; i < pDataCols->numOfCols; i++) {
+    pRet->cols[i].type = pDataCols->cols[i].type;
+    pRet->cols[i].colId = pDataCols->cols[i].colId;
+    pRet->cols[i].bytes = pDataCols->cols[i].bytes;
+    pRet->cols[i].len = pDataCols->cols[i].len;
+    pRet->cols[i].offset = pDataCols->cols[i].offset;
+    pRet->cols[i].pData = (void *)((char *)pRet->buf + ((char *)(pDataCols->cols[i].pData) - (char *)(pDataCols->buf)));
+
+    if (keepData) memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pRet->cols[i].bytes * pDataCols->numOfPoints);
+  }
+
+  return pRet;
+}
+
 void tdResetDataCols(SDataCols *pCols) {
   pCols->numOfPoints = 0;
   for (int i = 0; i < pCols->maxCols; i++) {
@@ -382,6 +405,58 @@ static int tdFLenFromSchema(STSchema *pSchema) {
   return ret;
 }
 
-int tdMergeDataCols(SDataCols *target, SDataCols *source) {
+int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
+  ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfPoints);
+
+  SDataCols *pTarget = tdDupDataCols(target, true);
+  if (pTarget == NULL) goto _err;
+  // tdResetDataCols(target);
+
+  int iter1 = 0;
+  int iter2 = 0;
+  tdMergeTwoDataCols(target,pTarget, &iter1, source, &iter2, pTarget->numOfPoints + rowsToMerge);
+
+  tdFreeDataCols(pTarget);
   return 0;
+
+_err:
+  tdFreeDataCols(pTarget);
+  return -1;
+}
+
+void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows) {
+  tdResetDataCols(target);
+
+  while (target->numOfPoints < tRows) {
+    if (*iter1 >= src1->numOfPoints && *iter2 >= src2->numOfPoints) break;
+
+    TSKEY key1 = (*iter1 >= src1->numOfPoints) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
+    TSKEY key2 = (*iter2 >= src2->numOfPoints) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
+
+    if (key1 < key2) {
+      for (int i = 0; i < src1->numOfCols; i++) {
+        ASSERT(target->cols[i].type == src1->cols[i].type);
+        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+               (void *)((char *)(src1->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * (*iter1)),
+               TYPE_BYTES[target->cols[i].type]);
+        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
+      }
+
+      target->numOfPoints++;
+      (*iter1)++;
+    } else if (key1 > key2) {
+      for (int i = 0; i < src2->numOfCols; i++) {
+        ASSERT(target->cols[i].type == src2->cols[i].type);
+        memcpy((void *)((char *)(target->cols[i].pData) + TYPE_BYTES[target->cols[i].type] * target->numOfPoints),
+               (void *)((char *)(src2->cols[i].pData) + TYPE_BYTES[src2->cols[i].type] * (*iter2)),
+               TYPE_BYTES[target->cols[i].type]);
+        target->cols[i].len += TYPE_BYTES[target->cols[i].type];
+      }
+
+      target->numOfPoints++;
+      (*iter2)++;
+    } else {
+      ASSERT(false);
+    }
+  }
 }

@@ -36,12 +36,12 @@ static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
 static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg);
 static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg);
 
-static int32_t mgmtUserActionDestroy(SSdbOperDesc *pOper) {
+static int32_t mgmtUserActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
+static int32_t mgmtUserActionInsert(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
 
@@ -56,7 +56,7 @@ static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
+static int32_t mgmtUserActionDelete(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
 
@@ -67,7 +67,7 @@ static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionUpdate(SSdbOperDesc *pOper) {
+static int32_t mgmtUserActionUpdate(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
   SUserObj *pSaved = mgmtGetUser(pUser->user);
   if (pUser != pSaved) {
@@ -77,14 +77,14 @@ static int32_t mgmtUserActionUpdate(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionEncode(SSdbOperDesc *pOper) {
+static int32_t mgmtUserActionEncode(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
   memcpy(pOper->rowData, pUser, tsUserUpdateSize);
   pOper->rowSize = tsUserUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
+static int32_t mgmtUserActionDecode(SSdbOper *pOper) {
   SUserObj *pUser = (SUserObj *) calloc(1, sizeof(SUserObj));
   if (pUser == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -137,7 +137,7 @@ int32_t mgmtInitUsers() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
   
-  mTrace("user data is initialized");
+  mTrace("table:users table is created");
   return 0;
 }
 
@@ -154,7 +154,7 @@ void mgmtReleaseUser(SUserObj *pUser) {
 }
 
 static int32_t mgmtUpdateUser(SUserObj *pUser) {
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser,
@@ -202,7 +202,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     pUser->superAuth = 1;
   }
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser,
@@ -219,7 +219,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
 }
 
 static int32_t mgmtDropUser(SUserObj *pUser) {
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser
@@ -493,7 +493,7 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
     if (pUser == NULL) break;
 
     if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
-      SSdbOperDesc oper = {
+      SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsUserSdb,
         .pObj = pUser,

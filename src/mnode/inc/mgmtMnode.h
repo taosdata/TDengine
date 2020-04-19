@@ -39,10 +39,9 @@ int32_t mgmtGetMnodesNum();
 void *  mgmtGetNextMnode(void *pNode, struct SMnodeObj **pMnode);
 void    mgmtReleaseMnode(struct SMnodeObj *pMnode);
 
-bool    mgmtIsMaster();
-
+char *  mgmtGetMnodeRoleStr();
 void    mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp);
-void    mgmtGetMnodeList(void *mpeers);
+void    mgmtGetMnodeList(void *mnodes);
 
 #ifdef __cplusplus
 }

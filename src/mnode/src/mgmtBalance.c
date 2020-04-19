@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "trpc.h"
-#include "treplica.h"
+#include "tbalance.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtMnode.h"
@@ -25,13 +25,12 @@
 
 #ifndef _SYNC
 
-int32_t replicaInit() { return TSDB_CODE_SUCCESS; }
-void    replicaCleanUp() {}
-void    replicaNotify() {}
-void    replicaReset() {}
-int32_t replicaForwardReqToPeer(void *pHead) { return TSDB_CODE_SUCCESS; }
+int32_t balanceInit() { return TSDB_CODE_SUCCESS; }
+void    balanceCleanUp() {}
+void    balanceNotify() {}
+void    balanceReset() {}
 
-int32_t replicaAllocVnodes(SVgObj *pVgroup) {
+int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   SDnodeObj *pSelDnode = NULL;

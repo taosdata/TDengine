@@ -17,7 +17,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tsched.h"
-#include "treplica.h"
+#include "tbalance.h"
 #include "tgrant.h"
 #include "ttimer.h"
 #include "dnode.h"
@@ -62,7 +62,7 @@ int32_t mgmtStartSystem() {
   }
 
   if (grantInit() < 0) {
-    mError("failed to init grants");
+    mError("failed to init grant");
     return -1;
   }
 
@@ -92,7 +92,7 @@ int32_t mgmtStartSystem() {
   }
 
   if (mgmtInitMnodes() < 0) {
-    mError("failed to init mpeers");
+    mError("failed to init mnodes");
     return -1;
   }
 
@@ -101,8 +101,8 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (replicaInit() < 0) {
-    mError("failed to init replica")
+  if (balanceInit() < 0) {
+    mError("failed to init balance")
   }
 
   if (mgmtInitDClient() < 0) {
@@ -144,7 +144,7 @@ void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
   grantCleanUp();
   mgmtCleanupMnodes();
-  replicaCleanUp();
+  balanceCleanUp();
   mgmtCleanUpShell();
   mgmtCleanupDClient();
   mgmtCleanupDServer();
@@ -161,7 +161,7 @@ void mgmtCleanUpSystem() {
 }
 
 void mgmtStopSystem() {
-  if (mgmtIsMaster()) {
+  if (sdbIsMaster()) {
     mTrace("it is a master mgmt node, it could not be stopped");
     return;
   }

@@ -147,8 +147,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  void *pTsdb = vnodeGetTsdb(pVnode);
-  code = tsdbCreateTable(pTsdb, &tCfg);
+  code = tsdbCreateTable(pVnode->tsdb, &tCfg);
 
   tfree(pDestSchema);
 
@@ -211,8 +210,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  void *pTsdb = vnodeGetTsdb(pVnode);
-  code = tsdbAlterTable(pTsdb, &tCfg);
+  code = tsdbAlterTable(pVnode->tsdb, &tCfg);
 
   tfree(pDestSchema);
 

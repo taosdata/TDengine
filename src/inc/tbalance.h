@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_REPLICA_H
-#define TDENGINE_REPLICA_H
+#ifndef TDENGINE_BALANCE_H
+#define TDENGINE_BALANCE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,13 +23,12 @@ extern "C" {
 struct SVgObj;
 struct SDnodeObj;
 
-int32_t replicaInit();
-void    replicaCleanUp();
-void    replicaNotify();
-void    replicaReset();
-int32_t replicaAllocVnodes(struct SVgObj *pVgroup);
-int32_t replicaForwardReqToPeer(void *pHead);
-int32_t replicaDropDnode(struct SDnodeObj *pDnode);
+int32_t balanceInit();
+void    balanceCleanUp();
+void    balanceNotify();
+void    balanceReset();
+int32_t balanceAllocVnodes(struct SVgObj *pVgroup);
+int32_t balanceDropDnode(struct SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }

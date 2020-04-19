@@ -47,7 +47,6 @@ void*   vnodeGetVnode(int32_t vgId);      // keep refcount unchanged
 void*   vnodeGetRqueue(void *);
 void*   vnodeGetWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
-void*   vnodeGetTsdb(void *pVnode);
 
 int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
 void    vnodeBuildStatusMsg(void * param);

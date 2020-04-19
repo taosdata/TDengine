@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "treplica.h"
+#include "tbalance.h"
 #include "tglobalcfg.h"
 #include "ttime.h"
 #include "tutil.h"
@@ -52,12 +52,12 @@ static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, voi
 static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static int32_t mgmtDnodeActionDestroy(SSdbOperDesc *pOper) {
+static int32_t mgmtDnodeActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDnodeActionInsert(SSdbOperDesc *pOper) {
+static int32_t mgmtDnodeActionInsert(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
@@ -72,7 +72,7 @@ static int32_t mgmtDnodeActionInsert(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDnodeActionDelete(SSdbOperDesc *pOper) {
+static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   void *     pNode = NULL;
   void *     pLastNode = NULL;
@@ -85,7 +85,7 @@ static int32_t mgmtDnodeActionDelete(SSdbOperDesc *pOper) {
     if (pVgroup == NULL) break;
 
     if (pVgroup->vnodeGid[0].dnodeId == pDnode->dnodeId) {
-      SSdbOperDesc oper = {
+      SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
         .pObj = pVgroup,
@@ -101,7 +101,7 @@ static int32_t mgmtDnodeActionDelete(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDnodeActionUpdate(SSdbOperDesc *pOper) {
+static int32_t mgmtDnodeActionUpdate(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   SDnodeObj *pSaved = mgmtGetDnode(pDnode->dnodeId);
   if (pDnode != pSaved) {
@@ -111,14 +111,14 @@ static int32_t mgmtDnodeActionUpdate(SSdbOperDesc *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDnodeActionEncode(SSdbOperDesc *pOper) {
+static int32_t mgmtDnodeActionEncode(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   memcpy(pOper->rowData, pDnode, tsDnodeUpdateSize);
   pOper->rowSize = tsDnodeUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtDnodeActionDecode(SSdbOperDesc *pOper) {
+static int32_t mgmtDnodeActionDecode(SSdbOper *pOper) {
   SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
   if (pDnode == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -180,7 +180,7 @@ int32_t mgmtInitDnodes() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mgmtGetDnodeMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mgmtRetrieveDnodes);
  
-  mTrace("dnodes table is created");
+  mTrace("table:dnodes table is created");
   return 0;
 }
 
@@ -221,7 +221,7 @@ void mgmtReleaseDnode(SDnodeObj *pDnode) {
 }
 
 void mgmtUpdateDnode(SDnodeObj *pDnode) {
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode,
@@ -340,7 +340,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
-    replicaNotify();
+    balanceNotify();
   }
 
   mgmtReleaseDnode(pDnode);
@@ -393,7 +393,7 @@ static int32_t mgmtCreateDnode(uint32_t ip) {
   pDnode->totalVnodes = TSDB_INVALID_VNODE_NUM; 
   sprintf(pDnode->dnodeName, "n%d", sdbGetId(tsDnodeSdb) + 1);
 
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode,
@@ -413,7 +413,7 @@ static int32_t mgmtCreateDnode(uint32_t ip) {
 }
 
 int32_t mgmtDropDnode(SDnodeObj *pDnode) {
-  SSdbOperDesc oper = {
+  SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode
