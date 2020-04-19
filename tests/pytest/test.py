@@ -77,10 +77,10 @@ if __name__ == "__main__":
             conn.close()
     else:
         tdLog.notice("Procedures for tdengine deployed in %s" % (masterIp))
-        conn = taos.connect(host=masterIp, config=tdDnodes.getSimCfgPath())
+        cfgPath = "../../build/test/cfg"   # was: tdDnodes.getSimCfgPath()
+        conn = taos.connect(host=masterIp, config=cfgPath)
         if fileName == "all":
             tdCases.runAllWindows(conn)
         else:
             tdCases.runOneWindows(conn, fileName)
         conn.close()
-
