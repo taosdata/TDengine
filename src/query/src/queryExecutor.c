@@ -3475,7 +3475,7 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   setEnvBeforeReverseScan(pRuntimeEnv, &qstatus);
 
   // reverse scan from current position
-  dTrace("QInfo:%p start to reverse scan", GET_QINFO_ADDR(pRuntimeEnv));
+  qTrace("QInfo:%p start to reverse scan", GET_QINFO_ADDR(pRuntimeEnv));
   doScanAllDataBlocks(pRuntimeEnv);
   
   clearEnvAfterReverseScan(pRuntimeEnv, lastKey, &qstatus);
