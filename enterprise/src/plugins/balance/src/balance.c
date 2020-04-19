@@ -19,6 +19,7 @@
 #include "tsync.h"
 #include "ttime.h"
 #include "ttimer.h"
+#include "tglobal.h"
 #include "dnode.h"
 #include "mnode.h"
 #include "mgmtDef.h"

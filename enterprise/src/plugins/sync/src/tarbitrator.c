@@ -14,9 +14,10 @@
  */
 
 //#define _DEFAULT_SOURCE
-#include <stdint.h>
 #include "os.h"
-#include "tlog.h"
+#include "taosdef.h"
+#include "tulog.h"
+#include "tglobal.h"
 #include "tsync.h"
 
 int main(int argc, char *argv[]) {
@@ -54,11 +55,11 @@ int main(int argc, char *argv[]) {
 
   void *syncHandle = syncStart(&syncInfo);
   if (syncHandle == NULL) {
-    dError("failed to init arbitrator");
+    uError("failed to init arbitrator");
     return -1;
   }
 
-  dPrint("TAOS arbitrator is running, ip:%s\n", tsPrivateIp);
+  uPrint("TAOS arbitrator is running, ip:%s\n", tsPrivateIp);
 
   while (1) {
     sleep(1);

@@ -20,7 +20,7 @@
 #include "tlog.h"
 #include "tutil.h"
 #include "shash.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "dnode.h"
 #include "storage.h"
 #include "storageTier.h"
@@ -166,7 +166,7 @@ static void storagePrintTiersInfo() {
       blankLen = blankLen < 0 ? 0 : blankLen;
       memset(blank, ' ', TSDB_CFG_PRINT_LEN);
       blank[blankLen] = 0;
-      pPrint(" %s:%s%s", optionBuffer, blank, disk->path);
+      uPrint(" %s:%s%s", optionBuffer, blank, disk->path);
     }
   }
 }

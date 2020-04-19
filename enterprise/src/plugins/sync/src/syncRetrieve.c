@@ -20,6 +20,7 @@
 #include "os.h"
 #include "tlog.h"
 #include "tutil.h"
+#include "tglobal.h"
 #include "ttimer.h"
 #include "tsocket.h"
 #include "twal.h"
@@ -449,7 +450,7 @@ void *syncRetrieveData(void *param)
   assert(pPeer->syncFd < 0);
   taosBlockSIGPIPE();
 
-  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, tsVnodeVnodePort, tsPrivateIp);
+  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, tsSyncPort, tsPrivateIp);
   if (pPeer->syncFd < 0) {
     sError("vgId:%d peer:%s, failed to open socket to sync", pNode->vgId, pPeer->ipstr);
     return NULL;    

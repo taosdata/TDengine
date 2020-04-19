@@ -220,18 +220,18 @@ static struct arguments tdArgs = {
 // log function
 #define tdError(...)                          \
   if (tdArgs.debugFlag & DEBUG_ERROR) {            \
-    tprintf("ERROR TD  ", 255, __VA_ARGS__); \
+    taosPrintLog("ERROR TD  ", 255, __VA_ARGS__); \
   }
 #define tdWarn(...)                                  \
   if (tdArgs.debugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  TD  ", tdArgs.debugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN  TD  ", tdArgs.debugFlag, __VA_ARGS__); \
   }
 #define tdTrace(...)                           \
   if (tdArgs.debugFlag & DEBUG_TRACE) {             \
-    tprintf("TD  ", tdArgs.debugFlag, __VA_ARGS__); \
+    taosPrintLog("TD  ", tdArgs.debugFlag, __VA_ARGS__); \
   }
 #define tdPrint(...) \
-  { tprintf("TD  ", 255, __VA_ARGS__); }
+  { taosPrintLog("TD  ", 255, __VA_ARGS__); }
 
 int tdCheckParam(struct arguments *arguments) {
   tdPrint("program parameters");

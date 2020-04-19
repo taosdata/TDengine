@@ -27,11 +27,11 @@
 #define SQL_API
 #endif
 
-void tprintf(const char * const flags, int dflag, const char * const format, ...);
-#define odbcError(...) if ( odbcdebugFlag & DEBUG_ERROR ) { tprintf("ODBC ERROR ", odbcdebugFlag, __VA_ARGS__); }
-#define odbcWarn(...)  if ( odbcdebugFlag & DEBUG_WARN )  { tprintf("ODBC WARN  ", odbcdebugFlag, __VA_ARGS__); }
-#define odbcTrace(...) if ( odbcdebugFlag & DEBUG_TRACE ) { tprintf("ODBC ", odbcdebugFlag, __VA_ARGS__); }
-#define odbcPrint(...) { tprintf("ODBC INFO ", 255, __VA_ARGS__); }
+void taosPrintLog(const char * const flags, int dflag, const char * const format, ...);
+#define odbcError(...) if ( odbcdebugFlag & DEBUG_ERROR ) { taosPrintLog("ODBC ERROR ", odbcdebugFlag, __VA_ARGS__); }
+#define odbcWarn(...)  if ( odbcdebugFlag & DEBUG_WARN )  { taosPrintLog("ODBC WARN  ", odbcdebugFlag, __VA_ARGS__); }
+#define odbcTrace(...) if ( odbcdebugFlag & DEBUG_TRACE ) { taosPrintLog("ODBC ", odbcdebugFlag, __VA_ARGS__); }
+#define odbcPrint(...) { taosPrintLog("ODBC INFO ", 255, __VA_ARGS__); }
 
 #define MAX_BIND_COL TSDB_MAX_COLUMNS
 #define MAX_ERROR_LEN 1024

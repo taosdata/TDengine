@@ -11,7 +11,7 @@
 #include <pthread.h>
 
 #include "taos.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "tlog.h"
 #include "ihash.h"
 #include "shash.h"
@@ -24,9 +24,9 @@
 // log functions
 // 
 
-#define gsError(...) tprintf("ERROR ", 199, __VA_ARGS__); 
-#define gsWarn(...)  tprintf("WARN  ", 199, __VA_ARGS__); 
-#define gsPrint(...) tprintf("INFO  ", 199, __VA_ARGS__); 
+#define gsError(...) taosPrintLog("ERROR ", 199, __VA_ARGS__); 
+#define gsWarn(...)  taosPrintLog("WARN  ", 199, __VA_ARGS__); 
+#define gsPrint(...) taosPrintLog("INFO  ", 199, __VA_ARGS__); 
 #define gsDump(...)  taosPrintLongString("ERROR ", 199, __VA_ARGS__); 
 
 #define GS_ARG_MAX_LEN 100

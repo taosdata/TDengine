@@ -16,6 +16,7 @@
 #include "cJSON.h"
 #include "opJson.h"
 #include "opHandle.h"
+#include "httpLog.h"
 
 static HttpDecodeMethod opDecodeMethod = {"opentsdb", opProcessRequest};
 static HttpEncodeMethod opPutSummaryMethod = {NULL,

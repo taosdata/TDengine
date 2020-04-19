@@ -143,7 +143,7 @@ void *syncTest(void *param)
 
   sprintf(qstr, "create table %s(ts timestamp, speed bigint, str binary(128))", pInfo->name);
   if ( taos_query(con, qstr) ) {
-    pError("index:%d, failed to create table, reason:%s\n", pInfo->index, taos_errstr(con));
+    uError("index:%d, failed to create table, reason:%s\n", pInfo->index, taos_errstr(con));
     return NULL;
   }
 
@@ -155,14 +155,14 @@ void *syncTest(void *param)
   int inserts = 0;
   long start = 1430000000000; 
   for (i=0; i<points; i=i+1) {
-    pTrace("index:%d, start to insert row: %ld", pInfo->index, i);
+    uTrace("index:%d, start to insert row: %ld", pInfo->index, i);
     sprintf(qstr, "insert into %s values (%ld, %ld, 'dem0')", pInfo->name, start+i, i);
     if ( taos_query(con, qstr) ) {
-      pError("index:%d, failed to insert row: %ld, reason:%s\n", pInfo->index, i, taos_errstr(con));
+      uError("index:%d, failed to insert row: %ld, reason:%s\n", pInfo->index, i, taos_errstr(con));
     } else {
      int numOfRows = taos_affected_rows(con);
      if ( numOfRows <= 0 ) {
-       pError("index:%d, failed to insert %s row: %ld", pInfo->index, pInfo->name, i);
+       uError("index:%d, failed to insert %s row: %ld", pInfo->index, pInfo->name, i);
      } else
        inserts += numOfRows;
     }
@@ -328,7 +328,7 @@ void *monitor(void *param) {
         for (int i = 0; i < qinfo->nthreads; i++) {
             sprintf(buffer, "select * from %s.%s%d", qinfo->db, qinfo->tb_prefix, i);
             if(taos_query(conn, buffer) != 0) {
-                pError("Failed to query data: %s", taos_errstr(conn));
+                uError("Failed to query data: %s", taos_errstr(conn));
                 taos_close(conn);
                 exit(1);
             }
@@ -336,7 +336,7 @@ void *monitor(void *param) {
             // Count the number of records
             TAOS_RES * result = taos_use_result(conn);
             if (result == NULL) {
-                pError("Failed to retreive results:%s", taos_errstr(conn));
+                uError("Failed to retreive results:%s", taos_errstr(conn));
                 taos_close(conn);
                 free(records_count);
                 exit(1);
@@ -348,7 +348,7 @@ void *monitor(void *param) {
             }
             taos_free_result(result);
             if (count == records_count[i]) {
-                pError("%s.%s%d records not increasing: old %d  new %d", 
+                uError("%s.%s%d records not increasing: old %d  new %d", 
                         qinfo->db, qinfo->tb_prefix, i, records_count[i], count);
                 taos_close(conn);
                 free(records_count);

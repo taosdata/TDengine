@@ -28,7 +28,7 @@ int32_t storageAllocDiskTier() {
 
   tsStorageDiskTier.diskHash = taosInitStrHash(TSDB_MAX_TIER_MOUNT * TSDB_MAX_TIER, sizeof(SDiskID), taosHashString);
   if (tsStorageDiskTier.diskHash == NULL) {
-    pError("failed to init disk tier hash");
+    uError("failed to init disk tier hash");
     return -1;
   }
 
@@ -58,7 +58,7 @@ int32_t storageGetDiskInfo(SDisk *disk) {
 
   struct statvfs diskStat;
   if (statvfs(disk->path, &diskStat) < 0) {
-    pError("failed to get disk info, path: %s numOfFiles: %d", disk->path, disk->numOfFiles);
+    uError("failed to get disk info, path: %s numOfFiles: %d", disk->path, disk->numOfFiles);
     return -1;
   }
 
@@ -77,14 +77,14 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
   // -1 means tid = 0 and did = 0
 
   if (tierid < -1 || tierid >= TSDB_MAX_TIER) {
-    pError("Invalid tier level %d path %s", tierid, path);
+    uError("Invalid tier level %d path %s", tierid, path);
     uDebugFlag = old_uDebugFlag;
     return -1;
   }
 
   if (tierid == -1) {
     if (storageGetDiskByID(0, 0) != NULL) {
-      pError("Failed to add path %s since tid 0 and did 0 disk already there", path);
+      uError("Failed to add path %s since tid 0 and did 0 disk already there", path);
       uDebugFlag = old_uDebugFlag;
       return -1;
     }
@@ -106,7 +106,7 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
 
   // check if path is a valid path (if path exists and if it already added in tiers)
   if (wordexp(path, &full_path, 0) != 0) {
-    pError("Invalid path %s", path);
+    uError("Invalid path %s", path);
     uDebugFlag = old_uDebugFlag;
     return -1;
   }
@@ -114,14 +114,14 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
   mkdir(full_path.we_wordv[0], 0755);
 
   if (access(full_path.we_wordv[0], W_OK | R_OK) != 0) {
-    pError("No R/W rights to path %s", path);
+    uError("No R/W rights to path %s", path);
     wordfree(&full_path);
     uDebugFlag = old_uDebugFlag;
     return -1;
   }
 
   if (tsStorageDiskTier.tiers[tierid].numOfDisks >= TSDB_MAX_TIER_MOUNT) {
-    pError("tier %s is full, failed to add mount point %s", tierid, path);
+    uError("tier %s is full, failed to add mount point %s", tierid, path);
     wordfree(&full_path);
     uDebugFlag = old_uDebugFlag;
     return -1;
@@ -129,7 +129,7 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
 
   disk = (SDisk *)calloc(1, sizeof(SDisk));
   if (disk == NULL) {
-    pError("failed to allocate disk memory, tierid: %d path: %s", tierid, path);
+    uError("failed to allocate disk memory, tierid: %d path: %s", tierid, path);
     uDebugFlag = old_uDebugFlag;
     return -1;
   }
@@ -137,7 +137,7 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
   wordfree(&full_path);
 
   if (taosGetStrHashData(tsStorageDiskTier.diskHash, disk->path) != NULL) {
-    pError("failed to add path %s to tier %d since it is already there", path, tierid);
+    uError("failed to add path %s to tier %d since it is already there", path, tierid);
     tfree(disk);
     uDebugFlag = old_uDebugFlag;
     return -1;
@@ -154,7 +154,7 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
 
   tsStorageDiskTier.tiers[tierid].disks[tsStorageDiskTier.tiers[tierid].numOfDisks++] = disk;
 
-  pTrace("disk %s is added to tsStorageDiskTier, tid: %d did: %d", path, tierid, diskId.did);
+  uTrace("disk %s is added to tsStorageDiskTier, tid: %d did: %d", path, tierid, diskId.did);
 
   uDebugFlag = old_uDebugFlag;
 
@@ -192,7 +192,7 @@ DISKID storageAllocDiskOnTier(TIERID tierid) {
 
   pthread_mutex_unlock(&tsStorageDiskTier.tierMutex);
 
-  pTrace("Allocate disk tier %d did %d", tierid, did);
+  uTrace("Allocate disk tier %d did %d", tierid, did);
 
   return did;
 }
@@ -207,7 +207,7 @@ bool storageValidTierInfo() {
 
   for (int32_t i = 0; i < tsStorageDiskTier.numOfTiers; i++) {
     if (tsStorageDiskTier.tiers[i].numOfDisks == 0) {
-      pError("tier %d has %d disks", i, tsStorageDiskTier.tiers[i].numOfDisks) return false;
+      uError("tier %d has %d disks", i, tsStorageDiskTier.tiers[i].numOfDisks) return false;
     }
   }
 

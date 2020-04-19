@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "tlog.h"
+#include "tulog.h"
 #include "tutil.h"
 #include "tsocket.h"
 #include "taosTcpPool.h"
@@ -47,7 +47,7 @@ void *taosOpenTcpThreadPool(SPoolInfo *pInfo)
   
   pPool->pThread = (SThreadObj **) calloc(sizeof(SThreadObj *), pInfo->numOfThreads);
   if (pPool->pThread == NULL) {
-    pError("TCP server, no enough memory");
+    uError("TCP server, no enough memory");
     free(pPool);
     return NULL;
   }
@@ -55,7 +55,7 @@ void *taosOpenTcpThreadPool(SPoolInfo *pInfo)
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pPool->thread), &thattr, (void *) taosAcceptPeerTcpConnection, pPool) != 0) {
-    pError("TCP server, failed to create accept thread, reason:%s", strerror(errno));
+    uError("TCP server, failed to create accept thread, reason:%s", strerror(errno));
     free(pPool->pThread); free(pPool);
     return NULL;
   }
@@ -173,7 +173,7 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
   tinet_ntoa(ipstr, pInfo->serverIp);
   int tcpFd = taosOpenTcpServerSocket(ipstr, pInfo->port);
   if (tcpFd < 0) {
-    pError("failed to create TCP server:%s socket, reason:%s", ipstr, strerror(errno));
+    uError("failed to create TCP server:%s socket, reason:%s", ipstr, strerror(errno));
     return NULL;
   }
 
@@ -182,7 +182,7 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
     socklen_t addrlen = sizeof(clientAddr);
     int connFd = accept(tcpFd, (struct sockaddr *) &clientAddr, &addrlen);
     if (connFd < 0) {
-      pError("TCP accept failure, reason:%s", strerror(errno));
+      uError("TCP accept failure, reason:%s", strerror(errno));
       continue;
     }
 
