@@ -765,9 +765,9 @@ static int compareKeyBlock(const void *arg1, const void *arg2) {
   return 0;
 }
 
-static FORCE_INLINE int compKeyFunc(const void *arg1, const void *arg2) {
-  return ((*(TSKEY *)arg1) - (*(TSKEY *)arg2));
-}
+// static FORCE_INLINE int compKeyFunc(const void *arg1, const void *arg2) {
+//   return ((*(TSKEY *)arg1) - (*(TSKEY *)arg2));
+// }
 
 // Merge the data with a block in file
 static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols) {

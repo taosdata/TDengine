@@ -21,7 +21,7 @@ static int  tsdbAllocBlockFromPool(STsdbCache *pCache);
 static void tsdbFreeBlockList(SList *list);
 static void tsdbFreeCacheMem(SCacheMem *mem);
 
-STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, tsdb_repo_t *pRepo) {
+STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, TsdbRepoT *pRepo) {
   STsdbCache *pCache = (STsdbCache *)calloc(1, sizeof(STsdbCache));
   if (pCache == NULL) return NULL;
 
