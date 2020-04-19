@@ -56,8 +56,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   
   qinfo_t pQInfo = NULL;
   if (contLen != 0) {
-    void* tsdb = vnodeGetTsdb(pVnode);
-    pRet->code = qCreateQueryInfo(tsdb, pQueryTableMsg, &pQInfo);
+    pRet->code = qCreateQueryInfo(pVnode->tsdb, pQueryTableMsg, &pQInfo);
   
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->qhandle = htobe64((uint64_t) (pQInfo));

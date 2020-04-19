@@ -274,10 +274,6 @@ void *vnodeGetWal(void *pVnode) {
   return ((SVnodeObj *)pVnode)->wal; 
 }
 
-void *vnodeGetTsdb(void *pVnode) {
-  return ((SVnodeObj *)pVnode)->tsdb; 
-}
-
 void vnodeBuildStatusMsg(void *param) {
   SDMStatusMsg *pStatus = param;
   taosVisitIntHashWithFp(tsDnodeVnodesHash, vnodeBuildVloadMsg, pStatus);
