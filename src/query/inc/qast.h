@@ -30,8 +30,6 @@ extern "C" {
 
 struct tExprNode;
 struct SSchema;
-struct tSkipList;
-struct tSkipListNode;
 
 enum {
   TSQL_NODE_EXPR  = 0x1,

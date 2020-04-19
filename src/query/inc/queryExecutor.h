@@ -170,11 +170,11 @@ typedef struct SQInfo {
   int32_t          pointsInterpo;
   int32_t          code;          // error code to returned to client
   sem_t            dataReady;
-  STableGroupInfo  groupInfo;     // table id list
   void*            tsdb;
   
+  STableGroupInfo  groupInfo;     // table id list
   SQueryRuntimeEnv runtimeEnv;
-  int32_t          subgroupIdx;
+  int32_t          groupIndex;
   int32_t          offset; /* offset in group result set of subgroup */
   
   T_REF_DECLARE()
