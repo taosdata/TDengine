@@ -25,7 +25,7 @@
 #include <sql.h>
 #include <sqlext.h>
 #include <sqltypes.h>
-#include "tglobalcfg.h"
+#include "tglobal.h"
 
 #if defined(_WIN32) || defined(_WIN64)
   #include <windowsx.h>

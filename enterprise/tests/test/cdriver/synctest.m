@@ -132,14 +132,14 @@ void *syncTest(void *param)
 
   int inserts = 0;
   for (i=0; i<points; i=i+4) {
-    pTrace("index:%d, start to insert row: %ld", pInfo->index, i);
+    uTrace("index:%d, start to insert row: %ld", pInfo->index, i);
     sprintf(qstr, "insert into %s values (now+%lda, abc, %ld, 3, abcd, efghi, xyz, xyz123456abc) values (now+%lda, abc, %ld, 3, abcd, efghi, xyz, xyz123456abcd) values (now+%lda, abc, %ld, 3, abcd, efghi, xyz, xyz123456abc) values (now+%lda, abc, %ld, 3, abcd, efghi, xyz, xyz123456abc)", pInfo->name, i, i, i+1, i+1, i+2, i+2, i+3, i+3);
     if ( taos_query(con, qstr) ) {
-      pError("index:%d, failed to insert row: %ld, reason:%s\n", pInfo->index, i, taos_errstr(con));
+      uError("index:%d, failed to insert row: %ld, reason:%s\n", pInfo->index, i, taos_errstr(con));
     } else {
      int numOfRows = taos_affected_rows(con);
      if ( numOfRows <= 0 ) {
-       pError("index:%d, failed to insert %s row: %ld", pInfo->index, pInfo->name, i);
+       uError("index:%d, failed to insert %s row: %ld", pInfo->index, pInfo->name, i);
      } else
        inserts += numOfRows;
     }

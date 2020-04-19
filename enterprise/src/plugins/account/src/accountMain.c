@@ -22,7 +22,9 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tgrant.h"
+#include "tglobal.h"
 #include "mnode.h"
+#include "monitorSystem.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
@@ -568,14 +570,13 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   pAcct->acctInfo.sKey = sKey;
   pAcct->acctInfo.totalPoints = pointsWritten;
 
-  if (taosLogAcctFp)
-    taosLogAcctFp(pAcct->user, pAcct->acctInfo.numOfPointsPerSecond, pAcct->cfg.maxPointsPerSecond,
-                  pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries, pAcct->acctInfo.totalStorage,
-                  pAcct->cfg.maxStorage, pAcct->acctInfo.queryTime, pAcct->cfg.maxQueryTime, pAcct->acctInfo.inblound,
-                  pAcct->cfg.maxInbound, pAcct->acctInfo.outbound, pAcct->cfg.maxOutbound, pAcct->acctInfo.numOfDbs,
-                  pAcct->cfg.maxDbs, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers, pAcct->acctInfo.numOfStreams,
-                  pAcct->cfg.maxStreams, pAcct->acctInfo.numOfConns, pAcct->cfg.maxConnections,
-                  pAcct->acctInfo.accessState);
+  monitorSaveAcctLog(pAcct->user, pAcct->acctInfo.numOfPointsPerSecond, pAcct->cfg.maxPointsPerSecond,
+                 pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries, pAcct->acctInfo.totalStorage,
+                 pAcct->cfg.maxStorage, pAcct->acctInfo.queryTime, pAcct->cfg.maxQueryTime, pAcct->acctInfo.inblound,
+                 pAcct->cfg.maxInbound, pAcct->acctInfo.outbound, pAcct->cfg.maxOutbound, pAcct->acctInfo.numOfDbs,
+                 pAcct->cfg.maxDbs, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers, pAcct->acctInfo.numOfStreams,
+                 pAcct->cfg.maxStreams, pAcct->acctInfo.numOfConns, pAcct->cfg.maxConnections,
+                 pAcct->acctInfo.accessState);
 
   return totalStorage;
 }

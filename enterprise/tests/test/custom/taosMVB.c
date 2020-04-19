@@ -12,7 +12,7 @@
 #include <string.h>
 
 #include "taos.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "tlog.h"
 #include "ihash.h"
 #include "taosdef.h"
@@ -25,9 +25,9 @@
 #define GW_INSERT_BATCH_NUM  700
 #define GW_CACHE_BLOCK_SIZE  65536
 
-#define gwError(...) tprintf("ERROR ", 199, __VA_ARGS__); 
-#define gwWarn(...)  tprintf("WARN  ", 199, __VA_ARGS__); 
-#define gwPrint(...) tprintf("INFO  ", 199, __VA_ARGS__); 
+#define gwError(...) taosPrintLog("ERROR ", 199, __VA_ARGS__); 
+#define gwWarn(...)  taosPrintLog("WARN  ", 199, __VA_ARGS__); 
+#define gwPrint(...) taosPrintLog("INFO  ", 199, __VA_ARGS__); 
 
 typedef struct {
   pthread_t threadID;

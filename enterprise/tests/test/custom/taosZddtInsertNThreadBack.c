@@ -11,7 +11,7 @@
 #include <pthread.h>
 
 #include "taos.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "tlog.h"
 #include "ihash.h"
 #include "shash.h"

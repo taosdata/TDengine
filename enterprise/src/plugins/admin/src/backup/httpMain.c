@@ -19,7 +19,7 @@
 #include <unistd.h>
 
 #include "httpSystem.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "tlog.h"
 
 void signal_handler(int signum) {
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 #endif
 
   // Read global configuration.
-  tsReadGlobalLogConfig();
+  taosReadGlobalLogCfg();
 
   struct stat dirstat;
   if (stat(logDir, &dirstat) < 0) mkdir(logDir, 0755);
@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
   tsHttpPort = 6020;
   strcpy(tsCharset, "CP936");
 
-  tsPrintGlobalConfig();
+  taosPrintGlobalCfg();
 
   // Initialize the system
   if (httpInitSystem() < 0) {

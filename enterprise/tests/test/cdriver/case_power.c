@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
     while (true) {
         pthread_mutex_lock(&finishedMutex);
         if (finished >= AREA_LEN) {
-            pPrint("-----------> insert finished\n");
+            uPrint("-----------> insert finished\n");
             pthread_mutex_unlock(&finishedMutex);
             break;
         }
@@ -191,10 +191,10 @@ void tscInsertsCallBack(void *param, TAOS_RES *tres, int code)
     pTable->rowsTried++;
 
     if (code < 0)  {
-        pError("tbName: %s, insert failed, code:%d, tried: %d, inserted: %d", pTable->name, code, pTable->rowsTried, pTable->rowsInserted);
+        uError("tbName: %s, insert failed, code:%d, tried: %d, inserted: %d", pTable->name, code, pTable->rowsTried, pTable->rowsInserted);
     }
     else if (code == 0) {
-        pError("tbName: %s, not inserted, code: 0, tried: %d, inserted: %d", pTable->name, pTable->rowsTried, pTable->rowsInserted);
+        uError("tbName: %s, not inserted, code: 0, tried: %d, inserted: %d", pTable->name, pTable->rowsTried, pTable->rowsInserted);
     }
     else {
         pTable->rowsInserted++;
@@ -210,19 +210,19 @@ void tscInsertsCallBack(void *param, TAOS_RES *tres, int code)
             , pTable->rowsInserted, pTable->rowsInserted, pTable->rowsInserted, pTable->rowsInserted);
 
         if (pTable->rowsInserted % 10000 == 0 || pTable->rowsInserted == pTable->rowsTotal) {
-           pPrint("tb: %s inserted: %d tried: %d", pTable->name, pTable->rowsInserted, pTable->rowsTried);
+           uPrint("tb: %s inserted: %d tried: %d", pTable->name, pTable->rowsInserted, pTable->rowsTried);
         }
         taos_query_a(pTable->taos, qstr, tscInsertsCallBack, (void *)pTable);
     }
     else {
-        pPrint("tbName: %s, %d rows data inserted", pTable->name, pTable->rowsInserted);
+        uPrint("tbName: %s, %d rows data inserted", pTable->name, pTable->rowsInserted);
 
         pTable->tableIndex++;
         
         if (pTable->tableIndex >= pTable->tableTotal) {
             gettimeofday(&systemTime, NULL);
             et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-            //pPrint("===>  %ld mseconds to insert %d data points", (et - st) / 1000, pTable->rowsTotal*pTable->tableTotal*AREA_LEN);
+            //uPrint("===>  %ld mseconds to insert %d data points", (et - st) / 1000, pTable->rowsTotal*pTable->tableTotal*AREA_LEN);
             pthread_mutex_lock(&finishedMutex);
             finished++;
             pthread_mutex_unlock(&finishedMutex);

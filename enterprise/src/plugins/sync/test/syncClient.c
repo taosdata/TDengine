@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
   tPrint("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
   tPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
 
-  taosCloseLogger();
+  taosCloseLog();
 
   return 0;
 }

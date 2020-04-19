@@ -5,15 +5,16 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   INCLUDE_DIRECTORIES(${TD_OS_DIR}/inc)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/common/inc)
   INCLUDE_DIRECTORIES(../inc)
 
   LIST(APPEND CLIENT_SRC ./syncClient.c)
   ADD_EXECUTABLE(syncClient ${CLIENT_SRC})
-  TARGET_LINK_LIBRARIES(syncClient sync trpc)
+  TARGET_LINK_LIBRARIES(syncClient sync trp commonc)
 
   LIST(APPEND SERVER_SRC ./syncServer.c)
   ADD_EXECUTABLE(syncServer ${SERVER_SRC})
-  TARGET_LINK_LIBRARIES(syncServer sync trpc)
+  TARGET_LINK_LIBRARIES(syncServer sync trpc common)
 ENDIF ()
 
 

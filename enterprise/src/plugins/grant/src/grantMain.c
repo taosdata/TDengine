@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tlog.h"
+#include "tulog.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "trpc.h"
 #include "tutil.h"
 #include "tgrant.h"
+#include "tglobal.h"
 #include "machine.h"
 #include "mnode.h"
 #include "mgmtDef.h"
@@ -77,7 +78,7 @@ int32_t grantInit() {
   mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
   taosTmrReset(grantSendMsgToMgmt, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantSendTimer);
 
-  pTrace("grant data is initialized");
+  uTrace("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -251,7 +252,7 @@ static void grantResetMaster() {
   grantStatus.curQueryTime = grantGetCulsterCurQueryTime();
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
-  pPrint("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
+  uPrint("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
          grantStatus.curTimeSeries);
   free(ts);
 
@@ -318,7 +319,7 @@ static int32_t grantCheckExpired() {
 
 static int32_t grantCheckUsers() {
   if (grantCheckExpired()) {
-    pError("grant failed to create user, reason:grant expired");
+    uError("grant failed to create user, reason:grant expired");
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
@@ -326,14 +327,14 @@ static int32_t grantCheckUsers() {
   if (grantStatus.limitUsers == GRANT_USER_LIMITS || numOfTotalUsers < grantStatus.limitUsers) {
     return 0;
   } else {
-    pError("grant failed to create user, exist:%d, reason:grant user limited", numOfTotalUsers);
+    uError("grant failed to create user, exist:%d, reason:grant user limited", numOfTotalUsers);
     return TSDB_CODE_GRANT_USER_LIMITED;
   }
 }
 
 static int32_t grantCheckDatabases() {
   if (grantCheckExpired()) {
-    pError("grant failed to create db, reason:grant expired");
+    uError("grant failed to create db, reason:grant expired");
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
@@ -341,14 +342,14 @@ static int32_t grantCheckDatabases() {
   if (grantStatus.limitDbs == GRANT_DATABASE_LIMITS || numOfTotalDbs < grantStatus.limitDbs) {
     return 0;
   } else {
-    pError("grant failed to create db, exist:%d, reason:grant database limited", numOfTotalDbs);
+    uError("grant failed to create db, exist:%d, reason:grant database limited", numOfTotalDbs);
     return TSDB_CODE_GRANT_DB_LIMITED;
   }
 }
 
 static int32_t grantCheckTimeSeries() {
   if (grantCheckExpired()) {
-    pError("grant failed to create table, reason:grant expired");
+    uError("grant failed to create table, reason:grant expired");
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
@@ -356,7 +357,7 @@ static int32_t grantCheckTimeSeries() {
       grantStatus.curTimeSeries <= grantStatus.limitTimeSeries) {
     return 0;
   } else {
-    pError("grant failed to create table, exist:%d, reason:grant timeseries limited", grantStatus.curTimeSeries);
+    uError("grant failed to create table, exist:%d, reason:grant timeseries limited", grantStatus.curTimeSeries);
     return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
   }
 }
@@ -371,14 +372,14 @@ static int32_t grantCheckAccts() {
   if (grantStatus.limitAccts == GRANT_ACCT_LIMITS || numOfTotalAccts < grantStatus.limitAccts) {
     return 0;
   } else {
-    pError("grant failed to create account, exist:%d, reason:grant account limited", numOfTotalAccts);
+    uError("grant failed to create account, exist:%d, reason:grant account limited", numOfTotalAccts);
     return TSDB_CODE_GRANT_ACCT_LIMITED;
   }
 }
 
 static int32_t grantCheckDnodes() {
   if (grantCheckExpired()) {
-    pError("grant failed to create account, reason:grant expired");
+    uError("grant failed to create account, reason:grant expired");
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
@@ -386,14 +387,14 @@ static int32_t grantCheckDnodes() {
   if (grantStatus.limitDnodes == GRANT_DNODE_LIMITS || numOfTotalDnodes < grantStatus.limitDnodes) {
     return 0;
   } else {
-    pError("grant failed to create dnode, exist:%d, reason:grant dnode limited", numOfTotalDnodes);
+    uError("grant failed to create dnode, exist:%d, reason:grant dnode limited", numOfTotalDnodes);
     return TSDB_CODE_GRANT_DNODE_LIMITED;
   }
 }
 
 static int32_t grantCheckStorage() {
   if (grantCheckExpired()) {
-    pError("failed to write data, reason:grant expired");
+    uError("failed to write data, reason:grant expired");
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
@@ -401,7 +402,7 @@ static int32_t grantCheckStorage() {
     return 0;
   }
   else {
-    pError("grant storage in-available, used:%lld, grant:%lld, reason:grant storage limited", grantStatus.curStorage, grantStatus.limitStorage);
+    uError("grant storage in-available, used:%lld, grant:%lld, reason:grant storage limited", grantStatus.curStorage, grantStatus.limitStorage);
     return TSDB_CODE_GRANT_STORAGE_LIMITED;
   }
 }
@@ -469,7 +470,7 @@ static void grantSendMsgToMgmt() {
   pGrant->reserveKey2 = htonl(grantObj.reserveKey2);
 
   char *ts = grantSecondsToString(grantObj.expireTimeSec);
-  pTrace(
+  uTrace(
       "grant send message to mgmt, storage limits:%uGB, timeseries limits:%u, database limits:%u, user limits:%u, "
       "expire: %s %u",
       grantObj.limitStorage, grantObj.limitTimeSeries, grantObj.limitDbs, grantObj.limitUsers, ts,
@@ -527,12 +528,12 @@ static void grantProcessMsgInMgmt(SRpcMsg *pMsg)
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
 
   if (grantStatus.expireTimeSec > curTime) {
-    pTrace("grant message received, storage limits:%uGB, timeseries limits:%u, database limits:%u, user limits:%u, expire: %s %u, curtime: %u, set to grant state"
+    uTrace("grant message received, storage limits:%uGB, timeseries limits:%u, database limits:%u, user limits:%u, expire: %s %u, curtime: %u, set to grant state"
       , htonl(pGrant->limitStorage), grantStatus.limitTimeSeries, grantStatus.limitDbs, grantStatus.limitUsers, ts, grantStatus.expireTimeSec, curTime);
     grantStatus.expired = false;
   }
   else {
-    pError("grant cluster expired at %s %u, curtime: %u, set to un-grant state", ts, grantStatus.expireTimeSec, curTime);
+    uError("grant cluster expired at %s %u, curtime: %u, set to un-grant state", ts, grantStatus.expireTimeSec, curTime);
     grantStatus.expired = true;
   }
 
@@ -568,7 +569,7 @@ static void grantCheckGrantInfo() {
     if (curTime > grantStatus.lastReceived && curTime - grantStatus.lastReceived > GRANT_TOLERENCE) {
       char *ts1 = grantSecondsToString(grantStatus.expireTimeSec);
       char *ts2 = grantSecondsToString(grantStatus.lastReceived);
-      pError("grant message not received beyond %d seconds, set to un-grant state, expire at %s, last received at %s, ", GRANT_TOLERENCE, ts1, ts2);
+      uError("grant message not received beyond %d seconds, set to un-grant state, expire at %s, last received at %s, ", GRANT_TOLERENCE, ts1, ts2);
       free(ts1);
       free(ts2);
       grantStatus.expired = true;
@@ -582,7 +583,7 @@ static void grantCheckGrantInfo() {
     uint32_t curTime = taosGetTimestampSec();
     char *ts1 = grantSecondsToString(grantStatus.expireTimeSec);
     char *ts2 = grantSecondsToString(grantStatus.lastReceived);
-    pTrace("grant expire at %s, last received at %s, expired %d seconds, tolerance %d seconds", ts1, ts2, curTime - grantStatus.lastReceived, GRANT_TOLERENCE);
+    uTrace("grant expire at %s, last received at %s, expired %d seconds, tolerance %d seconds", ts1, ts2, curTime - grantStatus.lastReceived, GRANT_TOLERENCE);
     free(ts1);
     free(ts2);
   }
