@@ -1,0 +1,621 @@
+{
+	"metrics": [{
+		"fields": {
+			"result_code": 2,
+			"result_type": "connection_failed"
+		},
+		"name": "net_response",
+		"tags": {
+			"host": "panshi-gsl",
+			"port": "80",
+			"protocol": "tcp",
+			"result": "connection_failed",
+			"server": "localhost"
+		},
+		"timestamp": 1536750390000
+	},{
+		"fields": {
+			"load1": 0.27,
+			"load15": 0.09,
+			"load5": 0.22,
+			"n_cpus": 4,
+			"n_users": 4
+		},
+		"name": "system",
+		"tags": {
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},{
+		"fields": {
+			"uptime": 122
+		},
+		"name": "system",
+		"tags": {
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"uptime_format": " 0:02"
+		},
+		"name": "system",
+		"tags": {
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"bytes_recv": 19964,
+			"bytes_sent": 11077,
+			"drop_in": 0,
+			"drop_out": 0,
+			"err_in": 0,
+			"err_out": 0,
+			"packets_recv": 237,
+			"packets_sent": 124
+		},
+		"name": "net",
+		"tags": {
+			"host": "panshi-gsl",
+			"interface": "eth0"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"usage_guest": 0,
+			"usage_guest_nice": 0,
+			"usage_idle": 99.39879759519036,
+			"usage_iowait": 0,
+			"usage_irq": 0,
+			"usage_nice": 0,
+			"usage_softirq": 0,
+			"usage_steal": 0,
+			"usage_system": 0.300601202404812,
+			"usage_user": 0.30060120240480753
+		},
+		"name": "cpu",
+		"tags": {
+			"cpu": "cpu0",
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"usage_guest": 0,
+			"usage_guest_nice": 0,
+			"usage_idle": 99.79959919839683,
+			"usage_iowait": 0,
+			"usage_irq": 0,
+			"usage_nice": 0,
+			"usage_softirq": 0,
+			"usage_steal": 0,
+			"usage_system": 0.2004008016032065,
+			"usage_user": 0
+		},
+		"name": "cpu",
+		"tags": {
+			"cpu": "cpu1",
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"usage_guest": 0,
+			"usage_guest_nice": 0,
+			"usage_idle": 99.7999999999999,
+			"usage_iowait": 0,
+			"usage_irq": 0,
+			"usage_nice": 0,
+			"usage_softirq": 0,
+			"usage_steal": 0,
+			"usage_system": 0.10000000000000217,
+			"usage_user": 0.09999999999999995
+		},
+		"name": "cpu",
+		"tags": {
+			"cpu": "cpu2",
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"usage_guest": 0,
+			"usage_guest_nice": 0,
+			"usage_idle": 99.7999999999999,
+			"usage_iowait": 0,
+			"usage_irq": 0,
+			"usage_nice": 0,
+			"usage_softirq": 0.09999999999999988,
+			"usage_steal": 0,
+			"usage_system": 0.09999999999999995,
+			"usage_user": 0
+		},
+		"name": "cpu",
+		"tags": {
+			"cpu": "cpu3",
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"usage_guest": 0,
+			"usage_guest_nice": 0,
+			"usage_idle": 99.74956173303289,
+			"usage_iowait": 0,
+			"usage_irq": 0,
+			"usage_nice": 0,
+			"usage_softirq": 0.025043826696719312,
+			"usage_steal": 0,
+			"usage_system": 0.12521913348359823,
+			"usage_user": 0.10017530678687725
+		},
+		"name": "cpu",
+		"tags": {
+			"cpu": "cpu-total",
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"icmp_inaddrmaskreps": 0,
+			"icmp_inaddrmasks": 0,
+			"icmp_indestunreachs": 1,
+			"icmp_inechoreps": 0,
+			"icmp_inechos": 0,
+			"icmp_inerrors": 0,
+			"icmp_inmsgs": 1,
+			"icmp_inparmprobs": 0,
+			"icmp_inredirects": 0,
+			"icmp_insrcquenchs": 0,
+			"icmp_intimeexcds": 0,
+			"icmp_intimestampreps": 0,
+			"icmp_intimestamps": 0,
+			"icmp_outaddrmaskreps": 0,
+			"icmp_outaddrmasks": 0,
+			"icmp_outdestunreachs": 5,
+			"icmp_outechoreps": 0,
+			"icmp_outechos": 0,
+			"icmp_outerrors": 0,
+			"icmp_outmsgs": 5,
+			"icmp_outparmprobs": 0,
+			"icmp_outredirects": 0,
+			"icmp_outsrcquenchs": 0,
+			"icmp_outtimeexcds": 0,
+			"icmp_outtimestampreps": 0,
+			"icmp_outtimestamps": 0,
+			"icmpmsg_intype3": 1,
+			"icmpmsg_outtype3": 5,
+			"ip_defaultttl": 64,
+			"ip_forwarding": 2,
+			"ip_forwdatagrams": 0,
+			"ip_fragcreates": 0,
+			"ip_fragfails": 0,
+			"ip_fragoks": 0,
+			"ip_inaddrerrors": 0,
+			"ip_indelivers": 132,
+			"ip_indiscards": 0,
+			"ip_inhdrerrors": 0,
+			"ip_inreceives": 132,
+			"ip_inunknownprotos": 0,
+			"ip_outdiscards": 0,
+			"ip_outnoroutes": 40,
+			"ip_outrequests": 134,
+			"ip_reasmfails": 0,
+			"ip_reasmoks": 0,
+			"ip_reasmreqds": 0,
+			"ip_reasmtimeout": 0,
+			"tcp_activeopens": 11,
+			"tcp_attemptfails": 11,
+			"tcp_currestab": 0,
+			"tcp_estabresets": 0,
+			"tcp_inerrs": 0,
+			"tcp_insegs": 22,
+			"tcp_maxconn": -1,
+			"tcp_outrsts": 11,
+			"tcp_outsegs": 22,
+			"tcp_passiveopens": 0,
+			"tcp_retranssegs": 0,
+			"tcp_rtoalgorithm": 1,
+			"tcp_rtomax": 120000,
+			"tcp_rtomin": 200,
+			"udp_indatagrams": 101,
+			"udp_inerrors": 0,
+			"udp_noports": 5,
+			"udp_outdatagrams": 109,
+			"udp_rcvbuferrors": 0,
+			"udp_sndbuferrors": 0,
+			"udplite_indatagrams": 0,
+			"udplite_inerrors": 0,
+			"udplite_noports": 0,
+			"udplite_outdatagrams": 0,
+			"udplite_rcvbuferrors": 0,
+			"udplite_sndbuferrors": 0
+		},
+		"name": "net",
+		"tags": {
+			"host": "panshi-gsl",
+			"interface": "all"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"io_time": 44,
+			"iops_in_progress": 0,
+			"read_bytes": 569344,
+			"read_time": 44,
+			"reads": 108,
+			"weighted_io_time": 44,
+			"write_bytes": 0,
+			"write_time": 0,
+			"writes": 0
+		},
+		"name": "diskio",
+		"tags": {
+			"host": "panshi-gsl",
+			"name": "sda5"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"io_time": 4900,
+			"iops_in_progress": 0,
+			"read_bytes": 262294528,
+			"read_time": 13607,
+			"reads": 8122,
+			"weighted_io_time": 27970,
+			"write_bytes": 12054528,
+			"write_time": 14369,
+			"writes": 1073
+		},
+		"name": "diskio",
+		"tags": {
+			"host": "panshi-gsl",
+			"name": "sda"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"io_time": 4874,
+			"iops_in_progress": 0,
+			"read_bytes": 261522432,
+			"read_time": 13538,
+			"reads": 7963,
+			"weighted_io_time": 27901,
+			"write_bytes": 12054528,
+			"write_time": 14369,
+			"writes": 1073
+		},
+		"name": "diskio",
+		"tags": {
+			"host": "panshi-gsl",
+			"name": "sda1"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"io_time": 15,
+			"iops_in_progress": 0,
+			"read_bytes": 2048,
+			"read_time": 15,
+			"reads": 2,
+			"weighted_io_time": 15,
+			"write_bytes": 0,
+			"write_time": 0,
+			"writes": 0
+		},
+		"name": "diskio",
+		"tags": {
+			"host": "panshi-gsl",
+			"name": "sda2"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"free": 4106956800,
+			"inodes_free": 526746,
+			"inodes_total": 752192,
+			"inodes_used": 225446,
+			"total": 12112691200,
+			"used": 7390433280,
+			"used_percent": 64.27922535963918
+		},
+		"name": "disk",
+		"tags": {
+			"device": "rootfs",
+			"fstype": "rootfs",
+			"host": "panshi-gsl",
+			"mode": "rw",
+			"path": "/"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"free": 4106956800,
+			"inodes_free": 526746,
+			"inodes_total": 752192,
+			"inodes_used": 225446,
+			"total": 12112691200,
+			"used": 7390433280,
+			"used_percent": 64.27922535963918
+		},
+		"name": "disk",
+		"tags": {
+			"device": "disk/by-uuid/d4becabf-b49c-4c1c-a4ea-b2f593018766",
+			"fstype": "ext3",
+			"host": "panshi-gsl",
+			"mode": "rw",
+			"path": "/"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"boot_time": 1536750268,
+			"context_switches": 135890,
+			"entropy_avail": 514,
+			"interrupts": 112317,
+			"processes_forked": 3595
+		},
+		"name": "kernel",
+		"tags": {
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"active": 211845120,
+			"available": 3829399552,
+			"available_percent": 92.37877479393148,
+			"buffered": 12083200,
+			"cached": 254320640,
+			"commit_limit": 2648322048,
+			"committed_as": 549027840,
+			"dirty": 49152,
+			"free": 3562995712,
+			"high_free": 0,
+			"high_total": 0,
+			"huge_page_size": 2097152,
+			"huge_pages_free": 0,
+			"huge_pages_total": 0,
+			"inactive": 214351872,
+			"low_free": 0,
+			"low_total": 0,
+			"mapped": 81797120,
+			"page_tables": 13062144,
+			"shared": 2682880,
+			"slab": 33386496,
+			"swap_cached": 0,
+			"swap_free": 575660032,
+			"swap_total": 575660032,
+			"total": 4145324032,
+			"used": 315924480,
+			"used_percent": 7.621225206068523,
+			"vmalloc_chunk": 35184198369280,
+			"vmalloc_total": 35184372087808,
+			"vmalloc_used": 168906752,
+			"wired": 0,
+			"write_back": 0,
+			"write_back_tmp": 0
+		},
+		"name": "mem",
+		"tags": {
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"IpExtInBcastOctets": 1291,
+			"IpExtInBcastPkts": 6,
+			"IpExtInMcastOctets": 0,
+			"IpExtInMcastPkts": 0,
+			"IpExtInNoRoutes": 0,
+			"IpExtInOctets": 12160,
+			"IpExtInTruncatedPkts": 0,
+			"IpExtOutBcastOctets": 0,
+			"IpExtOutBcastPkts": 0,
+			"IpExtOutMcastOctets": 0,
+			"IpExtOutMcastPkts": 0,
+			"IpExtOutOctets": 9881,
+			"TcpExtArpFilter": 0,
+			"TcpExtDelayedACKLocked": 0,
+			"TcpExtDelayedACKLost": 0,
+			"TcpExtDelayedACKs": 0,
+			"TcpExtEmbryonicRsts": 0,
+			"TcpExtListenDrops": 0,
+			"TcpExtListenOverflows": 0,
+			"TcpExtLockDroppedIcmps": 0,
+			"TcpExtOfoPruned": 0,
+			"TcpExtOutOfWindowIcmps": 0,
+			"TcpExtPAWSActive": 0,
+			"TcpExtPAWSEstab": 0,
+			"TcpExtPAWSPassive": 0,
+			"TcpExtPruneCalled": 0,
+			"TcpExtRcvPruned": 0,
+			"TcpExtSyncookiesFailed": 0,
+			"TcpExtSyncookiesRecv": 0,
+			"TcpExtSyncookiesSent": 0,
+			"TcpExtTCPAbortFailed": 0,
+			"TcpExtTCPAbortOnClose": 0,
+			"TcpExtTCPAbortOnData": 0,
+			"TcpExtTCPAbortOnLinger": 0,
+			"TcpExtTCPAbortOnMemory": 0,
+			"TcpExtTCPAbortOnSyn": 0,
+			"TcpExtTCPAbortOnTimeout": 0,
+			"TcpExtTCPDSACKIgnoredNoUndo": 0,
+			"TcpExtTCPDSACKIgnoredOld": 0,
+			"TcpExtTCPDSACKOfoRecv": 0,
+			"TcpExtTCPDSACKOfoSent": 0,
+			"TcpExtTCPDSACKOldSent": 0,
+			"TcpExtTCPDSACKRecv": 0,
+			"TcpExtTCPDSACKUndo": 0,
+			"TcpExtTCPDirectCopyFromBacklog": 0,
+			"TcpExtTCPDirectCopyFromPrequeue": 0,
+			"TcpExtTCPFACKReorder": 0,
+			"TcpExtTCPFastRetrans": 0,
+			"TcpExtTCPForwardRetrans": 0,
+			"TcpExtTCPFullUndo": 0,
+			"TcpExtTCPHPAcks": 0,
+			"TcpExtTCPHPHits": 0,
+			"TcpExtTCPHPHitsToUser": 0,
+			"TcpExtTCPLoss": 0,
+			"TcpExtTCPLossFailures": 0,
+			"TcpExtTCPLossUndo": 0,
+			"TcpExtTCPLostRetransmit": 0,
+			"TcpExtTCPMD5NotFound": 0,
+			"TcpExtTCPMD5Unexpected": 0,
+			"TcpExtTCPMemoryPressures": 0,
+			"TcpExtTCPPartialUndo": 0,
+			"TcpExtTCPPrequeueDropped": 0,
+			"TcpExtTCPPrequeued": 0,
+			"TcpExtTCPPureAcks": 0,
+			"TcpExtTCPRcvCollapsed": 0,
+			"TcpExtTCPRenoFailures": 0,
+			"TcpExtTCPRenoRecovery": 0,
+			"TcpExtTCPRenoRecoveryFail": 0,
+			"TcpExtTCPRenoReorder": 0,
+			"TcpExtTCPSACKDiscard": 0,
+			"TcpExtTCPSACKReneging": 0,
+			"TcpExtTCPSACKReorder": 0,
+			"TcpExtTCPSackFailures": 0,
+			"TcpExtTCPSackMerged": 0,
+			"TcpExtTCPSackRecovery": 0,
+			"TcpExtTCPSackRecoveryFail": 0,
+			"TcpExtTCPSackShiftFallback": 0,
+			"TcpExtTCPSackShifted": 0,
+			"TcpExtTCPSchedulerFailed": 0,
+			"TcpExtTCPSlowStartRetrans": 0,
+			"TcpExtTCPSpuriousRTOs": 0,
+			"TcpExtTCPTSReorder": 0,
+			"TcpExtTCPTimeouts": 0,
+			"TcpExtTW": 0,
+			"TcpExtTWKilled": 0,
+			"TcpExtTWRecycled": 0
+		},
+		"name": "nstat",
+		"tags": {
+			"host": "panshi-gsl",
+			"name": "netstat"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"IcmpInAddrMaskReps": 0,
+			"IcmpInAddrMasks": 0,
+			"IcmpInDestUnreachs": 1,
+			"IcmpInEchoReps": 0,
+			"IcmpInEchos": 0,
+			"IcmpInErrors": 0,
+			"IcmpInMsgs": 1,
+			"IcmpInParmProbs": 0,
+			"IcmpInRedirects": 0,
+			"IcmpInSrcQuenchs": 0,
+			"IcmpInTimeExcds": 0,
+			"IcmpInTimestampReps": 0,
+			"IcmpInTimestamps": 0,
+			"IcmpMsgInType3": 1,
+			"IcmpMsgOutType3": 5,
+			"IcmpOutAddrMaskReps": 0,
+			"IcmpOutAddrMasks": 0,
+			"IcmpOutDestUnreachs": 5,
+			"IcmpOutEchoReps": 0,
+			"IcmpOutEchos": 0,
+			"IcmpOutErrors": 0,
+			"IcmpOutMsgs": 5,
+			"IcmpOutParmProbs": 0,
+			"IcmpOutRedirects": 0,
+			"IcmpOutSrcQuenchs": 0,
+			"IcmpOutTimeExcds": 0,
+			"IcmpOutTimestampReps": 0,
+			"IcmpOutTimestamps": 0,
+			"IpDefaultTTL": 64,
+			"IpForwDatagrams": 0,
+			"IpForwarding": 2,
+			"IpFragCreates": 0,
+			"IpFragFails": 0,
+			"IpFragOKs": 0,
+			"IpInAddrErrors": 0,
+			"IpInDelivers": 132,
+			"IpInDiscards": 0,
+			"IpInHdrErrors": 0,
+			"IpInReceives": 132,
+			"IpInUnknownProtos": 0,
+			"IpOutDiscards": 0,
+			"IpOutNoRoutes": 40,
+			"IpOutRequests": 134,
+			"IpReasmFails": 0,
+			"IpReasmOKs": 0,
+			"IpReasmReqds": 0,
+			"IpReasmTimeout": 0,
+			"TcpActiveOpens": 12,
+			"TcpAttemptFails": 12,
+			"TcpCurrEstab": 0,
+			"TcpEstabResets": 0,
+			"TcpInErrs": 0,
+			"TcpInSegs": 24,
+			"TcpMaxConn": -1,
+			"TcpOutRsts": 12,
+			"TcpOutSegs": 24,
+			"TcpPassiveOpens": 0,
+			"TcpRetransSegs": 0,
+			"TcpRtoAlgorithm": 1,
+			"TcpRtoMax": 120000,
+			"TcpRtoMin": 200,
+			"UdpInDatagrams": 101,
+			"UdpInErrors": 0,
+			"UdpLiteInDatagrams": 0,
+			"UdpLiteInErrors": 0,
+			"UdpLiteNoPorts": 0,
+			"UdpLiteOutDatagrams": 0,
+			"UdpLiteRcvbufErrors": 0,
+			"UdpLiteSndbufErrors": 0,
+			"UdpNoPorts": 5,
+			"UdpOutDatagrams": 109,
+			"UdpRcvbufErrors": 0,
+			"UdpSndbufErrors": 0
+		},
+		"name": "nstat",
+		"tags": {
+			"host": "panshi-gsl",
+			"name": "snmp"
+		},
+		"timestamp": 1536750390000
+	},
+	{
+		"fields": {
+			"blocked": 0,
+			"dead": 0,
+			"idle": 0,
+			"paging": 0,
+			"running": 1,
+			"sleeping": 181,
+			"stopped": 0,
+			"total": 182,
+			"total_threads": 280,
+			"unknown": 0,
+			"zombies": 0
+		},
+		"name": "processes",
+		"tags": {
+			"host": "panshi-gsl"
+		},
+		"timestamp": 1536750390000
+	}]
+}

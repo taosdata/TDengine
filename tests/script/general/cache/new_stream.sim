@@ -1,0 +1,108 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 10
+system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 10
+system sh/exec.sh -n dnode1 -s start
+
+sleep 3000
+sql connect
+print ======================== dnode1 start
+
+$dbPrefix = ns_db
+$tbPrefix = ns_tb
+$mtPrefix = ns_mt
+$stPrefix = ns_st
+$tbNum = 5
+$rowNum = 200
+$totalNum = 200
+
+print =============== step1
+
+$i = 0
+$db = $dbPrefix
+$mt = $mtPrefix
+$st = $stPrefix
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (now + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+
+sql select count(*), count(tbcol), count(tbcol2) from $mt interval(10s)
+print $data00 $data01 $data02 $data03
+
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $mt interval(10s)
+
+print =============== step3
+print sleep 22 seconds
+sleep 22000 
+
+print =============== step4
+
+sql select * from $st
+print $st ==> $rows1 $data00 $data01 $data02 $data03
+if $data13 >= 51 then
+ return -1
+endi
+
+print =============== step5
+
+$tbNum = 10
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  if $i == 0 then 
+    sleep 2000
+  endi
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (now + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+print =============== step6
+print sleep 22 seconds
+sleep 22000 
+
+print =============== step7
+
+sql select * from $st order by ts desc
+print $st ==> $rows1 $data00 $data01 $data02 $data03
+if $data03 <= 51 then
+ return -1
+endi
+
+
+
+
+

@@ -1,0 +1,198 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+
+system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode3 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode4 -c numOfMPeers -v 1
+
+system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 10
+
+system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 2000
+system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 2000
+system sh/cfg.sh -n dnode3 -c sessionsPerVnode -v 2000
+system sh/cfg.sh -n dnode4 -c sessionsPerVnode -v 2000
+
+system sh/cfg.sh -n dnode1 -c commitlog -v 0
+system sh/cfg.sh -n dnode2 -c commitlog -v 0
+system sh/cfg.sh -n dnode3 -c commitlog -v 0
+system sh/cfg.sh -n dnode4 -c commitlog -v 0
+
+system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode3 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode4 -c secondIp -v 192.168.0.2
+
+print ========= start dnode1
+system sh/exec.sh -n dnode1 -s start
+sleep 5000
+sql connect
+
+sql create dnode 192.168.0.2
+system sh/exec.sh -n dnode2 -s start
+sql create dnode 192.168.0.3
+system sh/exec.sh -n dnode3 -s start
+
+
+sql create database ir3db replica 3 days 7
+sql use ir3db
+sql create table tb(ts timestamp, i int)
+
+print ================= step1
+sql import into tb values(now+10000a, 10000)
+sql select * from tb;
+if $rows != 1 then 
+  return -1
+endi
+
+print ================= step2
+sql insert into tb values(now+8000a, 8000)
+sql select * from tb;
+if $rows != 1 then 
+  return -1
+endi
+
+print ================= step3
+sql insert into tb values(now+20000a, 20000)
+sql select * from tb;
+if $rows != 2 then 
+  return -1
+endi
+
+print ================= step4
+sql import into tb values(now+8000a, 9000)
+sql import into tb values(now+15000a, 15000)
+sql import into tb values(now+30000a, 30000)
+sql select * from tb;
+if $rows != 5 then 
+  return -1
+endi
+
+print ================= step5
+sql insert into tb values(now+8000a, 8000)
+sql insert into tb values(now+14000a, 14000)
+sql insert into tb values(now+25000a, 25000)
+sql insert into tb values(now+40000a, 40000)
+sql select * from tb;
+if $rows != 6 then 
+  return -1
+endi
+
+print ================= step6
+sql import into tb values(now+7000a, 7000)
+sql import into tb values(now+12000a, 12000)
+sql import into tb values(now+23000a, 23000)
+sql import into tb values(now+34000a, 34000)
+sql import into tb values(now+50000a, 50000)
+sql select * from tb;
+if $rows != 11 then 
+  return -1
+endi
+
+#print ================== dnode restart
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#sleep 5000
+#system sh/exec.sh -n dnode1 -s start
+#sleep 5000
+#sql select * from tb;
+#if $rows != 11 then 
+#  return -1
+#endi
+
+print ================= step7
+sql import into tb values(now+7001a, 7001)
+sql import into tb values(now+12001a, 12001)
+sql import into tb values(now+23001a, 23001)
+sql import into tb values(now+34001a, 34001)
+sql import into tb values(now+50001a, 50001)
+sql select * from tb;
+if $rows != 16 then 
+  return -1
+endi
+
+print ================= step8
+sql insert into tb values(now+8002a, 8002)
+sql insert into tb values(now+14002a, 14002)
+sql insert into tb values(now+25002a, 25002)
+sql insert into tb values(now+200000a, 60000)
+sql select * from tb;
+if $rows != 17 then 
+  return -1
+endi
+
+print ================= step9
+sql import into tb values(now-30d, 7003)
+sql import into tb values(now-20d, 34003)
+sql import into tb values(now-10d, 34003)
+sql import into tb values(now-5d, 34003)
+sql import into tb values(now+1m, 50001)
+sql import into tb values(now+2m, 50001)
+sql import into tb values(now+6m, 50001)
+sql import into tb values(now+8m, 50002)
+sql import into tb values(now+10m, 50003)
+sql import into tb values(now+12m, 50004)
+sql import into tb values(now+14m, 50001)
+sql import into tb values(now+16m, 500051)
+sql select * from tb;
+if $rows != 29 then 
+  return -1
+endi
+
+print ================= step10
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+sleep 5000
+sql select * from tb;
+if $rows != 29 then 
+  return -1
+endi
+
+print ================= step11
+sql import into tb values(now-50d, 7003) (now-48d, 7003) (now-46d, 7003) (now-44d, 7003) (now-42d, 7003)
+sql select * from tb;
+if $rows != 34 then 
+  return -1
+endi
+
+print ================= step12
+sql import into tb values(now-19d, 7003) (now-18d, 7003) (now-17d, 7003) (now-16d, 7003) (now-15d, 7003) (now-14d, 7003) (now-13d, 7003) (now-12d, 7003) (now-11d, 7003)
+sql select * from tb;
+if $rows != 43 then 
+  return -1
+endi
+
+print ================= step13
+system sh/exec.sh -n dnode2 -s stop 
+sleep 5000
+
+print ================= step14
+sql import into tb values(now-48d, 34003)
+sql import into tb values(now-38d, 50001)
+sql import into tb values(now-28d, 50001)
+sql select * from tb;
+if $rows != 46 then 
+  return -1
+endi
+
+print ================= step15
+system sh/exec.sh -n dnode2 -s start
+sleep 8000
+system sh/exec.sh -n dnode3 -s stop
+sleep 3000
+
+if $rows != 46 then 
+  return -1
+endi

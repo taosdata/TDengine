@@ -1,0 +1,220 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode3 -c commitLog -v 0
+system sh/cfg.sh -n dnode4 -c commitLog -v 0
+
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+connectTbase: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql connect -x connectTbase
+
+sql create dnode 192.168.0.2
+sql create dnode 192.168.0.3
+sql create dnode 192.168.0.4
+
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+sleep 3001
+
+$N = 10
+$table = table_r4
+$db = db1
+
+print =================== step 1 
+
+$x = 0
+created: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql create database $db replica 4 -x created
+sql use $db
+
+$x = 0
+create1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql create table $table (ts timestamp, speed int) -x create1
+sleep 3001
+
+print =================== step 2
+$x = 1
+$y = $x + $N
+$expect = $N
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , $x ) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+if $rows != $expect then 
+  return -1
+endi
+
+print =================== step 3
+system sh/exec.sh -n dnode2 -s stop
+sleep 2000
+$y = $x + $N
+$expect = $N * 2
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , $x ) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+if $rows != $expect then 
+  return -1
+endi
+
+print =================== step 4
+system sh/exec.sh -n dnode2 -s start
+sleep 2000
+$y = $x + $N
+$expect = $N * 3
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , $x ) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+if $rows != $expect then 
+  return -1
+endi
+
+print =================== step 5
+system sh/exec.sh -n dnode3 -s stop
+sleep 2000
+$y = $x + $N
+$expect = $N * 4
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , 10) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+if $rows != $expect then 
+  return -1
+endi
+
+print =================== step 6
+system sh/exec.sh -n dnode3 -s start
+sleep 2000
+$y = $x + $N
+$expect = $N * 5
+while $x < $y
+$ms = $x . m
+sql insert into $table values (now + $ms , $x )
+$x = $x + 1
+endw
+
+sql select * from $table
+print sql select * from $table -> $rows points
+if $rows != $expect then
+return -1
+endi
+
+
+print =================== step 7
+system sh/exec.sh -n dnode4 -s stop
+sleep 2000
+$y = $x + $N
+$expect = $N * 6
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , 10) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+if $rows != $expect then 
+  return -1
+endi
+
+print =================== step 8
+system sh/exec.sh -n dnode4 -s start
+sleep 2000
+$y = $x + $N
+$expect = $N * 7
+while $x < $y
+$ms = $x . m
+sql insert into $table values (now + $ms , $x )
+$x = $x + 1
+endw
+
+sql select * from $table
+print sql select * from $table -> $rows points
+if $rows != $expect then
+return -1
+endi
+
+print =================== step 9
+system sh/exec.sh -n dnode1 -s stop
+sleep 2000
+$y = $x + $N
+$expect = $N * 8
+while $x < $y
+$ms = $x . m
+sql insert into $table values (now + $ms , 10)
+$x = $x + 1
+endw
+
+sql select * from $table
+print sql select * from $table -> $rows points
+if $rows != $expect then
+return -1
+endi
+
+print =================== step 10
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+$y = $x + $N
+$expect = $N * 9
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , 10) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+if $rows != $expect then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop
+system sh/exec.sh -n dnode4 -s stop
+

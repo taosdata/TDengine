@@ -1,0 +1,76 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+
+system sh/cfg.sh -n dnode1 -c balanceMonitorInterval -v 1
+system sh/cfg.sh -n dnode2 -c balanceMonitorInterval -v 1
+system sh/cfg.sh -n dnode3 -c balanceMonitorInterval -v 1
+
+system sh/cfg.sh -n dnode1 -c balanceStartInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceStartInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceStartInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c offlineThreshold -v 10
+system sh/cfg.sh -n dnode2 -c offlineThreshold -v 10
+system sh/cfg.sh -n dnode3 -c offlineThreshold -v 10
+
+system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
+
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql create dnode 192.168.0.2
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+sql show dnodes
+if $data4_192.168.0.1 != ready then
+  return -1
+endi
+if $data4_192.168.0.2 != ready then
+  return -1
+endi
+
+print ========== step2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 6000
+
+sql show dnodes
+if $data4_192.168.0.1 != ready then
+  return -1
+endi
+if $data4_192.168.0.2 != offline then
+  return -1
+endi
+
+print ========== step3
+sleep 10000
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 5000
+	if $x == 20 then 
+	  return -1
+	endi
+
+sql show dnodes
+if $data4_192.168.0.1 != ready then
+  goto show4
+endi
+if $data4_192.168.0.2 != null then
+  goto show4
+endi
+

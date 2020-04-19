@@ -1,0 +1,8 @@
+run lite/insert/basic.sim
+run lite/insert/insert_drop.sim
+run lite/insert/query_block1_memory.sim
+run lite/insert/query_block2_memory.sim
+run lite/insert/query_block1_file.sim
+run lite/insert/query_block2_file.sim
+run lite/insert/query_file_memory.sim
+run lite/insert/query_multi_file.sim

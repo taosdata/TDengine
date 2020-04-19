@@ -1,0 +1,5 @@
+run cluster/cluster/balance1.sim
+run cluster/cluster/balance2.sim
+run cluster/cluster/balance3.sim
+run cluster/cluster/balance1_bug.sim
+run cluster/cluster/balance1_single.sim

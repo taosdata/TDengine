@@ -1,0 +1,232 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+
+system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
+
+print ============== step1
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+sql connect
+
+sql show mnodes
+print 192.168.0.1 ==> $data3_192.168.0.1
+print 192.168.0.2 ==> $data3_192.168.0.2
+print 192.168.0.3 ==> $data3_192.168.0.3
+if $data3_192.168.0.1 != master then
+  return -1
+endi
+if $data3_192.168.0.2 != null then
+  return -1
+endi
+if $data3_192.168.0.3 != null then
+  return -1
+endi
+
+print ============== step2
+system sh/exec.sh -n dnode2 -s start
+sql create dnode 192.168.0.2
+sleep 8000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode2Role != slave then
+  return -1
+endi
+if $dnode3Role != null then
+  return -1
+endi
+if $dnode4Role != null then
+  return -1
+endi
+
+print ============== step3
+system sh/exec.sh -n dnode3 -s start
+sql create dnode 192.168.0.3
+sleep 8000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode2Role != slave then
+  return -1
+endi
+if $dnode3Role != slave then
+  return -1
+endi
+if $dnode4Role != null then
+  return -1
+endi
+
+
+print ============== step4
+system sh/exec.sh -n dnode4 -s start
+sql create dnode 192.168.0.4
+sleep 8000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode2Role != slave then
+  return -1
+endi
+if $dnode3Role != slave then
+  return -1
+endi
+if $dnode4Role != null then
+  return -1
+endi
+
+print ============== step5
+sql drop dnode 192.168.0.2
+sleep 8000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode2Role != null then
+  return -1
+endi
+if $dnode3Role != slave then
+  return -1
+endi
+if $dnode4Role != slave then
+  return -1
+endi
+
+system sh/exec.sh -n dnode2 -s stop
+sleep 3000
+
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.3
+system sh/exec.sh -n dnode2 -s start
+
+print ============== step6
+sql create dnode 192.168.0.2
+sleep 8000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode2Role != null then
+  return -1
+endi
+if $dnode3Role != slave then
+  return -1
+endi
+if $dnode4Role != slave then
+  return -1
+endi
+
+print ============== step7
+system sh/exec.sh -n dnode1 -s stop
+sleep 10000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != undecided then
+  return -1
+endi
+
+print ============== step8
+sql drop dnode 192.168.0.1
+sleep 8000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != null then
+  return -1
+endi
+if $dnode2Role != slave then
+  return -1
+endi
+#if $dnode3Role != master then
+#  return -1
+#endi
+#if $dnode4Role != slave then
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop
+system sh/exec.sh -n dnode4 -s stop

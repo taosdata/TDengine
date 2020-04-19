@@ -1,0 +1,106 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+sql connect
+
+$db = tf_db
+$tbNum = 10
+$rowNum = 5
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== tags_filter.sim
+$i = 0
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+##### filter tags that contains special characters
+sql create table stb (ts timestamp, c1 int) tags (t1 binary(10))
+sql create table tb1 using stb tags('*')
+sql create table tb2 using stb tags('%')
+sql create table tb3 using stb tags('')
+sql create table tb4 using stb tags('/'')
+
+sql insert into tb1 values ( $ts0 , 1)
+sql insert into tb2 values ( $ts0 , 2)
+sql insert into tb3 values ( $ts0 , 3)
+sql insert into tb4 values ( $ts0 , 4)
+
+sql select * from stb where t1 = '*'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql select * from stb where t1 = '%'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+
+sql select * from stb where t1 = ''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+
+sql select * from stb where t1 = '/''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+
+sql select * from stb where t1 like '*'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+sql_error select * from stb where t1 > 1
+sql_error select * from stb where t1 > '1'
+sql_error select * from stb where t1 > 'a'
+
+## wildcard '%' 
+#sql select * from stb where t1 like '%'
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data01 != 2 then
+#  return -1
+#endi
+
+sql select * from stb where t1 like ''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+
+sql select * from stb where t1 like '/''
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi

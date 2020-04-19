@@ -1,0 +1,16 @@
+run lite/compute/count.sim
+run lite/compute/avg.sim
+run lite/compute/sum.sim
+run lite/compute/min.sim
+run lite/compute/max.sim
+run lite/compute/first.sim
+run lite/compute/last.sim
+run lite/compute/stddev.sim
+run lite/compute/leastsquare.sim
+run lite/compute/top.sim
+run lite/compute/bottom.sim
+run lite/compute/percentile.sim
+run lite/compute/diff.sim
+run lite/compute/interval.sim
+run lite/compute/null.sim
+run lite/compute/diff2.sim

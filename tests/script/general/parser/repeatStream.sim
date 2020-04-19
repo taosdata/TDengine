@@ -1,0 +1,7 @@
+$i = 1
+$repeats = 5
+while $i <= $repeats
+  print ====== repeat: $i
+  run lite/parser/stream.sim
+  $i = $i + 1
+endw

@@ -1,0 +1,157 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+
+system sh/cfg.sh -n dnode1 -c balanceMonitorInterval -v 1
+system sh/cfg.sh -n dnode2 -c balanceMonitorInterval -v 1
+system sh/cfg.sh -n dnode3 -c balanceMonitorInterval -v 1
+system sh/cfg.sh -n dnode4 -c balanceMonitorInterval -v 1
+
+system sh/cfg.sh -n dnode1 -c balanceStartInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceStartInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceStartInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceStartInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
+
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode4 -c clog -v 1
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 3000
+
+sql create database d1 tables 4
+sql create table d1.t1 (t timestamp, i int)
+sql insert into d1.t1 values(now+1s, 15)
+sql insert into d1.t1 values(now+2s, 14)
+sql insert into d1.t1 values(now+3s, 13)
+sql insert into d1.t1 values(now+4s, 12)
+sql insert into d1.t1 values(now+5s, 11)
+
+sql create database d2 tables 4
+sql create table d2.t2 (t timestamp, i int) 
+sql insert into d2.t2 values(now+1s, 25)
+sql insert into d2.t2 values(now+2s, 24)
+sql insert into d2.t2 values(now+3s, 23)
+sql insert into d2.t2 values(now+4s, 22)
+sql insert into d2.t2 values(now+5s, 21)
+
+sql show dnodes
+print 192.168.0.1 freeVnodes $data3_192.168.0.1
+if $data3_192.168.0.1 != 2 then
+	return -1
+endi
+
+print ========== step2
+sql create dnode 192.168.0.2
+system sh/exec.sh -n dnode2 -s start
+sleep 9000
+
+sql create database d3 replica 2 tables 4
+sql create table d3.t3 (t timestamp, i int)
+sql insert into d3.t3 values(now+1s, 35)
+sql insert into d3.t3 values(now+2s, 34)
+sql insert into d3.t3 values(now+3s, 33)
+sql insert into d3.t3 values(now+4s, 32)
+sql insert into d3.t3 values(now+5s, 31)
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+	
+sql show dnodes
+print 192.168.0.1 freeVnodes $data3_192.168.0.1
+print 192.168.0.2 freeVnodes $data3_192.168.0.2
+if $data3_192.168.0.1 != 3 then
+	goto show2
+endi
+if $data3_192.168.0.2 != 1 then
+	goto show2
+endi
+
+print ========== step3
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sql drop dnode 192.168.0.2
+sleep 7001
+
+$x = 0
+show3: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+	
+sql show dnodes
+print 192.168.0.1 freeVnodes $data3_192.168.0.1
+print 192.168.0.2 freeVnodes $data3_192.168.0.2 $data5_192.168.0.2
+
+print ========== step4
+sql create dnode 192.168.0.3
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+
+sql show dnodes
+print 192.168.0.1 freeVnodes $data3_192.168.0.1
+print 192.168.0.2 freeVnodes $data3_192.168.0.2
+print 192.168.0.3 freeVnodes $data3_192.168.0.3
+if $data3_192.168.0.2 != null then
+	goto show4
+endi
+if $data3_192.168.0.1 != 3 then
+	goto show4
+endi
+if $data3_192.168.0.3 != 1 then
+	goto show4
+endi
+
+print ========== step5
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+
+sql select * from d2.t2 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+
+sql select * from d3.t3 order by t desc
+print $data01 $data11 $data21 $data31 $data41  
+if $data01 != 31 then
+  return -1
+endi
+if $data11 != 32 then
+  return -1
+endi
+if $data21 != 33 then
+  return -1
+endi
+if $data31 != 34 then
+  return -1
+endi
+if $data41 != 35 then
+  return -1
+endi

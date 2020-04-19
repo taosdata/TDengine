@@ -1,0 +1,7 @@
+run lite/db/tables.sim
+run lite/db/basic.sim
+run lite/db/len.sim
+run lite/db/delete_reuse1.sim
+run lite/db/delete_reuse2.sim
+run lite/db/delete_writing1.sim
+run lite/db/delete_writing2.sim

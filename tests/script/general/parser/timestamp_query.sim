@@ -1,0 +1,33 @@
+sleep 3000
+sql connect
+
+$dbPrefix = ts_db
+$tbPrefix = ts_tb
+$stbPrefix = ts_stb
+$tbNum = 10
+$rowNum = 300
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== timestamp_query.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+print ====== use db
+sql use $db
+
+$tsu = $rowNum * $delta
+$tsu = $tsu - $delta
+$tsu = $tsu + $ts0
+
+##### select from supertable
+
+$tb = $tbPrefix . 0
+sql select first(c1), last(c1) from $tb where ts >= $ts0 and ts < $tsu interval(5m) fill(value, -1)
+$res = $rowNum * 2
+$res = $res - 1
+if $rows != $res then
+  return -1
+endi
+
