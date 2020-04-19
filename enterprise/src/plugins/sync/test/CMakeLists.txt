@@ -10,7 +10,7 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
 
   LIST(APPEND CLIENT_SRC ./syncClient.c)
   ADD_EXECUTABLE(syncClient ${CLIENT_SRC})
-  TARGET_LINK_LIBRARIES(syncClient sync trp commonc)
+  TARGET_LINK_LIBRARIES(syncClient sync trpc common)
 
   LIST(APPEND SERVER_SRC ./syncServer.c)
   ADD_EXECUTABLE(syncServer ${SERVER_SRC})

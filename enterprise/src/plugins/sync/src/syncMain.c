@@ -869,7 +869,7 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
     return;
   }
 
-  int connFd = taosOpenTcpClientSocket(pPeer->ipstr, syncPort, tsPrivateIp);
+  int connFd = taosOpenTcpClientSocket(pPeer->ipstr, tsSyncPort, tsPrivateIp);
   if (connFd < 0) {
     sTrace("vgId:%d peer:%s, failed to open tcp socket(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
     taosTmrReset(syncCheckPeerConnection, tsSyncTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);

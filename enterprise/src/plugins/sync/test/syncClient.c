@@ -13,20 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/time.h>
-#include <pthread.h>
-#include <errno.h>
-#include <signal.h>
-#include <semaphore.h>
 #include "os.h"
-#include "tlog.h"
+#include "tglobal.h"
+#include "tulog.h"
 #include "trpc.h"
 #include "taoserror.h"
-#include <stdint.h>
-#include <unistd.h>
 
 typedef struct {
   int       index;
@@ -42,7 +33,7 @@ typedef struct {
 
 void processResponse(SRpcMsg *pMsg) {
   SInfo *pInfo = (SInfo *)pMsg->handle;
-  tTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
+  uTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
 
   rpcFreeCont(pMsg->pCont);
 
@@ -52,7 +43,7 @@ void processResponse(SRpcMsg *pMsg) {
 void processUpdateIpSet(void *handle, SRpcIpSet *pIpSet) {
   SInfo *pInfo = (SInfo *)handle;
 
-  tTrace("thread:%d, ip set is changed, index:%d", pInfo->index, pIpSet->inUse);
+  uTrace("thread:%d, ip set is changed, index:%d", pInfo->index, pIpSet->inUse);
   pInfo->ipSet = *pIpSet;
 }
 
@@ -62,7 +53,7 @@ void *sendRequest(void *param) {
   SInfo  *pInfo = (SInfo *)param;
   SRpcMsg rpcMsg; 
   
-  tTrace("thread:%d, start to send request", pInfo->index);
+  uTrace("thread:%d, start to send request", pInfo->index);
 
   while ( pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
     pInfo->num++;
@@ -70,14 +61,14 @@ void *sendRequest(void *param) {
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.handle = pInfo;
     rpcMsg.msgType = 1;
-    tTrace("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
+    uTrace("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->ipSet, &rpcMsg);
     if ( pInfo->num % 20000 == 0 ) 
-      tPrint("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
+      uPrint("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     sem_wait(&pInfo->rspSem);
   }
 
-  tTrace("thread:%d, it is over", pInfo->index);
+  uTrace("thread:%d, it is over", pInfo->index);
   tcount++;
 
   return NULL;
@@ -168,11 +159,11 @@ int main(int argc, char *argv[]) {
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
-    dError("failed to initialize RPC");
+    uError("failed to initialize RPC");
     return -1;
   }
 
-  tPrint("client is initialized");
+  uPrint("client is initialized");
 
   gettimeofday(&systemTime, NULL);
   startTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;
@@ -201,8 +192,8 @@ int main(int argc, char *argv[]) {
   endTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;  
   float usedTime = (endTime - startTime)/1000.0;  // mseconds
 
-  tPrint("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
-  tPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
+  uPrint("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
+  uPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
 
   taosCloseLog();
 

@@ -450,7 +450,7 @@ void *syncRetrieveData(void *param)
   assert(pPeer->syncFd < 0);
   taosBlockSIGPIPE();
 
-  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, syncPort, tsPrivateIp);
+  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, tsSyncPort, tsPrivateIp);
   if (pPeer->syncFd < 0) {
     sError("vgId:%d peer:%s, failed to open socket to sync", pNode->vgId, pPeer->ipstr);
     return NULL;    

@@ -16,7 +16,8 @@
 //#define _DEFAULT_SOURCE
 #include <stdint.h>
 #include "os.h"
-#include "tlog.h"
+#include "tulog.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "tqueue.h"
 #include "twal.h"
@@ -46,23 +47,23 @@ int writeIntoWal(SWalHead *pHead)
     remove(walName);
     dataFd = open(walName, O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
     if (dataFd < 0) { 
-      dPrint("failed to open wal file:%s(%s)", walName, strerror(errno));
+      uPrint("failed to open wal file:%s(%s)", walName, strerror(errno));
       return -1;
     } else {
       walNum++;
-      dPrint("file:%s is opened to write, walNum:%d", walName, walNum);
+      uPrint("file:%s is opened to write, walNum:%d", walName, walNum);
     }
   }
   
   if ( write(dataFd, pHead, sizeof(SWalHead)+pHead->len) <0 ) {
-    dError("ver:%d, failed to write wal file(%s)", pHead->version, strerror(errno));
+    uError("ver:%d, failed to write wal file(%s)", pHead->version, strerror(errno));
   } else {
-    dTrace("ver:%d, written to wal", pHead->version);
+    uTrace("ver:%d, written to wal", pHead->version);
   }
 
   numOfWrites++;
   if (numOfWrites >= 10000) {
-    tPrint("%d request have been written into disk", numOfWrites);
+    uPrint("%d request have been written into disk", numOfWrites);
     close(dataFd);
     dataFd = -1;
     numOfWrites = 0;
@@ -76,7 +77,7 @@ void confirmForward(void *ahandle, void *mhandle, int32_t code)
   SRpcMsg  *pMsg = (SRpcMsg *)mhandle;
   SWalHead *pHead = (SWalHead *)(((char *)pMsg->pCont) - sizeof(SWalHead));
 
-  dTrace("ver:%d, confirm is received", pHead->version);
+  uTrace("ver:%d, confirm is received", pHead->version);
 
   rpcFreeCont(pMsg->pCont);
 
@@ -96,14 +97,14 @@ int processRpcMsg(void *item) {
   int        code = -1;
 
   if (role != TAOS_SYNC_ROLE_MASTER) {
-    dError("not master, write failed", syncRole[role]);
+    uError("not master, write failed", syncRole[role]);
   } else {
 
     pHead->version = ++tversion;
     pHead->msgType = pMsg->msgType;
     pHead->len = pMsg->contLen;
  
-    dTrace("ver:%d, pkt from client processed", pHead->version);
+    uTrace("ver:%d, pkt from client processed", pHead->version);
     writeIntoWal(pHead); 
     syncForwardToPeer(syncHandle, pHead, item);
 
@@ -130,11 +131,11 @@ int processFwdMsg(void *item) {
   SWalHead *pHead = (SWalHead *)item;
    
   if (pHead->version <= tversion) {
-    dError("ver:%d, forward is even lower than local:%d", pHead->version, tversion);
+    uError("ver:%d, forward is even lower than local:%d", pHead->version, tversion);
     return -1;
   };
 
-  dTrace("ver:%d, forward from peer is received", pHead->version);
+  uTrace("ver:%d, forward from peer is received", pHead->version);
   writeIntoWal(pHead);
   tversion = pHead->version;
 
@@ -158,11 +159,11 @@ int processWalMsg(void *item) {
   SWalHead *pHead = (SWalHead *)item;
    
   if (pHead->version <= tversion) {
-    dError("ver:%d, wal is even lower than local:%d", pHead->version, tversion);
+    uError("ver:%d, wal is even lower than local:%d", pHead->version, tversion);
     return -1;
   };
 
-  dTrace("ver:%d, wal from peer is received", pHead->version);
+  uTrace("ver:%d, wal from peer is received", pHead->version);
   writeIntoWal(pHead);
   tversion = pHead->version;
 
@@ -230,7 +231,7 @@ void processRequestMsg(SRpcMsg *pMsg) {
   pTemp = taosAllocateQitem(sizeof(SRpcMsg));
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
   
-  tTrace("request is received, type:%d, len:%d", pMsg->msgType, pMsg->contLen);
+  uTrace("request is received, type:%d, len:%d", pMsg->msgType, pMsg->contLen);
   taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
 }
 
@@ -241,7 +242,7 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size)
   char         aname[256];
 
   if (*index == 2) {
-    dPrint("wait for a while .....");
+    uPrint("wait for a while .....");
     sleep(3);
   }
 
@@ -253,7 +254,7 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size)
     sprintf(aname, "%s/%s", path, name);
   }
 
-  dPrint("get file info:%s", aname);
+  uPrint("get file info:%s", aname);
   if ( stat(aname, &fstat) < 0 ) return 0; 
 
   *size = fstat.st_size;
@@ -272,7 +273,7 @@ int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
 
   sprintf(aname, "%s/wal/wal.%d", path, *index);
   sprintf(name, "wal/wal.%d", *index); 
-  dPrint("get wal info:%s", aname);
+  uPrint("get wal info:%s", aname);
 
   if ( stat(aname, &fstat) < 0 ) return -1;
 
@@ -285,7 +286,7 @@ int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
 int writeToCache(void *ahandle, void *data, int type) {
   SWalHead *pHead = data;
 
-  dTrace("pkt from peer is received, ver:%d len:%d type:%d", pHead->version, pHead->len, type);
+  uTrace("pkt from peer is received, ver:%d len:%d type:%d", pHead->version, pHead->len, type);
 
   int   msgSize = pHead->len + sizeof(SWalHead);
   void *pMsg = taosAllocateQitem(msgSize);
@@ -353,7 +354,7 @@ void doSync()
       if (syncReconfig(syncHandle, pCfg) < 0) syncHandle = NULL;
   }
 
-  dPrint("nodeId:%d path:%s localIp:%s", nodeId, path, localIp);
+  uPrint("nodeId:%d path:%s localIp:%s", nodeId, path, localIp);
 }
 
 int main(int argc, char *argv[]) {
@@ -425,7 +426,7 @@ int main(int argc, char *argv[]) {
   rpcInit.connType = TAOS_CONN_SERVER;
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
-    tError("failed to start RPC server");
+    uError("failed to start RPC server");
     return -1;
   }
 
@@ -439,7 +440,7 @@ int main(int argc, char *argv[]) {
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&thread, &thattr, processWriteQueue, NULL) != 0) {
-    tError("failed to create thread, reason:%s", strerror(errno));
+    uError("failed to create thread, reason:%s", strerror(errno));
     return -1;
   }
 
@@ -468,7 +469,7 @@ int main(int argc, char *argv[]) {
       case 's':
         syncGetNodesRole(syncHandle, &nroles);
         for (int i=0; i<pCfg->replica; ++i) 
-          dPrint("=== nodeId:%d role:%s", nroles.nodeId[i], syncRole[nroles.role[i]]);
+          uPrint("=== nodeId:%d role:%s", nroles.nodeId[i], syncRole[nroles.role[i]]);
         break;
       default:
         break;
