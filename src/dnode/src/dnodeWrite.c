@@ -227,7 +227,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   int32_t num = taosGetQueueNumber(pWorker->qset);
 
   if (num > 0) {
-     usleep(1000);
+     usleep(30000);
      sched_yield(); 
   } else {
      taosFreeQall(pWorker->qall);

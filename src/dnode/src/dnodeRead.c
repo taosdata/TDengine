@@ -225,7 +225,7 @@ static void dnodeHandleIdleReadWorker(SReadWorker *pWorker) {
     dTrace("read worker:%d is released, total:%d", pWorker->workerId, readPool.num);
     pthread_exit(NULL);
   } else {
-    usleep(100);
+    usleep(30000);
     sched_yield();
   }
 }
