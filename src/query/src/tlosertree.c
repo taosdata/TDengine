@@ -15,8 +15,8 @@
 
 #include "os.h"
 #include "taosmsg.h"
-#include "tlog.h"
 #include "tlosertree.h"
+#include "queryLog.h"
 
 // set initial value for loser tree
 void tLoserTreeInit(SLoserTreeInfo* pTree) {
@@ -45,7 +45,7 @@ uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* pa
 
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
   if ((*pTree) == NULL) {
-    pError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
+    qError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 

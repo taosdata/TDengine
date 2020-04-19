@@ -22,7 +22,7 @@ extern "C" {
 
 #include "os.h"
 
-#include "../../common/inc/name.h"
+#include "../../common/inc/tname.h"
 #include "taosdef.h"
 #include "trpc.h"
 #include "tvariant.h"

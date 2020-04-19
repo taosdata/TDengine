@@ -17,15 +17,16 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-#include "tlog.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
-#include "dataformat.h"
+#include "tglobal.h"
+#include "vnode.h"
+#include "tdataformat.h"
+#include "dnodeLog.h"
 #include "dnodeWrite.h"
 #include "dnodeMgmt.h"
-#include "vnode.h"
 
 typedef struct {
   taos_qall  qall;
@@ -227,7 +228,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   int32_t num = taosGetQueueNumber(pWorker->qset);
 
   if (num > 0) {
-     usleep(1000);
+     usleep(30000);
      sched_yield(); 
   } else {
      taosFreeQall(pWorker->qall);

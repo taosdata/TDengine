@@ -17,10 +17,11 @@
 #include "os.h"
 #include "taoserror.h"
 #include "taosmsg.h"
-#include "tlog.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "twal.h"
+#include "tglobal.h"
+#include "dnodeLog.h"
 #include "dnodeMgmt.h"
 #include "dnodeRead.h"
 #include "vnode.h"
@@ -225,7 +226,7 @@ static void dnodeHandleIdleReadWorker(SReadWorker *pWorker) {
     dTrace("read worker:%d is released, total:%d", pWorker->workerId, readPool.num);
     pthread_exit(NULL);
   } else {
-    usleep(100);
+    usleep(30000);
     sched_yield();
   }
 }

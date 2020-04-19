@@ -14,9 +14,8 @@
  */
 
 #include "os.h"
-
-#include "tlog.h"
 #include "trpc.h"
+#include "tscLog.h"
 #include "tscProfile.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"

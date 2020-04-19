@@ -15,7 +15,7 @@
 #ifndef _TD_TSDB_MAIN_H_
 #define _TD_TSDB_MAIN_H_
 
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "tlist.h"
 #include "tsdb.h"
 #include "tskiplist.h"

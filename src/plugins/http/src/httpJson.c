@@ -25,7 +25,7 @@
 #include "httpJson.h"
 #include "httpResp.h"
 #include "taosmsg.h"
-#include "tlog.h"
+#include "httpLog.h"
 #include "taoserror.h"
 
 #define MAX_NUM_STR_SZ 25

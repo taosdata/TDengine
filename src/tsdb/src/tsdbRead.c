@@ -14,9 +14,8 @@
  */
 
 #include "os.h"
-
+#include "tulog.h"
 #include "talgo.h"
-#include "tlog.h"
 #include "tutil.h"
 #include "tcompare.h"
 
@@ -173,7 +172,7 @@ TsdbQueryHandleT* tsdbQueryTables(TsdbRepoT* tsdb, STsdbQueryCond* pCond, STable
     }
   }
 
-  dTrace("%p total numOfTable:%d in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
+  uTrace("%p total numOfTable:%d in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
   
   /*
    * For ascending timestamp order query, query starts from data files. In contrast, buffer will be checked in the first place
@@ -236,7 +235,7 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
 
   SDataRow row = SL_GET_NODE_DATA(node);
   pCheckInfo->lastKey = dataRowKey(row);  // first timestamp in buffer
-  dTrace("%p uid:%" PRId64", tid:%d check data in buffer from skey:%" PRId64 ", order:%d", pHandle,
+  uTrace("%p uid:%" PRId64", tid:%d check data in buffer from skey:%" PRId64 ", order:%d", pHandle,
       pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, pCheckInfo->lastKey, pHandle->order);
   
   // all data in mem are checked already.
@@ -706,7 +705,7 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   if (pLeftBlockInfoEx->pBlock.compBlock->offset == pRightBlockInfoEx->pBlock.compBlock->offset &&
       pLeftBlockInfoEx->pBlock.compBlock->last == pRightBlockInfoEx->pBlock.compBlock->last) {
     // todo add more information
-    dError("error in header file, two block with same offset:%p", pLeftBlockInfoEx->pBlock.compBlock->offset);
+    uError("error in header file, two block with same offset:%p", pLeftBlockInfoEx->pBlock.compBlock->offset);
   }
 
   return pLeftBlockInfoEx->pBlock.compBlock->offset > pRightBlockInfoEx->pBlock.compBlock->offset ? 1 : -1;
@@ -769,7 +768,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     numOfQualTables++;
   }
 
-  dTrace("%p create data blocks info struct completed, %d blocks in %d tables", pQueryHandle, cnt, numOfQualTables);
+  uTrace("%p create data blocks info struct completed, %d blocks in %d tables", pQueryHandle, cnt, numOfQualTables);
 
   assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pMeterDataInfo[j]->numOfBlocks may be 0
   sup.numOfTables = numOfQualTables;
@@ -805,7 +804,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
    * }
    */
 
-  dTrace("%p %d data blocks sort completed", pQueryHandle, cnt);
+  uTrace("%p %d data blocks sort completed", pQueryHandle, cnt);
   cleanBlockOrderSupporter(&sup, numOfTables);
   free(pTree);
 
@@ -827,7 +826,7 @@ static bool getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle) {
     }
     
     assert(numOfBlocks >= 0);
-    dTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks,
+    uTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks,
            numOfTables, pQueryHandle->pFileGroup->fileId);
     
     // todo return error code to query engine
@@ -958,7 +957,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
     if ((key > maxKey && ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) ||
         (key < maxKey && !ASCENDING_ORDER_TRAVERSE(pQueryHandle->order))) {
       
-      dTrace("%p key:%"PRIu64" beyond qrange:%"PRId64" - %"PRId64", no more data in buffer", pQueryHandle, key, pQueryHandle->window.skey,
+      uTrace("%p key:%"PRIu64" beyond qrange:%"PRId64" - %"PRId64", no more data in buffer", pQueryHandle, key, pQueryHandle->window.skey,
           pQueryHandle->window.ekey);
       
       break;
@@ -1321,7 +1320,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   
   size_t size = taosArrayGetSize(pTableList);
   if (size == 0) {
-    pTrace("no qualified tables");
+    uTrace("no qualified tables");
     return pTableGroup;
   }
   
@@ -1337,7 +1336,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
     }
     
     taosArrayPush(pTableGroup, &sa);
-    pTrace("all %d tables belong to one group", size);
+    uTrace("all %d tables belong to one group", size);
     
 #ifdef _DEBUG_VIEW
     tSidSetDisplay(pTableGroup);
@@ -1437,7 +1436,7 @@ int32_t tsdbQueryByTagsCond(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, 
   
   STable* pSTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pSTable == NULL) {
-    dError("failed to get stable, uid:%" PRIu64, uid);
+    uError("failed to get stable, uid:%" PRIu64, uid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
   
@@ -1461,7 +1460,7 @@ int32_t tsdbQueryByTagsCond(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, 
 
   // failed to build expression, no result, return immediately
   if ((ret = exprTreeFromBinary(pTagCond, len, &pExprNode) != TSDB_CODE_SUCCESS) || (pExprNode == NULL)) {
-    dError("stable:%" PRIu64 ", failed to deserialize expression tree, error exists", uid);
+    uError("stable:%" PRIu64 ", failed to deserialize expression tree, error exists", uid);
     taosArrayDestroy(res);
     return ret;
   }

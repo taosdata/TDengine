@@ -18,7 +18,6 @@
 
 #include "stdbool.h"
 #include "taos.h"
-#include "tlog.h"
 #include "taosdef.h"
 #include "stdbool.h"
 

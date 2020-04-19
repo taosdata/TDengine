@@ -14,11 +14,11 @@
  */
 
 #include "os.h"
-
+#include "tulog.h"
 #include "qpercentile.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tlog.h"
+#include "queryLog.h"
 
 tExtMemBuffer *releaseBucketsExceptFor(tMemBucket *pMemBucket, int16_t segIdx, int16_t slotIdx) {
   tExtMemBuffer *pBuffer = NULL;
@@ -233,7 +233,7 @@ void tBucketDoubleHash(tMemBucket *pBucket, void *value, int16_t *segIdx, int16_
     }
 
     if (*segIdx < 0 || *segIdx > 16 || *slotIdx < 0 || *slotIdx > 64) {
-      pError("error in hash process. segment is: %d, slot id is: %d\n", *segIdx, *slotIdx);
+      uError("error in hash process. segment is: %d, slot id is: %d\n", *segIdx, *slotIdx);
     }
   }
 }
@@ -283,7 +283,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
       break;
     };
     default: {
-      pError("MemBucket:%p,not support data type %d,failed", *pBucket, pBucket->dataType);
+      uError("MemBucket:%p,not support data type %d,failed", *pBucket, pBucket->dataType);
       tfree(pBucket);
       return NULL;
     }
@@ -291,20 +291,20 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
 
   int32_t numOfCols = pDesc->pColumnModel->numOfCols;
   if (numOfCols != 1) {
-    pError("MemBucket:%p,only consecutive data is allowed,invalid numOfCols:%d", pBucket, numOfCols);
+    uError("MemBucket:%p,only consecutive data is allowed,invalid numOfCols:%d", pBucket, numOfCols);
     tfree(pBucket);
     return NULL;
   }
 
   SSchema* pSchema = getColumnModelSchema(pDesc->pColumnModel, 0);
   if (pSchema->type != dataType) {
-    pError("MemBucket:%p,data type is not consistent,%d in schema, %d in param", pBucket, pSchema->type, dataType);
+    uError("MemBucket:%p,data type is not consistent,%d in schema, %d in param", pBucket, pSchema->type, dataType);
     tfree(pBucket);
     return NULL;
   }
 
   if (pBucket->numOfTotalPages < pBucket->nTotalSlots) {
-    pWarn("MemBucket:%p,total buffer pages %d are not enough for all slots", pBucket, pBucket->numOfTotalPages);
+    uWarn("MemBucket:%p,total buffer pages %d are not enough for all slots", pBucket, pBucket->numOfTotalPages);
   }
 
   pBucket->pSegs = (tMemBucketSegment *)malloc(pBucket->numOfSegs * sizeof(tMemBucketSegment));
@@ -315,7 +315,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
     pBucket->pSegs[i].pBoundingEntries = NULL;
   }
 
-  pTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
+  uTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
          pBucket->nElemSize);
 
   return pBucket;
@@ -545,11 +545,11 @@ void tMemBucketPut(tMemBucket *pBucket, void *data, int32_t numOfRows) {
     // ensure available memory pages to allocate
     int16_t cseg = 0, cslot = 0;
     if (pBucket->numOfAvailPages == 0) {
-      pTrace("MemBucket:%p,max avail size:%d, no avail memory pages,", pBucket, pBucket->numOfTotalPages);
+      uTrace("MemBucket:%p,max avail size:%d, no avail memory pages,", pBucket, pBucket->numOfTotalPages);
 
       tBucketGetMaxMemSlot(pBucket, &cseg, &cslot);
       if (cseg == -1 || cslot == -1) {
-        pError("MemBucket:%p,failed to find appropriated avail buffer", pBucket);
+        uError("MemBucket:%p,failed to find appropriated avail buffer", pBucket);
         return;
       }
 
@@ -560,10 +560,10 @@ void tMemBucketPut(tMemBucket *pBucket, void *data, int32_t numOfRows) {
         UNUSED(avail);
         tExtMemBufferFlush(pBucket->pSegs[cseg].pBuffer[cslot]);
 
-        pTrace("MemBucket:%p,seg:%d,slot:%d flushed to disk,new avail pages:%d", pBucket, cseg, cslot,
+        uTrace("MemBucket:%p,seg:%d,slot:%d flushed to disk,new avail pages:%d", pBucket, cseg, cslot,
                pBucket->numOfAvailPages);
       } else {
-        pTrace("MemBucket:%p,failed to choose slot to flush to disk seg:%d,slot:%d", pBucket, cseg, cslot);
+        uTrace("MemBucket:%p,failed to choose slot to flush to disk seg:%d,slot:%d", pBucket, cseg, cslot);
       }
     }
     int16_t consumedPgs = pSeg->pBuffer[slotIdx]->numOfInMemPages;
@@ -835,10 +835,10 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
             return finalResult;
           }
 
-          pTrace("MemBucket:%p,start second round bucketing", pMemBucket);
+          uTrace("MemBucket:%p,start second round bucketing", pMemBucket);
 
           if (pSeg->pBuffer[j]->numOfElemsInBuffer != 0) {
-            pTrace("MemBucket:%p,flush %d pages to disk, clear status", pMemBucket, pSeg->pBuffer[j]->numOfInMemPages);
+            uTrace("MemBucket:%p,flush %d pages to disk, clear status", pMemBucket, pSeg->pBuffer[j]->numOfInMemPages);
 
             pMemBucket->numOfAvailPages += pSeg->pBuffer[j]->numOfInMemPages;
             tExtMemBufferFlush(pSeg->pBuffer[j]);
@@ -886,7 +886,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
           fclose(pMemBuffer->file);
           if (unlink(pMemBuffer->path) != 0) {
-            pError("MemBucket:%p, remove tmp file %s failed", pMemBucket, pMemBuffer->path);
+            uError("MemBucket:%p, remove tmp file %s failed", pMemBucket, pMemBuffer->path);
           }
           tfree(pMemBuffer);
           tfree(pPage);

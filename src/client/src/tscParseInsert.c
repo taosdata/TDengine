@@ -27,12 +27,12 @@
 #include "ttokendef.h"
 #include "taosdef.h"
 
-#include "tlog.h"
+#include "tscLog.h"
 #include "tscSubquery.h"
 #include "tstoken.h"
 #include "ttime.h"
 
-#include "dataformat.h"
+#include "tdataformat.h"
 
 enum {
   TSDB_USE_SERVER_TS = 0,

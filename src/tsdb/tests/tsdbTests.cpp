@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#include "dataformat.h"
+#include "tdataformat.h"
 #include "tsdbMain.h"
 
 static double getCurTime() {
@@ -13,14 +13,15 @@ static double getCurTime() {
 
 typedef struct {
   TsdbRepoT *pRepo;
-  int          tid;
-  int64_t      uid;
-  int          sversion;
-  TSKEY        startTime;
-  TSKEY        interval;
-  int          totalRows;
-  int          rowsPerSubmit;
-  STSchema *   pSchema;
+  bool       isAscend;
+  int        tid;
+  int64_t    uid;
+  int        sversion;
+  TSKEY      startTime;
+  TSKEY      interval;
+  int        totalRows;
+  int        rowsPerSubmit;
+  STSchema * pSchema;
 } SInsertInfo;
 
 static int insertData(SInsertInfo *pInfo) {
@@ -41,7 +42,11 @@ static int insertData(SInsertInfo *pInfo) {
     pBlock->len = 0;
     for (int i = 0; i < pInfo->rowsPerSubmit; i++) {
       // start_time += 1000;
-      start_time += pInfo->interval;
+      if (pInfo->isAscend) {
+        start_time += pInfo->interval;
+      } else {
+        start_time -= pInfo->interval;
+      }
       SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
       tdInitDataRow(row, pInfo->pSchema);
 
@@ -155,12 +160,14 @@ TEST(TsdbTest, createRepo) {
   // Insert Some Data
   SInsertInfo iInfo = {
     .pRepo = pRepo,
+    // .isAscend = true,
+    .isAscend = false,
     .tid = tCfg.tableId.tid,
     .uid = tCfg.tableId.uid,
     .sversion = tCfg.sversion,
     .startTime = 1584081000000,
     .interval = 1000,
-    .totalRows = 50,
+    .totalRows = 5000000,
     .rowsPerSubmit = 1,
     .pSchema = schema
   };
@@ -175,34 +182,34 @@ TEST(TsdbTest, createRepo) {
   repo = (STsdbRepo *)pRepo;
   ASSERT_NE(pRepo, nullptr);
 
-  // Insert more data
-  iInfo.startTime = iInfo.startTime + iInfo.interval * iInfo.totalRows;
-  iInfo.totalRows = 10;
-  iInfo.pRepo = pRepo;
-  ASSERT_EQ(insertData(&iInfo), 0);
+  // // Insert more data
+  // iInfo.startTime = iInfo.startTime + iInfo.interval * iInfo.totalRows;
+  // iInfo.totalRows = 10;
+  // iInfo.pRepo = pRepo;
+  // ASSERT_EQ(insertData(&iInfo), 0);
 
-  // Close the repository
-  tsdbCloseRepo(pRepo);
+  // // Close the repository
+  // tsdbCloseRepo(pRepo);
 
-  // Open the repository again
-  pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
-  repo = (STsdbRepo *)pRepo;
-  ASSERT_NE(pRepo, nullptr);
+  // // Open the repository again
+  // pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0", NULL);
+  // repo = (STsdbRepo *)pRepo;
+  // ASSERT_NE(pRepo, nullptr);
 
-  // Read from file
-  SRWHelper rhelper;
-  tsdbInitReadHelper(&rhelper, repo);
+  // // Read from file
+  // SRWHelper rhelper;
+  // tsdbInitReadHelper(&rhelper, repo);
 
-  SFileGroup *pFGroup = tsdbSearchFGroup(repo->tsdbFileH, 1833);
-  ASSERT_NE(pFGroup, nullptr);
-  ASSERT_GE(tsdbSetAndOpenHelperFile(&rhelper, pFGroup), 0);
+  // SFileGroup *pFGroup = tsdbSearchFGroup(repo->tsdbFileH, 1833);
+  // ASSERT_NE(pFGroup, nullptr);
+  // ASSERT_GE(tsdbSetAndOpenHelperFile(&rhelper, pFGroup), 0);
 
-  STable *pTable = tsdbGetTableByUid(repo->tsdbMeta, tCfg.tableId.uid);
-  ASSERT_NE(pTable, nullptr);
-  tsdbSetHelperTable(&rhelper, pTable, repo);
+  // STable *pTable = tsdbGetTableByUid(repo->tsdbMeta, tCfg.tableId.uid);
+  // ASSERT_NE(pTable, nullptr);
+  // tsdbSetHelperTable(&rhelper, pTable, repo);
 
-  ASSERT_EQ(tsdbLoadCompInfo(&rhelper, NULL), 0);
-  ASSERT_EQ(tsdbLoadBlockData(&rhelper, blockAtIdx(&rhelper, 0), NULL), 0);
+  // ASSERT_EQ(tsdbLoadCompInfo(&rhelper, NULL), 0);
+  // ASSERT_EQ(tsdbLoadBlockData(&rhelper, blockAtIdx(&rhelper, 0), NULL), 0);
 
   int k = 0;
 }

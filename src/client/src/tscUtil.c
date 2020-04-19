@@ -28,6 +28,7 @@
 #include "tsclient.h"
 #include "ttimer.h"
 #include "ttokendef.h"
+#include "tscLog.h"
 
 /*
  * the detailed information regarding metric meta key is:

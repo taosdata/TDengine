@@ -69,6 +69,8 @@ extern "C" {
 #include <wctype.h>
 #include <inttypes.h>
 #include <dispatch/dispatch.h>
+#include <fcntl.h>
+#include <sys/utsname.h>
 
 #define htobe64 htonll
 
@@ -197,6 +199,8 @@ int tsem_wait(dispatch_semaphore_t *sem);
 int tsem_post(dispatch_semaphore_t *sem);
 int tsem_destroy(dispatch_semaphore_t *sem);
 
+void osInit();
+
 ssize_t twrite(int fd, void *buf, size_t n);
 
 char *taosCharsetReplace(char *charsetstr);
@@ -211,11 +215,11 @@ int taosSetNonblocking(int sock, int on);
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
-void tsPrintOsInfo();
+void taosPrintOsInfo();
 
 char *taosCharsetReplace(char *charsetstr);
 
-void tsPrintOsInfo();
+void taosPrintOsInfo();
 
 void taosGetSystemInfo();
 

@@ -18,11 +18,12 @@
 #include "ihash.h"
 #include "taoserror.h"
 #include "taosmsg.h"
-#include "tlog.h"
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
 #include "vnode.h"
+#include "tglobal.h"
+#include "dnodeLog.h"
 #include "dnodeMClient.h"
 #include "dnodeMgmt.h"
 #include "dnodeRead.h"
@@ -180,5 +181,5 @@ static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
 
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
   SMDCfgDnodeMsg *pCfg = (SMDCfgDnodeMsg *)pMsg->pCont;
-  return tsCfgDynamicOptions(pCfg->config);
+  return taosCfgDynamicOptions(pCfg->config);
 }

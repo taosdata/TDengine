@@ -23,13 +23,12 @@
 #include "tstoken.h"
 #include "tstrbuild.h"
 #include "ttime.h"
-
+#include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttokendef.h"
-
-#include "name.h"
+#include "tname.h"
 #include "tcompare.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"

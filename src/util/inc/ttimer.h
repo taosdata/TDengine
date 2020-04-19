@@ -23,24 +23,8 @@ extern "C" {
 typedef void *tmr_h;
 typedef void (*TAOS_TMR_CALLBACK)(void *, void *);
 
-extern uint32_t tmrDebugFlag;
 extern int      taosTmrThreads;
 extern uint32_t taosMaxTmrCtrl;
-
-#define tmrError(...)                                 \
-  do { if (tmrDebugFlag & DEBUG_ERROR) {              \
-    tprintf("ERROR TMR ", tmrDebugFlag, __VA_ARGS__); \
-  } } while(0)
-
-#define tmrWarn(...)                                  \
-  do { if (tmrDebugFlag & DEBUG_WARN) {               \
-    tprintf("WARN  TMR ", tmrDebugFlag, __VA_ARGS__); \
-  } } while(0)
-
-#define tmrTrace(...)                           \
-  do { if (tmrDebugFlag & DEBUG_TRACE) {        \
-    tprintf("TMR ", tmrDebugFlag, __VA_ARGS__); \
-  } } while(0)
 
 #define MSECONDS_PER_TICK 5
 

@@ -20,11 +20,11 @@
 #endif
 
 #include "tcrc32c.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "ttime.h"
 #include "taosdef.h"
 #include "tutil.h"
-#include "tlog.h"
+#include "tulog.h"
 #include "taoserror.h"
 
 int32_t tmpFileSerialNum = 0;
@@ -559,18 +559,18 @@ int taosCheckVersion(char *input_client_version, char *input_server_version, int
   strcpy(server_version, input_server_version);
 
   if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
-    pError("invalid client version:%s", client_version);
+    uError("invalid client version:%s", client_version);
     return TSDB_CODE_INVALID_CLIENT_VERSION;
   }
 
   if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
-    pError("invalid server version:%s", server_version);
+    uError("invalid server version:%s", server_version);
     return TSDB_CODE_INVALID_CLIENT_VERSION;
   }
 
   for(int32_t i = 0; i < comparedSegments; ++i) {
     if (clientVersionNumber[i] != serverVersionNumber[i]) {
-      tscError("the %d-th number of server version:%s not matched with client version:%s", i, server_version, version);
+      uError("the %d-th number of server version:%s not matched with client version:%s", i, server_version, version);
       return TSDB_CODE_INVALID_CLIENT_VERSION;
     }
   }

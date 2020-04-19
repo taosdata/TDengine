@@ -15,11 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobalcfg.h"
-#include "tlog.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "tutil.h"
+#include "tconfig.h"
+#include "tglobal.h"
 #include "dnode.h"
+#include "dnodeLog.h"
 #include "dnodeMClient.h"
 #include "dnodeMgmt.h"
 #include "dnodeMnode.h"
@@ -50,7 +52,11 @@ int32_t main(int32_t argc, char *argv[]) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-V") == 0) {
-      char *versionStr = tsIsCluster ? "enterprise" : "community";
+#ifdef _SYNC      
+      char *versionStr = "enterprise";
+#else      
+      char *versionStr = "community";
+#endif      
       printf("%s version: %s compatible_version: %s\n", versionStr, version, compatible_version);
       printf("gitinfo: %s\n", gitinfo);
       printf("gitinfoI: %s\n", gitinfoOfInternal);
@@ -109,11 +115,11 @@ int32_t main(int32_t argc, char *argv[]) {
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   if (signum == SIGUSR1) {
-    tsCfgDynamicOptions("debugFlag 135");
+    taosCfgDynamicOptions("debugFlag 135");
     return;
   }
   if (signum == SIGUSR2) {
-    tsCfgDynamicOptions("resetlog");
+    taosCfgDynamicOptions("resetlog");
     return;
   }
   syslog(LOG_INFO, "Shut down signal is %d", signum);
@@ -132,7 +138,8 @@ static int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
   taosResolveCRC();
-  tsReadGlobalLogConfig();
+  taosInitGlobalCfg();
+  taosReadGlobalLogCfg();
   taosSetCoreDump();
   signal(SIGPIPE, SIG_IGN);
 
@@ -147,12 +154,12 @@ static int32_t dnodeInitSystem() {
     printf("failed to init log file\n");
   }
 
-  if (!tsReadGlobalConfig()) {
-    tsPrintGlobalConfig();
+  if (!taosReadGlobalCfg() || !taosCheckGlobalCfg()) {
+    taosPrintGlobalCfg();
     dError("TDengine read global config failed");
     return -1;
   }
-  tsPrintGlobalConfig();
+  taosPrintGlobalCfg();
 
   dPrint("Server IP address is:%s", tsPrivateIp);
   dPrint("starting to initialize TDengine ...");
@@ -185,7 +192,7 @@ static void dnodeCleanUpSystem() {
     dnodeCleanupRead();
     dnodeCleanUpModules();
     dnodeCleanupStorage();
-    taosCloseLogger();
+    taosCloseLog();
   }
 }
 

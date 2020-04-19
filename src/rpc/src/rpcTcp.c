@@ -14,10 +14,9 @@
  */
 
 #include "os.h"
-#include "tlog.h"
-#include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
+#include "rpcLog.h"
 #include "rpcHead.h"
 #include "rpcTcp.h"
 

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tlog.h"
+#include "tulog.h"
 
 void taosCloseTcpServerConnection(void *chandle) {
   tError("CloseTcpServerConnection not support in windows");

@@ -53,22 +53,22 @@
 
 #define simError(...)                        \
   if (simDebugFlag & DEBUG_ERROR) {          \
-    tprintf("ERROR SIM ", 255, __VA_ARGS__); \
+    taosPrintLog("ERROR SIM ", 255, __VA_ARGS__); \
   }
 #define simWarn(...)                                 \
   if (simDebugFlag & DEBUG_WARN) {                   \
-    tprintf("WARN SIM ", simDebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN SIM ", simDebugFlag, __VA_ARGS__); \
   }
 #define simTrace(...)                           \
   if (simDebugFlag & DEBUG_TRACE) {             \
-    tprintf("SIM ", simDebugFlag, __VA_ARGS__); \
+    taosPrintLog("SIM ", simDebugFlag, __VA_ARGS__); \
   }
 #define simDump(x, y)              \
   if (simDebugFlag & DEBUG_DUMP) { \
     taosDumpData(x, y);            \
   }
 #define simPrint(...) \
-  { tprintf("SIM ", 255, __VA_ARGS__); }
+  { taosPrintLog("SIM ", 255, __VA_ARGS__); }
 
 enum { SIM_SCRIPT_TYPE_MAIN, SIM_SCRIPT_TYPE_BACKGROUND };
 

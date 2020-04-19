@@ -1,7 +1,7 @@
 #include "os.h"
 #include "tutil.h"
 
-#include "name.h"
+#include "tname.h"
 #include "tstoken.h"
 #include "ttokendef.h"
 

@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "tlog.h"
+#include "tulog.h"
 
 #define TAOS_MEM_CHECK_IMPL
 #include "tutil.h"

@@ -14,12 +14,12 @@
  */
 
 #define __USE_XOPEN
-
 #include "os.h"
-
+#include "tglobal.h"
 #include "shell.h"
 #include "shellCommand.h"
 #include "tkey.h"
+#include "tulog.h"
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -292,7 +292,7 @@ void *shellLoopQuery(void *arg) {
 
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL){
-    tscError("failed to malloc command");
+    uError("failed to malloc command");
     return NULL;
   }
   

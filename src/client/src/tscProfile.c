@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "tlog.h"
+#include "tscLog.h"
 #include "tsclient.h"
 #include "ttime.h"
 #include "ttimer.h"

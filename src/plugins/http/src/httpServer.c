@@ -14,16 +14,14 @@
  */
 
 #include "os.h"
-
 #include "taosmsg.h"
-#include "tlog.h"
-#include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
 #include "ttime.h"
 #include "ttimer.h"
-
+#include "tglobal.h"
 #include "http.h"
+#include "httpLog.h"
 #include "httpCode.h"
 #include "httpHandle.h"
 #include "httpResp.h"

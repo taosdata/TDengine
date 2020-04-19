@@ -16,7 +16,7 @@
 #include "os.h"
 
 #include "hash.h"
-#include "tlog.h"
+#include "tulog.h"
 #include "ttime.h"
 #include "tutil.h"
 
@@ -153,7 +153,7 @@ static void taosHashTableResize(SHashObj *pHashObj) {
 
   int32_t newSize = pHashObj->capacity << 1u;
   if (newSize > HASH_MAX_CAPACITY) {
-//    pTrace("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
+//    uTrace("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
 //           pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }
@@ -162,7 +162,7 @@ static void taosHashTableResize(SHashObj *pHashObj) {
 
   SHashEntry **pNewEntry = realloc(pHashObj->hashList, sizeof(SHashEntry *) * newSize);
   if (pNewEntry == NULL) {
-//    pTrace("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
+//    uTrace("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
     return;
   }
 
@@ -229,7 +229,7 @@ static void taosHashTableResize(SHashObj *pHashObj) {
   }
 
 //  int64_t et = taosGetTimestampUs();
-//  pTrace("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms", pHashObj->capacity,
+//  uTrace("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms", pHashObj->capacity,
 //         ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
 }
 
@@ -245,7 +245,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
 
   SHashObj *pHashObj = (SHashObj *)calloc(1, sizeof(SHashObj));
   if (pHashObj == NULL) {
-    pError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
 
@@ -258,7 +258,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
   pHashObj->hashList = (SHashEntry **)calloc(pHashObj->capacity, sizeof(SHashEntry *));
   if (pHashObj->hashList == NULL) {
     free(pHashObj);
-    pError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
 
@@ -278,7 +278,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
     free(pHashObj->hashList);
     free(pHashObj);
 
-    pError("failed to init lock, reason:%s", strerror(errno));
+    uError("failed to init lock, reason:%s", strerror(errno));
     return NULL;
   }
 
@@ -299,7 +299,7 @@ static SHashNode *doCreateHashNode(const char *key, size_t keyLen, const char *p
 
   SHashNode *pNewNode = calloc(1, totalSize);
   if (pNewNode == NULL) {
-    pError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
 

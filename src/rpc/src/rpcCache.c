@@ -14,12 +14,12 @@
  */
 
 #include "os.h"
-#include "tglobalcfg.h"
-#include "tlog.h"
+#include "tglobal.h"
 #include "tmempool.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "rpcLog.h"
 #include "rpcCache.h"
 
 typedef struct SConnHash {

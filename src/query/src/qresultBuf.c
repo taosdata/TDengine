@@ -2,8 +2,8 @@
 #include "hash.h"
 #include "qextbuffer.h"
 #include "taoserror.h"
-#include "tlog.h"
 #include "tsqlfunction.h"
+#include "queryLog.h"
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 
@@ -29,23 +29,23 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
   memset(path, 0, tListLen(path));
 
   if (!FD_VALID(pResBuf->fd)) {
-    pError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
+    qError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
     return TSDB_CODE_CLI_NO_DISKSPACE;
   }
 
   int32_t ret = ftruncate(pResBuf->fd, pResBuf->numOfPages * DEFAULT_INTERN_BUF_SIZE);
   if (ret != TSDB_CODE_SUCCESS) {
-    pError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
+    qError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
     return TSDB_CODE_CLI_NO_DISKSPACE;
   }
 
   pResBuf->pBuf = mmap(NULL, pResBuf->totalBufSize, PROT_READ | PROT_WRITE, MAP_SHARED, pResBuf->fd, 0);
   if (pResBuf->pBuf == MAP_FAILED) {
-    pError("QInfo:%p failed to map temp file: %s. %s", pResBuf->path, strerror(errno));
+    qError("QInfo:%p failed to map temp file: %s. %s", pResBuf->path, strerror(errno));
     return TSDB_CODE_CLI_OUT_OF_MEMORY; // todo change error code
   }
 
-  pTrace("create tmp file for output result, %s, " PRId64 "bytes", pResBuf->path, pResBuf->totalBufSize);
+  qTrace("create tmp file for output result, %s, " PRId64 "bytes", pResBuf->path, pResBuf->totalBufSize);
   *pResultBuf = pResBuf;
   return TSDB_CODE_SUCCESS;
 }
@@ -198,7 +198,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
     close(pResultBuf->fd);
   }
 
-  pTrace("disk-based output buffer closed, %" PRId64 " bytes, file:%s", pResultBuf->totalBufSize, pResultBuf->path);
+  qTrace("disk-based output buffer closed, %" PRId64 " bytes, file:%s", pResultBuf->totalBufSize, pResultBuf->path);
   munmap(pResultBuf->pBuf, pResultBuf->totalBufSize);
   unlink(pResultBuf->path);
   

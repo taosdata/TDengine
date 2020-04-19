@@ -13,11 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
+#include "os.h"
 #include "http.h"
 #include "httpCode.h"
 #include "httpHandle.h"
@@ -25,6 +21,7 @@
 #include "taos.h"
 #include "tsclient.h"
 #include "tnote.h"
+#include "httpLog.h"
 
 void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);

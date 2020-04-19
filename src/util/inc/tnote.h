@@ -22,7 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "tutil.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 
 #define MAX_NOTE_LINE_SIZE 66000
 #define NOTE_FILE_NAME_LEN 300

@@ -17,7 +17,7 @@
 #include "sim.h"
 #include "taos.h"
 #include "taoserror.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "tutil.h"
 #include "cJSON.h"
 
