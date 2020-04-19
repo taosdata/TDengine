@@ -29,7 +29,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded);
 static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
-static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey);
+static int tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey);
 static void tsdbResetHelperBlock(SRWHelper *pHelper);
 
 // ---------- Operations on Helper File part
@@ -342,7 +342,7 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
         rowsToWrite = tsdbGetRowsInRange(pDataCols, 0, pCompBlock->keyFirst-1);
         ASSERT(rowsToWrite > 0);
         if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.dataF), pDataCols, rowsToWrite, &compBlock, false, true) < 0) goto _err;
-        if (tsdbInsertSuperBlock(pHelper, pCompBlock, blkIdx) < 0) goto _err;
+        if (tsdbInsertSuperBlock(pHelper, &compBlock, blkIdx) < 0) goto _err;
       }
     }
   }
@@ -934,7 +934,15 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
   return -1;
 }
 
-static int compTSKEY(const void *key1, const void *key2) { return ((TSKEY *)key1 - (TSKEY *)key2); }
+static int compTSKEY(const void *key1, const void *key2) {
+  if (*(TSKEY *)key1 > *(TSKEY *)key2) {
+    return 1;
+  } else if (*(TSKEY *)key1 == *(TSKEY *)key2) {
+    return 0;
+  } else {
+    return -1;
+  }
+}
 
 static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t esize) {
 
@@ -978,6 +986,10 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
   ASSERT(pIdx->len <= tsizeof(pHelper->pCompInfo));
   pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].keyLast;
   pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last;
+
+  if (pIdx->numOfSuperBlocks > 1) {
+    ASSERT(pHelper->pCompInfo->blocks[0].keyLast < pHelper->pCompInfo->blocks[1].keyFirst);
+  }
 
   return 0;
 
@@ -1104,7 +1116,7 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 }
 
 // Get the number of rows in range [minKey, maxKey]
-static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey) {
+static int tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey) {
   if (pDataCols->numOfPoints == 0) return 0;
 
   ASSERT(minKey <= maxKey);

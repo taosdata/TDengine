@@ -867,7 +867,7 @@ static void *tsdbCommitData(void *arg) {
   SRWHelper   whelper = {0};
   if (pCache->imem == NULL) return NULL;
 
-  pRepo->appH.walCallBack(pRepo->appH.appH);
+  if (pRepo->appH.walCallBack) pRepo->appH.walCallBack(pRepo->appH.appH);
 
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
