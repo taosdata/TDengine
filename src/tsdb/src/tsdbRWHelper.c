@@ -342,7 +342,7 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
         rowsToWrite = tsdbGetRowsInRange(pDataCols, 0, pCompBlock->keyFirst-1);
         ASSERT(rowsToWrite > 0);
         if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.dataF), pDataCols, rowsToWrite, &compBlock, false, true) < 0) goto _err;
-        if (tsdbInsertSuperBlock(pHelper, pCompBlock, blkIdx) < 0) goto _err;
+        if (tsdbInsertSuperBlock(pHelper, &compBlock, blkIdx) < 0) goto _err;
       }
     }
   }
@@ -986,6 +986,10 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
   ASSERT(pIdx->len <= tsizeof(pHelper->pCompInfo));
   pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].keyLast;
   pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last;
+
+  if (pIdx->numOfSuperBlocks > 1) {
+    ASSERT(pHelper->pCompInfo->blocks[0].keyLast < pHelper->pCompInfo->blocks[1].keyFirst);
+  }
 
   return 0;
 
