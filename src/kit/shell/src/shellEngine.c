@@ -23,7 +23,7 @@
 #include "tutil.h"
 #include "taosdef.h"
 #include "taoserror.h"
-
+#include "tglobal.h"
 #include <regex.h>
 
 /**************** Global variables ****************/

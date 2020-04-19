@@ -16,11 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
-#include "tlog.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "mnode.h"
 #include "http.h"
 #include "monitor.h"
+#include "dnodeLog.h"
 #include "dnodeModule.h"
 
 typedef struct {

@@ -14,8 +14,8 @@
  */
 
 #include "os.h"
-#include "tlog.h"
 #include "tmempool.h"
+#include "rpcLog.h"
 
 typedef struct SIpHash {
   uint32_t           ip;

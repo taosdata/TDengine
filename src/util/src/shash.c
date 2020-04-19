@@ -13,14 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ctype.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "shash.h"
-#include "tlog.h"
+#include "tulog.h"
 
 typedef struct _str_node_t {
   char *              string;
@@ -96,7 +92,7 @@ void *taosAddStrHashWithSize(void *handle, char *string, char *pData, int dataSi
 
   pthread_mutex_unlock(&pObj->mutex);
 
-  pTrace("hash:%d:%s is added", hash, string);
+  uTrace("hash:%d:%s is added", hash, string);
 
   return pNode->data;
 }
@@ -145,7 +141,7 @@ void taosDeleteStrHashNode(void *handle, char *string, void *pDeleteNode) {
       pNode->next->prev = pNode->prev;
     }
 
-    pTrace("hash:%d:%s:%p is removed", hash, string, pNode);
+    uTrace("hash:%d:%s:%p is removed", hash, string, pNode);
 
     free(pNode);
   }
@@ -184,7 +180,7 @@ void taosDeleteStrHash(void *handle, char *string) {
       pNode->next->prev = pNode->prev;
     }
 
-    pTrace("hash:%d:%s:%p is removed", hash, string, pNode);
+    uTrace("hash:%d:%s:%p is removed", hash, string, pNode);
 
     free(pNode);
   }
@@ -209,7 +205,7 @@ void *taosGetStrHashData(void *handle, char *string) {
 
   while (pNode) {
     if (strcmp(pNode->string, string) == 0) {
-      pTrace("hash:%d:%s is retrieved", hash, string);
+      uTrace("hash:%d:%s is retrieved", hash, string);
       break;
     }
 

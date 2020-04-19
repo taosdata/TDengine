@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "tlog.h"
+#include "tulog.h"
 #include <stdbool.h>
 
 typedef struct {
@@ -41,7 +41,7 @@ void *taosInitIdPool(int maxId) {
 
   pthread_mutex_init(&pIdPool->mutex, NULL);
 
-  pTrace("pool:%p is setup, maxId:%d", pIdPool, pIdPool->maxId);
+  uTrace("pool:%p is setup, maxId:%d", pIdPool, pIdPool->maxId);
 
   return pIdPool;
 }
@@ -91,7 +91,7 @@ void taosIdPoolCleanUp(void *handle) {
 
   if (pIdPool == NULL) return;
 
-  pTrace("pool:%p is cleaned", pIdPool);
+  uTrace("pool:%p is cleaned", pIdPool);
 
   if (pIdPool->freeList) free(pIdPool->freeList);
 

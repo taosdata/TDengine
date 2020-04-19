@@ -15,7 +15,6 @@
 
 #include "os.h"
 #include "tidpool.h"
-#include "tlog.h"
 #include "tmd5.h"
 #include "tmempool.h"
 #include "ttime.h"
@@ -24,13 +23,15 @@
 #include "lz4.h"
 #include "taoserror.h"
 #include "tsocket.h"
+#include "tglobal.h"
 #include "taosmsg.h"
+#include "trpc.h"
+#include "hash.h"
+#include "rpcLog.h"
 #include "rpcUdp.h"
 #include "rpcCache.h"
 #include "rpcTcp.h"
 #include "rpcHead.h"
-#include "trpc.h"
-#include "hash.h"
 
 #define RPC_MSG_OVERHEAD (sizeof(SRpcReqContext) + sizeof(SRpcHead) + sizeof(SRpcDigest)) 
 #define rpcHeadFromCont(cont) ((SRpcHead *) (cont - sizeof(SRpcHead)))
@@ -124,6 +125,7 @@ typedef struct SRpcConn {
   SRpcReqContext *pContext; // request context
 } SRpcConn;
 
+int tsRpcMaxUdpSize = 15000;  // bytes
 int tsRpcProgressTime = 10;  // milliseocnds
 
 // not configurable

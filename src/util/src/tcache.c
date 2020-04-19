@@ -13,14 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tcache.h"
-#include "hash.h"
-#include "hashfunc.h"
-
-#include "tlog.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tulog.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tcache.h"
+#include "hash.h"
+#include "hashfunc.h"
 
 static FORCE_INLINE void __cache_wr_lock(SCacheObj *pCacheObj) {
 #if defined(LINUX)
@@ -82,7 +83,7 @@ static SCacheDataNode *taosCreateHashNode(const char *key, size_t keyLen, const 
   
   SCacheDataNode *pNewNode = calloc(1, totalSize);
   if (pNewNode == NULL) {
-    pError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
   
@@ -127,12 +128,12 @@ static void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pNode->inTrash = true;
   pCacheObj->numOfElemsInTrash++;
   
-  pTrace("key:%s %p move to trash, numOfElem in trash:%d", pNode->key, pNode, pCacheObj->numOfElemsInTrash);
+  uTrace("key:%s %p move to trash, numOfElem in trash:%d", pNode->key, pNode, pCacheObj->numOfElemsInTrash);
 }
 
 static void taosRemoveFromTrash(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != (uint64_t)pElem->pData) {
-    pError("key:sig:%d %p data has been released, ignore", pElem->pData->signature, pElem->pData);
+    uError("key:sig:%d %p data has been released, ignore", pElem->pData->signature, pElem->pData);
     return;
   }
   
@@ -163,7 +164,7 @@ static void taosTrashEmpty(SCacheObj *pCacheObj, bool force) {
   
   if (pCacheObj->numOfElemsInTrash == 0) {
     if (pCacheObj->pTrash != NULL) {
-      pError("key:inconsistency data in cache, numOfElem in trash:%d", pCacheObj->numOfElemsInTrash);
+      uError("key:inconsistency data in cache, numOfElem in trash:%d", pCacheObj->numOfElemsInTrash);
     }
     pCacheObj->pTrash = NULL;
     
@@ -180,7 +181,7 @@ static void taosTrashEmpty(SCacheObj *pCacheObj, bool force) {
     }
     
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
-      pTrace("key:%s %p removed from trash. numOfElem in trash:%d", pElem->pData->key, pElem->pData,
+      uTrace("key:%s %p removed from trash. numOfElem in trash:%d", pElem->pData->key, pElem->pData,
              pCacheObj->numOfElemsInTrash - 1);
       STrashElem *p = pElem;
       
@@ -202,14 +203,14 @@ static void taosTrashEmpty(SCacheObj *pCacheObj, bool force) {
  */
 static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   if (pNode->signature != (uint64_t)pNode) {
-    pError("key:%s, %p data is invalid, or has been released", pNode->key, pNode);
+    uError("key:%s, %p data is invalid, or has been released", pNode->key, pNode);
     return;
   }
   
   int32_t size = pNode->size;
   taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
   
-  pTrace("key:%s is removed from cache,total:%d,size:%ldbytes", pNode->key, pCacheObj->totalSize, size);
+  uTrace("key:%s is removed from cache,total:%d,size:%ldbytes", pNode->key, pCacheObj->totalSize, size);
   free(pNode);
 }
 
@@ -324,7 +325,7 @@ static void taosCacheRefresh(void *handle, void *tmrId) {
   SCacheObj *pCacheObj = (SCacheObj *)handle;
   
   if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0) {
-    pTrace("object is destroyed. no refresh retry");
+    uTrace("object is destroyed. no refresh retry");
     return;
   }
   
@@ -370,14 +371,14 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
   
   SCacheObj *pCacheObj = (SCacheObj *)calloc(1, sizeof(SCacheObj));
   if (pCacheObj == NULL) {
-    pError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
   
   pCacheObj->pHashTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false);
   if (pCacheObj->pHashTable == NULL) {
     free(pCacheObj);
-    pError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
   
@@ -394,7 +395,7 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
     taosHashCleanup(pCacheObj->pHashTable);
     free(pCacheObj);
     
-    pError("failed to init lock, reason:%s", strerror(errno));
+    uError("failed to init lock, reason:%s", strerror(errno));
     return NULL;
   }
   
@@ -419,12 +420,12 @@ void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, siz
     if (NULL != pNode) {
       pCacheObj->totalSize += pNode->size;
       
-      pTrace("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%d, size:%" PRId64 " bytes",
+      uTrace("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%d, size:%" PRId64 " bytes",
              key, pNode, pNode->addedTime, pNode->expiredTime, pCacheObj->totalSize, dataSize);
     }
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pCacheObj, pOld, key, keyLen, pData, dataSize, duration * 1000L);
-    pTrace("key:%s %p exist in cache, updated", key, pNode);
+    uTrace("key:%s %p exist in cache, updated", key, pNode);
   }
   
   __cache_unlock(pCacheObj);
@@ -450,10 +451,10 @@ void *taosCacheAcquireByName(SCacheObj *pCacheObj, const char *key) {
   
   if (ptNode != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    pTrace("key:%s is retrieved from cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
+    uTrace("key:%s is retrieved from cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    pTrace("key:%s not in cache, retrieved failed", key);
+    uTrace("key:%s not in cache, retrieved failed", key);
   }
   
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
@@ -467,12 +468,12 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   SCacheDataNode *ptNode = (SCacheDataNode *)((char *)data - offset);
   
   if (ptNode->signature != (uint64_t)ptNode) {
-    pError("key: %p the data from cache is invalid", ptNode);
+    uError("key: %p the data from cache is invalid", ptNode);
     return NULL;
   }
   
   int32_t ref = T_REF_INC(ptNode);
-  pTrace("%p acquired by data in cache, refcnt:%d", ptNode, ref)
+  uTrace("%p acquired by data in cache, refcnt:%d", ptNode, ref)
   
   // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
   assert(ref >= 2);
@@ -486,7 +487,7 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
   SCacheDataNode *ptNode = (SCacheDataNode *)((char *)(*data) - offset);
   
   if (ptNode->signature != (uint64_t)ptNode) {
-    pError("key: %p the data from cache is invalid", ptNode);
+    uError("key: %p the data from cache is invalid", ptNode);
     return NULL;
   }
   
@@ -510,13 +511,13 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   SCacheDataNode *pNode = (SCacheDataNode *)((char *)(*data) - offset);
   
   if (pNode->signature != (uint64_t)pNode) {
-    pError("key: %p release invalid cache data", pNode);
+    uError("key: %p release invalid cache data", pNode);
     return;
   }
   
   *data = NULL;
   int16_t ref = T_REF_DEC(pNode);
-  pTrace("%p data released, refcnt:%d", pNode, ref);
+  uTrace("%p data released, refcnt:%d", pNode, ref);
   
   if (_remove) {
     __cache_wr_lock(pCacheObj);

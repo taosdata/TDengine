@@ -29,10 +29,10 @@
 #include "tqueue.h"
 
 #define walPrefix "wal"
-#define wError(...) if (wDebugFlag & DEBUG_ERROR) {tprintf("ERROR WAL ", wDebugFlag, __VA_ARGS__);}
-#define wWarn(...) if (wDebugFlag & DEBUG_WARN) {tprintf("WARN WAL ", wDebugFlag, __VA_ARGS__);}
-#define wTrace(...) if (wDebugFlag & DEBUG_TRACE) {tprintf("WAL ", wDebugFlag, __VA_ARGS__);}
-#define wPrint(...) {tprintf("WAL ", 255, __VA_ARGS__);}
+#define wError(...) if (wDebugFlag & DEBUG_ERROR) {taosPrintLog("ERROR WAL ", wDebugFlag, __VA_ARGS__);}
+#define wWarn(...) if (wDebugFlag & DEBUG_WARN) {taosPrintLog("WARN WAL ", wDebugFlag, __VA_ARGS__);}
+#define wTrace(...) if (wDebugFlag & DEBUG_TRACE) {taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__);}
+#define wPrint(...) {taosPrintLog("WAL ", 255, __VA_ARGS__);}
 
 typedef struct {
   uint64_t version;

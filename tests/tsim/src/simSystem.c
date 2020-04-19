@@ -16,7 +16,7 @@
 #include "os.h"
 #include "sim.h"
 #include "taos.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "ttimer.h"
 #include "tutil.h"
 

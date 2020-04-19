@@ -15,10 +15,10 @@
 
 //#define _DEFAULT_SOURCE
 #include "os.h"
-#include "tlog.h"
+#include "tglobal.h"
+#include "rpcLog.h"
 #include "trpc.h"
 #include "tqueue.h"
-#include <stdint.h>
 
 int msgSize = 128;
 int commit = 0;

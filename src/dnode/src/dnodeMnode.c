@@ -15,9 +15,10 @@
 
 #include "os.h"
 #include "taosmsg.h"
-#include "tlog.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "dnode.h"
+#include "dnodeLog.h"
 #include "dnodeMgmt.h"
 #include "dnodeWrite.h"
 

@@ -19,6 +19,7 @@
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
+#include "tglobal.h"
 #include "ttime.h"
 #include "tutil.h"
 

@@ -17,7 +17,8 @@
 #include "os.h"
 #include "tgrant.h"
 #include "tbalance.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
+#include "tconfig.h"
 #include "ttime.h"
 #include "tutil.h"
 #include "tsocket.h"
@@ -728,7 +729,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-static bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
+static bool mgmtCheckConfigShow(SGlobalCfg *cfg) {
   if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW))
     return false;
   return true;
@@ -764,7 +765,7 @@ static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->numOfRows = 0;
   for (int32_t i = tsGlobalConfigNum - 1; i >= 0; --i) {
-    SGlobalConfig *cfg = tsGlobalConfig + i;
+    SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!mgmtCheckConfigShow(cfg)) continue;
     pShow->numOfRows++;
   }
@@ -780,7 +781,7 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
   int32_t numOfRows = 0;
 
   for (int32_t i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
-    SGlobalConfig *cfg = tsGlobalConfig + i;
+    SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!mgmtCheckConfigShow(cfg)) continue;
 
     char *pWrite;
@@ -792,25 +793,21 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     switch (cfg->valType) {
-      case TSDB_CFG_VTYPE_SHORT:
+      case TAOS_CFG_VTYPE_INT16:
         snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
         numOfRows++;
         break;
-      case TSDB_CFG_VTYPE_INT:
+      case TAOS_CFG_VTYPE_INT32:
         snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int32_t *)cfg->ptr));
         numOfRows++;
         break;
-      case TSDB_CFG_VTYPE_UINT:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((uint32_t *)cfg->ptr));
-        numOfRows++;
-        break;
-      case TSDB_CFG_VTYPE_FLOAT:
+      case TAOS_CFG_VTYPE_FLOAT:
         snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
         numOfRows++;
         break;
-      case TSDB_CFG_VTYPE_STRING:
-      case TSDB_CFG_VTYPE_IPSTR:
-      case TSDB_CFG_VTYPE_DIRECTORY:
+      case TAOS_CFG_VTYPE_STRING:
+      case TAOS_CFG_VTYPE_IPSTR:
+      case TAOS_CFG_VTYPE_DIRECTORY:
         snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%s", (char *)cfg->ptr);
         numOfRows++;
         break;

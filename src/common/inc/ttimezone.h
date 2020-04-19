@@ -13,29 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSYSTEM_H
-#define TDENGINE_TSYSTEM_H
+#ifndef TDENGINE_COMMON_TIMEZONE_H
+#define TDENGINE_COMMON_TIMEZONE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-
-extern char dataDir[];
-
-bool taosGetSysMemory(float *memoryUsedMB);
-
-bool taosGetProcMemory(float *memoryUsedMB);
-
-bool taosGetDisk();
-
-bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
-
-bool taosGetBandSpeed(float *bandSpeedKb);
-
-bool taosGetProcIO(float *readKB, float *writeKB);
+void tsSetTimeZone();
 
 #ifdef __cplusplus
 }

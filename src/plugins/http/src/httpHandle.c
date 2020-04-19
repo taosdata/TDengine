@@ -24,10 +24,10 @@
 #include "httpResp.h"
 #include "shash.h"
 #include "taos.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "tsocket.h"
 #include "ttimer.h"
-#include "tlog.h"
+#include "httpLog.h"
 
 void httpToLowerUrl(char* url) {
   /*ignore case */

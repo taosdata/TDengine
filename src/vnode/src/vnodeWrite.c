@@ -17,15 +17,15 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-#include "tlog.h"
 #include "tqueue.h"
 #include "trpc.h"
+#include "tutil.h"
 #include "tsdb.h"
 #include "twal.h"
-#include "dataformat.h"
+#include "tdataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
-#include "tutil.h"
+#include "vnodeLog.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
 static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);

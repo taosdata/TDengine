@@ -13,11 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
+#include "tglobal.h"
 #include "sim.h"
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 bool simAsyncQuery = false;
 

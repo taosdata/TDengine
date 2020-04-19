@@ -13,20 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/time.h>
-#include <pthread.h>
-#include <errno.h>
-#include <signal.h>
-#include <semaphore.h>
 #include "os.h"
-#include "tlog.h"
+#include "tglobal.h"
+#include "rpcLog.h"
 #include "trpc.h"
 #include "taoserror.h"
-#include <stdint.h>
-#include <unistd.h>
 
 typedef struct {
   int       index;
@@ -168,7 +159,7 @@ int main(int argc, char *argv[]) {
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
-    dError("failed to initialize RPC");
+    tError("failed to initialize RPC");
     return -1;
   }
 
@@ -206,7 +197,7 @@ int main(int argc, char *argv[]) {
 
   getchar();
 
-  taosCloseLogger();
+  taosCloseLog();
 
   return 0;
 }

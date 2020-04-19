@@ -18,15 +18,16 @@
 #include "ihash.h"
 #include "taoserror.h"
 #include "taosmsg.h"
-#include "tlog.h"
 #include "trpc.h"
 #include "tsdb.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "twal.h"
+#include "tglobal.h"
 #include "dnode.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "vnodeLog.h"
 
 static int32_t  tsOpennedVnodes;
 static void    *tsDnodeVnodesHash;

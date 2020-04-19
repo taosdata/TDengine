@@ -19,7 +19,7 @@
 #include "tsched.h"
 #include "tsystem.h"
 #include "tutil.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "dnode.h"
 #include "tgrant.h"
 #include "mgmtDef.h"

@@ -25,6 +25,9 @@ extern "C" {
 
 #ifndef _ALPINE
   #include <error.h>
+  #include <sys/sysctl.h>
+#else
+  #include <linux/sysctl.h>  
 #endif
 
 #include <argp.h>
@@ -76,6 +79,9 @@ extern "C" {
 #include <wordexp.h>
 #include <wctype.h>
 #include <inttypes.h>
+#include <fcntl.h>
+#include <sys/utsname.h>
+#include <sys/resource.h>
 
 #define taosCloseSocket(x) \
   {                        \
@@ -201,6 +207,8 @@ extern "C" {
 #define tsem_post sem_post
 #define tsem_destroy sem_destroy
 
+void osInit();
+
 ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size);
 
 ssize_t twrite(int fd, void *buf, size_t n);
@@ -217,7 +225,7 @@ int taosSetNonblocking(int sock, int on);
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
-void tsPrintOsInfo();
+void taosPrintOsInfo();
 
 char *taosCharsetReplace(char *charsetstr);
 

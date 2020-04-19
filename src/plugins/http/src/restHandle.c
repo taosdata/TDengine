@@ -15,7 +15,7 @@
 
 #include "restHandle.h"
 #include "restJson.h"
-#include "tlog.h"
+#include "httpLog.h"
 
 static HttpDecodeMethod restDecodeMethod = {"rest", restProcessRequest};
 static HttpDecodeMethod restDecodeMethod2 = {"restful", restProcessRequest};

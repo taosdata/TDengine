@@ -20,6 +20,7 @@
 #include "tbalance.h"
 #include "tgrant.h"
 #include "ttimer.h"
+#include "tglobal.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"

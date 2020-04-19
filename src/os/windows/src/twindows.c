@@ -13,31 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <stdint.h>
-#include <locale.h>
-
+#define _DEFAULT_SOURCE
 #include "os.h"
-#include "tlog.h"
 #include "taosdef.h"
-#include "tglobalcfg.h"
-
-#include <intrin.h>
-#include <winbase.h>
-#include <Winsock2.h>
-
-char configDir[TSDB_FILENAME_LEN] = "C:/TDengine/cfg";
-char tsVnodeDir[TSDB_FILENAME_LEN] = "C:/TDengine/data";
-char logDir[TSDB_FILENAME_LEN] = "C:/TDengine/log";
-char dataDir[TSDB_FILENAME_LEN] = "C:/TDengine/data";
-char scriptDir[TSDB_FILENAME_LEN] = "C:/TDengine/script";
-char osName[] = "Windows";
+#include "tglobal.h"
+#include "ttimer.h"
+#include "tulog.h"
+#include "tutil.h"
 
 bool taosCheckPthreadValid(pthread_t thread) {
   return thread.p != NULL;
@@ -220,12 +202,12 @@ __int64 interlocked_fetch_xor_64(__int64 volatile* ptr, __int64 val) {
 
 #endif
 
-void tsPrintOsInfo() {}
+void taosPrintOsInfo() {}
 
 void taosGetSystemTimezone() {
   // get and set default timezone
-  SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
-  if (cfg_timezone && cfg_timezone->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
+  if (cfg_timezone && cfg_timezone->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     char *tz = getenv("TZ");
     if (tz == NULL || strlen(tz) == 0) {
       strcpy(tsTimezone, "not configured");
@@ -233,28 +215,28 @@ void taosGetSystemTimezone() {
     else {
       strcpy(tsTimezone, tz);
     }
-    cfg_timezone->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
-    pPrint("timezone not configured, use default");
+    cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+    uPrint("timezone not configured, use default");
   }
 }
 
 void taosGetSystemLocale() {
   // get and set default locale
-  SGlobalConfig *cfg_locale = tsGetConfigOption("locale");
-  if (cfg_locale && cfg_locale->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_locale = taosGetConfigOption("locale");
+  if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     char *locale = setlocale(LC_CTYPE, "chs");
     if (locale != NULL) {
       strncpy(tsLocale, locale, sizeof(tsLocale) / sizeof(tsLocale[0]));
-      cfg_locale->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
-      pPrint("locale not configured, set to default:%s", tsLocale);
+      cfg_locale->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+      uPrint("locale not configured, set to default:%s", tsLocale);
     }
   }
 
-  SGlobalConfig *cfg_charset = tsGetConfigOption("charset");
-  if (cfg_charset && cfg_charset->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_charset = taosGetConfigOption("charset");
+  if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     strcpy(tsCharset, "cp936");
-    cfg_charset->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
-    pPrint("charset not configured, set to default:%s", tsCharset);
+    cfg_charset->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+    uPrint("charset not configured, set to default:%s", tsCharset);
   }
 }
 

@@ -13,19 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TGLOBALCFG_H
-#define TDENGINE_TGLOBALCFG_H
+#ifndef TDENGINE_COMMON_GLOBAL_H
+#define TDENGINE_COMMON_GLOBAL_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-#include "taosdef.h"
-
-extern int  (*startMonitor)();
-extern void (*stopMonitor)();
+extern char configDir[];
+extern char tsVnodeDir[];
+extern char tsDnodeDir[];
+extern char tsMnodeDir[];
+extern char dataDir[];
+extern char logDir[];
+extern char scriptDir[];
+extern char osName[];
 
 // system info
 extern int64_t tsPageSize;
@@ -42,6 +44,7 @@ extern float   tsAvailDataDirGB;
 extern float   tsMinimalLogDirGB;
 extern float   tsMinimalTmpDirGB;
 extern float   tsMinimalDataDirGB;
+extern int32_t tsEnableCoreFile;
 extern int32_t tsTotalMemoryMB;
 extern int32_t tsVersion;
 
@@ -49,14 +52,6 @@ extern int tscEmbedded;
 
 extern int64_t tsMsPerDay[2];
 
-extern char configDir[];
-extern char tsVnodeDir[];
-extern char tsDnodeDir[];
-extern char tsMnodeDir[];
-extern char dataDir[];
-extern char logDir[];
-extern char scriptDir[];
-extern char osName[];
 
 extern char  tsMasterIp[];
 extern char  tsSecondIp[];
@@ -64,9 +59,6 @@ extern uint16_t tsMnodeDnodePort;
 extern uint16_t tsMnodeShellPort;
 extern uint16_t tsDnodeShellPort;
 extern uint16_t tsDnodeMnodePort;
-extern uint16_t tsVnodeVnodePort;
-extern uint16_t tsMgmtMgmtPort;
-extern uint16_t tsMgmtSyncPort;
 
 extern int tsStatusInterval;
 extern int tsShellActivityTimer;
@@ -150,32 +142,30 @@ extern int   tsTelegrafUseFieldNum;
 
 extern int   tsTscEnableRecordSql;
 extern int   tsAnyIp;
-extern int   tsIsCluster;
 
 extern char tsMonitorDbName[];
 extern char tsInternalPass[];
 extern int  tsMonitorInterval;
 
 extern int tsNumOfLogLines;
-extern uint32_t ddebugFlag;
-extern uint32_t mdebugFlag;
-extern uint32_t cdebugFlag;
-extern uint32_t jnidebugFlag;
-extern uint32_t tmrDebugFlag;
-extern uint32_t sdbDebugFlag;
-extern uint32_t httpDebugFlag;
-extern uint32_t monitorDebugFlag;
-extern uint32_t uDebugFlag;
-extern uint32_t rpcDebugFlag;
-extern uint32_t debugFlag;
-extern uint32_t odbcdebugFlag;
-extern uint32_t qdebugFlag;
+extern int32_t ddebugFlag;
+extern int32_t mdebugFlag;
+extern int32_t cdebugFlag;
+extern int32_t jnidebugFlag;
+extern int32_t tmrDebugFlag;
+extern int32_t sdbDebugFlag;
+extern int32_t httpDebugFlag;
+extern int32_t monitorDebugFlag;
+extern int32_t uDebugFlag;
+extern int32_t rpcDebugFlag;
+extern int32_t debugFlag;
+extern int32_t odbcdebugFlag;
+extern int32_t qdebugFlag;
 
 extern uint32_t taosMaxTmrCtrl;
 
 extern int  tsRpcTimer;
 extern int  tsRpcMaxTime;
-extern int  tsRpcMaxUdpSize;
 extern int  tsUdpDelay;
 extern char version[];
 extern char compatible_version[];
@@ -187,80 +177,15 @@ extern char tsTimezone[64];
 extern char tsLocale[64];
 extern char tsCharset[64];  // default encode string
 
-//
-void tsReadGlobalLogConfig();
-bool tsReadGlobalConfig();
-int tsCfgDynamicOptions(char *msg);
-void tsPrintGlobalConfig();
-void tsPrintGlobalConfigSpec();
-void tsSetAllDebugFlag();
-void tsSetTimeZone();
-void tsSetLocale();
-void tsInitGlobalConfig();
-void tsExpandFilePath(char* option_name, char* input_value);
-
-#define TSDB_CFG_CTYPE_B_CONFIG    1U   // can be configured from file
-#define TSDB_CFG_CTYPE_B_SHOW      2U   // can displayed by "show configs" commands
-#define TSDB_CFG_CTYPE_B_LOG       4U   // is a log type configuration
-#define TSDB_CFG_CTYPE_B_CLIENT    8U   // can be displayed in the client log
-#define TSDB_CFG_CTYPE_B_OPTION    16U  // can be configured by taos_options function
-#define TSDB_CFG_CTYPE_B_NOT_PRINT 32U  // such as password
-#define TSDB_CFG_CTYPE_B_LITE      64U  // is a lite type configuration
-#define TSDB_CFG_CTYPE_B_CLUSTER   128U // is a cluster type configuration
-
-#define TSDB_CFG_CSTATUS_NONE      0    // not configured
-#define TSDB_CFG_CSTATUS_DEFAULT   1    // use system default value
-#define TSDB_CFG_CSTATUS_FILE      2    // configured from file
-#define TSDB_CFG_CSTATUS_OPTION    3    // configured by taos_options function
-#define TSDB_CFG_CSTATUS_ARG       4    // configured by program argument
-
-enum {
-  TSDB_CFG_VTYPE_SHORT,
-  TSDB_CFG_VTYPE_INT,
-  TSDB_CFG_VTYPE_UINT,
-  TSDB_CFG_VTYPE_FLOAT,
-  TSDB_CFG_VTYPE_STRING,
-  TSDB_CFG_VTYPE_IPSTR,
-  TSDB_CFG_VTYPE_DIRECTORY,
-};
-
-enum {
-  TSDB_CFG_UTYPE_NONE,
-  TSDB_CFG_UTYPE_PERCENT,
-  TSDB_CFG_UTYPE_GB,
-  TSDB_CFG_UTYPE_MB,
-  TSDB_CFG_UTYPE_Mb,
-  TSDB_CFG_UTYPE_BYTE,
-  TSDB_CFG_UTYPE_SECOND,
-  TSDB_CFG_UTYPE_MS
-};
-
-typedef struct {
-  char *   option;
-  void *   ptr;
-  float    minValue;
-  float    maxValue;
-  int8_t   cfgType;
-  int8_t   cfgStatus;
-  int8_t   unitType;
-  int8_t   valType;
-  uint32_t ptrLength;
-} SGlobalConfig;
-
-extern SGlobalConfig *tsGlobalConfig;
-extern int            tsGlobalConfigNum;
-extern char *         tsCfgStatusStr[];
-SGlobalConfig *tsGetConfigOption(const char *option);
-
-#define TSDB_CFG_MAX_NUM    110
-#define TSDB_CFG_PRINT_LEN  23
-#define TSDB_CFG_OPTION_LEN 24
-#define TSDB_CFG_VALUE_LEN  41
-
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+
+void taosInitGlobalCfg();
+bool taosCheckGlobalCfg();
+void taosSetAllDebugFlag();
+bool taosCfgDynamicOptions(char *msg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TGLOBALCFG_H
+#endif
