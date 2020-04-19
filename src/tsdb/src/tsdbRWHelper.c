@@ -29,7 +29,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded);
 static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
-static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey);
+static int tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey);
 static void tsdbResetHelperBlock(SRWHelper *pHelper);
 
 // ---------- Operations on Helper File part
@@ -934,7 +934,15 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
   return -1;
 }
 
-static int compTSKEY(const void *key1, const void *key2) { return ((TSKEY *)key1 - (TSKEY *)key2); }
+static int compTSKEY(const void *key1, const void *key2) {
+  if (*(TSKEY *)key1 > *(TSKEY *)key2) {
+    return 1;
+  } else if (*(TSKEY *)key1 == *(TSKEY *)key2) {
+    return 0;
+  } else {
+    return -1;
+  }
+}
 
 static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t esize) {
 
@@ -1104,7 +1112,7 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 }
 
 // Get the number of rows in range [minKey, maxKey]
-static int tsdbGetRowsInRange(SDataCols *pDataCols, int minKey, int maxKey) {
+static int tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey) {
   if (pDataCols->numOfPoints == 0) return 0;
 
   ASSERT(minKey <= maxKey);
