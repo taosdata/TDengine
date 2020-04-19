@@ -16,7 +16,6 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tcache.h"
-#include "tlog.h"
 #include "trpc.h"
 #include "taosdef.h"
 #include "tsocket.h"
@@ -25,7 +24,12 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tsched.h"
+#include "tscLog.h"
 #include "tsclient.h"
+#include "tglobal.h"
+#include "tconfig.h"
+#include "ttimezone.h"
+#include "tlocale.h"
 
 // global, not configurable
 void *  pVnodeConn;
@@ -116,7 +120,8 @@ void taos_init_imp() {
     strcpy(tsLocalIp, "0.0.0.0");
 
     // Read global configuration.
-    tsReadGlobalLogConfig();
+    taosInitGlobalCfg();
+    taosReadGlobalLogCfg();
 
     // For log directory
     if (stat(logDir, &dirstat) < 0) mkdir(logDir, 0755);
@@ -126,8 +131,9 @@ void taos_init_imp() {
       printf("failed to open log file in directory:%s\n", logDir);
     }
 
-    tsReadGlobalConfig();
-    tsPrintGlobalConfig();
+    taosReadGlobalCfg();
+    taosCheckGlobalCfg();
+    taosPrintGlobalCfg();
 
     tscTrace("starting to initialize TAOS client ...");
     tscTrace("Local IP address is:%s", tsLocalIp);
@@ -195,7 +201,7 @@ void taos_cleanup() {
     tscQhandle = NULL;
   }
   
-  taosCloseLogger();
+  taosCloseLog();
   
   if (pVnodeConn != NULL) {
     rpcClose(pVnodeConn);
@@ -207,24 +213,20 @@ void taos_cleanup() {
     pTscMgmtConn = NULL;
   }
   
-  if (tsGlobalConfig != NULL) {
-    tfree(tsGlobalConfig);
-  }
-  
   taosTmrCleanUp(tscTmr);
 }
 
 static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
-  SGlobalConfig *cfg = NULL;
+  SGlobalCfg *cfg = NULL;
 
   switch (option) {
     case TSDB_OPTION_CONFIGDIR:
-      cfg = tsGetConfigOption("configDir");
+      cfg = taosGetConfigOption("configDir");
       assert(cfg != NULL);
     
-      if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
         strncpy(configDir, pStr, TSDB_FILENAME_LEN);
-        cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("set config file directory:%s", pStr);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr,
@@ -233,14 +235,14 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       break;
 
     case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
-      cfg = tsGetConfigOption("shellActivityTimer");
+      cfg = taosGetConfigOption("shellActivityTimer");
       assert(cfg != NULL);
     
-      if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
         tsShellActivityTimer = atoi(pStr);
         if (tsShellActivityTimer < 1) tsShellActivityTimer = 1;
         if (tsShellActivityTimer > 3600) tsShellActivityTimer = 3600;
-        cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("set shellActivityTimer:%d", tsShellActivityTimer);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, pStr,
@@ -249,7 +251,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       break;
 
     case TSDB_OPTION_LOCALE: {  // set locale
-      cfg = tsGetConfigOption("locale");
+      cfg = taosGetConfigOption("locale");
       assert(cfg != NULL);
   
       size_t len = strlen(pStr);
@@ -258,7 +260,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         return -1;
       }
 
-      if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
         char sep = '.';
 
         if (strlen(tsLocale) == 0) { // locale does not set yet
@@ -271,7 +273,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 
         if (locale != NULL) {
           tscPrint("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
-          cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+          cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else { // set the user-specified localed failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
           tscPrint("failed to set locale:%s, current locale:%s", pStr, tsLocale);
@@ -293,7 +295,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
             }
 
             strncpy(tsCharset, charset, tListLen(tsCharset));
-            cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+            cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
 
           } else {
             tscPrint("charset:%s is not valid in locale, charset remains:%s", charset, tsCharset);
@@ -312,7 +314,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 
     case TSDB_OPTION_CHARSET: {
       /* set charset will override the value of charset, assigned during system locale changed */
-      cfg = tsGetConfigOption("charset");
+      cfg = taosGetConfigOption("charset");
       assert(cfg != NULL);
       
       size_t len = strlen(pStr);
@@ -321,7 +323,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         return -1;
       }
 
-      if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
         if (taosValidateEncodec(pStr)) {
           if (strlen(tsCharset) == 0) {
             tscPrint("charset is set:%s", pStr);
@@ -330,7 +332,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           }
 
           strncpy(tsCharset, pStr, tListLen(tsCharset));
-          cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+          cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
           tscPrint("charset:%s not valid", pStr);
         }
@@ -343,13 +345,13 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
     }
 
     case TSDB_OPTION_TIMEZONE:
-      cfg = tsGetConfigOption("timezone");
+      cfg = taosGetConfigOption("timezone");
       assert(cfg != NULL);
     
-      if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
         strcpy(tsTimezone, pStr);
         tsSetTimeZone();
-        cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscTrace("timezone set:%s, input:%s by taos_options", tsTimezone, pStr);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr,
@@ -358,17 +360,17 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       break;
 
     case TSDB_OPTION_SOCKET_TYPE:
-      cfg = tsGetConfigOption("sockettype");
+      cfg = taosGetConfigOption("sockettype");
       assert(cfg != NULL);
     
-      if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
 //        if (strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_UDP) != 0 && strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_TCP) != 0) {
 //          tscError("only 'tcp' or 'udp' allowed for configuring the socket type");
 //          return -1;
 //        }
 
         strncpy(tsSocketType, pStr, tListLen(tsSocketType));
-        cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("socket type is set:%s", tsSocketType);
       }
       break;

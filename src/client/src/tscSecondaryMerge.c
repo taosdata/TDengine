@@ -20,6 +20,7 @@
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "tutil.h"
+#include "tscLog.h"
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;
@@ -190,7 +191,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->numOfVnode = numOfBuffer;
 
   pReducer->pDesc = pDesc;
-  pTrace("%p the number of merged leaves is: %d", pSqlObjAddr, pReducer->numOfBuffer);
+  tscTrace("%p the number of merged leaves is: %d", pSqlObjAddr, pReducer->numOfBuffer);
 
   int32_t idx = 0;
   for (int32_t i = 0; i < numOfBuffer; ++i) {

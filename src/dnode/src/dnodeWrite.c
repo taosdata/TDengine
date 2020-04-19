@@ -17,15 +17,16 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-#include "tlog.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
-#include "dataformat.h"
+#include "tglobal.h"
+#include "vnode.h"
+#include "tdataformat.h"
+#include "dnodeLog.h"
 #include "dnodeWrite.h"
 #include "dnodeMgmt.h"
-#include "vnode.h"
 
 typedef struct {
   taos_qall  qall;

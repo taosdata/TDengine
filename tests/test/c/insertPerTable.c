@@ -16,9 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taos.h"
-#include "tlog.h"
+#include "tulog.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tglobal.h"
 
 #define MAX_RANDOM_POINTS 20000
 #define GREEN "\033[1;32m"
@@ -60,7 +61,7 @@ int main(int argc, char *argv[]) {
 }
 
 void createDbAndTable() {
-  dPrint("start to create table");
+  uPrint("start to create table");
 
   TAOS *         con;
   struct timeval systemTime;
@@ -69,19 +70,19 @@ void createDbAndTable() {
 
   con = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, NULL, 0);
   if (con == NULL) {
-    dError("failed to connect to DB, reason:%s", taos_errstr(con));
+    uError("failed to connect to DB, reason:%s", taos_errstr(con));
     exit(1);
   }
 
   sprintf(qstr, "create database if not exists %s cache %d tables %d", dbName, cache, tables);
   if (taos_query(con, qstr)) {
-    dError("failed to create database:%s, code:%d reason:%s", dbName, taos_errno(con), taos_errstr(con));
+    uError("failed to create database:%s, code:%d reason:%s", dbName, taos_errno(con), taos_errstr(con));
     exit(0);
   }
 
   sprintf(qstr, "use %s", dbName);
   if (taos_query(con, qstr)) {
-    dError("failed to use db, code:%d reason:%s", taos_errno(con), taos_errstr(con));
+    uError("failed to use db, code:%d reason:%s", taos_errno(con), taos_errstr(con));
     exit(0);
   }
 
@@ -97,14 +98,14 @@ void createDbAndTable() {
     sprintf(qstr + len, ") tags(t int)");
 
     if (taos_query(con, qstr)) {
-      dError("failed to create stable, code:%d reason:%s", taos_errno(con), taos_errstr(con));
+      uError("failed to create stable, code:%d reason:%s", taos_errno(con), taos_errstr(con));
       exit(0);
     }
     
     for (int64_t t = 0; t < totalTables; ++t) {
       sprintf(qstr, "create table if not exists %s%ld using %s tags(%ld)", stableName, t, stableName, t);
       if (taos_query(con, qstr)) {
-        dError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
+        uError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
     }
@@ -117,7 +118,7 @@ void createDbAndTable() {
       sprintf(qstr + len, ")");
 
       if (taos_query(con, qstr)) {
-        dError("failed to create table %s%ld, reason:%s", stableName, t, taos_errstr(con));
+        uError("failed to create table %s%ld, reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
     }
@@ -125,7 +126,7 @@ void createDbAndTable() {
 
   gettimeofday(&systemTime, NULL);
   et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-  dPrint("%.1f seconds to create %ld tables", (et - st) / 1000.0 / 1000.0, totalTables);
+  uPrint("%.1f seconds to create %ld tables", (et - st) / 1000.0 / 1000.0, totalTables);
 }
 
 void insertData() {
@@ -135,7 +136,7 @@ void insertData() {
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
-  dPrint("%d threads are spawned to insert data", numOfThreads);
+  uPrint("%d threads are spawned to insert data", numOfThreads);
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
@@ -169,12 +170,12 @@ void insertData() {
   double  speedOfRows = totalRows / seconds;
   double  speedOfPoints = totalPoints / seconds;
 
-  dPrint(
+  uPrint(
       "%sall threads:%ld finished, use %.1lf seconds, tables:%.ld rows:%ld points:%ld, speed RowsPerSecond:%.1lf "
       "PointsPerSecond:%.1lf%s",
       GREEN, numOfThreads, seconds, totalTables, totalRows, totalPoints, speedOfRows, speedOfPoints, NC);
 
-  dPrint("threads exit");
+  uPrint("threads exit");
 
   pthread_attr_destroy(&thattr);
   free(pInfo);
@@ -188,11 +189,11 @@ void *syncTest(void *param) {
   char           qstr[65000];
   int            maxBytes = 60000;
 
-  dPrint("thread:%d, start to run", pInfo->threadIndex);
+  uPrint("thread:%d, start to run", pInfo->threadIndex);
 
   con = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, NULL, 0);
   if (con == NULL) {
-    dError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
+    uError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
     exit(1);
   }
 
@@ -220,7 +221,7 @@ void *syncTest(void *param) {
       len += sprintf(sql + len, ")");
       if (len > maxBytes) {
         if (taos_query(con, qstr)) {
-          dError("thread:%d, failed to insert table:%s%ld row:%ld, reason:%s", pInfo->threadIndex, pInfo->stableName,
+          uError("thread:%d, failed to insert table:%s%ld row:%ld, reason:%s", pInfo->threadIndex, pInfo->stableName,
                  table, row, taos_errstr(con));
         }
 
@@ -244,7 +245,7 @@ void *syncTest(void *param) {
   int64_t totalTables = pInfo->tableEndIndex - pInfo->tableBeginIndex;
   int64_t totalRows = totalTables * pInfo->rowsPerTable;
   int64_t totalPoints = totalRows * pInfo->pointsPerTable;
-  dPrint("thread:%d, insert finished, use %.2f seconds, tables:%ld rows:%ld points:%ld", pInfo->threadIndex,
+  uPrint("thread:%d, insert finished, use %.2f seconds, tables:%ld rows:%ld points:%ld", pInfo->threadIndex,
          (et - st) / 1000.0 / 1000.0, totalTables, totalRows, totalPoints);
 
   return NULL;
@@ -309,13 +310,13 @@ void shellParseArgument(int argc, char *argv[]) {
     }
   }
 
-  dPrint("%srowsPerTable:%" PRId64 "%s", GREEN, rowsPerTable, NC);
-  dPrint("%spointsPerTable:%" PRId64 "%s", GREEN, pointsPerTable, NC);
-  dPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
-  dPrint("%snumOfTablesPerThread:%" PRId64 "%s", GREEN, numOfTablesPerThread, NC);
-  dPrint("%scache:%" PRId64 "%s", GREEN, cache, NC);
-  dPrint("%stables:%" PRId64 "%s", GREEN, tables, NC);
-  dPrint("%sdbName:%s%s", GREEN, dbName, NC);
-  dPrint("%stableName:%s%s", GREEN, stableName, NC);
-  dPrint("%sstart to run%s", GREEN, NC);
+  uPrint("%srowsPerTable:%" PRId64 "%s", GREEN, rowsPerTable, NC);
+  uPrint("%spointsPerTable:%" PRId64 "%s", GREEN, pointsPerTable, NC);
+  uPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
+  uPrint("%snumOfTablesPerThread:%" PRId64 "%s", GREEN, numOfTablesPerThread, NC);
+  uPrint("%scache:%" PRId64 "%s", GREEN, cache, NC);
+  uPrint("%stables:%" PRId64 "%s", GREEN, tables, NC);
+  uPrint("%sdbName:%s%s", GREEN, dbName, NC);
+  uPrint("%stableName:%s%s", GREEN, stableName, NC);
+  uPrint("%sstart to run%s", GREEN, NC);
 }

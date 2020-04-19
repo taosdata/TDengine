@@ -22,44 +22,47 @@ extern "C" {
 
 #include "tlog.h"
 
+extern int32_t mdebugFlag;
+extern int32_t sdbDebugFlag;
+
 // mnode log function
 #define mError(...)                          \
   if (mdebugFlag & DEBUG_ERROR) {            \
-    tprintf("ERROR MND ", 255, __VA_ARGS__); \
+    taosPrintLog("ERROR MND ", 255, __VA_ARGS__); \
   }
 #define mWarn(...)                                  \
   if (mdebugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  MND ", mdebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN  MND ", mdebugFlag, __VA_ARGS__); \
   }
 #define mTrace(...)                           \
   if (mdebugFlag & DEBUG_TRACE) {             \
-    tprintf("MND ", mdebugFlag, __VA_ARGS__); \
+    taosPrintLog("MND ", mdebugFlag, __VA_ARGS__); \
   }
 #define mPrint(...) \
-  { tprintf("MND ", 255, __VA_ARGS__); }
+  { taosPrintLog("MND ", 255, __VA_ARGS__); }
 
-#define mLError(...) taosLogError(__VA_ARGS__) mError(__VA_ARGS__)
-#define mLWarn(...) taosLogWarn(__VA_ARGS__) mWarn(__VA_ARGS__)
-#define mLPrint(...) taosLogPrint(__VA_ARGS__) mPrint(__VA_ARGS__)
+#define mLError(...) mError(__VA_ARGS__)
+#define mLWarn(...)  mWarn(__VA_ARGS__)
+#define mLPrint(...) mPrint(__VA_ARGS__)
 
 #define sdbError(...)                            \
   if (sdbDebugFlag & DEBUG_ERROR) {              \
-    tprintf("ERROR MND-SDB ", 255, __VA_ARGS__); \
+    taosPrintLog("ERROR MND-SDB ", 255, __VA_ARGS__); \
   }
 #define sdbWarn(...)                                      \
   if (sdbDebugFlag & DEBUG_WARN) {                        \
-    tprintf("WARN  MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN  MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
   }
 #define sdbTrace(...)                               \
   if (sdbDebugFlag & DEBUG_TRACE) {                 \
-    tprintf("MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
+    taosPrintLog("MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
   }
 #define sdbPrint(...) \
-  { tprintf("MND-SDB ", 255, __VA_ARGS__); }
+  { taosPrintLog("MND-SDB ", 255, __VA_ARGS__); }
 
-#define sdbLError(...) taosLogError(__VA_ARGS__) sdbError(__VA_ARGS__)
-#define sdbLWarn(...) taosLogWarn(__VA_ARGS__) sdbWarn(__VA_ARGS__)
-#define sdbLPrint(...) taosLogPrint(__VA_ARGS__) sdbPrint(__VA_ARGS__)
+#define sdbLError(...) sdbError(__VA_ARGS__)
+#define sdbLWarn(...)  sdbWarn(__VA_ARGS__)
+#define sdbLPrint(...) sdbPrint(__VA_ARGS__)
 
 #ifdef __cplusplus
 }

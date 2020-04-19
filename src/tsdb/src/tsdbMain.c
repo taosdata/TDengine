@@ -1,18 +1,5 @@
-#include <dirent.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <pthread.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/sendfile.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <tlog.h>
-#include <unistd.h>
-
 #include "os.h"
+#include "tulog.h"
 #include "talgo.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
@@ -778,7 +765,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
   if (pTable == NULL) {
-    dError("failed to get table for insert, uid:%" PRIu64 ", tid:%d", tableId.uid, tableId.tid);
+    uError("failed to get table for insert, uid:%" PRIu64 ", tid:%d", tableId.uid, tableId.tid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
 

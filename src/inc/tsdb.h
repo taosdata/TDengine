@@ -19,8 +19,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "dataformat.h"
-#include "name.h"
+#include "tdataformat.h"
+#include "tname.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"

@@ -20,11 +20,11 @@
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "taosdef.h"
-
+#include "tscLog.h"
 #include "qextbuffer.h"
 #include "tscSecondaryMerge.h"
 #include "tschemautil.h"
-#include "name.h"
+#include "tname.h"
 
 static void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, size_t valueLength);
 
@@ -477,7 +477,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   if (pCmd->command == TSDB_SQL_CFG_LOCAL) {
-    pSql->res.code = (uint8_t)tsCfgDynamicOptions(pCmd->payload);
+    pSql->res.code = (uint8_t)taosCfgDynamicOptions(pCmd->payload);
   } else if (pCmd->command == TSDB_SQL_DESCRIBE_TABLE) {
     pSql->res.code = (uint8_t)tscProcessDescribeTable(pSql);
   } else if (pCmd->command == TSDB_SQL_RETRIEVE_TAGS) {

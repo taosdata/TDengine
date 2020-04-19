@@ -18,6 +18,7 @@
 #include "trpc.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "tglobal.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"

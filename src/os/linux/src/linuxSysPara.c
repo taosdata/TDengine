@@ -12,38 +12,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <inttypes.h>
-#include <ifaddrs.h>
-#include <locale.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <sys/statvfs.h>
-#include <sys/syscall.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/resource.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
-#ifdef _ALPINE
-#include <linux/sysctl.h>
-#else
-#include <sys/sysctl.h>
-#endif
-
-#include "tglobalcfg.h"
-#include "tlog.h"
-#include "tsystem.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tulog.h"
 #include "tutil.h"
+#include "tsystem.h"
 
 #define PROCESS_ITEM 12
-extern char dataDir[TSDB_FILENAME_LEN];
 
 typedef struct {
   uint64_t user;
@@ -76,7 +54,7 @@ bool taosGetSysMemory(float *memoryUsedMB) {
 bool taosGetProcMemory(float *memoryUsedMB) {
   FILE *fp = fopen(tsProcMemFile, "r");
   if (fp == NULL) {
-    pError("open file:%s failed", tsProcMemFile);
+    uError("open file:%s failed", tsProcMemFile);
     return false;
   }
 
@@ -95,7 +73,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   }
 
   if (line == NULL) {
-    pError("read file:%s failed", tsProcMemFile);
+    uError("read file:%s failed", tsProcMemFile);
     fclose(fp);
     return false;
   }
@@ -110,10 +88,10 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   return true;
 }
 
-bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
+static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   FILE *fp = fopen(tsSysCpuFile, "r");
   if (fp == NULL) {
-    pError("open file:%s failed", tsSysCpuFile);
+    uError("open file:%s failed", tsSysCpuFile);
     return false;
   }
 
@@ -121,7 +99,7 @@ bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   char * line = NULL;
   getline(&line, &len, fp);
   if (line == NULL) {
-    pError("read file:%s failed", tsSysCpuFile);
+    uError("read file:%s failed", tsSysCpuFile);
     fclose(fp);
     return false;
   }
@@ -134,10 +112,10 @@ bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   return true;
 }
 
-bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
+static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   FILE *fp = fopen(tsProcCpuFile, "r");
   if (fp == NULL) {
-    pError("open file:%s failed", tsProcCpuFile);
+    uError("open file:%s failed", tsProcCpuFile);
     return false;
   }
 
@@ -145,7 +123,7 @@ bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   char * line = NULL;
   getline(&line, &len, fp);
   if (line == NULL) {
-    pError("read file:%s failed", tsProcCpuFile);
+    uError("read file:%s failed", tsProcCpuFile);
     fclose(fp);
     return false;
   }
@@ -163,10 +141,10 @@ bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   return true;
 }
 
-void taosGetSystemTimezone() {
-  SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
+static void taosGetSystemTimezone() {
+  SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
   if (cfg_timezone == NULL) return;
-  if (cfg_timezone->cfgStatus >= TSDB_CFG_CSTATUS_DEFAULT) {
+  if (cfg_timezone->cfgStatus >= TAOS_CFG_CSTATUS_DEFAULT) {
     return;
   }
 
@@ -218,8 +196,8 @@ void taosGetSystemTimezone() {
    */
   sprintf(tsTimezone, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
-  cfg_timezone->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
-  pPrint("timezone not configured, set to system default:%s", tsTimezone);
+  // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+  uPrint("timezone not configured, set to system default:%s", tsTimezone);
 }
 
 /*
@@ -239,24 +217,24 @@ void taosGetSystemTimezone() {
  * CP936, CP437 for English charset.
  *
  */
-void taosGetSystemLocale() {  // get and set default locale
+static void taosGetSystemLocale() {  // get and set default locale
   char  sep = '.';
   char *locale = NULL;
 
-  SGlobalConfig *cfg_locale = tsGetConfigOption("locale");
-  if (cfg_locale && cfg_locale->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_locale = taosGetConfigOption("locale");
+  if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     locale = setlocale(LC_CTYPE, "");
     if (locale == NULL) {
-      pError("can't get locale from system");
+      uError("can't get locale from system");
     } else {
       strncpy(tsLocale, locale, tListLen(tsLocale));
-      pPrint("locale not configured, set to system default:%s", tsLocale);
+      uPrint("locale not configured, set to system default:%s", tsLocale);
     }
   }
 
   /* if user does not specify the charset, extract it from locale */
-  SGlobalConfig *cfg_charset = tsGetConfigOption("charset");
-  if (cfg_charset && cfg_charset->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_charset = taosGetConfigOption("charset");
+  if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     char *str = strrchr(tsLocale, sep);
     if (str != NULL) {
       str++;
@@ -265,7 +243,7 @@ void taosGetSystemLocale() {  // get and set default locale
       strncpy(tsCharset, revisedCharset, tListLen(tsCharset));
 
       free(revisedCharset);
-      pPrint("charset not configured, set to system default:%s", tsCharset);
+      uPrint("charset not configured, set to system default:%s", tsCharset);
     }
   }
 }
@@ -345,7 +323,7 @@ bool taosGetDisk() {
   return true;
 }
 
-bool taosGetCardName(char *ip, char *name) {
+static bool taosGetCardName(char *ip, char *name) {
   struct ifaddrs *ifaddr, *ifa;
   int             family, s;
   char            host[NI_MAXHOST];
@@ -381,11 +359,11 @@ bool taosGetCardName(char *ip, char *name) {
   return ret;
 }
 
-bool taosGetCardInfo(int64_t *bytes) {
+static bool taosGetCardInfo(int64_t *bytes) {
   static char tsPublicCard[1000] = {0};
   if (tsPublicCard[0] == 0) {
     if (!taosGetCardName(tsPrivateIp, tsPublicCard)) {
-      pError("can't get card name from ip:%s", tsPrivateIp);
+      uError("can't get card name from ip:%s", tsPrivateIp);
       return false;
     }
     int cardNameLen = (int)strlen(tsPublicCard);
@@ -395,12 +373,12 @@ bool taosGetCardInfo(int64_t *bytes) {
         break;
       }
     }
-    // pTrace("card name of public ip:%s is %s", tsPublicIp, tsPublicCard);
+    // uTrace("card name of public ip:%s is %s", tsPublicIp, tsPublicCard);
   }
 
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
-    pError("open file:%s failed", tsSysNetFile);
+    uError("open file:%s failed", tsSysNetFile);
     return false;
   }
 
@@ -430,7 +408,7 @@ bool taosGetCardInfo(int64_t *bytes) {
     fclose(fp);
     return true;
   } else {
-    pWarn("can't get card:%s info from device:%s", tsPublicCard, tsSysNetFile);
+    uWarn("can't get card:%s info from device:%s", tsPublicCard, tsSysNetFile);
     *bytes = 0;
     fclose(fp);
     return false;
@@ -462,7 +440,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   double totalBytes = (double)(curBytes - lastBytes) / 1024 * 8;  // Kb
   *bandSpeedKb = (float)(totalBytes / (double)(curTime - lastTime));
 
-  // pPrint("bandwidth lastBytes:%ld, lastTime:%ld, curBytes:%ld, curTime:%ld,
+  // uPrint("bandwidth lastBytes:%ld, lastTime:%ld, curBytes:%ld, curTime:%ld,
   // speed:%f", lastBytes, lastTime, curBytes, curTime, *bandSpeed);
 
   lastTime = curTime;
@@ -471,10 +449,10 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   return true;
 }
 
-bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
+static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
   FILE *fp = fopen(tsProcIOFile, "r");
   if (fp == NULL) {
-    pError("open file:%s failed", tsProcIOFile);
+    uError("open file:%s failed", tsProcIOFile);
     return false;
   }
 
@@ -506,7 +484,7 @@ bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
   fclose(fp);
 
   if (readIndex < 2) {
-    pError("read file:%s failed", tsProcIOFile);
+    uError("read file:%s failed", tsProcIOFile);
     return false;
   }
 
@@ -567,34 +545,33 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
-void tsPrintOsInfo() {
-  pPrint(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
-  pPrint(" os openMax:             %" PRId64, tsOpenMax);
-  pPrint(" os streamMax:           %" PRId64, tsStreamMax);
-  pPrint(" os numOfCores:          %d", tsNumOfCores);
-  pPrint(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
-  pPrint(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+void taosPrintOsInfo() {
+  uPrint(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
+  uPrint(" os openMax:             %" PRId64, tsOpenMax);
+  uPrint(" os streamMax:           %" PRId64, tsStreamMax);
+  uPrint(" os numOfCores:          %d", tsNumOfCores);
+  uPrint(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uPrint(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;
   if (uname(&buf)) {
-    pPrint(" can't fetch os info");
+    uPrint(" can't fetch os info");
     return;
   }
-  pPrint(" os sysname:             %s", buf.sysname);
-  pPrint(" os nodename:            %s", buf.nodename);
-  pPrint(" os release:             %s", buf.release);
-  pPrint(" os version:             %s", buf.version);
-  pPrint(" os machine:             %s", buf.machine);
-  pPrint("==================================");
+  uPrint(" os sysname:             %s", buf.sysname);
+  uPrint(" os nodename:            %s", buf.nodename);
+  uPrint(" os release:             %s", buf.release);
+  uPrint(" os version:             %s", buf.version);
+  uPrint(" os machine:             %s", buf.machine);
+  uPrint("==================================");
 }
 
 void taosKillSystem() {
   // SIGINT
-  pPrint("taosd will shut down soon");
+  uPrint("taosd will shut down soon");
   kill(tsProcId, 2);
 }
 
-extern int   tsEnableCoreFile;
 int _sysctl(struct __sysctl_args *args );
 void taosSetCoreDump() {
   if (0 == tsEnableCoreFile) {
@@ -605,11 +582,11 @@ void taosSetCoreDump() {
   struct rlimit rlim;
   struct rlimit rlim_new;
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    pPrint("the old unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+    uPrint("the old unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
-      pPrint("set unlimited fail, error: %s", strerror(errno));
+      uPrint("set unlimited fail, error: %s", strerror(errno));
       rlim_new.rlim_cur = rlim.rlim_max;
       rlim_new.rlim_max = rlim.rlim_max;
       (void)setrlimit(RLIMIT_CORE, &rlim_new);
@@ -617,7 +594,7 @@ void taosSetCoreDump() {
   }
 
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    pPrint("the new unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+    uPrint("the new unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
   }
 
 #ifndef _TD_ARM_
@@ -641,10 +618,10 @@ void taosSetCoreDump() {
   old_len = sizeof(old_usespid);
   
   if (syscall(SYS__sysctl, &args) == -1) {
-      pPrint("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+      uPrint("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
   }
   
-  pPrint("The old core_uses_pid[%d]: %d", old_len, old_usespid);
+  uPrint("The old core_uses_pid[%d]: %d", old_len, old_usespid);
 
 
   old_usespid = 0;
@@ -658,10 +635,10 @@ void taosSetCoreDump() {
   old_len = sizeof(old_usespid);
   
   if (syscall(SYS__sysctl, &args) == -1) {
-      pPrint("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+      uPrint("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
   }
   
-  pPrint("The new core_uses_pid[%d]: %d", old_len, old_usespid);
+  uPrint("The new core_uses_pid[%d]: %d", old_len, old_usespid);
 #endif
   
 #if 0
@@ -671,7 +648,7 @@ void taosSetCoreDump() {
   if (opendir(coredump_dir) == NULL) {
     status = mkdir(coredump_dir, S_IRWXU | S_IRWXG | S_IRWXO); 
     if (status) {
-      pPrint("mkdir fail, error: %s\n", strerror(errno));
+      uPrint("mkdir fail, error: %s\n", strerror(errno));
     }
   }
 
@@ -695,10 +672,10 @@ void taosSetCoreDump() {
    old_len = sizeof(old_corefile);
 
    if (syscall(SYS__sysctl, &args) == -1) {
-       pPrint("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
+       uPrint("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
    }
    
-   pPrint("The old kern_core_pattern: %*s\n", old_len, old_corefile);
+   uPrint("The old kern_core_pattern: %*s\n", old_len, old_corefile);
 
 
    memset(&args, 0, sizeof(struct __sysctl_args));
@@ -710,10 +687,10 @@ void taosSetCoreDump() {
    old_len = sizeof(old_corefile);
 
    if (syscall(SYS__sysctl, &args) == -1) {
-       pPrint("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
+       uPrint("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
    }
    
-   pPrint("The new kern_core_pattern: %*s\n", old_len, old_corefile);
+   uPrint("The new kern_core_pattern: %*s\n", old_len, old_corefile);
 #endif
   
 }

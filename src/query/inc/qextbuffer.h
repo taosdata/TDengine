@@ -25,7 +25,7 @@ extern "C" {
 
 #include "tarray.h"
 #include "tutil.h"
-#include "dataformat.h"
+#include "tdataformat.h"
 #include "talgo.h"
 
 #define DEFAULT_PAGE_SIZE 16384  // 16k larger than the SHistoInfo

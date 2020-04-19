@@ -19,7 +19,7 @@
 #include "httpCode.h"
 #include "httpJson.h"
 #include "taosmsg.h"
-#include "tlog.h"
+#include "httpLog.h"
 #include "taoserror.h"
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};

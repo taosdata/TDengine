@@ -13,16 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
+#include "os.h"
 #include "httpJson.h"
 #include "httpResp.h"
 #include "taosmsg.h"
 #include "tgHandle.h"
 #include "tgJson.h"
-#include "tlog.h"
+#include "httpLog.h"
 
 void tgInitQueryJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);

@@ -13,32 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <ifaddrs.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdint.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <sys/utsname.h>
-
-#include "tglobalcfg.h"
-#include "tlog.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tglobal.h"
 #include "taosdef.h"
 #include "tutil.h"
-
-char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char tsVnodeDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
-char dataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
-char logDir[TSDB_FILENAME_LEN] = "~/TDengineLog";
-char scriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char osName[] = "Darwin";
+#include "tulog.h"
 
 int64_t str2int64(char *str) {
   char *endptr = NULL;
@@ -131,7 +111,7 @@ int taosGetPrivateIp(char *const ip) {
     return 0;
   } else {
     if (hasLoCard) {
-      pPrint("no net card was found, use lo:127.0.0.1 as default");
+      uPrint("no net card was found, use lo:127.0.0.1 as default");
       strcpy(ip, "127.0.0.1");
       return 0;
     }
@@ -142,7 +122,7 @@ int taosGetPrivateIp(char *const ip) {
 int taosSetNonblocking(int sock, int on) {
   int flags = 0;
   if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
-    pError("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
+    uError("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
     return 1;
   }
 
@@ -152,7 +132,7 @@ int taosSetNonblocking(int sock, int on) {
     flags &= ~O_NONBLOCK;
 
   if ((flags = fcntl(sock, F_SETFL, flags)) < 0) {
-    pError("fcntl(F_SETFL) error: %d (%s)\n", errno, strerror(errno));
+    uError("fcntl(F_SETFL) error: %d (%s)\n", errno, strerror(errno));
     return 1;
   }
 
@@ -181,7 +161,7 @@ int taosOpenUDClientSocket(char *ip, uint16_t port) {
   sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 
   if (sockFd < 0) {
-    pError("failed to open the UD socket:%s, reason:%s", name, strerror(errno));
+    uError("failed to open the UD socket:%s, reason:%s", name, strerror(errno));
     return -1;
   }
 
@@ -192,7 +172,7 @@ int taosOpenUDClientSocket(char *ip, uint16_t port) {
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 
   if (ret != 0) {
-    pError("failed to connect UD socket, name:%d, reason: %s", name, strerror(errno));
+    uError("failed to connect UD socket, name:%d, reason: %s", name, strerror(errno));
     sockFd = -1;
   }
 
@@ -204,7 +184,7 @@ int taosOpenUDServerSocket(char *ip, uint16_t port) {
   int                sockFd;
   char               name[128];
 
-  pTrace("open ud socket:%s", name);
+  uTrace("open ud socket:%s", name);
   sprintf(name, "%s.%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
@@ -213,19 +193,19 @@ int taosOpenUDServerSocket(char *ip, uint16_t port) {
   unlink(name);
 
   if ((sockFd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-    pError("failed to open UD socket:%s, reason:%s", name, strerror(errno));
+    uError("failed to open UD socket:%s, reason:%s", name, strerror(errno));
     return -1;
   }
 
   /* bind socket to server address */
   if (bind(sockFd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
-    pError("bind socket:%s failed, reason:%s", name, strerror(errno));
+    uError("bind socket:%s failed, reason:%s", name, strerror(errno));
     tclose(sockFd);
     return -1;
   }
 
   if (listen(sockFd, 10) < 0) {
-    pError("listen socket:%s failed, reason:%s", name, strerror(errno));
+    uError("listen socket:%s failed, reason:%s", name, strerror(errno));
     return -1;
   }
 
@@ -250,8 +230,8 @@ void taosUninitTimer() {
 
 void taosGetSystemTimezone() {
   // get and set default timezone
-  SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
-  if (cfg_timezone && cfg_timezone->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
+  if (cfg_timezone && cfg_timezone->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     char *tz = getenv("TZ");
     if (tz == NULL || strlen(tz) == 0) {
       strcpy(tsTimezone, "not configured");
@@ -259,33 +239,33 @@ void taosGetSystemTimezone() {
     else {
       strcpy(tsTimezone, tz);
     }
-    cfg_timezone->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
-    pPrint("timezone not configured, use default");
+    cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+    uPrint("timezone not configured, use default");
   }
 }
 
 void taosGetSystemLocale() {
   // get and set default locale
-  SGlobalConfig *cfg_locale = tsGetConfigOption("locale");
-  if (cfg_locale && cfg_locale->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_locale = taosGetConfigOption("locale");
+  if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     char *locale = setlocale(LC_CTYPE, "chs");
     if (locale != NULL) {
       strncpy(tsLocale, locale, sizeof(tsLocale) / sizeof(tsLocale[0]));
-      cfg_locale->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
-      pPrint("locale not configured, set to default:%s", tsLocale);
+      cfg_locale->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+      uPrint("locale not configured, set to default:%s", tsLocale);
     }
   }
 
-  SGlobalConfig *cfg_charset = tsGetConfigOption("charset");
-  if (cfg_charset && cfg_charset->cfgStatus < TSDB_CFG_CSTATUS_DEFAULT) {
+  SGlobalCfg *cfg_charset = taosGetConfigOption("charset");
+  if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     strcpy(tsCharset, "cp936");
-    cfg_charset->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
-    pPrint("charset not configured, set to default:%s", tsCharset);
+    cfg_charset->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+    uPrint("charset not configured, set to default:%s", tsCharset);
   }
 }
 
 
-void tsPrintOsInfo() {}
+void taosPrintOsInfo() {}
 
 void taosKillSystem() {
   tError("function taosKillSystem, exit!");

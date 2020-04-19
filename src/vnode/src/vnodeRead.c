@@ -17,14 +17,14 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-#include "tlog.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
-#include "dataformat.h"
+#include "tdataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "vnodeLog.h"
 #include "query.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, int32_t contLen, SRspRet *pRet);

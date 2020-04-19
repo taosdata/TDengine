@@ -16,7 +16,7 @@
 #include <tschemautil.h>
 #include "os.h"
 #include "taosmsg.h"
-#include "tlog.h"
+#include "tscLog.h"
 #include "tscUtil.h"
 #include "tsched.h"
 #include "tsclient.h"

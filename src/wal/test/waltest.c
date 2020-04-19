@@ -14,7 +14,8 @@
  */
 
 //#define _DEFAULT_SOURCE
-#include <stdint.h>
+#include "os.h"
+#include "tglobal.h"
 #include "tlog.h"
 #include "twal.h"
 

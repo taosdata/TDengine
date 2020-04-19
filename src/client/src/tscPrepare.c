@@ -19,7 +19,7 @@
 #include "ttimer.h"
 #include "taosmsg.h"
 #include "tstrbuild.h"
-
+#include "tscLog.h"
 
 int tsParseInsertSql(SSqlObj *pSql);
 int taos_query_imp(STscObj* pObj, SSqlObj* pSql);

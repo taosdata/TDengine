@@ -22,7 +22,7 @@
 #include "tutil.h"
 #include "tgrant.h"
 #include "tbalance.h"
-#include "tglobalcfg.h"
+#include "tglobal.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"

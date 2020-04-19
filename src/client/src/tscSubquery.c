@@ -17,6 +17,7 @@
 #include "os.h"
 #include "qtsbuf.h"
 #include "tsclient.h"
+#include "tscLog.h"
 
 typedef struct SInsertSupporter {
   SSubqueryState* pState;

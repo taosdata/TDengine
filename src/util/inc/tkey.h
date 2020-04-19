@@ -21,7 +21,6 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "tlog.h"
 #include "tmd5.h"
 #include "tutil.h"
 

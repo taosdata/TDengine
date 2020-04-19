@@ -13,35 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <ifaddrs.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdint.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <sys/utsname.h>
-
-#include "tglobalcfg.h"
-#include "tlog.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "taosdef.h"
-#include "tutil.h"
+#include "tglobal.h"
 #include "ttimer.h"
-
-char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char tsVnodeDir[TSDB_FILENAME_LEN] = {0};
-char tsDnodeDir[TSDB_FILENAME_LEN] = {0};
-char tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char dataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
-char logDir[TSDB_FILENAME_LEN] = "/var/log/taos";
-char scriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char osName[] = "Linux";
+#include "tulog.h"
+#include "tutil.h"
 
 int64_t str2int64(char *str) {
   char *endptr = NULL;
@@ -134,7 +112,7 @@ int taosGetPrivateIp(char *const ip) {
     return 0;
   } else {
     if (hasLoCard) {
-      pPrint("no net card was found, use lo:127.0.0.1 as default");
+      uPrint("no net card was found, use lo:127.0.0.1 as default");
       strcpy(ip, "127.0.0.1");
       return 0;
     }
@@ -145,7 +123,7 @@ int taosGetPrivateIp(char *const ip) {
 int taosSetNonblocking(int sock, int on) {
   int flags = 0;
   if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
-    pError("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
+    uError("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
     return 1;
   }
 
@@ -155,7 +133,7 @@ int taosSetNonblocking(int sock, int on) {
     flags &= ~O_NONBLOCK;
 
   if ((flags = fcntl(sock, F_SETFL, flags)) < 0) {
-    pError("fcntl(F_SETFL) error: %d (%s)\n", errno, strerror(errno));
+    uError("fcntl(F_SETFL) error: %d (%s)\n", errno, strerror(errno));
     return 1;
   }
 
@@ -176,7 +154,7 @@ int taosOpenUDClientSocket(char *ip, uint16_t port) {
   sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 
   if (sockFd < 0) {
-    pError("failed to open the UD socket:%s, reason:%s", name, strerror(errno));
+    uError("failed to open the UD socket:%s, reason:%s", name, strerror(errno));
     return -1;
   }
 
@@ -187,7 +165,7 @@ int taosOpenUDClientSocket(char *ip, uint16_t port) {
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 
   if (ret != 0) {
-    pError("failed to connect UD socket, name:%d, reason: %s", name, strerror(errno));
+    uError("failed to connect UD socket, name:%d, reason: %s", name, strerror(errno));
     sockFd = -1;
   }
 
@@ -199,7 +177,7 @@ int taosOpenUDServerSocket(char *ip, uint16_t port) {
   int                sockFd;
   char               name[128];
 
-  pTrace("open ud socket:%s", name);
+  uTrace("open ud socket:%s", name);
   sprintf(name, "%s.%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
@@ -208,19 +186,19 @@ int taosOpenUDServerSocket(char *ip, uint16_t port) {
   unlink(name);
 
   if ((sockFd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-    pError("failed to open UD socket:%s, reason:%s", name, strerror(errno));
+    uError("failed to open UD socket:%s, reason:%s", name, strerror(errno));
     return -1;
   }
 
   /* bind socket to server address */
   if (bind(sockFd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
-    pError("bind socket:%s failed, reason:%s", name, strerror(errno));
+    uError("bind socket:%s failed, reason:%s", name, strerror(errno));
     tclose(sockFd);
     return -1;
   }
 
   if (listen(sockFd, 10) < 0) {
-    pError("listen socket:%s failed, reason:%s", name, strerror(errno));
+    uError("listen socket:%s failed, reason:%s", name, strerror(errno));
     return -1;
   }
 
@@ -254,7 +232,7 @@ void *taosProcessAlarmSignal(void *tharg) {
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-    tmrError("Failed to create timer");
+    uError("Failed to create timer");
   }
 
   pthread_cleanup_push(taosDeleteTimer, &timerId);
@@ -266,14 +244,14 @@ void *taosProcessAlarmSignal(void *tharg) {
   ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
 
   if (timer_settime(timerId, 0, &ts, NULL)) {
-    tmrError("Failed to init timer");
+    uError("Failed to init timer");
     return NULL;
   }
 
   int signo;
   while (1) {
     if (sigwait(&sigset, &signo)) {
-      tmrError("Failed to wait signal: number %d", signo);
+      uError("Failed to wait signal: number %d", signo);
       continue;
     }
     /* printf("Signal handling: number %d ......\n", signo); */
@@ -294,7 +272,7 @@ int taosInitTimer(void (*callback)(int), int ms) {
   int code = pthread_create(&timerThread, &tattr, taosProcessAlarmSignal, callback);
   pthread_attr_destroy(&tattr);
   if (code != 0) {
-    tmrError("failed to create timer thread");
+    uError("failed to create timer thread");
     return -1;
   }
   return 0;
@@ -379,12 +357,12 @@ ssize_t twrite(int fd, void *buf, size_t n) {
 bool taosSkipSocketCheck() {
   struct utsname buf;
   if (uname(&buf)) {
-    pPrint("can't fetch os info");
+    uPrint("can't fetch os info");
     return false;
   }
 
   if (strstr(buf.release, "Microsoft") != 0) {
-    pPrint("using WSLv1");
+    uPrint("using WSLv1");
     return true;
   }
 
@@ -397,6 +375,6 @@ void taosBlockSIGPIPE() {
   sigaddset(&signal_mask, SIGPIPE);
   int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
-    pError("failed to block SIGPIPE");
+    uError("failed to block SIGPIPE");
   }
 }

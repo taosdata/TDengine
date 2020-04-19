@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tlog.h"
+#include "tulog.h"
 
 void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle) {
   tError("InitTcpClient not support in windows");

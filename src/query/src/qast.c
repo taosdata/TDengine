@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-
+#include "tulog.h"
 #include "tutil.h"
 #include "tbuffer.h"
 #include "qast.h"
@@ -23,14 +23,13 @@
 #include "qsyntaxtreefunction.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tlog.h"
 #include "tsqlfunction.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-
-#include "../../client/inc/tschemautil.h"
+#include "tschemautil.h"
 #include "tarray.h"
 #include "tskiplist.h"
+#include "queryLog.h"
 
 /*
  *
@@ -267,7 +266,7 @@ static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *st
   // get the operator of expr
   uint8_t optr = getBinaryExprOptr(&t0);
   if (optr == 0) {
-    pError("not support binary operator:%d", t0.type);
+    uError("not support binary operator:%d", t0.type);
     tExprNodeDestroy(pLeft, NULL);
     return NULL;
   }
@@ -319,7 +318,7 @@ static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *st
   } else {
     uint8_t localOptr = getBinaryExprOptr(&t0);
     if (localOptr == 0) {
-      pError("not support binary operator:%d", t0.type);
+      uError("not support binary operator:%d", t0.type);
       free(pExpr);
       return NULL;
     }

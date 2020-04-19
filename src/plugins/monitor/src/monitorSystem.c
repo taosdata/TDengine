@@ -28,22 +28,22 @@
 
 #define monitorError(...)                    \
   if (monitorDebugFlag & DEBUG_ERROR) {      \
-    tprintf("ERROR MON ", 255, __VA_ARGS__); \
+    taosPrintLog("ERROR MON ", 255, __VA_ARGS__); \
   }
 #define monitorWarn(...)                                  \
   if (monitorDebugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  MON ", monitorDebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN  MON ", monitorDebugFlag, __VA_ARGS__); \
   }
 #define monitorTrace(...)                           \
   if (monitorDebugFlag & DEBUG_TRACE) {             \
-    tprintf("MON ", monitorDebugFlag, __VA_ARGS__); \
+    taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); \
   }
 #define monitorPrint(...) \
-  { tprintf("MON ", 255, __VA_ARGS__); }
+  { taosPrintLog("MON ", 255, __VA_ARGS__); }
 
-#define monitorLError(...) taosLogError(__VA_ARGS__) monitorError(__VA_ARGS__)
-#define monitorLWarn(...) taosLogWarn(__VA_ARGS__) monitorWarn(__VA_ARGS__)
-#define monitorLPrint(...) taosLogPrint(__VA_ARGS__) monitorPrint(__VA_ARGS__)
+#define monitorLError(...) monitorError(__VA_ARGS__)
+#define monitorLWarn(...) monitorWarn(__VA_ARGS__)
+#define monitorLPrint(...) monitorPrint(__VA_ARGS__)
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    80
@@ -108,9 +108,6 @@ int monitorInitSystem() {
   monitor = (MonitorConn *)malloc(sizeof(MonitorConn));
   memset(monitor, 0, sizeof(MonitorConn));
   taosTmrReset(monitorCheckDiskUsage, CHECK_INTERVAL, NULL, tscTmr, &monitor->diskTimer);
-
-  startMonitor = monitorStartSystem;
-  stopMonitor  = monitorStopSystem;
   return 0;
 }
 
@@ -234,10 +231,6 @@ void monitorInitDatabaseCb(void *param, TAOS_RES *result, int code) {
   if (-code == TSDB_CODE_TABLE_ALREADY_EXIST || -code == TSDB_CODE_DB_ALREADY_EXIST || code >= 0) {
     monitorTrace("monitor:%p, sql success, code:%d, %s", monitor->conn, code, monitor->sql);
     if (monitor->cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
-      //TODO
-      //taosLogFp = monitorSaveLog;
-      taosLogSqlFp = monitorExecuteSQL;
-      taosLogAcctFp = monitorSaveAcctLog;
       monitorLPrint("dnode:%s is started", tsPrivateIp);
     }
     monitor->cmdIndex++;
@@ -256,7 +249,7 @@ void monitorStopSystem() {
 
   monitorLPrint("dnode:%s monitor module is stopped", tsPrivateIp);
   monitor->state = MONITOR_STATE_STOPPED;
-  taosLogFp = NULL;
+  // taosLogFp = NULL;
   if (monitor->initTimer != NULL) {
     taosTmrStopA(&(monitor->initTimer));
   }
@@ -404,6 +397,8 @@ void monitorSaveAcctLog(char *acctId, int64_t currentPointsPerSecond, int64_t ma
                         int64_t totalOutbound, int64_t maxOutbound, int64_t totalDbs, int64_t maxDbs,
                         int64_t totalUsers, int64_t maxUsers, int64_t totalStreams, int64_t maxStreams,
                         int64_t totalConns, int64_t maxConns, int8_t accessState) {
+  if (monitor->state != MONITOR_STATE_INITIALIZED) return;
+
   char sql[1024] = {0};
   sprintf(sql,
           "insert into %s.acct_%s using %s.acct tags('%s') values(now"

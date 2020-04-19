@@ -13,14 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <string.h>
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>
+#include "os.h"
 #include "tutil.h"
-
 #include "http.h"
+#include "httpLog.h"
 #include "httpHandle.h"
 #include "tkey.h"
 #define KEY_DES_4 4971256377704625728L

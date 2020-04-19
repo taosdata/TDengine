@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
-
-#include "tlog.h"
+#include "tulog.h"
 #include "tskiplist.h"
 #include "tutil.h"
 #include "tcompare.h"

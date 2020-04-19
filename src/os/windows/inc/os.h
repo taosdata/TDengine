@@ -41,8 +41,8 @@
 #include <inttypes.h>
 #include "winsock2.h"
 #include <WS2tcpip.h>
-
 #include <winbase.h>
+#include <Winsock2.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -337,6 +337,8 @@ __int64 interlocked_xor_fetch_64(__int64 volatile* ptr, __int64 val);
 #define tsem_post sem_post
 #define tsem_destroy sem_destroy
 
+void osInit();
+
 int getline(char **lineptr, size_t *n, FILE *stream);
 
 int taosWinSetTimer(int ms, void(*callback)(int));
@@ -359,7 +361,7 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
 
 char *taosCharsetReplace(char *charsetstr);
 
-void tsPrintOsInfo();
+void taosPrintOsInfo();
 
 void taosGetSystemInfo();
 

@@ -16,11 +16,26 @@
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 #include "os.h"
 #include "taos.h"
-#include "tlog.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsclient.h"
+#include "tlog.h"
 #include "ttime.h"
+
+#define jniError(...)                                 \
+  if (jnidebugFlag & DEBUG_ERROR) {                   \
+    taosPrintLog("ERROR JNI ", jnidebugFlag, __VA_ARGS__); \
+  }
+#define jniWarn(...)                                  \
+  if (jnidebugFlag & DEBUG_WARN) {                    \
+    taosPrintLog("WARN  JNI ", jnidebugFlag, __VA_ARGS__); \
+  }
+#define jniTrace(...)                           \
+  if (jnidebugFlag & DEBUG_TRACE) {             \
+    taosPrintLog("JNI ", jnidebugFlag, __VA_ARGS__); \
+  }
+#define jniPrint(...) \
+  { taosPrintLog("JNI ", 255, __VA_ARGS__); }
 
 int __init = 0;
 

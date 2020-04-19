@@ -12,15 +12,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "qextbuffer.h"
 #include "os.h"
+#include "tulog.h"
+#include "qextbuffer.h"
 #include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tlog.h"
 #include "tsqlfunction.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "queryLog.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->pFields[colId].offset * (allrow) + (rowId) * (schema)->pFields[colId].field.bytes)
@@ -41,7 +42,7 @@ tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, SColumnMo
   getTmpfilePath("extbuf", name);
   
   pMemBuffer->path = strdup(name);
-  pTrace("create tmp file:%s", pMemBuffer->path);
+  uTrace("create tmp file:%s", pMemBuffer->path);
   
   SExtFileInfo *pFMeta = &pMemBuffer->fileMeta;
 
@@ -79,10 +80,10 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
   // close temp file
   if (pMemBuffer->file != 0) {
     if (fclose(pMemBuffer->file) != 0) {
-      pError("failed to close file:%s, reason:%s", pMemBuffer->path, strerror(errno));
+      uError("failed to close file:%s, reason:%s", pMemBuffer->path, strerror(errno));
     }
     
-    pTrace("remove temp file:%s for external buffer", pMemBuffer->path);
+    uTrace("remove temp file:%s for external buffer", pMemBuffer->path);
     unlink(pMemBuffer->path);
   }
 
@@ -103,7 +104,7 @@ static bool allocFlushoutInfoEntries(SExtFileInfo *pFileMeta) {
   tFlushoutInfo *tmp = (tFlushoutInfo *)realloc(pFileMeta->flushoutData.pFlushoutInfo,
                                                 sizeof(tFlushoutInfo) * pFileMeta->flushoutData.nAllocSize);
   if (tmp == NULL) {
-    pError("out of memory!\n");
+    uError("out of memory!\n");
     return false;
   }
 
