@@ -1,0 +1,37 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+sleep 2000
+
+sql drop database if exists indb
+
+sql create database if not exists indb
+
+sql use indb
+
+$inFileName = '~/data.csv'
+$numOfRows = 10000
+#system sh/gendata.sh $inFileName $numOfRows  # input file invalid
+system sh/gendata.sh ~/data.csv $numOfRows
+
+sql create table tbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16), imsi BINARY(16),  imei BINARY(16),  mdn BINARY(10), net_type BINARY(4), mno NCHAR(4), province NCHAR(10), city NCHAR(16), alarm BINARY(2))
+print ====== create tables success, starting import data
+
+sql import into tbx file $inFileName
+
+sql select count(*) from tbx
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $numOfRows then
+  print "expect: $numOfRows, act: $data00"
+  return -1
+endi
+
+
+#system rm -f $inFileName     # invalid shell
+system rm -f ~/data.csv

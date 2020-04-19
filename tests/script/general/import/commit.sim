@@ -1,0 +1,103 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+
+system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode3 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode4 -c numOfMPeers -v 1
+
+system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 10
+
+system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 2000
+system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 2000
+system sh/cfg.sh -n dnode3 -c sessionsPerVnode -v 2000
+system sh/cfg.sh -n dnode4 -c sessionsPerVnode -v 2000
+
+system sh/cfg.sh -n dnode1 -c commitlog -v 0
+system sh/cfg.sh -n dnode2 -c commitlog -v 0
+system sh/cfg.sh -n dnode3 -c commitlog -v 0
+system sh/cfg.sh -n dnode4 -c commitlog -v 0
+
+system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode3 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode4 -c secondIp -v 192.168.0.2
+
+print ========= start dnode1
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+sql connect
+
+print ========= step1
+sql create database ic1db days 7;
+sql create table ic1db.tb(ts timestamp, s int);
+sql insert into ic1db.tb values(now-30d, -30);
+sql insert into ic1db.tb values(now-20d, -20);
+sql insert into ic1db.tb values(now-10d, -10);
+sql insert into ic1db.tb values(now-5d, -5);
+sql insert into ic1db.tb values(now+1m, 1);
+sql insert into ic1db.tb values(now+2m, 2);
+sql insert into ic1db.tb values(now+3m, 6);
+sql insert into ic1db.tb values(now+4m, 8);
+sql insert into ic1db.tb values(now+5m, 10);
+sql insert into ic1db.tb values(now+6m, 12);
+sql insert into ic1db.tb values(now+7m, 14);
+sql insert into ic1db.tb values(now+8m, 16);
+sql select * from ic1db.tb;
+if $rows != 12 then 
+  return -1
+endi
+
+print ========= step2
+sql create database ic2db days 7;
+sql create table ic2db.tb(ts timestamp, s int);
+sql insert into ic2db.tb values(now, 0);
+sql import into ic2db.tb values(now-30d, -30);
+sql import into ic2db.tb values(now-20d, -20);
+sql import into ic2db.tb values(now-10d, -10);
+sql import into ic2db.tb values(now-5d, -5);
+sql import into ic2db.tb values(now+1m, 1);
+sql import into ic2db.tb values(now+2m, 2);
+sql import into ic2db.tb values(now+3m, 6);
+sql import into ic2db.tb values(now+4m, 8);
+sql import into ic2db.tb values(now+5m, 10);
+sql import into ic2db.tb values(now+6m, 12);
+sql import into ic2db.tb values(now+7m, 14);
+sql import into ic2db.tb values(now+8m, 16);
+sql select * from ic2db.tb;
+if $rows != 13 then 
+  return -1
+endi
+
+print ========= step3
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+sleep 5000
+
+print ========= step4
+sql select * from ic2db.tb;
+if $rows != 13 then 
+  return -1
+endi
+
+sql select * from ic1db.tb;
+if $rows != 12 then 
+  return -1
+endi
+
+
+
+

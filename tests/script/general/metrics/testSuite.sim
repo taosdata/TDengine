@@ -1,0 +1,4 @@
+run lite/metrics/disk.sim
+run lite/metrics/metrics.sim
+run lite/metrics/values.sim
+run lite/metrics/vnode3.sim

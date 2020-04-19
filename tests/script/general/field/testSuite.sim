@@ -1,0 +1,14 @@
+run lite/field/single.sim
+run lite/field/bool.sim
+run lite/field/smallint.sim
+run lite/field/tinyint.sim
+run lite/field/int.sim
+run lite/field/bigint.sim
+run lite/field/float.sim
+run lite/field/double.sim
+run lite/field/binary.sim
+run lite/field/2.sim
+run lite/field/3.sim
+run lite/field/4.sim
+run lite/field/5.sim
+run lite/field/6.sim

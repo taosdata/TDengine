@@ -1,0 +1,135 @@
+sleep 3000
+sql connect
+
+$dbPrefix = first_db
+$tbPrefix = first_tb
+$stbPrefix = first_stb
+$tbNum = 10
+$rowNum = 2000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 60000
+print ========== first_last_query.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql use $db
+
+##### select first/last from table
+## TBASE-331
+print ====== select first/last from table
+$tb = $tbPrefix . 0
+sql select first(*) from $tb
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 08:59:00.000@ then
+  return -1
+endi
+#if $data01 != NULL then
+if $data01 != 0 then
+  return -1   
+endi  
+#if $data02 != NULL then
+if $data02 != 0 then
+  return -1  
+endi 
+#if $data03 != NULL then
+print data03 = $data03
+if $data03 != 0.00000 then
+  return -1  
+endi    
+#if $data04 != null then
+if $data04 != 0.000000000 then
+  return -1
+endi
+#if $data05 != null then
+if $data05 != 0 then
+  return -1
+endi 
+#if $data06 != null then
+if $data06 != 0 then
+  return -1
+endi
+#if $data07 != null then
+if $data07 != 1 then
+  return -1
+endi
+#if $data08 != null then
+if $data08 != BINARY then
+  return -1
+endi
+#if $data09 != null then
+if $data09 != NCHAR then
+  return -1
+endi
+
+sql select last(*) from $tb
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-18 01:40:00.000@ then
+  return -1   
+endi  
+#if $data01 != NULL then
+if $data01 != 999 then
+  return -1   
+endi  
+#if $data02 != NULL then
+if $data02 != 999 then
+  return -1  
+endi 
+#if $data03 != NULL then
+if $data03 != 999.00000 then
+  return -1  
+endi    
+#if $data04 != NULL then
+if $data04 != 999.000000000 then
+  return -1
+endi
+#if $data05 != NULL then
+if $data05 != 999 then
+  return -1
+endi 
+#if $data06 != NULL then
+if $data06 != 103 then
+  return -1
+endi
+#if $data07 != NULL then
+if $data07 != 1 then
+  return -1
+endi
+#if $data08 != NULL then
+if $data08 != BINARY then
+  return -1
+endi
+#if $data09 != NULL then
+if $data09 != NCHAR then
+  return -1
+endi
+
+### test if first works for committed data. An 'order by ts desc' clause should be present, and queried data should come from at least 2 file blocks
+$tb = $tbPrefix . 9
+sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000' order by ts asc
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+$tb = $tbPrefix . 9
+sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000' order by ts desc 
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi

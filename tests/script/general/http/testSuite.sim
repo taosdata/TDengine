@@ -1,0 +1,7 @@
+run lite/http/grafana.sim
+run lite/http/restful.sim
+run lite/http/restful_full.sim
+run lite/http/telegraf.sim
+run lite/http/prepare.sim
+run lite/http/grafana_bug.sim
+#run lite/http/opentsdb.sim

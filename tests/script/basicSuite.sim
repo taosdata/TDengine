@@ -1,15 +1,8 @@
 ################################# 
 
-run general/table/basic1.sim
-run general/table/basic2.sim
-run general/table/basic3.sim
-
-run general/db/basic1.sim
-run general/db/basic2.sim
-run general/db/basic3.sim
-run general/db/basic4.sim
-run general/db/basic5.sim
-
-run general/user/basic1.sim
+run general/db/testSuite.sim
+run general/insert/testSuite.sim
+run general/table/testSuite.sim
+run general/user/testSuite.sim
 
 ################################## 

@@ -1,0 +1,91 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+sleep 3000
+
+print ============= step1
+sql create account oroot pass 'taosdata' 
+sql close
+sql connect oroot
+sleep 2000
+
+print ============= step2
+sql create user read pass 'taosdata'
+sql create user write pass 'taosdata'
+
+sql create database d1
+sql create database d2
+sql create table d1.t1 (ts timestamp, i int)
+sql create table d2.t2 (ts timestamp, i int)
+sql insert into d1.t1 values(now, 1)
+sql insert into d2.t2 values(now, 1)
+sql insert into d2.t2 values(now+1s, 2)
+
+sql show databases
+if $rows != 2 then 
+  return -1
+endi
+sql show users
+if $rows != 4 then 
+  return -1
+endi
+sql select * from d1.t1
+if $rows != 1 then 
+  return -1
+endi
+sql select * from d2.t2 
+if $rows != 2 then 
+  return -1
+endi
+
+print ============= step3
+sql close
+sql connect
+sleep 2000
+
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+sql show dnodes
+if $data02 != 2 then
+  return -1
+endi
+sql drop account oroot
+
+print ============= step4
+sleep 2000
+sql show dnodes
+if $data02 != 0 then
+  return -1
+endi
+
+print ============= step5
+sql create account oroot pass 'taosdata'
+
+sql close
+sql connect oroot
+sleep 2000
+
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+sql close
+sql connect
+sleep 2000
+sql drop account oroot
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi

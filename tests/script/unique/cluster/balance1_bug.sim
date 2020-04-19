@@ -1,0 +1,800 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+
+system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode3 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode4 -c secondIp -v 192.168.0.2
+
+system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
+
+system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
+
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode4 -c clog -v 1
+
+system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
+
+print ============== step1
+print ========= start dnode1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database c_b1_d1 tables 4
+sql use c_b1_d1
+
+sql create table c_b1_t1 (t timestamp, i int)
+sql insert into c_b1_t1 values(now+1s, 15)
+sql insert into c_b1_t1 values(now+2s, 14)
+sql insert into c_b1_t1 values(now+2s, 13)
+sql insert into c_b1_t1 values(now+3s, 12)
+sql insert into c_b1_t1 values(now+4s, 11)
+
+sql create database c_b1_d2 tables 4
+sql use c_b1_d2
+sql create table c_b1_t2 (t timestamp, i int)
+sql insert into c_b1_t2 values(now+1s, 25)
+sql insert into c_b1_t2 values(now+2s, 24)
+sql insert into c_b1_t2 values(now+3s, 23)
+sql insert into c_b1_t2 values(now+4s, 22)
+sql insert into c_b1_t2 values(now+5s, 21)
+
+sql show dnodes
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 2 then
+  return -1
+endi
+if $dnode2Vnodes != null then
+  return -1
+endi
+
+print ============================== step2
+print ========= start dnode2
+sleep 2000
+sql create dnode 192.168.0.2
+system sh/exec.sh -n dnode2 -s start
+sleep 5000
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show2
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 3 then
+  goto show2
+endi
+if $dnode2Vnodes != 3 then
+  goto show2
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+print ============================== step3
+print ========= add db3
+sql create database c_b1_d3 tables 4
+sql use c_b1_d3
+sql create table c_b1_t3 (t timestamp, i int)
+sql insert into c_b1_t3 values(now+1s, 35)
+sql insert into c_b1_t3 values(now+2s, 34)
+sql insert into c_b1_t3 values(now+3s, 33)
+sql insert into c_b1_t3 values(now+4s, 32)
+sql insert into c_b1_t3 values(now+5s, 31)
+
+print ============================== step4
+print ========= drop dnode2
+sql drop dnode 192.168.0.2
+sleep 9000
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show4
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 1 then
+  goto show4
+endi
+if $dnode2Vnodes != null then
+  goto show4
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+print ============================== step5
+print ========= add dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
+system sh/exec.sh -n dnode2 -s start
+sql create dnode 192.168.0.2
+sleep 9000
+
+$x = 0
+show5: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show5
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show5
+endi
+if $dnode2Vnodes != 3 then
+  goto show5
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+print ============================== step6
+print ========= drop dnode1
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print stop dnode1 and sleep 10000
+sleep 10000
+
+sql drop dnode 192.168.0.1
+print drop dnode1 and sleep 9000
+sleep 9000
+
+$x = 0
+show6: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show6
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != null then
+  goto show6
+endi
+if $dnode2Vnodes != 1 then
+  goto show6
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+print ============================== step7
+print ========= add dnode1
+sql create dnode 192.168.0.1
+sleep 23000
+system sh/exec.sh -n dnode1 -s start
+sleep 14000
+
+$x = 0
+show7: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show7
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 3 then
+  goto show7
+endi
+if $dnode2Vnodes != 2 then
+  goto show7
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+print ============================== step8
+print ========= drop dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+print stop dnode2 and sleep 10000
+sleep 20000
+sql drop dnode 192.168.0.2
+print drop dnode2 and sleep 9000
+sleep 19000
+
+$x = 0
+show8: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show8
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 1 then
+  goto show8
+endi
+if $dnode2Vnodes != null then
+  goto show8
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+
+print ============================== step9
+print ========= add dnode2
+sql create dnode 192.168.0.2
+system sh/exec.sh -n dnode2 -s start
+sleep 9000
+
+$x = 0
+show9: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show9
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show9
+endi
+if $dnode2Vnodes != 3 then
+  goto show9
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+print ============================== step10
+print ========= add db4
+sql create database c_b1_d4 tables 4
+sql use c_b1_d4
+sql create table c_b1_t4 (t timestamp, i int)
+sql insert into c_b1_t4 values(now+1s, 45)
+sql insert into c_b1_t4 values(now+2s, 44)
+sql insert into c_b1_t4 values(now+3s, 43)
+sql insert into c_b1_t4 values(now+4s, 42)
+sql insert into c_b1_t4 values(now+5s, 41)
+
+$x = 0
+show10: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show10
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 2 then
+   goto show10
+endi
+if $dnode2Vnodes != 2 then
+   goto show10
+endi
+
+sql use c_b1_d3
+sql insert into c_b1_t3 values(now+1s, 35)
+
+sql use c_b1_d2
+sql insert into c_b1_t2 values(now+1s, 25)
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+
+if $dnode1Role != master then
+  return -1
+endi
+
+print ============================== step11
+print ========= drop dnode2
+sleep 2000
+sql drop dnode 192.168.0.2
+sleep 9000
+
+$x = 0
+show11: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show11
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+if $dnode1Vnodes != 0 then
+   goto show11
+endi
+if $dnode2Vnodes != null then
+   goto show11
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+
+print ============================== step12
+print ========= add db5
+sql create database c_b1_d5 tables 4
+sql use c_b1_d5
+sql create table c_b1_t5 (t timestamp, i int) -x error3
+print no enough vnodes, but create success
+return -1
+error3:
+
+print ============================== step13
+print ========= add dnode2
+sql create dnode 192.168.0.2
+system sh/exec.sh -n dnode2 -s start
+sleep 9000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+sql use c_b1_d5;
+$x = 0
+create5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 50 then
+	  return -1
+	endi
+sql create table c_b1_t5 (t timestamp, i int) -x create5
+sql insert into c_b1_t5 values(now+1s, 55)
+sql insert into c_b1_t5 values(now+2s, 54)
+sql insert into c_b1_t5 values(now+3s, 53)
+sql insert into c_b1_t5 values(now+4s, 52)
+sql insert into c_b1_t5 values(now+5s, 51)
+
+sql create database c_b1_d6
+sql use c_b1_d6
+$x = 0
+create6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 50 then
+	  return -1
+	endi
+sql create table c_b1_t6 (t timestamp, i int)  -x create6
+sql insert into c_b1_t6 values(now+1s, 65)
+sql insert into c_b1_t6 values(now+2s, 64)
+sql insert into c_b1_t6 values(now+3s, 63)
+sql insert into c_b1_t6 values(now+4s, 62)
+sql insert into c_b1_t6 values(now+5s, 61)
+
+sql show dnodes
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+
+#if $dnode1Vnodes != 1 then
+#  return -1
+#endi
+#if $dnode2Vnodes != 1 then
+#  return -1
+#endi
+
+print ============================== step14
+print ========= add dnode3
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+sleep 2000
+sql create dnode 192.168.0.3
+system sh/exec.sh -n dnode3 -s start
+sleep 15000
+
+$x = 0
+show14: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show14
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+$dnode3Vnodes = $data3_192.168.0.3
+print 192.168.0.3 $dnode3Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show14
+endi
+if $dnode2Vnodes != 2 then
+  goto show14
+endi
+if $dnode3Vnodes != 2 then
+  goto show14
+endi
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+
+print ============================== step15
+print ========= create db7 db8
+
+sql create database c_b1_d7 tables 4
+sql use c_b1_d7
+sql create table c_b1_t7 (t timestamp, i int)
+sql insert into c_b1_t7 values(now+1s, 75)
+sql insert into c_b1_t7 values(now+2s, 74)
+sql insert into c_b1_t7 values(now+3s, 73)
+sql insert into c_b1_t7 values(now+4s, 72)
+sql insert into c_b1_t7 values(now+5s, 71)
+
+sql create database c_b1_d8
+sql use c_b1_d8
+sql create table c_b1_t8 (t timestamp, i int)
+sql insert into c_b1_t8 values(now+1s, 85)
+sql insert into c_b1_t8 values(now+2s, 84)
+sql insert into c_b1_t8 values(now+3s, 83)
+sql insert into c_b1_t8 values(now+4s, 82)
+sql insert into c_b1_t8 values(now+5s, 81)
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+print ========== add dnode4
+sleep 2000
+sql create dnode 192.168.0.4
+print sql create dnode 192.168.0.4 over
+system sh/exec.sh -n dnode4 -s start
+print sleep 12000
+sleep 12000
+print sleep 12000 over
+
+$x = 0
+show15: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 15 then 
+	  return -1
+	endi
+sql show dnodes -x show15
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+$dnode3Vnodes = $data3_192.168.0.3
+print 192.168.0.3 $dnode3Vnodes
+$dnode4Vnodes = $data3_192.168.0.4
+print 192.168.0.4 $dnode4Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show15
+endi
+if $dnode2Vnodes != 2 then
+  goto show15
+endi
+if $dnode3Vnodes != 2 then
+  goto show15
+endi
+if $dnode4Vnodes != 2 then
+  goto show15
+endi
+
+print ============================== step16
+print ========= drop dnode4, create db9
+
+sql drop dnode 192.168.0.4
+sleep 10000
+sql create database c_b1_d9 tables 4
+sql use c_b1_d9
+sql create table c_b1_t9 (t timestamp, i int)
+sql insert into c_b1_t9 values(now+1s, 95)
+sql insert into c_b1_t9 values(now+2s, 94)
+sql insert into c_b1_t9 values(now+3s, 93)
+sql insert into c_b1_t9 values(now+4s, 92)
+sql insert into c_b1_t9 values(now+5s, 91)
+
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+
+$x = 0
+show16: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show16
+$dnode1Vnodes = $data3_192.168.0.1
+print 192.168.0.1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print 192.168.0.2 $dnode2Vnodes
+$dnode3Vnodes = $data3_192.168.0.3
+print 192.168.0.3 $dnode3Vnodes
+
+if $dnode1Vnodes != 1 then
+  goto show16
+endi
+if $dnode2Vnodes != 1 then
+  goto show16
+endi
+if $dnode3Vnodes != 1 then
+  goto show16
+endi
+
+print ============================== step17
+print ========= check data
+
+sleep 2000
+
+sql use c_b1_d1
+sql select * from c_b1_t1 order by t desc -x s1
+s1:
+
+sql use c_b1_d2
+sql select * from c_b1_t2 order by t desc -x s2
+print $data01 $data11 $data21 $data31 $data41
+
+if $data01 != 25 then
+  return -1
+endi
+
+if $data11 != 21 then
+  return -1
+endi
+if $data21 != 22 then
+  return -1
+endi
+if $data31 != 23 then
+  return -1
+endi
+if $data41 != 24 then
+  return -1
+endi
+s2:
+
+sql use c_b1_d3
+sql select * from c_b1_t3 order by t desc -x s3
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 35 then
+  return -1
+endi
+s3:
+
+sql use c_b1_d4
+sql select * from c_b1_d4.c_b1_t4 order by t desc -x s4
+print $data01 $data11 $data21 $data31 $data41
+s4:
+
+
+sql use c_b1_d5
+sql select * from c_b1_d5.c_b1_t5 order by t desc -x s5
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 51 then
+  return -1
+endi
+if $data11 != 52 then
+  return -1
+endi
+if $data21 != 53 then
+  return -1
+endi
+if $data31 != 54 then
+  return -1
+endi
+if $data41 != 55 then
+  return -1
+endi
+s5:
+
+sql use c_b1_d6
+sql select * from c_b1_d6.c_b1_t6 order by t desc -x s6
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 61 then
+  return -1
+endi
+if $data11 != 62 then
+  return -1
+endi
+if $data21 != 63 then
+  return -1
+endi
+if $data31 != 64 then
+  return -1
+endi
+if $data41 != 65 then
+  return -1
+endi
+s6:
+
+sql use c_b1_d7
+sql select * from c_b1_d7.c_b1_t7 order by t desc -x s7
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 71 then
+  return -1
+endi
+if $data11 != 72 then
+  return -1
+endi
+if $data21 != 73 then
+  return -1
+endi
+if $data31 != 74 then
+  return -1
+endi
+if $data41 != 75 then
+  return -1
+endi
+s7:
+
+sql use c_b1_d9
+sql select * from c_b1_t9 order by t desc -x s8
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 91 then
+  return -1
+endi
+if $data11 != 92 then
+  return -1
+endi
+if $data21 != 93 then
+  return -1
+endi
+if $data31 != 94 then
+  return -1
+endi
+if $data41 != 95 then
+  return -1
+endi
+s8:
+
+print ============================================ over
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+
+
+

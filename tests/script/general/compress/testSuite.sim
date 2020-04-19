@@ -1,0 +1,4 @@
+run lite/compress/compress.sim
+run lite/compress/uncompress.sim
+run lite/compress/commitlog.sim
+run lite/compress/compress2.sim
