@@ -1049,7 +1049,7 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t* pQueryHandle) {
     if (pTable->mem != NULL) {
       // create mem table iterator if it is not created yet
       assert(pCheckInfo->iter != NULL);
-      rows = tsdbReadRowsFromCache(pCheckInfo->iter, pHandle->window.ekey, 2, &skey, &ekey, pHandle);
+      rows = tsdbReadRowsFromCache(pCheckInfo->iter, pHandle->window.ekey, 4000, &skey, &ekey, pHandle);
 
       // update the last key value
       pCheckInfo->lastKey = ekey + step;
