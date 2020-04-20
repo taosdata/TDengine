@@ -50,6 +50,8 @@ typedef struct SSkipListNode {
 #define SL_GET_NODE_DATA(n) ((char *)(n) + SL_NODE_HEADER_SIZE((n)->level))
 #define SL_GET_NODE_KEY(s, n) ((s)->keyFn(SL_GET_NODE_DATA(n)))
 
+#define SL_GET_SL_MIN_KEY(s) (SL_GET_NODE_KEY((s), SL_GET_FORWARD_POINTER((s)->pHead, 0)))
+
 #define SL_GET_NODE_LEVEL(n) *(uint8_t *)((n))
 
 /*
