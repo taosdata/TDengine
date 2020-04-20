@@ -522,7 +522,7 @@ static void balanceStartTimer(int64_t mseconds) {
 }
 
 void balanceNotify() {
-  balanceStartTimer(1200); 
+  balanceStartTimer(500); 
 }
 
 int32_t balanceInit() {
@@ -866,5 +866,8 @@ static void balanceMonitorDnodeModule() {
     mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMPeers);
     mgmtAddMnode(pDnode->dnodeId);
     mgmtReleaseDnode(pDnode);
+
+    numOfMnodes = mgmtGetMnodesNum();
+    if (numOfMnodes >= tsNumOfMPeers) return;
   }
 }
