@@ -22,6 +22,7 @@
 #include "ttime.h"
 #include "tutil.h"
 #include "tsocket.h"
+#include "tbalance.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
@@ -97,6 +98,9 @@ static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
       continue;
     }
   }
+
+  mgmtDropMnode(pDnode->dnodeId);
+  balanceNotify();
 
   mTrace("dnode:%d, all vgroups:%d is dropped from sdb", pDnode->dnodeId, numOfVgroups);
   return TSDB_CODE_SUCCESS;
@@ -432,7 +436,7 @@ static int32_t mgmtDropDnodeByIp(uint32_t ip) {
   SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
   if (pDnode == NULL) {
     mError("dnode:%s, is not exist", taosIpStr(ip));
-    return TSDB_CODE_INVALID_VALUE;
+    return TSDB_CODE_DNODE_NOT_EXIST;
   }
 
   if (pDnode->privateIp == dnodeGetMnodeMasteIp()) {
@@ -514,18 +518,6 @@ static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 10;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "open vnodes");
@@ -538,13 +530,17 @@ static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-#ifdef _VPEER
-  pShow->bytes[cols] = 18;
+  pShow->bytes[cols] = 10;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "balance");
+  strcpy(pSchema[cols].name, "status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
-#endif  
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "create time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
@@ -591,27 +587,22 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pDnode->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int16_t *)pWrite = pDnode->openVnodes;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int16_t *)pWrite = pDnode->totalVnodes;
     cols++;
-
-#ifdef _VPEER
+    
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     strcpy(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
     cols++;
-#endif    
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pDnode->createdTime;
+    cols++;
+
+ 
     numOfRows++;
     mgmtReleaseDnode(pDnode);
   }

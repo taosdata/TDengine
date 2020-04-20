@@ -7,27 +7,34 @@ system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.1
 system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.1
 
 print ========== step1 dnode2 start
-system sh/exec.sh -n dnode2 -s start
-sleep 3000
+system sh/exec_up.sh -n dnode2 -s start
 sql connect
 
 print ========== step2 connect to dnode2
 sql create dnode 192.168.0.1
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sleep 3000
 
 print ========== step3 
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
+print 192.168.0.1 openvnodes $data3_1
+print 192.168.0.2 openvnodes $data3_2
+print 192.168.0.1 totalvnodes $data4_1
+print 192.168.0.2 totalvnodes $data4_2
 
 if $rows != 2 then 
   return -1
 endi
-if $data3_192.168.0.1 != 4 then
+if $data3_1 != 0 then
 	return -1
 endi
-if $data3_192.168.0.2 != 4 then
+if $data3_2 != 0 then
+	return -1
+endi
+if $data4_1 != 4 then
+	return -1
+endi
+if $data4_2 != 4 then
 	return -1
 endi
 
