@@ -291,15 +291,15 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   pShow->bytes[cols] = 10;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "role");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+  
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -347,13 +347,13 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pMnode->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     strcpy(pWrite, mgmtGetMnodeRoleStr(pMnode->role));
     cols++;
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pMnode->createdTime;
+    cols++;
+    
     numOfRows++;
 
     mgmtReleaseMnode(pMnode);
