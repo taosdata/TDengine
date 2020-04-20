@@ -145,6 +145,9 @@ matrix:
             exit $?
           fi
 
+          sudo pkill taosd
+          sleep 1
+
           cd ${TRAVIS_BUILD_DIR}
           lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info
           lcov -l --rc lcov_branch_coverage=1 coverage.info || exit $?
