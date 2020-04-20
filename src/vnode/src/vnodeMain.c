@@ -49,6 +49,7 @@ int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle) { return 
 void    syncStop(tsync_h shandle) {}
 int     syncReconfig(tsync_h shandle, const SSyncCfg * cfg) { return 0; }
 int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
+void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
 #endif
 
 static void vnodeInit() {

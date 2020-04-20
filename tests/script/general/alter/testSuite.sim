@@ -1,7 +1,7 @@
-run lite/alter/count.sim
-run lite/alter/cached_schema_after_alter.sim
-run lite/alter/import.sim
-run lite/alter/insert1.sim
-run lite/alter/insert2.sim
-run lite/alter/metrics.sim
-run lite/alter/table.sim
+run general/alter/count.sim
+run general/alter/cached_schema_after_alter.sim
+run general/alter/import.sim
+run general/alter/insert1.sim
+run general/alter/insert2.sim
+run general/alter/metrics.sim
+run general/alter/table.sim

@@ -1,4 +1,4 @@
-run cluster/metrics/disk.sim
-run cluster/metrics/metrics.sim
-run cluster/metrics/values.sim
-run cluster/metrics/vnode3.sim
+run unique/metrics/disk.sim
+run unique/metrics/metrics.sim
+run unique/metrics/values.sim
+run unique/metrics/vnode3.sim

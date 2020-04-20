@@ -1,3 +1,3 @@
-#run cluster/big/balance.sim
-#run cluster/big/maxvnodes.sim
-run cluster/big/tcp.sim
+#run unique/big/balance.sim
+#run unique/big/maxvnodes.sim
+run unique/big/tcp.sim
