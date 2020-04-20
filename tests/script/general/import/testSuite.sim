@@ -1,4 +1,4 @@
-run lite/import/basic.sim
-#run lite/import/commit.sim
-run lite/import/large.sim
-run lite/import/replica1.sim
+run general/import/basic.sim
+#run general/import/commit.sim
+run general/import/large.sim
+run general/import/replica1.sim

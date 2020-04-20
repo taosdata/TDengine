@@ -195,8 +195,8 @@ void mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp) {
   }
 }
 
-void mgmtGetMnodeList(void *param) {
-  SDMNodeInfos *mnodes = param;
+void mgmtGetMnodeInfos(void *param) {
+  SDMMnodeInfos *mnodes = param;
   mnodes->inUse = 0;
   
   int32_t index = 0;
@@ -209,6 +209,7 @@ void mgmtGetMnodeList(void *param) {
     mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
     mnodes->nodeInfos[index].nodeIp = htonl(pMnode->pDnode->privateIp);
     mnodes->nodeInfos[index].nodePort = htons(pMnode->pDnode->mnodeDnodePort);
+    mnodes->nodeInfos[index].syncPort = htons(pMnode->pDnode->syncPort);
     strcpy(mnodes->nodeInfos[index].nodeName, pMnode->pDnode->dnodeName);
     if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
       mnodes->inUse = index;
@@ -290,15 +291,15 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   pShow->bytes[cols] = 10;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "role");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+  
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -346,13 +347,13 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pMnode->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     strcpy(pWrite, mgmtGetMnodeRoleStr(pMnode->role));
     cols++;
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pMnode->createdTime;
+    cols++;
+    
     numOfRows++;
 
     mgmtReleaseMnode(pMnode);

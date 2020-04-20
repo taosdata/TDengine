@@ -521,12 +521,6 @@ typedef struct {
   uint8_t reserved[5];
 } SVnodeLoad;
 
-typedef struct {
-  uint32_t vnode;
-  uint8_t  accessState;
-  uint8_t  reserved[3];
-} SVnodeAccess;
-
 /*
  * NOTE: sizeof(SVnodeCfg) < TSDB_FILE_HEADER_LEN / 4
  */
@@ -572,11 +566,29 @@ typedef struct {
 } SVnodeStatisticInfo;
 
 typedef struct {
+  int32_t  vgId;
+  int8_t   accessState;
+} SDMVgroupAccess;
+
+typedef struct {
   int32_t  dnodeId;
   uint32_t moduleStatus;
-  uint32_t createdTime;
   uint32_t numOfVnodes;
-} SDnodeState;
+} SDMDnodeCfg;
+
+typedef struct {
+  int32_t   nodeId;
+  uint32_t  nodeIp;
+  uint16_t  nodePort;
+  uint16_t  syncPort;
+  char      nodeName[TSDB_NODE_NAME_LEN + 1];
+} SDMMnodeInfo;
+
+typedef struct {
+  int8_t       inUse;
+  int8_t       nodeNum;
+  SDMMnodeInfo nodeInfos[TSDB_MAX_MPEERS];
+} SDMMnodeInfos;
 
 typedef struct {
   uint32_t   version;
@@ -596,22 +608,9 @@ typedef struct {
 } SDMStatusMsg;
 
 typedef struct {
-  int32_t   nodeId;
-  uint32_t  nodeIp;
-  uint16_t  nodePort;
-  char      nodeName[TSDB_NODE_NAME_LEN + 1];
-} SDMNodeInfo;
-
-typedef struct {
-  int8_t       inUse;
-  int8_t       nodeNum;
-  SDMNodeInfo  nodeInfos[TSDB_MAX_MPEERS];
-} SDMNodeInfos;
-
-typedef struct {
-  SDMNodeInfos mnodes;
-  SDnodeState  dnodeState;
-  SVnodeAccess vnodeAccess[];
+  SDMMnodeInfos    mnodes;
+  SDMDnodeCfg      dnodeCfg;
+  SDMVgroupAccess  vgAccess[];
 } SDMStatusRsp;
 
 typedef struct {

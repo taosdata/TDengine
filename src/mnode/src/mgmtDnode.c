@@ -68,7 +68,7 @@ static int32_t mgmtDnodeActionInsert(SSdbOper *pOper) {
   pDnode->mnodeDnodePort = tsMnodeDnodePort;
   pDnode->dnodeShellPort = tsDnodeShellPort;
   pDnode->dnodeMnodePort = tsDnodeMnodePort;
-  pDnode->syncPort       = 0;
+  pDnode->syncPort       = tsSyncPort;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -274,12 +274,12 @@ static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 
 void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   SDMStatusMsg *pStatus = rpcMsg->pCont;
-  pStatus->dnodeId = htonl(pStatus->dnodeId);
-  pStatus->privateIp = htonl(pStatus->privateIp);
-  pStatus->publicIp = htonl(pStatus->publicIp);
+  pStatus->dnodeId      = htonl(pStatus->dnodeId);
+  pStatus->privateIp    = htonl(pStatus->privateIp);
+  pStatus->publicIp     = htonl(pStatus->publicIp);
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
-  pStatus->lastReboot = htonl(pStatus->lastReboot);
-  pStatus->numOfCores = htons(pStatus->numOfCores);
+  pStatus->lastReboot   = htonl(pStatus->lastReboot);
+  pStatus->numOfCores   = htons(pStatus->numOfCores);
   pStatus->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
 
   uint32_t version = htonl(pStatus->version);
@@ -346,19 +346,18 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
 
   mgmtReleaseDnode(pDnode);
 
-  int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SVnodeAccess);
+  int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SDMVgroupAccess);
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return;
   }
 
-  mgmtGetMnodeList(&pRsp->mnodes);
+  mgmtGetMnodeInfos(&pRsp->mnodes);
 
-  pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
-  pRsp->dnodeState.moduleStatus = htonl((int32_t)pDnode->isMgmt);
-  pRsp->dnodeState.createdTime  = htonl(pDnode->createdTime / 1000);
-  pRsp->dnodeState.numOfVnodes = 0;
+  pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
+  pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
+  pRsp->dnodeCfg.numOfVnodes = 0;
   
   contLen = sizeof(SDMStatusRsp);
 

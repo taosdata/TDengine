@@ -1,5 +1,5 @@
-run lite/cache/restart_table.sim
-run lite/cache/restart_metrics.sim
-run lite/cache/restart_stream.sim
-run lite/cache/new_metrics.sim
-run lite/cache/new_stream.sim
+run general/cache/restart_table.sim
+run general/cache/restart_metrics.sim
+run general/cache/restart_stream.sim
+run general/cache/new_metrics.sim
+run general/cache/new_stream.sim

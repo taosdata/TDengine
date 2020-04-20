@@ -1,9 +1,9 @@
-run cluster/vnode/replica2_basic2.sim
-run cluster/vnode/replica2_basic.sim
-run cluster/vnode/replica2_repeat.sim
-run cluster/vnode/replica3_basic.sim
-run cluster/vnode/replica3_repeat.sim
-run cluster/vnode/commit.sim
-run cluster/vnode/many.sim
+run unique/vnode/replica2_basic2.sim
+run unique/vnode/replica2_basic.sim
+run unique/vnode/replica2_repeat.sim
+run unique/vnode/replica3_basic.sim
+run unique/vnode/replica3_repeat.sim
+run unique/vnode/commit.sim
+run unique/vnode/many.sim
 
 

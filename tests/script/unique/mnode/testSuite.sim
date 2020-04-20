@@ -1,13 +1,13 @@
-run cluster/mnode/mgmt22.sim
-run cluster/mnode/mgmt23.sim
-run cluster/mnode/mgmt24.sim
-run cluster/mnode/mgmt25.sim
-run cluster/mnode/mgmt26.sim
-run cluster/mnode/mgmt33.sim
-run cluster/mnode/mgmt34.sim
-run cluster/mnode/mgmtr1.sim
-run cluster/mnode/mgmtr2.sim
-run cluster/mnode/drop.sim
-run cluster/mnode/reuse.sim
-run cluster/mnode/secondIp.sim
+run unique/mnode/mgmt22.sim
+run unique/mnode/mgmt23.sim
+run unique/mnode/mgmt24.sim
+run unique/mnode/mgmt25.sim
+run unique/mnode/mgmt26.sim
+run unique/mnode/mgmt33.sim
+run unique/mnode/mgmt34.sim
+run unique/mnode/mgmtr1.sim
+run unique/mnode/mgmtr2.sim
+run unique/mnode/drop.sim
+run unique/mnode/reuse.sim
+run unique/mnode/secondIp.sim
 

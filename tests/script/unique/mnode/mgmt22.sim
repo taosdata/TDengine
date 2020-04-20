@@ -17,7 +17,7 @@ system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode3 -c secondIp -v 192.168.0.2
 
 print ============== step1
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
@@ -29,7 +29,7 @@ if $data3_192.168.0.1 != master then
 endi
 
 print ============== step2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sql create dnode 192.168.0.2
 
 $x = 0
@@ -57,7 +57,7 @@ sql drop dnode 192.168.0.1 -x error1
 error1:
 
 print ============== step4
-system sh/exec.sh -n dnode1 -s stop
+system sh/exec_up.sh -n dnode1 -s stop
 sleep 8000
 
 $x = 0
@@ -105,7 +105,7 @@ system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.1
 
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql create dnode 192.168.0.1
 sleep 5000
 
@@ -128,7 +128,7 @@ if $data3_192.168.0.2 != master then
 endi
 
 print ============== step7
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sql create dnode 192.168.0.3
 sleep 5000
 

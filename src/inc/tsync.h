@@ -104,10 +104,10 @@ extern  char *syncRole[];
 extern  int   tsMaxSyncNum;
 extern  int   tsSyncTcpThreads;
 extern  int   tsMaxWatchFiles;
-extern  short tsSyncPort;
 extern  int   tsSyncTimer;
 extern  int   tsMaxFwdInfo; 
 extern  int   sDebugFlag;
+extern  uint16_t tsSyncPort;
 
 #ifdef __cplusplus
 }

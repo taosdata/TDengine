@@ -1,1 +1,1 @@
-run cluster/table/delete_part.sim
+run unique/table/delete_part.sim

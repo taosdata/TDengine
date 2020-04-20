@@ -1,12 +1,12 @@
-run lite/vector/single.sim
-run lite/vector/multi.sim
-run lite/vector/table_query.sim
-run lite/vector/table_time.sim
-run lite/vector/table_field.sim
-run lite/vector/table_mix.sim
-run lite/vector/metrics_query.sim
-run lite/vector/metrics_tag.sim
-run lite/vector/metrics_time.sim
-run lite/vector/metrics_field.sim
-run lite/vector/metrics_mix.sim
+run general/vector/single.sim
+run general/vector/multi.sim
+run general/vector/table_query.sim
+run general/vector/table_time.sim
+run general/vector/table_field.sim
+run general/vector/table_mix.sim
+run general/vector/metrics_query.sim
+run general/vector/metrics_tag.sim
+run general/vector/metrics_time.sim
+run general/vector/metrics_field.sim
+run general/vector/metrics_mix.sim
 

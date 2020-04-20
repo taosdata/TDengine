@@ -1,2 +1,2 @@
-run lite/agg/fill.sim
-run lite/agg/stream.sim
+run general/agg/fill.sim
+run general/agg/stream.sim
