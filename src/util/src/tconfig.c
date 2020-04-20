@@ -184,6 +184,7 @@ static void taosReadLogOption(char *option, char *value) {
 }
 
 SGlobalCfg *taosGetConfigOption(const char *option) {
+  taosInitGlobalCfg();
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (strcasecmp(cfg->option, option) != 0) continue;
