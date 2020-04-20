@@ -43,7 +43,7 @@ void  dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code);
 
 bool  dnodeIsFirstDeploy();
 uint32_t dnodeGetMnodeMasteIp();
-void *   dnodeGetMnodeList();
+void *   dnodeGetMnodeInfos();
 int32_t  dnodeGetDnodeId();
 
 #ifdef __cplusplus

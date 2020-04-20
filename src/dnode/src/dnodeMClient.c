@@ -34,26 +34,28 @@
 
 #define MPEER_CONTENT_LEN 2000
 
-static bool   dnodeReadMnodeIpList();
-static void   dnodeSaveMnodeIpList();
-static void   dnodeReadDnodeInfo();
-static void   dnodeUpdateDnodeInfo(int32_t dnodeId);
+static void   dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes);
+static bool   dnodeReadMnodeInfos();
+static void   dnodeSaveMnodeInfos();
+static void   dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg);
+static bool   dnodeReadDnodeCfg();
+static void   dnodeSaveDnodeCfg();
 static void   dnodeProcessRspFromMnode(SRpcMsg *pMsg);
 static void   dnodeProcessStatusRsp(SRpcMsg *pMsg);
 static void   dnodeSendStatusMsg(void *handle, void *tmrId);
 static void (*tsDnodeProcessMgmtRspFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 
-static void  *tsDnodeMClientRpc = NULL;
-static SRpcIpSet    tsMnodeIpList  = {0};
-static SDMNodeInfos tsMnodeInfos = {0};
+static void    *tsDnodeMClientRpc = NULL;
 static void    *tsDnodeTmr = NULL;
 static void    *tsStatusTimer = NULL;
 static uint32_t tsRebootTime;
-static int32_t  tsDnodeId = 0;
-static char     tsDnodeName[TSDB_NODE_NAME_LEN];
+
+static SRpcIpSet     tsMnodeIpSet  = {0};
+static SDMMnodeInfos tsMnodeInfos = {0};
+static SDMDnodeCfg   tsDnodeCfg = {0};
 
 int32_t dnodeInitMClient() {
-  dnodeReadDnodeInfo();
+  dnodeReadDnodeCfg();
   tsRebootTime = taosGetTimestampSec();
 
   tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
@@ -62,22 +64,22 @@ int32_t dnodeInitMClient() {
     return -1;
   }
   
-  if (!dnodeReadMnodeIpList()) {
-    memset(&tsMnodeIpList, 0, sizeof(SRpcIpSet));
-    memset(&tsMnodeInfos, 0, sizeof(SDMNodeInfos));
-    tsMnodeIpList.port = tsMnodeDnodePort;
-    tsMnodeIpList.numOfIps = 1;
-    tsMnodeIpList.ip[0] = inet_addr(tsMasterIp);
+  if (!dnodeReadMnodeInfos()) {
+    memset(&tsMnodeIpSet, 0, sizeof(SRpcIpSet));
+    memset(&tsMnodeInfos, 0, sizeof(SDMMnodeInfos));
+    tsMnodeIpSet.port = tsMnodeDnodePort;
+    tsMnodeIpSet.numOfIps = 1;
+    tsMnodeIpSet.ip[0] = inet_addr(tsMasterIp);
     if (strcmp(tsSecondIp, tsMasterIp) != 0) {
-      tsMnodeIpList.numOfIps = 2;
-      tsMnodeIpList.ip[1] = inet_addr(tsSecondIp);
+      tsMnodeIpSet.numOfIps = 2;
+      tsMnodeIpSet.ip[1] = inet_addr(tsSecondIp);
     }
   } else {
-    tsMnodeIpList.inUse = tsMnodeInfos.inUse;
-    tsMnodeIpList.numOfIps = tsMnodeInfos.nodeNum;
-    tsMnodeIpList.port = tsMnodeInfos.nodeInfos[0].nodePort;
+    tsMnodeIpSet.inUse = tsMnodeInfos.inUse;
+    tsMnodeIpSet.numOfIps = tsMnodeInfos.nodeNum;
+    tsMnodeIpSet.port = tsMnodeInfos.nodeInfos[0].nodePort;
     for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
-      tsMnodeIpList.ip[i] = tsMnodeInfos.nodeInfos[i].nodeIp;
+      tsMnodeIpSet.ip[i] = tsMnodeInfos.nodeInfos[i].nodeIp;
     }
   }
 
@@ -144,58 +146,68 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   }
 
   SDMStatusRsp *pStatusRsp = pMsg->pCont;
-  SDMNodeInfos *mnodes = &pStatusRsp->mnodes;
-  if (mnodes->nodeNum <= 0) {
-    dError("status msg is invalid, num of ips is %d", mnodes->nodeNum);
+  SDMMnodeInfos *pMnodes = &pStatusRsp->mnodes;
+  if (pMnodes->nodeNum <= 0) {
+    dError("status msg is invalid, num of ips is %d", pMnodes->nodeNum);
     taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     return;
   }
 
-  SDnodeState *pState  = &pStatusRsp->dnodeState;
-  pState->numOfVnodes  = htonl(pState->numOfVnodes);
-  pState->moduleStatus = htonl(pState->moduleStatus);
-  pState->createdTime  = htonl(pState->createdTime);
-  pState->dnodeId      = htonl(pState->dnodeId);
+  SDMDnodeCfg *pCfg = &pStatusRsp->dnodeCfg;
+  pCfg->numOfVnodes  = htonl(pCfg->numOfVnodes);
+  pCfg->moduleStatus = htonl(pCfg->moduleStatus);
+  pCfg->dnodeId      = htonl(pCfg->dnodeId);
+
+  for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
+    SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
+    pMnodeInfo->nodeId   = htonl(pMnodeInfo->nodeId);
+    pMnodeInfo->nodeIp   = htonl(pMnodeInfo->nodeIp);
+    pMnodeInfo->nodePort = htons(pMnodeInfo->nodePort);
+    pMnodeInfo->syncPort = htons(pMnodeInfo->syncPort);
+  }
+
+  SDMVgroupAccess *pVgAcccess = pStatusRsp->vgAccess;
+  for (int32_t i = 0; i < pCfg->numOfVnodes; ++i) {
+    pVgAcccess[i].vgId = htonl(pVgAcccess[i].vgId);
+  }
   
-  dnodeProcessModuleStatus(pState->moduleStatus);
-  dnodeUpdateDnodeInfo(pState->dnodeId);
-
-  SRpcIpSet mgmtIpSet = {0};
-  mgmtIpSet.inUse = mnodes->inUse;
-  mgmtIpSet.numOfIps = mnodes->nodeNum;
-  mgmtIpSet.port = htons(mnodes->nodeInfos[0].nodePort);
-  for (int32_t i = 0; i < mnodes->nodeNum; i++) {
-    mgmtIpSet.ip[i] = htonl(mnodes->nodeInfos[i].nodeIp);
-  }
-
-  if (memcmp(&mgmtIpSet, &tsMnodeIpList, sizeof(SRpcIpSet)) != 0 || tsMnodeInfos.nodeNum == 0) {
-    memcpy(&tsMnodeIpList, &mgmtIpSet, sizeof(SRpcIpSet));  
-    tsMnodeInfos.inUse = mnodes->inUse;
-    tsMnodeInfos.nodeNum = mnodes->nodeNum;
-    dPrint("mnode ip list is changed, numOfIps:%d inUse:%d", tsMnodeInfos.nodeNum, tsMnodeInfos.inUse);
-    for (int32_t i = 0; i < mnodes->nodeNum; i++) {
-      tsMnodeInfos.nodeInfos[i].nodeId = htonl(mnodes->nodeInfos[i].nodeId);
-      tsMnodeInfos.nodeInfos[i].nodeIp = htonl(mnodes->nodeInfos[i].nodeIp);
-      tsMnodeInfos.nodeInfos[i].nodePort = htons(mnodes->nodeInfos[i].nodePort);
-      strcpy(tsMnodeInfos.nodeInfos[i].nodeName, mnodes->nodeInfos[i].nodeName);
-      dPrint("mnode:%d, ip:%s:%u name:%s", tsMnodeInfos.nodeInfos[i].nodeId,
-             taosIpStr(tsMnodeInfos.nodeInfos[i].nodeIp), tsMnodeInfos.nodeInfos[i].nodePort,
-             tsMnodeInfos.nodeInfos[i].nodeName);
-    }
-    dnodeSaveMnodeIpList();
-    sdbUpdateSync();
-  }
-
+  dnodeProcessModuleStatus(pCfg->moduleStatus);
+  dnodeUpdateDnodeCfg(pCfg);
+  dnodeUpdateMnodeInfos(pMnodes);
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
+}
+
+static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
+  bool mnodesChanged = (memcmp(&tsMnodeInfos, pMnodes, sizeof(SDMMnodeInfos)) != 0);
+  bool mnodesNotInit = (tsMnodeInfos.nodeNum == 0);
+  if (!(mnodesChanged || mnodesNotInit)) return;
+
+  memcpy(&tsMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
+
+  tsMnodeIpSet.inUse = tsMnodeInfos.inUse;
+  tsMnodeIpSet.numOfIps = tsMnodeInfos.nodeNum;
+  tsMnodeIpSet.port = tsMnodeInfos.nodeInfos[0].nodePort;
+  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
+    tsMnodeIpSet.ip[i] = tsMnodeInfos.nodeInfos[i].nodeIp;
+  }
+
+  dPrint("mnodes is changed, nodeNum:%d inUse:%d", tsMnodeInfos.nodeNum, tsMnodeInfos.inUse);
+  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
+    dPrint("mnode:%d, ip:%s:%u name:%s", tsMnodeInfos.nodeInfos[i].nodeId, taosIpStr(tsMnodeInfos.nodeInfos[i].nodeIp),
+           tsMnodeInfos.nodeInfos[i].nodePort, tsMnodeInfos.nodeInfos[i].nodeName);
+  }
+
+  dnodeSaveMnodeInfos();
+  sdbUpdateSync();
 }
 
 void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
   if (tsDnodeMClientRpc) {
-    rpcSendRequest(tsDnodeMClientRpc, &tsMnodeIpList, rpcMsg);
+    rpcSendRequest(tsDnodeMClientRpc, &tsMnodeIpSet, rpcMsg);
   }
 }
 
-static bool dnodeReadMnodeIpList() {
+static bool dnodeReadMnodeInfos() {
   char ipFile[TSDB_FILENAME_LEN] = {0};
   sprintf(ipFile, "%s/mgmtIpList.json", tsDnodeDir);
   FILE *fp = fopen(ipFile, "r");
@@ -272,6 +284,13 @@ static bool dnodeReadMnodeIpList() {
     }
     tsMnodeInfos.nodeInfos[i].nodePort = (uint16_t)nodePort->valueint;
 
+    cJSON *syncPort = cJSON_GetObjectItem(nodeInfo, "syncPort");
+    if (!syncPort || syncPort->type != cJSON_Number) {
+      dError("failed to read mnode mgmtIpList.json, syncPort not found");
+      goto PARSE_OVER;
+    }
+    tsMnodeInfos.nodeInfos[i].syncPort = (uint16_t)syncPort->valueint;
+
     cJSON *nodeName = cJSON_GetObjectItem(nodeInfo, "nodeName");
     if (!nodeIp || nodeName->type != cJSON_String || nodeName->valuestring == NULL) {
       dError("failed to read mnode mgmtIpList.json, nodeName not found");
@@ -296,7 +315,7 @@ PARSE_OVER:
   return ret;
 }
 
-static void dnodeSaveMnodeIpList() {
+static void dnodeSaveMnodeInfos() {
   char ipFile[TSDB_FILENAME_LEN] = {0};
   sprintf(ipFile, "%s/mgmtIpList.json", tsDnodeDir);
   FILE *fp = fopen(ipFile, "w");
@@ -314,6 +333,7 @@ static void dnodeSaveMnodeIpList() {
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", tsMnodeInfos.nodeInfos[i].nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeIp\": \"%s\",\n", taosIpStr(tsMnodeInfos.nodeInfos[i].nodeIp));
     len += snprintf(content + len, maxLen - len, "    \"nodePort\": %u,\n", tsMnodeInfos.nodeInfos[i].nodePort);
+    len += snprintf(content + len, maxLen - len, "    \"syncPort\": %u,\n", tsMnodeInfos.nodeInfos[i].syncPort);
     len += snprintf(content + len, maxLen - len, "    \"nodeName\": \"%s\"\n",  tsMnodeInfos.nodeInfos[i].nodeName);
     if (i < tsMnodeInfos.nodeNum -1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");  
@@ -331,10 +351,10 @@ static void dnodeSaveMnodeIpList() {
 }
 
 uint32_t dnodeGetMnodeMasteIp() {
-  return tsMnodeIpList.ip[tsMnodeIpList.inUse];
+  return tsMnodeIpSet.ip[tsMnodeIpSet.inUse];
 }
 
-void* dnodeGetMnodeList() {
+void* dnodeGetMnodeInfos() {
   return &tsMnodeInfos;
 }
 
@@ -358,9 +378,9 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     return;
   }
 
-  strcpy(pStatus->dnodeName, tsDnodeName);
+  //strcpy(pStatus->dnodeName, tsDnodeName);
   pStatus->version          = htonl(tsVersion);
-  pStatus->dnodeId          = htonl(tsDnodeId);
+  pStatus->dnodeId          = htonl(tsDnodeCfg.dnodeId);
   pStatus->privateIp        = htonl(inet_addr(tsPrivateIp));
   pStatus->publicIp         = htonl(inet_addr(tsPublicIp));
   pStatus->lastReboot       = htonl(tsRebootTime);
@@ -368,7 +388,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
-
+  
   vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
   pStatus->openVnodes = htons(pStatus->openVnodes);
@@ -382,47 +402,81 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   dnodeSendMsgToMnode(&rpcMsg);
 }
 
-static void dnodeReadDnodeInfo() {
-  char dnodeIdFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(dnodeIdFile, "%s/dnodeId", tsDnodeDir);
+static bool dnodeReadDnodeCfg() {
+  char dnodeCfgFile[TSDB_FILENAME_LEN] = {0};
+  sprintf(dnodeCfgFile, "%s/dnodeCfg.json", tsDnodeDir);
 
-  FILE *fp = fopen(dnodeIdFile, "r");
-  if (!fp) return;
-  
-  char option[32] = {0};
-  int32_t value = 0;
-  int32_t num = 0;
-  
-  num = fscanf(fp, "%s %d", option, &value);
-  if (num != 2) return;
-  if (strcmp(option, "dnodeId") != 0) return;
-  tsDnodeId = value;;
+  FILE *fp = fopen(dnodeCfgFile, "r");
+  if (!fp) {
+    dTrace("failed to read dnodeCfg.json, file not exist");
+    return false;
+  }
 
+  bool  ret = false;
+  int   maxLen = 100;
+  char *content = calloc(1, maxLen + 1);
+  int   len = fread(content, 1, maxLen, fp);
+  if (len <= 0) {
+    free(content);
+    fclose(fp);
+    dError("failed to read dnodeCfg.json, content is null");
+    return false;
+  }
+
+  cJSON* root = cJSON_Parse(content);
+  if (root == NULL) {
+    dError("failed to read dnodeCfg.json, invalid json format");
+    goto PARSE_CFG_OVER;
+  }
+
+  cJSON* dnodeId = cJSON_GetObjectItem(root, "dnodeId");
+  if (!dnodeId || dnodeId->type != cJSON_Number) {
+    dError("failed to read dnodeCfg.json, dnodeId not found");
+    goto PARSE_CFG_OVER;
+  }
+  tsDnodeCfg.dnodeId = dnodeId->valueint;
+
+  ret = true;
+
+  dPrint("read numOfVnodes successed, dnodeId:%d", tsDnodeCfg.dnodeId);
+
+PARSE_CFG_OVER:
+  free(content);
+  cJSON_Delete(root);
   fclose(fp);
-  dPrint("read dnodeId:%d successed", tsDnodeId);
+  return ret;
 }
 
-static void dnodeSaveDnodeInfo() {
-  char dnodeIdFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(dnodeIdFile, "%s/dnodeId", tsDnodeDir);
+static void dnodeSaveDnodeCfg() {
+  char dnodeCfgFile[TSDB_FILENAME_LEN] = {0};
+  sprintf(dnodeCfgFile, "%s/dnodeCfg.json", tsDnodeDir);
 
-  FILE *fp = fopen(dnodeIdFile, "w");
+  FILE *fp = fopen(dnodeCfgFile, "w");
   if (!fp) return;
 
-  fprintf(fp, "dnodeId %d\n", tsDnodeId);
+  int32_t len = 0;
+  int32_t maxLen = 100;
+  char *  content = calloc(1, maxLen + 1);
 
+  len += snprintf(content + len, maxLen - len, "{\n");
+  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d\n", tsDnodeCfg.dnodeId);
+  len += snprintf(content + len, maxLen - len, "}\n"); 
+
+  fwrite(content, 1, len, fp);
   fclose(fp);
+  free(content);
+  
   dPrint("save dnodeId successed");
 }
 
-void dnodeUpdateDnodeInfo(int32_t dnodeId) {
-  if (tsDnodeId == 0) {
-    dPrint("dnodeId is set to %d", dnodeId);  
-    tsDnodeId = dnodeId;
-    dnodeSaveDnodeInfo();
+void dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg) {
+  if (tsDnodeCfg.dnodeId == 0) {
+    dPrint("dnodeId is set to %d", pCfg->dnodeId);  
+    tsDnodeCfg.dnodeId = pCfg->dnodeId;
+    dnodeSaveDnodeCfg();
   }
 }
 
 int32_t dnodeGetDnodeId() {
-  return tsDnodeId;
+  return tsDnodeCfg.dnodeId;
 }

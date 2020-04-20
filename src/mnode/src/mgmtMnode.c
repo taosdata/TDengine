@@ -195,8 +195,8 @@ void mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp) {
   }
 }
 
-void mgmtGetMnodeList(void *param) {
-  SDMNodeInfos *mnodes = param;
+void mgmtGetMnodeInfos(void *param) {
+  SDMMnodeInfos *mnodes = param;
   mnodes->inUse = 0;
   
   int32_t index = 0;
@@ -209,6 +209,7 @@ void mgmtGetMnodeList(void *param) {
     mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
     mnodes->nodeInfos[index].nodeIp = htonl(pMnode->pDnode->privateIp);
     mnodes->nodeInfos[index].nodePort = htons(pMnode->pDnode->mnodeDnodePort);
+    mnodes->nodeInfos[index].syncPort = htons(pMnode->pDnode->syncPort);
     strcpy(mnodes->nodeInfos[index].nodeName, pMnode->pDnode->dnodeName);
     if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
       mnodes->inUse = index;
