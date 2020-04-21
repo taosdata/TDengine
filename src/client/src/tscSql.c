@@ -321,6 +321,9 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  if(NULL == pQueryInfo) {
+    return NULL;  
+  }
   return pQueryInfo->fieldsInfo.pFields;
 }
 
