@@ -126,8 +126,8 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
 }
 
-TEST(TsdbTest, DISABLED_createRepo) {
-// TEST(TsdbTest, createRepo) {
+// TEST(TsdbTest, DISABLED_createRepo) {
+TEST(TsdbTest, createRepo) {
   STsdbCfg config;
   STsdbRepo *repo;
 
@@ -142,6 +142,7 @@ TEST(TsdbTest, DISABLED_createRepo) {
   STableCfg tCfg;
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_SUPER_TABLE, 987607499877672L, 0), -1);
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NORMAL_TABLE, 987607499877672L, 0), 0);
+  tsdbTableSetName(&tCfg, "test", false);
 
   int       nCols = 5;
   STSchema *schema = tdNewSchema(nCols);
@@ -293,7 +294,8 @@ static void insertSkipList(bool isAscend) {
   tSkipListDestroy(pList);
 }
 
-TEST(TsdbTest, testSkipList) {
+TEST(TsdbTest, DISABLED_testSkipList) {
+// TEST(TsdbTest, testSkipList) {
   double stime = getCurTime();
   insertSkipList(true);
   double etime = getCurTime();
