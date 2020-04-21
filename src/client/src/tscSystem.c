@@ -47,6 +47,7 @@ int tscNumOfThreads;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
+void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet);
 
 void tscCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
@@ -65,6 +66,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.label = "TSC-vnode";
     rpcInit.numOfThreads = tscNumOfThreads;
     rpcInit.cfp = tscProcessMsgFromServer;
+    rpcInit.ufp = tscUpdateIpSet;
     rpcInit.sessions = tsMaxVnodeConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char*)user;

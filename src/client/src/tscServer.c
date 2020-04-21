@@ -68,11 +68,11 @@ void tscPrintMgmtIp() {
 }
 
 void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
-  tscMgmtIpList.numOfIps = htons(pIpList->numOfIps);
-  tscMgmtIpList.inUse = htons(pIpList->inUse);
+  tscMgmtIpList.numOfIps = pIpList->numOfIps;
+  tscMgmtIpList.inUse = pIpList->inUse;
   tscMgmtIpList.port = htons(pIpList->port);
-  for (int32_t i = 0; i <tscMgmtIpList.numOfIps; ++i) {
-    tscMgmtIpList.ip[i] = pIpList->ip[i];
+  for (int32_t i = 0; i < tscMgmtIpList.numOfIps; ++i) {
+    tscMgmtIpList.ip[i] = htonl(pIpList->ip[i]);
   }
 }
 
@@ -85,6 +85,11 @@ void tscSetMgmtIpListFromEdge() {
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
   }
+}
+
+void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
+  tscTrace("mgmt IP list is changed for ufp is called");
+  tscSetMgmtIpListFromCluster(pIpSet);
 }
 
 void tscSetMgmtIpList(SRpcIpSet *pIpList) {
@@ -2224,10 +2229,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= tListLen(pObj->db));
   strncpy(pObj->db, temp, tListLen(pObj->db));
   
-//  SIpList *    pIpList;
-//  char *rsp = pRes->pRsp + sizeof(SCMConnectRsp);
-//  pIpList = (SIpList *)rsp;
-//  tscSetMgmtIpList(pIpList);
+  tscSetMgmtIpList(&pConnect->ipList);
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
