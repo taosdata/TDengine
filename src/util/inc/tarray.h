@@ -53,7 +53,7 @@ void* taosArrayPush(SArray* pArray, void* pData);
  *
  * @param pArray
  */
-void taosArrayPop(SArray* pArray);
+void* taosArrayPop(SArray* pArray);
 
 /**
  * get the data from array
@@ -111,6 +111,21 @@ SArray* taosArrayClone(SArray* pSrc);
  * @param pArray
  */
 void taosArrayDestroy(SArray* pArray);
+
+/**
+ * sort the array
+ * @param pArray
+ * @param compar
+ */
+void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*));
+
+/**
+ * search the array
+ * @param pArray
+ * @param compar
+ * @param key
+ */
+void* taosArraySearch(SArray* pArray, int (*compar)(const void*, const void*), const void* key);
 
 #ifdef __cplusplus
 }

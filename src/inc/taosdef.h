@@ -141,16 +141,17 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_RELATION_GREATER_EQUAL 5
 #define TSDB_RELATION_NOT_EQUAL   6
 #define TSDB_RELATION_LIKE        7
+#define TSDB_RELATION_IN          8
 
-#define TSDB_RELATION_AND         8
-#define TSDB_RELATION_OR          9
-#define TSDB_RELATION_NOT         10
+#define TSDB_RELATION_AND         9
+#define TSDB_RELATION_OR          10
+#define TSDB_RELATION_NOT         11
 
-#define TSDB_BINARY_OP_ADD        11
-#define TSDB_BINARY_OP_SUBTRACT   12
-#define TSDB_BINARY_OP_MULTIPLY   13
-#define TSDB_BINARY_OP_DIVIDE     14
-#define TSDB_BINARY_OP_REMAINDER  15
+#define TSDB_BINARY_OP_ADD        12
+#define TSDB_BINARY_OP_SUBTRACT   13
+#define TSDB_BINARY_OP_MULTIPLY   14
+#define TSDB_BINARY_OP_DIVIDE     15
+#define TSDB_BINARY_OP_REMAINDER  16
 #define TSDB_USERID_LEN           9
 #define TS_PATH_DELIMITER_LEN     1
 

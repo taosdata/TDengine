@@ -460,6 +460,9 @@ void tExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     free((*pExpr)->pVal);
   } else if ((*pExpr)->nodeType == TSQL_NODE_COL) {
     free((*pExpr)->pSchema);
+  } else if ((*pExpr)->nodeType == TSQL_NODE_ARRAY) {
+    // BUGBUG: memory leak, need free elements in the array
+    taosArrayDestroy((*pExpr)->array);
   }
 
   free(*pExpr);
@@ -619,6 +622,8 @@ static void tQueryOnSkipList(SSkipList* pSkipList, SQueryCond* pCond, int32_t ty
 //
 //  DEFAULT_COMP(p1, p2);
 //}
+
+// develop_old mgmtSTableQuery for merge & intersect
 
 int32_t merge(SArray *pLeft, SArray *pRight, SArray *pFinalRes) {
 //  assert(pFinalRes->pRes == 0);
@@ -858,7 +863,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
       tExprTreeTraverse(pSecond, NULL, result, param);
     }
   } else {  // column project
-    assert(pLeft->nodeType == TSQL_NODE_COL && pRight->nodeType == TSQL_NODE_VALUE);
+    assert(pLeft->nodeType == TSQL_NODE_COL && (pRight->nodeType == TSQL_NODE_VALUE || pRight->nodeType == TSQL_NODE_ARRAY));
 
     param->setupInfoFn(pExpr, param->pExtInfo);
     if (pSkipList == NULL) {
@@ -1032,49 +1037,141 @@ SBuffer exprTreeToBinary(tExprNode* pExprTree) {
   return buf;
 }
 
-static void exprTreeFromBinaryImpl(tExprNode** pExprTree, SBuffer* pBuf) {
+static tExprNode* exprTreeFromBinaryImpl(SBuffer* pBuf) {
   tExprNode* pExpr = calloc(1, sizeof(tExprNode));
-  tbufReadToBuffer(pBuf, &pExpr->nodeType, sizeof(pExpr->nodeType));
+  pExpr->nodeType = tbufReadUint8(pBuf);
   
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
     tVariant* pVal = calloc(1, sizeof(tVariant));
+    if (pVal == NULL) {
+      // TODO:
+    }
+    pExpr->pVal = pVal;
   
-    tbufReadToBuffer(pBuf, &pVal->nType, sizeof(pVal->nType));
+    pVal->nType = tbufReadUint32(pBuf);
     if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
       tbufReadToBuffer(pBuf, &pVal->nLen, sizeof(pVal->nLen));
       pVal->pz = calloc(1, pVal->nLen + 1);
       tbufReadToBuffer(pBuf, pVal->pz, pVal->nLen);
     } else {
-      tbufReadToBuffer(pBuf, &pVal->pz, sizeof(pVal->i64Key));
+      pVal->i64Key = tbufReadInt64(pBuf);
     }
     
-    pExpr->pVal = pVal;
   } else if (pExpr->nodeType == TSQL_NODE_COL) {
     SSchema* pSchema = calloc(1, sizeof(SSchema));
-    tbufReadToBuffer(pBuf, &pSchema->colId, sizeof(pSchema->colId));
-    tbufReadToBuffer(pBuf, &pSchema->bytes, sizeof(pSchema->bytes));
-    tbufReadToBuffer(pBuf, &pSchema->type, sizeof(pSchema->type));
-    
+    if (pSchema == NULL) {
+      // TODO:
+    }
+    pExpr->pSchema = pSchema;
+
+    pSchema->colId = tbufReadInt16(pBuf);
+    pSchema->bytes = tbufReadInt16(pBuf);
+    pSchema->type = tbufReadUint8(pBuf);
     tbufReadToString(pBuf, pSchema->name, TSDB_COL_NAME_LEN);
     
-    pExpr->pSchema = pSchema;
   } else if (pExpr->nodeType == TSQL_NODE_EXPR) {
-    tbufReadToBuffer(pBuf, &pExpr->_node.optr, sizeof(pExpr->_node.optr));
-    tbufReadToBuffer(pBuf, &pExpr->_node.hasPK, sizeof(pExpr->_node.hasPK));
-  
-    exprTreeFromBinaryImpl(&pExpr->_node.pLeft, pBuf);
-    exprTreeFromBinaryImpl(&pExpr->_node.pRight, pBuf);
+    pExpr->_node.optr = tbufReadUint8(pBuf);
+    pExpr->_node.hasPK = tbufReadUint8(pBuf);
+    pExpr->_node.pLeft = exprTreeFromBinaryImpl(pBuf);
+    pExpr->_node.pRight = exprTreeFromBinaryImpl(pBuf);
     
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
   }
   
-  *pExprTree = pExpr;
+  return pExpr;
 }
 
-int32_t exprTreeFromBinary(const void* pBuf, size_t size, tExprNode** pExprNode) {
+tExprNode* exprTreeFromBinary(const void* pBuf, size_t size) {
+  if (size == 0) {
+    return NULL;
+  }
   SBuffer rbuf = {0};
-  /*int32_t code =*/ tbufBeginRead(&rbuf, pBuf, size);
-  exprTreeFromBinaryImpl(pExprNode, &rbuf);
-  return TSDB_CODE_SUCCESS;
+  tbufBeginRead(&rbuf, pBuf, size);
+  return exprTreeFromBinaryImpl(&rbuf);
 }
 
+static int cmpStrInArray(const void* a, const void* b) {
+  const char* x = *(const char**)a;
+  const char* y = *(const char**)b;
+  return strcmp(x, y);
+}
+
+tExprNode* exprTreeFromTableName(const char* tbnameCond) {
+  if (!tbnameCond) {
+    return NULL;
+  }
+
+  tExprNode* expr = calloc(1, sizeof(tExprNode));
+  if (expr == NULL) {
+    // TODO:
+  }
+  expr->nodeType = TSQL_NODE_EXPR;
+
+  tExprNode* left = calloc(1, sizeof(tExprNode));
+  if (left == NULL) {
+    // TODO:
+  }
+  expr->_node.pLeft = left;
+
+  left->nodeType = TSQL_NODE_COL;
+  SSchema* pSchema = calloc(1, sizeof(SSchema));
+  if (pSchema == NULL) {
+    // TODO:
+  }
+  left->pSchema = pSchema;
+
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  pSchema->bytes = TSDB_TABLE_NAME_LEN;
+  strcpy(pSchema->name, TSQL_TBNAME_L);
+  pSchema->colId = -1;
+
+  tExprNode* right = calloc(1, sizeof(tExprNode));
+  if (right == NULL) {
+    // TODO
+  }
+  expr->_node.pRight = right;
+
+  if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
+    expr->_node.optr = TSDB_RELATION_LIKE;
+    tVariant* pVal = calloc(1, sizeof(tVariant));
+    if (pVal == NULL) {
+      // TODO:
+    }
+    right->pVal = pVal;
+    pVal->nType = TSDB_DATA_TYPE_BINARY;
+    size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN) + 1;
+    pVal->pz = malloc(len);
+    if (pVal->pz == NULL) {
+      // TODO:
+    }
+    memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN, len);
+
+  } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
+    expr->_node.optr = TSDB_RELATION_IN;
+    right->array = taosArrayInit(2, sizeof(char*));
+
+    const char* cond = tbnameCond + QUERY_COND_REL_PREFIX_IN_LEN;
+    for (const char *e = cond; *e != 0; e++) {
+      if (*e == ',') {
+        size_t len = e - cond + 1;
+        char* p = malloc( len );
+        memcpy(p, cond, len);
+        p[len - 1] = 0;
+        cond += len;
+        taosArrayPush(right->array, &p);
+      }
+    }
+
+    if (*cond != 0) {
+        size_t len = strlen(cond) + 1;
+        char* p = malloc( len );
+        memcpy(p, cond, len);
+        p[len - 1] = 0;
+        taosArrayPush(right->array, &p);
+    }
+
+    taosArraySort(right->array, cmpStrInArray);
+  }
+
+  return expr;
+}

@@ -1327,12 +1327,9 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   }
   
   if (numOfOrderCols == 0 || size == 1) { // no group by tags clause or only one table
-    size_t num = taosArrayGetSize(pTableList);
-    
-    SArray* sa = taosArrayInit(num, sizeof(SPair));
-    for(int32_t i = 0; i < num; ++i) {
+    SArray* sa = taosArrayInit(size, sizeof(SPair));
+    for(int32_t i = 0; i < size; ++i) {
       STable* pTable = taosArrayGetP(pTableList, i);
-      
       SPair p = {.first = pTable};
       taosArrayPush(sa, &p);
     }
@@ -1393,12 +1390,16 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
     case TSDB_RELATION_LIKE: {
       return ret == 0;
     }
+    case TSDB_RELATION_IN: {
+
+    }
 
     default:
       assert(false);
   }
   return true;
 }
+
 
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr) {
   // query according to the binary expression
@@ -1422,12 +1423,22 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr)
   tExprTreeDestroy(&pExpr, destroyHelper);
 
   convertQueryResult(pRes, pTableList);
+  taosArrayDestroy(pTableList);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbQueryByTagsCond(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, size_t len, STableGroupInfo* pGroupInfo,
-    SColIndex* pColIndex, int32_t numOfCols) {
-  
+
+int32_t tsdbQueryByTagsCond(
+  TsdbRepoT *tsdb,
+  int64_t uid,
+  const char *pTagCond,
+  size_t len,
+  int16_t tagNameRelType,
+  const char* tbnameCond,
+  STableGroupInfo *pGroupList,
+  SColIndex *pColIndex,
+  int32_t numOfCols
+) {
   STable* pSTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pSTable == NULL) {
     uError("failed to get stable, uid:%" PRIu64, uid);
@@ -1437,11 +1448,12 @@ int32_t tsdbQueryByTagsCond(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, 
   SArray* res = taosArrayInit(8, POINTER_BYTES);
   STSchema* pTagSchema = tsdbGetTableTagSchema(tsdbGetMeta(tsdb), pSTable);
   
-  if (pTagCond == NULL || len == 0) {  // no tags condition, all tables created according to this stable are involved
+  // no tags and tbname condition, all child tables of this stable are involved
+  if (tbnameCond == NULL && (pTagCond == NULL || len == 0)) {
     int32_t ret = getAllTableIdList(tsdb, uid, res);
-    if (ret != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(res);
-      return ret;
+    if (ret == TSDB_CODE_SUCCESS) {
+      pGroupList->numOfTables = taosArrayGetSize(res);
+      pGroupList->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
     }
   
     pGroupInfo->numOfTables = taosArrayGetSize(res);
@@ -1450,20 +1462,24 @@ int32_t tsdbQueryByTagsCond(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, 
     return ret;
   }
 
-  tExprNode* pExprNode = NULL;
-  int32_t    ret = TSDB_CODE_SUCCESS;
-
-  // failed to build expression, no result, return immediately
-  if ((ret = exprTreeFromBinary(pTagCond, len, &pExprNode) != TSDB_CODE_SUCCESS) || (pExprNode == NULL)) {
-    uError("stable:%" PRIu64 ", failed to deserialize expression tree, error exists", uid);
-    taosArrayDestroy(res);
-    return ret;
+  tExprNode* expr = exprTreeFromTableName(tbnameCond);
+  tExprNode* tagExpr = exprTreeFromBinary(pTagCond, len);
+  if (tagExpr != NULL) {
+    if (expr == NULL) {
+      expr = tagExpr;
+    } else {
+      tExprNode* tbnameExpr = expr;
+      expr = calloc(1, sizeof(tExprNode));
+      expr->nodeType = TSQL_NODE_EXPR;
+      expr->_node.optr = tagNameRelType;
+      expr->_node.pLeft = tbnameExpr;
+      expr->_node.pRight = tagExpr;
+    }
   }
 
-  doQueryTableList(pSTable, res, pExprNode);
-  
-  pGroupInfo->numOfTables = taosArrayGetSize(res);
-  pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
+  doQueryTableList(pSTable, res, expr);
+  pGroupList->numOfTables = taosArrayGetSize(res);
+  pGroupList->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
 
   taosArrayDestroy(res);
   return ret;

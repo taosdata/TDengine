@@ -76,12 +76,13 @@ void* taosArrayPush(SArray* pArray, void* pData) {
   return dst;
 }
 
-void taosArrayPop(SArray* pArray) {
+void* taosArrayPop(SArray* pArray) {
   if (pArray == NULL || pArray->size == 0) {
-    return;
+    return NULL;
   }
 
   pArray->size -= 1;
+  return TARRAY_GET_ELEM(pArray, pArray->size);
 }
 
 void* taosArrayGet(const SArray* pArray, size_t index) {
@@ -182,4 +183,19 @@ void taosArrayDestroy(SArray* pArray) {
 
   free(pArray->pData);
   free(pArray);
+}
+
+void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*)) {
+  assert(pArray != NULL);
+  assert(compar != NULL);
+
+  qsort(pArray->pData, pArray->size, pArray->elemSize, compar);
+}
+
+void* taosArraySearch(SArray* pArray, int (*compar)(const void*, const void*), const void* key) {
+  assert(pArray != NULL);
+  assert(compar != NULL);
+  assert(key != NULL);
+
+  return bsearch(key, pArray->pData, pArray->size, pArray->elemSize, compar);
 }

@@ -470,6 +470,7 @@ typedef struct {
   int64_t     offset;
   uint16_t    queryType;        // denote another query process
   int16_t     numOfOutput;  // final output columns numbers
+  int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     interpoType;      // interpolate type
   uint64_t    defaultVal;       // default value array list
 
