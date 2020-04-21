@@ -527,7 +527,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->numOfRows = pUser->pAcct->acctInfo.numOfDbs;
 
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
   return 0;
 }
 
@@ -647,7 +647,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
   }
 
   pShow->numOfReads += numOfRows;
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
   return numOfRows;
 }
 

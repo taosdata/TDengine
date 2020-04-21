@@ -371,11 +371,11 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
   SUserObj *pUser = mgmtGetUser(user);
   if (pUser == NULL) {
     *secret = 0;
-    mgmtReleaseUser(pUser);
+    mgmtDecUserRef(pUser);
     return TSDB_CODE_INVALID_USER;
   } else {
     memcpy(secret, pUser->pass, TSDB_KEY_LEN);
-    mgmtReleaseUser(pUser);
+    mgmtDecUserRef(pUser);
     return TSDB_CODE_SUCCESS;
   }
 }

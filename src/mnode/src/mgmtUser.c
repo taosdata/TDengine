@@ -150,7 +150,11 @@ SUserObj *mgmtGetUser(char *name) {
   return (SUserObj *)sdbGetRow(tsUserSdb, name);
 }
 
-void mgmtReleaseUser(SUserObj *pUser) { 
+void mgmtIncUserRef(SUserObj *pUser) { 
+  return sdbIncRef(tsUserSdb, pUser); 
+}
+
+void mgmtDecUserRef(SUserObj *pUser) { 
   return sdbDecRef(tsUserSdb, pUser); 
 }
 
@@ -183,7 +187,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   SUserObj *pUser = mgmtGetUser(name);
   if (pUser != NULL) {
     mTrace("user:%s is already there", name);
-    mgmtReleaseUser(pUser);
+    mgmtDecUserRef(pUser);
     return TSDB_CODE_USER_ALREADY_EXIST;
   }
 
@@ -273,7 +277,7 @@ static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pShow->numOfRows = pUser->pAcct->acctInfo.numOfUsers;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
   return 0;
 }
 
@@ -308,7 +312,7 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
     cols++;
 
     numOfRows++;
-    mgmtReleaseUser(pUser);
+    mgmtDecUserRef(pUser);
   }
   pShow->numOfReads += numOfRows;
   return numOfRows;
@@ -356,7 +360,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
 
   if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    mgmtReleaseUser(pUser);
+    mgmtDecUserRef(pUser);
     return;
   }
 
@@ -432,7 +436,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
   }
 
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 }
 
 static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
@@ -449,7 +453,7 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
   if (strcmp(pUser->user, "monitor") == 0 || strcmp(pUser->user, pUser->acct) == 0 ||
     (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    mgmtReleaseUser(pUser);
+    mgmtDecUserRef(pUser);
     return ;
   }
 
@@ -478,7 +482,7 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
   }
 
   mgmtSendSimpleResp(pMsg->thandle, code);
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 }
 
 void  mgmtDropAllUsers(SAcctObj *pAcct)  {
@@ -504,7 +508,7 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
       numOfUsers++;
     }
 
-    mgmtReleaseUser(pUser);
+    mgmtDecUserRef(pUser);
   }
 
   mTrace("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);

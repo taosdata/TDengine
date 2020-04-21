@@ -47,7 +47,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
         vnodeUsage = usage;
       }
     }
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   if (pSelDnode == NULL) {
@@ -56,8 +56,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   }
 
   pVgroup->vnodeGid[0].dnodeId = pSelDnode->dnodeId;
-  pVgroup->vnodeGid[0].privateIp = pSelDnode->privateIp;
-  pVgroup->vnodeGid[0].publicIp = pSelDnode->publicIp;
+  pVgroup->vnodeGid[0].pDnode = pSelDnode;
 
   mTrace("dnode:%d, alloc one vnode to vgroup, openVnodes:%d", pSelDnode->dnodeId, pSelDnode->openVnodes);
   return TSDB_CODE_SUCCESS;

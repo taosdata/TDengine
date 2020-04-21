@@ -35,7 +35,8 @@ void    mgmtMonitorDnodeModule();
 
 int32_t mgmtGetDnodesNum();
 void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode);
-void    mgmtReleaseDnode(SDnodeObj *pDnode);
+void    mgmtIncDnodeRef(SDnodeObj *pDnode);
+void    mgmtDecDnodeRef(SDnodeObj *pDnode);
 void *  mgmtGetDnode(int32_t dnodeId);
 void *  mgmtGetDnodeByIp(uint32_t ip);
 void    mgmtUpdateDnode(SDnodeObj *pDnode);

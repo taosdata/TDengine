@@ -23,6 +23,7 @@
 #include "tutil.h"
 #include "tsocket.h"
 #include "tbalance.h"
+#include "tsync.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
@@ -139,7 +140,7 @@ static int32_t mgmtDnodeActionRestored() {
     mgmtCreateDnode(ip);
     SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
     mgmtAddMnode(pDnode->dnodeId);
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -215,13 +216,17 @@ void *mgmtGetDnodeByIp(uint32_t ip) {
     if (ip == pDnode->privateIp) {
       return pDnode;
     }
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   return NULL;
 }
 
-void mgmtReleaseDnode(SDnodeObj *pDnode) {
+void mgmtIncDnodeRef(SDnodeObj *pDnode) {
+  sdbIncRef(tsDnodeSdb, pDnode);
+}
+
+void mgmtDecDnodeRef(SDnodeObj *pDnode) {
   sdbDecRef(tsDnodeSdb, pDnode);
 }
 
@@ -326,19 +331,21 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   int32_t openVnodes = htons(pStatus->openVnodes);
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
-    pDnode->vload[j].vgId          = htonl(pVload->vgId);
-    pDnode->vload[j].totalStorage  = htobe64(pVload->totalStorage);
-    pDnode->vload[j].compStorage   = htobe64(pVload->compStorage);
-    pDnode->vload[j].pointsWritten = htobe64(pVload->pointsWritten);
-    
-    SVgObj *pVgroup = mgmtGetVgroup(pDnode->vload[j].vgId);
+    pVload->vgId = htonl(pVload->vgId);
+
+    SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
       SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
-      mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pDnode->vload[j].vgId);
-      mgmtSendDropVnodeMsg(pDnode->vload[j].vgId, &ipSet, NULL);
+      mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
+      mgmtSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
-      mgmtUpdateVgroupStatus(pVgroup, pDnode->dnodeId, pVload);
-      mgmtReleaseVgroup(pVgroup);
+      mgmtUpdateVgroupStatus(pVgroup, pDnode, pVload);
+      if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
+        pVgroup->totalStorage = htobe64(pVload->totalStorage);
+        pVgroup->compStorage = htobe64(pVload->compStorage);
+        pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
+      }
+      mgmtDecVgroupRef(pVgroup);
     }
   }
 
@@ -348,7 +355,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     balanceNotify();
   }
 
-  mgmtReleaseDnode(pDnode);
+  mgmtDecDnodeRef(pDnode);
 
   int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SDMVgroupAccess);
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
@@ -554,7 +561,7 @@ static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
 
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -604,7 +611,7 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
 
  
     numOfRows++;
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   pShow->numOfReads += numOfRows;
@@ -661,7 +668,7 @@ static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pShow->numOfRows = mgmtGetDnodesNum() * TSDB_MOD_MAX;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -712,7 +719,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
       numOfRows++;
     }
 
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   pShow->numOfReads += numOfRows;
@@ -762,7 +769,7 @@ static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -840,35 +847,18 @@ static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   if (pShow->payloadLen > 0 ) {
     uint32_t ip = ip2uint(pShow->payload);
     pDnode = mgmtGetDnodeByIp(ip);
-    if (NULL == pDnode) {
-      return TSDB_CODE_NODE_OFFLINE;
-    }
-
-    SVnodeLoad* pVnode;
-    pShow->numOfRows = 0;
-    for (int32_t i = 0 ; i < TSDB_MAX_VNODES; i++) {
-      pVnode = &pDnode->vload[i];
-      if (0 != pVnode->vgId) {
-        pShow->numOfRows++;
-      }
-    }
-    
-    pShow->pNode = pDnode;
   } else {
-    while (true) {
-      pShow->pNode = mgmtGetNextDnode(pShow->pNode, (SDnodeObj **)&pDnode);
-      if (pDnode == NULL) break;
-      pShow->numOfRows += pDnode->openVnodes;
+    mgmtGetNextDnode(NULL, (SDnodeObj **)&pDnode);
+  }
 
-      if (0 == pShow->numOfRows) return TSDB_CODE_NODE_OFFLINE;      
-    }
-
-    pShow->pNode = NULL;
-  } 
+  if (pDnode != NULL) {
+    pShow->numOfRows += pDnode->openVnodes;
+    mgmtDecDnodeRef(pDnode);
+  }
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  mgmtReleaseDnode(pDnode);
-  mgmtReleaseUser(pUser);
+  pShow->pNode = pDnode;
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -881,35 +871,35 @@ static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, voi
 
   if (0 == rows) return 0;
 
-  if (pShow->payloadLen) {
-    // output the vnodes info of the designated dnode. And output all vnodes of this dnode, instead of rows (max 100)
-    pDnode = (SDnodeObj *)(pShow->pNode);
-    if (pDnode != NULL) {
-      SVnodeLoad* pVnode;
-      for (int32_t i = 0 ; i < TSDB_MAX_VNODES; i++) {
-        pVnode = &pDnode->vload[i];
-        if (0 == pVnode->vgId) {
-          continue;
+  pDnode = (SDnodeObj *)(pShow->pNode);
+  if (pDnode != NULL) {
+    void *pNode = NULL;
+    SVgObj *pVgroup;
+    while (1) {
+      pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+      if (pVgroup == NULL) break;
+
+      for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+        SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
+        if (pVgid->pDnode == pDnode) {
+          cols = 0;
+
+          pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+          *(uint32_t *)pWrite = pVgroup->vgId;
+          cols++;
+
+          pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+          strcpy(pWrite, mgmtGetMnodeRoleStr(pVgid->role));
+          cols++;
         }
-        
-        cols = 0;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        *(uint32_t *)pWrite = pVnode->vgId;
-        cols++;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        strcpy(pWrite, pVnode->status ? "ready" : "offline");
-        cols++;
-        
-        numOfRows++;
       }
+
+      mgmtDecVgroupRef(pVgroup);
     }
   } else {
-    // TODO: output all vnodes of all dnodes
     numOfRows = 0;
   }
-  
+
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
