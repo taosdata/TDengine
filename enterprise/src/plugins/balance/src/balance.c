@@ -614,10 +614,10 @@ static int32_t balanceCalcBandwidthScore(SDnodeObj *pDnode) {
 }
 
 static float balanceCalcModuleScore(SDnodeObj *pDnode) {
-  // if (pDnode->totalVnodes <= 1) return 0;
-  // if (mgmtCheckModuleInDnode(pDnode, TSDB_MOD_MGMT)) {
-  //   return (float)tsModule[TSDB_MOD_MGMT].equalVnodeNum / pDnode->totalVnodes * 100;
-  // }
+  if (pDnode->totalVnodes <= 1) return 0;
+  if (pDnode->isMgmt) {
+     return (float)tsMgmtEqualVnodeNum / pDnode->totalVnodes * 100;
+  }
   return 0;
 }
 
