@@ -282,6 +282,8 @@ int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
 
 int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  if (pRepo->appH.walCallBack) pRepo->appH.walCallBack(pRepo->appH.appH);
   
   tsdbLockRepo(repo);
   if (pRepo->commit) {
@@ -853,8 +855,6 @@ static void *tsdbCommitData(void *arg) {
   SDataCols * pDataCols = NULL;
   SRWHelper   whelper = {0};
   if (pCache->imem == NULL) return NULL;
-
-  if (pRepo->appH.walCallBack) pRepo->appH.walCallBack(pRepo->appH.appH);
 
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
