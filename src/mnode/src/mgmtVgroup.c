@@ -506,27 +506,37 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   SMDCreateVnodeMsg *pVnode = rpcMallocCont(sizeof(SMDCreateVnodeMsg));
   if (pVnode == NULL) return NULL;
 
-  pVnode->cfg = pDb->cfg;
+  SMDVnodeCfg *pCfg = &pVnode->cfg;
+  pCfg->vgId                = htonl(pVgroup->vgId);
+  pCfg->maxTables           = htonl(pDb->cfg.maxSessions);
+  pCfg->maxCacheSize        = htobe64((int64_t)pDb->cfg.cacheBlockSize * pDb->cfg.cacheNumOfBlocks.totalBlocks);
+  pCfg->maxCacheSize        = htobe64(-1);
+  pCfg->minRowsPerFileBlock = htonl(-1);
+  pCfg->maxRowsPerFileBlock = htonl(-1);
+  pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
+  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
+  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);
+  pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
+  pCfg->daysToKeep          = htonl(-1);
+  pCfg->commitTime          = htonl(pDb->cfg.commitTime);
+  pCfg->precision           = pDb->cfg.precision;
+  pCfg->compression         = pDb->cfg.compression;
+  pCfg->compression         = -1;
+  pCfg->wals                = 3;
+  pCfg->commitLog           = pDb->cfg.commitLog;
+  pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
+  pCfg->quorum              = 1;
+  pCfg->arbitratorIp        = htonl(pVgroup->vnodeGid[0].privateIp);
 
-  SVnodeCfg *pCfg = &pVnode->cfg;
-  pCfg->vgId                         = htonl(pVgroup->vgId);
-  pCfg->maxSessions                  = htonl(pCfg->maxSessions);
-  pCfg->cacheBlockSize               = htonl(pCfg->cacheBlockSize);
-  pCfg->cacheNumOfBlocks.totalBlocks = htonl(pCfg->cacheNumOfBlocks.totalBlocks);
-  pCfg->daysPerFile                  = htonl(pCfg->daysPerFile);
-  pCfg->daysToKeep1                  = htonl(pCfg->daysToKeep1);
-  pCfg->daysToKeep2                  = htonl(pCfg->daysToKeep2);
-  pCfg->daysToKeep                   = htonl(pCfg->daysToKeep);
-  pCfg->commitTime                   = htonl(pCfg->commitTime);
-  pCfg->rowsInFileBlock              = htonl(pCfg->rowsInFileBlock);
-  pCfg->blocksPerTable               = htons(pCfg->blocksPerTable);
-  pCfg->replications                 = (int8_t) pVgroup->numOfVnodes;
-  
-  SVnodeDesc *vpeerDesc = pVnode->vpeerDesc;
+  SMDVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
-    vpeerDesc[j].vgId    = htonl(pVgroup->vgId);
-    vpeerDesc[j].dnodeId = htonl(pVgroup->vnodeGid[j].dnodeId);
-    vpeerDesc[j].ip      = htonl(pVgroup->vnodeGid[j].privateIp);
+    SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[j].dnodeId);
+    if (pDnode != NULL) {
+      pNodes[j].nodeId = htonl(pDnode->dnodeId);
+      pNodes[j].nodeIp = htonl(pDnode->privateIp);
+      strcpy(pNodes[j].nodeName, pDnode->dnodeName);
+      mgmtReleaseDnode(pDnode);
+    }
   }
 
   return pVnode;

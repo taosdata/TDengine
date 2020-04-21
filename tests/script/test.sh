@@ -34,6 +34,8 @@ cd .
 sh/ip.sh -i 1 -s up > /dev/null 2>&1 & 
 sh/ip.sh -i 2 -s up > /dev/null 2>&1 & 
 sh/ip.sh -i 3 -s up > /dev/null 2>&1 & 
+sh/ip.sh -i 4 -s up > /dev/null 2>&1 & 
+sh/ip.sh -i 5 -s up > /dev/null 2>&1 & 
 
 # Get responsible directories
 CODE_DIR=`dirname $0`

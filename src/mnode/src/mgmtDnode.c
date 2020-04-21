@@ -444,7 +444,7 @@ static int32_t mgmtDropDnodeByIp(uint32_t ip) {
     return TSDB_CODE_NO_REMOVE_MASTER;
   }
 
-#ifndef _VPEER
+#ifndef _SYNC
   return mgmtDropDnode(pDnode);
 #else
   return balanceDropDnode(pDnode);

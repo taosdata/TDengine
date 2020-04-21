@@ -11,7 +11,7 @@
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 #define TSDB_MIN_ID 0
 #define TSDB_MAX_ID INT_MAX
-#define TSDB_MIN_TABLES 10
+#define TSDB_MIN_TABLES 4
 #define TSDB_MAX_TABLES 100000
 #define TSDB_DEFAULT_TABLES 1000
 #define TSDB_DEFAULT_DAYS_PER_FILE 10

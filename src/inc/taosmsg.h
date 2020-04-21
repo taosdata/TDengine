@@ -246,12 +246,6 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
-  int32_t  vgId;
-  int32_t  dnodeId;
-  uint32_t ip;
-} SVnodeDesc;
-
-typedef struct {
   int32_t  contLen;
   int32_t  vgId;
   int8_t   tableType;
@@ -521,9 +515,6 @@ typedef struct {
   uint8_t reserved[5];
 } SVnodeLoad;
 
-/*
- * NOTE: sizeof(SVnodeCfg) < TSDB_FILE_HEADER_LEN / 4
- */
 typedef struct {
   char     acct[TSDB_USER_LEN + 1];
   char     db[TSDB_DB_NAME_LEN + 1];
@@ -548,7 +539,7 @@ typedef struct {
   int8_t  loadLatest;  // load into mem or not
   uint8_t precision;   // time resolution
   int8_t  reserved[16];
-} SVnodeCfg, SDbCfg, SCMCreateDbMsg, SCMAlterDbMsg;
+} SDbCfg, SCMCreateDbMsg, SCMAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_ID_LEN + 1];
@@ -614,8 +605,35 @@ typedef struct {
 } SDMStatusRsp;
 
 typedef struct {
-  SVnodeCfg  cfg;
-  SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
+  uint32_t vgId;
+  int32_t  maxTables;
+  int64_t  maxCacheSize;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
+  int32_t  daysPerFile;
+  int32_t  daysToKeep;
+  int32_t  daysToKeep1;
+  int32_t  daysToKeep2;
+  int32_t  commitTime;
+  uint8_t  precision;  // time resolution
+  int8_t   compression;
+  int8_t   wals;
+  int8_t   commitLog;
+  int8_t   replications;
+  int8_t   quorum;
+  uint32_t arbitratorIp;
+  int8_t   reserved[16];
+} SMDVnodeCfg;
+
+typedef struct {
+  int32_t  nodeId;
+  uint32_t nodeIp;
+  char     nodeName[TSDB_NODE_NAME_LEN + 1];
+} SMDVnodeDesc;
+
+typedef struct {
+  SMDVnodeCfg  cfg;
+  SMDVnodeDesc nodes[TSDB_MAX_MPEERS];
 } SMDCreateVnodeMsg;
 
 typedef struct {
@@ -674,8 +692,15 @@ typedef struct {
 } SSuperTableMetaMsg;
 
 typedef struct {
+  int32_t  nodeId;
+  uint32_t nodeIp;
+  uint16_t nodePort;
+} SVnodeDesc;
+
+typedef struct {
   SVnodeDesc vpeerDesc[TSDB_REPLICA_MAX_NUM];
   int16_t    index;  // used locally
+  int32_t    vgId;
   int32_t    numOfSids;
   int32_t    pSidExtInfoList[];  // offset value of STableIdInfo
 } SVnodeSidList;
