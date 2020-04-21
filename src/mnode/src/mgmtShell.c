@@ -145,9 +145,14 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   }
 
   if (!sdbIsMaster()) {
-    // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
-    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
-    rpcFreeCont(rpcMsg->pCont);
+    SRpcConnInfo connInfo;
+    rpcGetConnInfo(rpcMsg->handle, &connInfo);
+    bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+    
+    SRpcIpSet ipSet = {0};
+    mgmtGetMnodeIpList(&ipSet, usePublicIp);
+    mTrace("conn from ip:%s user:%s redirect msg", taosIpStr(connInfo.clientIp), connInfo.user);
+    rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
     return;
   }
 
@@ -356,6 +361,11 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
   *spi = 0;
   *encrypt = 0;
   *ckey = 0;
+
+  if (!sdbIsMaster()) {
+    *secret = 0;
+    return TSDB_CODE_SUCCESS;
+  }
 
   SUserObj *pUser = mgmtGetUser(user);
   if (pUser == NULL) {
