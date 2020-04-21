@@ -54,6 +54,11 @@ static SRpcIpSet     tsMnodeIpSet  = {0};
 static SDMMnodeInfos tsMnodeInfos = {0};
 static SDMDnodeCfg   tsDnodeCfg = {0};
 
+void dnodeUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
+  dTrace("mgmt IP list is changed for ufp is called");
+  tsMnodeIpSet = *pIpSet;
+}
+
 int32_t dnodeInitMClient() {
   dnodeReadDnodeCfg();
   tsRebootTime = taosGetTimestampSec();
@@ -90,6 +95,7 @@ int32_t dnodeInitMClient() {
   rpcInit.label        = "DND-MC";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessRspFromMnode;
+  rpcInit.ufp          = dnodeUpdateIpSet;
   rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 2000;

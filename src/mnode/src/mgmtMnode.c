@@ -171,7 +171,7 @@ char *mgmtGetMnodeRoleStr(int32_t role) {
   }
 }
 
-void mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp) {
+void mgmtGetMnodeIpSet(SRpcIpSet *ipSet, bool usePublicIp) {
   void *pNode = NULL;
   while (1) {
     SMnodeObj *pMnode = NULL;
