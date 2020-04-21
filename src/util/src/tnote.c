@@ -77,7 +77,7 @@ void taosUnLockNote(int fd, taosNoteInfo * pNote)
 
 void *taosThreadToOpenNewNote(void *param)
 {
-    char name[NOTE_FILE_NAME_LEN];
+    char name[NOTE_FILE_NAME_LEN + 16];
     taosNoteInfo * pNote = (taosNoteInfo *)param;
 
     pNote->taosNoteFlag ^= 1;
@@ -170,7 +170,7 @@ void taosGetNoteName(char *fn, taosNoteInfo * pNote)
 
 int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInfo * pNote)
 {
-    char name[NOTE_FILE_NAME_LEN] = "\0";
+    char name[NOTE_FILE_NAME_LEN + 16] = "\0";
     struct stat  notestat0, notestat1;
     int size;
 
