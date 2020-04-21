@@ -30,7 +30,7 @@
 
 #define TSC_MGMT_VNODE 999
 
-SRpcIpSet  tscMgmtIpList;
+SRpcIpSet  tscMgmtIpSet;
 SRpcIpSet  tscDnodeIpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
@@ -58,33 +58,38 @@ static void tscSetDnodeIpList(SSqlObj* pSql, STableMeta* pTableMeta) {
 }
 
 void tscPrintMgmtIp() {
-  if (tscMgmtIpList.numOfIps <= 0) {
-    tscError("invalid mgmt IP list:%d", tscMgmtIpList.numOfIps);
+  if (tscMgmtIpSet.numOfIps <= 0) {
+    tscError("invalid mgmt IP list:%d", tscMgmtIpSet.numOfIps);
   } else {
-    for (int i = 0; i < tscMgmtIpList.numOfIps; ++i) {
-      tscTrace("mgmt index:%d ip:%d", i, tscMgmtIpList.ip[i]);
+    for (int i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
+      tscTrace("mgmt index:%d ip:%d", i, tscMgmtIpSet.ip[i]);
     }
   }
 }
 
 void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
-  tscMgmtIpList.numOfIps = htons(pIpList->numOfIps);
-  tscMgmtIpList.inUse = htons(pIpList->inUse);
-  tscMgmtIpList.port = htons(pIpList->port);
-  for (int32_t i = 0; i <tscMgmtIpList.numOfIps; ++i) {
-    tscMgmtIpList.ip[i] = pIpList->ip[i];
+  tscMgmtIpSet.numOfIps = pIpList->numOfIps;
+  tscMgmtIpSet.inUse = pIpList->inUse;
+  tscMgmtIpSet.port = htons(pIpList->port);
+  for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
+    tscMgmtIpSet.ip[i] = htonl(pIpList->ip[i]);
   }
 }
 
 void tscSetMgmtIpListFromEdge() {
-  if (tscMgmtIpList.numOfIps != 1) {
-    tscMgmtIpList.numOfIps = 1;
-    tscMgmtIpList.inUse = 0;
-    tscMgmtIpList.port = tsMnodeShellPort;
-    tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
+  if (tscMgmtIpSet.numOfIps != 1) {
+    tscMgmtIpSet.numOfIps = 1;
+    tscMgmtIpSet.inUse = 0;
+    tscMgmtIpSet.port = tsMnodeShellPort;
+    tscMgmtIpSet.ip[0] = inet_addr(tsMasterIp);
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
   }
+}
+
+void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
+  tscTrace("mgmt IP list is changed for ufp is called");
+  tscMgmtIpSet = *pIpSet;
 }
 
 void tscSetMgmtIpList(SRpcIpSet *pIpList) {
@@ -109,7 +114,7 @@ void tscSetMgmtIpList(SRpcIpSet *pIpList) {
 UNUSED_FUNC
 static int32_t tscGetMgmtConnMaxRetryTimes() {
   int32_t factor = 2;
-  return tscMgmtIpList.numOfIps * factor;
+  return tscMgmtIpSet.numOfIps * factor;
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -204,7 +209,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     };
     rpcSendRequest(pVnodeConn, &pSql->ipList, &rpcMsg);
   } else {
-    pSql->ipList = tscMgmtIpList;
+    pSql->ipList = tscMgmtIpSet;
     pSql->ipList.port = tsMnodeShellPort;
     
     tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
@@ -425,7 +430,7 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pSql->cmd.command < TSDB_SQL_LOCAL) {
-    pSql->ipList = tscMgmtIpList;
+    pSql->ipList = tscMgmtIpSet;
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
@@ -2224,10 +2229,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= tListLen(pObj->db));
   strncpy(pObj->db, temp, tListLen(pObj->db));
   
-//  SIpList *    pIpList;
-//  char *rsp = pRes->pRsp + sizeof(SCMConnectRsp);
-//  pIpList = (SIpList *)rsp;
-//  tscSetMgmtIpList(pIpList);
+  tscSetMgmtIpList(&pConnect->ipList);
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;

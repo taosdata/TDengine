@@ -24,10 +24,11 @@ matrix:
           - python-setuptools
           - python3-pip
           - python3-setuptools
+          - valgrind
 
     before_install:
       - sudo apt update -y -qq
-      - sudo apt install -y net-tools python-pip python-setuptools python3-pip python3-setuptools
+      - sudo apt install -y net-tools python-pip python-setuptools python3-pip python3-setuptools valgrind
 
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
@@ -43,16 +44,32 @@ matrix:
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          sudo make install || exit $?
+          sudo make install || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
-          bash ./test-all.sh
+          ./test-all.sh || travis_terminate $?
 
-          if [ "$?" -ne "0" ]; then
-            exit $?
+          cd ${TRAVIS_BUILD_DIR}/tests/pytest
+          ./simpletest.sh -g 2>&1 | tee mem-error-out.txt
+          sleep 1
+
+          # Color setting
+          RED='\033[0;31m'
+          GREEN='\033[1;32m'
+          GREEN_DARK='\033[0;32m'
+          GREEN_UNDERLINE='\033[4;32m'
+          NC='\033[0m'
+
+          memError=`grep -m 1 'ERROR SUMMARY' mem-error-out.txt | awk '{print $4}'`
+
+          if [ -n "$memError" ]; then
+            if [ "$memError" -gt 23 ]; then
+              echo -e "${RED} ## Memory errors number valgrind reports is $memError. More than our threshold! ## ${NC} "
+              travis_terminate $memError
+            fi
           fi
 
           ;;
@@ -74,12 +91,12 @@ matrix:
         # GitHub project metadata
         # ** specific to your project **
         project:
-          name: sangshuduo/TDengine
+          name: TDengine
           version: 2.x
-          description: sangshuduo/TDengine
+          description: taosdata/TDengine
 
         # Where email notification of build analysis results will be sent
-        notification_email: sangshuduo@gmail.com
+        notification_email: sdsang@taosdata.com
 
         # Commands to prepare for build_command
         # ** likely specific to your build **
@@ -87,7 +104,7 @@ matrix:
 
         # The command that will be added as an argument to "cov-build" to compile your project for analysis,
         # ** likely specific to your build **
-        build_command: cmake --build .
+        build_command: make
 
         # Pattern to match selecting branches that will run analysis. We recommend leaving this set to 'coverity_scan'.
         # Take care in resource usage, and consider the build frequency allowances per
@@ -132,17 +149,17 @@ matrix:
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          sudo make install || exit $?
+          sudo make install || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
 
-          bash ./test-all.sh
+          ./test-all.sh
 
           if [ "$?" -ne "0" ]; then
-            exit $?
+            travis_terminate $?
           fi
 
           sudo pkill taosd
@@ -150,7 +167,7 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}
           lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info
-          lcov -l --rc lcov_branch_coverage=1 coverage.info || exit $?
+          lcov -l --rc lcov_branch_coverage=1 coverage.info || travis_terminate $?
 
           gem install coveralls-lcov
 
@@ -166,7 +183,6 @@ matrix:
             echo -e "${GREEN} ## Uploaded to Coveralls.io! ## ${NC}"
           else
             echo -e "${RED} ## Coveralls.io not collect coverage report! ## ${NC} "
-            exit $?
           fi
 
           bash <(curl -s https://codecov.io/bash) -y .codecov.yml -f coverage.info
@@ -174,7 +190,6 @@ matrix:
             echo -e "${GREEN} ## Uploaded to Codecov! ## ${NC} "
           else
             echo -e "${RED} ## Codecov did not collect coverage report! ## ${NC} "
-            exit $?
           fi
 
           ;;

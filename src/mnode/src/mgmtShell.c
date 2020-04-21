@@ -141,13 +141,19 @@ void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   if (rpcMsg == NULL || rpcMsg->pCont == NULL) {
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
     return;
   }
 
   if (!sdbIsMaster()) {
-    // rpcSendRedirectRsp(rpcMsg->handle, mgmtGetMnodeIpListForRedirect());
-    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NO_MASTER);
-    rpcFreeCont(rpcMsg->pCont);
+    SRpcConnInfo connInfo;
+    rpcGetConnInfo(rpcMsg->handle, &connInfo);
+    bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+    
+    SRpcIpSet ipSet = {0};
+    mgmtGetMnodeIpSet(&ipSet, usePublicIp);
+    mTrace("conn from ip:%s user:%s redirect msg", taosIpStr(connInfo.clientIp), connInfo.user);
+    rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
     return;
   }
 
@@ -332,7 +338,7 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  mgmtGetMnodeIpList(&pHBRsp->ipList, pMsg->usePublicIp);
+  mgmtGetMnodeIpSet(&pHBRsp->ipList, pMsg->usePublicIp);
   
   /*
    * TODO
@@ -356,6 +362,11 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
   *spi = 0;
   *encrypt = 0;
   *ckey = 0;
+
+  if (!sdbIsMaster()) {
+    *secret = 0;
+    return TSDB_CODE_SUCCESS;
+  }
 
   SUserObj *pUser = mgmtGetUser(user);
   if (pUser == NULL) {
@@ -414,7 +425,7 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
 
-  mgmtGetMnodeIpList(&pConnectRsp->ipList, pMsg->usePublicIp);
+  mgmtGetMnodeIpSet(&pConnectRsp->ipList, pMsg->usePublicIp);
   
 connect_over:
   rpcRsp.code = code;
