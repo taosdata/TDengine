@@ -387,7 +387,7 @@ int tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t ti
   config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
   config->tableId.uid = uid;
   config->tableId.tid = tid;
-  config->name = strdup("test1");
+  config->name = NULL;
   return 0;
 }
 
@@ -880,6 +880,7 @@ static void *tsdbCommitData(void *arg) {
 _exit:
   tdFreeDataCols(pDataCols);
   tsdbDestroyTableIters(iters, pCfg->maxTables);
+  tsdbDestroyHelper(&whelper);
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
