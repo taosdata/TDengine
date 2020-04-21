@@ -147,14 +147,14 @@ void taos_init_imp() {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
 
-  tscMgmtIpList.inUse = 0;
-  tscMgmtIpList.port = tsMnodeShellPort;
-  tscMgmtIpList.numOfIps = 1;
-  tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
+  tscMgmtIpSet.inUse = 0;
+  tscMgmtIpSet.port = tsMnodeShellPort;
+  tscMgmtIpSet.numOfIps = 1;
+  tscMgmtIpSet.ip[0] = inet_addr(tsMasterIp);
 
   if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
-    tscMgmtIpList.numOfIps = 2;
-    tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
+    tscMgmtIpSet.numOfIps = 2;
+    tscMgmtIpSet.ip[1] = inet_addr(tsSecondIp);
   }
 
   tscInitMsgsFp();
