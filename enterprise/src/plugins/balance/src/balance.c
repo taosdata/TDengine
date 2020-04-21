@@ -87,7 +87,7 @@ static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->dnodeId);
   if (pDnode != NULL) {
     atomic_sub_fetch_32(&pDnode->openVnodes, 1);
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   SVnodeGid vnodeGid[TSDB_VNODES_SUPPORT] = {0};
@@ -126,9 +126,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
       if (balanceCheckFree(pDnode)) {
         SVnodeGid *pVnodeGid = pVgroup->vnodeGid + i;
         pVnodeGid->dnodeId = pDnode->dnodeId;
-        pVnodeGid->privateIp = pDnode->privateIp;
-        pVnodeGid->publicIp = pDnode->publicIp;
-        
+        pVnodeGid->pDnode = pDnode;
         dnode++;
         vnodes++;
         break;
@@ -187,20 +185,12 @@ static bool balanceCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
     SVnodeGid *pVnode = pVgroup->vnodeGid + i;
     if (pVnode == pRmVnode) continue;
 
-    SDnodeObj *pDnode = mgmtGetDnode(pVnode->dnodeId);
-    if (pDnode->status == TAOS_DN_STATUS_BALANCING || pDnode->status == TAOS_DN_STATUS_READY) {
-      for (int32_t j = 0; j < pDnode->openVnodes; ++j) {
-        SVnodeLoad *vload = pDnode->vload + j;
-        if (vload->vgId == pVgroup->vgId) {
-          //TODO: debug usage
-          //if (vload->role == TAOS_SYNC_ROLE_SLAVE || vload->status == TAOS_SYNC_ROLE_MASTER) {
-            isReady = true;
-          //}
-        }
-      }
-    }
+    if (pVnode->pDnode->status == TAOS_DN_STATUS_DROPPING) continue;
+    if (pVnode->pDnode->status == TAOS_DN_STATUS_OFFLINE) continue;
 
-    mgmtReleaseDnode(pDnode);
+    if (pVnode->role == TAOS_SYNC_ROLE_SLAVE || pVnode->role == TAOS_SYNC_ROLE_MASTER) {
+      isReady = true;
+    }
   }
 
   return isReady;
@@ -245,7 +235,7 @@ static void balanceRemoveVnode(SVgObj *pVgroup) {
       }
     }
 
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   if (pRmVnode != NULL) {
@@ -293,8 +283,7 @@ static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pD
 
   SVnodeGid *pVnodeGid = pVgroup->vnodeGid + pVgroup->numOfVnodes;
   pVnodeGid->dnodeId = pDestDnode->dnodeId;
-  pVnodeGid->privateIp = pDestDnode->privateIp;
-  pVnodeGid->publicIp = pDestDnode->publicIp;
+  pVnodeGid->pDnode = pDestDnode;
   pVgroup->numOfVnodes++;
 
   pVgroup->status = TSDB_VG_STATUS_READY;
@@ -345,12 +334,12 @@ static bool balanceMonitorBalance() {
                  pVgroup->vgId, pSrcDnode->dnodeId, pDestDnode->dnodeId, pSrcDnode->score,
                  srcScore, pDestDnode->score, destScore);
           balanceAddVnode(pVgroup, pSrcDnode, pDestDnode);
-          mgmtReleaseVgroup(pVgroup);
+          mgmtDecVgroupRef(pVgroup);
           return true;
         }
       }
 
-      mgmtReleaseVgroup(pVgroup);
+      mgmtDecVgroupRef(pVgroup);
     }
   }
 
@@ -375,7 +364,7 @@ void balanceReset() {
       pDnode->status = TAOS_DN_STATUS_OFFLINE;
     }
 
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   tsAccessSquence = 0;
@@ -412,7 +401,7 @@ static int32_t balanceMonitorVgroups() {
       balanceAddVnode(pVgroup, NULL, NULL);
     }
 
-    mgmtReleaseVgroup(pVgroup);
+    mgmtDecVgroupRef(pVgroup);
   }
 
   return hasUpdatingVgroup;
@@ -429,7 +418,7 @@ static void balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
     if (pVgroup == NULL) break;
 
     hasThisDnode = balanceCheckDnodeInVgroup(pDnode, pVgroup);
-    mgmtReleaseVgroup(pVgroup);
+    mgmtDecVgroupRef(pVgroup);
 
     if (hasThisDnode) break;
   }
@@ -561,7 +550,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
       totalFreeVnodes += (pTempDnode->totalVnodes - pTempDnode->openVnodes);
     }
 
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   if (pDnode->openVnodes > totalFreeVnodes) {
@@ -680,7 +669,7 @@ void balanceAccquireDnodeList() {
     pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-      mgmtReleaseDnode(pDnode);
+      mgmtDecDnodeRef(pDnode);
       break;
     }
 
@@ -704,7 +693,7 @@ void balanceReleaseDnodeList() {
   for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
     SDnodeObj *pDnode = tsBalanceDnodeList[i];
     if (pDnode != NULL) {
-      mgmtReleaseDnode(pDnode);
+      mgmtDecDnodeRef(pDnode);
     }
   }
 }
@@ -784,7 +773,7 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
 
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -843,7 +832,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     numOfRows++;
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
 
   pShow->numOfReads += numOfRows;
@@ -859,13 +848,13 @@ static void balanceMonitorDnodeModule() {
     if (pDnode == NULL) break;
 
     if (pDnode->isMgmt || pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-      mgmtReleaseDnode(pDnode);
+      mgmtDecDnodeRef(pDnode);
       continue;
     }
 
     mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMPeers);
     mgmtAddMnode(pDnode->dnodeId);
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
 
     numOfMnodes = mgmtGetMnodesNum();
     if (numOfMnodes >= tsNumOfMPeers) return;

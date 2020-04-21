@@ -546,22 +546,19 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   if (pAcct == NULL) return -1;
   
   void *pNode = NULL;
-  SDnodeObj *pDnode;
+  SVgObj *pVgroup;
   int64_t totalStorage = 0;
   int64_t pointsWritten = 0;
   TSKEY   sKey = taosGetTimestampMs();
 
   while (1) {
-    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)&pDnode);
-    if (pDnode == NULL) break;
-    for (int i = 0; i < pDnode->openVnodes; ++i) {
-      SVgObj *pVgroup = mgmtGetVgroup(pDnode->vload[i].vgId);
-      if (pVgroup == NULL) continue;
-      if (pVgroup->pDb->pAcct == pAcct) {
-        totalStorage += pDnode->vload[i].totalStorage;
-        pointsWritten += pDnode->vload[i].pointsWritten;
-      }
+    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    if (pVgroup == NULL) continue;
+    if (pVgroup->pDb->pAcct == pAcct) {
+      totalStorage += pVgroup->totalStorage;
+      pointsWritten += pVgroup->pointsWritten;
     }
+    mgmtDecVgroupRef(pVgroup);
   }
 
   pAcct->acctInfo.totalStorage = totalStorage;
