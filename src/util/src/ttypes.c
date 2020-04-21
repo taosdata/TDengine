@@ -114,27 +114,33 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
       pVar->i64Key = GET_INT8_VAL(pz);
+      pVar->nLen = sizeof(int64_t);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       pVar->i64Key = GET_INT16_VAL(pz);
+      pVar->nLen = sizeof(int64_t);
       break;
     }
     case TSDB_DATA_TYPE_INT: {
       pVar->i64Key = GET_INT32_VAL(pz);
+      pVar->nLen = sizeof(int64_t);
       break;
     }
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
       pVar->i64Key = GET_INT64_VAL(pz);
+      pVar->nLen = sizeof(int64_t);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       pVar->dKey = GET_DOUBLE_VAL(pz);
+      pVar->nLen = sizeof(int64_t);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       pVar->dKey = GET_FLOAT_VAL(pz);
+      pVar->nLen = sizeof(int64_t);
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
@@ -181,11 +187,13 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
     }
 
     pDst->pz = calloc(1, len);
+    printf("==============alloc assign:%p", pDst->pz);
+    
     memcpy(pDst->pz, pSrc->pz, len);
   }
 }
 /* compare two tVariant, if same, return 0; else return nonezero */
-int32_t tVariantCompare(tVariant *pDst, const tVariant *pSrc) { 
+int32_t tVariantCompare(const tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return 1;
   if (pSrc->nType != pDst->nType) return 1;
   switch (pSrc->nType) {

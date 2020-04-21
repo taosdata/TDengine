@@ -33,7 +33,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
 void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter);
 
-#define MEM_BUF_SIZE                (1<<20)
+#define MEM_BUF_SIZE                (1u<<20)
 #define TS_COMP_BLOCK_PADDING       0xFFFFFFFF
 #define TS_COMP_FILE_MAGIC          0x87F5EC4C
 #define TS_COMP_FILE_VNODE_MAX      512
@@ -123,7 +123,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
 
 void* tsBufDestory(STSBuf* pTSBuf);
 
-void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant tag, const char* pData, int32_t len);
+void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len);
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);
 
 STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId);
@@ -134,7 +134,7 @@ void tsBufResetPos(STSBuf* pTSBuf);
 STSElem tsBufGetElem(STSBuf* pTSBuf);
 bool tsBufNextPos(STSBuf* pTSBuf);
 
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant tag);
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag);
 
 STSCursor tsBufGetCursor(STSBuf* pTSBuf);
 void tsBufSetTraverseOrder(STSBuf* pTSBuf, int32_t order);

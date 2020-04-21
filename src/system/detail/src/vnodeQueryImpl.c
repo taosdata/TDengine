@@ -7464,7 +7464,7 @@ int32_t setAdditionalInfo(STableQuerySupportObj *pSupporter, int32_t meterIdx, S
       //pMeterQueryInfo->tag = pRuntimeEnv->pCtx[0].tag.i64Key;
       tVariantAssign(&pMeterQueryInfo->tag,&pRuntimeEnv->pCtx[0].tag);
 
-      tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, pMeterQueryInfo->tag);
+      tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, &pMeterQueryInfo->tag);
 
       // keep the cursor info of current meter
       pMeterQueryInfo->cur = pRuntimeEnv->pTSBuf->cur;
