@@ -4021,7 +4021,7 @@ bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, STableQuerySup
       }
       
       // needs the data before the begin timestamp of query time window
-      if (nextKey != pQuery->skey) {
+      if ((nextKey != pQuery->skey) && (!isPointInterpoQuery(pQuery))) {
         if (!pRuntimeEnv->hasTimeWindow) {
           pQuery->skey = nextKey;  // change the query skey
           pQuery->lastKey = pQuery->skey;
