@@ -63,6 +63,7 @@ static int32_t mgmtDbActionInsert(SSdbOper *pOper) {
 
   if (pAcct != NULL) {
     mgmtAddDbToAcct(pAcct, pDb);
+    mgmtDecAcctRef(pAcct);
   }
   else {
     mError("db:%s, acct:%s info not exist in sdb", pDb->name, pDb->cfg.acct);
@@ -80,6 +81,7 @@ static int32_t mgmtDbActionDelete(SSdbOper *pOper) {
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
   mgmtDropAllVgroups(pDb);
+  mgmtDecAcctRef(pAcct);
   
   return TSDB_CODE_SUCCESS;
 }

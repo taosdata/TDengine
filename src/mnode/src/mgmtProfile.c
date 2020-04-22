@@ -704,6 +704,7 @@ void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
+  mgmtDecUserRef(pUser);
 }
 
 void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
@@ -727,6 +728,7 @@ void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
+  mgmtDecUserRef(pUser);
 }
 
 void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
@@ -750,6 +752,7 @@ void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
+  mgmtDecUserRef(pUser);
 }
 
 int32_t mgmtInitProfile() {

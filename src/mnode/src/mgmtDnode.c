@@ -508,7 +508,10 @@ static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->pAcct->user, "root") != 0) {
+    mgmtDecUserRef(pUser);
+    return TSDB_CODE_NO_RIGHTS;
+  }
 
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -635,7 +638,10 @@ static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0)  {
+    mgmtDecUserRef(pUser);
+    return TSDB_CODE_NO_RIGHTS;
+  }
 
   SSchema *pSchema = pMeta->schema;
 
@@ -744,7 +750,10 @@ static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0)  {
+    mgmtDecUserRef(pUser);
+    return TSDB_CODE_NO_RIGHTS;
+  }
 
   SSchema *pSchema = pMeta->schema;
 
@@ -827,7 +836,11 @@ static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   int32_t cols = 0;
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  
+  if (strcmp(pUser->user, "root") != 0)  {
+    mgmtDecUserRef(pUser);
+    return TSDB_CODE_NO_RIGHTS;
+  }
 
   SSchema *pSchema = pMeta->schema;
 

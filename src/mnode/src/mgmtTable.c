@@ -108,7 +108,7 @@ static int32_t mgmtChildTableActionInsert(SSdbOper *pOper) {
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
-    mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
+    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
   }
   mgmtDecAcctRef(pAcct);
@@ -150,7 +150,7 @@ static int32_t mgmtChildTableActionDelete(SSdbOper *pOper) {
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
-    mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
+    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
   }
   mgmtDecAcctRef(pAcct);
