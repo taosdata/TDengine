@@ -510,21 +510,17 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   balanceCheckDnodeAccess();  
 
   if (handle == NULL) {
-    if (tsAccessSquence % tsBalanceStartInterval != 0) return;
-    mTrace("balance function is scheduled by timer");
+    if (tsAccessSquence % tsBalanceStartInterval == 0) {
+      mTrace("balance function is scheduled by timer");
+      balanceStart();
+    }
   } else {
     int64_t mseconds = (int64_t)handle;
     mTrace("balance function is scheduled by event for %d mseconds arrived", mseconds);
+    balanceStart();
   }
 
-  bool updateSoon = balanceStart();
-  if (updateSoon) {
-    mTrace("balance function will start after 1000 ms");
-    balanceStartTimer(1000);
-  } else {
-    mTrace("balance function will start after %d000 ms", tsBalanceMonitorInterval);
-    taosTmrReset(balanceProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, tsMgmtTmr, &tsBalanceTimer);
-  }
+  taosTmrReset(balanceProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, tsMgmtTmr, &tsBalanceTimer);
 }
 
 static void balanceStartTimer(int64_t mseconds) {

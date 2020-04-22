@@ -544,7 +544,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
 }
 
 static int64_t acctGetStatistic(SAcctObj *pAcct) {
-  if (pAcct == NULL) return -1;
+  if (pAcct == NULL) return 0;
   
   void   *pNode = NULL;
   SVgObj *pVgroup;
@@ -555,7 +555,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   while (1) {
     pNode = mgmtGetNextVgroup(pNode, &pVgroup);
     if (pVgroup == NULL) break;
-    if (pVgroup->pDb->pAcct == pAcct) {
+    if (pVgroup->pDb != NULL && pVgroup->pDb->pAcct == pAcct) {
       totalStorage += pVgroup->totalStorage;
       pointsWritten += pVgroup->pointsWritten;
     }
