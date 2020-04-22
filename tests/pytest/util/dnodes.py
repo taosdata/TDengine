@@ -30,9 +30,6 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-    def setValgrind(self, value):
-        self.valgrind = value
-
     def deploy(self):
         self.logDir = "%s/sim/psim/log" % (self.path,)
         self.cfgDir = "%s/sim/psim/cfg" % (self.path)
@@ -82,10 +79,14 @@ class TDDnode:
         self.index = index
         self.running = 0
         self.deployed = 0
+        self.testCluster = False
         self.valgrind = 0
 
     def init(self, path):
         self.path = path
+
+    def setTestCluster(self, value):
+        self.testCluster = value
 
     def setValgrind(self, value):
         self.valgrind = value
@@ -124,7 +125,9 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        self.startIP()
+        if self.testCluster:
+            self.startIP()
+
         self.cfg("masterIp", "192.168.0.1")
         self.cfg("secondIp", "192.168.0.2")
         self.cfg("publicIp", "192.168.0.%d" % (self.index))
@@ -292,11 +295,15 @@ class TDDnodes:
         self.sim.init(self.path)
         self.sim.deploy()
 
+    def setTestCluster(self, value):
+        self.testCluster = value
+
     def setValgrind(self, value):
         self.valgrind = value
 
     def deploy(self, index):
         self.check(index)
+        self.dnodes[index - 1].setTestCluster(self.testCluster)
         self.dnodes[index - 1].setValgrind(self.valgrind)
         self.dnodes[index - 1].deploy()
 
@@ -318,11 +325,15 @@ class TDDnodes:
 
     def startIP(self, index):
         self.check(index)
-        self.dnodes[index - 1].startIP()
+
+        if self.testCluster:
+            self.dnodes[index - 1].startIP()
 
     def stopIP(self, index):
         self.check(index)
-        self.dnodes[index - 1].stopIP()
+
+        if self.dnodes[index - 1].testCluster:
+            self.dnodes[index - 1].stopIP()
 
     def check(self, index):
         if index < 1 or index > 10:
