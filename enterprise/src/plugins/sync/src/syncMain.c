@@ -196,7 +196,7 @@ int syncReconfig(void *param, const SSyncCfg *pNewCfg)
     const SNodeInfo *pNewNode = &pNewCfg->nodeInfo[i];
 
     for (j = 0; j < pNode->replica; ++j) {
-      if (pNode->peerInfo[j]->ip == pNewNode->nodeIp)
+      if (pNode->peerInfo[j] && (pNode->peerInfo[j]->ip == pNewNode->nodeIp))
         break;
     }
 
