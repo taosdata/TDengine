@@ -30,13 +30,13 @@
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "dnodeMClient.h"
+#include "mgmtAcct.h"
+#include "mgmtUser.h"
 
 #define min(x, y) (x)<(y)?(x):(y)
 
 extern void *tsMgmtTmr;
 extern void *tsDnodeSdb;
-extern void *tsUserSdb;
-extern void *tsAcctSdb;
 extern void *tsDbSdb;
 extern void *tsChildTableSdb;
 extern SGrantObj grantObj;
@@ -117,15 +117,17 @@ static uint32_t grantGetCulsterCreateTime() {
   }
 
   while (1) {
-    pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
+    pNode = mgmtGetNextAcct(pNode, &pAcct);
     if (pAcct == NULL) break;
     createTime = createTime < pAcct->createdTime ? createTime : pAcct->createdTime;
+    mgmtDecAcctRef(pAcct);
   }
 
   while (1) {
-    pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
+    pNode = mgmtGetNextUser(pNode, &pUser);
     if (pUser == NULL) break;
     createTime = createTime < pUser->createdTime ? createTime : pUser->createdTime;
+    mgmtDecUserRef(pUser);
   }
 
   while (1) {
@@ -179,11 +181,12 @@ static uint32_t grantGetCulsterCurUsers() {
   uint32_t  numOfUsers = 0;
 
   while (1) {
-    pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
+    pNode = mgmtGetNextUser(pNode, &pUser);
     if (pUser == NULL) break;
     if (strcmp(pUser->user, "monitor") == 0) continue;
     if (pUser->user[0] == '_') continue;
     numOfUsers++;
+    mgmtDecUserRef(pUser);
   }
 
   return numOfUsers;
@@ -201,9 +204,10 @@ static uint32_t grantGetCulsterCurAccts() {
   uint32_t  numOfAccts = 0;
 
   while (1) {
-    pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
+    pNode = mgmtGetNextAcct(pNode, &pAcct);
     if (pAcct == NULL) break;
     numOfAccts++;
+    mgmtDecAcctRef(pAcct);
   }
 
   return numOfAccts;
