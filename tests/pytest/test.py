@@ -24,8 +24,6 @@ from util.cases import *
 
 import taos
 
-# add testcase here:
-from insert.basic import *
 
 if __name__ == "__main__":
     fileName = "all"
@@ -35,7 +33,7 @@ if __name__ == "__main__":
     valgrind = 0
     stop = 0
     opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:scgh', [
-                               'file=', 'path=', 'master', 'stop', 'cluster', 'valgrind', 'help'])
+        'file=', 'path=', 'master', 'stop', 'cluster', 'valgrind', 'help'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -72,13 +70,13 @@ if __name__ == "__main__":
             toBeKilled = "valgrind.bin"
 
         killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -HUP " % toBeKilled
-        os.system(killCmd)
-        time.sleep(1)
+#        os.system(killCmd)
+#        time.sleep(1)
 
         psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
         processID = subprocess.check_output(psCmd, shell=True)
 
-        while( processID ):
+        while(processID):
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True)
@@ -87,6 +85,7 @@ if __name__ == "__main__":
 
     if masterIp == "":
         tdDnodes.init(deployPath)
+        tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
 
         if testCluster:
