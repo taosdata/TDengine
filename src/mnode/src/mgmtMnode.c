@@ -30,7 +30,7 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-static void *  tsMnodeSdb = NULL;
+void * tsMnodeSdb = NULL;
 static int32_t tsMnodeUpdateSize = 0;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -47,7 +47,7 @@ static int32_t mgmtMnodeActionInsert(SSdbOper *pOper) {
 
   pMnode->pDnode = pDnode;
   pDnode->isMgmt = true;
-  mgmtReleaseDnode(pDnode);
+  mgmtDecDnodeRef(pDnode);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -58,7 +58,7 @@ static int32_t mgmtMnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
   if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
   pDnode->isMgmt = false;
-  mgmtReleaseDnode(pDnode);
+  mgmtDecDnodeRef(pDnode);
 
   mTrace("mnode:%d, is dropped from sdb", pMnode->mnodeId);
   return TSDB_CODE_SUCCESS;
@@ -314,7 +314,7 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pShow->numOfRows = mgmtGetMnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 
   return 0;
 }

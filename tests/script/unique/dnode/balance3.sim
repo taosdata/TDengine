@@ -43,15 +43,15 @@ system sh/cfg.sh -n dnode5 -c clog -v 1
 system sh/cfg.sh -n dnode6 -c clog -v 1
 
 print ========== step1
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql connect
 
 sql create dnode 192.168.0.2
 sql create dnode 192.168.0.3
 sql create dnode 192.168.0.4
-system sh/exec.sh -n dnode2 -s start
-system sh/exec.sh -n dnode3 -s start
-system sh/exec.sh -n dnode4 -s start
+system sh/exec_up.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode4 -s start
 sleep 3000
 
 sql create database d1 replica 3  tables 4
@@ -71,21 +71,21 @@ sql insert into d2.t2 values(now+4s, 22)
 sql insert into d2.t2 values(now+5s, 21)
 
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
-print 192.168.0.3 freeVnodes $data3_192.168.0.3
-print 192.168.0.4 freeVnodes $data3_192.168.0.4
+print 192.168.0.1 openVnodes $data3_1
+print 192.168.0.2 openVnodes $data3_2
+print 192.168.0.3 openVnodes $data3_3
+print 192.168.0.4 openVnodes $data3_4
 
-if $data3_192.168.0.1 != 4 then
+if $data3_1 != 4 then
 	return -1
 endi
-if $data3_192.168.0.2 != 2 then
+if $data3_2 != 2 then
 	return -1
 endi
-if $data3_192.168.0.3 != 2 then
+if $data3_3 != 2 then
 	return -1
 endi
-if $data3_192.168.0.4 != 2 then
+if $data3_4 != 2 then
 	return -1
 endi
 
@@ -101,29 +101,29 @@ show2:
 	endi
 
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
-print 192.168.0.3 freeVnodes $data3_192.168.0.3
-print 192.168.0.4 freeVnodes $data3_192.168.0.4
+print 192.168.0.1 openVnodes $data3_1
+print 192.168.0.2 openVnodes $data3_2
+print 192.168.0.3 openVnodes $data3_3
+print 192.168.0.4 openVnodes $data3_4
 
-if $data3_192.168.0.1 != 2 then
+if $data3_1 != 2 then
 	goto show2
 endi
-if $data3_192.168.0.2 != null then
+if $data3_2 != null then
 	goto show2
 endi
-if $data3_192.168.0.3 != 2 then
+if $data3_3 != 2 then
 	goto show2
 endi
-if $data3_192.168.0.4 != 2 then
+if $data3_4 != 2 then
 	goto show2
 endi
 
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 
 print ========== step
 sql create dnode 192.168.0.5
-system sh/exec.sh -n dnode5 -s start
+system sh/exec_up.sh -n dnode5 -s start
 
 $x = 0
 show3: 
@@ -134,25 +134,25 @@ show3:
 	endi
 	
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
-print 192.168.0.3 freeVnodes $data3_192.168.0.3
-print 192.168.0.4 freeVnodes $data3_192.168.0.4
-print 192.168.0.5 freeVnodes $data3_192.168.0.5
+print 192.168.0.1 openVnodes $data3_1
+print 192.168.0.2 openVnodes $data3_2
+print 192.168.0.3 openVnodes $data3_3
+print 192.168.0.4 openVnodes $data3_4
+print 192.168.0.5 openVnodes $data3_5
 
-if $data3_192.168.0.1 != 4 then
+if $data3_1 != 4 then
 	goto show3
 endi
-if $data3_192.168.0.2 != null then
+if $data3_2 != null then
 	goto show3
 endi
-if $data3_192.168.0.3 != 2 then
+if $data3_3 != 2 then
 	goto show3
 endi
-if $data3_192.168.0.4 != 2 then
+if $data3_4 != 2 then
 	goto show3
 endi
-if $data3_192.168.0.5 != 2 then
+if $data3_5 != 2 then
 	goto show3
 endi
 
@@ -174,31 +174,31 @@ show4:
 	endi
 
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
-print 192.168.0.3 freeVnodes $data3_192.168.0.3
-print 192.168.0.4 freeVnodes $data3_192.168.0.4
-print 192.168.0.5 freeVnodes $data3_192.168.0.5
+print 192.168.0.1 openVnodes $data3_1
+print 192.168.0.2 openVnodes $data3_2
+print 192.168.0.3 openVnodes $data3_3
+print 192.168.0.4 openVnodes $data3_4
+print 192.168.0.5 openVnodes $data3_5
 
-if $data3_192.168.0.1 != 4 then
+if $data3_1 != 4 then
 	goto show4
 endi
-if $data3_192.168.0.2 != null then
+if $data3_2 != null then
 	goto show4
 endi
-if $data3_192.168.0.3 != 1 then
+if $data3_3 != 1 then
 	goto show4
 endi
-if $data3_192.168.0.4 != 1 then
+if $data3_4 != 1 then
 	goto show4
 endi
-if $data3_192.168.0.5 != 1 then
+if $data3_5 != 1 then
 	goto show4
 endi
 
 print ========== step5
 sql create dnode 192.168.0.2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
 show5: 
@@ -209,16 +209,16 @@ show5:
 	endi
 
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
-print 192.168.0.3 freeVnodes $data3_192.168.0.3
-print 192.168.0.4 freeVnodes $data3_192.168.0.4
-print 192.168.0.5 freeVnodes $data3_192.168.0.5
+print 192.168.0.1 openVnodes $data3_1
+print 192.168.0.2 openVnodes $data3_2
+print 192.168.0.3 openVnodes $data3_3
+print 192.168.0.4 openVnodes $data3_4
+print 192.168.0.5 openVnodes $data3_5
 
-if $data3_192.168.0.1 != 4 then
+if $data3_1 != 4 then
 	goto show5
 endi
-if $data3_192.168.0.2 != 2 then
+if $data3_2 != 2 then
 	goto show5
 endi
 
@@ -236,29 +236,29 @@ show6:
 	endi
 
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
-print 192.168.0.3 freeVnodes $data3_192.168.0.3
-print 192.168.0.4 freeVnodes $data3_192.168.0.4
-print 192.168.0.5 freeVnodes $data3_192.168.0.5
+print 192.168.0.1 openVnodes $data3_1
+print 192.168.0.2 openVnodes $data3_2
+print 192.168.0.3 openVnodes $data3_3
+print 192.168.0.4 openVnodes $data3_4
+print 192.168.0.5 openVnodes $data3_5
 
-if $data3_192.168.0.1 != 4 then
+if $data3_1 != 4 then
 	goto show6
 endi
-if $data3_192.168.0.2 != 1 then
+if $data3_2 != 1 then
 	goto show6
 endi
-if $data3_192.168.0.3 != null then
+if $data3_3 != null then
 	goto show6
 endi
-if $data3_192.168.0.4 != 1 then
+if $data3_4 != 1 then
 	goto show6
 endi
-if $data3_192.168.0.5 != 1 then
+if $data3_5 != 1 then
 	goto show6
 endi
 
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 
 print ========== step7
 sql select * from d1.t1 order by t desc
