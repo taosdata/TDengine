@@ -39,6 +39,7 @@
 void   *tsDnodeSdb = NULL;
 int32_t tsDnodeUpdateSize = 0;
 int32_t tsAccessSquence = 0;
+extern void *  tsMnodeSdb;
 extern void *  tsVgroupSdb;
 
 static int32_t mgmtCreateDnode(uint32_t ip);
@@ -101,7 +102,13 @@ static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
     }
   }
 
-  mgmtDropMnode(pDnode->dnodeId);
+  SMnodeObj *pMnode = mgmtGetMnode(pDnode->dnodeId);
+  if (pMnode != NULL) {
+    SSdbOper oper = {.type = SDB_OPER_LOCAL, .table = tsMnodeSdb, .pObj = pMnode};
+    sdbDeleteRow(&oper);
+    mgmtReleaseMnode(pMnode);
+  }
+
   balanceNotify();
 
   mTrace("dnode:%d, all vgroups:%d is dropped from sdb", pDnode->dnodeId, numOfVgroups);
