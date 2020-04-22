@@ -22,19 +22,19 @@ system sh/cfg.sh -n dnode1 -c monitor -v 1
 system sh/cfg.sh -n dnode2 -c monitor -v 0
 
 print ========== step1
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql connect
 sleep 5000
 
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-if $data3_192.168.0.1 != 3 then
+print 192.168.0.1 openVnodes $data3_1
+if $data3_1 != 3 then
 	return -1
 endi
 
 print ========== step2
 sql create dnode 192.168.0.2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
 show2: 
@@ -45,12 +45,12 @@ show2:
 	endi
 	
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
-if $data3_192.168.0.1 != 4 then
+print 192.168.0.1 openVnodes $data3_1
+print 192.168.0.2 openVnodes $data3_2
+if $data3_1 != 4 then
 	goto show2
 endi
-if $data3_192.168.0.2 != 3 then
+if $data3_2 != 3 then
 	goto show2
 endi
 
