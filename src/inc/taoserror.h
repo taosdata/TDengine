@@ -75,14 +75,19 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NOT_CONFIGURED,             0, 27, "not configured")
 TAOS_DEFINE_ERROR(TSDB_CODE_NODE_OFFLINE,               0, 28, "node offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_NETWORK_UNAVAIL,            0, 29, "network unavailable")
 
-// db & user
+// db
 TAOS_DEFINE_ERROR(TSDB_CODE_DB_NOT_SELECTED,            0, 100, "db not selected")
 TAOS_DEFINE_ERROR(TSDB_CODE_DB_ALREADY_EXIST,           0, 101, "database aleady exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DB,                 0, 102, "invalid database")
 TAOS_DEFINE_ERROR(TSDB_CODE_MONITOR_DB_FORBIDDEN,       0, 103, "monitor db forbidden")
-TAOS_DEFINE_ERROR(TSDB_CODE_USER_ALREADY_EXIST,         0, 104, "user already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_USER,               0, 105, "invalid user")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PASS,               0, 106, "invalid password")
+
+// user
+TAOS_DEFINE_ERROR(TSDB_CODE_USER_ALREADY_EXIST,         0, 150, "user already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_USER,               0, 151, "invalid user")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PASS,               0, 152, "invalid password")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_USER_FORMAT,        0, 153, "invalid user format")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PASS_FORMAT,        0, 154, "invalid password format")
+TAOS_DEFINE_ERROR(TSDB_CODE_NO_USER_FROM_CONN,          0, 155, "can not get user from conn")
 
 // table
 TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ALREADY_EXIST,        0, 200, "table already exist")
