@@ -135,6 +135,39 @@ int32_t vnodeDrop(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
+  SVnodeObj *pVnode = param;
+  int32_t code = vnodeSaveCfg(pVnodeCfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("vgId:%d, failed to save vnode cfg, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
+    return code;
+  }
+
+  code = vnodeReadCfg(pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("pVnode:%p vgId:%d, failed to read cfg file", pVnode, pVnode->vgId);
+    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
+    return code;
+  }
+
+  code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    dTrace("pVnode:%p vgId:%d, failed to alter vnode, canot reconfig sync, result:%s", pVnode, pVnode->vgId,
+           tstrerror(code));
+    return code;
+  }
+
+  code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    dTrace("pVnode:%p vgId:%d, failed to alter vnode, canot reconfig tsdb, result:%s", pVnode, pVnode->vgId,
+           tstrerror(code));
+    return code;
+  }
+
+  dTrace("pVnode:%p vgId:%d, vnode is altered", pVnode, pVnode->vgId);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   char temp[TSDB_FILENAME_LEN];
   pthread_once(&vnodeModuleInit, vnodeInit);
@@ -159,7 +192,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
   sprintf(temp, "%s/wal", rootDir);
-  pVnode->wal      = walOpen(temp, &pVnode->walCfg);
+  pVnode->wal = walOpen(temp, &pVnode->walCfg);
 
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
@@ -172,10 +205,10 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.writeToCache = vnodeWriteToQueue;
   syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
-  pVnode->sync     = syncStart(&syncInfo);
+  pVnode->sync = syncStart(&syncInfo);
 
-  pVnode->events   = NULL;
-  pVnode->cq       = NULL;
+  pVnode->events = NULL;
+  pVnode->cq     = NULL;
 
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
@@ -233,7 +266,9 @@ void vnodeRelease(void *pVnodeRaw) {
   pVnode->wqueue = NULL;
 
   if (pVnode->status == TAOS_VN_STATUS_DELETING) {
-    // remove the whole directory
+    char rootDir[TSDB_FILENAME_LEN] = {0};
+    sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
+    taosRemoveDir(rootDir);
   }
 
   free(pVnode);
@@ -252,7 +287,8 @@ void *vnodeGetVnode(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
-    assert(false);
+    dError("vgId:%d not exist");
+    return NULL;
   }
 
   return *ppVnode;
@@ -298,6 +334,7 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
   pLoad->vgId = htonl(pVnode->vgId);
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
+  pLoad->replica = pVnode->syncCfg.replica;
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {

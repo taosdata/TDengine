@@ -48,14 +48,12 @@ extern "C" {
 #define TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP 16
 #define TSDB_MSG_TYPE_MD_DROP_VNODE       17
 #define TSDB_MSG_TYPE_MD_DROP_VNODE_RSP   18
-#define TSDB_MSG_TYPE_MD_ALTER_VNODE      19
-#define TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP  20
-#define TSDB_MSG_TYPE_MD_DROP_STABLE      21
-#define TSDB_MSG_TYPE_MD_DROP_STABLE_RSP  22
-#define TSDB_MSG_TYPE_MD_ALTER_STREAM     23
-#define TSDB_MSG_TYPE_MD_ALTER_STREAM_RSP 24
-#define TSDB_MSG_TYPE_MD_CONFIG_DNODE     25
-#define TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP 26
+#define TSDB_MSG_TYPE_MD_DROP_STABLE      19
+#define TSDB_MSG_TYPE_MD_DROP_STABLE_RSP  20
+#define TSDB_MSG_TYPE_MD_ALTER_STREAM     21
+#define TSDB_MSG_TYPE_MD_ALTER_STREAM_RSP 22
+#define TSDB_MSG_TYPE_MD_CONFIG_DNODE     23
+#define TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP 24
 
 // message from client to mnode
 #define TSDB_MSG_TYPE_CM_CONNECT          31
@@ -512,6 +510,7 @@ typedef struct {
   uint8_t status;
   uint8_t role;
   uint8_t accessState;
+  uint8_t replica;
   uint8_t reserved[5];
 } SVnodeLoad;
 

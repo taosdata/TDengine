@@ -33,7 +33,6 @@ static int32_t  dnodeOpenVnodes();
 static void     dnodeCloseVnodes();
 static int32_t  dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
-static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
 static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
@@ -41,7 +40,6 @@ static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 int32_t dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
 
@@ -146,7 +144,14 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
     pCreate->nodes[j].nodeIp = htonl(pCreate->nodes[j].nodeIp);
   }
   
-  return vnodeCreate(pCreate);
+  void *pVnode = vnodeAccquireVnode(pCreate->cfg.vgId);
+  if (pVnode != NULL) {
+    int32_t code = vnodeAlter(pVnode, pCreate);
+    vnodeRelease(pVnode);
+    return code;
+  } else {
+    return vnodeCreate(pCreate);
+  }
 }
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
@@ -154,28 +159,6 @@ static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
   pDrop->vgId = htonl(pDrop->vgId);
 
   return vnodeDrop(pDrop->vgId);
-}
-
-static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
-  pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
-  pCreate->cfg.maxTables           = htonl(pCreate->cfg.maxTables);
-  pCreate->cfg.maxCacheSize        = htobe64(pCreate->cfg.maxCacheSize);
-  pCreate->cfg.minRowsPerFileBlock = htonl(pCreate->cfg.minRowsPerFileBlock);
-  pCreate->cfg.maxRowsPerFileBlock = htonl(pCreate->cfg.maxRowsPerFileBlock);
-  pCreate->cfg.daysPerFile         = htonl(pCreate->cfg.daysPerFile);
-  pCreate->cfg.daysToKeep1         = htonl(pCreate->cfg.daysToKeep1);
-  pCreate->cfg.daysToKeep2         = htonl(pCreate->cfg.daysToKeep2);
-  pCreate->cfg.daysToKeep          = htonl(pCreate->cfg.daysToKeep);
-  pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
-  pCreate->cfg.arbitratorIp        = htonl(pCreate->cfg.arbitratorIp);
-
-  for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
-    pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
-    pCreate->nodes[j].nodeIp = htonl(pCreate->nodes[j].nodeIp);
-  }
-
-  return 0;
 }
 
 static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {

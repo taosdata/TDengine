@@ -44,9 +44,7 @@ static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, vo
 static void    mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 static void    mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) ;
-
-static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
-static void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
+static void    mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
 static int32_t mgmtVgroupActionDestroy(SSdbOper *pOper) {
   SVgObj *pVgroup = pOper->pObj;
@@ -124,9 +122,25 @@ static int32_t mgmtVgroupActionDelete(SSdbOper *pOper) {
 static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
   SVgObj *pNew = pOper->pObj;
   SVgObj *pVgroup = mgmtGetVgroup(pNew->vgId);
+
   if (pVgroup != pNew) {
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+      SDnodeObj *pDnode = pVgroup->vnodeGid[i].pDnode;
+      if (pDnode != NULL) {
+        atomic_sub_fetch_32(&pDnode->openVnodes, 1);
+      }
+    }
+
     memcpy(pVgroup, pNew, pOper->rowSize);
     free(pNew);
+
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+      SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
+      pVgroup->vnodeGid[i].pDnode = pDnode;
+      if (pDnode != NULL) {
+        atomic_add_fetch_32(&pDnode->openVnodes, 1);
+      }
+    }
   }
 
   int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
@@ -232,6 +246,7 @@ void mgmtUpdateVgroup(SVgObj *pVgroup) {
 }
 
 void mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVload) {
+  bool dnodeExist = false;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     if (pVgid->pDnode == pDnode) {
@@ -239,8 +254,28 @@ void mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVlo
       if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
         pVgroup->inUse = i;
       }
+      dnodeExist = true;
       break;
     }
+  }
+
+  if (!dnodeExist) {
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
+    mError("vgroup:%d, dnode:%d not exist in mnode, drop it", pVload->vgId, pDnode->dnodeId);
+    mgmtSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
+    return;
+  }
+
+  if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
+    pVgroup->totalStorage = htobe64(pVload->totalStorage);
+    pVgroup->compStorage = htobe64(pVload->compStorage);
+    pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
+  }
+
+  if (pVload->replica != pVgroup->numOfVnodes) {
+    mError("dnode:%d, vgroup:%d replica:%d not match with mgmt:%d", pDnode->dnodeId, pVload->vgId, pVload->replica,
+           pVgroup->numOfVnodes);
+    mgmtSendCreateVgroupMsg(pVgroup, NULL);
   }
 }
 
@@ -521,7 +556,7 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   
   SMDVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
-    SDnodeObj *pDnode = pVgroup->vnodeGid[0].pDnode;
+    SDnodeObj *pDnode = pVgroup->vnodeGid[j].pDnode;
     if (pDnode != NULL) {
       pNodes[j].nodeId = htonl(pDnode->dnodeId);
       pNodes[j].nodeIp = htonl(pDnode->privateIp);

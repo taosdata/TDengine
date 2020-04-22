@@ -335,6 +335,8 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d, first access, privateIp:%s, name:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
+  } else {
+    mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
@@ -349,11 +351,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
       mgmtSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
       mgmtUpdateVgroupStatus(pVgroup, pDnode, pVload);
-      if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
-        pVgroup->totalStorage = htobe64(pVload->totalStorage);
-        pVgroup->compStorage = htobe64(pVload->compStorage);
-        pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
-      }
       mgmtDecVgroupRef(pVgroup);
     }
   }
