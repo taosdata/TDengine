@@ -567,7 +567,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
   SQueryInfo *         pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
-  int32_t srcColListSize = pQueryInfo->colList.numOfCols * sizeof(SColumnInfo);
+  int32_t srcColListSize = taosArrayGetSize(pQueryInfo->colList) * sizeof(SColumnInfo);
 
   int32_t         exprSize = sizeof(SSqlFuncExprMsg) * pQueryInfo->exprsInfo.numOfExprs;
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -624,7 +624,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
   
-  if (pQueryInfo->colList.numOfCols <= 0) {
+  if (taosArrayGetSize(pQueryInfo->colList) <= 0) {
     tscError("%p illegal value of numOfCols in query msg: %d", pSql, tscGetNumOfColumns(pTableMeta));
     return -1;
   }
@@ -700,7 +700,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->interpoType    = htons(pQueryInfo->interpoType);
   pQueryMsg->limit          = htobe64(pQueryInfo->limit.limit);
   pQueryMsg->offset         = htobe64(pQueryInfo->limit.offset);
-  pQueryMsg->numOfCols      = htons(pQueryInfo->colList.numOfCols);
+  pQueryMsg->numOfCols      = htons(taosArrayGetSize(pQueryInfo->colList));
   pQueryMsg->intervalTime   = htobe64(pQueryInfo->intervalTime);
   pQueryMsg->slidingTime    = htobe64(pQueryInfo->slidingTime);
   pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
@@ -716,21 +716,22 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   // set column list ids
-  char *pMsg = (char *)(pQueryMsg->colList) + pQueryInfo->colList.numOfCols * sizeof(SColumnInfo);
+  size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
+  char *pMsg = (char *)(pQueryMsg->colList) + numOfCols * sizeof(SColumnInfo);
   SSchema *pSchema = tscGetTableSchema(pTableMeta);
 
-  for (int32_t i = 0; i < pQueryInfo->colList.numOfCols; ++i) {
-    SColumnBase *pCol = tscColumnBaseInfoGet(&pQueryInfo->colList, i);
-    SSchema *    pColSchema = &pSchema[pCol->colIndex.columnIndex];
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumn *pCol = taosArrayGetP(pQueryInfo->colList, i);
+    SSchema *pColSchema = &pSchema[pCol->colIndex.columnIndex];
 
-//    if (pCol->colIndex.columnIndex >= tscGetNumOfColumns(pTableMeta) || pColSchema->type < TSDB_DATA_TYPE_BOOL ||
-//        pColSchema->type > TSDB_DATA_TYPE_NCHAR) {
-//      tscError("%p vid:%d sid:%d id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s", pSql,
-//               htons(pQueryMsg->vnode), pTableMeta->sid, pTableMetaInfo->name, tscGetNumOfColumns(pTableMeta), pCol->colIndex,
-//               pColSchema->name);
-//
-//      return -1;  // 0 means build msg failed
-//    }
+    if (pCol->colIndex.columnIndex >= tscGetNumOfColumns(pTableMeta) || pColSchema->type < TSDB_DATA_TYPE_BOOL ||
+        pColSchema->type > TSDB_DATA_TYPE_NCHAR) {
+      tscError("%p sid:%d uid:%" PRIu64" id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s",
+          pSql, pTableMeta->sid, pTableMeta->uid, pTableMetaInfo->name, tscGetNumOfColumns(pTableMeta), pCol->colIndex,
+               pColSchema->name);
+
+      return -1;  // 0 means build msg failed
+    }
 
     pQueryMsg->colList[i].colId = htons(pColSchema->colId);
     pQueryMsg->colList[i].bytes = htons(pColSchema->bytes);
@@ -742,11 +743,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       SColumnFilterInfo *pColFilter = &pCol->filterInfo[f];
 
       SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)pMsg;
-      pFilterMsg->filterOnBinary = htons(pColFilter->filterOnBinary);
+      pFilterMsg->filterstr = htons(pColFilter->filterstr);
 
       pMsg += sizeof(SColumnFilterInfo);
 
-      if (pColFilter->filterOnBinary) {
+      if (pColFilter->filterstr) {
         pFilterMsg->len = htobe64(pColFilter->len);
         memcpy(pMsg, (void *)pColFilter->pz, pColFilter->len + 1);
         pMsg += (pColFilter->len + 1);  // append the additional filter binary info
@@ -808,8 +809,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int32_t len = 0;
   if (hasArithmeticFunction) {
-    SColumnBase *pColBase = pQueryInfo->colList.pColList;
-    for (int32_t i = 0; i < pQueryInfo->colList.numOfCols; ++i) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumn* pColBase = taosArrayGetP(pQueryInfo->colList, i);
+      
       char *  name = pSchema[pColBase[i].colIndex.columnIndex].name;
       int32_t lenx = strlen(name);
       memcpy(pMsg, name, lenx);
@@ -2194,12 +2196,15 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutputCols;
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
-  tscColumnBaseInfoReserve(&pQueryInfo->colList, pMetaMsg->numOfColumns);
+  if (pQueryInfo->colList == NULL) {
+    pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
+  }
+  
   SColumnIndex index = {0};
-
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
     index.columnIndex = i;
-    tscColumnBaseInfoInsert(pQueryInfo, &index);
+    tscColumnListInsert(pQueryInfo->colList, &index);
+    
     tscFieldInfoSetValFromSchema(&pQueryInfo->fieldsInfo, i, &pTableSchema[i]);
     
     pQueryInfo->fieldsInfo.pSqlExpr[i] = tscSqlExprInsert(pQueryInfo, i, TSDB_FUNC_TS_DUMMY, &index,
@@ -2477,7 +2482,7 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
    * 1. only update the metermeta in force model metricmeta is not updated
    * 2. if get metermeta failed, still get the metermeta
    */
-  if (pTableMetaInfo->pTableMeta == NULL || !tscQueryOnMetric(pCmd)) {
+  if (pTableMetaInfo->pTableMeta == NULL || !tscQueryOnSTable(pCmd)) {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     if (pTableMetaInfo->pTableMeta) {
       tscTrace("%p update table meta, old: numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,

@@ -61,7 +61,7 @@ void taosArrayPop(SArray* pArray);
  * @param index
  * @return
  */
-void* taosArrayGet(SArray* pArray, size_t index);
+void* taosArrayGet(const SArray* pArray, size_t index);
 
 /**
  * get the pointer data from the array
@@ -69,7 +69,7 @@ void* taosArrayGet(SArray* pArray, size_t index);
  * @param index
  * @return
  */
-void* taosArrayGetP(SArray* pArray, size_t index);
+void* taosArrayGetP(const SArray* pArray, size_t index);
 
 /**
  * return the size of array

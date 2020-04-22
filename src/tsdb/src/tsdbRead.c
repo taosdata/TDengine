@@ -189,8 +189,8 @@ TsdbQueryHandleT* tsdbQueryTables(TsdbRepoT* tsdb, STsdbQueryCond* pCond, STable
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
     SColumnInfoData  pDest = {{0}, 0};
 
-    pDest.info = pCond->colList[i].info;
-    pDest.pData = calloc(1, EXTRA_BYTES + bufferCapacity * pCond->colList[i].info.bytes);
+    pDest.info = pCond->colList[i];
+    pDest.pData = calloc(1, EXTRA_BYTES + bufferCapacity * pCond->colList[i].bytes);
     taosArrayPush(pQueryHandle->pColumns, &pDest);
   }
 
@@ -595,10 +595,8 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
       SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, j);
 
       if (pCol->info.colId == colId) {
-        // SDataCol* pDataCol = &pCols->cols[i];
-//        pCol->pData = pQueryHandle->rhelper.pDataCols[0]->cols[i].pData + pCol->info.bytes * start;
-         memmove(pCol->pData, pQueryHandle->rhelper.pDataCols[0]->cols[i].pData + pCol->info.bytes * start,
-                 pQueryHandle->realNumOfRows * pCol->info.bytes);
+        memmove(pCol->pData, pQueryHandle->rhelper.pDataCols[0]->cols[i].pData + pCol->info.bytes * start,
+               pQueryHandle->realNumOfRows * pCol->info.bytes);
         break;
       }
     }
@@ -1082,7 +1080,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
     return pHandle->pColumns;
   } else {
     STableBlockInfo* pBlockInfoEx = &pHandle->pDataBlockInfo[pHandle->cur.slot];
-    STableCheckInfo*   pCheckInfo = pBlockInfoEx->pTableCheckInfo;
+    STableCheckInfo* pCheckInfo = pBlockInfoEx->pTableCheckInfo;
 
     SDataBlockInfo binfo = getTrueDataBlockInfo(pCheckInfo, pBlockInfoEx->pBlock.compBlock);
     assert(pHandle->realNumOfRows <= binfo.rows);

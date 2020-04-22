@@ -2940,7 +2940,7 @@ static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
   
-  pCtx->aOutputBuf += pCtx->inputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
+  pCtx->aOutputBuf += pCtx->inputBytes;
 }
 
 /**

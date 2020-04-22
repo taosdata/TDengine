@@ -38,4 +38,9 @@ void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTa
 
 char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult);
 
+__filter_func_t *getRangeFilterFuncArray(int32_t type);
+__filter_func_t *getValueFilterFuncArray(int32_t type);
+
+bool supportPrefilter(int32_t type);
+
 #endif  // TDENGINE_QUERYUTIL_H

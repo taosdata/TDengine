@@ -30,9 +30,9 @@ extern "C" {
 #include "taosmsg.h"
 #include "tarray.h"
 #include "tglobal.h"
-#include "trpc.h"
-#include "tsqlfunction.h"
 #include "tutil.h"
+#include "tsqlfunction.h"
+#include "queryExecutor.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 
@@ -40,14 +40,6 @@ extern "C" {
 struct SSqlInfo;
 
 typedef SCMSTableVgroupRspMsg SVgroupsInfo;
-
-typedef struct SSqlGroupbyExpr {
-  int16_t     tableIndex;
-  int16_t     numOfGroupCols;
-  SColIndex   columnInfo[TSDB_MAX_TAGS];  // group by columns information
-  int16_t     orderIndex;                 // order by column index
-  int16_t     orderType;                  // order by type: asc/desc
-} SSqlGroupbyExpr;
 
 typedef struct STableComInfo {
   uint8_t numOfTags;
@@ -123,17 +115,11 @@ typedef struct SSqlExprInfo {
   SSqlExpr** pExprs;
 } SSqlExprInfo;
 
-typedef struct SColumnBase {
+typedef struct SColumn {
   SColumnIndex       colIndex;
   int32_t            numOfFilters;
   SColumnFilterInfo *filterInfo;
-} SColumnBase;
-
-typedef struct SColumnBaseInfo {
-  int16_t      numOfAlloc;
-  int16_t      numOfCols;
-  SColumnBase *pColList;
-} SColumnBaseInfo;
+} SColumn;
 
 struct SLocalReducer;
 
@@ -223,7 +209,7 @@ typedef struct SQueryInfo {
   int64_t         slidingTime;   // sliding window in mseconds
   SSqlGroupbyExpr groupbyExpr;   // group by tags info
 
-  SColumnBaseInfo  colList;
+  SArray*          colList;
   SFieldInfo       fieldsInfo;
   SSqlExprInfo     exprsInfo;
   SLimitVal        limit;

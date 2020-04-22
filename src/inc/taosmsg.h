@@ -413,7 +413,7 @@ typedef struct SSqlFunctionExpr {
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;
   int16_t upperRelOptr;
-  int16_t filterOnBinary; /* denote if current column is binary   */
+  int16_t filterstr;   // denote if current column is char(binary/nchar)
 
   union {
     struct {

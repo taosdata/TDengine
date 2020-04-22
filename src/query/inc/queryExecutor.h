@@ -90,7 +90,7 @@ typedef struct SColumnFilterElem {
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {
-  SColumnInfoData    info;
+  SColumnInfo        info;
   int32_t            numOfFilters;
   SColumnFilterElem* pFilters;
   void*              pData;
@@ -129,14 +129,13 @@ typedef struct SQuery {
   int32_t           rowSize;
   SSqlGroupbyExpr*  pGroupbyExpr;
   SSqlFunctionExpr* pSelectExpr;
-  SColumnInfoData*    colList;
+  SColumnInfo*      colList;
   int32_t           numOfFilterCols;
   int64_t*          defaultVal;
   TSKEY             lastKey;
   uint32_t          status;  // query status
   SResultRec        rec;
   int32_t           pos;
-  int64_t           pointsOffset;  // the number of points offset to save read data
   SData**           sdata;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;

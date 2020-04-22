@@ -57,7 +57,7 @@ typedef struct SJoinSubquerySupporter {
   int64_t         interval;       // interval time
   SLimitVal       limit;          // limit info
   uint64_t        uid;            // query meter uid
-  SColumnBaseInfo colList;        // previous query information
+  SArray*         colList;        // previous query information
   SSqlExprInfo    exprsInfo;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
@@ -106,7 +106,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
-bool tscQueryOnMetric(SSqlCmd* pCmd);
+bool tscQueryOnSTable(SSqlCmd* pCmd);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
@@ -159,16 +159,12 @@ void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t ui
 void*     tscSqlExprDestroy(SSqlExpr* pExpr);
 void      tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo);
 
-SColumnBase* tscColumnBaseInfoInsert(SQueryInfo* pQueryInfo, SColumnIndex* colIndex);
-void         tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* src);
-void         tscColumnBaseCopy(SColumnBase* dst, const SColumnBase* src);
+SColumn* tscColumnClone(const SColumn* src);
+SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
+void tscColumnListAssign(SArray* dst, const SArray* src, int16_t tableIndex);
+void tscColumnListDestroy(SArray* pColList);
 
-void         tscColumnBaseInfoCopy(SColumnBaseInfo* dst, const SColumnBaseInfo* src, int16_t tableIndex);
-SColumnBase* tscColumnBaseInfoGet(SColumnBaseInfo* pColumnBaseInfo, int32_t index);
-void         tscColumnBaseInfoUpdateTableIndex(SColumnBaseInfo* pColList, int16_t tableIndex);
-
-void tscColumnBaseInfoReserve(SColumnBaseInfo* pColumnBaseInfo, int32_t size);
-void tscColumnBaseInfoDestroy(SColumnBaseInfo* pColumnBaseInfo);
+SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
 
 int32_t tscValidateName(SSQLToken* pToken);
 

@@ -130,7 +130,7 @@ void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBuffer* pBuf) {
   taosArrayPush(pTagCond->pCond, &cond);
 }
 
-bool tscQueryOnMetric(SSqlCmd* pCmd) {
+bool tscQueryOnSTable(SSqlCmd* pCmd) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   return ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY) == TSDB_QUERY_TYPE_STABLE_QUERY) &&
@@ -1289,7 +1289,6 @@ void tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo) {
   pExprInfo->numOfExprs = 0;
 }
 
-
 void tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t tableuid, bool deepcopy) {
   if (src == NULL || src->numOfExprs == 0) {
     return;
@@ -1323,186 +1322,130 @@ void tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t tableui
       }
     }
   }
-
 }
 
-static void clearVal(SColumnBase* pBase) {
-  memset(pBase, 0, sizeof(SColumnBase));
-
-  pBase->colIndex.tableIndex = -2;
-  pBase->colIndex.columnIndex = -2;
-}
-
-static void _cf_ensureSpace(SColumnBaseInfo* pcolList, int32_t size) {
-  if (pcolList->numOfAlloc < size) {
-    int32_t oldSize = pcolList->numOfAlloc;
-
-    int32_t newSize = (oldSize <= 0) ? 8 : (oldSize << 1);
-    while (newSize < size) {
-      newSize = (newSize << 1);
-    }
-
-    if (newSize > TSDB_MAX_COLUMNS) {
-      newSize = TSDB_MAX_COLUMNS;
-    }
-
-    int32_t inc = newSize - oldSize;
-
-    pcolList->pColList = realloc(pcolList->pColList, newSize * sizeof(SColumnBase));
-    memset(&pcolList->pColList[oldSize], 0, inc * sizeof(SColumnBase));
-
-    pcolList->numOfAlloc = newSize;
-  }
-}
-
-static void _cf_evic(SColumnBaseInfo* pcolList, int32_t index) {
-  if (index < pcolList->numOfCols) {
-    memmove(&pcolList->pColList[index + 1], &pcolList->pColList[index],
-            sizeof(SColumnBase) * (pcolList->numOfCols - index));
-
-    clearVal(&pcolList->pColList[index]);
-  }
-}
-
-SColumnBase* tscColumnBaseInfoGet(SColumnBaseInfo* pColumnBaseInfo, int32_t index) {
-  if (pColumnBaseInfo == NULL || pColumnBaseInfo->numOfCols < index) {
-    return NULL;
-  }
-
-  return &pColumnBaseInfo->pColList[index];
-}
-
-void tscColumnBaseInfoUpdateTableIndex(SColumnBaseInfo* pColList, int16_t tableIndex) {
-  for (int32_t i = 0; i < pColList->numOfCols; ++i) {
-    pColList->pColList[i].colIndex.tableIndex = tableIndex;
-  }
-}
-
-// todo refactor
-SColumnBase* tscColumnBaseInfoInsert(SQueryInfo* pQueryInfo, SColumnIndex* pColIndex) {
-  SColumnBaseInfo* pcolList = &pQueryInfo->colList;
-
+SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
   // ignore the tbname column to be inserted into source list
   if (pColIndex->columnIndex < 0) {
     return NULL;
   }
-
+  
+  size_t numOfCols = taosArrayGetSize(pColumnList);
   int16_t col = pColIndex->columnIndex;
 
   int32_t i = 0;
-  while (i < pcolList->numOfCols) {
-    if (pcolList->pColList[i].colIndex.columnIndex < col) {
+  while (i < numOfCols) {
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
+    if (pCol->colIndex.columnIndex < col) {
       i++;
-    } else if (pcolList->pColList[i].colIndex.tableIndex < pColIndex->tableIndex) {
+    } else if (pCol->colIndex.tableIndex < pColIndex->tableIndex) {
       i++;
     } else {
       break;
     }
   }
 
-  SColumnIndex* pIndex = &pcolList->pColList[i].colIndex;
-  if ((i < pcolList->numOfCols && (pIndex->columnIndex > col || pIndex->tableIndex != pColIndex->tableIndex)) ||
-      (i >= pcolList->numOfCols)) {
-    _cf_ensureSpace(pcolList, pcolList->numOfCols + 1);
-    _cf_evic(pcolList, i);
-
-    pcolList->pColList[i].colIndex = *pColIndex;
-    pcolList->numOfCols++;
-  }
-
-  return &pcolList->pColList[i];
-}
-
-void tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* src) {
-  assert(src != NULL && dst != NULL);
-
-  assert(src->filterOnBinary == 0 || src->filterOnBinary == 1);
-  if (src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID) {
-    assert(0);
-  }
-
-  *dst = *src;
-  if (dst->filterOnBinary) {
-    size_t len = (size_t)dst->len + 1;
-    char*  pTmp = calloc(1, len);
-    dst->pz = (int64_t)pTmp;
-    memcpy((char*)dst->pz, (char*)src->pz, (size_t)len);
-  }
-}
-
-void tscColumnBaseCopy(SColumnBase* dst, const SColumnBase* src) {
-  assert(src != NULL && dst != NULL);
-
-  *dst = *src;
-
-  if (src->numOfFilters > 0) {
-    dst->filterInfo = calloc(1, src->numOfFilters * sizeof(SColumnFilterInfo));
-
-    for (int32_t j = 0; j < src->numOfFilters; ++j) {
-      tscColumnFilterInfoCopy(&dst->filterInfo[j], &src->filterInfo[j]);
-    }
+  if (i >= numOfCols || numOfCols == 0) {
+    SColumn* b = calloc(1, sizeof(SColumn));
+    b->colIndex = *pColIndex;
+    
+    taosArrayInsert(pColumnList, i, &b);
   } else {
-    assert(src->filterInfo == NULL);
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
+  
+    if (i < numOfCols && (pCol->colIndex.columnIndex > col || pCol->colIndex.tableIndex != pColIndex->tableIndex)) {
+      SColumn* b = calloc(1, sizeof(SColumn));
+      b->colIndex = *pColIndex;
+      
+      taosArrayInsert(pColumnList, i, &b);
+    }
   }
+
+  return taosArrayGetP(pColumnList, i);
 }
 
-void tscColumnBaseInfoCopy(SColumnBaseInfo* dst, const SColumnBaseInfo* src, int16_t tableIndex) {
+SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters) {
+  SColumnFilterInfo* pFilter = NULL;
+  if (numOfFilters > 0) {
+    pFilter = calloc(1, numOfFilters * sizeof(SColumnFilterInfo));
+  } else {
+    assert(src == NULL);
+    return NULL;
+  }
+  
+  memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
+  for (int32_t j = 0; j < numOfFilters; ++j) {
+    if (pFilter[j].filterstr) {
+      size_t len = (size_t) pFilter[j].len + 1;
+  
+      char*  pTmp   = calloc(1, len);
+      pFilter[j].pz = (int64_t) pTmp;
+      
+      memcpy((char*)pFilter[j].pz, (char*)src->pz, (size_t)len);
+    }
+  }
+  
+  assert(src->filterstr == 0 || src->filterstr == 1);
+  assert(!(src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID));
+  
+  return pFilter;
+}
+
+static void destroyFilterInfo(SColumnFilterInfo* pFilterInfo, int32_t numOfFilters) {
+  for(int32_t i = 0; i < numOfFilters; ++i) {
+    if (pFilterInfo[i].filterstr) {
+      tfree(pFilterInfo[i].pz);
+    }
+  }
+  
+  tfree(pFilterInfo);
+}
+
+SColumn* tscColumnClone(const SColumn* src) {
+  assert(src != NULL);
+  
+  SColumn* dst = calloc(1, sizeof(SColumn));
+  
+  dst->colIndex     = src->colIndex;
+  dst->numOfFilters = src->numOfFilters;
+  dst->filterInfo   = tscFilterInfoClone(src->filterInfo, src->numOfFilters);
+  
+  return dst;
+}
+
+static void tscColumnDestroy(SColumn* pCol) {
+  destroyFilterInfo(pCol->filterInfo, pCol->numOfFilters);
+  free(pCol);
+}
+
+void tscColumnListAssign(SArray* dst, const SArray* src, int16_t tableIndex) {
   if (src == NULL) {
     return;
   }
+  
+  size_t num = taosArrayGetSize(src);
+  for (int32_t i = 0; i < num; ++i) {
+    SColumn* pCol = taosArrayGetP(src, i);
 
-  *dst = *src;
-  dst->pColList = calloc(1, sizeof(SColumnBase) * dst->numOfAlloc);
-
-  int16_t num = 0;
-  for (int32_t i = 0; i < src->numOfCols; ++i) {
-    if (src->pColList[i].colIndex.tableIndex == tableIndex || tableIndex < 0) {
-      dst->pColList[num] = src->pColList[i];
-
-      if (dst->pColList[num].numOfFilters > 0) {
-        dst->pColList[num].filterInfo = calloc(1, dst->pColList[num].numOfFilters * sizeof(SColumnFilterInfo));
-
-        for (int32_t j = 0; j < dst->pColList[num].numOfFilters; ++j) {
-          tscColumnFilterInfoCopy(&dst->pColList[num].filterInfo[j], &src->pColList[i].filterInfo[j]);
-        }
-      }
-
-      num += 1;
+    if (pCol->colIndex.tableIndex == tableIndex || tableIndex < 0) {
+      SColumn* p = tscColumnClone(pCol);
+      taosArrayPush(dst, &p);
     }
   }
-
-  dst->numOfCols = num;
 }
 
-void tscColumnBaseInfoDestroy(SColumnBaseInfo* pColumnBaseInfo) {
+void tscColumnListDestroy(SArray* pColumnBaseInfo) {
   if (pColumnBaseInfo == NULL) {
     return;
   }
 
-  assert(pColumnBaseInfo->numOfCols <= TSDB_MAX_COLUMNS);
-
-  for (int32_t i = 0; i < pColumnBaseInfo->numOfCols; ++i) {
-    SColumnBase* pColBase = &(pColumnBaseInfo->pColList[i]);
-
-    if (pColBase->numOfFilters > 0) {
-      for (int32_t j = 0; j < pColBase->numOfFilters; ++j) {
-        assert(pColBase->filterInfo[j].filterOnBinary == 0 || pColBase->filterInfo[j].filterOnBinary == 1);
-
-        if (pColBase->filterInfo[j].filterOnBinary) {
-          free((char*)pColBase->filterInfo[j].pz);
-          pColBase->filterInfo[j].pz = 0;
-        }
-      }
-    }
-
-    tfree(pColBase->filterInfo);
+  size_t num = taosArrayGetSize(pColumnBaseInfo);
+  for (int32_t i = 0; i < num; ++i) {
+    SColumn* pCol = taosArrayGetP(pColumnBaseInfo, i);
+    tscColumnDestroy(pCol);
   }
 
-  tfree(pColumnBaseInfo->pColList);
-}
-
-void tscColumnBaseInfoReserve(SColumnBaseInfo* pColumnBaseInfo, int32_t size) {
-  _cf_ensureSpace(pColumnBaseInfo, size);
+  taosArrayDestroy(pColumnBaseInfo);
 }
 
 /*
@@ -1883,7 +1826,7 @@ static void doClearSubqueryInfo(SQueryInfo* pQueryInfo) {
   tscSqlExprInfoDestroy(&pQueryInfo->exprsInfo);
   memset(&pQueryInfo->exprsInfo, 0, sizeof(pQueryInfo->exprsInfo));
 
-  tscColumnBaseInfoDestroy(&pQueryInfo->colList);
+  tscColumnListDestroy(pQueryInfo->colList);
   memset(&pQueryInfo->colList, 0, sizeof(pQueryInfo->colList));
 
   pQueryInfo->tsBuf = tsBufDestory(pQueryInfo->tsBuf);
@@ -2070,7 +2013,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     return NULL;
   }
 
-  tscColumnBaseInfoCopy(&pNewQueryInfo->colList, &pQueryInfo->colList, (int16_t)tableIndex);
+  tscColumnListAssign(pNewQueryInfo->colList, pQueryInfo->colList, (int16_t)tableIndex);
 
   // set the correct query type
   if (pPrevSql != NULL) {
@@ -2149,11 +2092,13 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
   
   if (cmd == TSDB_SQL_SELECT) {
+    size_t size = taosArrayGetSize(pNewQueryInfo->colList);
+    
     tscTrace(
         "%p new subquery: %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
         "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
         pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
-        pNewQueryInfo->colList.numOfCols, pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name, pNewQueryInfo->stime,
+        size, pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name, pNewQueryInfo->stime,
         pNewQueryInfo->etime, pNewQueryInfo->order.order, pNewQueryInfo->limit.limit);
     
     tscPrintSelectClause(pNew, 0);

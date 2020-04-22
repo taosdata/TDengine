@@ -191,7 +191,7 @@ void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter) {
   }
 
   tscSqlExprInfoDestroy(&pSupporter->exprsInfo);
-  tscColumnBaseInfoDestroy(&pSupporter->colList);
+  tscColumnListDestroy(pSupporter->colList);
 
   tscClearFieldInfo(&pSupporter->fieldsInfo);
 
@@ -211,8 +211,10 @@ void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter) {
  *
  */
 bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
-  for (int32_t i = 0; i < pQueryInfo->colList.numOfCols; ++i) {
-    SColumnBase* pBase = tscColumnBaseInfoGet(&pQueryInfo->colList, i);
+  size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
+  
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumn* pBase = taosArrayGet(pQueryInfo->colList, i);
     if (pBase->colIndex.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       return true;
     }
@@ -299,7 +301,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pQueryInfo->intervalTime = pSupporter->interval;
     pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
   
-    tscColumnBaseInfoCopy(&pQueryInfo->colList, &pSupporter->colList, 0);
+    tscColumnListAssign(pQueryInfo->colList, pSupporter->colList, 0);
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
   
     tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid, false);
@@ -342,9 +344,10 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   
     tscPrintSelectClause(pNew, 0);
   
+    size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
     tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
-             pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
+             pNewQueryInfo->exprsInfo.numOfExprs, numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
   }
   
@@ -850,8 +853,14 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNewQueryInfo != NULL);
     
-    tscColumnBaseInfoUpdateTableIndex(&pNewQueryInfo->colList, 0);
-    tscColumnBaseInfoCopy(&pSupporter->colList, &pNewQueryInfo->colList, 0);
+    // update the table index
+    size_t num = taosArrayGetSize(pNewQueryInfo->colList);
+    for (int32_t i = 0; i < num; ++i) {
+      SColumn* pCol = taosArrayGetP(pNewQueryInfo->colList, i);
+      pCol->colIndex.tableIndex = 0;
+    }
+    
+    tscColumnListAssign(pSupporter->colList, pNewQueryInfo->colList, 0);
     
     tscSqlExprCopy(&pSupporter->exprsInfo, &pNewQueryInfo->exprsInfo, pSupporter->uid, false);
     tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);
@@ -888,27 +897,26 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     pExpr->numOfParams = 1;
     
     // add the filter tag column
-    for (int32_t i = 0; i < pSupporter->colList.numOfCols; ++i) {
-      SColumnBase *pColBase = &pSupporter->colList.pColList[i];
-      if (pColBase->numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
-        tscColumnBaseCopy(&pNewQueryInfo->colList.pColList[pNewQueryInfo->colList.numOfCols], pColBase);
-        pNewQueryInfo->colList.numOfCols++;
+    size_t s = taosArrayGetSize(pSupporter->colList);
+    
+    for (int32_t i = 0; i < s; ++i) {
+      SColumn *pCol = taosArrayGetP(pSupporter->colList, i);
+      
+      if (pCol->numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
+        SColumn* p = tscColumnClone(pCol);
+        taosArrayPush(pNewQueryInfo->colList, &p);
       }
     }
-    
+  
+    size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
+  
     tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
              "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
              pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
-             pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
+             pNewQueryInfo->exprsInfo.numOfExprs, numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
     tscPrintSelectClause(pNew, 0);
-    
-    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
-             "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
-             pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
-             pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
-             pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
-    tscPrintSelectClause(pNew, 0);
+
   } else {
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
