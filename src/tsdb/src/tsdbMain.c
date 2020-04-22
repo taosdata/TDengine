@@ -282,6 +282,8 @@ int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
 
 int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  if (pRepo->appH.walCallBack) pRepo->appH.walCallBack(pRepo->appH.appH);
   
   tsdbLockRepo(repo);
   if (pRepo->commit) {
@@ -387,7 +389,7 @@ int tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t ti
   config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
   config->tableId.uid = uid;
   config->tableId.tid = tid;
-  config->name = strdup("test1");
+  config->name = NULL;
   return 0;
 }
 
@@ -854,8 +856,6 @@ static void *tsdbCommitData(void *arg) {
   SRWHelper   whelper = {0};
   if (pCache->imem == NULL) return NULL;
 
-  if (pRepo->appH.walCallBack) pRepo->appH.walCallBack(pRepo->appH.appH);
-
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
   if (iters == NULL) {
@@ -880,6 +880,7 @@ static void *tsdbCommitData(void *arg) {
 _exit:
   tdFreeDataCols(pDataCols);
   tsdbDestroyTableIters(iters, pCfg->maxTables);
+  tsdbDestroyHelper(&whelper);
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);

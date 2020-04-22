@@ -4,6 +4,7 @@
 
 #include "tdataformat.h"
 #include "tsdbMain.h"
+#include "tskiplist.h"
 
 static double getCurTime() {
   struct timeval tv;
@@ -141,6 +142,7 @@ TEST(TsdbTest, createRepo) {
   STableCfg tCfg;
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_SUPER_TABLE, 987607499877672L, 0), -1);
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NORMAL_TABLE, 987607499877672L, 0), 0);
+  tsdbTableSetName(&tCfg, "test", false);
 
   int       nCols = 5;
   STSchema *schema = tdNewSchema(nCols);
@@ -167,7 +169,7 @@ TEST(TsdbTest, createRepo) {
     .sversion = tCfg.sversion,
     .startTime = 1584081000000,
     .interval = 1000,
-    .totalRows = 5000000,
+    .totalRows = 10000000,
     .rowsPerSubmit = 1,
     .pSchema = schema
   };
@@ -262,4 +264,47 @@ TEST(TsdbTest, DISABLED_createFileGroup) {
   // ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);
 
   int k = 0;
+}
+
+static char *getTKey(const void *data) {
+  return (char *)data;
+}
+
+static void insertSkipList(bool isAscend) {
+  TSKEY start_time = 1587393453000;
+  TSKEY interval = 1000;
+
+  SSkipList *pList = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0, 0, 1, getTKey);
+  ASSERT_NE(pList, nullptr);
+
+  for (size_t i = 0; i < 20000000; i++)
+  {
+    TSKEY time = isAscend ? (start_time + i * interval) : (start_time - i * interval);
+    int32_t level = 0;
+    int32_t headSize = 0;
+
+    tSkipListNewNodeInfo(pList, &level, &headSize);
+    SSkipListNode *pNode = (SSkipListNode *)malloc(headSize + sizeof(TSKEY));
+    ASSERT_NE(pNode, nullptr);
+    pNode->level = level;
+    *(TSKEY *)((char *)pNode + headSize) = time;
+    tSkipListPut(pList, pNode);
+  }
+
+  tSkipListDestroy(pList);
+}
+
+TEST(TsdbTest, DISABLED_testSkipList) {
+// TEST(TsdbTest, testSkipList) {
+  double stime = getCurTime();
+  insertSkipList(true);
+  double etime = getCurTime();
+
+  printf("Time used to insert 100000000 records takes %f seconds\n", etime-stime);
+
+  stime = getCurTime();
+  insertSkipList(false);
+  etime = getCurTime();
+
+  printf("Time used to insert 100000000 records takes %f seconds\n", etime-stime);
 }
