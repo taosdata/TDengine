@@ -63,6 +63,7 @@ static int32_t mgmtUserActionDelete(SSdbOper *pOper) {
 
   if (pAcct != NULL) {
     mgmtDropUserFromAcct(pAcct, pUser);
+    mgmtDecAcctRef(pAcct);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -72,9 +73,10 @@ static int32_t mgmtUserActionUpdate(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
   SUserObj *pSaved = mgmtGetUser(pUser->user);
   if (pUser != pSaved) {
-    memcpy(pSaved, pUser, pOper->rowSize);
+    memcpy(pSaved, pUser, tsUserUpdateSize);
     free(pUser);
   }
+  mgmtDecUserRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 

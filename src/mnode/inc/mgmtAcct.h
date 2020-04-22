@@ -24,10 +24,10 @@ extern "C" {
 
 int32_t mgmtInitAccts();
 void    mgmtCleanUpAccts();
-void   *mgmtGetAcct(char *acctName);
+void *  mgmtGetAcct(char *acctName);
+void *  mgmtGetNextAcct(void *pNode, SAcctObj **pAcct);
 void    mgmtIncAcctRef(SAcctObj *pAcct);
 void    mgmtDecAcctRef(SAcctObj *pAcct);
-
 void    mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);
 void    mgmtDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
 void    mgmtAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
