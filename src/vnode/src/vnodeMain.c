@@ -38,6 +38,8 @@ static void     vnodeBuildVloadMsg(char *pNode, void * param);
 static int      vnodeWalCallback(void *arg);
 static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
 static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
+static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
+static int32_t  vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeWalCallback(void *arg);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
@@ -151,6 +153,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     return code;
   }
 
+  vnodeReadVersion(pVnode);
+  
   pVnode->wqueue = dnodeAllocateWqueue(pVnode);
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
@@ -303,6 +307,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   //syncStop(pVnode->sync);
   tsdbCloseRepo(pVnode->tsdb);
   walClose(pVnode->wal);
+  vnodeSaveVersion(pVnode);
 
   vnodeRelease(pVnode);
 }
@@ -555,6 +560,77 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     dPrint("pVnode:%p vgId:%d, dnode:%d, ip:%s name:%s", pVnode, pVnode->vgId, pVnode->syncCfg.nodeInfo[i].nodeId,
            taosIpStr(pVnode->syncCfg.nodeInfo[i].nodeIp), pVnode->syncCfg.nodeInfo[i].name);
   }
+
+PARSE_OVER:
+  free(content);
+  cJSON_Delete(root);
+  fclose(fp);
+  return ret;
+}
+
+
+static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
+  char versionFile[TSDB_FILENAME_LEN + 30] = {0};
+  sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
+  FILE *fp = fopen(versionFile, "w");
+  if (!fp) {
+    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId);
+    return errno;
+  }
+
+  int32_t len = 0;
+  int32_t maxLen = 30;
+  char *  content = calloc(1, maxLen + 1);
+
+  len += snprintf(content + len, maxLen - len, "{\n");
+  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->version);
+  len += snprintf(content + len, maxLen - len, "}\n");
+
+  fwrite(content, 1, len, fp);
+  fclose(fp);
+  free(content);
+
+  dPrint("pVnode:%p vgId:%d, save vnode version successed", pVnode, pVnode->vgId);
+
+  return 0;
+}
+
+static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
+  char versionFile[TSDB_FILENAME_LEN + 30] = {0};
+  sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
+  FILE *fp = fopen(versionFile, "w");
+  if (!fp) {
+    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId);
+    return errno;
+  }
+
+  int   ret = TSDB_CODE_OTHERS;
+  int   maxLen = 100;
+  char *content = calloc(1, maxLen + 1);
+  int   len = fread(content, 1, maxLen, fp);
+  if (len <= 0) {
+    free(content);
+    fclose(fp);
+    dError("pVnode:%p vgId:%d, failed to read vnode version, content is null", pVnode, pVnode->vgId);
+    return false;
+  }
+
+  cJSON *root = cJSON_Parse(content);
+  if (root == NULL) {
+    dError("pVnode:%p vgId:%d, failed to read vnode version, invalid json format", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+
+  cJSON *version = cJSON_GetObjectItem(root, "version");
+  if (!version || version->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode version, version not found", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->version = version->valueint;
+
+  ret = 0;
+
+  dPrint("pVnode:%p vgId:%d, read vnode version successed, version:%%" PRId64, pVnode, pVnode->vgId, pVnode->version);
 
 PARSE_OVER:
   free(content);

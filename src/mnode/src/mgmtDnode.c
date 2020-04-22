@@ -38,6 +38,7 @@
 
 void   *tsDnodeSdb = NULL;
 int32_t tsDnodeUpdateSize = 0;
+int32_t tsAccessSquence = 0;
 extern void *  tsVgroupSdb;
 
 static int32_t mgmtCreateDnode(uint32_t ip);
@@ -323,6 +324,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->alternativeRole  = pStatus->alternativeRole;
   pDnode->totalVnodes      = pStatus->numOfTotalVnodes; 
   pDnode->moduleStatus     = pStatus->moduleStatus;
+  pDnode->lastAccess       = tsAccessSquence;
   
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d, first access, privateIp:%s, name:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);

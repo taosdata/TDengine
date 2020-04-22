@@ -42,6 +42,8 @@ void *  mgmtGetDnodeByIp(uint32_t ip);
 void    mgmtUpdateDnode(SDnodeObj *pDnode);
 int32_t mgmtDropDnode(SDnodeObj *pDnode);
 
+extern int32_t tsAccessSquence;
+
 #ifdef __cplusplus
 }
 #endif
