@@ -63,6 +63,7 @@ static int32_t mgmtDbActionInsert(SSdbOper *pOper) {
 
   if (pAcct != NULL) {
     mgmtAddDbToAcct(pAcct, pDb);
+    mgmtDecAcctRef(pAcct);
   }
   else {
     mError("db:%s, acct:%s info not exist in sdb", pDb->name, pDb->cfg.acct);
@@ -80,6 +81,7 @@ static int32_t mgmtDbActionDelete(SSdbOper *pOper) {
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
   mgmtDropAllVgroups(pDb);
+  mgmtDecAcctRef(pAcct);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -527,7 +529,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->numOfRows = pUser->pAcct->acctInfo.numOfDbs;
 
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
   return 0;
 }
 
@@ -647,7 +649,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
   }
 
   pShow->numOfReads += numOfRows;
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
   return numOfRows;
 }
 

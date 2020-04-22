@@ -17,6 +17,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 
+
 class TDTestCase:
     def init(self, conn):
         tdLog.debug("start to execute %s" % __file__)
@@ -24,25 +25,24 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        tdSql.execute('show databases')
-        tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
-        tdSql.execute('create table tb (ts timestamp, speed int)')
+
+        ret = tdSql.execute('create table tb (ts timestamp, speed int)')
 
         insertRows = 10
         tdLog.info("insert %d rows" % (insertRows))
         for i in range(0, insertRows):
-            tdSql.execute('insert into tb values (now + %dm, %d)' % (i, i))
+            ret = tdSql.execute(
+                'insert into tb values (now + %dm, %d)' %
+                (i, i))
 
-#        tdLog.info("insert earlier data")
-#        tdSql.execute('insert into tb values (now - 5m , 10)')
-#        tdSql.execute('insert into tb values (now - 6m , 10)')
-#        tdSql.execute('insert into tb values (now - 7m , 10)')
-#        tdSql.execute('insert into tb values (now - 8m , 10)')
+        tdLog.info("insert earlier data")
+        tdSql.execute('insert into tb values (now - 5m , 10)')
+        tdSql.execute('insert into tb values (now - 6m , 10)')
+        tdSql.execute('insert into tb values (now - 7m , 10)')
+        tdSql.execute('insert into tb values (now - 8m , 10)')
 
         tdSql.query("select * from tb")
-        tdSql.checkRows(insertRows)
+        tdSql.checkRows(insertRows + 4)
 
     def stop(self):
         tdSql.close()

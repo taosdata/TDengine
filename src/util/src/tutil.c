@@ -663,3 +663,27 @@ void tzfree(void *ptr) {
     free((void *)((char *)ptr - sizeof(size_t)));
   }
 }
+
+void taosRemoveDir(char *rootDir) {
+  DIR *dir = opendir(rootDir);
+  if (dir == NULL) return;
+
+  struct dirent *de = NULL;
+  while ((de = readdir(dir)) != NULL) {
+    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+     
+    char filename[1024];
+    snprintf(filename, 1023, "%s/%s", rootDir, de->d_name);
+    if (de->d_type & DT_DIR) {
+      taosRemoveDir(filename);
+    } else {
+      remove(filename);
+      uPrint("file:%s is removed", filename);
+    }
+  }
+
+  closedir(dir);
+  rmdir(rootDir);
+
+  uPrint("dir:%s is removed", rootDir);
+}

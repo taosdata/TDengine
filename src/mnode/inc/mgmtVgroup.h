@@ -30,12 +30,13 @@ enum _TSDB_VG_STATUS {
 int32_t mgmtInitVgroups();
 void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
-void    mgmtReleaseVgroup(SVgObj *pVgroup);
+void    mgmtIncVgroupRef(SVgObj *pVgroup);
+void    mgmtDecVgroupRef(SVgObj *pVgroup);
 void    mgmtDropAllVgroups(SDbObj *pDropDb);
 
 void *  mgmtGetNextVgroup(void *pNode, SVgObj **pVgroup);
 void    mgmtUpdateVgroup(SVgObj *pVgroup);
-void    mgmtUpdateVgroupStatus(SVgObj *pVgroup, int32_t dnodeId, SVnodeLoad *pVload);
+void    mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *dnodeId, SVnodeLoad *pVload);
 
 void    mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb);
 void    mgmtDropVgroup(SVgObj *pVgroup, void *ahandle);
@@ -46,6 +47,7 @@ void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
 void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
 void    mgmtSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle);
 void    mgmtSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle);
+void    mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup);
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip);

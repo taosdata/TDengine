@@ -29,10 +29,10 @@ system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode3 -c clog -v 1
 
 print ========== step1
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql connect
 sql create dnode 192.168.0.2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 3000
 
 sql create database d1 replica 2 tables 4
@@ -48,7 +48,7 @@ if $data4_192.168.0.2 != ready then
 endi
 
 print ========== step2
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 sleep 5000
 
 sql show dnodes
@@ -72,7 +72,7 @@ endi
 
 print ========== step4
 sql create dnode 192.168.0.3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sql drop dnode 192.168.0.2
 
 sleep 5000

@@ -97,7 +97,7 @@ static int32_t mgmtChildTableActionInsert(SSdbOper *pOper) {
     mError("ctable:%s, not in vgroup:%d", pTable->info.tableId, pTable->vgId);
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
-  mgmtReleaseVgroup(pVgroup);
+  mgmtDecVgroupRef(pVgroup);
 
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
@@ -108,7 +108,7 @@ static int32_t mgmtChildTableActionInsert(SSdbOper *pOper) {
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
-    mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
+    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
   }
   mgmtDecAcctRef(pAcct);
@@ -139,7 +139,7 @@ static int32_t mgmtChildTableActionDelete(SSdbOper *pOper) {
   if (pVgroup == NULL) {
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
-  mgmtReleaseVgroup(pVgroup);
+  mgmtDecVgroupRef(pVgroup);
 
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
@@ -150,7 +150,7 @@ static int32_t mgmtChildTableActionDelete(SSdbOper *pOper) {
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
-    mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
+    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
   }
   mgmtDecAcctRef(pAcct);
@@ -275,7 +275,7 @@ static int32_t mgmtChildTableActionRestored() {
       pNode = pLastNode;
       continue;
     }
-    mgmtReleaseVgroup(pVgroup);
+    mgmtDecVgroupRef(pVgroup);
 
     if (strcmp(pVgroup->dbName, pDb->name) != 0) {
       mError("ctable:%s, db:%s not match with vgroup:%d db:%s sid:%d, discard it",
@@ -1194,17 +1194,15 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
 
     pRsp->vgroups[vg].vgId = htonl(vgId);
     for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
-      SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[vn].dnodeId);
+      SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
       if (pDnode == NULL) break;
 
       pRsp->vgroups[vg].ipAddr[vn].ip = htonl(pDnode->privateIp);
       pRsp->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
       pRsp->vgroups[vg].numOfIps++;
-
-      mgmtReleaseDnode(pDnode);
     }
 
-    mgmtReleaseVgroup(pVgroup);
+    mgmtDecVgroupRef(pVgroup);
   }
   pRsp->numOfVgroups = htonl(vg);
 
@@ -1613,7 +1611,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
       pMeta->vgroup.ipAddr[i].port = htonl(tsDnodeShellPort);
     }
     pMeta->vgroup.numOfIps++;
-    mgmtReleaseDnode(pDnode);
+    mgmtDecDnodeRef(pDnode);
   }
   pMeta->vgroup.vgId = htonl(pVgroup->vgId);
 
@@ -1742,7 +1740,7 @@ static SChildTableObj* mgmtGetTableByPos(uint32_t dnodeId, int32_t vnode, int32_
 
   SChildTableObj *pTable = pVgroup->tableList[sid];
   mgmtIncTableRef((STableObj *)pTable);
-  mgmtReleaseVgroup(pVgroup);
+  mgmtDecVgroupRef(pVgroup);
   return pTable;
 }
 

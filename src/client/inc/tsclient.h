@@ -465,7 +465,7 @@ extern void *     tscQhandle;
 extern int        tscKeepConn[];
 extern int        tsInsertHeadSize;
 extern int        tscNumOfThreads;
-extern SRpcIpSet  tscMgmtIpList;
+extern SRpcIpSet  tscMgmtIpSet;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
 

@@ -704,6 +704,7 @@ void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
+  mgmtDecUserRef(pUser);
 }
 
 void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
@@ -727,6 +728,7 @@ void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
+  mgmtDecUserRef(pUser);
 }
 
 void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
@@ -750,6 +752,7 @@ void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
+  mgmtDecUserRef(pUser);
 }
 
 int32_t mgmtInitProfile() {
@@ -790,12 +793,12 @@ void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg) {
 void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
   if (pMsg != NULL) {
     rpcFreeCont(pMsg->pCont);
-    if (pMsg->pUser) mgmtReleaseUser(pMsg->pUser);
+    if (pMsg->pUser) mgmtDecUserRef(pMsg->pUser);
     if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
-    if (pMsg->pVgroup) mgmtReleaseVgroup(pMsg->pVgroup);
+    if (pMsg->pVgroup) mgmtDecVgroupRef(pMsg->pVgroup);
     if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
     if (pMsg->pAcct) mgmtDecAcctRef(pMsg->pAcct);
-    if (pMsg->pDnode) mgmtReleaseDnode(pMsg->pDnode);
+    if (pMsg->pDnode) mgmtDecDnodeRef(pMsg->pDnode);
     free(pMsg);
   }
 }

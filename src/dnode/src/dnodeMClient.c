@@ -54,6 +54,11 @@ static SRpcIpSet     tsMnodeIpSet  = {0};
 static SDMMnodeInfos tsMnodeInfos = {0};
 static SDMDnodeCfg   tsDnodeCfg = {0};
 
+void dnodeUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
+  dTrace("mgmt IP list is changed for ufp is called");
+  tsMnodeIpSet = *pIpSet;
+}
+
 int32_t dnodeInitMClient() {
   dnodeReadDnodeCfg();
   tsRebootTime = taosGetTimestampSec();
@@ -90,6 +95,7 @@ int32_t dnodeInitMClient() {
   rpcInit.label        = "DND-MC";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessRspFromMnode;
+  rpcInit.ufp          = dnodeUpdateIpSet;
   rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 2000;
@@ -292,7 +298,7 @@ static bool dnodeReadMnodeInfos() {
     tsMnodeInfos.nodeInfos[i].syncPort = (uint16_t)syncPort->valueint;
 
     cJSON *nodeName = cJSON_GetObjectItem(nodeInfo, "nodeName");
-    if (!nodeIp || nodeName->type != cJSON_String || nodeName->valuestring == NULL) {
+    if (!nodeName || nodeName->type != cJSON_String || nodeName->valuestring == NULL) {
       dError("failed to read mnode mgmtIpList.json, nodeName not found");
       goto PARSE_OVER;
     }
@@ -304,7 +310,7 @@ static bool dnodeReadMnodeInfos() {
   dPrint("read mnode iplist successed, numOfIps:%d inUse:%d", tsMnodeInfos.nodeNum, tsMnodeInfos.inUse);
   for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
     dPrint("mnode:%d, ip:%s:%u name:%s", tsMnodeInfos.nodeInfos[i].nodeId,
-            taosIpStr(tsMnodeInfos.nodeInfos[i].nodeId), tsMnodeInfos.nodeInfos[i].nodePort,
+            taosIpStr(tsMnodeInfos.nodeInfos[i].nodeIp), tsMnodeInfos.nodeInfos[i].nodePort,
             tsMnodeInfos.nodeInfos[i].nodeName);
   }
 

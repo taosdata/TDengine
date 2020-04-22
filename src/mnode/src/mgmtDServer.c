@@ -28,8 +28,10 @@
 #include "mgmtLog.h"
 #include "mgmtDb.h"
 #include "mgmtDServer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
+#include "mgmtSdb.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
@@ -97,6 +99,18 @@ static void mgmtAddToDServerQueue(SRpcMsg *pMsg) {
 static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
   if (rpcMsg->pCont == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
+    return;
+  }
+
+  if (!sdbIsMaster()) {
+    SRpcConnInfo connInfo;
+    rpcGetConnInfo(rpcMsg->handle, &connInfo);
+    bool usePublicIp = false;
+    
+    SRpcIpSet ipSet = {0};
+    mgmtGetMnodeIpSet(&ipSet, usePublicIp);
+    mTrace("conn from dnode ip:%s redirect msg", taosIpStr(connInfo.clientIp));
+    rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
     return;
   }
   

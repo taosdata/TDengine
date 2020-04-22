@@ -123,3 +123,6 @@ if $dnode3Role != slave then
   return -1
 endi
 
+system sh/exec_up.sh -n dnode1 -s stop
+system sh/exec_up.sh -n dnode2 -s stop
+system sh/exec_up.sh -n dnode3 -s stop

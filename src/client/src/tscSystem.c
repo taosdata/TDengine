@@ -42,11 +42,13 @@ void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
 int     tsInsertHeadSize;
+char    tsLastUser[TSDB_USER_LEN + 1];
 
 int tscNumOfThreads;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
+void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet);
 
 void tscCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
@@ -65,6 +67,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.label = "TSC-vnode";
     rpcInit.numOfThreads = tscNumOfThreads;
     rpcInit.cfp = tscProcessMsgFromServer;
+    rpcInit.ufp = tscUpdateIpSet;
     rpcInit.sessions = tsMaxVnodeConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char*)user;
@@ -77,6 +80,13 @@ int32_t tscInitRpc(const char *user, const char *secret) {
       tscError("failed to init connection to vnode");
       return -1;
     }
+  }
+
+  // not stop service, switch users
+  if (strcmp(tsLastUser, user) != 0 && pTscMgmtConn != NULL) {
+    tscTrace("switch user from %s to %s", user, tsLastUser);
+    rpcClose(pTscMgmtConn);
+    pTscMgmtConn = NULL;
   }
 
   if (pTscMgmtConn == NULL) {
@@ -92,6 +102,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.user = (char*)user;
     rpcInit.ckey = "key";
     rpcInit.secret = secretEncrypt;
+    strcpy(tsLastUser, user);
 
     pTscMgmtConn = rpcOpen(&rpcInit);
     if (pTscMgmtConn == NULL) {
@@ -145,14 +156,14 @@ void taos_init_imp() {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
 
-  tscMgmtIpList.inUse = 0;
-  tscMgmtIpList.port = tsMnodeShellPort;
-  tscMgmtIpList.numOfIps = 1;
-  tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
+  tscMgmtIpSet.inUse = 0;
+  tscMgmtIpSet.port = tsMnodeShellPort;
+  tscMgmtIpSet.numOfIps = 1;
+  tscMgmtIpSet.ip[0] = inet_addr(tsMasterIp);
 
   if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
-    tscMgmtIpList.numOfIps = 2;
-    tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
+    tscMgmtIpSet.numOfIps = 2;
+    tscMgmtIpSet.ip[1] = inet_addr(tsSecondIp);
   }
 
   tscInitMsgsFp();
