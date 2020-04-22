@@ -406,7 +406,7 @@ static int32_t balanceMonitorVgroups() {
   return hasUpdatingVgroup;
 }
 
-static void balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
+static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
   mTrace("dnode:%d, in dropping state", pDnode->dnodeId);
 
   void *  pNode = NULL;
@@ -425,7 +425,10 @@ static void balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
   if (!hasThisDnode) {
     mPrint("dnode:%d, dropped for all vnodes are moving to other dnodes", pDnode->dnodeId);
     mgmtDropDnode(pDnode);
+    return true;
   }
+
+  return false;
 }
 
 static bool balanceMontiorDropping() {
@@ -447,7 +450,7 @@ static bool balanceMontiorDropping() {
     }
 
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
-      balanceMonitorDnodeDropping(pDnode);
+      return balanceMonitorDnodeDropping(pDnode);
     }
 
   }
