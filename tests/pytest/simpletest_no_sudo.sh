@@ -10,4 +10,5 @@ export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../build/build/lib
 
 # Now we are all let, and let's run our cases!
-python3 ./test.py -m 127.0.0.1 -f insert/basic.py
+# python3 ./test.py -m 127.0.0.1 -f insert/basic.py
+./random_walk.py
