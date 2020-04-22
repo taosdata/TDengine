@@ -3,6 +3,6 @@
 run general/db/testSuite.sim
 run general/insert/testSuite.sim
 run general/table/testSuite.sim
-run general/user/testSuite.sim
+run general/user/basicSuite.sim
 
 ################################## 
