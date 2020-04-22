@@ -76,6 +76,7 @@ static void acctDoStatistic(void *handle, void *tmrId) {
       pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
       if (pAcct == NULL) break;
       totalStorage += acctGetStatistic(pAcct);
+      mgmtDecAcctRef(pAcct);
     }
 
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
@@ -545,7 +546,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
 static int64_t acctGetStatistic(SAcctObj *pAcct) {
   if (pAcct == NULL) return -1;
   
-  void *pNode = NULL;
+  void   *pNode = NULL;
   SVgObj *pVgroup;
   int64_t totalStorage = 0;
   int64_t pointsWritten = 0;
@@ -553,7 +554,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
 
   while (1) {
     pNode = mgmtGetNextVgroup(pNode, &pVgroup);
-    if (pVgroup == NULL) continue;
+    if (pVgroup == NULL) break;
     if (pVgroup->pDb->pAcct == pAcct) {
       totalStorage += pVgroup->totalStorage;
       pointsWritten += pVgroup->pointsWritten;

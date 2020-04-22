@@ -37,7 +37,6 @@
  * increase tsAccessSquence every balance interval
  */
 extern void *       tsMgmtTmr;
-static uint32_t     tsAccessSquence = 0;
 static void *       tsBalanceTimer = NULL;
 static int32_t      tsBalanceDnodeListSize = 0;
 static SDnodeObj ** tsBalanceDnodeList = NULL;
@@ -482,11 +481,30 @@ static bool balanceStart() {
   return updateSoon;
 }
 
+static void balanceCheckDnodeAccess() {
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
+
+  while (1) {
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    if (pDnode == NULL) break;
+    if (tsAccessSquence - pDnode->lastAccess > 3) {
+      if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
+        pDnode->status = TAOS_DN_STATUS_OFFLINE;
+        mPrint("dnode:%d, set to offline state", pDnode->dnodeId);
+      }
+    }
+    mgmtDecDnodeRef(pDnode);
+  }
+}
+
 static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   if (!sdbIsMaster()) return;
 
   tsBalanceTimer = NULL;
   tsAccessSquence ++;
+
+  balanceCheckDnodeAccess();  
 
   if (handle == NULL) {
     if (tsAccessSquence % tsBalanceStartInterval != 0) return;
@@ -507,7 +525,7 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
 }
 
 static void balanceStartTimer(int64_t mseconds) {
-  taosTmrReset((TAOS_TMR_CALLBACK)balanceProcessBalanceTimer, mseconds, (void *)mseconds, tsMgmtTmr, &tsBalanceTimer);
+  taosTmrReset(balanceProcessBalanceTimer, mseconds, (void *)mseconds, tsMgmtTmr, &tsBalanceTimer);
 }
 
 void balanceNotify() {
@@ -520,7 +538,7 @@ int32_t balanceInit() {
   
   pthread_mutex_init(&tsBalanceMutex, NULL);
   balanceInitDnodeList();
-  balanceStartTimer(3000);
+  balanceStartTimer(2000);
   mTrace("balance start fp:%p initialized", balanceProcessBalanceTimer);
 
   balanceReset();
@@ -848,14 +866,12 @@ static void balanceMonitorDnodeModule() {
     if (pDnode == NULL) break;
 
     if (pDnode->isMgmt || pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-      mgmtDecDnodeRef(pDnode);
       continue;
     }
 
     mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMPeers);
     mgmtAddMnode(pDnode->dnodeId);
-    mgmtDecDnodeRef(pDnode);
-
+    
     numOfMnodes = mgmtGetMnodesNum();
     if (numOfMnodes >= tsNumOfMPeers) return;
   }
