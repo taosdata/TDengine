@@ -21,21 +21,21 @@ static void initSchema(SSchema *pSchema, int32_t numOfCols);
 
 static void initSchema_binary(SSchema *schema, int32_t numOfCols);
 
-static tSkipList *createSkipList(SSchema *pSchema, int32_t numOfTags);
-static tSkipList *createSkipList_binary(SSchema *pSchema, int32_t numOfTags);
+static SSkipList *createSkipList(SSchema *pSchema, int32_t numOfTags);
+static SSkipList *createSkipList_binary(SSchema *pSchema, int32_t numOfTags);
 
-static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, tSkipList *pSkipList, ResultObj *expectedVal);
+static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, SSkipList *pSkipList, ResultObj *expectedVal);
 
-static void dropMeter(tSkipList *pSkipList);
+static void dropMeter(SSkipList *pSkipList);
 
-static void Right2LeftTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList);
+static void Right2LeftTest(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList);
 
-static void Left2RightTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList);
+static void Left2RightTest(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList);
 
-static void IllegalExprTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList);
+static void IllegalExprTest(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList);
 
-static void Left2RightTest_binary(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList);
-static void Right2LeftTest_binary(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList);
+static void Left2RightTest_binary(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList);
+static void Right2LeftTest_binary(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList);
 
 void setValue(ResultObj *pResult, int32_t num, char **val) {
   pResult->numOfResult = num;
@@ -112,7 +112,7 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
   strcpy(schema[7].name, "h");
 }
 
-// static void addOneNode(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
+// static void addOneNode(SSchema *pSchema, int32_t tagsLen, SSkipList *pSkipList,
 //                       char *meterId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
 //                       bool h, int32_t numOfTags) {
 //  STabObj *pMeter = calloc(1, sizeof(STabObj));
@@ -146,11 +146,11 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 //  offset += pSchema[6].bytes;
 //  *(int8_t *) (tags + offset) = h ? 1 : 0;
 //
-//  tSkipListKey pKey = tSkipListCreateKey(pSchema[0].type, tags, pSchema[0].bytes);
-//  tSkipListPut(pSkipList, pMeter, &pKey, 1);
+//  SSkipListKey pKey = SSkipListCreateKey(pSchema[0].type, tags, pSchema[0].bytes);
+//  SSkipListPut(pSkipList, pMeter, &pKey, 1);
 //}
 //
-// static void addOneNode_binary(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
+// static void addOneNode_binary(SSchema *pSchema, int32_t tagsLen, SSkipList *pSkipList,
 //                              char *meterId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
 //                              bool h, int32_t numOfTags) {
 //  STabObj *pMeter = calloc(1, sizeof(STabObj));
@@ -183,16 +183,16 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 //  offset += pSchema[6].bytes;
 //  *(int8_t *) (tags + offset) = h ? 1 : 0;
 //
-//  tSkipListKey pKey = tSkipListCreateKey(pSchema[0].type, tags, pSchema[0].bytes);
-//  tSkipListPut(pSkipList, pMeter, &pKey, 1);
-//  tSkipListDestroyKey(&pKey);
+//  SSkipListKey pKey = SSkipListCreateKey(pSchema[0].type, tags, pSchema[0].bytes);
+//  SSkipListPut(pSkipList, pMeter, &pKey, 1);
+//  SSkipListDestroyKey(&pKey);
 //}
 
-// static void dropMeter(tSkipList *pSkipList) {
-//  tSkipListNode **pRes = NULL;
-//  int32_t num = tSkipListIterateList(pSkipList, &pRes, NULL, NULL);
+// static void dropMeter(SSkipList *pSkipList) {
+//  SSkipListNode **pRes = NULL;
+//  int32_t num = SSkipListIterateList(pSkipList, &pRes, NULL, NULL);
 //  for (int32_t i = 0; i < num; ++i) {
-//    tSkipListNode *pNode = pRes[i];
+//    SSkipListNode *pNode = pRes[i];
 //    STabObj *pMeter = (STabObj *) pNode->pData;
 //    free(pMeter->pTagData);
 //    free(pMeter);
@@ -201,13 +201,13 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 //  free(pRes);
 //}
 
-// static tSkipList *createSkipList(SSchema *pSchema, int32_t numOfTags) {
+// static SSkipList *createSkipList(SSchema *pSchema, int32_t numOfTags) {
 //  int32_t tagsLen = 0;
 //  for (int32_t i = 0; i < numOfTags; ++i) {
 //    tagsLen += pSchema[i].bytes;
 //  }
 //
-//  tSkipList *pSkipList = tSkipListCreate(10, pSchema[0].type, 4);
+//  SSkipList *pSkipList = SSkipListCreate(10, pSchema[0].type, 4);
 //
 //  addOneNode(pSchema, tagsLen, pSkipList, "tm0\0", 0, 10.5, "abc", 1000, -10000, -20, 1.0, true, 8);
 //  addOneNode(pSchema, tagsLen, pSkipList, "tm1\0", 1, 20.5, "def", 1100, -10500, -30, 2.0, false, 8);
@@ -220,13 +220,13 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 //  return pSkipList;
 //}
 //
-// static tSkipList *createSkipList_binary(SSchema *pSchema, int32_t numOfTags) {
+// static SSkipList *createSkipList_binary(SSchema *pSchema, int32_t numOfTags) {
 //  int32_t tagsLen = 0;
 //  for (int32_t i = 0; i < numOfTags; ++i) {
 //    tagsLen += pSchema[i].bytes;
 //  }
 //
-//  tSkipList *pSkipList = tSkipListCreate(10, pSchema[0].type, 4);
+//  SSkipList *pSkipList = SSkipListCreate(10, pSchema[0].type, 4);
 //
 //  addOneNode_binary(pSchema, tagsLen, pSkipList, "tm0\0", 0, 10.5, "abc", 1000, -10000, -20, 1.0, true, 8);
 //  addOneNode_binary(pSchema, tagsLen, pSkipList, "tm1\0", 1, 20.5, "def", 1100, -10500, -30, 2.0, false, 8);
@@ -239,7 +239,7 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 //  return pSkipList;
 //}
 
-static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, tSkipList *pSkipList, ResultObj *pResult) {
+static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, SSkipList *pSkipList, ResultObj *pResult) {
   tExprNode *pExpr = NULL;
   tSQLBinaryExprFromString(&pExpr, schema, numOfCols, sql, strlen(sql));
 
@@ -255,7 +255,7 @@ static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, tSkipLis
   printf("expr is: %s\n", str);
 
   SArray *result = NULL;
-  //  tExprTreeTraverse(pExpr, pSkipList, result, tSkipListNodeFilterCallback, &result);
+  //  tExprTreeTraverse(pExpr, pSkipList, result, SSkipListNodeFilterCallback, &result);
   //  printf("the result is:%lld\n", result.num);
   //
   //  bool findResult = false;
@@ -277,7 +277,7 @@ static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, tSkipLis
   tExprTreeDestroy(&pExpr, NULL);
 }
 
-static void Left2RightTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList) {
+static void Left2RightTest(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList) {
   char str[256] = {0};
 
   char *t0[1] = {"tm0"};
@@ -342,7 +342,7 @@ static void Left2RightTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipL
   testQueryStr(schema, numOfCols, "f > -65", pSkipList, &res);
 }
 
-void Right2LeftTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList) {
+void Right2LeftTest(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList) {
   ResultObj res = {1, {"tm1"}};
   testQueryStr(schema, numOfCols, "((1=a))", pSkipList, &res);
 
@@ -359,7 +359,7 @@ void Right2LeftTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList) {
   testQueryStr(schema, numOfCols, "0=h", pSkipList, &res);
 }
 
-static void IllegalExprTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList) {
+static void IllegalExprTest(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList) {
   testQueryStr(schema, numOfCols, "h=", pSkipList, NULL);
   testQueryStr(schema, numOfCols, "h<", pSkipList, NULL);
   testQueryStr(schema, numOfCols, "a=1 and ", pSkipList, NULL);
@@ -374,7 +374,7 @@ static void IllegalExprTest(SSchema *schema, int32_t numOfCols, tSkipList *pSkip
   testQueryStr(schema, numOfCols, "a=1 and ", pSkipList, NULL);
 }
 
-static void Left2RightTest_binary(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList) {
+static void Left2RightTest_binary(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList) {
   char  str[256] = {0};
   char *sql = NULL;
 
@@ -432,7 +432,7 @@ static void Left2RightTest_binary(SSchema *schema, int32_t numOfCols, tSkipList 
   testQueryStr(schema, numOfCols, sql, pSkipList, &res);
 }
 
-static void Right2LeftTest_binary(SSchema *schema, int32_t numOfCols, tSkipList *pSkipList) {
+static void Right2LeftTest_binary(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList) {
   char  str[256] = {0};
   char *sql = NULL;
 

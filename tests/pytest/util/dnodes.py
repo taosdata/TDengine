@@ -14,6 +14,7 @@
 import sys
 import os
 import os.path
+import subprocess
 from util.log import *
 
 
@@ -28,6 +29,9 @@ class TDSimClient:
         cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
+
+    def setValgrind(self, value):
+        self.valgrind = value
 
     def deploy(self):
         self.logDir = "%s/sim/psim/log" % (self.path,)
@@ -78,9 +82,13 @@ class TDDnode:
         self.index = index
         self.running = 0
         self.deployed = 0
+        self.valgrind = 0
 
     def init(self, path):
         self.path = path
+
+    def setValgrind(self, value):
+        self.valgrind = value
 
     def deploy(self):
         self.logDir = "%s/sim/dnode%d/log" % (self.path, self.index)
@@ -164,9 +172,18 @@ class TDDnode:
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
-        cmd = "nohup %staosd -c %s > /dev/null 2>&1 & " % (
-            binPath, self.cfgDir)
-        print(cmd)
+
+        if self.valgrind == 0:
+            cmd = "nohup %staosd -c %s > /dev/null 2>&1 & " % (
+                binPath, self.cfgDir)
+        else:
+            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+
+            cmd = "nohup %s %staosd -c %s 2>&1 & " % (
+                valgrindCmdline, binPath, self.cfgDir)
+
+            print(cmd)
+
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
         self.running = 1
@@ -275,8 +292,12 @@ class TDDnodes:
         self.sim.init(self.path)
         self.sim.deploy()
 
+    def setValgrind(self, value):
+        self.valgrind = value
+
     def deploy(self, index):
         self.check(index)
+        self.dnodes[index - 1].setValgrind(self.valgrind)
         self.dnodes[index - 1].deploy()
 
     def cfg(self, index, option, value):
@@ -312,11 +333,14 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-        cmd = "sudo systemctl stop taosd"
-        os.system(cmd)
+        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep | awk '{print $2}'"
+        processID = subprocess.check_output(psCmd, shell=True)
+        if processID:
+            cmd = "sudo systemctl stop taosd"
+            os.system(cmd)
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
-        cmd = "ps -ef | grep -w taosd | grep 'dnode' | grep -v grep | awk '{print $2}' && sudo pkill -sigkill taosd"
+        cmd = "ps -ef | grep -w taosd | grep 'dnode' | grep -v grep | awk '{print $2}' && pkill -sigkill taosd"
         os.system(cmd)
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
