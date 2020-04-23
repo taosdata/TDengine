@@ -122,13 +122,13 @@ typedef struct SQuery {
   int64_t           slidingTime;      // sliding time for sliding window query
   char              slidingTimeUnit;  // interval data type, used for daytime revise
   int8_t            precision;
-  int16_t           numOfOutputCols;
+  int16_t           numOfOutput;
   int16_t           interpoType;
   int16_t           checkBuffer;  // check if the buffer is full during scan each block
   SLimitVal         limit;
   int32_t           rowSize;
   SSqlGroupbyExpr*  pGroupbyExpr;
-  SSqlFunctionExpr* pSelectExpr;
+  SArithExprInfo* pSelectExpr;
   SColumnInfo*      colList;
   int32_t           numOfFilterCols;
   int64_t*          defaultVal;
