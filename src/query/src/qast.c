@@ -1199,7 +1199,9 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
 
     const char* cond = tbnameCond + QUERY_COND_REL_PREFIX_IN_LEN;
     for (const char *e = cond; *e != 0; e++) {
-      if (*e == ',') {
+      if (*e == TS_PATH_DELIMITER[0]) {
+        cond = e + 1;
+      } else if (*e == ',') {
         size_t len = e - cond + 1;
         char* p = malloc( len );
         memcpy(p, cond, len);
@@ -1210,10 +1212,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     }
 
     if (*cond != 0) {
-        size_t len = strlen(cond) + 1;
-        char* p = malloc( len );
-        memcpy(p, cond, len);
-        p[len - 1] = 0;
+        char* p = strdup( cond );
         taosArrayPush(pVal->arr, &p);
     }
 
