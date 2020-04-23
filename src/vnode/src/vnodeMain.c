@@ -39,7 +39,7 @@ static int      vnodeWalCallback(void *arg);
 static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
 static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
-static int32_t  vnodeReadVersion(SVnodeObj *pVnode);
+static bool     vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeWalCallback(void *arg);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
@@ -287,7 +287,7 @@ void *vnodeGetVnode(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
-    dError("vgId:%d not exist");
+    dError("vgId:%d not exist", vgId);
     return NULL;
   }
 
@@ -611,7 +611,7 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "w");
   if (!fp) {
-    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId);
+    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId, strerror(errno));
     return errno;
   }
 
@@ -632,23 +632,23 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   return 0;
 }
 
-static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
+static bool vnodeReadVersion(SVnodeObj *pVnode) {
   char versionFile[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "w");
   if (!fp) {
-    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId);
-    return errno;
+    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId, strerror(errno));
+    return false;
   }
 
-  int   ret = TSDB_CODE_OTHERS;
+  bool  ret = false;
   int   maxLen = 100;
   char *content = calloc(1, maxLen + 1);
   int   len = fread(content, 1, maxLen, fp);
   if (len <= 0) {
     free(content);
     fclose(fp);
-    dError("pVnode:%p vgId:%d, failed to read vnode version, content is null", pVnode, pVnode->vgId);
+    dPrint("pVnode:%p vgId:%d, failed to read vnode version, content is null", pVnode, pVnode->vgId);
     return false;
   }
 
@@ -665,7 +665,7 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   }
   pVnode->version = version->valueint;
 
-  ret = 0;
+  ret = true;
 
   dPrint("pVnode:%p vgId:%d, read vnode version successed, version:%%" PRId64, pVnode, pVnode->vgId, pVnode->version);
 

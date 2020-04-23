@@ -2,8 +2,8 @@ system sh/stop_dnodes.sh
 
 system sh/ip.sh -i 1 -s up
 system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/exec.sh -n dnode1 -s start
+system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/exec_up.sh -n dnode1 -s start
 
 sql connect
 sleep 3000
@@ -53,7 +53,7 @@ if $rows != 0 then
   return -1
 endi
 sql show dnodes
-if $data02 != 2 then
+if $data03 != 2 then
   return -1
 endi
 sql drop account oroot
