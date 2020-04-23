@@ -606,7 +606,7 @@ static jobject convert_one_row(JNIEnv *env, TAOS_ROW row, TAOS_FIELD* fields, in
   return rowobj;
 }
 
-JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub, jint timeout) {
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub) {
   jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%ld", jobj, sub);
   jniGetGlobalMethod(env);
 
@@ -616,38 +616,14 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNI
   int64_t start = taosGetTimestampMs();
   int count = 0;
 
-  while (true) {
-    TAOS_RES *  res = taos_consume(tsub);
-    if (res == NULL) {
-      jniError("jobj:%p, tsub:%p, taos_consume returns NULL", jobj, tsub);
-      return NULL;
-    }
+  TAOS_RES *res = taos_consume(tsub);
 
-    TAOS_FIELD *fields = taos_fetch_fields(res);
-    int         num_fields = taos_num_fields(res);
-    while (true) {
-      TAOS_ROW row = taos_fetch_row(res);
-      if (row == NULL) {
-        break;
-      }
-      jobject rowobj = convert_one_row(env, row, fields, num_fields);
-      (*env)->CallBooleanMethod(env, rows, g_arrayListAddFp, rowobj);
-      count++;
-    }
-
-    if (count > 0) {
-      break;
-    }
-    if (timeout == -1) {
-      continue;
-    }
-    if (((int)(taosGetTimestampMs() - start)) >= timeout) {
-      jniTrace("jobj:%p, sub:%ld, timeout", jobj, sub);
-      break;
-    }
+  if (res == NULL) {
+    jniError("jobj:%p, tsub:%p, taos_consume returns NULL", jobj, tsub);
+    return NULL;
   }
 
-  return rows;
+  return res;
 }
 
 JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_unsubscribeImp(JNIEnv *env, jobject jobj, jlong sub, jboolean keepProgress) {
