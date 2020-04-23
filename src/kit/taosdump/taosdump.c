@@ -30,7 +30,6 @@
 
 #include "taos.h"
 #include "taosmsg.h"
-//#include "tglobal.h"
 #include "tsclient.h"
 #include "taosdef.h"
 #include "tutil.h"
