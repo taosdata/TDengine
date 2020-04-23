@@ -5273,7 +5273,7 @@ static char *createTableIdList(SQueryTableMsg *pQueryMsg, char *pMsg, SArray **p
  * @return
  */
 static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList, SSqlFuncMsg ***pExpr,
-                               char **tagCond, SColIndex **groupbyCols, SColumnInfo** tagCols) {
+                               char **tagCond, char** tbnameCond, SColIndex **groupbyCols, SColumnInfo** tagCols) {
   pQueryMsg->numOfTables = htonl(pQueryMsg->numOfTables);
 
   pQueryMsg->window.skey = htobe64(pQueryMsg->window.skey);
