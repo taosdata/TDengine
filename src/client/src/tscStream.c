@@ -116,18 +116,18 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
 
   if (isProjectStream(pQueryInfo)) {
     /*
-     * pQueryInfo->etime, which is the start time, does not change in case of
+     * pQueryInfo->window.ekey, which is the start time, does not change in case of
      * repeat first execution, once the first execution failed.
      */
-    pQueryInfo->stime = pStream->stime;  // start time
+    pQueryInfo->window.skey = pStream->stime;  // start time
 
-    pQueryInfo->etime = taosGetTimestamp(pStream->precision);  // end time
-    if (pQueryInfo->etime > pStream->etime) {
-      pQueryInfo->etime = pStream->etime;
+    pQueryInfo->window.ekey = taosGetTimestamp(pStream->precision);  // end time
+    if (pQueryInfo->window.ekey > pStream->etime) {
+      pQueryInfo->window.ekey = pStream->etime;
     }
   } else {
-    pQueryInfo->stime = pStream->stime - pStream->interval;
-    pQueryInfo->etime = pStream->stime - 1;
+    pQueryInfo->window.skey = pStream->stime - pStream->interval;
+    pQueryInfo->window.ekey = pStream->stime - 1;
   }
 
   // launch stream computing in a new thread
@@ -425,10 +425,10 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
     pStream->slidingTime = tsProjectExecInterval;
 
     if (stime != 0) {  // first projection start from the latest event timestamp
-      assert(stime >= pQueryInfo->stime);
+      assert(stime >= pQueryInfo->window.skey);
       stime += 1;  // exclude the last records from table
     } else {
-      stime = pQueryInfo->stime;
+      stime = pQueryInfo->window.skey;
     }
   } else {             // timewindow based aggregation stream
     if (stime == 0) {  // no data in meter till now
@@ -548,7 +548,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   pStream->precision = tinfo.precision;
 
   pStream->ctime = taosGetTimestamp(pStream->precision);
-  pStream->etime = pQueryInfo->etime;
+  pStream->etime = pQueryInfo->window.ekey;
 
   pSql->pStream = pStream;
   tscAddIntoStreamList(pStream);

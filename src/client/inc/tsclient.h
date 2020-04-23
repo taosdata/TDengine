@@ -200,14 +200,14 @@ typedef struct SQueryInfo {
   uint16_t type;     // query/insert/import type
   char     slidingTimeUnit;
 
-  int64_t         etime, stime;
+  STimeWindow     window;
   int64_t         intervalTime;  // aggregation time interval
   int64_t         slidingTime;   // sliding window in mseconds
   SSqlGroupbyExpr groupbyExpr;   // group by tags info
 
-  SArray *         colList;  // SArray<SColumn*>
+  SArray *         colList;      // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SArray *         exprsInfo;  // SArray<SSqlExpr*>
+  SArray *         exprsInfo;    // SArray<SSqlExpr*>
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;

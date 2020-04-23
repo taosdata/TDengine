@@ -2656,7 +2656,7 @@ typedef struct SCondExpr {
   bool      tsJoin;
 } SCondExpr;
 
-static int32_t getTimeRange(int64_t* stime, int64_t* etime, tSQLExpr* pRight, int32_t optr, int16_t timePrecision);
+static int32_t getTimeRange(STimeWindow* win, tSQLExpr* pRight, int32_t optr, int16_t timePrecision);
 
 static int32_t tSQLExprNodeToString(tSQLExpr* pExpr, char** str) {
   if (pExpr->nSQLOptr == TK_ID) {  // column name
@@ -3631,20 +3631,18 @@ static int32_t getTimeRangeFromExpr(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
     
     tSQLExpr* pRight = pExpr->pRight;
 
-    TSKEY stime = 0;
-    TSKEY etime = INT64_MAX;
-
-    if (getTimeRange(&stime, &etime, pRight, pExpr->nSQLOptr, tinfo.precision) != TSDB_CODE_SUCCESS) {
+    STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
+    if (getTimeRange(&win, pRight, pExpr->nSQLOptr, tinfo.precision) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg0);
     }
 
     // update the timestamp query range
-    if (pQueryInfo->stime < stime) {
-      pQueryInfo->stime = stime;
+    if (pQueryInfo->window.skey < win.skey) {
+      pQueryInfo->window.skey = win.skey;
     }
 
-    if (pQueryInfo->etime > etime) {
-      pQueryInfo->etime = etime;
+    if (pQueryInfo->window.ekey > win.ekey) {
+      pQueryInfo->window.ekey = win.ekey;
     }
   }
 
@@ -3756,8 +3754,8 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql
 
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  pQueryInfo->stime = 0;
-  pQueryInfo->etime = INT64_MAX;
+  pQueryInfo->window.skey = 0;
+  pQueryInfo->window.ekey = INT64_MAX;
 
   // tags query condition may be larger than 512bytes, therefore, we need to prepare enough large space
   SStringBuilder sb = {0};
@@ -3823,7 +3821,7 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql
   return ret;
 }
 
-int32_t getTimeRange(int64_t* stime, int64_t* etime, tSQLExpr* pRight, int32_t optr, int16_t timePrecision) {
+int32_t getTimeRange(STimeWindow* win, tSQLExpr* pRight, int32_t optr, int16_t timePrecision) {
   // this is join condition, do nothing
   if (pRight->nSQLOptr == TK_ID) {
     return TSDB_CODE_SUCCESS;
@@ -3898,16 +3896,15 @@ int32_t getTimeRange(int64_t* stime, int64_t* etime, tSQLExpr* pRight, int32_t o
   }
 
   if (optr == TK_LE) {
-    *etime = val;
+    win->ekey = val;
   } else if (optr == TK_LT) {
-    *etime = val - delta;
+    win->ekey = val - delta;
   } else if (optr == TK_GT) {
-    *stime = val + delta;
+    win->skey = val + delta;
   } else if (optr == TK_GE) {
-    *stime = val;
+    win->skey = val;
   } else if (optr == TK_EQ) {
-    *stime = val;
-    *etime = *stime;
+    win->ekey = win->skey = val;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4612,7 +4609,7 @@ bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo) {
     return true;
   }
 
-  return (pQueryInfo->stime == pQueryInfo->etime) && (pQueryInfo->stime != 0);
+  return (pQueryInfo->window.skey == pQueryInfo->window.ekey) && (pQueryInfo->window.skey != 0);
 }
 
 int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL* pQuerySql, SSqlObj* pSql) {
@@ -5757,22 +5754,22 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
     pQuerySql->pWhere = NULL;
     if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
-      pQueryInfo->stime = pQueryInfo->stime / 1000;
-      pQueryInfo->etime = pQueryInfo->etime / 1000;
+      pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
+      pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
     }
   } else {  // set the time rang
-    pQueryInfo->stime = 0;
-    pQueryInfo->etime = INT64_MAX;
+    pQueryInfo->window.skey = 0;
+    pQueryInfo->window.ekey = INT64_MAX;
   }
 
   // user does not specified the query time window, twa is not allowed in such case.
-  if ((pQueryInfo->stime == 0 || pQueryInfo->etime == INT64_MAX ||
-       (pQueryInfo->etime == INT64_MAX / 1000 && tinfo.precision == TSDB_TIME_PRECISION_MILLI)) && tscIsTWAQuery(pQueryInfo)) {
+  if ((pQueryInfo->window.skey == 0 || pQueryInfo->window.ekey == INT64_MAX ||
+       (pQueryInfo->window.ekey == INT64_MAX / 1000 && tinfo.precision == TSDB_TIME_PRECISION_MILLI)) && tscIsTWAQuery(pQueryInfo)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
   }
 
   // no result due to invalid query time range
-  if (pQueryInfo->stime > pQueryInfo->etime) {
+  if (pQueryInfo->window.skey > pQueryInfo->window.ekey) {
     pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     return TSDB_CODE_SUCCESS;
   }
@@ -5783,9 +5780,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   // in case of join query, time range is required.
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
-    int64_t timeRange = labs(pQueryInfo->stime - pQueryInfo->etime);
+    int64_t timeRange = labs(pQueryInfo->window.skey - pQueryInfo->window.ekey);
 
-    if (timeRange == 0 && pQueryInfo->stime == 0) {
+    if (timeRange == 0 && pQueryInfo->window.skey == 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
   }
@@ -5814,7 +5811,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     }
 
     if (pQueryInfo->intervalTime > 0) {
-      int64_t timeRange = labs(pQueryInfo->stime - pQueryInfo->etime);
+      int64_t timeRange = labs(pQueryInfo->window.skey - pQueryInfo->window.ekey);
       // number of result is not greater than 10,000,000
       if ((timeRange == 0) || (timeRange / pQueryInfo->intervalTime) > MAX_RETRIEVE_ROWS_IN_INTERVAL_QUERY) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg6);

@@ -416,10 +416,10 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter
 
 // update the query time range according to the join results on timestamp
 static void updateQueryTimeRange(SQueryInfo* pQueryInfo, int64_t st, int64_t et) {
-  assert(pQueryInfo->stime <= st && pQueryInfo->etime >= et);
+  assert(pQueryInfo->window.skey <= st && pQueryInfo->window.ekey >= et);
 
-  pQueryInfo->stime = st;
-  pQueryInfo->etime = et;
+  pQueryInfo->window.skey = st;
+  pQueryInfo->window.ekey = et;
 }
 
 static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {

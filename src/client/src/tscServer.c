@@ -669,11 +669,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {
-    pQueryMsg->window.skey = htobe64(pQueryInfo->stime);
-    pQueryMsg->window.ekey = htobe64(pQueryInfo->etime);
+    pQueryMsg->window.skey = htobe64(pQueryInfo->window.skey);
+    pQueryMsg->window.ekey = htobe64(pQueryInfo->window.ekey);
   } else {
-    pQueryMsg->window.skey = htobe64(pQueryInfo->etime);
-    pQueryMsg->window.ekey = htobe64(pQueryInfo->stime);
+    pQueryMsg->window.skey = htobe64(pQueryInfo->window.ekey);
+    pQueryMsg->window.ekey = htobe64(pQueryInfo->window.skey);
   }
 
   pQueryMsg->numOfTables    = htonl(numOfTables);
