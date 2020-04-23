@@ -86,7 +86,7 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
   }
 
-  tscTansformSQLFunctionForSTableQuery(pQueryInfo);
+  tscTansformSQLFuncForSTableQuery(pQueryInfo);
 
   // failed to get meter/metric meta, retry in 10sec.
   if (code != TSDB_CODE_SUCCESS) {

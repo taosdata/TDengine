@@ -305,7 +305,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
   
     pQueryInfo->exprsInfo = tscSqlExprCopy(pSupporter->exprsInfo, pSupporter->uid, false);
-    tscFieldInfoCopyAll(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
+    tscFieldInfoCopy(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
     
     pSupporter->fieldsInfo.numOfOutput = 0;
     
@@ -321,7 +321,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
   
-    tscFieldInfoCalOffset(pNewQueryInfo);
+    tscFieldInfoUpdateOffset(pNewQueryInfo);
   
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
   
@@ -859,7 +859,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     tscColumnListAssign(pSupporter->colList, pNewQueryInfo->colList, 0);
   
     pSupporter->exprsInfo = tscSqlExprCopy(pNewQueryInfo->exprsInfo, pSupporter->uid, false);
-    tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);
+    tscFieldInfoCopy(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);
     
     tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond);
     

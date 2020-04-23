@@ -475,6 +475,7 @@ SDataBlockList* tscCreateBlockArrayList() {
   if (pDataBlockArrayList == NULL) {
     return NULL;
   }
+  
   pDataBlockArrayList->nAlloc = DEFAULT_INITIAL_NUM_OF_BLOCK;
   pDataBlockArrayList->pData = calloc(1, POINTER_BYTES * pDataBlockArrayList->nAlloc);
   if (pDataBlockArrayList->pData == NULL) {
@@ -716,7 +717,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     }
 
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
-    sortRemoveDuplicates(pOneTableBlock);
+    tscSortRemoveDataBlockDupRows(pOneTableBlock);
 
     char* e = (char*)pBlocks->data + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
     
@@ -838,7 +839,7 @@ SFieldSupInfo* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FI
   return taosArrayInsert(pFieldInfo->pSupportInfo, index, &info);
 }
 
-void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo) {
+void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   
   SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
@@ -869,26 +870,7 @@ void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo) {
   }
 }
 
-void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size) {
-  if (src == NULL) {
-    return;
-  }
-
-  if (size <= 0) {
-    tscFieldInfoCopyAll(dst, src);
-  } else {  // only copy the required column
-    for (int32_t i = 0; i < size; ++i) {
-      assert(indexList[i] >= 0 && indexList[i] <= src->numOfOutput);
-      TAOS_FIELD* p = taosArrayGet(src->pFields, indexList[i]);
-      SFieldSupInfo* pInfo = taosArrayGet(src->pSupportInfo, indexList[i]);
-      
-      SFieldSupInfo* pInfo1 = tscFieldInfoAppend(dst, p);
-      *pInfo1 = *pInfo;
-    }
-  }
-}
-
-void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src) {
+void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src) {
   dst->numOfOutput = src->numOfOutput;
 
   taosArrayCopy(dst->pFields, src->pFields);
@@ -1818,20 +1800,22 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   int32_t numOfOutput = tscSqlExprNumOfExprs(pNewQueryInfo);
 
-  if (numOfOutput > 0) {
-    int32_t* indexList = calloc(1, numOfOutput * sizeof(int32_t));
+  if (numOfOutput > 0) {  // todo refactor to extract method
     size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-  
-    for (int32_t i = 0, j = 0; i < numOfExprs; ++i) {
+    SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
+    
+    for (int32_t i = 0; i < numOfExprs; ++i) {
       SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+      
       if (pExpr->uid == uid) {
-        indexList[j++] = i;
+        TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
+        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
+  
+        SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
+        *pInfo1 = *pInfo;
       }
     }
 
-    tscFieldInfoCopy(&pQueryInfo->fieldsInfo, &pNewQueryInfo->fieldsInfo, indexList, numOfOutput);
-    free(indexList);
-  
     //     make sure the the sqlExpr for each fields is correct
 // todo handle the agg arithmetic expression
     for(int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutput; ++f) {
@@ -1930,9 +1914,7 @@ bool tscIsUpdateQuery(STscObj* pObj) {
 
   SSqlCmd* pCmd = &pObj->pSql->cmd;
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) ||
-          TSDB_SQL_USE_DB == pCmd->command)
-             ? 1
-             : 0;
+          TSDB_SQL_USE_DB == pCmd->command);
 }
 
 int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {

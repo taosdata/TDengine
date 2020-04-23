@@ -488,7 +488,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
      */
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     
-    tscTansformSQLFunctionForSTableQuery(pQueryInfo);
+    tscTansformSQLFuncForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);
   } else {
     tscTrace("%p get tableMeta successfully", pSql);

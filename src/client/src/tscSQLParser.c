@@ -1258,7 +1258,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
      * transfer sql functions that need secondary merge into another format
      * in dealing with metric queries such as: count/first/last
      */
-    tscTansformSQLFunctionForSTableQuery(pQueryInfo);
+    tscTansformSQLFuncForSTableQuery(pQueryInfo);
 
     if (hasUnsupportFunctionsForSTableQuery(pQueryInfo)) {
       return TSDB_CODE_INVALID_SQL;
@@ -2242,7 +2242,7 @@ bool validateIpAddress(const char* ip, size_t size) {
   return ipAddr != INADDR_NONE;
 }
 
-int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo* pQueryInfo) {
+int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   if (pTableMetaInfo->pTableMeta == NULL || !UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
@@ -2282,7 +2282,7 @@ int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo* pQueryInfo) {
 }
 
 /* transfer the field-info back to original input format */
-void tscRestoreSQLFunctionForMetricQuery(SQueryInfo* pQueryInfo) {
+void tscRestoreSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     return;
@@ -2547,7 +2547,7 @@ void setColumnOffsetValueInResultset(SQueryInfo* pQueryInfo) {
   if (QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
     tscFieldInfoUpdateOffsetForInterResult(pQueryInfo);
   } else {
-    tscFieldInfoCalOffset(pQueryInfo);
+    tscFieldInfoUpdateOffset(pQueryInfo);
   }
 }
 
@@ -2828,7 +2828,7 @@ static int32_t extractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnIndex* pIn
   const char* msg1 = "non binary column not support like operator";
   const char* msg2 = "binary column not support this operator";
 
-  SColumn*       pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex);
+  SColumn* pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex);
   SColumnFilterInfo* pColFilter = NULL;
 
   /*

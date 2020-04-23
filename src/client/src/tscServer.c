@@ -458,7 +458,7 @@ int tscProcessSql(SSqlObj *pSql) {
   return doProcessSql(pSql);
 }
 
-void tscKillMetricQuery(SSqlObj *pSql) {
+void tscKillSTableQuery(SSqlObj *pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
@@ -2202,7 +2202,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
                      pTableSchema[i].type, pTableSchema[i].bytes, pTableSchema[i].bytes);
   }
 
-  tscFieldInfoCalOffset(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
   
   tfree(pTableMeta);
   return 0;

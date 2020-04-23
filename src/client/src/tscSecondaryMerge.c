@@ -261,8 +261,8 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->pCtx = (SQLFunctionCtx *)calloc(size, sizeof(SQLFunctionCtx));
   pReducer->rowSize = pMemBuffer[0]->nElemSize;
 
-  tscRestoreSQLFunctionForMetricQuery(pQueryInfo);
-  tscFieldInfoCalOffset(pQueryInfo);
+  tscRestoreSQLFuncForSTableQuery(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
 
   if (pReducer->rowSize > pMemBuffer[0]->pageSize) {
     assert(false);  // todo fixed row size is larger than the minimum page size;

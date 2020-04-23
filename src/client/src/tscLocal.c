@@ -296,7 +296,7 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
 
   int32_t rowLen =
       tscBuildMeterSchemaResultFields(pSql, NUM_OF_DESCRIBE_TABLE_COLUMNS, TYPE_COLUMN_LENGTH, note_field_length);
-  tscFieldInfoCalOffset(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
   return tscSetValueToResObj(pSql, rowLen);
 }
 

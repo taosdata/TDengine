@@ -964,7 +964,7 @@ void taos_stop_query(TAOS_RES *res) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    tscKillMetricQuery(pSql);
+    tscKillSTableQuery(pSql);
     return;
   }
 

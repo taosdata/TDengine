@@ -69,8 +69,9 @@ typedef struct SJoinSubquerySupporter {
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
                            STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
-void    tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
-void    tscDestroyDataBlock(STableDataBlocks* pDataBlock);
+void tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
+void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
+void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
                                    uint32_t offset);
@@ -133,9 +134,8 @@ SFieldSupInfo* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FI
 SFieldSupInfo* tscFieldInfoGetSupp(SFieldInfo* pFieldInfo, int32_t index);
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index);
 
-void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
-void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size);
-void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src);
+void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
+void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src);
 void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
@@ -234,11 +234,6 @@ void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t sub
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 
 int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid);
-
-TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, void (*fp)(void*, TAOS_RES*, int),
-                     void* param, void** taos);
-
-void sortRemoveDuplicates(STableDataBlocks* dataBuf);
 
 void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 

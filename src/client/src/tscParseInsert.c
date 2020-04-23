@@ -613,7 +613,7 @@ static void tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, in
 }
 
 // data block is disordered, sort it in ascending order
-void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
+void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
   SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
 
   // size is less than the total size, since duplicated rows may be removed yet.
