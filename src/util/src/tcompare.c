@@ -217,7 +217,7 @@ static UNUSED_FUNC int32_t compareStrPatternComp(const void* pLeft, const void* 
 
 static int32_t compareStrInList(const void* pLeft, const void* pRight) {
   const SArray* arr = (const SArray*)pRight;
-  return taosArraySearchString(arr, &pLeft) == NULL ? 0 : 1;
+  return taosArraySearchString(arr, pLeft) == NULL ? 0 : 1;
 }
 
 static UNUSED_FUNC int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {

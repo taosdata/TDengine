@@ -30,6 +30,7 @@
 #include "tarray.h"
 #include "tskiplist.h"
 #include "queryLog.h"
+#include "tsdbMain.h"
 
 /*
  *
@@ -796,7 +797,6 @@ static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSki
 }
 
 
-#include <tsdbMain.h>
 
 static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
@@ -818,7 +818,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     }
 
     if (addToResult) {
-      taosArrayPush(result, table);
+      taosArrayPush(result, (void*)&table);
     }
   }
 }
