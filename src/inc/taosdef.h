@@ -22,7 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "taos.h"
 
 #define TSDB__packed
 
