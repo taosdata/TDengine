@@ -1355,7 +1355,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     }
 
 #ifdef _DEBUG_VIEW
-    printf("received data from vnode: %d rows\n", pRes->numOfRows);
+    printf("received data from vnode: %"PRIu64" rows\n", pRes->numOfRows);
     SSrcColumnInfo colInfo[256] = {0};
 
     tscGetSrcColumnInfo(colInfo, pQueryInfo);

@@ -1036,9 +1036,8 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
   TSKEY key = *(TSKEY *)(pCtx[0].aInputElemBuf + TSDB_KEYSIZE * offset);
 
 #if defined(_DEBUG_VIEW)
-  printf("elem in comp ts file:%" PRId64 ", key:%" PRId64
-         ", tag:%d, id:%s, query order:%d, ts order:%d, traverse:%d, index:%d\n",
-         elem.ts, key, elem.tag, pRuntimeEnv->pTabObj->meterId, pQuery->order.order, pRuntimeEnv->pTSBuf->tsOrder,
+  printf("elem in comp ts file:%" PRId64 ", key:%" PRId64 ", tag:%"PRIu64", query order:%d, ts order:%d, traverse:%d, index:%d\n",
+         elem.ts, key, elem.tag, pQuery->order.order, pRuntimeEnv->pTSBuf->tsOrder,
          pRuntimeEnv->pTSBuf->cur.order, pRuntimeEnv->pTSBuf->cur.tsIndex);
 #endif
 
@@ -2312,8 +2311,7 @@ SArray *loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBl
      */
     if (!needToLoadDataBlock(pQuery, *pStatis, pRuntimeEnv->pCtx, pBlockInfo->rows)) {
 #if defined(_DEBUG_VIEW)
-      qTrace("QInfo:%p fileId:%d, slot:%d, block discarded by per-filter", GET_QINFO_ADDR(pQuery), pQuery->fileId,
-             pQuery->slot);
+      qTrace("QInfo:%p block discarded by per-filter", GET_QINFO_ADDR(pRuntimeEnv));
 #endif
       //        return DISK_DATA_DISCARDED;
     }
@@ -2946,7 +2944,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
   int64_t endt = taosGetTimestampMs();
 
 #ifdef _DEBUG_VIEW
-  displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
+  displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->num);
 #endif
 
   qTrace("QInfo:%p result merge completed, elapsed time:%" PRId64 " ms", GET_QINFO_ADDR(pQuery), endt - startt);
@@ -4337,7 +4335,7 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
     SDataStatis *pStatis = NULL;
     SArray *     pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, &blockInfo, &pStatis);
 
-    TSKEY nextKey = blockInfo.window.ekey;
+    TSKEY nextKey = blockInfo.window.skey;
     if (!isIntervalQuery(pQuery)) {
       setExecutionContext(pQInfo, pTableQueryInfo, pTable, pTableDataInfo->groupIdx, nextKey);
     } else {  // interval query
@@ -4784,7 +4782,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
       copyResToQueryResultBuf(pQInfo, pQuery);
 
 #ifdef _DEBUG_VIEW
-      displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
+      displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->num);
 #endif
     } else {
       copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
@@ -4845,7 +4843,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
       copyResToQueryResultBuf(pQInfo, pQuery);
 
 #ifdef _DEBUG_VIEW
-      displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
+      displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->num);
 #endif
     }
   } else {  // not a interval query

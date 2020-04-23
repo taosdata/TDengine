@@ -442,11 +442,13 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
         return false;
       }
-
-      SDataCols* pDataCols = pCheckInfo->pDataCols;
+  
+      SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
+      assert(pCols->numOfPoints == pBlock->numOfPoints);
+      
       if (pCheckInfo->lastKey > pBlock->keyFirst) {
         cur->pos =
-            binarySearchForKey(pDataCols->cols[0].pData, pBlock->numOfPoints, pCheckInfo->lastKey, pQueryHandle->order);
+            binarySearchForKey(pCols->cols[0].pData, pBlock->numOfPoints, pCheckInfo->lastKey, pQueryHandle->order);
       } else {
         cur->pos = 0;
       }
@@ -548,8 +550,9 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
                                   SArray* sa) {
   SQueryFilePos* cur = &pQueryHandle->cur;
   SDataBlockInfo blockInfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
-
-  SDataCols* pCols = pCheckInfo->pDataCols;
+  
+//  pQueryHandle->rhelper.pDataCols[0]->cols[0];
+  SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
 
   int32_t endPos = cur->pos;
   if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
@@ -1335,10 +1338,6 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
     
     taosArrayPush(pTableGroup, &sa);
     uTrace("all %d tables belong to one group", size);
-    
-#ifdef _DEBUG_VIEW
-    tSidSetDisplay(pTableGroup);
-#endif
   } else {
     STableGroupSupporter *pSupp = (STableGroupSupporter *) calloc(1, sizeof(STableGroupSupporter));
     pSupp->numOfCols = numOfOrderCols;
@@ -1347,10 +1346,6 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
     
     taosqsort(pTableList->pData, size, POINTER_BYTES, pSupp, tableGroupComparFn);
     createTableGroupImpl(pTableGroup, pTableList->pData, size, pSupp, tableGroupComparFn);
-
-#ifdef _DEBUG_VIEW
-    tSidSetDisplay(pTableGroup);
-#endif
     tfree(pSupp);
   }
   
