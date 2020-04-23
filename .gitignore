@@ -34,3 +34,5 @@ Target/
 *.sql
 sim/
 
+# Doxygen Generated files
+html/
