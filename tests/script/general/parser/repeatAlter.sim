@@ -1,0 +1,7 @@
+$i = 1
+$loops = 10
+while $i <= $loops
+  print ====== repeat: $i
+  run lite/parser/alter.sim
+  $i = $i + 1
+endw

@@ -1,0 +1,152 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c numofMpeers -v 3
+system sh/cfg.sh -n dnode2 -c numofMpeers -v 3
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+sql create dnode 192.168.0.2
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+print =================== step 1 create db
+sql create database c2db replica 2 days 10 keep 50
+sql use c2db
+sql create table tb (ts timestamp, speed int) 
+sql insert into tb values(now, 0)
+
+print =================== step2 sleep 2000 and kill dnode2(SIGINT)
+sleep 2000
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 1000
+
+print =================== step3 insert into dnode1
+
+$x = 1
+while $x < 100
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+$x = 240
+while $x < 400
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+$x = 480
+while $x < 700
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+$x = 720
+while $x < 809
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+$x = 960
+while $x < 1043
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+$x = 1200
+while $x < 1244
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+$x = 1440
+while $x < 1677
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+$x = 1680
+while $x < 1683
+  $time = $x . m
+  sql insert into tb values (now + $time , $x ) 
+  $x = $x + 1
+endw 
+
+print =================== step4
+sql select count(*) from tb
+print select count(*) from tb ==> $data00 (expect 936)
+if $data00 != 936 then 
+  return -1
+endi
+sql select * from tb order by ts desc
+print select * from tb ==> $data00 $data01 $rows
+if $data01 != 1682 then 
+  return -1
+endi
+if $rows != 936 then 
+  return -1
+endi
+
+print =================== step5 sleep kill dnode1(SIGINT) then start dnode1
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+
+sleep 3000
+print =================== step6 start dnode2 and sleep 10000 (wait sync complete)
+system sh/exec.sh -n dnode2 -s start
+sleep 12000
+
+print =================== step7
+sql_error insert into tb values(now + 1000h, 100)
+sql select count(*) from tb order by ts desc
+print select count(*) from tb ==> $data00 (expect <= 936)
+if $data00 != 936 then
+  return -1
+endi
+$remainRows = $data00
+
+sql select * from tb order by ts desc
+print select * from tb ==> $data00 $data01 $data10 $data11 $rows
+
+if $data11 != 1681 then
+  return -1
+endi
+if $rows != $remainRows then 
+  return -1
+endi
+
+print =================== step8 kill dnode1(SIGINT) and query
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 2000
+
+print =================== step9
+sql select count(*) from tb order by ts desc
+print select count(*) from tb ==> $data00 (expect == $remainRows  )
+if $data00 > $remainRows then 
+  return -1
+endi
+if $data00 <= 0 then 
+  return -1
+endi
+
+$remainRows = $data00
+sql select * from tb order by ts desc
+print select * from tb ==> $data00 $data01 $rows
+
+if $rows != $remainRows then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s start

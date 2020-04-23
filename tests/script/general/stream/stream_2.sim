@@ -1,0 +1,194 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 3000
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = s2_db
+$tbPrefix = s2_tb
+$mtPrefix = s2_mt
+$stPrefix = s2_st
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+
+sql drop databae $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = -1440
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (now $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+$i = 0
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+
+sql select count(tbcol) from $tb interval(1d)
+print select count(tbcol) from $tb interval(1d) ===> $data00 $data01 $data02, $data03
+if $data01 != $rowNum then 
+  return -1
+endi
+
+sql show tables
+if $rows != 10 then 
+  return -1
+endi
+
+sql create table $st as select count(tbcol) from $tb interval(1d)
+
+sql show tables
+if $rows != 11 then 
+  return -1
+endi
+
+print =============== step3
+print sleep 22 seconds
+sleep 22000 
+sql select * from $st
+print select * from $st => $data01
+if $data01 != 20 then 
+  return -1
+endi
+
+print =============== step4
+sql drop table $st
+sql show tables
+if $rows != 10 then 
+  return -1
+endi
+
+print =============== step5
+sql select * from $st -x step4
+  return -1
+step4:
+
+print =============== step6
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(1d)
+sql show tables
+if $rows != 11 then 
+  return -1
+endi
+
+print =============== step7
+print sleep 22 seconds
+sleep 22000 
+sql select * from $st
+print select * from $st => $data01
+if $data01 != 20 then 
+  return -1
+endi
+if $data02 != 20 then 
+  return -1
+endi
+if $data03 != 20 then 
+  return -1
+endi
+
+print =============== step8
+$i = 1
+$st = $stPrefix . $i
+
+sql select count(*), count(tbcol), count(tbcol2) from $mt interval(1d)
+print select count(*), count(tbcol), count(tbcol2) from $mt interval(1d) ===> $data00 $data01 $data02, $data03
+if $data01 != 200 then 
+  return -1
+endi
+if $data02 != 200 then 
+  return -1
+endi
+if $data03 != 200 then 
+  return -1
+endi
+
+sql show tables
+if $rows != 11 then 
+  return -1
+endi
+
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $mt interval(1d)
+
+sql show tables
+if $rows != 12 then 
+  return -1
+endi
+
+print =============== step9
+print sleep 22 seconds
+sleep 22000 
+sql select * from $st
+print select * from $st =>  $data01 $data02, $data03
+if $data01 != 200 then 
+  return -1
+endi
+if $data02 != 200 then 
+  return -1
+endi
+if $data03 != 200 then 
+  return -1
+endi
+
+print =============== step10
+sql drop table $st
+sql show tables
+if $rows != 11 then 
+  return -1
+endi
+
+print =============== step11
+sql select * from $st -x step10
+  return -1
+step10:
+
+print =============== step12
+sql create table $st as select count(tbcol) from $mt interval(1d)
+
+sql show tables
+if $rows != 12 then 
+  return -1
+endi
+
+print =============== step13
+print sleep 22 seconds
+sleep 22000 
+sql select * from $st
+print select * from $st =>  $data01 $data02, $data03
+if $data01 != 200 then 
+  return -1
+endi
+if $data02 != null then 
+  return -1
+endi
+if $data03 != null then 
+  return -1
+endi
+

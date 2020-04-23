@@ -40,8 +40,8 @@ void *  mgmtGetNextMnode(void *pNode, struct SMnodeObj **pMnode);
 void    mgmtReleaseMnode(struct SMnodeObj *pMnode);
 
 char *  mgmtGetMnodeRoleStr();
-void    mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp);
-void    mgmtGetMnodeList(void *mnodes);
+void    mgmtGetMnodeIpSet(SRpcIpSet *ipSet, bool usePublicIp);
+void    mgmtGetMnodeInfos(void *mnodes);
 
 #ifdef __cplusplus
 }

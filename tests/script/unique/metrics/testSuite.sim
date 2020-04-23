@@ -1,0 +1,4 @@
+run unique/metrics/disk.sim
+run unique/metrics/metrics.sim
+run unique/metrics/values.sim
+run unique/metrics/vnode3.sim

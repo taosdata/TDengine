@@ -11,7 +11,8 @@ set +e
 FILE_NAME=
 RELEASE=0
 ASYNC=0
-while getopts "f:a" arg
+VALGRIND=0
+while getopts "f:av" arg
 do
   case $arg in
     f)
@@ -19,6 +20,9 @@ do
       ;;
     a)
       ASYNC=1
+      ;;
+    v)
+      VALGRIND=1
       ;;
     ?)
       echo "unknow argument"
@@ -30,6 +34,8 @@ cd .
 sh/ip.sh -i 1 -s up > /dev/null 2>&1 & 
 sh/ip.sh -i 2 -s up > /dev/null 2>&1 & 
 sh/ip.sh -i 3 -s up > /dev/null 2>&1 & 
+sh/ip.sh -i 4 -s up > /dev/null 2>&1 & 
+sh/ip.sh -i 5 -s up > /dev/null 2>&1 & 
 
 # Get responsible directories
 CODE_DIR=`dirname $0`
@@ -96,10 +102,14 @@ ulimit -c unlimited
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 
 if [ -n "$FILE_NAME" ]; then
-  echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
   echo "------------------------------------------------------------------------"
-  #valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
-  $PROGRAM -c $CFG_DIR -f $FILE_NAME
+  if [ $VALGRIND -eq 1 ]; then
+    echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
+  else
+    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    $PROGRAM -c $CFG_DIR -f $FILE_NAME
+  fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim
   echo "------------------------------------------------------------------------"

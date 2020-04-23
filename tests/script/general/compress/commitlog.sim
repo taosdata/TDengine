@@ -1,0 +1,128 @@
+system sh/stop_dnodes.sh
+
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 1
+system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 1024
+system sh/cfg.sh -n dnode1 -c compression -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 3000
+sql connect
+print ============================ dnode1 start
+
+$i = 0
+$dbPrefix = db
+$tbPrefix = tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+$N = 2000
+
+print =============== step1
+
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, str binary(256))
+
+$count = 0
+while $count < $N
+   $ms = $count . a
+   sql insert into $tb values( now+ $ms , 1, 0, $count , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+sql select * from $tb
+if $rows != $N then 
+  return -1
+endi
+
+print =============== step2
+$i = 1
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, f float, d double, str binary(256))
+
+$count = 0
+while $count < $N
+   $ms = $count . a
+   sql insert into $tb values( now+ $ms , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+sql select * from $tb
+if $rows != $N then 
+  return -1
+endi
+
+print =============== step3
+$i = 2
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, f float, d double, str binary(256)) -x step3
+
+$count = 0
+while $count < $N
+   $ms = $count . a
+   sql insert into $tb values( now+ $ms , 1 , 0 , $count , $count , $count , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+sql select * from $tb
+if $rows != $N then 
+  return -1
+endi
+
+print =============== step4
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 20000
+system sh/exec.sh -n dnode1 -s start
+sleep 10000
+
+print =============== step5
+
+$i = 0
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql use $db
+sql select * from $tb
+print select * from $tb ==> $rows points
+if $rows != $N then 
+  return -1
+endi
+
+$i = 1
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql use $db
+sql select * from $tb
+print select * from $tb ==> $rows points
+if $rows != $N then 
+  return -1
+endi
+ 
+$i = 2
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql use $db
+sql select * from $tb
+print select * from $tb ==> $rows points
+if $rows != $N then 
+  return -1
+endi  
+ 
+  

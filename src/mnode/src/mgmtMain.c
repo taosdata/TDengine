@@ -149,12 +149,12 @@ void mgmtCleanUpSystem() {
   mgmtCleanUpShell();
   mgmtCleanupDClient();
   mgmtCleanupDServer();
+  mgmtCleanUpAccts();
   mgmtCleanUpTables();
   mgmtCleanUpVgroups();
   mgmtCleanUpDbs();
   mgmtCleanupDnodes();
   mgmtCleanUpUsers();
-  mgmtCleanUpAccts();
   sdbCleanUp();
   taosTmrCleanUp(tsMgmtTmr);
   tsMgmtIsRunning = false;

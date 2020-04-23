@@ -1,0 +1,2 @@
+run general/agg/fill.sim
+run general/agg/stream.sim

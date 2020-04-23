@@ -66,9 +66,9 @@ void shellParseArgument(int argc, char *argv[]) {
     }
   }
 
-  uPrint("%s rowNum:%d %s", GREEN, rowNum, NC);
-  uPrint("%s threadNum:%d %s", GREEN, threadNum, NC);
-  uPrint("%s replica:%d %s", GREEN, replica, NC);
+  pPrint("%s rowNum:%d %s", GREEN, rowNum, NC);
+  pPrint("%s threadNum:%d %s", GREEN, threadNum, NC);
+  pPrint("%s replica:%d %s", GREEN, replica, NC);
 }
 
 int main(int argc, char *argv[]) {

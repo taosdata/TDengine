@@ -30,7 +30,7 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-static void *  tsMnodeSdb = NULL;
+void * tsMnodeSdb = NULL;
 static int32_t tsMnodeUpdateSize = 0;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -47,7 +47,7 @@ static int32_t mgmtMnodeActionInsert(SSdbOper *pOper) {
 
   pMnode->pDnode = pDnode;
   pDnode->isMgmt = true;
-  mgmtReleaseDnode(pDnode);
+  mgmtDecDnodeRef(pDnode);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -58,7 +58,7 @@ static int32_t mgmtMnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
   if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
   pDnode->isMgmt = false;
-  mgmtReleaseDnode(pDnode);
+  mgmtDecDnodeRef(pDnode);
 
   mTrace("mnode:%d, is dropped from sdb", pMnode->mnodeId);
   return TSDB_CODE_SUCCESS;
@@ -171,7 +171,7 @@ char *mgmtGetMnodeRoleStr(int32_t role) {
   }
 }
 
-void mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp) {
+void mgmtGetMnodeIpSet(SRpcIpSet *ipSet, bool usePublicIp) {
   void *pNode = NULL;
   while (1) {
     SMnodeObj *pMnode = NULL;
@@ -195,8 +195,8 @@ void mgmtGetMnodeIpList(SRpcIpSet *ipSet, bool usePublicIp) {
   }
 }
 
-void mgmtGetMnodeList(void *param) {
-  SDMNodeInfos *mnodes = param;
+void mgmtGetMnodeInfos(void *param) {
+  SDMMnodeInfos *mnodes = param;
   mnodes->inUse = 0;
   
   int32_t index = 0;
@@ -209,6 +209,7 @@ void mgmtGetMnodeList(void *param) {
     mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
     mnodes->nodeInfos[index].nodeIp = htonl(pMnode->pDnode->privateIp);
     mnodes->nodeInfos[index].nodePort = htons(pMnode->pDnode->mnodeDnodePort);
+    mnodes->nodeInfos[index].syncPort = htons(pMnode->pDnode->syncPort);
     strcpy(mnodes->nodeInfos[index].nodeName, pMnode->pDnode->dnodeName);
     if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
       mnodes->inUse = index;
@@ -267,7 +268,10 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->pAcct->user, "root") != 0)  {
+    mgmtDecUserRef(pUser);
+    return TSDB_CODE_NO_RIGHTS;
+  }
 
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -290,15 +294,15 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   pShow->bytes[cols] = 10;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "role");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+  
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -313,7 +317,7 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pShow->numOfRows = mgmtGetMnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
-  mgmtReleaseUser(pUser);
+  mgmtDecUserRef(pUser);
 
   return 0;
 }
@@ -346,13 +350,13 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pMnode->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     strcpy(pWrite, mgmtGetMnodeRoleStr(pMnode->role));
     cols++;
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pMnode->createdTime;
+    cols++;
+    
     numOfRows++;
 
     mgmtReleaseMnode(pMnode);

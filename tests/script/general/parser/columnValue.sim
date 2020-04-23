@@ -1,0 +1,37 @@
+####
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 3
+system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 3
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+sql connect
+
+print ========== columnValues.sim
+
+sql drop database if exists db
+sql create database db
+sql use db
+
+run lite/parser/columnValue_bool.sim
+run lite/parser/columnValue_tinyint.sim
+run lite/parser/columnValue_smallint.sim
+run lite/parser/columnValue_int.sim
+run lite/parser/columnValue_bigint.sim
+run lite/parser/columnValue_float.sim
+run lite/parser/columnValue_double.sim
+
+
+
+
+
+
+
+
+
+
+
+
+

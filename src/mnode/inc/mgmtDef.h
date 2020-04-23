@@ -51,7 +51,6 @@ typedef struct SDnodeObj {
   int8_t     reserved[15];
   int8_t     updateEnd[1];
   int32_t    refCount;
-  SVnodeLoad vload[TSDB_MAX_VNODES];
   uint32_t   moduleStatus;
   uint32_t   lastReboot;       // time stamp for last reboot
   float      score;          // calc in balance function
@@ -71,13 +70,6 @@ typedef struct SMnodeObj {
   int8_t     role;
   SDnodeObj *pDnode;
 } SMnodeObj;
-
-
-typedef struct {
-  int32_t  dnodeId;
-  uint32_t privateIp;
-  uint32_t publicIp;
-} SVnodeGid;
 
 typedef struct {
   char   tableId[TSDB_TABLE_ID_LEN + 1];
@@ -120,24 +112,34 @@ typedef struct {
   SSuperTableObj *superTable;
 } SChildTableObj;
 
+typedef struct {
+  int32_t    dnodeId;
+  int8_t     role;
+  int8_t     reserved[3];
+  SDnodeObj* pDnode;
+} SVnodeGid;
+
 typedef struct SVgObj {
-  uint32_t        vgId;
-  char            dbName[TSDB_DB_NAME_LEN + 1];
-  int64_t         createdTime;
-  SVnodeGid       vnodeGid[TSDB_VNODES_SUPPORT];
-  int32_t         numOfVnodes;
-  int32_t         lbDnodeId;
-  int32_t         lbTime;
-  int8_t          status;
-  int8_t          inUse;
-  int8_t          reserved[13];
-  int8_t          updateEnd[1];
-  int32_t         refCount;
+  uint32_t       vgId;
+  char           dbName[TSDB_DB_NAME_LEN + 1];
+  int64_t        createdTime;
+  SVnodeGid      vnodeGid[TSDB_VNODES_SUPPORT];
+  int32_t        numOfVnodes;
+  int32_t        lbDnodeId;
+  int32_t        lbTime;
+  int8_t         status;
+  int8_t         inUse;
+  int8_t         reserved[13];
+  int8_t         updateEnd[1];
+  int32_t        refCount;
   struct SVgObj *prev, *next;
   struct SDbObj *pDb;
-  int32_t         numOfTables;
-  void *          idPool;
-  SChildTableObj ** tableList;
+  int32_t        numOfTables;
+  int64_t        totalStorage;
+  int64_t        compStorage;
+  int64_t        pointsWritten;
+  void *         idPool;
+  SChildTableObj **tableList;
 } SVgObj;
 
 typedef struct SDbObj {

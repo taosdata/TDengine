@@ -1,0 +1,42 @@
+sql connect
+sleep 3000
+
+$i = 0
+$dbPrefix = tb_in_db
+$tbPrefix = tb_in_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop database -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+
+$x = 0
+while $x < 10
+  $ms = $x . m 
+  sql insert into $tb values (now + $ms , $x ) 
+  $x = $x + 1
+endw 
+
+print =============== step 2
+sql insert into $tb values (now - 5m , 10) -x error_insert
+sql insert into $tb values (now - 6m , 10) -x error_insert
+sql insert into $tb values (now - 7m , 10) -x error_insert
+sql insert into $tb values (now - 8m , 10) -x error_insert
+error_insert:
+
+sql select * from $tb
+
+print $rows points data are retrieved
+if $rows != 10 then 
+  return -1
+endi
+
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi

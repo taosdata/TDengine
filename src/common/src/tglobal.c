@@ -65,7 +65,8 @@ char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
 uint16_t tsMnodeShellPort = 6030;   // udp[6030-6034] tcp[6030]
 uint16_t tsDnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
 uint16_t tsMnodeDnodePort = 6040;   // udp/tcp
-uint16_t tsDnodeMnodePort = 6041;   // udp/tcp
+uint16_t tsDnodeMnodePort = 6045;   // udp/tcp
+uint16_t tsSyncPort = 6050;
 
 int32_t tsStatusInterval = 1;         // second
 int32_t tsShellActivityTimer = 3;     // second

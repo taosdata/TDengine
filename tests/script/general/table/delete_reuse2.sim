@@ -1,0 +1,91 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.4
+
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode3 -c commitLog -v 0
+system sh/cfg.sh -n dnode4 -c commitLog -v 0
+
+system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode3 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode4 -c numOfMPeers -v 1
+
+system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
+
+system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
+
+print ========= start dnodes
+system sh/exec.sh -n dnode1 -s start
+
+sleep 3000
+sql connect
+
+print ======== step1 
+sql create database db1 replica 1
+sql create table db1.t1 (ts timestamp, i int)
+sql insert into db1.t1 values(now, 1)
+
+sql select * from db1.t1
+if $rows != 1 then
+	return -1
+endi
+
+print ======== step2
+sql drop table db1.t1
+sleep 1000
+sql_error insert into db1.t1 values(now, 2)
+
+print ========= step3
+sql create table db1.tb1 (ts timestamp, i int)
+sql insert into db1.tb1 values(now, 2)
+sql select * from db1.tb1
+if $rows != 1 then
+	return -1
+endi
+if $data01 != 2 then
+	return -1
+endi
+
+sql use db1
+print ========= step4
+$x = 1
+while $x < 20
+
+  $tb = tb . $x
+  sql drop table $tb
+  
+  sleep 1000
+  sql_error insert into $tb values(now, -1)
+  
+  step4:
+  
+  $x = $x + 1  
+  $tb = tb . $x
+  
+  sql create table $tb (ts timestamp, i int)
+  sql insert into $tb values(now, $x )
+  sql select * from $tb
+  if $rows != 1 then
+	return -1
+  endi
+  if $data01 != $x then
+	return -1
+  endi
+  
+  print ===> loop times: $x
+endw 

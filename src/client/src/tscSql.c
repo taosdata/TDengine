@@ -72,23 +72,23 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   }
 
   if (ip && ip[0]) {
-    tscMgmtIpList.inUse = 0;
-    tscMgmtIpList.port = tsMnodeShellPort;
-    tscMgmtIpList.numOfIps = 1;
-    tscMgmtIpList.ip[0] = inet_addr(ip);
+    tscMgmtIpSet.inUse = 0;
+    tscMgmtIpSet.port = tsMnodeShellPort;
+    tscMgmtIpSet.numOfIps = 1;
+    tscMgmtIpSet.ip[0] = inet_addr(ip);
 
     if (tsMasterIp[0] && strcmp(ip, tsMasterIp) != 0) {
-      tscMgmtIpList.numOfIps = 2;
-      tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
+      tscMgmtIpSet.numOfIps = 2;
+      tscMgmtIpSet.ip[1] = inet_addr(tsMasterIp);
     }
 
     if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
-      tscMgmtIpList.numOfIps = 3;
-      tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
+      tscMgmtIpSet.numOfIps = 3;
+      tscMgmtIpSet.ip[2] = inet_addr(tsSecondIp);
     }
   }
 
-  tscMgmtIpList.port = port ? port : tsMnodeShellPort;
+  tscMgmtIpSet.port = port ? port : tsMnodeShellPort;
   
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {

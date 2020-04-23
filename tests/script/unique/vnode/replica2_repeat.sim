@@ -1,0 +1,77 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/ip.sh -i 2 -s up
+system sh/ip.sh -i 3 -s up
+system sh/ip.sh -i 4 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode3 -c commitLog -v 0
+system sh/cfg.sh -n dnode4 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c numofMpeers -v 1
+system sh/cfg.sh -n dnode2 -c numofMpeers -v 1
+system sh/cfg.sh -n dnode3 -c numofMpeers -v 1
+system sh/cfg.sh -n dnode4 -c numofMpeers -v 1
+system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+sql create dnode 192.168.0.2
+sql create dnode 192.168.0.3
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+sleep 3000
+
+print ========= step1
+sql create database db replica 2 
+sql create table db.tb (ts timestamp, i int)
+sql insert into db.tb values(now, 1)
+sql select count(*) from db.tb
+$lastRows = $rows
+
+print ======== step2
+run_back cluster/vnode/back_insert.sim
+sleep 3000
+
+print ======== step3
+system sh/exec.sh -n dnode2 -s stop
+sleep 5000
+
+$x = 0
+loop:
+
+print ======== step4
+system sh/exec.sh -n dnode2 -s start
+sleep 5000
+system sh/exec.sh -n dnode3 -s stop
+sleep 5000
+
+print ======== step5
+system sh/exec.sh -n dnode3 -s start
+sleep 5000
+system sh/exec.sh -n dnode2 -s stop
+sleep 5000
+
+print ======== step6
+sql select count(*) from db.tb
+print select count(*) from db.tb ==> $data00 $lastRows 
+if $data00 <= $lastRows then
+  return -1
+endi
+
+print ======== step7
+$lastRows = $data00
+print ======== loop Times $x
+
+if $x < 5 then
+  $x = $x + 1
+  goto loop
+endi
+
+

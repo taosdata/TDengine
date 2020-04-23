@@ -66,6 +66,4 @@ print $data10 $data11 $data22
 print $data20 $data11 $data22
 print $data30 $data31 $data32
 
-
-  
-  
+system sh/exec.sh -n dnode1 -s stop

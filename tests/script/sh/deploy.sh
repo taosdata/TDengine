@@ -105,7 +105,7 @@ echo "numOfThreadsPerCore 2.0"            >> $TAOS_CFG
 echo "defaultPass         taosdata"       >> $TAOS_CFG
 echo "numOfLogLines       100000000"      >> $TAOS_CFG
 echo "mgmtEqualVnodeNum   0"              >> $TAOS_CFG
-echo "clog                0"              >> $TAOS_CFG
+echo "clog                2"              >> $TAOS_CFG
 echo "statusInterval      1"              >> $TAOS_CFG
 echo "numOfTotalVnodes    4"              >> $TAOS_CFG
 echo "asyncLog            0"              >> $TAOS_CFG

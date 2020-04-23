@@ -466,8 +466,8 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
   }
 
   pFdObj->signature = NULL;
-  close(pFdObj->fd);
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
+  close(pFdObj->fd);
 
   pThreadObj->numOfFds--;
 

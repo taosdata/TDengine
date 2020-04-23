@@ -1,0 +1,5 @@
+run unique/unique/balance1.sim
+run unique/unique/balance2.sim
+run unique/unique/balance3.sim
+run unique/unique/balance1_bug.sim
+run unique/unique/balance1_single.sim
