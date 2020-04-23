@@ -333,7 +333,7 @@ void sdbIncRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
+    if (1 && strcmp(pTable->tableName, "accounts") == 0) {
       sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -345,7 +345,7 @@ void sdbDecRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
+    if (1 && strcmp(pTable->tableName, "accounts") == 0) {
       sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -400,6 +400,8 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 
   if (pTable->keyType == SDB_KEY_AUTO) {
     pTable->autoIndex = MAX(pTable->autoIndex, *((uint32_t *)pOper->pObj));
+  } else {
+    pTable->autoIndex++;
   }
 
   pthread_mutex_unlock(&pTable->mutex);

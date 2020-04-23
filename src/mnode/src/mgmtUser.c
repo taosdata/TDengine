@@ -353,6 +353,7 @@ static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
       mLPrint("user:%s, is created by %s", pCreate->user, pOperUser->user);
     }
   } else {
+    mError("user:%s, no rights to create user", pOperUser->user);
     code = TSDB_CODE_NO_RIGHTS;
   }
 
@@ -398,6 +399,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
       code = mgmtUpdateUser(pUser);
       mLPrint("user:%s, password is altered by %s, result:%s", pUser->user, pOperUser->user, tstrerror(code));
     } else {
+      mError("user:%s, no rights to ater user", pOperUser->user);
       code = TSDB_CODE_NO_RIGHTS;
     }
 
@@ -440,11 +442,13 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
       code = mgmtUpdateUser(pUser);
       mLPrint("user:%s, privilege is altered by %s, result:%s", pUser->user, pOperUser->user, tstrerror(code));
     } else {
+      mError("user:%s, no rights to ater user", pOperUser->user);
       code = TSDB_CODE_NO_RIGHTS;
     }
 
     mgmtSendSimpleResp(pMsg->thandle, code);
   } else {
+    mError("user:%s, no rights to ater user", pOperUser->user);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
   }
 
