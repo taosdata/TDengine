@@ -44,7 +44,7 @@ matrix:
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          sudo make install || travis_terminate $?
+          make install || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -149,7 +149,7 @@ matrix:
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          sudo make install || travis_terminate $?
+          make install || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -162,7 +162,7 @@ matrix:
             travis_terminate $?
           fi
 
-          sudo pkill taosd
+          pkill taosd
           sleep 1
 
           cd ${TRAVIS_BUILD_DIR}
