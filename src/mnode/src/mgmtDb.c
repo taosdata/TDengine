@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+
 #include "taoserror.h"
 #include "tutil.h"
 #include "tgrant.h"
@@ -300,7 +301,12 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb != NULL) {
     mgmtDecDbRef(pDb);
-    return TSDB_CODE_DB_ALREADY_EXIST;
+  
+    if (pCreate->ignoreExist) {
+      return TSDB_CODE_SUCCESS;
+    } else {
+      return TSDB_CODE_DB_ALREADY_EXIST;
+    }
   }
 
   code = mgmtCheckDbParams(pCreate);
@@ -313,18 +319,41 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
     return code;
   }
 
-  pDb = malloc(sizeof(SDbObj));
-  memset(pDb, 0, sizeof(SDbObj));
-  strcpy(pDb->name, pCreate->db);
-  strcpy(pCreate->acct, pAcct->user);
+  pDb = calloc(1, sizeof(SDbObj));
+  
+  strncpy(pDb->name, pCreate->db, TSDB_DB_NAME_LEN);
+  strncpy(pCreate->acct, pAcct->user, TSDB_USER_LEN);
+  
   pDb->createdTime = taosGetTimestampMs();
-  pDb->cfg = *pCreate;
+  
+  pDb->cfg = (SDbCfg) {
+      .vgId         = pCreate->vgId,
+      .precision    = pCreate->precision,
+      .maxSessions  = pCreate->maxSessions,
+      .cacheNumOfBlocks.totalBlocks = pCreate->cacheNumOfBlocks.totalBlocks,
+      .rowsInFileBlock = pCreate->rowsInFileBlock,
+      .commitLog    = pCreate->commitLog,
+      .replications = pCreate->replications,
+      .daysPerFile  = pCreate->daysPerFile,
+      .cacheBlockSize = pCreate->cacheBlockSize,
+      .commitTime   = pCreate->commitTime,
+      .blocksPerTable = pCreate->blocksPerTable,
+      .compression  = pCreate->compression,
+      .daysToKeep   = pCreate->daysToKeep,
+      .daysToKeep1  = pCreate->daysToKeep1,
+      .daysToKeep2  = pCreate->daysToKeep2,
+      .loadLatest   = pCreate->loadLatest,
+      .repStrategy  = pCreate->repStrategy,
+  };
+  
+  strncpy(pDb->cfg.db, pCreate->db, TSDB_DB_NAME_LEN);
+  strncpy(pDb->cfg.acct, pCreate->acct, TSDB_USER_LEN);
 
   SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsDbSdb,
-    .pObj = pDb,
-    .rowSize = sizeof(SDbObj)
+    .type   = SDB_OPER_GLOBAL,
+    .table  = tsDbSdb,
+    .pObj   = pDb,
+    .rowSize = sizeof(SDbObj),
   };
 
   code = sdbInsertRow(&oper);

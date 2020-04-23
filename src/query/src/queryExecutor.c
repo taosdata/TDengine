@@ -3555,7 +3555,7 @@ static void setWindowResOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *
 
 int32_t setAdditionalInfo(SQInfo *pQInfo, STable *pTable, STableQueryInfo *pTableQueryInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  assert(pTableQueryInfo->lastKey > 0);
+  assert(pTableQueryInfo->lastKey >= 0);
 
   setTagVal(pRuntimeEnv, pTable->tableId, pQInfo->tsdb);
 

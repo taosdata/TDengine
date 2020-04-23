@@ -29,6 +29,32 @@ struct SAcctObj;
 struct SUserObj;
 struct SMnodeObj;
 
+typedef struct {
+  char     acct[TSDB_USER_LEN];
+  char     db[TSDB_DB_NAME_LEN];
+  uint32_t vgId;
+  int32_t  maxSessions;
+  int32_t  cacheBlockSize;
+  union {
+    int32_t totalBlocks;
+    float   fraction;
+  } cacheNumOfBlocks;
+  int32_t daysPerFile;
+  int32_t daysToKeep1;
+  int32_t daysToKeep2;
+  int32_t daysToKeep;
+  int32_t commitTime;
+  int32_t rowsInFileBlock;
+  int16_t blocksPerTable;
+  int8_t  compression;
+  int8_t  commitLog;
+  int8_t  replications;
+  int8_t  repStrategy;
+  int8_t  loadLatest;  // load into mem or not
+  uint8_t precision;   // time resolution
+  int8_t  reserved[16];
+} SDbCfg;
+
 typedef struct SDnodeObj {
   int32_t    dnodeId;
   uint32_t   privateIp;
@@ -53,7 +79,7 @@ typedef struct SDnodeObj {
   int32_t    refCount;
   uint32_t   moduleStatus;
   uint32_t   lastReboot;       // time stamp for last reboot
-  float      score;          // calc in balance function
+  float      score;            // calc in balance function
   float      diskAvailable;    // from dnode status msg
   int16_t    diskAvgUsage;     // calc from sys.disk
   int16_t    cpuAvgUsage;      // calc from sys.cpu

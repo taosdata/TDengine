@@ -4784,6 +4784,7 @@ static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->rowsInFileBlock = htonl(pCreateDb->rowPerFileBlock);
   pMsg->daysPerFile = htonl(pCreateDb->daysPerFile);
   pMsg->replications = pCreateDb->replica;
+  pMsg->ignoreExist = pCreateDb->ignoreExists;
 }
 
 int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {

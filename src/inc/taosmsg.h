@@ -515,8 +515,8 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  char     acct[TSDB_USER_LEN + 1];
-  char     db[TSDB_DB_NAME_LEN + 1];
+  char     acct[TSDB_USER_LEN];
+  char     db[TSDB_DB_NAME_LEN];
   uint32_t vgId;
   int32_t  maxSessions;
   int32_t  cacheBlockSize;
@@ -537,8 +537,8 @@ typedef struct {
   int8_t  repStrategy;
   int8_t  loadLatest;  // load into mem or not
   uint8_t precision;   // time resolution
-  int8_t  reserved[16];
-} SDbCfg, SCMCreateDbMsg, SCMAlterDbMsg;
+  int8_t  ignoreExist;
+} SCMCreateDbMsg, SCMAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_ID_LEN + 1];

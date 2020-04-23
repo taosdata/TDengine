@@ -380,7 +380,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
 int doProcessSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-
+  int32_t code = TSDB_CODE_SUCCESS;
+  
   if (pCmd->command == TSDB_SQL_SELECT ||
       pCmd->command == TSDB_SQL_FETCH ||
       pCmd->command == TSDB_SQL_RETRIEVE ||
@@ -389,10 +390,15 @@ int doProcessSql(SSqlObj *pSql) {
       pCmd->command == TSDB_SQL_HB ||
       pCmd->command == TSDB_SQL_META ||
       pCmd->command == TSDB_SQL_STABLEVGROUP) {
-    tscBuildMsg[pCmd->command](pSql, NULL);
+    pRes->code = tscBuildMsg[pCmd->command](pSql, NULL);
+  }
+  
+  if (pRes->code != TSDB_CODE_SUCCESS) {
+    tscQueueAsyncRes(pSql);
+    return pRes->code;
   }
 
-  int32_t code = tscSendMsgToServer(pSql);
+  code = tscSendMsgToServer(pSql);
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscQueueAsyncRes(pSql);
@@ -701,18 +707,19 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
   char *pMsg = (char *)(pQueryMsg->colList) + numOfCols * sizeof(SColumnInfo);
   SSchema *pSchema = tscGetTableSchema(pTableMeta);
-
+  
+  int32_t total = tscGetNumOfColumns(pTableMeta) + tscGetNumOfTags(pTableMeta);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumn *pCol = taosArrayGetP(pQueryInfo->colList, i);
     SSchema *pColSchema = &pSchema[pCol->colIndex.columnIndex];
 
-    if (pCol->colIndex.columnIndex >= tscGetNumOfColumns(pTableMeta) || pColSchema->type < TSDB_DATA_TYPE_BOOL ||
+    if (pCol->colIndex.columnIndex >= total || pColSchema->type < TSDB_DATA_TYPE_BOOL ||
         pColSchema->type > TSDB_DATA_TYPE_NCHAR) {
       tscError("%p sid:%d uid:%" PRIu64" id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s",
           pSql, pTableMeta->sid, pTableMeta->uid, pTableMetaInfo->name, tscGetNumOfColumns(pTableMeta), pCol->colIndex,
                pColSchema->name);
 
-      return -1;  // 0 means build msg failed
+      return TSDB_CODE_INVALID_SQL;
     }
 
     pQueryMsg->colList[i].colId = htons(pColSchema->colId);
