@@ -25,7 +25,7 @@
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "dnode.h"
-#include "monitorSystem.h"
+#include "monitor.h"
 
 #define monitorError(...)                         \
   if (monitorDebugFlag & DEBUG_ERROR) {           \
@@ -228,7 +228,6 @@ static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
 void monitorStopSystem() {
   monitorPrint("monitor module is stopped");
   tsMonitorConn.state = MONITOR_STATE_STOPPED;
-  // taosLogFp = NULL;
   if (tsMonitorConn.initTimer != NULL) {
     taosTmrStopA(&(tsMonitorConn.initTimer));
   }
@@ -399,6 +398,8 @@ void monitorSaveAcctLog(SAcctMonitorObj *pMon) {
 }
 
 void monitorSaveLog(int32_t level, const char *const format, ...) {
+  if (tsMonitorConn.state != MONITOR_STATE_INITIALIZED) return;
+
   va_list argpointer;
   char    sql[SQL_LENGTH] = {0};
   int32_t max_length = SQL_LENGTH - 30;
@@ -421,6 +422,10 @@ void monitorSaveLog(int32_t level, const char *const format, ...) {
 }
 
 void monitorExecuteSQL(char *sql) {
+  if (tsMonitorConn.state != MONITOR_STATE_INITIALIZED) return;
+
   monitorTrace("monitor:%p, execute sql: %s", tsMonitorConn.conn, sql);
-  taos_query_a(tsMonitorConn.conn, sql, NULL, NULL);
+  
+  // bug while insert binary
+  // taos_query_a(tsMonitorConn.conn, sql, NULL, NULL);
 }
