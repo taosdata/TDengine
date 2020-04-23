@@ -714,7 +714,7 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
   pStable->numOfColumns = htons(pCreate->numOfColumns);
   pStable->numOfTags    = htons(pCreate->numOfTags);
 
-  int32_t numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
+  int32_t numOfCols = pStable->numOfColumns + pStable->numOfTags;
   int32_t schemaSize = numOfCols * sizeof(SSchema);
   pStable->schema = (SSchema *)calloc(1, schemaSize);
   if (pStable->schema == NULL) {
@@ -745,7 +745,7 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
     mError("table:%s, failed to create, sdb error", pCreate->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SDB_ERROR);
   } else {
-    mLPrint("table:%s, is created, tags:%d cols:%d", pStable->info.tableId, pStable->numOfTags, pStable->numOfColumns);
+    mLPrint("table:%s, is created, tags:%d fields:%d", pStable->info.tableId, pStable->numOfTags, pStable->numOfColumns);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
   }
 }
@@ -1583,7 +1583,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pMeta->sversion     = htons(pTable->superTable->sversion);
-    pMeta->numOfTags    = 0;
+    pMeta->numOfTags    = (int8_t)pTable->superTable->numOfTags;
     pMeta->numOfColumns = htons((int16_t)pTable->superTable->numOfColumns);
     pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
     strncpy(pMeta->stableId, pTable->superTable->info.tableId, tListLen(pMeta->stableId));

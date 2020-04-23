@@ -82,6 +82,8 @@ static int32_t mgmtActionAcctRestored() {
   if (dnodeIsFirstDeploy()) {
     mgmtCreateRootAcct();
   }
+
+  acctInit();
   return TSDB_CODE_SUCCESS;
 }
 
@@ -112,7 +114,7 @@ int32_t mgmtInitAccts() {
   }
 
   mTrace("table:%s, hash is created", tableDesc.tableName);
-  return acctInit();
+  return TSDB_CODE_SUCCESS;
 }
 
 void mgmtCleanUpAccts() {
