@@ -59,10 +59,17 @@ endi
 sql drop account oroot
 
 print ============= step4
-sleep 2000
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then 
+		return -1
+	endi
+
 sql show dnodes
-if $data02 != 0 then
-  return -1
+if $data03 != 0 then
+  goto show4
 endi
 
 print ============= step5

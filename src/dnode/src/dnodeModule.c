@@ -90,7 +90,7 @@ void dnodeCleanUpModules() {
 int32_t dnodeInitModules() {
   dnodeAllocModules();
 
-  for (int32_t module = 0; module < TSDB_MOD_MAX; ++module) {
+  for (EModuleType module = 0; module < TSDB_MOD_MAX; ++module) {
     if (tsModule[module].initFp) {
       if ((*tsModule[module].initFp)() != 0) {
         dError("failed to init module:%s", tsModule[module].name);
@@ -103,7 +103,7 @@ int32_t dnodeInitModules() {
 }
 
 void dnodeStartModules() {
-  for (int32_t module = 1; module < TSDB_MOD_MAX; ++module) {
+  for (EModuleType module = 1; module < TSDB_MOD_MAX; ++module) {
     if (tsModule[module].enable && tsModule[module].startFp) {
       if ((*tsModule[module].startFp)() != 0) {
         dError("failed to start module:%s", tsModule[module].name);

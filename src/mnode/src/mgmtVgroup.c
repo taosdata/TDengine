@@ -744,12 +744,13 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
 void mgmtDropAllVgroups(SDbObj *pDropDb) {
   void *pNode = NULL;
   void *pLastNode = NULL;
-  int32_t numOfTables = 0;
+  int32_t numOfVgroups = 0;
   int32_t dbNameLen = strlen(pDropDb->name);
   SVgObj *pVgroup = NULL;
 
+  mPrint("db:%s, all vgroups will be dropped from sdb", pDropDb->name);
+
   while (1) {
-    mgmtDecVgroupRef(pVgroup);
     pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
 
@@ -761,12 +762,14 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
       };
       sdbDeleteRow(&oper);
       pNode = pLastNode;
-      numOfTables++;
-      continue;
+      numOfVgroups++;
     }
+
+    mgmtSendDropVgroupMsg(pVgroup, NULL);
+    mgmtDecVgroupRef(pVgroup);
   }
 
-  mTrace("db:%s, all vgroups is dropped from sdb", pDropDb->name, numOfTables);
+  mPrint("db:%s, all vgroups:%d is dropped from sdb", pDropDb->name, numOfVgroups);
 }
 
 void mgmtAlterVgroup(SVgObj *pVgroup, void *ahandle) {

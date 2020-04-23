@@ -509,7 +509,6 @@ typedef struct {
   int64_t pointsWritten;
   uint8_t status;
   uint8_t role;
-  uint8_t accessState;
   uint8_t replica;
   uint8_t reserved[5];
 } SVnodeLoad;
