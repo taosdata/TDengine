@@ -13,6 +13,11 @@ print $data00 $data01 $data02
 print $data10 $data11 $data22
 print $data20 $data11 $data22
 
+sql_error show accounts;
+sql_error create account a pass "a"
+sql_error drop account a
+sql_error drop account root
+
 print =============== create user1
 sql create user user1 PASS 'user1'
 sql show users
