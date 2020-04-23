@@ -333,7 +333,7 @@ void sdbIncRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
+    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
       sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -345,7 +345,7 @@ void sdbDecRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "dnodes") == 0) {
+    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
       sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -404,23 +404,24 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, insert record:%s to hash, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
-           pTable->numOfRows);
+  sdbTrace("table:%s, insert record:%s to hash, numOfRows:%d version:%" PRIu64, pTable->tableName,
+           sdbGetkeyStr(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
 
   (*pTable->insertFp)(pOper);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
+  (*pTable->deleteFp)(pOper);
+  
   pthread_mutex_lock(&pTable->mutex);
   (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, pOper->pObj);
   pTable->numOfRows--;
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, delete record:%s from hash, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
-           pTable->numOfRows);
+  sdbTrace("table:%s, delete record:%s from hash, numOfRows:%d version:%" PRIu64, pTable->tableName,
+           sdbGetkeyStr(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
 
-  (*pTable->deleteFp)(pOper);
   int8_t *updateEnd = pOper->pObj + pTable->refCountPos - 1;
   *updateEnd = 1;
   sdbDecRef(pTable, pOper->pObj);
@@ -429,8 +430,8 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
 }
 
 static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbOper *pOper) {
-  sdbTrace("table:%s, update record:%s in hash, numOfRows:%d", pTable->tableName, sdbGetkeyStr(pTable, pOper->pObj),
-           pTable->numOfRows);
+  sdbTrace("table:%s, update record:%s in hash, numOfRows:%d version:%" PRIu64, pTable->tableName,
+           sdbGetkeyStr(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
 
   (*pTable->updateFp)(pOper);
   return TSDB_CODE_SUCCESS;
