@@ -593,7 +593,7 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
   SCMCreateAcctMsg *pCreate = pMsg->pCont;
   SAcctObj *pAcct = mgmtGetAcct(pCreate->user);
   if (pAcct != NULL) {
-    mError("acct:%s, already exist, update it", pCreate->user);
+    mPrint("acct:%s, already exist, update it", pCreate->user);
     acctProcessAlterAcctMsg(pMsg);
     mgmtDecAcctRef(pAcct);
     return;
