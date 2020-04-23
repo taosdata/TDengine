@@ -964,8 +964,6 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   size_t infoSize = sizeof(STSVnodeBlockInfo) * pTSBuf->numOfVnodes;
 
   STSVnodeBlockInfo* buf = (STSVnodeBlockInfo*)calloc(1, infoSize);
-  
-  //int64_t pos = ftell(pTSBuf->f); //pos not used
   fread(buf, infoSize, 1, pTSBuf->f);
 
   // the length value for each vnode is not kept in file, so does not set the length value
@@ -1104,16 +1102,13 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
     fwrite(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
-  } else {
+  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
     fwrite(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
   }
   
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
-
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
-
-  fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
-
+  fwrite(pBlock->payload, (size_t)pBlock->compLen,  1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
 
   int32_t blockSize = sizeof(pBlock->tag.nType) + sizeof(pBlock->tag.nLen) + pBlock->tag.nLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
@@ -1178,8 +1173,8 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     pBlock->tag.pz = tp;
     
     fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
-  } else {
-    fread(&pBlock->tag.i64Key, pBlock->tag.nLen, 1, pTSBuf->f);
+  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
+    fread(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
   }
   
   fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
