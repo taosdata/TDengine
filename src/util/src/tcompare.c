@@ -1,42 +1,34 @@
 #include "taosdef.h"
 #include "tcompare.h"
-
+#include <tarray.h>
 #include "tutil.h"
 
 int32_t compareInt32Val(const void *pLeft, const void *pRight) {
-  int32_t ret = GET_INT32_VAL(pLeft) - GET_INT32_VAL(pRight);
-  if (ret == 0) {
-    return 0;
-  } else {
-    return ret > 0 ? 1 : -1;
-  }
+  int32_t left = GET_INT32_VAL(pLeft), right = GET_INT32_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
 }
 
 int32_t compareInt64Val(const void *pLeft, const void *pRight) {
-  int64_t ret = GET_INT64_VAL(pLeft) - GET_INT64_VAL(pRight);
-  if (ret == 0) {
-    return 0;
-  } else {
-    return ret > 0 ? 1 : -1;
-  }
+  int64_t left = GET_INT64_VAL(pLeft), right = GET_INT64_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
 }
 
 int32_t compareInt16Val(const void *pLeft, const void *pRight) {
-  int32_t ret = GET_INT16_VAL(pLeft) - GET_INT16_VAL(pRight);
-  if (ret == 0) {
-    return 0;
-  } else {
-    return ret > 0 ? 1 : -1;
-  }
+  int16_t left = GET_INT16_VAL(pLeft), right = GET_INT16_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
 }
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight) {
-  int32_t ret = GET_INT8_VAL(pLeft) - GET_INT8_VAL(pRight);
-  if (ret == 0) {
-    return 0;
-  } else {
-    return ret > 0 ? 1 : -1;
-  }
+  int8_t left = GET_INT8_VAL(pLeft), right = GET_INT8_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
 }
 
 int32_t compareIntDoubleVal(const void *pLeft, const void *pRight) {
@@ -69,12 +61,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareStrVal(const void *pLeft, const void *pRight) {
-  int32_t ret = strcmp(pLeft, pRight);
-  if (ret == 0) {
-    return 0;
-  } else {
-    return ret > 0 ? 1 : -1;
-  }
+  return (int32_t)strcmp(pLeft, pRight);
 }
 
 int32_t compareWStrVal(const void *pLeft, const void *pRight) {
@@ -228,6 +215,11 @@ static UNUSED_FUNC int32_t compareStrPatternComp(const void* pLeft, const void* 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+static int32_t compareStrInList(const void* pLeft, const void* pRight) {
+  const SArray* arr = (const SArray*)pRight;
+  return taosArraySearchString(arr, &pLeft) == NULL ? 0 : 1;
+}
+
 static UNUSED_FUNC int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
   
@@ -250,7 +242,6 @@ __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr) 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
 //      assert(type == filterDataType);
-      
       if (filterDataType == TSDB_DATA_TYPE_BIGINT || filterDataType == TSDB_DATA_TYPE_TIMESTAMP) {
         comparFn = compareInt64Val;
       } else if (filterDataType >= TSDB_DATA_TYPE_FLOAT && filterDataType <= TSDB_DATA_TYPE_DOUBLE) {
@@ -259,6 +250,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr) 
       
       break;
     }
+
     case TSDB_DATA_TYPE_BOOL: {
       if (filterDataType >= TSDB_DATA_TYPE_BOOL && filterDataType <= TSDB_DATA_TYPE_BIGINT) {
         comparFn = compareInt32Val;
@@ -267,6 +259,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr) 
       }
       break;
     }
+
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE: {
       if (filterDataType >= TSDB_DATA_TYPE_BOOL && filterDataType <= TSDB_DATA_TYPE_BIGINT) {
@@ -276,12 +269,18 @@ __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr) 
       }
       break;
     }
+
     case TSDB_DATA_TYPE_BINARY: {
-      assert(filterDataType == TSDB_DATA_TYPE_BINARY);
-    
       if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+        assert(filterDataType == TSDB_DATA_TYPE_BINARY);
         comparFn = compareStrPatternComp;
+
+      } else if (optr == TSDB_RELATION_IN) {
+        assert(filterDataType == TSDB_DATA_TYPE_ARRAY);
+        comparFn = compareStrInList;
+
       } else { /* normal relational comparFn */
+        assert(filterDataType == TSDB_DATA_TYPE_BINARY);
         comparFn = compareStrVal;
       }
     

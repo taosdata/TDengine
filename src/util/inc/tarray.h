@@ -120,12 +120,25 @@ void taosArrayDestroy(SArray* pArray);
 void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*));
 
 /**
+ * sort string array
+ * @param pArray
+ */
+void taosArraySortString(SArray* pArray);
+
+/**
  * search the array
  * @param pArray
  * @param compar
  * @param key
  */
-void* taosArraySearch(SArray* pArray, int (*compar)(const void*, const void*), const void* key);
+void* taosArraySearch(const SArray* pArray, int (*compar)(const void*, const void*), const void* key);
+
+/**
+ * search the array
+ * @param pArray
+ * @param key
+ */
+char* taosArraySearchString(const SArray* pArray, const char* key);
 
 #ifdef __cplusplus
 }

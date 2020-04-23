@@ -35,7 +35,6 @@ enum {
   TSQL_NODE_EXPR  = 0x1,
   TSQL_NODE_COL   = 0x2,
   TSQL_NODE_VALUE = 0x4,
-  TSQL_NODE_ARRAY = 0x8,
 };
 
 typedef bool (*__result_filter_fn_t)(const void *, void *);
@@ -71,7 +70,6 @@ typedef struct tExprNode {
       struct tExprNode *pRight; // right child pointer
     } _node;
     struct SSchema *pSchema;
-    SArray* array;
     tVariant *      pVal;
   };
 } tExprNode;

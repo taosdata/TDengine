@@ -1213,7 +1213,9 @@ void filterPrepare(void* expr, void* param) {
   pInfo->compare  = getComparFunc(pSchema->type, pCond->nType, pInfo->optr);
 
   tVariantAssign(&pInfo->q, pCond);
-  tVariantTypeSetType(&pInfo->q, pInfo->sch.type);
+  if (pInfo->optr != TSDB_RELATION_IN) {
+    tVariantTypeSetType(&pInfo->q, pInfo->sch.type);
+  }
 }
 
 int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
