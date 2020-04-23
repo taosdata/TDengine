@@ -1306,8 +1306,6 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void *inputData, TSKEY 
       pTWAInfo->EKey = pQuery->window.ekey;
     }
 
-    //    pCtx->ptsList = tsCol;
-
   } else if (functionId == TSDB_FUNC_ARITHM) {
     pCtx->param[1].pz = param;
   }
@@ -3781,7 +3779,8 @@ void stableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, STableDataInfo *
   SQuery *         pQuery = pRuntimeEnv->pQuery;
   STableQueryInfo *pTableQueryInfo = pTableDataInfo->pTableQInfo;
   SWindowResInfo * pWindowResInfo = &pTableQueryInfo->windowResInfo;
-
+  pQuery->pos = QUERY_IS_ASC_QUERY(pQuery)? 0 : pDataBlockInfo->rows - 1;
+  
   if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTSBuf != NULL) {
     rowwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pWindowResInfo, pDataBlock);
   } else {

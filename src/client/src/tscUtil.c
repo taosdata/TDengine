@@ -946,19 +946,12 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }
 
-SSqlExpr* tscSqlExprAppend(SArray* exprInfo, int16_t functionId) {
-  SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
-  pExpr->functionId = functionId;
-  return taosArrayPush(exprInfo, &pExpr);
-}
-
-SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
     int16_t size, int16_t interSize) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
-
-  int16_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
   
   SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
+  
   pExpr->functionId = functionId;
   
   // set the correct column index
@@ -968,8 +961,9 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIn
     SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
     pExpr->colInfo.colId = pSchema->colId;
   }
-
+  
   // tag columns require the column index revised.
+  int16_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
   if (pColIndex->columnIndex >= numOfCols) {
     pExpr->colInfo.flag = TSDB_COL_TAG;
   } else {
@@ -979,13 +973,31 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIn
       pExpr->colInfo.flag = TSDB_COL_TAG;
     }
   }
-
-  pExpr->colInfo.colIndex = pColIndex->columnIndex;
-  pExpr->resType = type;
-  pExpr->resBytes = size;
-  pExpr->interResBytes = interSize;
-  pExpr->uid = pTableMetaInfo->pTableMeta->uid;
   
+  pExpr->colInfo.colIndex = pColIndex->columnIndex;
+  pExpr->resType       = type;
+  pExpr->resBytes      = size;
+  pExpr->interResBytes = interSize;
+  pExpr->uid           = pTableMetaInfo->pTableMeta->uid;
+  
+  return pExpr;
+}
+
+SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+                           int16_t size, int16_t interSize) {
+  int32_t num = taosArrayGetSize(pQueryInfo->exprsInfo);
+  if (index == num) {
+    return tscSqlExprAppend(pQueryInfo, functionId, pColIndex, type, size, interSize);
+  }
+  
+  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize);
+  taosArrayInsert(pQueryInfo->exprsInfo, index, &pExpr);
+  return pExpr;
+}
+
+SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+    int16_t size, int16_t interSize) {
+  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize);
   taosArrayPush(pQueryInfo->exprsInfo, &pExpr);
   return pExpr;
 }
@@ -1183,7 +1195,7 @@ static void tscColumnDestroy(SColumn* pCol) {
   free(pCol);
 }
 
-void tscColumnListAssign(SArray* dst, const SArray* src, int16_t tableIndex) {
+void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex) {
   if (src == NULL) {
     return;
   }
@@ -1764,14 +1776,18 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   memcpy(pNewQueryInfo, pQueryInfo, sizeof(SQueryInfo));
 
-  memset(&pNewQueryInfo->colList, 0, sizeof(pNewQueryInfo->colList));
   memset(&pNewQueryInfo->fieldsInfo, 0, sizeof(SFieldInfo));
 
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->defaultVal = NULL;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->tsBuf = NULL;
-
+  
+  pNewQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
+  pNewQueryInfo->fieldsInfo.pFields = taosArrayInit(4, sizeof(TAOS_FIELD));
+  pNewQueryInfo->fieldsInfo.pSupportInfo = taosArrayInit(4, sizeof(SFieldSupInfo));
+  pNewQueryInfo->exprsInfo = taosArrayInit(4, POINTER_BYTES);
+  
   tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond);
 
   if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
@@ -1785,7 +1801,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     return NULL;
   }
 
-  tscColumnListAssign(pNewQueryInfo->colList, pQueryInfo->colList, (int16_t)tableIndex);
+  tscColumnListCopy(pNewQueryInfo->colList, pQueryInfo->colList, (int16_t)tableIndex);
 
   // set the correct query type
   if (pPrevSql != NULL) {

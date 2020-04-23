@@ -146,9 +146,12 @@ int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFi
 void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex);
 
 int32_t   tscGetResRowLength(SArray* pExprList);
-SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+
+SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
     int16_t size, int16_t interSize);
-SSqlExpr* tscSqlExprAppend(SArray* exprInfo, int16_t functionId);
+
+SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+                           int16_t size, int16_t interSize);
 
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
@@ -160,7 +163,7 @@ void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
 SColumn* tscColumnClone(const SColumn* src);
 SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
-void tscColumnListAssign(SArray* dst, const SArray* src, int16_t tableIndex);
+void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);

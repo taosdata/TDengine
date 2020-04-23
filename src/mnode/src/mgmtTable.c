@@ -730,6 +730,9 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
     SSchema *tschema = pStable->schema;
     tschema[col].colId = pStable->nextColId++;
     tschema[col].bytes = htons(tschema[col].bytes);
+    
+    // todo 1. check the length of each column; 2. check the total length of all columns
+    assert(tschema[col].type >= TSDB_DATA_TYPE_BOOL && tschema[col].type <= TSDB_DATA_TYPE_NCHAR);
   }
 
   SSdbOper oper = {

@@ -301,7 +301,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pQueryInfo->intervalTime = pSupporter->interval;
     pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
   
-    tscColumnListAssign(pQueryInfo->colList, pSupporter->colList, 0);
+    tscColumnListCopy(pQueryInfo->colList, pSupporter->colList, 0);
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
   
     pQueryInfo->exprsInfo = tscSqlExprCopy(pSupporter->exprsInfo, pSupporter->uid, false);
@@ -856,7 +856,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
       pCol->colIndex.tableIndex = 0;
     }
     
-    tscColumnListAssign(pSupporter->colList, pNewQueryInfo->colList, 0);
+    tscColumnListCopy(pSupporter->colList, pNewQueryInfo->colList, 0);
   
     pSupporter->exprsInfo = tscSqlExprCopy(pNewQueryInfo->exprsInfo, pSupporter->uid, false);
     tscFieldInfoCopy(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);

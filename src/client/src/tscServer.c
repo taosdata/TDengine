@@ -2169,13 +2169,11 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   strcpy(key + 1, "showlist");
 
   taosCacheRelease(tscCacheHandle, (void *)&(pTableMetaInfo->pTableMeta), false);
+  
   size_t size = 0;
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
   
-  pTableMetaInfo->pTableMeta =
-      (STableMeta *)taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsMeterMetaKeepTimer);
-  
-  pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  pTableMetaInfo->pTableMeta = taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsMeterMetaKeepTimer);
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   if (pQueryInfo->colList == NULL) {
@@ -2185,23 +2183,20 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
   
   SColumnIndex index = {0};
-  for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
+  pSchema = pMetaMsg->schema;
+  
+  for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i, ++pSchema) {
     index.columnIndex = i;
     tscColumnListInsert(pQueryInfo->colList, &index);
     
-    TAOS_FIELD field = {
-        .bytes = pSchema->bytes,
-        .type = pSchema->type,
-    };
-  
-    strncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
-    tscFieldInfoAppend(pFieldInfo, &field);
+    TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
+    SFieldSupInfo* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
-    SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
-    pInfo->pSqlExpr = tscSqlExprInsert(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
+    pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
                      pTableSchema[i].type, pTableSchema[i].bytes, pTableSchema[i].bytes);
   }
-
+  
+  pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   tscFieldInfoUpdateOffset(pQueryInfo);
   
   tfree(pTableMeta);
