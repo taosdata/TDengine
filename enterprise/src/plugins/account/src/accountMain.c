@@ -23,8 +23,8 @@
 #include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
+#include "monitor.h"
 #include "mnode.h"
-#include "monitorSystem.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
@@ -578,13 +578,31 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   pAcct->acctInfo.sKey = sKey;
   pAcct->acctInfo.totalPoints = pointsWritten;
 
-  monitorSaveAcctLog(pAcct->user, pAcct->acctInfo.numOfPointsPerSecond, pAcct->cfg.maxPointsPerSecond,
-                 pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries, pAcct->acctInfo.totalStorage,
-                 pAcct->cfg.maxStorage, pAcct->acctInfo.queryTime, pAcct->cfg.maxQueryTime, pAcct->acctInfo.inblound,
-                 pAcct->cfg.maxInbound, pAcct->acctInfo.outbound, pAcct->cfg.maxOutbound, pAcct->acctInfo.numOfDbs,
-                 pAcct->cfg.maxDbs, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers, pAcct->acctInfo.numOfStreams,
-                 pAcct->cfg.maxStreams, pAcct->acctInfo.numOfConns, pAcct->cfg.maxConnections,
-                 pAcct->acctInfo.accessState);
+  SAcctMonitorObj monObj = {0};
+  monObj.acctId                 = pAcct->user;
+  monObj.currentPointsPerSecond = pAcct->acctInfo.numOfPointsPerSecond;
+  monObj.maxPointsPerSecond     = pAcct->cfg.maxPointsPerSecond;
+  monObj.totalTimeSeries        = pAcct->acctInfo.numOfTimeSeries;
+  monObj.maxTimeSeries          = pAcct->cfg.maxTimeSeries;
+  monObj.totalStorage           = pAcct->acctInfo.totalStorage;
+  monObj.maxStorage             = pAcct->cfg.maxStorage;
+  monObj.totalQueryTime         = pAcct->acctInfo.queryTime;
+  monObj.maxQueryTime           = pAcct->cfg.maxQueryTime;
+  monObj.totalInbound           = pAcct->acctInfo.inblound;
+  monObj.maxInbound             = pAcct->cfg.maxInbound;
+  monObj.totalOutbound          = pAcct->acctInfo.outbound;
+  monObj.maxOutbound            = pAcct->cfg.maxOutbound;
+  monObj.totalDbs               = pAcct->acctInfo.numOfDbs;
+  monObj.maxDbs                 = pAcct->cfg.maxDbs;
+  monObj.totalUsers             = pAcct->acctInfo.numOfUsers;
+  monObj.maxUsers               = pAcct->cfg.maxUsers;
+  monObj.totalStreams           = pAcct->acctInfo.numOfStreams;
+  monObj.maxStreams             = pAcct->cfg.maxStreams;
+  monObj.totalConns             = pAcct->acctInfo.numOfConns;
+  monObj.maxConns               = pAcct->cfg.maxConnections;
+  monObj.accessState            = pAcct->acctInfo.accessState;
+
+  monitorSaveAcctLog(&monObj);
 
   return totalStorage;
 }
@@ -612,7 +630,7 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
 
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
-    mError("acct:%s, failed to create account, invalid user", pCreate->user);
+    mError("acct:%s, failed to create account, no rights", pCreate->user);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return;
   }
