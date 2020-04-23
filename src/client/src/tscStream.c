@@ -36,7 +36,7 @@ static int64_t getDelayValueAfterTimewindowClosed(SSqlStream* pStream, int64_t l
 }
 
 static bool isProjectStream(SQueryInfo* pQueryInfo) {
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId != TSDB_FUNC_PRJ) {
       return false;
@@ -219,9 +219,9 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
         void *oldPtr = pSql->res.data;
         pSql->res.data = tmpRes;
   
-        for (int32_t i = 1; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+        for (int32_t i = 1; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
           int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, i);
-          TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+          TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 
           assignVal(pSql->res.data + offset, (char *)(&pQueryInfo->defaultVal[i]), pField->bytes, pField->type);
           row[i] = pSql->res.data + offset;
@@ -231,7 +231,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
         row[0] = pRes->data;
 
         //            char result[512] = {0};
-        //            taos_print_row(result, row, pQueryInfo->fieldsInfo.pFields, pQueryInfo->fieldsInfo.numOfOutputCols);
+        //            taos_print_row(result, row, pQueryInfo->fieldsInfo.pFields, pQueryInfo->fieldsInfo.numOfOutput);
         //            tscPrint("%p stream:%p query result: %s", pSql, pStream, result);
         tscTrace("%p stream:%p fetch result", pSql, pStream);
 

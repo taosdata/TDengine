@@ -34,8 +34,6 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "queryExecutor.h"
 
-#define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
-
 // forward declaration
 struct SSqlInfo;
 
@@ -92,28 +90,17 @@ typedef struct SColumnIndex {
   int16_t columnIndex;
 } SColumnIndex;
 
+typedef struct SFieldSupInfo {
+  bool            visible;
+  SArithExprInfo* pArithExprInfo;
+  SSqlExpr*       pSqlExpr;
+} SFieldSupInfo;
+
 typedef struct SFieldInfo {
-  int16_t     numOfOutputCols;  // number of column in result
-  int16_t     numOfAlloc;       // allocated size
-  TAOS_FIELD *pFields;
-
-  /*
-   * define if this column is belong to the queried result, it may be add by parser to faciliate
-   * the query process
-   *
-   * NOTE: these hidden columns always locate at the end of the output columns
-   */
-  bool *  pVisibleCols;
-  int32_t numOfHiddenCols;   // the number of column not belongs to the queried result columns
-  SSqlFunctionExpr** pExpr;  // used for aggregation arithmetic express,such as count(*)+count(*)
-  SSqlExpr** pSqlExpr;
+  int16_t numOfOutput;      // number of column in result
+  SArray* pFields;          // SArray<TAOS_FIELD>
+  SArray* pSupportInfo;     // SArray<SFieldSupInfo>
 } SFieldInfo;
-
-typedef struct SSqlExprInfo {
-  int16_t    numOfAlloc;
-  int16_t    numOfExprs;
-  SSqlExpr** pExprs;
-} SSqlExprInfo;
 
 typedef struct SColumn {
   SColumnIndex       colIndex;
@@ -193,7 +180,7 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-typedef struct SDataBlockList {
+typedef struct SDataBlockList { // todo remove
   uint32_t           nSize;
   uint32_t           nAlloc;
   STableDataBlocks **pData;
@@ -209,9 +196,9 @@ typedef struct SQueryInfo {
   int64_t         slidingTime;   // sliding window in mseconds
   SSqlGroupbyExpr groupbyExpr;   // group by tags info
 
-  SArray*          colList;
+  SArray*          colList;      // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SSqlExprInfo     exprsInfo;
+  SArray*          exprsInfo;    // SArray<SSqlExpr*>
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;
@@ -441,6 +428,7 @@ int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *s
 
 void tscQueueAsyncFreeResult(SSqlObj *pSql);
 int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo);
+char* tscGetResultColumnChr(SSqlRes* pRes, SQueryInfo* pQueryInfo, int32_t column);
 
 extern void *     pVnodeConn;
 extern void *     pTscMgmtConn;

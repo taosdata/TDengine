@@ -359,13 +359,13 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
 
     /*
      * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
-     * may be freed in UDF, and reused by other threads before tscShouldFreeAsyncSqlObj called, in which case
-     * tscShouldFreeAsyncSqlObj checks an object which is actually allocated by other threads.
+     * may be freed in UDF, and reused by other threads before tscShouldBeFreed called, in which case
+     * tscShouldBeFreed checks an object which is actually allocated by other threads.
      *
      * If this block of memory is re-allocated for an insert thread, in which tscKeepConn[command] equals to 0,
-     * the tscShouldFreeAsyncSqlObj will success and tscFreeSqlObj free it immediately.
+     * the tscShouldBeFreed will success and tscFreeSqlObj free it immediately.
      */
-    bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
+    bool shouldFree = tscShouldBeFreed(pSql);
     (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
 
     if (shouldFree) {
@@ -573,8 +573,10 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   SQueryInfo *         pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
   int32_t srcColListSize = taosArrayGetSize(pQueryInfo->colList) * sizeof(SColumnInfo);
-
-  int32_t         exprSize = sizeof(SSqlFuncExprMsg) * pQueryInfo->exprsInfo.numOfExprs;
+  
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t exprSize = sizeof(SSqlFuncMsg) * numOfExprs;
+  
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // meter query without tags values
@@ -583,20 +585,6 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   }
   
   int32_t size = 4096;
-  
-#if 0
-  SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
-  SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->vgroupIndex);
-
-  int32_t meterInfoSize = (pMetricMeta->tagLen + sizeof(STableIdInfo)) * pVnodeSidList->numOfSids;
-  int32_t outputColumnSize = pQueryInfo->exprsInfo.numOfExprs * sizeof(SSqlFuncExprMsg);
-
-  int32_t size = meterInfoSize + outputColumnSize + srcColListSize + exprSize + MIN_QUERY_MSG_PKT_SIZE;
-  if (pQueryInfo->tsBuf != NULL) {
-    size += pQueryInfo->tsBuf->fileSize;
-  }
-#endif
-  
   return size;
 }
 
@@ -674,17 +662,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pSql->ipList.ip[i] = pVgroupInfo->ipAddr[i].ip;
     }
     
-#if 0
-    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->vgroupIndex);
-    uint32_t       vnodeId = pVnodeSidList->vpeerDesc[pVnodeSidList->index].vnode;
-
-    numOfTables = pVnodeSidList->numOfSids;
-    if (numOfTables <= 0) {
-      tscError("%p vid:%d,error numOfTables in query message:%d", pSql, vnodeId, numOfTables);
-      return -1;  // error
-    }
-#endif
-    
     tscTrace("%p query on super table, numOfVgroup:%d, vgroupIndex:%d", pSql, pTableMetaInfo->vgroupList->numOfVgroups, index);
     
     pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
@@ -712,9 +689,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
 
   pQueryMsg->queryType = htons(pQueryInfo->type);
-  pQueryMsg->numOfOutputCols = htons(pQueryInfo->exprsInfo.numOfExprs);
-
-  int32_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutputCols;
+  
+  size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
+  pQueryMsg->numOfOutput = htons(numOfOutput);
   if (numOfOutput < 0) {
     tscError("%p illegal value of number of output columns in query msg: %d", pSql, numOfOutput);
     return -1;
@@ -773,7 +750,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   bool hasArithmeticFunction = false;
 
-  SSqlFuncExprMsg *pSqlFuncExpr = (SSqlFuncExprMsg *)pMsg;
+  SSqlFuncMsg *pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
@@ -793,7 +770,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pSqlFuncExpr->functionId  = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
-    pMsg += sizeof(SSqlFuncExprMsg);
+    pMsg += sizeof(SSqlFuncMsg);
 
     for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
       pSqlFuncExpr->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
@@ -809,7 +786,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       }
     }
 
-    pSqlFuncExpr = (SSqlFuncExprMsg *)pMsg;
+    pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   }
 
   int32_t len = 0;
@@ -855,7 +832,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
-    for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+    for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
       *((int64_t *)pMsg) = htobe64(pQueryInfo->defaultVal[i]);
       pMsg += sizeof(pQueryInfo->defaultVal[0]);
     }
@@ -1260,7 +1237,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSchema = (SSchema *)pCreateTableMsg->schema;
 
     for (int i = 0; i < pCmd->numOfCols + pCmd->count; ++i) {
-      TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+      TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 
       pSchema->type = pField->type;
       strcpy(pSchema->name, pField->name);
@@ -1279,7 +1256,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  tscClearFieldInfo(&pQueryInfo->fieldsInfo);
+  tscFieldInfoClear(&pQueryInfo->fieldsInfo);
 
   msgLen = pMsg - (char*)pCreateTableMsg;
   pCreateTableMsg->contLen = htonl(msgLen);
@@ -1327,7 +1304,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SSchema *pSchema = pAlterTableMsg->schema;
   for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
-    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 
     pSchema->type = pField->type;
     strcpy(pSchema->name, pField->name);
@@ -1386,9 +1363,9 @@ static int tscSetResultPointer(SQueryInfo *pQueryInfo, SSqlRes *pRes) {
     return pRes->code;
   }
 
-  for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     int16_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
-    pRes->tsrow[i] = (pRes->data + offset * pRes->numOfRows);
+    pRes->tsrow[i] = ((char*) pRes->data + offset * pRes->numOfRows);
   }
 
   return 0;
@@ -2198,21 +2175,30 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pTableMetaInfo->pTableMeta =
       (STableMeta *)taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsMeterMetaKeepTimer);
   
-  pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutputCols;
+  pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   if (pQueryInfo->colList == NULL) {
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
   
+  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
+  
   SColumnIndex index = {0};
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
     index.columnIndex = i;
     tscColumnListInsert(pQueryInfo->colList, &index);
     
-    tscFieldInfoSetValFromSchema(&pQueryInfo->fieldsInfo, i, &pTableSchema[i]);
+    TAOS_FIELD field = {
+        .bytes = pSchema->bytes,
+        .type = pSchema->type,
+    };
+  
+    strncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
+    tscFieldInfoAppend(pFieldInfo, &field);
     
-    pQueryInfo->fieldsInfo.pSqlExpr[i] = tscSqlExprInsert(pQueryInfo, i, TSDB_FUNC_TS_DUMMY, &index,
+    SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
+    pInfo->pSqlExpr = tscSqlExprInsert(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
                      pTableSchema[i].type, pTableSchema[i].bytes, pTableSchema[i].bytes);
   }
 
@@ -2327,7 +2313,7 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
-int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
+int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -2344,9 +2330,9 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   tscSetResultPointer(pQueryInfo, pRes);
 
   if (pSql->pSubscription != NULL) {
-    int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutputCols;
+    int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
     
-    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, numOfCols - 1);
+    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
     int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
     
     char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
@@ -2629,7 +2615,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_KILL_CONNECTION] = tscBuildKillMsg;
 
   tscProcessMsgRsp[TSDB_SQL_SELECT] = tscProcessQueryRsp;
-  tscProcessMsgRsp[TSDB_SQL_FETCH] = tscProcessRetrieveRspFromVnode;
+  tscProcessMsgRsp[TSDB_SQL_FETCH] = tscProcessRetrieveRspFromNode;
 
   tscProcessMsgRsp[TSDB_SQL_DROP_DB] = tscProcessDropDbRsp;
   tscProcessMsgRsp[TSDB_SQL_DROP_TABLE] = tscProcessDropTableRsp;
@@ -2640,7 +2626,7 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_MULTI_META] = tscProcessMultiMeterMetaRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromVnode;  // rsp handled by same function.
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
 
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_TAGS] = tscProcessTagRetrieveRsp;

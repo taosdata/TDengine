@@ -372,7 +372,7 @@ typedef struct SColIndex {
 
 /* sql function msg, to describe the message to vnode about sql function
  * operations in select clause */
-typedef struct SSqlFuncExprMsg {
+typedef struct SSqlFuncMsg {
   int16_t functionId;
   int16_t numOfParams;
 
@@ -386,21 +386,21 @@ typedef struct SSqlFuncExprMsg {
       char *  pz;
     } argValue;
   } arg[3];
-} SSqlFuncExprMsg;
+} SSqlFuncMsg;
 
-typedef struct SSqlBinaryExprInfo {
+typedef struct SExprInfo {
   struct tExprNode *pBinExpr;    /*  for binary expression */
   int32_t           numOfCols;   /*  binary expression involves the readed number of columns*/
   SColIndex *     pReqColumns;   /*  source column list */
-} SSqlBinaryExprInfo;
+} SExprInfo;
 
-typedef struct SSqlFunctionExpr {
-  SSqlFuncExprMsg    pBase;
-  SSqlBinaryExprInfo binExprInfo;
-  int16_t            resBytes;
-  int16_t            resType;
-  int16_t            interResBytes;
-} SSqlFunctionExpr;
+typedef struct SArithExprInfo {
+  SSqlFuncMsg pBase;
+  SExprInfo   binExprInfo;
+  int16_t     bytes;
+  int16_t     type;
+  int16_t     interResBytes;
+} SArithExprInfo;
 
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;
@@ -469,7 +469,7 @@ typedef struct {
   int64_t     limit;
   int64_t     offset;
   uint16_t    queryType;        // denote another query process
-  int16_t     numOfOutputCols;  // final output columns numbers
+  int16_t     numOfOutput;  // final output columns numbers
   int16_t     interpoType;      // interpolate type
   uint64_t    defaultVal;       // default value array list
 
