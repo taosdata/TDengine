@@ -1357,16 +1357,26 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
 
   STable* pTable = *(STable**)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
 
-  char*  val = dataRowTuple(pTable->tagVal);  // todo not only the first column
+  char*  val = NULL;
   int8_t type = pInfo->sch.type;
+  
+  if (pInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    val = pTable->name;
+    type = TSDB_DATA_TYPE_BINARY;
+  } else {
+    val = dataRowTuple(pTable->tagVal);  // todo not only the first column
+  }
 
   int32_t ret = 0;
-  if (pInfo->q.nType == TSDB_DATA_TYPE_BINARY || pInfo->q.nType == TSDB_DATA_TYPE_NCHAR) {
-    ret = pInfo->compare(val, pInfo->q.pz);
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    if (pInfo->optr == TSDB_RELATION_IN) {
+      ret = pInfo->compare(val, pInfo->q.arr);
+    } else {
+      ret = pInfo->compare(val, pInfo->q.pz);
+    }
   } else {
     tVariant t = {0};
     tVariantCreateFromBinary(&t, val, (uint32_t)pInfo->sch.bytes, type);
-
     ret = pInfo->compare(&t.i64Key, &pInfo->q.i64Key);
   }
 
@@ -1393,7 +1403,7 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
       return ret == 0;
     }
     case TSDB_RELATION_IN: {
-
+      return ret == 1;
     }
 
     default:
@@ -1474,8 +1484,8 @@ int32_t tsdbQueryByTagsCond(
       expr = calloc(1, sizeof(tExprNode));
       expr->nodeType = TSQL_NODE_EXPR;
       expr->_node.optr = tagNameRelType;
-      expr->_node.pLeft = tbnameExpr;
-      expr->_node.pRight = tagExpr;
+      expr->_node.pLeft = tagExpr;
+      expr->_node.pRight = tbnameExpr;
     }
   }
 

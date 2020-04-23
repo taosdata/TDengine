@@ -783,13 +783,17 @@ static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SBinaryFilte
   taosArrayCopy(pResult, array);
 }
 
-static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSkipList *pSkipList,
-    SBinaryFilterSupp *param) {
+
+static void tSQLBinaryTraverseOnSkipList(
+  tExprNode *pExpr,
+  SArray *pResult,
+  SSkipList *pSkipList,
+  SBinaryFilterSupp *param
+) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
 
   while (tSkipListIterNext(iter)) {
     SSkipListNode *pNode = tSkipListIterGet(iter);
-    
     if (filterItem(pExpr, pNode, param)) {
       taosArrayPush(pResult, SL_GET_NODE_DATA(pNode));
     }

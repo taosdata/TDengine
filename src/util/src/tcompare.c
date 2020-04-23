@@ -215,7 +215,7 @@ static UNUSED_FUNC int32_t compareStrPatternComp(const void* pLeft, const void* 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
-static int32_t compareStrInList(const void* pLeft, const void* pRight) {
+static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
   const SArray* arr = (const SArray*)pRight;
   return taosArraySearchString(arr, pLeft) == NULL ? 0 : 1;
 }
@@ -277,7 +277,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr) 
 
       } else if (optr == TSDB_RELATION_IN) {
         assert(filterDataType == TSDB_DATA_TYPE_ARRAY);
-        comparFn = compareStrInList;
+        comparFn = compareFindStrInArray;
 
       } else { /* normal relational comparFn */
         assert(filterDataType == TSDB_DATA_TYPE_BINARY);

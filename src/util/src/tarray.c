@@ -77,10 +77,11 @@ void* taosArrayPush(SArray* pArray, void* pData) {
 }
 
 void* taosArrayPop(SArray* pArray) {
-  if (pArray == NULL || pArray->size == 0) {
+  assert( pArray != NULL );
+
+  if (pArray->size == 0) {
     return NULL;
   }
-
   pArray->size -= 1;
   return TARRAY_GET_ELEM(pArray, pArray->size);
 }
