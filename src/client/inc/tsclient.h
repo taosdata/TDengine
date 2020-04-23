@@ -22,32 +22,30 @@ extern "C" {
 
 #include "os.h"
 
-#include "qsqlparser.h"
-#include "qsqltype.h"
-#include "qtsbuf.h"
 #include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"
 #include "tglobal.h"
-#include "trpc.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
 
-#define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
+#include "qsqlparser.h"
+#include "qsqltype.h"
+#include "qtsbuf.h"
+#include "queryExecutor.h"
 
 // forward declaration
 struct SSqlInfo;
+struct SLocalReducer;
+
+// data source from sql string or from file
+enum {
+  DATA_FROM_SQL_STRING = 1,
+  DATA_FROM_DATA_FILE = 2,
+};
 
 typedef SCMSTableVgroupRspMsg SVgroupsInfo;
-
-typedef struct SSqlGroupbyExpr {
-  int16_t     tableIndex;
-  int16_t     numOfGroupCols;
-  SColIndex   columnInfo[TSDB_MAX_TAGS];  // group by columns information
-  int16_t     orderIndex;                 // order by column index
-  int16_t     orderType;                  // order by type: asc/desc
-} SSqlGroupbyExpr;
 
 typedef struct STableComInfo {
   uint8_t numOfTags;
@@ -57,20 +55,23 @@ typedef struct STableComInfo {
 } STableComInfo;
 
 typedef struct STableMeta {
-  //super table if it is created according to super table, otherwise, tableInfo is used
-  union { struct STableMeta* pSTable; STableComInfo tableInfo; };
-  uint8_t    tableType;
-  int16_t    sversion;
+  // super table if it is created according to super table, otherwise, tableInfo is used
+  union {
+    struct STableMeta *pSTable;
+    STableComInfo      tableInfo;
+  };
+  uint8_t       tableType;
+  int16_t       sversion;
   SCMVgroupInfo vgroupInfo;
-  int32_t    sid;      // the index of one table in a virtual node
-  uint64_t   uid;      // unique id of a table
-  SSchema    schema[]; // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
+  int32_t       sid;       // the index of one table in a virtual node
+  uint64_t      uid;       // unique id of a table
+  SSchema       schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
 
 typedef struct STableMetaInfo {
-  STableMeta * pTableMeta;       // table meta, cached in client side and acquried by name
-  SVgroupsInfo* vgroupList;
-  
+  STableMeta *  pTableMeta;  // table meta, cached in client side and acquried by name
+  SVgroupsInfo *vgroupList;
+
   /*
    * 1. keep the vnode index during the multi-vnode super table projection query
    * 2. keep the vnode index for multi-vnode insertion
@@ -83,16 +84,16 @@ typedef struct STableMetaInfo {
 
 /* the structure for sql function in select clause */
 typedef struct SSqlExpr {
-  char        aliasName[TSDB_COL_NAME_LEN];  // as aliasName
-  SColIndex   colInfo;
-  int64_t     uid;            // refactor use the pointer
-  int16_t     functionId;     // function id in aAgg array
-  int16_t     resType;        // return value type
-  int16_t     resBytes;       // length of return value
-  int16_t     interResBytes;  // inter result buffer size
-  int16_t     numOfParams;    // argument value of each function
-  tVariant    param[3];       // parameters are not more than 3
-  int32_t     offset;         // sub result column value of arithmetic expression.
+  char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
+  SColIndex colInfo;
+  int64_t   uid;            // refactor use the pointer
+  int16_t   functionId;     // function id in aAgg array
+  int16_t   resType;        // return value type
+  int16_t   resBytes;       // length of return value
+  int16_t   interResBytes;  // inter result buffer size
+  int16_t   numOfParams;    // argument value of each function
+  tVariant  param[3];       // parameters are not more than 3
+  int32_t   offset;         // sub result column value of arithmetic expression.
 } SSqlExpr;
 
 typedef struct SColumnIndex {
@@ -100,46 +101,27 @@ typedef struct SColumnIndex {
   int16_t columnIndex;
 } SColumnIndex;
 
-typedef struct SFieldInfo {
-  int16_t     numOfOutputCols;  // number of column in result
-  int16_t     numOfAlloc;       // allocated size
-  TAOS_FIELD *pFields;
+typedef struct SFieldSupInfo {
+  bool            visible;
+  SArithExprInfo *pArithExprInfo;
+  SSqlExpr *      pSqlExpr;
+} SFieldSupInfo;
 
-  /*
-   * define if this column is belong to the queried result, it may be add by parser to faciliate
-   * the query process
-   *
-   * NOTE: these hidden columns always locate at the end of the output columns
-   */
-  bool *  pVisibleCols;
-  int32_t numOfHiddenCols;   // the number of column not belongs to the queried result columns
-  SSqlFunctionExpr** pExpr;  // used for aggregation arithmetic express,such as count(*)+count(*)
-  SSqlExpr** pSqlExpr;
+typedef struct SFieldInfo {
+  int16_t numOfOutput;   // number of column in result
+  SArray *pFields;       // SArray<TAOS_FIELD>
+  SArray *pSupportInfo;  // SArray<SFieldSupInfo>
 } SFieldInfo;
 
-typedef struct SSqlExprInfo {
-  int16_t    numOfAlloc;
-  int16_t    numOfExprs;
-  SSqlExpr** pExprs;
-} SSqlExprInfo;
-
-typedef struct SColumnBase {
+typedef struct SColumn {
   SColumnIndex       colIndex;
   int32_t            numOfFilters;
   SColumnFilterInfo *filterInfo;
-} SColumnBase;
-
-typedef struct SColumnBaseInfo {
-  int16_t      numOfAlloc;
-  int16_t      numOfCols;
-  SColumnBase *pColList;
-} SColumnBaseInfo;
-
-struct SLocalReducer;
+} SColumn;
 
 typedef struct SCond {
   uint64_t uid;
-  int32_t  len;   // length of tag query condition data
+  int32_t  len;  // length of tag query condition data
   char *   cond;
 } SCond;
 
@@ -166,7 +148,7 @@ typedef struct STagCond {
   SJoinInfo joinInfo;
 
   // for different table, the query condition must be seperated
-  SArray*  pCond;
+  SArray *pCond;
 } STagCond;
 
 typedef struct SParamInfo {
@@ -207,7 +189,7 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-typedef struct SDataBlockList {
+typedef struct SDataBlockList {  // todo remove
   uint32_t           nSize;
   uint32_t           nAlloc;
   STableDataBlocks **pData;
@@ -218,14 +200,14 @@ typedef struct SQueryInfo {
   uint16_t type;     // query/insert/import type
   char     slidingTimeUnit;
 
-  int64_t         etime, stime;
+  STimeWindow     window;
   int64_t         intervalTime;  // aggregation time interval
   int64_t         slidingTime;   // sliding window in mseconds
   SSqlGroupbyExpr groupbyExpr;   // group by tags info
 
-  SColumnBaseInfo  colList;
+  SArray *         colList;      // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SSqlExprInfo     exprsInfo;
+  SArray *         exprsInfo;    // SArray<SSqlExpr*>
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;
@@ -242,19 +224,13 @@ typedef struct SQueryInfo {
   int64_t prjOffset;
 } SQueryInfo;
 
-// data source from sql string or from file
-enum {
-  DATA_FROM_SQL_STRING = 1,
-  DATA_FROM_DATA_FILE = 2,
-};
-
 typedef struct {
   int     command;
   uint8_t msgType;
 
   union {
     bool   existsCheck;     // check if the table exists or not
-    bool   autoCreated;  // if the table is missing, on-the-fly create it. during getmeterMeta
+    bool   autoCreated;     // if the table is missing, on-the-fly create it. during getmeterMeta
     int8_t dataSourceType;  // load data from file or not
   };
 
@@ -271,11 +247,11 @@ typedef struct {
   int32_t      payloadLen;
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
-  
-  SDataBlockList *pDataBlocks; // submit data blocks after parsing sql
-  char *          curSql; // current sql, resume position of sql after parsing paused
-  void *          pTableList;  // referred table involved in sql
-  
+
+  SDataBlockList *pDataBlocks;  // submit data blocks after parsing sql
+  char *          curSql;       // current sql, resume position of sql after parsing paused
+  void *          pTableList;   // referred table involved in sql
+
   // for parameter ('?') binding and batch processing
   int32_t batchSize;
   int32_t numOfParams;
@@ -286,50 +262,48 @@ typedef struct SResRec {
   int numOfTotal;
 } SResRec;
 
-struct STSBuf;
-
 typedef struct {
-  int64_t       numOfRows;                  // num of results in current retrieved
-  int64_t       numOfTotal;                 // num of total results
-  int64_t       numOfTotalInCurrentClause;  // num of total result in current subclause
-  char *        pRsp;
-  int32_t       rspType;
-  int32_t       rspLen;
-  uint64_t      qhandle;
-  int64_t       uid;
-  int64_t       useconds;
-  int64_t       offset;  // offset value from vnode during projection query of stable
-  int32_t       row;
-  int16_t       numOfCols;
-  int16_t       precision;
-  bool          completed;
-  int32_t       code;
-  int32_t       numOfGroups;
-  SResRec *     pGroupRec;
-  char *        data;
-  void **       tsrow;
-  char **       buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
-  SColumnIndex *pColumnIndex;
+  int64_t               numOfRows;                  // num of results in current retrieved
+  int64_t               numOfTotal;                 // num of total results
+  int64_t               numOfTotalInCurrentClause;  // num of total result in current subclause
+  char *                pRsp;
+  int32_t               rspType;
+  int32_t               rspLen;
+  uint64_t              qhandle;
+  int64_t               uid;
+  int64_t               useconds;
+  int64_t               offset;  // offset value from vnode during projection query of stable
+  int32_t               row;
+  int16_t               numOfCols;
+  int16_t               precision;
+  bool                  completed;
+  int32_t               code;
+  int32_t               numOfGroups;
+  SResRec *             pGroupRec;
+  char *                data;
+  void **               tsrow;
+  char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
+  SColumnIndex *        pColumnIndex;
   struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
 typedef struct STscObj {
-  void *           signature;
-  void *           pTimer;
-  char             mgmtIp[TSDB_USER_LEN];
-  uint16_t         mgmtPort;
-  char             user[TSDB_USER_LEN];
-  char             pass[TSDB_KEY_LEN];
-  char             acctId[TSDB_DB_NAME_LEN];
-  char             db[TSDB_TABLE_ID_LEN];
-  char             sversion[TSDB_VERSION_LEN];
-  char             writeAuth : 1;
-  char             superAuth : 1;
-  struct SSqlObj *pSql;
-  struct SSqlObj *pHb;
-  struct SSqlObj *sqlList;
+  void *             signature;
+  void *             pTimer;
+  char               mgmtIp[TSDB_USER_LEN];
+  uint16_t           mgmtPort;
+  char               user[TSDB_USER_LEN];
+  char               pass[TSDB_KEY_LEN];
+  char               acctId[TSDB_DB_NAME_LEN];
+  char               db[TSDB_TABLE_ID_LEN];
+  char               sversion[TSDB_VERSION_LEN];
+  char               writeAuth : 1;
+  char               superAuth : 1;
+  struct SSqlObj *   pSql;
+  struct SSqlObj *   pHb;
+  struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
-  pthread_mutex_t  mutex;
+  pthread_mutex_t    mutex;
 } STscObj;
 
 typedef struct SSqlObj {
@@ -337,23 +311,23 @@ typedef struct SSqlObj {
   STscObj *pTscObj;
   void (*fp)();
   void (*fetchFp)();
-  void *            param;
-  uint32_t          ip;
-  short             vnode;
-  int64_t           stime;
-  uint32_t          queryId;
-  void *            pStream;
-  void *            pSubscription;
-  char *            sqlstr;
-  char              retry;
-  char              maxRetry;
-  SRpcIpSet         ipList;
-  char              freed : 4;
-  char              listed : 4;
-  tsem_t            rspSem;
-  SSqlCmd           cmd;
-  SSqlRes           res;
-  uint8_t           numOfSubs;
+  void *           param;
+  uint32_t         ip;
+  short            vnode;
+  int64_t          stime;
+  uint32_t         queryId;
+  void *           pStream;
+  void *           pSubscription;
+  char *           sqlstr;
+  char             retry;
+  char             maxRetry;
+  SRpcIpSet        ipList;
+  char             freed : 4;
+  char             listed : 4;
+  tsem_t           rspSem;
+  SSqlCmd          cmd;
+  SSqlRes          res;
+  uint8_t          numOfSubs;
   struct SSqlObj **pSubs;
   struct SSqlObj * prev, *next;
 } SSqlObj;
@@ -387,12 +361,9 @@ typedef struct SSqlStream {
 } SSqlStream;
 
 int32_t tscInitRpc(const char *user, const char *secret);
+void    tscInitMsgsFp();
 
-// tscSql API
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
-
-void tscInitMsgsFp();
-extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg);
 int  tscProcessSql(SSqlObj *pSql);
@@ -406,12 +377,8 @@ int tscProcessLocalCmd(SSqlObj *pSql);
 int tscCfgDynamicOptions(char *msg);
 int taos_retrieve(TAOS_RES *res);
 
-/*
- * transfer function for metric query in stream computing, the function need to be change
- * before send query message to vnode
- */
-int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo *pQueryInfo);
-void    tscRestoreSQLFunctionForMetricQuery(SQueryInfo *pQueryInfo);
+int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
+void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
@@ -441,10 +408,13 @@ void tscFreeSqlObj(SSqlObj *pObj);
 
 void tscCloseTscObj(STscObj *pObj);
 
-void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen);
+TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
+                     void *param, void **taos);
+
+void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
 
 void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
-void tscKillMetricQuery(SSqlObj *pSql);
+void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(STscObj *pObj);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
@@ -453,19 +423,22 @@ char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
-void tscQueueAsyncFreeResult(SSqlObj *pSql);
-int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo);
+void    tscQueueAsyncFreeResult(SSqlObj *pSql);
+int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
+char *  tscGetResultColumnChr(SSqlRes *pRes, SQueryInfo *pQueryInfo, int32_t column);
 
-extern void *     pVnodeConn;
-extern void *     pTscMgmtConn;
-extern void *     tscCacheHandle;
-extern int        slaveIndex;
-extern void *     tscTmr;
-extern void *     tscQhandle;
-extern int        tscKeepConn[];
-extern int        tsInsertHeadSize;
-extern int        tscNumOfThreads;
-extern SRpcIpSet  tscMgmtIpSet;
+extern void *    pVnodeConn;
+extern void *    pTscMgmtConn;
+extern void *    tscCacheHandle;
+extern int       slaveIndex;
+extern void *    tscTmr;
+extern void *    tscQhandle;
+extern int       tscKeepConn[];
+extern int       tsInsertHeadSize;
+extern int       tscNumOfThreads;
+extern SRpcIpSet tscMgmtIpSet;
+
+extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
 

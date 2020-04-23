@@ -287,9 +287,9 @@ void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
   }
   
   for (int i = 0; i < pCmd->numOfCols; ++i){
-    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
-    if (pExpr != NULL) {
-      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
+    SFieldSupInfo* pSup = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    if (pSup->pSqlExpr != NULL) {
+//      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pSup->pSqlExpr->resBytes * pRes->row;
     } else {
       //todo add
     }
@@ -308,11 +308,12 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   for (int i = 0; i < pCmd->numOfCols; ++i) {
-    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
-    if (pExpr != NULL) {
-      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
+    SFieldSupInfo* pSup = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
+
+    if (pSup->pSqlExpr != NULL) {
+      pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i);
     } else {
-      //todo add
+//      todo add
     }
   }
   
@@ -332,7 +333,7 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
   int code = pRes->code;
 
   // in case of async insert, restore the user specified callback function
-  bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
+  bool shouldFree = tscShouldBeFreed(pSql);
 
   if (cmd == TSDB_SQL_INSERT) {
     assert(pSql->fp != NULL);
@@ -487,7 +488,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
      */
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     
-    tscTansformSQLFunctionForSTableQuery(pQueryInfo);
+    tscTansformSQLFuncForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);
   } else {
     tscTrace("%p get tableMeta successfully", pSql);

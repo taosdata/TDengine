@@ -2940,7 +2940,7 @@ static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
   
-  pCtx->aOutputBuf += pCtx->inputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
+  pCtx->aOutputBuf += pCtx->inputBytes;
 }
 
 /**
@@ -3297,7 +3297,7 @@ static void diff_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 char *arithmetic_callback_function(void *param, char *name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
   
-  SSqlFunctionExpr *pExpr = pSupport->pExpr;
+  SArithExprInfo *pExpr = pSupport->pArithExpr;
   int32_t           colIndex = -1;
   
   for (int32_t i = 0; i < pExpr->binExprInfo.numOfCols; ++i) {
@@ -3315,7 +3315,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
-  tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order,
+  tSQLBinaryExprCalcTraverse(sas->pArithExpr->binExprInfo.pBinExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order,
                              arithmetic_callback_function);
   
   pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size;
@@ -3327,10 +3327,10 @@ static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
   sas->offset = index;
-  tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pCtx->aOutputBuf, sas, pCtx->order,
+  tSQLBinaryExprCalcTraverse(sas->pArithExpr->binExprInfo.pBinExpr, 1, pCtx->aOutputBuf, sas, pCtx->order,
                              arithmetic_callback_function);
   
-  pCtx->aOutputBuf += pCtx->outputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
+  pCtx->aOutputBuf += pCtx->outputBytes;
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \

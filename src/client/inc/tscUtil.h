@@ -57,8 +57,8 @@ typedef struct SJoinSubquerySupporter {
   int64_t         interval;       // interval time
   SLimitVal       limit;          // limit info
   uint64_t        uid;            // query meter uid
-  SColumnBaseInfo colList;        // previous query information
-  SSqlExprInfo    exprsInfo;
+  SArray*         colList;        // previous query information
+  SArray*         exprsInfo;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
   SSqlGroupbyExpr groupbyExpr;
@@ -69,8 +69,9 @@ typedef struct SJoinSubquerySupporter {
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
                            STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
-void    tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
-void    tscDestroyDataBlock(STableDataBlocks* pDataBlock);
+void tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
+void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
+void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
                                    uint32_t offset);
@@ -85,8 +86,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
                                 int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks);
 
-SVnodeSidList*    tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx);
-STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
+UNUSED_FUNC STableIdInfo*  tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
 
 /**
  *
@@ -106,7 +106,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
-bool tscQueryOnMetric(SSqlCmd* pCmd);
+bool tscQueryOnSTable(SSqlCmd* pCmd);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
@@ -115,60 +115,58 @@ void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex
 
 void addRequiredTagColumn(SQueryInfo* pQueryInfo, int32_t tagColIndex, int32_t tableIndex);
 
-int32_t setMeterID(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
+int32_t tscSetTableId(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertOrImportData(char* sqlstr);
 
 /* use for keep current db info temporarily, for handle table with db prefix */
+// todo remove it
 void tscGetDBInfoFromMeterId(char* tableId, char* db);
 
 int tscAllocPayload(SSqlCmd* pCmd, int size);
 
-void tscFieldInfoSetValFromSchema(SFieldInfo* pFieldInfo, int32_t index, SSchema* pSchema);
-void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* pField);
-void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, const char* name, int16_t bytes);
-void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible);
-void tscFieldInfoSetExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlExpr* pExpr);
-void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionExpr* pExpr);
+TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes);
 
-void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
-void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size);
-void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src);
+SFieldSupInfo* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField);
+SFieldSupInfo* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field);
+
+SFieldSupInfo* tscFieldInfoGetSupp(SFieldInfo* pFieldInfo, int32_t index);
+TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index);
+
+void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
+void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src);
 void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
 
-TAOS_FIELD* tscFieldInfoGetField(SQueryInfo* pQueryInfo, int32_t index);
-int16_t     tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
-int32_t     tscGetResRowLength(SQueryInfo* pQueryInfo);
-void        tscClearFieldInfo(SFieldInfo* pFieldInfo);
+int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
+void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
 int32_t tscNumOfFields(SQueryInfo* pQueryInfo);
-int32_t tscFieldInfoCompare(SFieldInfo* pFieldInfo1, SFieldInfo* pFieldInfo2);
+int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2);
 
 void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex);
 
+int32_t   tscGetResRowLength(SArray* pExprList);
+
 SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+    int16_t size, int16_t interSize);
+
+SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                            int16_t size, int16_t interSize);
-SSqlExpr* tscSqlExprInsertEmpty(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId);
 
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
 int32_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
-void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid, bool deepcopy);
-void*     tscSqlExprDestroy(SSqlExpr* pExpr);
-void      tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo);
+SArray*   tscSqlExprCopy(const SArray* src, uint64_t uid, bool deepcopy);
+void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
-SColumnBase* tscColumnBaseInfoInsert(SQueryInfo* pQueryInfo, SColumnIndex* colIndex);
-void         tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* src);
-void         tscColumnBaseCopy(SColumnBase* dst, const SColumnBase* src);
+SColumn* tscColumnClone(const SColumn* src);
+SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
+void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex);
+void tscColumnListDestroy(SArray* pColList);
 
-void         tscColumnBaseInfoCopy(SColumnBaseInfo* dst, const SColumnBaseInfo* src, int16_t tableIndex);
-SColumnBase* tscColumnBaseInfoGet(SColumnBaseInfo* pColumnBaseInfo, int32_t index);
-void         tscColumnBaseInfoUpdateTableIndex(SColumnBaseInfo* pColList, int16_t tableIndex);
-
-void tscColumnBaseInfoReserve(SColumnBaseInfo* pColumnBaseInfo, int32_t size);
-void tscColumnBaseInfoDestroy(SColumnBaseInfo* pColumnBaseInfo);
+SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
 
 int32_t tscValidateName(SSQLToken* pToken);
 
@@ -188,17 +186,16 @@ void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 void tscSetFreeHeatBeat(STscObj* pObj);
 bool tscShouldFreeHeatBeat(SSqlObj* pHb);
 void tscCleanSqlCmd(SSqlCmd* pCmd);
-bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql);
+bool tscShouldBeFreed(SSqlObj* pSql);
 
-void            tscRemoveAllMeterMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
+void            tscClearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
 STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
 int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo);
 
-STableMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index);
-void            tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
+void tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
     SVgroupsInfo* vgroupList, int16_t numOfTags, int16_t* tags);
@@ -208,7 +205,6 @@ int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 void tscFreeSubqueryInfo(SSqlCmd* pCmd);
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
-void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* keyStr, uint64_t uid);
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
@@ -241,11 +237,6 @@ void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t sub
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 
 int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid);
-
-TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, void (*fp)(void*, TAOS_RES*, int),
-                     void* param, void** taos);
-
-void sortRemoveDuplicates(STableDataBlocks* dataBuf);
 
 void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 
