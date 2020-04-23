@@ -61,7 +61,9 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SSqlRes *pRes, SLocalReducer *pRedu
    * merge requirement. So, the final result in pRes structure is formatted in accordance with the pCmd object.
    */
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  
+  for (int32_t i = 0; i < size; ++i) {
     SQLFunctionCtx *pCtx = &pReducer->pCtx[i];
     SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, i);
 
@@ -108,10 +110,10 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SSqlRes *pRes, SLocalReducer *pRedu
 
   int16_t          n = 0;
   int16_t          tagLen = 0;
-  SQLFunctionCtx **pTagCtx = calloc(pQueryInfo->fieldsInfo.numOfOutputCols, POINTER_BYTES);
+  SQLFunctionCtx **pTagCtx = calloc(pQueryInfo->fieldsInfo.numOfOutput, POINTER_BYTES);
 
   SQLFunctionCtx *pCtx = NULL;
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_TAG_DUMMY || pExpr->functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pExpr->resBytes;
@@ -254,12 +256,13 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   // the input data format follows the old format, but output in a new format.
   // so, all the input must be parsed as old format
-  pReducer->pCtx = (SQLFunctionCtx *)calloc(pQueryInfo->exprsInfo.numOfExprs, sizeof(SQLFunctionCtx));
-
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  
+  pReducer->pCtx = (SQLFunctionCtx *)calloc(size, sizeof(SQLFunctionCtx));
   pReducer->rowSize = pMemBuffer[0]->nElemSize;
 
-  tscRestoreSQLFunctionForMetricQuery(pQueryInfo);
-  tscFieldInfoCalOffset(pQueryInfo);
+  tscRestoreSQLFuncForSTableQuery(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
 
   if (pReducer->rowSize > pMemBuffer[0]->pageSize) {
     assert(false);  // todo fixed row size is larger than the minimum page size;
@@ -279,7 +282,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->nResultBufSize = pMemBuffer[0]->pageSize * 16;
   pReducer->pResultBuf = (tFilePage *)calloc(1, pReducer->nResultBufSize + sizeof(tFilePage));
 
-  int32_t finalRowLength = tscGetResRowLength(pQueryInfo);
+  int32_t finalRowLength = tscGetResRowLength(pQueryInfo->exprsInfo);
   pReducer->resColModel = finalmodel;
   pReducer->resColModel->capacity = pReducer->nResultBufSize / finalRowLength;
   assert(finalRowLength <= pReducer->rowSize);
@@ -301,7 +304,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   }
 
   pReducer->pTempBuffer->numOfElems = 0;
-  pReducer->pResInfo = calloc((size_t)pQueryInfo->exprsInfo.numOfExprs, sizeof(SResultInfo));
+  pReducer->pResInfo = calloc(size, sizeof(SResultInfo));
 
   tscCreateResPointerInfo(pRes, pQueryInfo);
   tscInitSqlContext(pCmd, pRes, pReducer, pDesc);
@@ -324,7 +327,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   int16_t prec = tinfo.precision;
-  int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
+  int64_t stime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.skey : pQueryInfo->window.ekey;
   int64_t revisedSTime =
       taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
@@ -332,7 +335,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   taosInitInterpoInfo(pInterpoInfo, pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
                       pReducer->rowSize);
 
-  int32_t startIndex = pQueryInfo->fieldsInfo.numOfOutputCols - pQueryInfo->groupbyExpr.numOfGroupCols;
+  int32_t startIndex = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     pInterpoInfo->pTags[0] = (char *)pInterpoInfo->pTags + POINTER_BYTES * pQueryInfo->groupbyExpr.numOfGroupCols;
@@ -462,7 +465,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     taosDestoryInterpoInfo(&pLocalReducer->interpolationInfo);
 
     if (pLocalReducer->pCtx != NULL) {
-      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
         SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[i];
 
         tVariantDestroy(&pCtx->tag);
@@ -480,7 +483,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     tfree(pLocalReducer->pResultBuf);
 
     if (pLocalReducer->pResInfo != NULL) {
-      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
         tfree(pLocalReducer->pResInfo[i].interResultBuf);
       }
 
@@ -532,7 +535,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
   }
 
   if (numOfGroupByCols > 0) {
-    int32_t startCols = pQueryInfo->fieldsInfo.numOfOutputCols - pQueryInfo->groupbyExpr.numOfGroupCols;
+    int32_t startCols = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
 
     // tags value locate at the last columns
     for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
@@ -612,8 +615,10 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
     return pRes->code;
   }
-
-  pSchema = (SSchema *)calloc(1, sizeof(SSchema) * pQueryInfo->exprsInfo.numOfExprs);
+  
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  
+  pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
   if (pSchema == NULL) {
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -621,7 +626,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   }
 
   int32_t rlen = 0;
-  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     pSchema[i].bytes = pExpr->resBytes;
@@ -634,8 +639,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   if (rlen != 0) {
     capacity = nBufferSizes / rlen;
   }
-
-  pModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
+  
+  pModel = createColumnModel(pSchema, size, capacity);
 
   size_t numOfSubs = pTableMetaInfo->vgroupList->numOfVgroups;
   for (int32_t i = 0; i < numOfSubs; ++i) {
@@ -649,8 +654,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   }
 
   // final result depends on the fields number
-  memset(pSchema, 0, sizeof(SSchema) * pQueryInfo->exprsInfo.numOfExprs);
-  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
+  memset(pSchema, 0, sizeof(SSchema) * size);
+  for (int32_t i = 0; i < size; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
@@ -683,8 +688,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     pSchema[i].bytes = bytes;
     strcpy(pSchema[i].name, pModel->pFields[i].field.name);
   }
-
-  *pFinalModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
+  
+  *pFinalModel = createColumnModel(pSchema, size, capacity);
   tfree(pSchema);
 
   return TSDB_CODE_SUCCESS;
@@ -782,7 +787,7 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo 
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   int16_t prec = tinfo.precision;
-  int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
+  int64_t stime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.skey : pQueryInfo->window.ekey;
   int64_t revisedSTime =
       taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
@@ -800,7 +805,7 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo 
 // static void reversedCopyResultToDstBuf(SQueryInfo* pQueryInfo, SSqlRes *pRes, tFilePage *pFinalDataPage) {
 //
 //  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
-//    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+//    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 //
 //    int32_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
 //    char *  src = pFinalDataPage->data + (pRes->numOfRows - 1) * pField->bytes + pRes->numOfRows * offset;
@@ -817,8 +822,10 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo 
 static void reversedCopyFromInterpolationToDstBuf(SQueryInfo *pQueryInfo, SSqlRes *pRes, tFilePage **pResPages,
                                                   SLocalReducer *pLocalReducer) {
   assert(0);
-  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
-    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  
+  for (int32_t i = 0; i < size; ++i) {
+    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 
     int32_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
     assert(offset == getColumnModelOffset(pLocalReducer->resColModel, i));
@@ -894,7 +901,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
       savePrevRecordAndSetupInterpoInfo(pLocalReducer, pQueryInfo, &pLocalReducer->interpolationInfo);
     }
 
-    int32_t rowSize = tscGetResRowLength(pQueryInfo);
+    int32_t rowSize = tscGetResRowLength(pQueryInfo->exprsInfo);
     memcpy(pRes->data, pFinalDataPage->data, pRes->numOfRows * rowSize);
 
     pFinalDataPage->numOfElems = 0;
@@ -905,18 +912,18 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
 
   SInterpolationInfo *pInterpoInfo = &pLocalReducer->interpolationInfo;
 
-  int64_t actualETime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->etime : pQueryInfo->stime;
+  int64_t actualETime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
-  tFilePage **pResPages = malloc(POINTER_BYTES * pQueryInfo->fieldsInfo.numOfOutputCols);
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
-    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+  tFilePage **pResPages = malloc(POINTER_BYTES * pQueryInfo->fieldsInfo.numOfOutput);
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
     pResPages[i] = calloc(1, sizeof(tFilePage) + pField->bytes * pLocalReducer->resColModel->capacity);
   }
 
-  char **  srcData = (char **)malloc((POINTER_BYTES + sizeof(int32_t)) * pQueryInfo->fieldsInfo.numOfOutputCols);
-  int32_t *functions = (int32_t *)((char *)srcData + pQueryInfo->fieldsInfo.numOfOutputCols * sizeof(void *));
+  char **  srcData = (char **)malloc((POINTER_BYTES + sizeof(int32_t)) * pQueryInfo->fieldsInfo.numOfOutput);
+  int32_t *functions = (int32_t *)((char *)srcData + pQueryInfo->fieldsInfo.numOfOutput * sizeof(void *));
 
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     srcData[i] =
         pLocalReducer->pBufForInterpo + tscFieldInfoGetOffset(pQueryInfo, i) * pInterpoInfo->numOfRawDataInRows;
     functions[i] = tscSqlExprGet(pQueryInfo, i)->functionId;
@@ -943,8 +950,8 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
       newRows -= pQueryInfo->limit.offset;
 
       if (pQueryInfo->limit.offset > 0) {
-        for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
-          TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+        for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+          TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
           memmove(pResPages[i]->data, pResPages[i]->data + pField->bytes * pQueryInfo->limit.offset,
                   newRows * pField->bytes);
         }
@@ -992,8 +999,8 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
     }
 
     if (pQueryInfo->order.order == TSDB_ORDER_ASC) {
-      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
-        TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+        TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
         int16_t     offset = getColumnModelOffset(pLocalReducer->resColModel, i);
         memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i]->data, pField->bytes * pRes->numOfRows);
       }
@@ -1003,7 +1010,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   }
 
   pFinalDataPage->numOfElems = 0;
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     tfree(pResPages[i]);
   }
   tfree(pResPages);
@@ -1030,8 +1037,9 @@ static void savePreviousRow(SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) 
 static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer, bool needInit) {
   // the tag columns need to be set before all functions execution
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
 
-  for (int32_t j = 0; j < pQueryInfo->exprsInfo.numOfExprs; ++j) {
+  for (int32_t j = 0; j < size; ++j) {
     SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, j);
     SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[j];
 
@@ -1051,7 +1059,7 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
     }
   }
 
-  for (int32_t j = 0; j < pQueryInfo->exprsInfo.numOfExprs; ++j) {
+  for (int32_t j = 0; j < size; ++j) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, j)->functionId;
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
@@ -1071,8 +1079,9 @@ static void handleUnprocessedRow(SSqlCmd *pCmd, SLocalReducer *pLocalReducer, tF
 
 static int64_t getNumOfResultLocal(SQueryInfo *pQueryInfo, SQLFunctionCtx *pCtx) {
   int64_t maxOutput = 0;
-
-  for (int32_t j = 0; j < pQueryInfo->exprsInfo.numOfExprs; ++j) {
+  
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  for (int32_t j = 0; j < size; ++j) {
     //    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[j];
     //    if (pExpr == NULL) {
     //      assert(pQueryInfo->fieldsInfo.pExpr[j] != NULL);
@@ -1107,7 +1116,9 @@ static int64_t getNumOfResultLocal(SQueryInfo *pQueryInfo, SQLFunctionCtx *pCtx)
  */
 static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLocalReducer *pLocalReducer) {
   int32_t maxBufSize = 0;  // find the max tags column length to prepare the buffer
-  for (int32_t k = 0; k < pQueryInfo->exprsInfo.numOfExprs; ++k) {
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  
+  for (int32_t k = 0; k < size; ++k) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, k);
     if (maxBufSize < pExpr->resBytes && pExpr->functionId == TSDB_FUNC_TAG) {
       maxBufSize = pExpr->resBytes;
@@ -1117,7 +1128,7 @@ static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLo
   assert(maxBufSize >= 0);
 
   char *buf = malloc((size_t)maxBufSize);
-  for (int32_t k = 0; k < pQueryInfo->exprsInfo.numOfExprs; ++k) {
+  for (int32_t k = 0; k < size; ++k) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, k);
     if (pExpr->functionId != TSDB_FUNC_TAG) {
       continue;
@@ -1139,7 +1150,9 @@ static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLo
 }
 
 int32_t finalizeRes(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {
-  for (int32_t k = 0; k < pQueryInfo->exprsInfo.numOfExprs; ++k) {
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  
+  for (int32_t k = 0; k < size; ++k) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, k);
     aAggs[pExpr->functionId].xFinalize(&pLocalReducer->pCtx[k]);
   }
@@ -1242,7 +1255,7 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
 #endif
 
   SInterpolationInfo *pInterpoInfo = &pLocalReducer->interpolationInfo;
-  int32_t             startIndex = pQueryInfo->fieldsInfo.numOfOutputCols - pQueryInfo->groupbyExpr.numOfGroupCols;
+  int32_t             startIndex = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
 
   for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
     int16_t  offset = getColumnModelOffset(pModel, startIndex + i);
@@ -1258,7 +1271,7 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
 }
 
 void resetOutputBuf(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {  // reset output buffer to the beginning
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     pLocalReducer->pCtx[i].aOutputBuf =
         pLocalReducer->pResultBuf->data + tscFieldInfoGetOffset(pQueryInfo, i) * pLocalReducer->resColModel->capacity;
   }
@@ -1282,7 +1295,7 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
 
   // for group result interpolation, do not return if not data is generated
   if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
-    int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
+    int64_t stime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.skey : pQueryInfo->window.ekey;
     int64_t newTime =
         taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
 
@@ -1348,7 +1361,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       prevGroupCompleted) {
     // if interpoType == TSDB_INTERPO_NONE, return directly
     if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
-      int64_t etime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->etime : pQueryInfo->stime;
+      int64_t etime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
       etime = taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime,
                                    pQueryInfo->slidingTimeUnit, precision);
@@ -1386,8 +1399,9 @@ static void doProcessResultInNextWindow(SSqlObj *pSql, int32_t numOfRes) {
 
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
   SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
 
-  for (int32_t k = 0; k < pQueryInfo->exprsInfo.numOfExprs; ++k) {
+  for (int32_t k = 0; k < size; ++k) {
     SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, k);
     SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[k];
 
