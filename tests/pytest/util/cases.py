@@ -71,7 +71,7 @@ class TDCases:
                     case.run()
                 except Exception as e:
                     tdLog.notice(repr(e))
-                    tdLog.exit("failed: %s" % fileName)
+                    tdLog.notice("%s failed: %s" % (__file__, fileName))
                 case.stop()
                 runNum += 1
                 continue

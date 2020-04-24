@@ -105,10 +105,7 @@ if __name__ == "__main__":
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
-                try:
-                    tdCases.runOneLinux(conn, fileName)
-                except Exception as e:
-                    tdLog.exit("failed: %s" % fileName)
+                tdCases.runOneLinux(conn, fileName)
             conn.close()
     else:
         tdLog.notice("Procedures for tdengine deployed in %s" % (masterIp))
