@@ -67,7 +67,6 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.label = "TSC-vnode";
     rpcInit.numOfThreads = tscNumOfThreads;
     rpcInit.cfp = tscProcessMsgFromServer;
-    rpcInit.ufp = tscUpdateIpSet;
     rpcInit.sessions = tsMaxVnodeConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char*)user;
@@ -96,6 +95,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.label = "TSC-mgmt";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = tscProcessMsgFromServer;
+    rpcInit.ufp = tscUpdateIpSet;
     rpcInit.sessions = tsMaxMgmtConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.idleTime = 2000;

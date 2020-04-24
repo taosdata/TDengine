@@ -108,8 +108,12 @@ static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
     bool usePublicIp = false;
     
     SRpcIpSet ipSet = {0};
-    mgmtGetMnodeIpSet(&ipSet, usePublicIp);
-    mTrace("conn from dnode ip:%s redirect msg", taosIpStr(connInfo.clientIp));
+    ipSet.port = tsMnodeDnodePort;
+    dnodeGetMnodeIpSet(&ipSet, usePublicIp);
+    mTrace("conn from dnode ip:%s user:%s redirect msg, inUse:%d", taosIpStr(connInfo.clientIp), connInfo.user, ipSet.inUse);
+    for (int32_t i = 0; i < ipSet.numOfIps; ++i) {
+      mTrace("index:%d ip:%s", i, taosIpStr(ipSet.ip[i]));
+    }
     rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
     return;
   }
@@ -119,7 +123,8 @@ static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
     memcpy(pMsg, rpcMsg, sizeof(SRpcMsg));
     mgmtAddToDServerQueue(pMsg);
   } else {
-    mError("%s is not processed in dserver", taosMsg[rpcMsg->msgType]);
+    mError("%s is not processed in mgmt dserver", taosMsg[rpcMsg->msgType]);
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_MSG_NOT_PROCESSED);
     rpcFreeCont(rpcMsg->pCont);
   }
 }
