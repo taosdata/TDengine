@@ -39,10 +39,10 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 typedef struct SSqlGroupbyExpr {
   int16_t     tableIndex;
+  SArray*     columnInfo;      // SArray<SColIndex>, group by columns information
   int16_t     numOfGroupCols;
-  SColIndex*  columnInfo;                 // group by columns information
-  int16_t     orderIndex;                 // order by column index
-  int16_t     orderType;                  // order by type: asc/desc
+  int16_t     orderIndex;      // order by column index
+  int16_t     orderType;       // order by type: asc/desc
 } SSqlGroupbyExpr;
 
 typedef struct SPosInfo {
@@ -108,7 +108,7 @@ typedef struct STableQueryInfo {
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
 
-typedef struct STableDataInfo {
+typedef struct STableDataInfo {  // todo merge with the STableQueryInfo struct
   int32_t          tableIndex;
   int32_t          groupIdx;  // group id in table list
   STableQueryInfo* pTableQInfo;
@@ -116,6 +116,8 @@ typedef struct STableDataInfo {
 
 typedef struct SQuery {
   int16_t           numOfCols;
+  int16_t           numOfTags;
+  
   SOrderVal         order;
   STimeWindow       window;
   int64_t           intervalTime;
@@ -128,8 +130,9 @@ typedef struct SQuery {
   SLimitVal         limit;
   int32_t           rowSize;
   SSqlGroupbyExpr*  pGroupbyExpr;
-  SArithExprInfo* pSelectExpr;
+  SArithExprInfo*   pSelectExpr;
   SColumnInfo*      colList;
+  SColumnInfo*      tagColList;
   int32_t           numOfFilterCols;
   int64_t*          defaultVal;
   TSKEY             lastKey;

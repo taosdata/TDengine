@@ -1133,6 +1133,7 @@ static int32_t getAllTableIdList(STsdbRepo* tsdb, int64_t uid, SArray* list) {
     taosArrayPush(list, &t);
   }
   
+  tSkipListDestroyIter(iter);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1445,6 +1446,7 @@ int32_t tsdbQueryByTagsCond(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, 
   
     pGroupInfo->numOfTables = taosArrayGetSize(res);
     pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
+    taosArrayDestroy(res);
     return ret;
   }
 
@@ -1463,6 +1465,7 @@ int32_t tsdbQueryByTagsCond(TsdbRepoT* tsdb, int64_t uid, const char* pTagCond, 
   pGroupInfo->numOfTables = taosArrayGetSize(res);
   pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
 
+  taosArrayDestroy(res);
   return ret;
 }
 
@@ -1483,6 +1486,7 @@ int32_t tsdbGetOneTableGroup(TsdbRepoT* tsdb, int64_t uid, STableGroupInfo* pGro
   
   return TSDB_CODE_SUCCESS;
 }
+
 void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
   if (pQueryHandle == NULL) {
@@ -1516,5 +1520,6 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   
   tfree(pQueryHandle->pDataBlockInfo);
   tsdbDestroyHelper(&pQueryHandle->rhelper);
+  
   tfree(pQueryHandle);
 }
