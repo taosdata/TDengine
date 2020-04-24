@@ -332,6 +332,9 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
+  pLoad->totalStorage = htobe64(pLoad->totalStorage);
+  pLoad->compStorage = htobe64(pLoad->compStorage);
+  pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;

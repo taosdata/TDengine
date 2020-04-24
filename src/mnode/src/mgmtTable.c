@@ -364,7 +364,7 @@ static void mgmtAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCta
   
   bool find = false;
   int32_t pos = 0;
-  for (int pos = 0; pos < pStable->vgLen; ++pos) {
+  for (pos = 0; pos < pStable->vgLen; ++pos) {
     if (pStable->vgList[pos] == 0) break;
     if (pStable->vgList[pos] == pCtable->vgId) {
       find = true;
@@ -730,6 +730,9 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
     SSchema *tschema = pStable->schema;
     tschema[col].colId = pStable->nextColId++;
     tschema[col].bytes = htons(tschema[col].bytes);
+    
+    // todo 1. check the length of each column; 2. check the total length of all columns
+    assert(tschema[col].type >= TSDB_DATA_TYPE_BOOL && tschema[col].type <= TSDB_DATA_TYPE_NCHAR);
   }
 
   SSdbOper oper = {
@@ -1109,12 +1112,11 @@ void mgmtDropAllSuperTables(SDbObj *pDropDb) {
   int32_t dbNameLen = strlen(pDropDb->name);
   SSuperTableObj *pTable = NULL;
 
+  mPrint("db:%s, all super tables will be dropped from sdb", pDropDb->name);
+
   while (1) {
-    mgmtDecTableRef(pTable);
     pNode = sdbFetchRow(tsSuperTableSdb, pNode, (void **)&pTable);
-    if (pTable == NULL) {
-      break;
-    }
+    if (pTable == NULL) break;
 
     if (strncmp(pDropDb->name, pTable->info.tableId, dbNameLen) == 0) {
       SSdbOper oper = {
@@ -1125,16 +1127,18 @@ void mgmtDropAllSuperTables(SDbObj *pDropDb) {
       sdbDeleteRow(&oper);
       pNode = pLastNode;
       numOfTables ++;
-      continue;
     }
+
+    mgmtDecTableRef(pTable);
   }
-  mTrace("db:%s, all super tables:%d is dropped from sdb", pDropDb->name, numOfTables);
+
+  mPrint("db:%s, all super tables:%d is dropped from sdb", pDropDb->name, numOfTables);
 }
 
 static int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable) {
   int32_t numOfCols = pTable->numOfColumns + pTable->numOfTags;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    strcpy(pSchema->name, pTable->schema[i].name);
+    strncpy(pSchema->name, pTable->schema[i].name, TSDB_TABLE_ID_LEN);
     pSchema->type  = pTable->schema[i].type;
     pSchema->bytes = htons(pTable->schema[i].bytes);
     pSchema->colId = htons(pTable->schema[i].colId);
@@ -1154,7 +1158,7 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
   pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
   pMeta->tableType    = pTable->info.type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
-  strcpy(pMeta->tableId, pTable->info.tableId);
+  strncpy(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_ID_LEN);
 
   SRpcMsg rpcRsp = {
     .handle = pMsg->thandle, 
@@ -1678,12 +1682,11 @@ void mgmtDropAllChildTables(SDbObj *pDropDb) {
   int32_t dbNameLen = strlen(pDropDb->name);
   SChildTableObj *pTable = NULL;
 
+  mPrint("db:%s, all child tables will be dropped from sdb", pDropDb->name);
+
   while (1) {
-    mgmtDecTableRef(pTable);
     pNode = sdbFetchRow(tsChildTableSdb, pNode, (void **)&pTable);
-    if (pTable == NULL) {
-      break;
-    }
+    if (pTable == NULL) break;
 
     if (strncmp(pDropDb->name, pTable->info.tableId, dbNameLen) == 0) {
       SSdbOper oper = {
@@ -1694,11 +1697,11 @@ void mgmtDropAllChildTables(SDbObj *pDropDb) {
       sdbDeleteRow(&oper);
       pNode = pLastNode;
       numOfTables++;
-      continue;
     }
+    mgmtDecTableRef(pTable);
   }
 
-  mTrace("db:%s, all child tables:%d is dropped from sdb", pDropDb->name, numOfTables);
+  mPrint("db:%s, all child tables:%d is dropped from sdb", pDropDb->name, numOfTables);
 }
 
 static void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable) {
@@ -1707,12 +1710,11 @@ static void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable) {
   int32_t numOfTables = 0;
   SChildTableObj *pTable = NULL;
 
+  mPrint("stable:%s, all child tables will dropped from sdb", pStable->info.tableId, numOfTables);
+
   while (1) {
-    mgmtDecTableRef(pTable);
     pNode = sdbFetchRow(tsChildTableSdb, pNode, (void **)&pTable);
-    if (pTable == NULL) {
-      break;
-    }
+    if (pTable == NULL) break;
 
     if (pTable->superTable == pStable) {
       SSdbOper oper = {
@@ -1723,11 +1725,12 @@ static void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable) {
       sdbDeleteRow(&oper);
       pNode = pLastNode;
       numOfTables++;
-      continue;
     }
+
+    mgmtDecTableRef(pTable);
   }
 
-  mTrace("stable:%s, all child tables:%d is dropped from sdb", pStable->info.tableId, numOfTables);
+  mPrint("stable:%s, all child tables:%d is dropped from sdb", pStable->info.tableId, numOfTables);
 }
 
 static SChildTableObj* mgmtGetTableByPos(uint32_t dnodeId, int32_t vnode, int32_t sid) {

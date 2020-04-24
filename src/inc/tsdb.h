@@ -146,7 +146,7 @@ typedef struct STsdbQueryCond {
   STimeWindow      twindow;
   int32_t          order;  // desc/asc order to iterate the data block
   int32_t          numOfCols;
-  SColumnInfoData *colList;
+  SColumnInfo     *colList;
 } STsdbQueryCond;
 
 typedef struct SBlockInfo {

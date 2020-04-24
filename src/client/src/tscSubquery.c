@@ -190,10 +190,10 @@ void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter) {
     return;
   }
 
-  tscSqlExprInfoDestroy(&pSupporter->exprsInfo);
-  tscColumnBaseInfoDestroy(&pSupporter->colList);
+  tscSqlExprInfoDestroy(pSupporter->exprsInfo);
+  tscColumnListDestroy(pSupporter->colList);
 
-  tscClearFieldInfo(&pSupporter->fieldsInfo);
+  tscFieldInfoClear(&pSupporter->fieldsInfo);
 
   if (pSupporter->f != NULL) {
     fclose(pSupporter->f);
@@ -211,8 +211,10 @@ void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter) {
  *
  */
 bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
-  for (int32_t i = 0; i < pQueryInfo->colList.numOfCols; ++i) {
-    SColumnBase* pBase = tscColumnBaseInfoGet(&pQueryInfo->colList, i);
+  size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
+  
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumn* pBase = taosArrayGet(pQueryInfo->colList, i);
     if (pBase->colIndex.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       return true;
     }
@@ -236,7 +238,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
     pSupporter = pSql->pSubs[i]->param;
-    if (pSupporter->exprsInfo.numOfExprs > 0) {
+    if (taosArrayGetSize(pSupporter->exprsInfo) > 0) {
       ++numOfSub;
     }
   }
@@ -262,7 +264,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     
     pSupporter = pPrevSub->param;
   
-    if (pSupporter->exprsInfo.numOfExprs == 0) {
+    if (taosArrayGetSize(pSupporter->exprsInfo) == 0) {
       tscTrace("%p subIndex: %d, not need to launch query, ignore it", pSql, i);
     
       tscDestroyJoinSupporter(pSupporter);
@@ -277,7 +279,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pSubQueryInfo->tsBuf = NULL;
   
     // free result for async object will also free sqlObj
-    assert(pSubQueryInfo->exprsInfo.numOfExprs == 1); // ts_comp query only requires one resutl columns
+    assert(tscSqlExprNumOfExprs(pSubQueryInfo) == 1); // ts_comp query only requires one resutl columns
     taos_free_result(pPrevSub);
   
     SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
@@ -299,27 +301,27 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pQueryInfo->intervalTime = pSupporter->interval;
     pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
   
-    tscColumnBaseInfoCopy(&pQueryInfo->colList, &pSupporter->colList, 0);
+    tscColumnListCopy(pQueryInfo->colList, pSupporter->colList, 0);
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
   
-    tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid, false);
-    tscFieldInfoCopyAll(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
+    pQueryInfo->exprsInfo = tscSqlExprCopy(pSupporter->exprsInfo, pSupporter->uid, false);
+    tscFieldInfoCopy(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
     
-    pSupporter->exprsInfo.numOfExprs = 0;
-    pSupporter->fieldsInfo.numOfOutputCols = 0;
+    pSupporter->fieldsInfo.numOfOutput = 0;
     
     /*
      * if the first column of the secondary query is not ts function, add this function.
      * Because this column is required to filter with timestamp after intersecting.
      */
-    if (pSupporter->exprsInfo.pExprs[0]->functionId != TSDB_FUNC_TS) {
+    SSqlExpr* pExpr = taosArrayGet(pSupporter->exprsInfo, 0);
+    if (pExpr->functionId != TSDB_FUNC_TS) {
       tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
     }
   
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
   
-    tscFieldInfoCalOffset(pNewQueryInfo);
+    tscFieldInfoUpdateOffset(pNewQueryInfo);
   
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
   
@@ -342,10 +344,11 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   
     tscPrintSelectClause(pNew, 0);
   
+    size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
     tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
-             pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
-             pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
+             taosArrayGetSize(pNewQueryInfo->exprsInfo), numOfCols,
+             pNewQueryInfo->fieldsInfo.numOfOutput, pNewQueryInfo->pTableMetaInfo[0]->name);
   }
   
   //prepare the subqueries object failed, abort
@@ -413,10 +416,10 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter
 
 // update the query time range according to the join results on timestamp
 static void updateQueryTimeRange(SQueryInfo* pQueryInfo, int64_t st, int64_t et) {
-  assert(pQueryInfo->stime <= st && pQueryInfo->etime >= et);
+  assert(pQueryInfo->window.skey <= st && pQueryInfo->window.ekey >= et);
 
-  pQueryInfo->stime = st;
-  pQueryInfo->etime = et;
+  pQueryInfo->window.skey = st;
+  pQueryInfo->window.ekey = et;
 }
 
 static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
@@ -688,9 +691,9 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * pQueryInfo->fieldsInfo.numOfOutputCols);
+  pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * pQueryInfo->fieldsInfo.numOfOutput);
 
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
 
     int32_t tableIndexOfSub = -1;
@@ -707,7 +710,8 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     SSqlCmd* pSubCmd = &pSql->pSubs[tableIndexOfSub]->cmd;
     SQueryInfo* pSubQueryInfo = tscGetQueryInfoDetail(pSubCmd, 0);
     
-    for (int32_t k = 0; k < pSubQueryInfo->exprsInfo.numOfExprs; ++k) {
+    size_t numOfExprs = taosArrayGetSize(pSubQueryInfo->exprsInfo);
+    for (int32_t k = 0; k < numOfExprs; ++k) {
       SSqlExpr* pSubExpr = tscSqlExprGet(pSubQueryInfo, k);
       if (pExpr->functionId == pSubExpr->functionId && pExpr->colInfo.colId == pSubExpr->colInfo.colId) {
         pRes->pColumnIndex[i] = (SColumnIndex){.tableIndex = tableIndexOfSub, .columnIndex = k};
@@ -722,11 +726,6 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   //  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
   //  int32_t idx = pSql->cmd.vnodeIdx;
-
-  //  SVnodeSidList *vnodeInfo = NULL;
-  //  if (pTableMetaInfo->pMetricMeta != NULL) {
-  //    vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx - 1);
-  //  }
 
   SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)param;
 
@@ -850,11 +849,17 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNewQueryInfo != NULL);
     
-    tscColumnBaseInfoUpdateTableIndex(&pNewQueryInfo->colList, 0);
-    tscColumnBaseInfoCopy(&pSupporter->colList, &pNewQueryInfo->colList, 0);
+    // update the table index
+    size_t num = taosArrayGetSize(pNewQueryInfo->colList);
+    for (int32_t i = 0; i < num; ++i) {
+      SColumn* pCol = taosArrayGetP(pNewQueryInfo->colList, i);
+      pCol->colIndex.tableIndex = 0;
+    }
     
-    tscSqlExprCopy(&pSupporter->exprsInfo, &pNewQueryInfo->exprsInfo, pSupporter->uid, false);
-    tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);
+    tscColumnListCopy(pSupporter->colList, pNewQueryInfo->colList, 0);
+  
+    pSupporter->exprsInfo = tscSqlExprCopy(pNewQueryInfo->exprsInfo, pSupporter->uid, false);
+    tscFieldInfoCopy(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);
     
     tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond);
     
@@ -867,8 +872,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
     
     // this data needs to be transfer to support struct
-    pNewQueryInfo->fieldsInfo.numOfOutputCols = 0;
-    pNewQueryInfo->exprsInfo.numOfExprs = 0;
+    pNewQueryInfo->fieldsInfo.numOfOutput = 0;
     
     // set the ts,tags that involved in join, as the output column of intermediate result
     tscClearSubqueryInfo(&pNew->cmd);
@@ -888,27 +892,26 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     pExpr->numOfParams = 1;
     
     // add the filter tag column
-    for (int32_t i = 0; i < pSupporter->colList.numOfCols; ++i) {
-      SColumnBase *pColBase = &pSupporter->colList.pColList[i];
-      if (pColBase->numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
-        tscColumnBaseCopy(&pNewQueryInfo->colList.pColList[pNewQueryInfo->colList.numOfCols], pColBase);
-        pNewQueryInfo->colList.numOfCols++;
+    size_t s = taosArrayGetSize(pSupporter->colList);
+    
+    for (int32_t i = 0; i < s; ++i) {
+      SColumn *pCol = taosArrayGetP(pSupporter->colList, i);
+      
+      if (pCol->numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
+        SColumn* p = tscColumnClone(pCol);
+        taosArrayPush(pNewQueryInfo->colList, &p);
       }
     }
-    
+  
+    size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
+  
     tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
              "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
              pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
-             pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
-             pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
+             tscSqlExprNumOfExprs(pNewQueryInfo), numOfCols,
+             pNewQueryInfo->fieldsInfo.numOfOutput, pNewQueryInfo->pTableMetaInfo[0]->name);
     tscPrintSelectClause(pNew, 0);
-    
-    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
-             "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
-             pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
-             pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
-             pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pTableMetaInfo[0]->name);
-    tscPrintSelectClause(pNew, 0);
+
   } else {
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
@@ -1352,7 +1355,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     }
 
 #ifdef _DEBUG_VIEW
-    printf("received data from vnode: %d rows\n", pRes->numOfRows);
+    printf("received data from vnode: %"PRIu64" rows\n", pRes->numOfRows);
     SSrcColumnInfo colInfo[256] = {0};
 
     tscGetSrcColumnInfo(colInfo, pQueryInfo);

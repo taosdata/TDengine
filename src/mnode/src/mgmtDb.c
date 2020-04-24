@@ -884,6 +884,8 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
   SDbObj *pDb = NULL;
   void *  pNode = NULL;
 
+  mPrint("acct:%s, all dbs will be dropped from sdb", pAcct->user);
+
   while (1) {
     pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
     if (pDb == NULL) break;
@@ -902,5 +904,5 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
     mgmtDecDbRef(pDb);
   }
 
-  mTrace("acct:%s, all dbs is is dropped from sdb", pAcct->user, numOfDbs);
+  mPrint("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
 }

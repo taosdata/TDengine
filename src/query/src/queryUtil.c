@@ -217,11 +217,11 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
     return;
   }
   
-  for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutput; ++i) {
     SResultInfo *pResultInfo = &pWindowRes->resultInfo[i];
     
     char * s = getPosInResultPage(pRuntimeEnv, i, pWindowRes);
-    size_t size = pRuntimeEnv->pQuery->pSelectExpr[i].resBytes;
+    size_t size = pRuntimeEnv->pQuery->pSelectExpr[i].bytes;
     memset(s, 0, size);
     
     resetResultInfo(pResultInfo);
@@ -245,7 +245,7 @@ void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *dst, con
   dst->window = src->window;
   dst->status = src->status;
   
-  int32_t nOutputCols = pRuntimeEnv->pQuery->numOfOutputCols;
+  int32_t nOutputCols = pRuntimeEnv->pQuery->numOfOutput;
   
   for (int32_t i = 0; i < nOutputCols; ++i) {
     SResultInfo *pDst = &dst->resultInfo[i];
@@ -261,7 +261,7 @@ void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *dst, con
     // copy the output buffer data from src to dst, the position info keep unchanged
     char * dstBuf = getPosInResultPage(pRuntimeEnv, i, dst);
     char * srcBuf = getPosInResultPage(pRuntimeEnv, i, (SWindowResult *)src);
-    size_t s = pRuntimeEnv->pQuery->pSelectExpr[i].resBytes;
+    size_t s = pRuntimeEnv->pQuery->pSelectExpr[i].bytes;
     
     memcpy(dstBuf, srcBuf, s);
   }
