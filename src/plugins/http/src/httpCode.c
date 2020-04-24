@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
+
+
 char* httpMsg[] = {
     "success",                                 // 0
     "http server is not online",               // 1

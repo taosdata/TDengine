@@ -13,11 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "gcHandle.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "cJSON.h"
+#include "httpLog.h"
+#include "gcHandle.h"
 #include "gcJson.h"
 #include "taosdef.h"
-#include "httpLog.h"
 
 static HttpDecodeMethod gcDecodeMethod = {"grafana", gcProcessRequest};
 static HttpEncodeMethod gcHeartBeatMethod = {NULL, gcSendHeartBeatResp, NULL, NULL, NULL, NULL, NULL, NULL};

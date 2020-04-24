@@ -13,14 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "httpResp.h"
-#include <stdio.h>
-#include <string.h>
-#include "httpCode.h"
-#include "httpJson.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "taoserror.h"
 #include "taosmsg.h"
 #include "httpLog.h"
-#include "taoserror.h"
+#include "httpResp.h"
+#include "httpCode.h"
+#include "httpJson.h"
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};
 

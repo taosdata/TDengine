@@ -13,15 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "tmd5.h"
+#include "shash.h"
+#include "taos.h"
 #include "http.h"
+#include "httpLog.h"
 #include "httpCode.h"
 #include "httpHandle.h"
 #include "httpResp.h"
-#include "shash.h"
-#include "taos.h"
-#include "httpLog.h"
 
 bool httpCheckUsedbSql(char *sql) {
   if (strstr(sql, "use ") != NULL) {
