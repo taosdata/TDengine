@@ -1,22 +1,26 @@
-/*******************************************************************
-*           Copyright (c) 2017 by TAOS Technologies, Inc.
-*                     All rights reserved.
-*
-*  This file is proprietary and confidential to TAOS Technologies.
-*  No part of this file may be reproduced, stored, transmitted,
-*  disclosed or used in any form or by any means other than as
-*  expressly provided by the written permission from Jianhui Tao
-*
-* ****************************************************************/
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tlog.h"
 #include "taosmsg.h"
+#include "httpLog.h"
 #include "httpJson.h"
 #include "httpResp.h"
 #include "opHandle.h"
 #include "opJson.h"
-#include "httpLog.h"
 
 void opInitPutDetailJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
