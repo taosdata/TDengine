@@ -44,9 +44,8 @@ const char *httpRespTemplate[] = {
     "%s 200 OK\r\nAccess-Control-Allow-Origin:*\r\n%sAccess-Control-Allow-Methods:POST, GET, OPTIONS, DELETE, PUT\r\nAccess-Control-Allow-Headers:Accept, Content-Type\r\nContent-Type: application/json;charset=utf-8\r\nContent-Length: %d\r\n\r\n"
 };
 
-void httpSendErrorRespImp(HttpContext *pContext, int httpCode, char *httpCodeStr, int errNo, char *desc) {
-  httpError("context:%p, fd:%d, ip:%s, code:%d, error:%d:%s", pContext, pContext->fd, pContext->ipstr, httpCode, errNo,
-            desc);
+static void httpSendErrorRespImp(HttpContext *pContext, int httpCode, char *httpCodeStr, int errNo, char *desc) {
+  httpError("context:%p, fd:%d, ip:%s, code:%d, error:%s", pContext, pContext->fd, pContext->ipstr, httpCode, desc);
 
   char head[512] = {0};
   char body[512] = {0};
@@ -184,7 +183,7 @@ void httpSendErrorResp(HttpContext *pContext, int errNo) { httpSendErrorRespWith
 
 void httpSendTaosdErrorResp(HttpContext *pContext, int errCode) {
   int httpCode = 400;
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", errCode, (char*)tstrerror(errCode));
+  httpSendErrorRespImp(pContext, httpCode, "Bad Request", 1000, (char*)tstrerror(errCode));
 }
 
 void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg) {
