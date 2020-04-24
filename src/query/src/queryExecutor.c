@@ -111,7 +111,7 @@ static void getNextTimeWindow(SQuery *pQuery, STimeWindow *pTimeWindow);
 static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void *inputData, TSKEY *tsCol, int32_t size,
                           int32_t functionId, SDataStatis *pStatis, bool hasNull, void *param, int32_t scanFlag);
 static void initCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv);
-static void destroyMeterQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols);
+static void destroyTableQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols);
 static void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv);
 static bool hasMainOutput(SQuery *pQuery);
 static void createTableDataInfo(SQInfo *pQInfo);
@@ -3478,7 +3478,7 @@ STableQueryInfo *createTableQueryInfo(SQueryRuntimeEnv *pRuntimeEnv, int32_t tid
   return pTableQueryInfo;
 }
 
-UNUSED_FUNC void destroyMeterQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols) {
+void destroyTableQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols) {
   if (pTableQueryInfo == NULL) {
     return;
   }
@@ -4186,8 +4186,11 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, bool isSTableQuery)
       .colList = pQuery->colList,
       .numOfCols = pQuery->numOfCols,
   };
-
-  pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->groupInfo);
+  
+  if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
+    pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->groupInfo);
+  }
+  
   pQInfo->tsdb = tsdb;
 
   pRuntimeEnv->pQuery = pQuery;
@@ -4410,8 +4413,15 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
   STableGroupInfo gp = {.numOfTables = 1, .pGroupList = g1};
 
   // include only current table
+  if (pRuntimeEnv->pQueryHandle != NULL) {
+    tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
+    pRuntimeEnv->pQueryHandle = NULL;
+  }
+  
   pRuntimeEnv->pQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &gp);
-
+  taosArrayDestroy(tx);
+  taosArrayDestroy(g1);
+  
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pRuntimeEnv->cur.vnodeIndex == -1) {
       int64_t tag = pRuntimeEnv->pCtx[0].tag.i64Key;
@@ -5760,14 +5770,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
     pColInfo->filters = tscFilterInfoClone(pQueryMsg->colList[i].filters, pColInfo->numOfFilters);
   }
   
-  pQuery->tagColList = calloc(pQueryMsg->numOfTags, sizeof(SColumnInfo));
-  if (pQuery->tagColList == NULL) {
-    goto _cleanup;
-  }
-  
-  for(int16_t i = 0; i < pQuery->numOfTags; ++i) {
-    pQuery->tagColList[i] = pTagCols[i];
-  }
+  pQuery->tagColList = pTagCols;
   
   // calculate the result row size
   for (int16_t col = 0; col < numOfOutput; ++col) {
@@ -5930,10 +5933,6 @@ static void freeQInfo(SQInfo *pQInfo) {
     }
   }
 
-  tfree(pQuery->pFilterInfo);
-  tfree(pQuery->colList);
-  tfree(pQuery->sdata);
-
   if (pQuery->pSelectExpr != NULL) {
     for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
       SExprInfo *pBinExprInfo = &pQuery->pSelectExpr[i].binExprInfo;
@@ -5951,17 +5950,35 @@ static void freeQInfo(SQInfo *pQInfo) {
     tfree(pQuery->defaultVal);
   }
 
-  tfree(pQuery->pGroupbyExpr);
-  tfree(pQuery);
-
+  // todo refactor, extract method to destroytableDataInfo
   int32_t numOfGroups = taosArrayGetSize(pQInfo->groupInfo.pGroupList);
   for (int32_t i = 0; i < numOfGroups; ++i) {
     SArray *p = taosArrayGetP(pQInfo->groupInfo.pGroupList, i);
+    
+    size_t num = taosArrayGetSize(p);
+    for(int32_t j = 0; j < num; ++j) {
+      SPair* pair = taosArrayGet(p, j);
+      if (pair->sec != NULL) {
+        destroyTableQueryInfo(((STableDataInfo*)pair->sec)->pTableQInfo, pQuery->numOfOutput);
+        tfree(pair->sec);
+      }
+    }
     taosArrayDestroy(p);
   }
-
+  
+  if (pQuery->pGroupbyExpr != NULL) {
+    taosArrayDestroy(pQuery->pGroupbyExpr->columnInfo);
+    tfree(pQuery->pGroupbyExpr);
+  }
+  
+  tfree(pQuery->tagColList);
+  tfree(pQuery->pFilterInfo);
+  tfree(pQuery->colList);
+  tfree(pQuery->sdata);
+  
   taosArrayDestroy(pQInfo->groupInfo.pGroupList);
-
+  tfree(pQuery);
+  
   qTrace("QInfo:%p QInfo is freed", pQInfo);
 
   // destroy signature, in order to avoid the query process pass the object safety check
@@ -6036,8 +6053,8 @@ int32_t qCreateQueryInfo(void *tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
   SColIndex *   pGroupColIndex = NULL;
   SColumnInfo*  pTagColumnInfo = NULL;
 
-  if ((code = convertQueryMsg(pQueryMsg, &pTableIdList, &pExprMsg, &tagCond,
-      &pGroupColIndex, &pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
+  if ((code = convertQueryMsg(pQueryMsg, &pTableIdList, &pExprMsg, &tagCond, &pGroupColIndex, &pTagColumnInfo)) !=
+         TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -6096,7 +6113,7 @@ int32_t qCreateQueryInfo(void *tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
 
 _query_over:
   taosArrayDestroy(pTableIdList);
-
+  
   // if failed to add ref for all meters in this query, abort current query
   //  atomic_fetch_add_32(&vnodeSelectReqNum, 1);
   return TSDB_CODE_SUCCESS;

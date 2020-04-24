@@ -108,7 +108,7 @@ typedef struct STableQueryInfo {
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
 
-typedef struct STableDataInfo {
+typedef struct STableDataInfo {  // todo merge with the STableQueryInfo struct
   int32_t          tableIndex;
   int32_t          groupIdx;  // group id in table list
   STableQueryInfo* pTableQInfo;
