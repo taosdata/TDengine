@@ -316,6 +316,9 @@ class CTaosInterface(object):
         blocks = [None] * len(fields)
         for i in range(len(fields)):
             data = ctypes.cast(pblock, ctypes.POINTER(ctypes.c_void_p))[i]
+            if data == None:
+                blocks[i] = [None] * num_of_rows
+                continue
 
             if fields[i]['type'] not in _CONVERT_FUNC:
                 raise DatabaseError("Invalid data type returned from database")
