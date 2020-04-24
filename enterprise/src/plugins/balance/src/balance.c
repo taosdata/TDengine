@@ -452,7 +452,6 @@ static bool balanceMontiorDropping() {
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
       return balanceMonitorDnodeDropping(pDnode);
     }
-
   }
 
   return false;
@@ -508,19 +507,24 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   tsAccessSquence ++;
 
   balanceCheckDnodeAccess();  
+  bool updateSoon = false;
 
   if (handle == NULL) {
     if (tsAccessSquence % tsBalanceStartInterval == 0) {
       mTrace("balance function is scheduled by timer");
-      balanceStart();
+      updateSoon = balanceStart();
     }
   } else {
     int64_t mseconds = (int64_t)handle;
     mTrace("balance function is scheduled by event for %d mseconds arrived", mseconds);
-    balanceStart();
+    updateSoon = balanceStart();
   }
 
-  taosTmrReset(balanceProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, tsMgmtTmr, &tsBalanceTimer);
+  if (updateSoon) {
+    balanceStartTimer(1000);
+  } else {
+    taosTmrReset(balanceProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, tsMgmtTmr, &tsBalanceTimer);
+  }
 }
 
 static void balanceStartTimer(int64_t mseconds) {
