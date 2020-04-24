@@ -106,9 +106,9 @@ static int32_t mgmtChildTableActionInsert(SSdbOper *pOper) {
   }
   mgmtDecDbRef(pDb);
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
   if (pAcct == NULL) {
-    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->cfg.acct);
+    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
     return TSDB_CODE_INVALID_ACCT;
   }
   mgmtDecAcctRef(pAcct);
@@ -148,9 +148,9 @@ static int32_t mgmtChildTableActionDelete(SSdbOper *pOper) {
   }
   mgmtDecDbRef(pDb);
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
   if (pAcct == NULL) {
-    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->cfg.acct);
+    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
     return TSDB_CODE_INVALID_ACCT;
   }
   mgmtDecAcctRef(pAcct);
@@ -929,7 +929,7 @@ static int32_t mgmtAddSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, SSc
   pStable->numOfColumns += ncols;
   pStable->sversion++;
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
   if (pAcct != NULL) {
     pAcct->acctInfo.numOfTimeSeries += (ncols * pStable->numOfTables);
     mgmtDecAcctRef(pAcct);
@@ -966,7 +966,7 @@ static int32_t mgmtDropSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, ch
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
   pStable->schema = realloc(pStable->schema, schemaSize);
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
   if (pAcct != NULL) {
     pAcct->acctInfo.numOfTimeSeries -= pStable->numOfTables;
     mgmtDecAcctRef(pAcct);
@@ -1505,7 +1505,7 @@ static int32_t mgmtAddNormalTableColumn(SDbObj *pDb, SChildTableObj *pTable, SSc
   pTable->numOfColumns += ncols;
   pTable->sversion++;
   
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
   if (pAcct != NULL) {
      pAcct->acctInfo.numOfTimeSeries += ncols;
     mgmtDecAcctRef(pAcct);
@@ -1539,7 +1539,7 @@ static int32_t mgmtDropNormalTableColumn(SDbObj *pDb, SChildTableObj *pTable, ch
   pTable->numOfColumns--;
   pTable->sversion++;
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
   if (pAcct != NULL) {
     pAcct->acctInfo.numOfTimeSeries--;
     mgmtDecAcctRef(pAcct);
