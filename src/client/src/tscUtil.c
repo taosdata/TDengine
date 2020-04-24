@@ -947,7 +947,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
 }
 
 static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t interSize) {
+    int16_t size, int16_t interSize, bool isTagCol) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   
   SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
@@ -958,21 +958,18 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
   } else {
-    SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
-    pExpr->colInfo.colId = pSchema->colId;
-  }
-  
-  // tag columns require the column index revised.
-  int16_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-  if (pColIndex->columnIndex >= numOfCols) {
-    pExpr->colInfo.flag = TSDB_COL_TAG;
-  } else {
-    if (pColIndex->columnIndex != TSDB_TBNAME_COLUMN_INDEX) {
-      pExpr->colInfo.flag = TSDB_COL_NORMAL;
+    if (isTagCol) {
+      SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+      pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
+      strncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, TSDB_COL_NAME_LEN);
     } else {
-      pExpr->colInfo.flag = TSDB_COL_TAG;
+      SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
+      pExpr->colInfo.colId = pSchema->colId;
+      strncpy(pExpr->colInfo.name, pSchema->name, TSDB_COL_NAME_LEN);
     }
   }
+  
+  pExpr->colInfo.flag = isTagCol? TSDB_COL_TAG:TSDB_COL_NORMAL;
   
   pExpr->colInfo.colIndex = pColIndex->columnIndex;
   pExpr->resType       = type;
@@ -984,20 +981,20 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
 }
 
 SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t interSize) {
+                           int16_t size, int16_t interSize, bool isTagCol) {
   int32_t num = taosArrayGetSize(pQueryInfo->exprsInfo);
   if (index == num) {
-    return tscSqlExprAppend(pQueryInfo, functionId, pColIndex, type, size, interSize);
+    return tscSqlExprAppend(pQueryInfo, functionId, pColIndex, type, size, interSize, isTagCol);
   }
   
-  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize);
+  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize, isTagCol);
   taosArrayInsert(pQueryInfo->exprsInfo, index, &pExpr);
   return pExpr;
 }
 
 SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t interSize) {
-  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize);
+    int16_t size, int16_t interSize, bool isTagCol) {
+  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize, isTagCol);
   taosArrayPush(pQueryInfo->exprsInfo, &pExpr);
   return pExpr;
 }
@@ -1431,9 +1428,9 @@ void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo) {
 
     if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
       SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-      int16_t  actualTagIndex = pTableMetaInfo->tagColumnIndex[pExpr->colInfo.colIndex];
-
-      pColInfo[i].type = (actualTagIndex != -1) ? pTagSchema[actualTagIndex].type : TSDB_DATA_TYPE_BINARY;
+      
+      int16_t index = pExpr->colInfo.colIndex;
+      pColInfo[i].type = (index != -1) ? pTagSchema[index].type : TSDB_DATA_TYPE_BINARY;
     } else {
       pColInfo[i].type = pSchema[pExpr->colInfo.colIndex].type;
     }
@@ -1645,7 +1642,7 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
 }
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
-                                    SVgroupsInfo* vgroupList, int16_t numOfTags, int16_t* tags) {
+                                    SVgroupsInfo* vgroupList, SArray* pTagCols) {
   void* pAlloc = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (pAlloc == NULL) {
     return NULL;
@@ -1663,7 +1660,6 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
-  pTableMetaInfo->numOfTags = numOfTags;
   
   if (vgroupList != NULL) {
     assert(vgroupList->numOfVgroups == 1);  // todo fix me
@@ -1674,16 +1670,18 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
     memcpy(pTableMetaInfo->vgroupList, vgroupList, size);
   }
 
-  if (tags != NULL) {
-    memcpy(pTableMetaInfo->tagColumnIndex, tags, sizeof(pTableMetaInfo->tagColumnIndex[0]) * numOfTags);
+  if (pTagCols == NULL) {
+    pTableMetaInfo->tagColList = taosArrayInit(4, sizeof(SColumnIndex));
+  } else {
+    pTableMetaInfo->tagColList = taosArrayClone(pTagCols);
   }
-
+  
   pQueryInfo->numOfTables += 1;
   return pTableMetaInfo;
 }
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo* pQueryInfo) {
-  return tscAddTableMetaInfo(pQueryInfo, NULL, NULL, NULL, 0, NULL);
+  return tscAddTableMetaInfo(pQueryInfo, NULL, NULL, NULL, NULL);
 }
 
 void doRemoveTableMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFromCache) {
@@ -1857,17 +1855,15 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   if (pPrevSql == NULL) {
     STableMeta* pTableMeta = taosCacheAcquireByName(tscCacheHandle, name);
 
-    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->numOfTags,
-                                     pTableMetaInfo->tagColumnIndex);
+    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->tagColList);
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
     STableMeta*  pPrevTableMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
+    
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
     pPrevInfo->vgroupList = NULL;
-    
-    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->numOfTags,
-                                     pTableMetaInfo->tagColumnIndex);
+    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList);
   }
 
   assert(pFinalInfo->pTableMeta != NULL && pNewQueryInfo->numOfTables == 1);

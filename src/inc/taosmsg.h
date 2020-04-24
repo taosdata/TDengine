@@ -479,6 +479,7 @@ typedef struct {
   int32_t     tsLen;          // total length of ts comp block
   int32_t     tsNumOfBlocks;  // ts comp block numbers
   int32_t     tsOrder;        // ts comp block order
+  int32_t     numOfTags;      // number of tags columns involved
   SColumnInfo colList[];
 } SQueryTableMsg;
 

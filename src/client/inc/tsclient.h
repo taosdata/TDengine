@@ -78,8 +78,7 @@ typedef struct STableMetaInfo {
    */
   int32_t vgroupIndex;
   char    name[TSDB_TABLE_ID_LEN];        // (super) table name
-  int16_t numOfTags;                      // total required tags in query, including groupby tags
-  int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
+  SArray* tagColList;                     // involved tag columns
 } STableMetaInfo;
 
 /* the structure for sql function in select clause */
@@ -221,7 +220,7 @@ typedef struct SQueryInfo {
   int64_t          clauseLimit;  // limit for current sub clause
 
   // offset value in the original sql expression, NOT sent to virtual node, only applied at client side
-  int64_t prjOffset;
+  int64_t          prjOffset;
 } SQueryInfo;
 
 typedef struct {
