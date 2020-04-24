@@ -13,21 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
-#include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
-#include "httpResp.h"
-#include "shash.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "taos.h"
 #include "tglobal.h"
 #include "tsocket.h"
 #include "ttimer.h"
+#include "shash.h"
+#include "http.h"
 #include "httpLog.h"
+#include "httpCode.h"
+#include "httpHandle.h"
+#include "httpResp.h"
 
 void httpToLowerUrl(char* url) {
   /*ignore case */

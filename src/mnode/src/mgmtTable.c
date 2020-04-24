@@ -1218,7 +1218,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
- mTrace("drop stable rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
+ mTrace("drop stable rsp received, handle:%p code:%s", rpcMsg->handle, tstrerror(rpcMsg->code));
 }
 
 static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
@@ -1876,7 +1876,7 @@ static void mgmtProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
 // not implemented yet
 static void mgmtProcessAlterTableRsp(SRpcMsg *rpcMsg) {
-  mTrace("alter table rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
+  mTrace("alter table rsp received, handle:%p code:%s", rpcMsg->handle, tstrerror(rpcMsg->code));
 }
 
 static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {

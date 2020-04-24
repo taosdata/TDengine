@@ -364,7 +364,7 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
 }
 
 static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  *spi = 0;
+  *spi = 1;
   *encrypt = 0;
   *ckey = 0;
 

@@ -13,13 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosmsg.h"
+#include "httpLog.h"
 #include "httpJson.h"
 #include "httpResp.h"
-#include "taosmsg.h"
 #include "tgHandle.h"
 #include "tgJson.h"
-#include "httpLog.h"
 
 void tgInitQueryJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
@@ -97,8 +98,8 @@ void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect
 
 bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace("context:%p, fd:%d, ip:%s, check telegraf command, code:%d, state:%d, type:%d, rettype:%d, tags:%d",
-            pContext, pContext->fd, pContext->ipstr, code, cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
+  httpTrace("context:%p, fd:%d, ip:%s, check telegraf command, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
+            pContext, pContext->fd, pContext->ipstr, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
 
   if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
     if (cmd->cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
@@ -124,11 +125,11 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
     }
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_DB) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%d, create database failed", pContext, pContext->fd, pContext->ipstr,
-              code);
+    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
+              tstrerror(code));
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%d, create stable failed", pContext, pContext->fd, pContext->ipstr, code);
+    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
   } else {
   }
 
@@ -137,8 +138,8 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
 
 void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace("context:%p, fd:%d, ip:%s, get telegraf next command, pos:%d, code:%d, state:%d, type:%d, rettype:%d, tags:%d",
-            pContext, pContext->fd, pContext->ipstr, multiCmds->pos, code, cmd->cmdState, cmd->cmdType,
+  httpTrace("context:%p, fd:%d, ip:%s, get telegraf next command, pos:%d, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
+            pContext, pContext->fd, pContext->ipstr, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType,
             cmd->cmdReturnType, cmd->tagNum);
 
   if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
