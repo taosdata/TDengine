@@ -798,6 +798,7 @@ static void tSQLBinaryTraverseOnSkipList(
       taosArrayPush(pResult, SL_GET_NODE_DATA(pNode));
     }
   }
+  tSkipListDestroyIter(iter);
 }
 
 
@@ -825,6 +826,8 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
       taosArrayPush(result, (void*)&table);
     }
   }
+
+  tSkipListDestroyIter(iter);
 }
 
 

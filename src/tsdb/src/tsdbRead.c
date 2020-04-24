@@ -1436,6 +1436,7 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr)
 
   convertQueryResult(pRes, pTableList);
   taosArrayDestroy(pTableList);
+  free(schema);
   return TSDB_CODE_SUCCESS;
 }
 
