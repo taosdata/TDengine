@@ -1383,8 +1383,13 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     
     int32_t index = pSqlFuncMsg->colInfo.colIndex;
     if (TSDB_COL_IS_TAG(pIndex->flag)) {
-      pCtx->inputBytes = pQuery->tagColList[index].bytes;
-      pCtx->inputType = pQuery->tagColList[index].type;
+      if (pIndex->colId == TSDB_TBNAME_COLUMN_INDEX) {
+        pCtx->inputBytes = TSDB_TABLE_NAME_LEN;
+        pCtx->inputType = TSDB_DATA_TYPE_BINARY;
+      } else {
+        pCtx->inputBytes = pQuery->tagColList[index].bytes;
+        pCtx->inputType = pQuery->tagColList[index].type;
+      }
     } else {
       pCtx->inputBytes = pQuery->colList[index].bytes;
       pCtx->inputType = pQuery->colList[index].type;
@@ -2503,8 +2508,19 @@ static void doSetTagValueInParam(void *tsdb, STableId id, int32_t tagColId, tVar
   int16_t bytes = 0;
   int16_t type = 0;
 
-  tsdbGetTableTagVal(tsdb, id, tagColId, &type, &bytes, &val);
+  if (tagColId == TSDB_TBNAME_COLUMN_INDEX) {
+    tsdbTableGetName(tsdb, id, &val);
+    bytes = TSDB_TABLE_NAME_LEN;
+    type = TSDB_DATA_TYPE_BINARY;
+  } else {
+    tsdbGetTableTagVal(tsdb, id, tagColId, &type, &bytes, &val);
+  }
+  
   tVariantCreateFromBinary(param, val, bytes, type);
+  
+  if (tagColId == TSDB_TBNAME_COLUMN_INDEX) {
+    tfree(val);
+  }
 }
 
 void setTagVal(SQueryRuntimeEnv *pRuntimeEnv, STableId id, void *tsdb) {
@@ -5515,9 +5531,12 @@ static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SArithExp
         return code;
       }
 
-      type = TSDB_DATA_TYPE_DOUBLE;
+      type  = TSDB_DATA_TYPE_DOUBLE;
       bytes = tDataTypeDesc[type].nSize;
-    } else {  // parse the normal column
+    } else if (pExprs[i].pBase.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {  // parse the normal column
+      type  = TSDB_DATA_TYPE_BINARY;
+      bytes = TSDB_TABLE_NAME_LEN;
+    } else{
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].pBase, pTagCols);
       assert(j < pQueryMsg->numOfCols);
 
