@@ -63,7 +63,7 @@ class TDSql:
     def checkRows(self, expectRows):
         if self.queryRows != expectRows:
             tdLog.exit(
-                "sql:%.40s, queryRows:%d != expect:%d" %
+                "failed: sql:%.40s, queryRows:%d != expect:%d" %
                 (self.sql, self.queryRows, expectRows))
         tdLog.info("sql:%.40s, queryRows:%d == expect:%d" %
                    (self.sql, self.queryRows, expectRows))

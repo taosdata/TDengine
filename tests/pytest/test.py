@@ -100,12 +100,15 @@ if __name__ == "__main__":
             tdDnodes.deploy(1)
             tdDnodes.start(1)
             conn = taos.connect(
-                host='192.168.0.1',
+                host='127.0.0.1',
                 config=tdDnodes.getSimCfgPath())
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
-                tdCases.runOneLinux(conn, fileName)
+                try:
+                    tdCases.runOneLinux(conn, fileName)
+                except Exception as e:
+                    tdLog.exit("failed: %s" % fileName)
             conn.close()
     else:
         tdLog.notice("Procedures for tdengine deployed in %s" % (masterIp))
