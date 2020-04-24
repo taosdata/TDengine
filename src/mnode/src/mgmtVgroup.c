@@ -71,14 +71,14 @@ static int32_t mgmtVgroupActionInsert(SSdbOper *pOper) {
   pVgroup->prev = NULL;
   pVgroup->next = NULL;
 
-  int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxSessions;
-  pVgroup->tableList = calloc(pDb->cfg.maxSessions, sizeof(SChildTableObj *));
+  int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
+  pVgroup->tableList = calloc(pDb->cfg.maxTables, sizeof(SChildTableObj *));
   if (pVgroup->tableList == NULL) {
     mError("vgroup:%d, failed to malloc(size:%d) for the tableList of vgroups", pVgroup->vgId, size);
     return -1;
   }
 
-  pVgroup->idPool = taosInitIdPool(pDb->cfg.maxSessions);
+  pVgroup->idPool = taosInitIdPool(pDb->cfg.maxTables);
   if (pVgroup->idPool == NULL) {
     mError("vgroup:%d, failed to taosInitIdPool for vgroups", pVgroup->vgId);
     tfree(pVgroup->tableList);
@@ -146,15 +146,15 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
   int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
   SDbObj *pDb = pVgroup->pDb;
   if (pDb != NULL) {
-    if (pDb->cfg.maxSessions != oldTables) {
-      mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxSessions);
-      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxSessions);
-      int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxSessions;
+    if (pDb->cfg.maxTables != oldTables) {
+      mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxTables);
+      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxTables);
+      int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
       pVgroup->tableList = (SChildTableObj **)realloc(pVgroup->tableList, size);
     }
   }
 
-  mTrace("vgroup:%d, is updated, tables:%d numOfVnode:%d", pVgroup->vgId, pDb->cfg.maxSessions, pVgroup->numOfVnodes);
+  mTrace("vgroup:%d, is updated, tables:%d numOfVnode:%d", pVgroup->vgId, pDb->cfg.maxTables, pVgroup->numOfVnodes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -511,7 +511,7 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables++;
   }
   
-  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
+  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxTables)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
 
@@ -522,7 +522,7 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables--;
   }
 
-  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
+  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxTables)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
 
@@ -535,16 +535,16 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
 
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
-  pCfg->maxTables           = htonl(pDb->cfg.maxSessions);
-  pCfg->maxCacheSize        = htobe64((int64_t)pDb->cfg.cacheBlockSize * pDb->cfg.cacheNumOfBlocks.totalBlocks);
-  pCfg->maxCacheSize        = htobe64(-1);
-  pCfg->minRowsPerFileBlock = htonl(-1);
-  pCfg->maxRowsPerFileBlock = htonl(-1);
+  pCfg->maxTables           = htonl(pDb->cfg.maxTables);
+  pCfg->maxCacheSize        = htobe64(pDb->cfg.maxCacheSize);
+  pCfg->maxCacheSize        = htobe64(-1); //TODO
+  pCfg->minRowsPerFileBlock = htonl(-1);   //TODO
+  pCfg->maxRowsPerFileBlock = htonl(-1);   //TODO
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
   pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
   pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);
   pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
-  pCfg->daysToKeep          = htonl(-1);
+  pCfg->daysToKeep          = htonl(-1);   //TODO
   pCfg->commitTime          = htonl(pDb->cfg.commitTime);
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;

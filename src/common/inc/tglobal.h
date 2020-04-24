@@ -48,10 +48,8 @@ extern int32_t tsEnableCoreFile;
 extern int32_t tsTotalMemoryMB;
 extern int32_t tsVersion;
 
-extern int tscEmbedded;
-
+extern int32_t tscEmbedded;
 extern int64_t tsMsPerDay[2];
-
 
 extern char  tsMasterIp[];
 extern char  tsSecondIp[];
@@ -61,94 +59,88 @@ extern uint16_t tsDnodeShellPort;
 extern uint16_t tsDnodeMnodePort;
 extern uint16_t tsSyncPort;
 
-extern int tsStatusInterval;
-extern int tsShellActivityTimer;
-extern int tsVnodePeerHBTimer;
-extern int tsMgmtPeerHBTimer;
-extern int tsMeterMetaKeepTimer;
-extern int tsMetricMetaKeepTimer;
+extern int32_t tsStatusInterval;
+extern int32_t tsShellActivityTimer;
+extern int32_t tsVnodePeerHBTimer;
+extern int32_t tsMgmtPeerHBTimer;
+extern int32_t tsMeterMetaKeepTimer;
+extern int32_t tsMetricMetaKeepTimer;
 
-extern float tsNumOfThreadsPerCore;
-extern float tsRatioOfQueryThreads;
-extern char  tsPublicIp[];
-extern char  tsPrivateIp[];
-extern short tsNumOfVnodesPerCore;
-extern short tsNumOfTotalVnodes;
-extern short tsCheckHeaderFile;
+extern float    tsNumOfThreadsPerCore;
+extern float    tsRatioOfQueryThreads;
+extern char     tsPublicIp[];
+extern char     tsPrivateIp[];
+extern int16_t  tsNumOfVnodesPerCore;
+extern int16_t  tsNumOfTotalVnodes;
 extern uint32_t tsPublicIpInt;
-extern short tsAffectedRowsMod;
 
-extern int tsSessionsPerVnode;
-extern int tsAverageCacheBlocks;
-extern int tsCacheBlockSize;
+extern int32_t tsMaxCacheSize;
+extern int32_t tsSessionsPerVnode;
+extern int16_t tsDaysPerFile;
+extern int32_t tsDaysToKeep;
+extern int32_t tsRowsInFileBlock;
+extern int16_t tsCommitTime;  // seconds
+extern int32_t tsTimePrecision;
+extern int16_t tsCompression;
+extern int16_t tsCommitLog;
+extern int32_t tsReplications;
 
-extern int   tsRowsInFileBlock;
-extern float tsFileBlockMinPercent;
-
-extern short tsNumOfBlocksPerMeter;
-extern short tsCommitTime;  // seconds
-extern short tsCommitLog;
-extern short tsAsyncLog;
-extern short tsCompression;
-extern short tsDaysPerFile;
-extern int   tsDaysToKeep;
-extern int   tsReplications;
-
-extern int  tsNumOfMPeers;
-extern int  tsMaxShellConns;
-extern int  tsMaxTables;
+extern int16_t tsAffectedRowsMod;
+extern int32_t tsNumOfMPeers;
+extern int32_t tsMaxShellConns;
+extern int32_t tsMaxTables;
 
 extern char tsLocalIp[];
 extern char tsDefaultDB[];
 extern char tsDefaultUser[];
 extern char tsDefaultPass[];
-extern int  tsMaxMeterConnections;
-extern int  tsMaxVnodeConnections;
-extern int  tsMaxMgmtConnections;
+extern int32_t tsMaxMeterConnections;
+extern int32_t tsMaxVnodeConnections;
+extern int32_t tsMaxMgmtConnections;
 
-extern int tsBalanceMonitorInterval;
-extern int tsBalanceStartInterval;
-extern int tsBalancePolicy;
-extern int tsOfflineThreshold;
-extern int tsMgmtEqualVnodeNum;
+extern int32_t tsBalanceMonitorInterval;
+extern int32_t tsBalanceStartInterval;
+extern int32_t tsOfflineThreshold;
+extern int32_t tsMgmtEqualVnodeNum;
 
-extern int tsEnableHttpModule;
-extern int tsEnableMonitorModule;
-extern int tsRestRowLimit;
-extern int tsCompressMsgSize;
-extern int tsMaxSQLStringLen;
-extern int tsMaxNumOfOrderedResults;
+extern int32_t tsEnableHttpModule;
+extern int32_t tsEnableMonitorModule;
+
+extern int32_t tsRestRowLimit;
+extern int32_t tsMaxSQLStringLen;
+extern int32_t tsCompressMsgSize;
+extern int32_t tsMaxNumOfOrderedResults;
 
 extern char tsSocketType[4];
 
-extern int tsTimePrecision;
-extern int tsMinSlidingTime;
-extern int tsMinIntervalTime;
-extern int tsMaxStreamComputDelay;
-extern int tsStreamCompStartDelay;
-extern int tsStreamCompRetryDelay;
+extern int32_t tsMinSlidingTime;
+extern int32_t tsMinIntervalTime;
+extern int32_t tsMaxStreamComputDelay;
+extern int32_t tsStreamCompStartDelay;
+extern int32_t tsStreamCompRetryDelay;
 extern float tsStreamComputDelayRatio;   // the delayed computing ration of the whole time window
 
 extern int     tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
-extern char  tsHttpIp[];
+extern char     tsHttpIp[];
 extern uint16_t tsHttpPort;
-extern int   tsHttpCacheSessions;
-extern int   tsHttpSessionExpire;
-extern int   tsHttpMaxThreads;
-extern int   tsHttpEnableCompress;
-extern int   tsHttpEnableRecordSql;
-extern int   tsTelegrafUseFieldNum;
+extern int32_t  tsHttpCacheSessions;
+extern int32_t  tsHttpSessionExpire;
+extern int32_t  tsHttpMaxThreads;
+extern int32_t  tsHttpEnableCompress;
+extern int32_t  tsHttpEnableRecordSql;
+extern int32_t  tsTelegrafUseFieldNum;
 
-extern int   tsTscEnableRecordSql;
-extern int   tsAnyIp;
+extern int32_t  tsTscEnableRecordSql;
+extern int32_t  tsAnyIp;
 
-extern char tsMonitorDbName[];
-extern char tsInternalPass[];
-extern int  tsMonitorInterval;
+extern char     tsMonitorDbName[];
+extern char     tsInternalPass[];
+extern int32_t  tsMonitorInterval;
 
-extern int tsNumOfLogLines;
+extern int32_t tsAsyncLog;
+extern int32_t tsNumOfLogLines;
 extern int32_t ddebugFlag;
 extern int32_t mdebugFlag;
 extern int32_t cdebugFlag;

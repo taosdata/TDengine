@@ -74,16 +74,15 @@ int32_t tsVnodePeerHBTimer = 1;       // second
 int32_t tsMgmtPeerHBTimer = 1;        // second
 int32_t tsMeterMetaKeepTimer = 7200;  // second
 int32_t tsMetricMetaKeepTimer = 600;  // second
-int tsRpcTimer = 300;
-int tsRpcMaxTime = 600;      // seconds;
+int32_t tsRpcTimer = 300;
+int32_t tsRpcMaxTime = 600;      // seconds;
 
-float tsNumOfThreadsPerCore = 1.0;
-float tsRatioOfQueryThreads = 0.5;
-char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
+float   tsNumOfThreadsPerCore = 1.0;
+float   tsRatioOfQueryThreads = 0.5;
+char    tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
+char    tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
 int16_t tsNumOfVnodesPerCore = 8;
 int16_t tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
-int16_t tsCheckHeaderFile = 0;
 
 #ifdef _TD_ARM_32_
 int32_t tsSessionsPerVnode = 100;
@@ -91,26 +90,22 @@ int32_t tsSessionsPerVnode = 100;
 int32_t tsSessionsPerVnode = 1000;
 #endif
 
-int32_t tsCacheBlockSize = 16384;  // 256 columns
-int32_t tsAverageCacheBlocks = TSDB_DEFAULT_AVG_BLOCKS;
+int32_t tsMaxCacheSize = 64;  //64M
+int16_t tsDaysPerFile = 10;
+int32_t tsDaysToKeep = 3650;
+int32_t tsRowsInFileBlock = 4096;
+int16_t tsCommitTime = 3600;  // seconds
+int32_t tsTimePrecision = TSDB_TIME_PRECISION_MILLI;
+int16_t tsCompression = TSDB_MAX_COMPRESSION_LEVEL;
+int16_t tsCommitLog = 1;
+int32_t tsReplications = TSDB_REPLICA_MIN_NUM;
+
 /**
  * Change the meaning of affected rows:
  * 0: affected rows not include those duplicate records
  * 1: affected rows include those duplicate records
  */
 int16_t tsAffectedRowsMod = 0;
-
-int32_t tsRowsInFileBlock = 4096;
-float   tsFileBlockMinPercent = 0.05;
-
-int16_t tsNumOfBlocksPerMeter = 100;
-int16_t tsCommitTime = 3600;  // seconds
-int16_t tsCommitLog = 1;
-int16_t tsCompression = TSDB_MAX_COMPRESSION_LEVEL;
-int16_t tsDaysPerFile = 10;
-int32_t tsDaysToKeep = 3650;
-int32_t tsReplications = TSDB_REPLICA_MIN_NUM;
-
 int32_t tsNumOfMPeers = 3;
 int32_t tsMaxShellConns = 2000;
 int32_t tsMaxTables = 100000;
@@ -125,15 +120,16 @@ int32_t tsMaxVnodeConnections = 10000;
 
 int32_t tsBalanceMonitorInterval = 2;  // seconds
 int32_t tsBalanceStartInterval = 300;  // seconds
-int32_t tsBalancePolicy = 0;           // 1-use sys.montor
 int32_t tsOfflineThreshold = 864000;   // seconds 10days
 int32_t tsMgmtEqualVnodeNum = 4;
 
 int32_t tsEnableHttpModule = 1;
 int32_t tsEnableMonitorModule = 0;
+
 int32_t tsRestRowLimit = 10240;
 int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
+int32_t tsNumOfLogLines = 10000000;
 int32_t mdebugFlag = 135;
 int32_t sdbDebugFlag = 135;
 int32_t ddebugFlag = 131;
@@ -146,7 +142,6 @@ int32_t qdebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
-int tsNumOfLogLines = 10000000;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -164,9 +159,6 @@ int32_t tsCompressMsgSize = -1;
 
 // use UDP by default[option: udp, tcp]
 char tsSocketType[4] = "udp";
-
-// time precision, millisecond by default
-int32_t tsTimePrecision = TSDB_TIME_PRECISION_MILLI;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
@@ -747,11 +739,11 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "cache";
-  cfg.ptr = &tsCacheBlockSize;
+  cfg.ptr = &tsMaxCacheSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 100;
-  cfg.maxValue = 1048576;
+  cfg.minValue = 1;
+  cfg.maxValue = 100000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
@@ -762,36 +754,6 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 200;
   cfg.maxValue = 1048576;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "fileBlockMinPercent";
-  cfg.ptr = &tsFileBlockMinPercent;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1.0;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "ablocks";
-  cfg.ptr = &tsAverageCacheBlocks;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_AVG_BLOCKS;
-  cfg.maxValue = TSDB_MAX_AVG_BLOCKS;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "tblocks";
-  cfg.ptr = &tsNumOfBlocksPerMeter;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 32;
-  cfg.maxValue = 4096;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
