@@ -196,14 +196,14 @@ STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
 int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo);
 
-void tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
+void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
     SVgroupsInfo* vgroupList, SArray* pTagCols);
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
-void tscFreeSubqueryInfo(SSqlCmd* pCmd);
+void tscFreeQueryInfo(SSqlCmd* pCmd);
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);

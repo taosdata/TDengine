@@ -733,7 +733,7 @@ int32_t tscSetTableId(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SS
    */
   if (size > 0) {
     if (strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
-      tscClearMeterMetaInfo(pTableMetaInfo, false);
+      tscClearTableMetaInfo(pTableMetaInfo, false);
     }
   } else {
     assert(pTableMetaInfo->pTableMeta == NULL);

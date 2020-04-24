@@ -337,7 +337,7 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd) {
   pCmd->pTableList= NULL;
   
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  tscFreeSubqueryInfo(pCmd);
+  tscFreeQueryInfo(pCmd);
 }
 
 /*
@@ -761,6 +761,8 @@ void tscCloseTscObj(STscObj* pObj) {
   tscFreeSqlObj(pSql);
 
   sem_destroy(&pSql->rspSem);
+  rpcClose(pObj->pMgmtConn);
+  
   pthread_mutex_destroy(&pObj->mutex);
   
   tscTrace("%p DB connection is closed", pObj);
@@ -1459,7 +1461,7 @@ bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
 
 void tscCleanSqlCmd(SSqlCmd* pCmd) {
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  tscFreeSubqueryInfo(pCmd);
+  tscFreeQueryInfo(pCmd);
 
   uint32_t allocSize = pCmd->allocSize;
   char*    allocPtr = pCmd->payload;
@@ -1601,7 +1603,7 @@ int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doClearSubqueryInfo(SQueryInfo* pQueryInfo) {
+static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   tscTagCondRelease(&pQueryInfo->tagCond);
   tscFieldInfoClear(&pQueryInfo->fieldsInfo);
 
@@ -1611,6 +1613,11 @@ static void doClearSubqueryInfo(SQueryInfo* pQueryInfo) {
   tscColumnListDestroy(pQueryInfo->colList);
   memset(&pQueryInfo->colList, 0, sizeof(pQueryInfo->colList));
 
+  if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
+    taosArrayDestroy(pQueryInfo->groupbyExpr.columnInfo);
+    pQueryInfo->groupbyExpr.columnInfo = NULL;
+  }
+  
   pQueryInfo->tsBuf = tsBufDestory(pQueryInfo->tsBuf);
 
   tfree(pQueryInfo->defaultVal);
@@ -1619,11 +1626,11 @@ static void doClearSubqueryInfo(SQueryInfo* pQueryInfo) {
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
   for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
-    doClearSubqueryInfo(pQueryInfo);
+    freeQueryInfoImpl(pQueryInfo);
   }
 }
 
-void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
+void tscFreeQueryInfo(SSqlCmd* pCmd) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return;
   }
@@ -1632,7 +1639,7 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
     char* addr = (char*)pCmd - offsetof(SSqlObj, cmd);
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
 
-    doClearSubqueryInfo(pQueryInfo);
+    freeQueryInfoImpl(pQueryInfo);
     tscClearAllTableMetaInfo(pQueryInfo, (const char*)addr, false);
     tfree(pQueryInfo);
   }
@@ -1691,7 +1698,7 @@ void doRemoveTableMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFro
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index);
 
-  tscClearMeterMetaInfo(pTableMetaInfo, removeFromCache);
+  tscClearTableMetaInfo(pTableMetaInfo, removeFromCache);
   free(pTableMetaInfo);
 
   int32_t after = pQueryInfo->numOfTables - index - 1;
@@ -1713,13 +1720,18 @@ void tscClearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool 
   tfree(pQueryInfo->pTableMetaInfo);
 }
 
-void tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache) {
+void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache) {
   if (pTableMetaInfo == NULL) {
     return;
   }
 
   taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
   tfree(pTableMetaInfo->vgroupList);
+  
+  if (pTableMetaInfo->tagColList != NULL) {
+    taosArrayDestroy(pTableMetaInfo->tagColList);
+    pTableMetaInfo->tagColList = NULL;
+  }
 }
 
 void tscResetForNextRetrieve(SSqlRes* pRes) {
