@@ -5430,13 +5430,6 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     pMsg += sizeof(int64_t) * pQueryMsg->numOfOutput;
   }
 
-  // the tag query condition expression string is located at the end of query msg
-  if (pQueryMsg->tagCondLen > 0) {
-    *tagCond = calloc(1, pQueryMsg->tagCondLen);
-    memcpy(*tagCond, pMsg, pQueryMsg->tagCondLen);
-    pMsg += pQueryMsg->tagCondLen;
-  }
-  
   if (pQueryMsg->numOfTags > 0) {
     (*tagCols) = calloc(1, sizeof(SColumnInfo) * pQueryMsg->numOfTags);
     for (int32_t i = 0; i < pQueryMsg->numOfTags; ++i) {
@@ -5448,13 +5441,22 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
       pTagCol->numOfFilters = 0;
       
       (*tagCols)[i] = *pTagCol;
+      pMsg += sizeof(SColumnInfo);
     }
   }
 
+  // the tag query condition expression string is located at the end of query msg
+  if (pQueryMsg->tagCondLen > 0) {
+    *tagCond = calloc(1, pQueryMsg->tagCondLen);
+    memcpy(*tagCond, pMsg, pQueryMsg->tagCondLen);
+    pMsg += pQueryMsg->tagCondLen;
+  }
+  
   if (*pMsg != 0) {
-    size_t len = strlen(pMsg);
-    *tbnameCond = malloc(len + 1);
+    size_t len = strlen(pMsg) + 1;
+    *tbnameCond = malloc(len);
     strcpy(*tbnameCond, pMsg);
+    pMsg += len;
   }
 
   qTrace("qmsg:%p query on %d table(s), qrange:%" PRId64 "-%" PRId64

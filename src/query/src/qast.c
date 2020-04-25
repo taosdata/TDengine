@@ -816,7 +816,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
         addToResult = pQueryInfo->compare(table->name, pQueryInfo->q.arr);
       } else if(pQueryInfo->optr == TSDB_RELATION_LIKE) {
-        addToResult = pQueryInfo->compare(table->name, pQueryInfo->q.pz);
+        addToResult = !pQueryInfo->compare(table->name, pQueryInfo->q.pz);
       }
     } else {
       // TODO: other columns
@@ -1188,6 +1188,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
       // TODO:
     }
     memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN, len);
+    pVal->nLen = (int32_t)len;
 
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;

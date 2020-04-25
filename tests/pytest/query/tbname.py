@@ -39,29 +39,32 @@ class TDTestCase:
         tdSql.query("select * from cars where tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(1)
 
-        tdSql.query("select * from cars where id=1 or tbname in ('carzero0', 'cartwo')")
+        tdSql.query("select * from cars where id=1 or tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(2)
 
-        tdSql.query("select * from cars where id=1 and tbname in ('carzero0', 'cartwo')")
+        tdSql.query("select * from cars where id=1 and tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(0)
 
-        tdSql.query("select * from cars where id=0 and tbname in ('carzero0', 'cartwo')")
+        tdSql.query("select * from cars where id=0 and tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(1)
 
-        tdSql.query("select * from cars where tbname like 'car%')
+        """
+        tdSql.query("select * from cars where tbname like 'car%'")
         tdSql.checkRows(2)
 
-        tdSql.query("select * from cars where tbname like '%%o')
+        tdSql.cursor.execute("use db")
+        tdSql.query("select * from cars where tbname like '%o'")
         tdSql.checkRows(1)
 
         tdSql.query("select * from cars where id=1 and tbname like 'car%')
         tdSql.checkRows(1)
 
-        tdSql.query("select * from cars where id = 1 and tbname like '%%o')
+        tdSql.query("select * from cars where id = 1 and tbname like '%o')
         tdSql.checkRows(0)
 
-        tdSql.query("select * from cars where id = 1 or tbname like '%%o')
+        tdSql.query("select * from cars where id = 1 or tbname like '%o')
         tdSql.checkRows(2)
+        """
 
     def stop(self):
         tdSql.close()

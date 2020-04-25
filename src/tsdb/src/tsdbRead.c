@@ -1448,7 +1448,7 @@ int32_t tsdbQueryByTagsCond(
   size_t len,
   int16_t tagNameRelType,
   const char* tbnameCond,
-  STableGroupInfo *pGroupList,
+  STableGroupInfo *pGroupInfo,
   SColIndex *pColIndex,
   int32_t numOfCols
 ) {
@@ -1465,15 +1465,14 @@ int32_t tsdbQueryByTagsCond(
   if (tbnameCond == NULL && (pTagCond == NULL || len == 0)) {
     int32_t ret = getAllTableIdList(tsdb, uid, res);
     if (ret == TSDB_CODE_SUCCESS) {
-      pGroupList->numOfTables = taosArrayGetSize(res);
-      pGroupList->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
+      pGroupInfo->numOfTables = taosArrayGetSize(res);
+      pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
     }
-  
-    pGroupInfo->numOfTables = taosArrayGetSize(res);
-    pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
     taosArrayDestroy(res);
     return ret;
   }
+
+  int32_t    ret = TSDB_CODE_SUCCESS;
 
   tExprNode* expr = exprTreeFromTableName(tbnameCond);
   tExprNode* tagExpr = exprTreeFromBinary(pTagCond, len);
@@ -1491,8 +1490,8 @@ int32_t tsdbQueryByTagsCond(
   }
 
   doQueryTableList(pSTable, res, expr);
-  pGroupList->numOfTables = taosArrayGetSize(res);
-  pGroupList->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
+  pGroupInfo->numOfTables = taosArrayGetSize(res);
+  pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols);
 
   taosArrayDestroy(res);
   return ret;
