@@ -990,9 +990,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
   return TSDB_CODE_SUCCESS;
 }
 
-static UNUSED_FUNC char *getGroupbyColumnData(SQuery *pQuery, SData **data, int16_t *type, int16_t *bytes) {
-  char *groupbyColumnData = NULL;
-
+static char *getGroupbyColumnData(SQuery *pQuery, int16_t *type, int16_t *bytes, SArray* pDataBlock) {
   SSqlGroupbyExpr *pGroupbyExpr = pQuery->pGroupbyExpr;
 
   for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
@@ -1015,12 +1013,22 @@ static UNUSED_FUNC char *getGroupbyColumnData(SQuery *pQuery, SData **data, int1
 
     *type = pQuery->colList[colIndex].type;
     *bytes = pQuery->colList[colIndex].bytes;
-
-    //    groupbyColumnData = doGetDataBlocks(pQuery, data, pQuery->colList[colIndex].inf);
-    break;
+    /*
+     *  the colIndex is acquired from the first meter of all qualified meters in this vnode during query prepare
+     * stage, the remain meter may not have the required column in cache actually. So, the validation of required
+     * column in cache with the corresponding meter schema is reinforced.
+     */
+    int32_t numOfCols = taosArrayGetSize(pDataBlock);
+  
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData *p = taosArrayGet(pDataBlock, i);
+      if (pColIndex->colId == p->info.colId) {
+        return p->pData;
+      }
+    }
   }
-
-  return groupbyColumnData;
+  
+  return NULL;
 }
 
 static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
@@ -1091,8 +1099,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
 
   char *groupbyColumnData = NULL;
   if (groupbyStateValue) {
-    assert(0);
-    //    groupbyColumnData = getGroupbyColumnData(pQuery, data, &type, &bytes);
+    groupbyColumnData = getGroupbyColumnData(pQuery, &type, &bytes, pDataBlock);
   }
 
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
@@ -6097,9 +6104,16 @@ int32_t qCreateQueryInfo(void *tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
 
     STableId *id = taosArrayGet(pTableIdList, 0);
     id->uid = -1;  // todo fix me
-
-    /*int32_t ret =*/tsdbQueryByTagsCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen,  pQueryMsg->tagNameRelType, tbnameCond, &groupInfo, pGroupColIndex,
-                                         pQueryMsg->numOfGroupCols);
+    
+    // group by normal column, do not pass the group by condition to tsdb to group table into different group
+    int32_t numOfGroupByCols = pQueryMsg->numOfGroupCols;
+    if (pQueryMsg->numOfGroupCols == 1 && !TSDB_COL_IS_TAG(pGroupColIndex->flag)) {
+      numOfGroupByCols = 0;
+    }
+    
+    // todo handle the error
+    /*int32_t ret =*/tsdbQueryByTagsCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &groupInfo, pGroupColIndex,
+                                         numOfGroupByCols);
     if (groupInfo.numOfTables == 0) {  // no qualified tables no need to do query
       code = TSDB_CODE_SUCCESS;
       goto _query_over;

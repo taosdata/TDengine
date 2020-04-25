@@ -1,13 +1,13 @@
 system sh/stop_dnodes.sh
 
-sleep 5000
+#sleep 5000
 
 system sh/ip.sh -i 1 -s up
 system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c clog -v 0
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+#sleep 3000
 sql connect
 
 print ============================ dnode1 start
@@ -41,19 +41,19 @@ endi
 
 system_content curl 192.168.0.1:6020/rest/login/root/123
 print 5-> $system_content
-if $system_content != @{"status":"error","code":10,"desc":"authentication failure"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
   return -1
 endi
 
 system_content curl 192.168.0.1:6020/rest/login/root/123/1/1/3
 print 6-> $system_content
-if $system_content != @{"status":"error","code":10,"desc":"authentication failure"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 192.168.0.1:6020/rest/login/root/1
 print 7-> $system_content
-if $system_content != @{"status":"error","code":10,"desc":"authentication failure"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
   return -1
 endi
 

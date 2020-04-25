@@ -25,15 +25,17 @@ if [ "$totalFailed" -ne "0" ]; then
 fi
 
 cd ../pytest
-./simpletest.sh 2>&1 | grep 'successfully executed\|failed' | tee pytest-out.txt
+./simpletest.sh 2>&1 | tee pytest-out.txt
 totalPySuccess=`grep 'successfully executed' pytest-out.txt | wc -l`
 
 if [ "$totalPySuccess" -gt "0" ]; then
+  grep 'successfully executed' pytest-out.txt
   echo -e "${GREEN} ### Total $totalPySuccess python case(s) succeed! ### ${NC}"
 fi
 
-totalPyFailed=`grep 'failed' pytest-out.txt | wc -l`
+totalPyFailed=`grep 'failed\|fault' pytest-out.txt | wc -l`
 if [ "$totalPyFailed" -ne "0" ]; then
+  cat pytest-out.txt
   echo -e "${RED} ### Total $totalPyFailed python case(s) failed! ### ${NC}"
   exit $totalPyFailed
 fi

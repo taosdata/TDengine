@@ -29,32 +29,6 @@ struct SAcctObj;
 struct SUserObj;
 struct SMnodeObj;
 
-typedef struct {
-  char     acct[TSDB_USER_LEN];
-  char     db[TSDB_DB_NAME_LEN];
-  uint32_t vgId;
-  int32_t  maxSessions;
-  int32_t  cacheBlockSize;
-  union {
-    int32_t totalBlocks;
-    float   fraction;
-  } cacheNumOfBlocks;
-  int32_t daysPerFile;
-  int32_t daysToKeep1;
-  int32_t daysToKeep2;
-  int32_t daysToKeep;
-  int32_t commitTime;
-  int32_t rowsInFileBlock;
-  int16_t blocksPerTable;
-  int8_t  compression;
-  int8_t  commitLog;
-  int8_t  replications;
-  int8_t  repStrategy;
-  int8_t  loadLatest;  // load into mem or not
-  uint8_t precision;   // time resolution
-  int8_t  reserved[16];
-} SDbCfg;
-
 typedef struct SDnodeObj {
   int32_t    dnodeId;
   uint32_t   privateIp;
@@ -168,12 +142,30 @@ typedef struct SVgObj {
   SChildTableObj **tableList;
 } SVgObj;
 
+typedef struct {
+  int64_t maxCacheSize;
+  int32_t maxTables;
+  int32_t daysPerFile;
+  int32_t daysToKeep;
+  int32_t daysToKeep1;
+  int32_t daysToKeep2;
+  int32_t minRowsPerFileBlock;  // minimum rows per file block
+  int32_t maxRowsPerFileBlock;  // maximum rows per file block
+  int32_t commitTime;
+  int8_t  precision;
+  int8_t  compression;
+  int8_t  commitLog;
+  int8_t  replications;
+  int8_t  reserved[16];
+} SDbCfg;
+
 typedef struct SDbObj {
   char    name[TSDB_DB_NAME_LEN + 1];
-  int8_t  status;
+  char    acct[TSDB_USER_LEN + 1];
   int64_t createdTime;
   SDbCfg  cfg;
-  int8_t  reserved[15];
+  int8_t  status;
+  int8_t  reserved[14];
   int8_t  updateEnd[1];
   int32_t refCount;
   int32_t numOfVgroups;

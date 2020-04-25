@@ -190,6 +190,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
+  STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
   
   char *pMsg = rpcMallocCont(pCmd->payloadLen);
@@ -223,7 +224,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
         .handle  = pSql,
         .code   = 0
     };
-    rpcSendRequest(pTscMgmtConn, &pSql->ipList, &rpcMsg);
+    rpcSendRequest(pObj->pMgmtConn, &pSql->ipList, &rpcMsg);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2607,7 +2608,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
 
 //  if (pSql->fp != NULL && pSql->pStream == NULL) {
 //    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-//    tscFreeSubqueryInfo(pCmd);
+//    tscFreeQueryInfo(pCmd);
 //  }
 
   tscTrace("%p allocate new pSqlObj:%p to get stable vgroupInfo", pSql, pNew);

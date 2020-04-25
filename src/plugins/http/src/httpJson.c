@@ -13,20 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "taosmsg.h"
+#include "taoserror.h"
 #include "http.h"
+#include "httpLog.h"
 #include "httpCode.h"
 #include "httpJson.h"
 #include "httpResp.h"
-#include "taosmsg.h"
-#include "httpLog.h"
-#include "taoserror.h"
 
 #define MAX_NUM_STR_SZ 25
 
