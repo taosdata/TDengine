@@ -356,17 +356,9 @@ typedef struct {
 } SMDDropVnodeMsg;
 
 typedef struct SColIndex {
-  int16_t colId;
-  /*
-   * colIdx is the index of column in latest schema of table
-   * it is available in the client side. Also used to determine
-   * whether current table schema is up-to-date.
-   *
-   * colIdxInBuf is used to denote the index of column in pQuery->colList,
-   * this value is invalid in client side, as well as in cache block of vnode either.
-   */
-  int16_t  colIndex;
-  uint16_t flag;  // denote if it is a tag or not
+  int16_t  colId;      // column id
+  int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
+  uint16_t flag;       // denote if it is a tag or a normal column
   char     name[TSDB_COL_NAME_LEN];
 } SColIndex;
 
@@ -388,15 +380,9 @@ typedef struct SSqlFuncMsg {
   } arg[3];
 } SSqlFuncMsg;
 
-typedef struct SExprInfo {
-  struct tExprNode *pBinExpr;    /*  for binary expression */
-  int32_t           numOfCols;   /*  binary expression involves the readed number of columns*/
-  SColIndex *     pReqColumns;   /*  source column list */
-} SExprInfo;
-
 typedef struct SArithExprInfo {
-  SSqlFuncMsg pBase;
-  SExprInfo   binExprInfo;
+  SSqlFuncMsg base;
+  struct tExprNode* pExpr;
   int16_t     bytes;
   int16_t     type;
   int16_t     interResBytes;
@@ -794,12 +780,12 @@ typedef struct {
 
 typedef struct {
   int32_t    numOfQueries;
-  SQueryDesc *qdesc;
+  SQueryDesc qdesc[];
 } SQqueryList;
 
 typedef struct {
   int32_t     numOfStreams;
-  SStreamDesc *sdesc;
+  SStreamDesc sdesc[];
 } SStreamList;
 
 typedef struct {

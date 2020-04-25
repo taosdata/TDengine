@@ -788,9 +788,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       if (pExpr->param[j].nType == TSDB_DATA_TYPE_BINARY) {
         memcpy(pMsg, pExpr->param[j].pz, pExpr->param[j].nLen);
-
-        // by plus one char to make the string null-terminated
-        pMsg += pExpr->param[j].nLen + 1;
+        pMsg += pExpr->param[j].nLen;
       } else {
         pSqlFuncExpr->arg[j].argValue.i64 = htobe64(pExpr->param[j].i64Key);
       }
@@ -1848,7 +1846,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = TSDB_MSG_TYPE_CM_HEARTBEAT;
 
   assert(msgLen + minMsgSize() <= size);
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int tscProcessTableMetaRsp(SSqlObj *pSql) {

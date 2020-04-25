@@ -939,8 +939,9 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, i);
     
     if (pInfo->pArithExprInfo != NULL) {
-      tExprTreeDestroy(&pInfo->pArithExprInfo->binExprInfo.pBinExpr, NULL);
-      tfree(pInfo->pArithExprInfo->binExprInfo.pReqColumns);
+      tExprTreeDestroy(&pInfo->pArithExprInfo->pExpr, NULL);
+      assert(0);
+//      tfree(pInfo->pArithExprInfo->colList);
     }
   }
   
@@ -1678,7 +1679,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   }
 
   if (pTagCols == NULL) {
-    pTableMetaInfo->tagColList = taosArrayInit(4, sizeof(SColumnIndex));
+    pTableMetaInfo->tagColList = taosArrayInit(4, POINTER_BYTES);
   } else {
     pTableMetaInfo->tagColList = taosArrayClone(pTagCols);
   }

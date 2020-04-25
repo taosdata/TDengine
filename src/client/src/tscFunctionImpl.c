@@ -3294,29 +3294,26 @@ static void diff_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
 }
 
-char *arithmetic_callback_function(void *param, char *name, int32_t colId) {
+char *getArithColumnData(void *param, const char* name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
   
-  SArithExprInfo *pExpr = pSupport->pArithExpr;
-  int32_t           colIndex = -1;
-  
-  for (int32_t i = 0; i < pExpr->binExprInfo.numOfCols; ++i) {
-    if (colId == pExpr->binExprInfo.pReqColumns[i].colId) {
-      colIndex = pExpr->binExprInfo.pReqColumns[i].colIndex;
+  int32_t index = -1;
+  for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
+    if (colId == pSupport->colList[i].colId) {
+      index = i;
       break;
     }
   }
   
-  assert(colIndex >= 0 && colId >= 0);
-  return pSupport->data[colIndex] + pSupport->offset * pSupport->elemSize[colIndex];
+  assert(index >= 0 && colId >= 0);
+  return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
 
 static void arithmetic_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
-  tSQLBinaryExprCalcTraverse(sas->pArithExpr->binExprInfo.pBinExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order,
-                             arithmetic_callback_function);
+  tExprTreeCalcTraverse(sas->pArithExpr->pExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order, getArithColumnData);
   
   pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size;
   pCtx->param[1].pz = NULL;
@@ -3327,8 +3324,7 @@ static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
   sas->offset = index;
-  tSQLBinaryExprCalcTraverse(sas->pArithExpr->binExprInfo.pBinExpr, 1, pCtx->aOutputBuf, sas, pCtx->order,
-                             arithmetic_callback_function);
+  tExprTreeCalcTraverse(sas->pArithExpr->pExpr, 1, pCtx->aOutputBuf, sas, pCtx->order, getArithColumnData);
   
   pCtx->aOutputBuf += pCtx->outputBytes;
 }

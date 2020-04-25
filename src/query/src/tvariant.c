@@ -72,7 +72,7 @@ void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t t
  * @param len
  * @param type
  */
-void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t type) {
+void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
@@ -109,10 +109,10 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
       
       break;
     }
-    case TSDB_DATA_TYPE_BINARY: {
-      pVar->pz = strndup(pz, len);
-      pVar->nLen = strdequote(pVar->pz);
-      
+    case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
+      pVar->pz = calloc(len, sizeof(char));
+      memcpy(pVar->pz, pz, len);
+      pVar->nLen = len;
       break;
     }
     

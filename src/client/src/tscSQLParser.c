@@ -101,7 +101,7 @@ static void updateTagColumnIndex(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
 static int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t index, SQuerySQL* pQuerySql, SSqlObj* pSql);
 static int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql);
-static int32_t getColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
+static int32_t getColumnIndexByName(const SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t optrToString(tSQLExpr* pExpr, char** exprString);
 
@@ -116,7 +116,7 @@ static int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSql
 static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index);
-static int32_t exprTreeFromSqlExpr(tExprNode **pExpr, tSQLExpr* pSqlExpr, SArray* pExprInfo, SQueryInfo* pQueryInfo, SArray* pCols);
+static int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray* pExprInfo, SQueryInfo* pQueryInfo, SArray* pCols);
 
 /*
  * Used during parsing query sql. Since the query sql usually small in length, error position
@@ -1171,13 +1171,32 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
         SColumnIndex index = {.tableIndex = tableIndex};
         SSqlExpr*    pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE,
                                               sizeof(double), sizeof(double), false);
-        addExprParams(pExpr, arithmeticExprStr, TSDB_DATA_TYPE_BINARY, strlen(arithmeticExprStr), index.tableIndex);
-  
+        
         /* todo alias name should use the original sql string */
         char* name = (pItem->aliasName != NULL)? pItem->aliasName:arithmeticExprStr;
         strncpy(pExpr->aliasName, name, TSDB_COL_NAME_LEN);
-  
+        
+        tExprNode* pNode = NULL;
+        SArray* colList = taosArrayInit(10, sizeof(SColIndex));
+        
+        int32_t ret = exprTreeFromSqlExpr(&pNode, pItem->pNode, pQueryInfo->exprsInfo, pQueryInfo, colList);
+        if (ret != TSDB_CODE_SUCCESS) {
+          tExprTreeDestroy(&pNode, NULL);
+          return invalidSqlErrMsg(pQueryInfo->msg, "invalid arithmetic expression in select clause");
+        }
+        
+        SBuffer buf = exprTreeToBinary(pNode);
+        
+        size_t len = tbufTell(&buf);
+        char* c = tbufGetData(&buf, true);
+        
+        // set the serialized binary string as the parameter of arithmetic expression
+        addExprParams(pExpr, c, TSDB_DATA_TYPE_BINARY, len, index.tableIndex);
+        
         insertResultField(pQueryInfo, i, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->aliasName, pExpr);
+        
+        taosArrayDestroy(colList);
+        tExprTreeDestroy(&pNode, NULL);
       } else {
         columnList.num = 0;
         columnList.ids[0] = (SColumnIndex) {0, 0};
@@ -1196,8 +1215,6 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           pFuncExpr->interResBytes = sizeof(double);
           pFuncExpr->type = TSDB_DATA_TYPE_DOUBLE;
 
-          SExprInfo* pBinExprInfo = &pFuncExpr->binExprInfo;
-          
           tExprNode* pNode = NULL;
 //          SArray* colList = taosArrayInit(10, sizeof(SColIndex));
   
@@ -1206,26 +1223,26 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
             tExprTreeDestroy(&pNode, NULL);
             return invalidSqlErrMsg(pQueryInfo->msg, "invalid expression in select clause");
           }
-          
-          pBinExprInfo->pBinExpr = pNode;
+  
+          pFuncExpr->pExpr = pNode;
           assert(0);
-//          pBinExprInfo->pReqColumns = pColIndex;
+//          pExprInfo->pReqColumns = pColIndex;
           
-          for(int32_t k = 0; k < pBinExprInfo->numOfCols; ++k) {
-            SColIndex* pCol = &pBinExprInfo->pReqColumns[k];
-            size_t size = tscSqlExprNumOfExprs(pQueryInfo);
-  
-            for(int32_t f = 0; f < size; ++f) {
-              SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, f);
-              if (strcmp(pExpr->aliasName, pCol->name) == 0) {
-                pCol->colIndex = f;
-                break;
-              }
-            }
-  
-            assert(pCol->colIndex >= 0 && pCol->colIndex < size);
-            tfree(pNode);
-          }
+//          for(int32_t k = 0; k < pFuncExpr->numOfCols; ++k) {
+//            SColIndex* pCol = &pFuncExpr->colList[k];
+//            size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+//
+//            for(int32_t f = 0; f < size; ++f) {
+//              SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, f);
+//              if (strcmp(pExpr->aliasName, pCol->name) == 0) {
+//                pCol->colIndex = f;
+//                break;
+//              }
+//            }
+//
+//            assert(pCol->colIndex >= 0 && pCol->colIndex < size);
+//            tfree(pNode);
+//          }
         }
       }
     } else {
@@ -1317,28 +1334,6 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
 
 void addRequiredTagColumn(STableMetaInfo* pTableMetaInfo, SColumnIndex* index) {
   tscColumnListInsert(pTableMetaInfo->tagColList, index);
-//  if (pTableMetaInfo->numOfTags == 0 || pTableMetaInfo->tagColumnIndex[pTableMetaInfo->numOfTags - 1] < tagColIndex) {
-//    pTableMetaInfo->tagColumnIndex[pTableMetaInfo->numOfTags++] = tagColIndex;
-//  } else {  // find the appropriate position
-//    for (int32_t i = 0; i < pTableMetaInfo->numOfTags; ++i) {
-//      if (tagColIndex > pTableMetaInfo->tagColumnIndex[i]) {
-//        continue;
-//      } else if (tagColIndex == pTableMetaInfo->tagColumnIndex[i]) {
-//        break;
-//      } else {
-//        memmove(&pTableMetaInfo->tagColumnIndex[i + 1], &pTableMetaInfo->tagColumnIndex[i],
-//                sizeof(pTableMetaInfo->tagColumnIndex[0]) * (pTableMetaInfo->numOfTags - i));
-//
-//        pTableMetaInfo->tagColumnIndex[i] = tagColIndex;
-//
-//        pTableMetaInfo->numOfTags++;
-//        break;
-//      }
-//    }
-//  }
-
-  // plus one means tbname
-//  assert(tagColIndex >= -1 && tagColIndex < TSDB_MAX_TAGS && pTableMetaInfo->numOfTags <= TSDB_MAX_TAGS + 1);
 }
 
 static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSQLExprItem* pItem) {
@@ -2047,7 +2042,7 @@ int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIn
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
+int32_t getColumnIndexByName(const SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
   if (pQueryInfo->pTableMetaInfo == NULL || pQueryInfo->numOfTables == 0) {
     return TSDB_CODE_INVALID_SQL;
   }
@@ -3753,13 +3748,24 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     tSQLExpr* p1 = extractExprForSTable(pExpr, pQueryInfo, i);
     tExprNode* p = NULL;
-    
-    ret = exprTreeFromSqlExpr(&p, p1, NULL, pQueryInfo, NULL);
+  
+    SArray* colList = taosArrayInit(10, sizeof(SColIndex));
+    ret = exprTreeFromSqlExpr(&p, p1, NULL, pQueryInfo, colList);
     SBuffer buf = exprTreeToBinary(p);
     
-    int64_t uid = tscGetMetaInfo(pQueryInfo, i)->pTableMeta->uid;
+    // add to source column list
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
+    int64_t uid = pTableMetaInfo->pTableMeta->uid;
+    int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    
+    size_t num = taosArrayGetSize(colList);
+    for(int32_t j = 0; j < num; ++j) {
+      SColIndex* pIndex = taosArrayGet(colList, j);
+      SColumnIndex index = {.tableIndex = i, .columnIndex = pIndex->colIndex - numOfCols};
+      addRequiredTagColumn(pTableMetaInfo, &index);
+    }
+    
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &buf);
-
     doCompactQueryExpr(pExpr);
     
     tSQLExprDestroy(p1);
@@ -5871,7 +5877,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
 
-int32_t exprTreeFromSqlExpr(tExprNode **pExpr, tSQLExpr* pSqlExpr, SArray* pExprInfo, SQueryInfo* pQueryInfo, SArray* pCols) {
+int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray* pExprInfo, SQueryInfo* pQueryInfo, SArray* pCols) {
   tExprNode* pLeft = NULL;
   tExprNode* pRight= NULL;
   
@@ -5896,8 +5902,9 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, tSQLExpr* pSqlExpr, SArray* pExpr
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));
       
       tVariantAssign((*pExpr)->pVal, &pSqlExpr->val);
-      
+      return TSDB_CODE_SUCCESS;
     } else if (pSqlExpr->nSQLOptr >= TK_COUNT && pSqlExpr->nSQLOptr <= TK_AVG_IRATE) {
+      // arithmetic expression on the results of aggregation functions
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_COL;
       (*pExpr)->pSchema = calloc(1, sizeof(SSchema));
@@ -5915,7 +5922,7 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, tSQLExpr* pSqlExpr, SArray* pExpr
           break;
         }
       }
-    } else if (pSqlExpr->nSQLOptr == TK_ID) { // column name
+    } else if (pSqlExpr->nSQLOptr == TK_ID) { // column name, normal column arithmetic expression
       SColumnIndex index = {0};
       int32_t ret = getColumnIndexByName(&pSqlExpr->colInfo, pQueryInfo, &index);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -5929,16 +5936,19 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, tSQLExpr* pSqlExpr, SArray* pExpr
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
       SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
       *(*pExpr)->pSchema = *pSchema;
+  
+      if (pCols != NULL) {  // record the involved columns
+        SColIndex colIndex = {0};
+        strncpy(colIndex.name, pSchema->name, TSDB_COL_NAME_LEN);
+        colIndex.colId = pSchema->colId;
+        colIndex.colIndex = index.columnIndex;
+        
+        taosArrayPush(pCols, &colIndex);
+      }
       
       return TSDB_CODE_SUCCESS;
     } else {
       return TSDB_CODE_INVALID_SQL;
-    }
-    
-    if (pCols != NULL) {  // record the involved columns
-      SColIndex colIndex = {0};
-      strncpy(colIndex.name, pSqlExpr->operand.z, pSqlExpr->operand.n);
-      taosArrayPush(pCols, &colIndex);
     }
     
   } else {

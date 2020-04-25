@@ -458,20 +458,21 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
   }
 }
 
-static char *getArithemicInputSrc(void *param, char *name, int32_t colId) {
-  SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
-  SArithExprInfo *  pExpr = pSupport->pArithExpr;
+static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
+//  SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
+//  SArithExprInfo *  pExpr = pSupport->pArithExpr;
 
-  int32_t index = -1;
-  for (int32_t i = 0; i < pExpr->binExprInfo.numOfCols; ++i) {
-    if (strcmp(name, pExpr->binExprInfo.pReqColumns[i].name) == 0) {
-      index = i;
-      break;
-    }
-  }
-
-  assert(index >= 0 && index < pExpr->binExprInfo.numOfCols);
-  return pSupport->data[index] + pSupport->offset * pSupport->elemSize[index];
+//  int32_t index = -1;
+//  for (int32_t i = 0; i < pExpr->numOfCols; ++i) {
+//    if (strcmp(name, pExpr->colList[i].name) == 0) {
+//      index = i;
+//      break;
+//    }
+//  }
+//
+//  assert(index >= 0 && index < pExpr->numOfCols);
+//  return pSupport->data[index] + pSupport->offset * pSupport->elemSize[index];
+return 0;
 }
 
 static void **doSetResultRowData(SSqlObj *pSql) {
@@ -521,21 +522,21 @@ static void **doSetResultRowData(SSqlObj *pSql) {
       sas->offset = 0;
       sas->pArithExpr = pInfo->pArithExprInfo;
       
-      sas->numOfCols = sas->pArithExpr->binExprInfo.numOfCols;
+//      sas->numOfCols = sas->pArithExpr->numOfCols;
       
       if (pRes->buffer[i] == NULL) {
         pRes->buffer[i] = malloc(tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i)->bytes);
       }
       
       for(int32_t k = 0; k < sas->numOfCols; ++k) {
-        int32_t columnIndex = sas->pArithExpr->binExprInfo.pReqColumns[k].colIndex;
-        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
-        
-        sas->elemSize[k] = pExpr->resBytes;
-        sas->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
+//        int32_t columnIndex = sas->pArithExpr->colList[k].colIndex;
+//        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
+//
+//        sas->elemSize[k] = pExpr->resBytes;
+//        sas->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
       }
 
-      tSQLBinaryExprCalcTraverse(sas->pArithExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSDB_ORDER_ASC, getArithemicInputSrc);
+      tExprTreeCalcTraverse(sas->pArithExpr->pExpr, 1, pRes->buffer[i], sas, TSDB_ORDER_ASC, getArithemicInputSrc);
       pRes->tsrow[i] = pRes->buffer[i];
       
       free(sas); //todo optimization
@@ -634,8 +635,6 @@ static UNUSED_FUNC void **tscBuildResFromSubqueries(SSqlObj *pSql) {
     }
 
     if (success) {  // current row of final output has been built, return to app
-      size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-  
       for (int32_t i = 0; i < numOfExprs; ++i) {
         int32_t tableIndex = pRes->pColumnIndex[i].tableIndex;
         int32_t columnIndex = pRes->pColumnIndex[i].columnIndex;

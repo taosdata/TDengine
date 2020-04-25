@@ -609,17 +609,6 @@ static void tQueryOnSkipList(SSkipList* pSkipList, SQueryCond* pCond, int32_t ty
   }
 }
 
-/*
- * qsort comparator
- * sort the result to ensure meters with the same gid is grouped together
- */
-//static int32_t compareByAddr(const void *pLeft, const void *pRight) {
-//  int64_t p1 = (int64_t) * ((tSkipListNode **)pLeft);
-//  int64_t p2 = (int64_t) * ((tSkipListNode **)pRight);
-//
-//  DEFAULT_COMP(p1, p2);
-//}
-
 int32_t merge(SArray *pLeft, SArray *pRight, SArray *pFinalRes) {
 //  assert(pFinalRes->pRes == 0);
 //
@@ -881,8 +870,8 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
   }
 }
 
-void tSQLBinaryExprCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
-                                char *(*getSourceDataBlock)(void *, char *, int32_t)) {
+void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                                char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
   if (pExprs == NULL) {
     return;
   }
@@ -893,13 +882,13 @@ void tSQLBinaryExprCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOut
   /* the left output has result from the left child syntax tree */
   char *pLeftOutput = (char*)malloc(sizeof(int64_t) * numOfRows);
   if (pLeft->nodeType == TSQL_NODE_EXPR) {
-    tSQLBinaryExprCalcTraverse(pLeft, numOfRows, pLeftOutput, param, order, getSourceDataBlock);
+    tExprTreeCalcTraverse(pLeft, numOfRows, pLeftOutput, param, order, getSourceDataBlock);
   }
 
   /* the right output has result from the right child syntax tree */
   char *pRightOutput = malloc(sizeof(int64_t) * numOfRows);
   if (pRight->nodeType == TSQL_NODE_EXPR) {
-    tSQLBinaryExprCalcTraverse(pRight, numOfRows, pRightOutput, param, order, getSourceDataBlock);
+    tExprTreeCalcTraverse(pRight, numOfRows, pRightOutput, param, order, getSourceDataBlock);
   }
 
   if (pLeft->nodeType == TSQL_NODE_EXPR) {
@@ -961,7 +950,7 @@ void tSQLBinaryExprCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOut
   free(pRightOutput);
 }
 
-void tSQLBinaryExprTrv(tExprNode *pExprs, int32_t *val, int16_t *ids) {
+void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res) {
   if (pExprs == NULL) {
     return;
   }
@@ -971,17 +960,15 @@ void tSQLBinaryExprTrv(tExprNode *pExprs, int32_t *val, int16_t *ids) {
 
   // recursive traverse left child branch
   if (pLeft->nodeType == TSQL_NODE_EXPR) {
-    tSQLBinaryExprTrv(pLeft, val, ids);
+    tSQLBinaryExprTrv(pLeft, res);
   } else if (pLeft->nodeType == TSQL_NODE_COL) {
-    ids[*val] = pLeft->pSchema->colId;
-    (*val) += 1;
+    taosArrayPush(res, &pLeft->pSchema->colId);
   }
 
   if (pRight->nodeType == TSQL_NODE_EXPR) {
-    tSQLBinaryExprTrv(pRight, val, ids);
+    tSQLBinaryExprTrv(pRight, res);
   } else if (pRight->nodeType == TSQL_NODE_COL) {
-    ids[*val] = pRight->pSchema->colId;
-    (*val) += 1;
+    taosArrayPush(res, &pRight->pSchema->colId);
   }
 }
 
