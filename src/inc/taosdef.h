@@ -218,9 +218,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_MGMT_IPS         (TSDB_MAX_MPEERS+1)
 
 #define TSDB_REPLICA_MIN_NUM      1
-/*
- * this is defined in CMakeList.txt
- */
 #define TSDB_REPLICA_MAX_NUM      3
 
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
@@ -242,8 +239,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MIN_ROWS_IN_FILEBLOCK      200
 #define TSDB_MAX_ROWS_IN_FILEBLOCK      500000
 
-#define TSDB_MIN_CACHE_BLOCK_SIZE       100
-#define TSDB_MAX_CACHE_BLOCK_SIZE       104857600
+#define TSDB_MIN_CACHE_BLOCK_SIZE       1
+#define TSDB_MAX_CACHE_BLOCK_SIZE       1000000
 
 #define TSDB_MIN_CACHE_BLOCKS           100
 #define TSDB_MAX_CACHE_BLOCKS           409600

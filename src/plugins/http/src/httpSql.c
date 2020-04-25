@@ -13,15 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
+#include "tnote.h"
+#include "taos.h"
+#include "tsclient.h"
 #include "http.h"
+#include "httpLog.h"
 #include "httpCode.h"
 #include "httpHandle.h"
 #include "httpResp.h"
-#include "taos.h"
-#include "tsclient.h"
-#include "tnote.h"
-#include "httpLog.h"
 
 void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
@@ -55,8 +56,8 @@ void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numO
               pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, numOfRows, sql);
 
     if (numOfRows < 0) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, retrieve failed code:%d, sql:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, -numOfRows, sql);
+      httpError("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, retrieve failed code:%s, sql:%s",
+                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, tstrerror(numOfRows), sql);
     } else {
       taos_free_result(result);
     }
@@ -79,21 +80,21 @@ void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
   HttpSqlCmd *singleCmd = multiCmds->cmds + multiCmds->pos;
   char *      sql = httpGetCmdsString(pContext, singleCmd->sql);
 
-  if (-code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    httpWarn("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, code:%d:inprogress, sql:%s",
-             pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, -code, sql);
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+    httpWarn("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, code:%s:inprogress, sql:%s",
+             pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, tstrerror(code), sql);
     return;
   }
 
   if (code < 0) {
-    if (encode->checkFinishedFp != NULL && !encode->checkFinishedFp(pContext, singleCmd, code >= 0 ? 0 : -code)) {
-      singleCmd->code = -code;
-      httpTrace("context:%p, fd:%d, ip:%s, user:%s, process pos jump to:%d, last code:%d, last sql:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos + 1, -code, sql);
+    if (encode->checkFinishedFp != NULL && !encode->checkFinishedFp(pContext, singleCmd, code >= 0 ? 0 : code)) {
+      singleCmd->code = code;
+      httpTrace("context:%p, fd:%d, ip:%s, user:%s, process pos jump to:%d, last code:%s, last sql:%s",
+                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos + 1, tstrerror(code), sql);
     } else {
-      singleCmd->code = -code;
-      httpError("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, error code:%d, sql:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, -code, sql);
+      singleCmd->code = code;
+      httpError("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, error code:%s, sql:%s",
+                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, tstrerror(code), sql);
 
       if (singleCmd->cmdReturnType == HTTP_CMD_RETURN_TYPE_WITH_RETURN) {
         if (encode->startJsonFp) (encode->startJsonFp)(pContext, singleCmd, result);
@@ -209,8 +210,8 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
               pContext->user, numOfRows);
 
     if (numOfRows < 0) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, retrieve failed, code:%d", pContext, pContext->fd, pContext->ipstr,
-                pContext->user, -numOfRows);
+      httpError("context:%p, fd:%d, ip:%s, user:%s, retrieve failed, code:%s", pContext, pContext->fd, pContext->ipstr,
+                pContext->user, tstrerror(numOfRows));
     } else {
       taos_free_result(result);
     }
@@ -229,22 +230,22 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
 
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
-  if (-code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%d:inprogress, sqlObj:%p",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, -code, (SSqlObj *)result);
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+    httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s:inprogress, sqlObj:%p",
+              pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), (SSqlObj *)result);
     return;
   }
 
   if (code < 0) {
     SSqlObj *pObj = (SSqlObj *)result;
-    if (-code == TSDB_CODE_INVALID_SQL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%d:invalidsql, sqlObj:%p, error:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, -code, pObj, pObj->cmd.payload);
+    if (code == TSDB_CODE_INVALID_SQL) {
+      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s:invalidsql, sqlObj:%p, error:%s",
+                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), pObj, pObj->cmd.payload);
       httpSendTaosdInvalidSqlErrorResp(pContext, pObj->cmd.payload);
     } else {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%d, sqlObj:%p",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, -code, pObj);
-      httpSendTaosdErrorResp(pContext, -code);
+      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s, sqlObj:%p",
+                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), pObj);
+      httpSendTaosdErrorResp(pContext, code);
     }
     return;
   }
@@ -349,9 +350,9 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
   if (pContext == NULL || pContext->signature != pContext) return;
 
   if (code < 0) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, login error, code:%d", pContext, pContext->fd, pContext->ipstr,
-              pContext->user, -code);
-    httpSendTaosdErrorResp(pContext, -code);
+    httpError("context:%p, fd:%d, ip:%s, user:%s, login error, code:%s", pContext, pContext->fd, pContext->ipstr,
+              pContext->user, tstrerror(code));
+    httpSendTaosdErrorResp(pContext, code);
     return;
   }
 

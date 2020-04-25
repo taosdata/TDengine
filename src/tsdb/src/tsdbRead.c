@@ -301,7 +301,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
 
     SCompIdx* compIndex = &pQueryHandle->rhelper.pCompIdx[pCheckInfo->tableId.tid];
-    if (compIndex->len == 0 || compIndex->numOfSuperBlocks == 0) {  // no data block in this file, try next file
+    if (compIndex->len == 0 || compIndex->numOfBlocks == 0) {  // no data block in this file, try next file
       continue;//no data blocks in the file belongs to pCheckInfo->pTable
     } else {
       if (pCheckInfo->compSize < compIndex->len) {
@@ -327,7 +327,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
       TSKEY e = MAX(pCheckInfo->lastKey, pQueryHandle->window.ekey);
       
       // discard the unqualified data block based on the query time window
-      int32_t start = binarySearchForBlockImpl(pCompInfo->blocks, compIndex->numOfSuperBlocks, s, TSDB_ORDER_ASC);
+      int32_t start = binarySearchForBlockImpl(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);
       int32_t end = start;
       
       if (s > pCompInfo->blocks[start].keyLast) {
@@ -335,7 +335,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
       }
 
       // todo speedup the procedure of located end block
-      while (end < compIndex->numOfSuperBlocks && (pCompInfo->blocks[end].keyFirst <= e)) {
+      while (end < compIndex->numOfBlocks && (pCompInfo->blocks[end].keyFirst <= e)) {
         end += 1;
       }
 

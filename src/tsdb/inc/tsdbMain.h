@@ -245,7 +245,7 @@ typedef struct {
   int32_t len;
   int32_t offset;
   int32_t hasLast : 1;
-  int32_t numOfSuperBlocks : 31;
+  int32_t numOfBlocks : 31;
   int32_t checksum;
   TSKEY   maxKey;
 } SCompIdx; /* sizeof(SCompIdx) = 24 */

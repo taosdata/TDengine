@@ -116,7 +116,7 @@ sleep 8000
 
 sql show mnodes
 $dnode1Role = $data3_1
-$dnode2Role = $data3_2
+$dnode2Role = $data3_4
 $dnode3Role = $data3_3
 print 192.168.0.1 ==> $dnode1Role
 print 192.168.0.2 ==> $dnode2Role
@@ -138,13 +138,13 @@ sleep 10000
 
 sql show mnodes
 $dnode1Role = $data3_1
-$dnode2Role = $data3_2
+$dnode2Role = $data3_4
 $dnode3Role = $data3_3
 print 192.168.0.1 ==> $dnode1Role
 print 192.168.0.2 ==> $dnode2Role
 print 192.168.0.3 ==> $dnode3Role
 
-if $dnode1Role != undecided then
+if $dnode1Role != offline then
   return -1
 endi
 #if $dnode2Role != master then

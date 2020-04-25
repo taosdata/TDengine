@@ -163,11 +163,13 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
     pQueryInfo->command = TSDB_SQL_HB;
     
+    pSql->cmd.command = TSDB_SQL_HB;
     if (TSDB_CODE_SUCCESS != tscAllocPayload(&(pSql->cmd), TSDB_DEFAULT_PAYLOAD_SIZE)) {
       tfree(pSql);
       return;
     }
 
+    pSql->cmd.command = TSDB_SQL_HB;
     pSql->param = pObj;
     pSql->pTscObj = pObj;
     pSql->signature = pSql;

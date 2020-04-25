@@ -59,6 +59,19 @@ void dnodeUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
   tsMnodeIpSet = *pIpSet;
 }
 
+void dnodeGetMnodeIpSet(void *ipSetRaw, bool usePublicIp) {
+  SRpcIpSet *ipSet = ipSetRaw;
+  ipSet->numOfIps = tsMnodeInfos.nodeNum;
+  ipSet->inUse = tsMnodeInfos.inUse;
+  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; ++i) {
+    if (usePublicIp) {
+      ipSet->ip[i] = tsMnodeInfos.nodeInfos[i].nodeIp;
+    } else {
+      ipSet->ip[i] = tsMnodeInfos.nodeInfos[i].nodeIp;
+    }
+  }
+}
+
 int32_t dnodeInitMClient() {
   dnodeReadDnodeCfg();
   tsRebootTime = taosGetTimestampSec();
@@ -138,7 +151,9 @@ static void dnodeProcessRspFromMnode(SRpcMsg *pMsg) {
   if (tsDnodeProcessMgmtRspFp[pMsg->msgType]) {
     (*tsDnodeProcessMgmtRspFp[pMsg->msgType])(pMsg);
   } else {
-    dError("%s is not processed in mnode rpc client", taosMsg[pMsg->msgType]);
+    dError("%s is not processed in dnode mclient", taosMsg[pMsg->msgType]);
+    SRpcMsg rpcRsp = {.pCont = 0, .contLen = 0, .code = TSDB_CODE_OPS_NOT_SUPPORT, .handle = pMsg->handle};
+    rpcSendResponse(&rpcRsp);
   }
 
   rpcFreeCont(pMsg->pCont);
