@@ -67,12 +67,16 @@ class TDCases:
             if tmp.name.find(fileName) != -1:
                 case = testModule.TDTestCase()
                 case.init(conn)
-                case.run()
+                try:
+                    case.run()
+                except Exception as e:
+                    tdLog.notice(repr(e))
+                    tdLog.notice("%s failed: %s" % (__file__, fileName))
                 case.stop()
                 runNum += 1
                 continue
 
-        tdLog.notice("total %d Linux test case(s) executed" % (runNum))
+        tdLog.success("total %d Linux test case(s) executed" % (runNum))
 
     def runAllWindows(self, conn):
         # TODO: load all Windows cases here
