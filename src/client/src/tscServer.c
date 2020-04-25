@@ -758,15 +758,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  bool hasArithmeticFunction = false;
-
   SSqlFuncMsg *pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
-
-    if (pExpr->functionId == TSDB_FUNC_ARITHM) {
-      hasArithmeticFunction = true;
-    }
 
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId)) {
       /* column id is not valid according to the cached table meta, the table meta is expired */
@@ -796,23 +790,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   }
-
-  int32_t len = 0;
-  if (hasArithmeticFunction) {
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumn* pColBase = taosArrayGetP(pQueryInfo->colList, i);
-      
-      char *  name = pSchema[pColBase[i].colIndex.columnIndex].name;
-      int32_t lenx = strlen(name);
-      memcpy(pMsg, name, lenx);
-      *(pMsg + lenx) = ',';
-
-      len += (lenx + 1);  // one for comma
-      pMsg += (lenx + 1);
-    }
-  }
-
-  pQueryMsg->colNameLen = htonl(len);
 
   // serialize the table info (sid, uid, tags)
   pMsg = doSerializeTableInfo(pSql, htons(pQueryMsg->head.vgId), pMsg);

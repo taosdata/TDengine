@@ -459,8 +459,8 @@ typedef struct {
   int16_t     interpoType;      // interpolate type
   uint64_t    defaultVal;       // default value array list
 
-  int32_t     colNameLen;
-  int64_t     colNameList;
+//  int32_t     colNameLen;
+//  int64_t     colNameList;
   int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;          // total length of ts comp block
   int32_t     tsNumOfBlocks;  // ts comp block numbers

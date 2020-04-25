@@ -5381,8 +5381,6 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     }
   }
 
-  bool hasArithmeticFunction = false;
-
   *pExpr = calloc(pQueryMsg->numOfOutput, POINTER_BYTES);
   SSqlFuncMsg *pExprMsg = (SSqlFuncMsg *)pMsg;
 
@@ -5409,9 +5407,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
       }
     }
 
-    if (pExprMsg->functionId == TSDB_FUNC_ARITHM) {
-      hasArithmeticFunction = true;
-    } else if (pExprMsg->functionId == TSDB_FUNC_TAG || pExprMsg->functionId == TSDB_FUNC_TAGPRJ ||
+    if (pExprMsg->functionId == TSDB_FUNC_TAG || pExprMsg->functionId == TSDB_FUNC_TAGPRJ ||
                pExprMsg->functionId == TSDB_FUNC_TAG_DUMMY) {
       if (pExprMsg->colInfo.flag != TSDB_COL_TAG) {  // ignore the column  index check for arithmetic expression.
         return TSDB_CODE_INVALID_QUERY_MSG;
@@ -5423,13 +5419,6 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     }
 
     pExprMsg = (SSqlFuncMsg *)pMsg;
-  }
-
-  pQueryMsg->colNameLen = htonl(pQueryMsg->colNameLen);
-  if (hasArithmeticFunction) {  // column name array
-    assert(pQueryMsg->colNameLen > 0);
-    pQueryMsg->colNameList = (int64_t)pMsg;
-    pMsg += pQueryMsg->colNameLen;
   }
 
   pMsg = createTableIdList(pQueryMsg, pMsg, pTableIdList);
@@ -5500,10 +5489,6 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   return 0;
 }
 
-//static int32_t id_compar(const void* p1, const void* p2) {
-//  return GET_INT16_VAL(p1) - GET_INT16_VAL(p2);
-//}
-
 static int32_t buildAirthmeticExprFromMsg(SArithExprInfo *pArithExprInfo, SQueryTableMsg *pQueryMsg) {
   tExprNode* pExprNode = NULL;
   
@@ -5516,22 +5501,6 @@ static int32_t buildAirthmeticExprFromMsg(SArithExprInfo *pArithExprInfo, SQuery
   }
   
   pArithExprInfo->pExpr = pExprNode;
-  
-//  SArray* res = taosArrayInit(4, sizeof(int16_t));
-//  tSQLBinaryExprTrv(pExprNode, res);
-  
-//  size_t num = taosArrayGetSize(res);
-//  qsort(res->pData, num, sizeof(int16_t), id_compar);
-  
-  // there may be duplicated referenced columns.
-//  pArithExprInfo->colList = calloc(pQueryMsg->numOfCols, sizeof(SColIndex));
-  
-//  for (int32_t k = 0; k < pQueryMsg->numOfCols; ++k) {
-//    SColIndex* pColIndex = &pArithExprInfo->colList[k];
-//    pColIndex->colId = pQueryMsg->colList[k].colId;
-//  }
-  
-//  pArithExprInfo->numOfCols = pQueryMsg->numOfCols;
   return TSDB_CODE_SUCCESS;
 }
 
