@@ -733,7 +733,7 @@ int32_t tscSetTableId(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SS
    */
   if (size > 0) {
     if (strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
-      tscClearMeterMetaInfo(pTableMetaInfo, false);
+      tscClearTableMetaInfo(pTableMetaInfo, false);
     }
   } else {
     assert(pTableMetaInfo->pTableMeta == NULL);
@@ -2477,6 +2477,10 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pQueryInfo->colList == NULL) {
+    pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
+  }
+  
   pQueryInfo->groupbyExpr.numOfGroupCols = pList->nExpr;
   if (pList->nExpr > TSDB_MAX_TAGS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
@@ -3545,7 +3549,7 @@ static int32_t setTableCondForSTableQuery(SQueryInfo* pQueryInfo, const char* ac
     return TSDB_CODE_SUCCESS;
   }
 
-  SStringBuilder sb1;
+  SStringBuilder sb1 = { 0 };
   taosStringBuilderAppendStringLen(&sb1, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
 
   char db[TSDB_TABLE_ID_LEN] = {0};
@@ -4915,7 +4919,7 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex) {
   list.num = 1;
   list.ids[0] = colIndex;
 
-  insertResultField(pQueryInfo, size - 1, &list, pSchema->bytes, pSchema->type, pSchema->name, pExpr);
+  insertResultField(pQueryInfo, size, &list, pSchema->bytes, pSchema->type, pSchema->name, pExpr);
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, size - 1);
   pInfo->visible = false;
 }

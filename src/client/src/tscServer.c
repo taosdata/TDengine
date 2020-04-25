@@ -190,6 +190,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
+  STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
   
   char *pMsg = rpcMallocCont(pCmd->payloadLen);
@@ -223,7 +224,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
         .handle  = pSql,
         .code   = 0
     };
-    rpcSendRequest(pTscMgmtConn, &pSql->ipList, &rpcMsg);
+    rpcSendRequest(pObj->pMgmtConn, &pSql->ipList, &rpcMsg);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -696,7 +697,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->numOfTags      = htonl(numOfTags);
-  
+  pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
   pQueryMsg->queryType      = htons(pQueryInfo->type);
   
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
@@ -915,6 +916,14 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
   
+  if (pQueryInfo->tagCond.tbnameCond.cond == NULL) {
+    *pMsg = 0;
+    pMsg++;
+  } else {
+    strcpy(pMsg, pQueryInfo->tagCond.tbnameCond.cond);
+    pMsg += strlen(pQueryInfo->tagCond.tbnameCond.cond) + 1;
+  }
+
   // tbname in/like query expression should be sent to mgmt node
   msgLen = pMsg - pStart;
 
@@ -1847,7 +1856,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = TSDB_MSG_TYPE_CM_HEARTBEAT;
 
   assert(msgLen + minMsgSize() <= size);
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int tscProcessTableMetaRsp(SSqlObj *pSql) {
@@ -2599,7 +2608,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
 
 //  if (pSql->fp != NULL && pSql->pStream == NULL) {
 //    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-//    tscFreeSubqueryInfo(pCmd);
+//    tscFreeQueryInfo(pCmd);
 //  }
 
   tscTrace("%p allocate new pSqlObj:%p to get stable vgroupInfo", pSql, pNew);

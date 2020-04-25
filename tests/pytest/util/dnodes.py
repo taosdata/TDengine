@@ -19,11 +19,18 @@ from util.log import *
 
 
 class TDSimClient:
+    def __init__(self):
+        self.testCluster = False
+
     def init(self, path):
+        self.__init__()
         self.path = path
 
     def getCfgDir(self):
         return self.cfgDir
+
+    def setTestCluster(self, value):
+        self.testCluster = value
 
     def cfg(self, option, value):
         cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
@@ -55,8 +62,9 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        self.cfg("masterIp", "192.168.0.1")
-        self.cfg("secondIp", "192.168.0.2")
+        if self.testCluster:
+            self.cfg("masterIp", "192.168.0.1")
+            self.cfg("secondIp", "192.168.0.2")
         self.cfg("logDir", self.logDir)
         self.cfg("numOfLogLines", "100000000")
         self.cfg("numOfThreadsPerCore", "2.0")
@@ -128,11 +136,12 @@ class TDDnode:
         if self.testCluster:
             self.startIP()
 
-        self.cfg("masterIp", "192.168.0.1")
-        self.cfg("secondIp", "192.168.0.2")
-        self.cfg("publicIp", "192.168.0.%d" % (self.index))
-        self.cfg("internalIp", "192.168.0.%d" % (self.index))
-        self.cfg("privateIp", "192.168.0.%d" % (self.index))
+        if self.testCluster:
+            self.cfg("masterIp", "192.168.0.1")
+            self.cfg("secondIp", "192.168.0.2")
+            self.cfg("publicIp", "192.168.0.%d" % (self.index))
+            self.cfg("internalIp", "192.168.0.%d" % (self.index))
+            self.cfg("privateIp", "192.168.0.%d" % (self.index))
         self.cfg("dataDir", self.dataDir)
         self.cfg("logDir", self.logDir)
         self.cfg("numOfLogLines", "100000000")
@@ -291,10 +300,6 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].init(self.path)
 
-        self.sim = TDSimClient()
-        self.sim.init(self.path)
-        self.sim.deploy()
-
     def setTestCluster(self, value):
         self.testCluster = value
 
@@ -302,6 +307,11 @@ class TDDnodes:
         self.valgrind = value
 
     def deploy(self, index):
+        self.sim = TDSimClient()
+        self.sim.init(self.path)
+        self.sim.setTestCluster(self.testCluster)
+        self.sim.deploy()
+
         self.check(index)
         self.dnodes[index - 1].setTestCluster(self.testCluster)
         self.dnodes[index - 1].setValgrind(self.valgrind)

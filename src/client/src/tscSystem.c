@@ -33,9 +33,6 @@
 
 // global, not configurable
 void *  pVnodeConn;
-void *  pVMeterConn;
-void *  pTscMgmtConn;
-void *  pSlaveConn;
 void *  tscCacheHandle;
 int     slaveIndex;
 void *  tscTmr;
@@ -54,7 +51,7 @@ void tscCheckDiskUsage(void *para, void *unused) {
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
-int32_t tscInitRpc(const char *user, const char *secret) {
+int32_t tscInitRpc(const char *user, const char *secret, void** pMgmtConn) {
   SRpcInit rpcInit;
   char secretEncrypt[32] = {0};
   taosEncryptPass((uint8_t *)secret, strlen(secret), secretEncrypt);
@@ -80,7 +77,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     }
   }
 
-  if (pTscMgmtConn == NULL) {
+  if (*pMgmtConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localIp = tsLocalIp;
     rpcInit.localPort = 0;
@@ -96,8 +93,8 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.spi = 1;
     rpcInit.secret = secretEncrypt;
 
-    pTscMgmtConn = rpcOpen(&rpcInit);
-    if (pTscMgmtConn == NULL) {
+    *pMgmtConn = rpcOpen(&rpcInit);
+    if (*pMgmtConn == NULL) {
       tscError("failed to init connection to mgmt");
       return -1;
     }
@@ -209,11 +206,6 @@ void taos_cleanup() {
   if (pVnodeConn != NULL) {
     rpcClose(pVnodeConn);
     pVnodeConn = NULL;
-  }
-  
-  if (pTscMgmtConn != NULL) {
-    rpcClose(pTscMgmtConn);
-    pTscMgmtConn = NULL;
   }
   
   taosTmrCleanUp(tscTmr);

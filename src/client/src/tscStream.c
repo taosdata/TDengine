@@ -147,7 +147,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
              retryDelay);
 
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
-    tscClearMeterMetaInfo(pTableMetaInfo, true);
+    tscClearTableMetaInfo(pTableMetaInfo, true);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
     return;
@@ -177,7 +177,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
   if (pSql == NULL || numOfRows < 0) {
     int64_t retryDelayTime = tscGetRetryDelayTime(pStream->slidingTime, pStream->precision);
     tscError("%p stream:%p, retrieve data failed, code:%d, retry in %" PRId64 "ms", pSql, pStream, numOfRows, retryDelayTime);
-    tscClearMeterMetaInfo(pTableMetaInfo, true);
+    tscClearTableMetaInfo(pTableMetaInfo, true);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelayTime);
     return;
@@ -259,7 +259,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
              pStream->numOfRes);
 
     // release the metric/meter meta information reference, so data in cache can be updated
-    tscClearMeterMetaInfo(pTableMetaInfo, false);
+    tscClearTableMetaInfo(pTableMetaInfo, false);
     tscSetNextLaunchTimer(pStream, pSql);
   }
 }
