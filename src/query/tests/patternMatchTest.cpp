@@ -58,7 +58,7 @@ TEST(testCase, patternMatchTest) {
   EXPECT_EQ(ret, TSDB_PATTERN_NOWILDCARDMATCH);
 
   str = "abcdefgabcdeju";
-  ret = patternMatch("abc%f_", str, 1, &info);
+  ret = patternMatch("abc%f_", str, 1, &info);  // pattern string is longe than the size
   EXPECT_EQ(ret, TSDB_PATTERN_NOMATCH);
 
   str = "abcdefgabcdeju";
@@ -72,4 +72,8 @@ TEST(testCase, patternMatchTest) {
   str = "abcdefgabcdeju";
   ret = patternMatch("a__", str, 2, &info);
   EXPECT_EQ(ret, TSDB_PATTERN_NOMATCH);
+  
+  str = "carzero";
+  ret = patternMatch("%o", str, strlen(str), &info);
+  EXPECT_EQ(ret, TSDB_PATTERN_MATCH);
 }
