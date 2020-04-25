@@ -130,6 +130,17 @@ void tVariantDestroy(tVariant *pVar) {
     tfree(pVar->pz);
     pVar->nLen = 0;
   }
+
+  // NOTE: this is only for string array
+  if (pVar->nType == TSDB_DATA_TYPE_ARRAY) {
+    size_t num = taosArrayGetSize(pVar->arr);
+    for(size_t i = 0; i < num; i++) {
+      void* p = taosArrayGetP(pVar->arr, i);
+      free(p);
+    }
+    taosArrayDestroy(pVar->arr);
+    pVar->arr = NULL;
+  }
 }
 
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
@@ -145,6 +156,18 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
     
     pDst->pz = calloc(1, len);
     memcpy(pDst->pz, pSrc->pz, len);
+    return;
+  }
+
+  // this is only for string array
+  if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {
+    size_t num = taosArrayGetSize(pSrc->arr);
+    pDst->arr = taosArrayInit(num, sizeof(char*));
+    for(size_t i = 0; i < num; i++) {
+      char* p = (char*)taosArrayGetP(pSrc->arr, i);
+      char* n = strdup(p);
+      taosArrayPush(pDst->arr, &n);
+    }
   }
 }
 

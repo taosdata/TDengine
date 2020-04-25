@@ -17,6 +17,7 @@
 #define TDENGINE_TVARIANT_H
 
 #include "tstoken.h"
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +32,7 @@ typedef struct tVariant {
     double   dKey;
     char *   pz;
     wchar_t *wpz;
+    SArray  *arr; // only for 'in' query to hold value list, not value for a field
   };
 } tVariant;
 

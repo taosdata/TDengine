@@ -64,7 +64,7 @@ matrix:
           memError=`grep -m 1 'ERROR SUMMARY' mem-error-out.txt | awk '{print $4}'`
 
           if [ -n "$memError" ]; then
-            if [ "$memError" -gt 16 ] && [ "$defiMemError" -gt 0 ]; then
+            if [ "$memError" -gt 16 ] || [ "$defiMemError" -gt 0 ]; then
               echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
                        Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
               travis_terminate $memError

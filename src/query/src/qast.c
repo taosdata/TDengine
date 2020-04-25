@@ -30,6 +30,7 @@
 #include "tarray.h"
 #include "tskiplist.h"
 #include "queryLog.h"
+#include "tsdbMain.h"
 
 /*
  *
@@ -521,38 +522,48 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
   if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL ||
       optr == TSDB_RELATION_EQUAL || optr == TSDB_RELATION_NOT_EQUAL) {
     pCond->start = calloc(1, sizeof(tVariant));
-    
     tVariantAssign(&pCond->start->v, &queryColInfo->q);
     pCond->start->optr = queryColInfo->optr;
+
   } else if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
     pCond->end = calloc(1, sizeof(tVariant));
-    
     tVariantAssign(&pCond->end->v, &queryColInfo->q);
     pCond->end->optr = queryColInfo->optr;
+
+  } else if (optr == TSDB_RELATION_IN) {
+    printf("relation is in\n");
+
+  } else if (optr == TSDB_RELATION_LIKE) {
+    printf("relation is like\n");
+
   }
   
   return TSDB_CODE_SUCCESS;
 }
 
-static void tQueryOnSkipList(SSkipList* pSkipList, SQueryCond* pCond, int32_t type, SArray* result) {
+static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
   SSkipListIterator* iter = NULL;
-  
-  if (pCond->start != NULL) {
-    iter = tSkipListCreateIterFromVal(pSkipList, (char*) &pCond->start->v.i64Key, type, TSDB_ORDER_ASC);
+  int32_t type = pQueryInfo->q.nType;
+
+  SQueryCond cond = { 0 };
+  setQueryCond(pQueryInfo, &cond);
+
+  if (cond.start != NULL) {
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*) &cond.start->v.i64Key, type, TSDB_ORDER_ASC);
   } else {
-    iter = tSkipListCreateIterFromVal(pSkipList, (char*) &pCond->end->v.i64Key, type, TSDB_ORDER_DESC);
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*) &cond.end->v.i64Key, type, TSDB_ORDER_DESC);
   }
   
   __compar_fn_t func = getComparFunc(pSkipList->keyInfo.type, type, 0);
   
-  if (pCond->start != NULL) {
-    int32_t optr = pCond->start->optr;
+  if (cond.start != NULL) {
+    int32_t optr = cond.start->optr;
     
     if (optr == TSDB_RELATION_EQUAL) {
       while(tSkipListIterNext(iter)) {
         SSkipListNode* pNode = tSkipListIterGet(iter);
 
-        int32_t ret = func(SL_GET_NODE_KEY(pSkipList, pNode), &pCond->start->v.i64Key);
+        int32_t ret = func(SL_GET_NODE_KEY(pSkipList, pNode), &cond.start->v.i64Key);
         if (ret == 0) {
           taosArrayPush(result, SL_GET_NODE_DATA(pNode));
         } else {
@@ -567,7 +578,7 @@ static void tQueryOnSkipList(SSkipList* pSkipList, SQueryCond* pCond, int32_t ty
         SSkipListNode* pNode = tSkipListIterGet(iter);
     
         if (comp) {
-          ret = func(SL_GET_NODE_KEY(pSkipList, pNode), &pCond->start->v.i64Key);
+          ret = func(SL_GET_NODE_KEY(pSkipList, pNode), &cond.start->v.i64Key);
           assert(ret >= 0);
         }
         
@@ -584,7 +595,7 @@ static void tQueryOnSkipList(SSkipList* pSkipList, SQueryCond* pCond, int32_t ty
       assert(0);
     }
   } else {
-    int32_t optr = pCond->end->optr;
+    int32_t optr = cond.end->optr;
     
     if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
       bool comp = true;
@@ -594,7 +605,7 @@ static void tQueryOnSkipList(SSkipList* pSkipList, SQueryCond* pCond, int32_t ty
         SSkipListNode* pNode = tSkipListIterGet(iter);
       
         if (comp) {
-          ret = func(SL_GET_NODE_KEY(pSkipList, pNode), &pCond->end->v.i64Key);
+          ret = func(SL_GET_NODE_KEY(pSkipList, pNode), &cond.end->v.i64Key);
           assert(ret <= 0);
         }
         
@@ -759,18 +770,54 @@ static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SBinaryFilte
   taosArrayCopy(pResult, array);
 }
 
-static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSkipList *pSkipList,
-    SBinaryFilterSupp *param) {
+
+static void tSQLBinaryTraverseOnSkipList(
+  tExprNode *pExpr,
+  SArray *pResult,
+  SSkipList *pSkipList,
+  SBinaryFilterSupp *param
+) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
 
   while (tSkipListIterNext(iter)) {
     SSkipListNode *pNode = tSkipListIterGet(iter);
-    
     if (filterItem(pExpr, pNode, param)) {
       taosArrayPush(pResult, SL_GET_NODE_DATA(pNode));
     }
   }
+  tSkipListDestroyIter(iter);
 }
+
+
+
+static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
+  SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
+
+  while (tSkipListIterNext(iter)) {
+    bool addToResult = false;
+
+    SSkipListNode *pNode = tSkipListIterGet(iter);
+    STable* table = *(STable**) SL_GET_NODE_DATA(pNode);
+
+    if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      if (pQueryInfo->optr == TSDB_RELATION_IN) {
+        addToResult = pQueryInfo->compare(table->name, pQueryInfo->q.arr);
+      } else if(pQueryInfo->optr == TSDB_RELATION_LIKE) {
+        addToResult = !pQueryInfo->compare(table->name, pQueryInfo->q.pz);
+      }
+    } else {
+      // TODO: other columns
+    }
+
+    if (addToResult) {
+      taosArrayPush(result, (void*)&table);
+    }
+  }
+
+  tSkipListDestroyIter(iter);
+}
+
+
 
 // post-root order traverse syntax tree
 void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param) {
@@ -781,94 +828,98 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
   tExprNode *pLeft  = pExpr->_node.pLeft;
   tExprNode *pRight = pExpr->_node.pRight;
 
-  // recursive traverse left child branch
-  if (pLeft->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_EXPR) {
-    uint8_t weight = pLeft->_node.hasPK + pRight->_node.hasPK;
-
-    if (weight == 0 && taosArrayGetSize(result) > 0 && pSkipList == NULL) {
-      /**
-       * Perform the filter operation based on the initial filter result, which is obtained from filtering from index.
-       * Since no index presented, the filter operation is done by scan all elements in the result set.
-       *
-       * if the query is a high selectivity filter, only small portion of meters are retrieved.
-       */
-      exprTreeTraverseImpl(pExpr, result, param);
-    } else if (weight == 0) {
-      /**
-       * apply the hierarchical expression to every node in skiplist for find the qualified nodes
-       */
-      assert(taosArrayGetSize(result) == 0);
-      tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
-    } else if (weight == 2 || (weight == 1 && pExpr->_node.optr == TSDB_RELATION_OR)) {
-      SArray* rLeft  = taosArrayInit(10, POINTER_BYTES);
-      SArray* rRight = taosArrayInit(10, POINTER_BYTES);
-
-      tExprTreeTraverse(pLeft, pSkipList, rLeft, param);
-      tExprTreeTraverse(pRight, pSkipList, rRight, param);
-
-      if (pExpr->_node.optr == TSDB_RELATION_AND) {  // CROSS
-        intersect(rLeft, rRight, result);
-      } else if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
-        merge(rLeft, rRight, result);
-      } else {
-        assert(false);
-      }
-
-      taosArrayDestroy(rLeft);
-      taosArrayDestroy(rRight);
-    } else {
-      /*
-       * (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) is handled here
-       *
-       * first, we filter results based on the skiplist index, which is the initial filter stage,
-       * then, we conduct the secondary filter operation based on the result from the initial filter stage.
-       */
-      assert(pExpr->_node.optr == TSDB_RELATION_AND);
-
-      tExprNode *pFirst = NULL;
-      tExprNode *pSecond = NULL;
-      if (pLeft->_node.hasPK == 1) {
-        pFirst = pLeft;
-        pSecond = pRight;
-      } else {
-        pFirst = pRight;
-        pSecond = pLeft;
-      }
-
-      assert(pFirst != pSecond && pFirst != NULL && pSecond != NULL);
-
-      // we filter the result based on the skiplist index in the first place
-      tExprTreeTraverse(pFirst, pSkipList, result, param);
-
-      /*
-       * recursively perform the filter operation based on the initial results,
-       * So, we do not set the skip list index as a parameter
-       */
-      tExprTreeTraverse(pSecond, NULL, result, param);
-    }
-  } else {  // column project
+  // column project
+  if (pLeft->nodeType != TSQL_NODE_EXPR && pRight->nodeType != TSQL_NODE_EXPR) {
     assert(pLeft->nodeType == TSQL_NODE_COL && pRight->nodeType == TSQL_NODE_VALUE);
 
     param->setupInfoFn(pExpr, param->pExtInfo);
     if (pSkipList == NULL) {
       tSQLListTraverseOnResult(pExpr, param->fp, result);
-    } else {
-      tQueryInfo *pQueryInfo = pExpr->_node.info;
-      
-      if (pQueryInfo->colIndex == 0 && pQueryInfo->optr != TSDB_RELATION_LIKE) {
-        SQueryCond cond = {0};
-        /*int32_t ret = */ setQueryCond(pQueryInfo, &cond);
-        tQueryOnSkipList(pSkipList, &cond, pQueryInfo->q.nType, result);
-      } else {
-        /* Brutal force scan the whole skip list to find the appropriate result,
-         * since the filter is not applied to indexed column.
-         */
-        assert(0);
-//    result->num = tSkipListIterateList(pSkipList, (tSkipListNode ***)&result->pRes, fp, queryColInfo);
-      }
+      return;
     }
+
+    tQueryInfo *pQueryInfo = pExpr->_node.info;
+    if (pQueryInfo->colIndex == 0 && pQueryInfo->optr != TSDB_RELATION_LIKE) {
+      tQueryIndexColumn(pSkipList, pQueryInfo, result);
+    } else {
+      tQueryIndexlessColumn(pSkipList, pQueryInfo, result);
+    }
+
+    return;
   }
+
+  // recursive traverse left child branch
+  uint8_t weight = pLeft->_node.hasPK + pRight->_node.hasPK;
+
+  if (weight == 0 ) {
+    if (taosArrayGetSize(result) > 0 && pSkipList == NULL) {
+    /**
+     * Perform the filter operation based on the initial filter result, which is obtained from filtering from index.
+     * Since no index presented, the filter operation is done by scan all elements in the result set.
+     *
+     * if the query is a high selectivity filter, only small portion of meters are retrieved.
+     */
+      exprTreeTraverseImpl(pExpr, result, param);
+    } else {
+      /**
+       * apply the hierarchical expression to every node in skiplist for find the qualified nodes
+       */
+      assert(taosArrayGetSize(result) == 0);
+      tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
+    }
+    return;
+  }
+  
+  if (weight == 2 || (weight == 1 && pExpr->_node.optr == TSDB_RELATION_OR)) {
+    SArray* rLeft  = taosArrayInit(10, POINTER_BYTES);
+    SArray* rRight = taosArrayInit(10, POINTER_BYTES);
+
+    tExprTreeTraverse(pLeft, pSkipList, rLeft, param);
+    tExprTreeTraverse(pRight, pSkipList, rRight, param);
+
+    if (pExpr->_node.optr == TSDB_RELATION_AND) {  // CROSS
+      intersect(rLeft, rRight, result);
+    } else if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
+      merge(rLeft, rRight, result);
+    } else {
+      assert(false);
+    }
+
+    taosArrayDestroy(rLeft);
+    taosArrayDestroy(rRight);
+    return;
+  }
+
+  /*
+    * (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) is handled here
+    *
+    * first, we filter results based on the skiplist index, which is the initial filter stage,
+    * then, we conduct the secondary filter operation based on the result from the initial filter stage.
+    */
+  assert(pExpr->_node.optr == TSDB_RELATION_AND);
+
+  tExprNode *pFirst = NULL;
+  tExprNode *pSecond = NULL;
+  if (pLeft->_node.hasPK == 1) {
+    pFirst = pLeft;
+    pSecond = pRight;
+  } else {
+    pFirst = pRight;
+    pSecond = pLeft;
+  }
+
+  assert(pFirst != pSecond && pFirst != NULL && pSecond != NULL);
+
+  // we filter the result based on the skiplist index in the first place
+  tExprTreeTraverse(pFirst, pSkipList, result, param);
+
+  /*
+    * recursively perform the filter operation based on the initial results,
+    * So, we do not set the skip list index as a parameter
+    */
+  tExprTreeTraverse(pSecond, NULL, result, param);
 }
+
 
 void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
@@ -1019,49 +1070,143 @@ SBuffer exprTreeToBinary(tExprNode* pExprTree) {
   return buf;
 }
 
-static void exprTreeFromBinaryImpl(tExprNode** pExprTree, SBuffer* pBuf) {
+static tExprNode* exprTreeFromBinaryImpl(SBuffer* pBuf) {
   tExprNode* pExpr = calloc(1, sizeof(tExprNode));
-  tbufReadToBuffer(pBuf, &pExpr->nodeType, sizeof(pExpr->nodeType));
+  pExpr->nodeType = tbufReadUint8(pBuf);
   
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
     tVariant* pVal = calloc(1, sizeof(tVariant));
+    if (pVal == NULL) {
+      // TODO:
+    }
+    pExpr->pVal = pVal;
   
-    tbufReadToBuffer(pBuf, &pVal->nType, sizeof(pVal->nType));
+    pVal->nType = tbufReadUint32(pBuf);
     if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
       tbufReadToBuffer(pBuf, &pVal->nLen, sizeof(pVal->nLen));
       pVal->pz = calloc(1, pVal->nLen + 1);
       tbufReadToBuffer(pBuf, pVal->pz, pVal->nLen);
     } else {
-      tbufReadToBuffer(pBuf, &pVal->pz, sizeof(pVal->i64Key));
+      pVal->i64Key = tbufReadInt64(pBuf);
     }
     
-    pExpr->pVal = pVal;
   } else if (pExpr->nodeType == TSQL_NODE_COL) {
     SSchema* pSchema = calloc(1, sizeof(SSchema));
-    tbufReadToBuffer(pBuf, &pSchema->colId, sizeof(pSchema->colId));
-    tbufReadToBuffer(pBuf, &pSchema->bytes, sizeof(pSchema->bytes));
-    tbufReadToBuffer(pBuf, &pSchema->type, sizeof(pSchema->type));
-    
+    if (pSchema == NULL) {
+      // TODO:
+    }
+    pExpr->pSchema = pSchema;
+
+    pSchema->colId = tbufReadInt16(pBuf);
+    pSchema->bytes = tbufReadInt16(pBuf);
+    pSchema->type = tbufReadUint8(pBuf);
     tbufReadToString(pBuf, pSchema->name, TSDB_COL_NAME_LEN);
     
-    pExpr->pSchema = pSchema;
   } else if (pExpr->nodeType == TSQL_NODE_EXPR) {
-    tbufReadToBuffer(pBuf, &pExpr->_node.optr, sizeof(pExpr->_node.optr));
-    tbufReadToBuffer(pBuf, &pExpr->_node.hasPK, sizeof(pExpr->_node.hasPK));
-  
-    exprTreeFromBinaryImpl(&pExpr->_node.pLeft, pBuf);
-    exprTreeFromBinaryImpl(&pExpr->_node.pRight, pBuf);
+    pExpr->_node.optr = tbufReadUint8(pBuf);
+    pExpr->_node.hasPK = tbufReadUint8(pBuf);
+    pExpr->_node.pLeft = exprTreeFromBinaryImpl(pBuf);
+    pExpr->_node.pRight = exprTreeFromBinaryImpl(pBuf);
     
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
   }
   
-  *pExprTree = pExpr;
+  return pExpr;
 }
 
-int32_t exprTreeFromBinary(const void* pBuf, size_t size, tExprNode** pExprNode) {
+tExprNode* exprTreeFromBinary(const void* pBuf, size_t size) {
+  if (size == 0) {
+    return NULL;
+  }
   SBuffer rbuf = {0};
-  /*int32_t code =*/ tbufBeginRead(&rbuf, pBuf, size);
-  exprTreeFromBinaryImpl(pExprNode, &rbuf);
-  return TSDB_CODE_SUCCESS;
+  tbufBeginRead(&rbuf, pBuf, size);
+  return exprTreeFromBinaryImpl(&rbuf);
 }
 
+tExprNode* exprTreeFromTableName(const char* tbnameCond) {
+  if (!tbnameCond) {
+    return NULL;
+  }
+
+  tExprNode* expr = calloc(1, sizeof(tExprNode));
+  if (expr == NULL) {
+    // TODO:
+  }
+  expr->nodeType = TSQL_NODE_EXPR;
+
+  tExprNode* left = calloc(1, sizeof(tExprNode));
+  if (left == NULL) {
+    // TODO:
+  }
+  expr->_node.pLeft = left;
+
+  left->nodeType = TSQL_NODE_COL;
+  SSchema* pSchema = calloc(1, sizeof(SSchema));
+  if (pSchema == NULL) {
+    // TODO:
+  }
+  left->pSchema = pSchema;
+
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  pSchema->bytes = TSDB_TABLE_NAME_LEN;
+  strcpy(pSchema->name, TSQL_TBNAME_L);
+  pSchema->colId = -1;
+
+  tExprNode* right = calloc(1, sizeof(tExprNode));
+  if (right == NULL) {
+    // TODO
+  }
+  expr->_node.pRight = right;
+
+  if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
+    right->nodeType = TSQL_NODE_VALUE;
+    expr->_node.optr = TSDB_RELATION_LIKE;
+    tVariant* pVal = calloc(1, sizeof(tVariant));
+    if (pVal == NULL) {
+      // TODO:
+    }
+    right->pVal = pVal;
+    pVal->nType = TSDB_DATA_TYPE_BINARY;
+    size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN) + 1;
+    pVal->pz = malloc(len);
+    if (pVal->pz == NULL) {
+      // TODO:
+    }
+    memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN, len);
+    pVal->nLen = (int32_t)len;
+
+  } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
+    right->nodeType = TSQL_NODE_VALUE;
+    expr->_node.optr = TSDB_RELATION_IN;
+    tVariant* pVal = calloc(1, sizeof(tVariant));
+    if (pVal == NULL) {
+      // TODO:
+    }
+    right->pVal = pVal;
+    pVal->nType = TSDB_DATA_TYPE_ARRAY;
+    pVal->arr = taosArrayInit(2, sizeof(char*));
+
+    const char* cond = tbnameCond + QUERY_COND_REL_PREFIX_IN_LEN;
+    for (const char *e = cond; *e != 0; e++) {
+      if (*e == TS_PATH_DELIMITER[0]) {
+        cond = e + 1;
+      } else if (*e == ',') {
+        size_t len = e - cond + 1;
+        char* p = malloc( len );
+        memcpy(p, cond, len);
+        p[len - 1] = 0;
+        cond += len;
+        taosArrayPush(pVal->arr, &p);
+      }
+    }
+
+    if (*cond != 0) {
+        char* p = strdup( cond );
+        taosArrayPush(pVal->arr, &p);
+    }
+
+    taosArraySortString(pVal->arr);
+  }
+
+  return expr;
+}
