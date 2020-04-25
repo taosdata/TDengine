@@ -345,7 +345,6 @@ typedef struct {
 } SMDDropTableMsg;
 
 typedef struct {
-  int32_t contLen;
   int32_t vgId;
   int64_t uid;
   char    tableId[TSDB_TABLE_ID_LEN + 1];

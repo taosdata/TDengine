@@ -756,8 +756,26 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
 static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
   SSuperTableObj *pStable = (SSuperTableObj *)pMsg->pTable;
   if (pStable->numOfTables != 0) {
-    mError("stable:%s, numOfTables:%d not 0", pStable->info.tableId, pStable->numOfTables);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OTHERS);
+    mgmtDropAllChildTablesInStable(pStable);
+    for (int32_t vg = 0; vg < pTable->vgLen; ++vg) {
+      int32_t vgId = pTable->vgList[vg];
+      if (vgId == 0) break;
+
+      SMDDropSTableMsg *pDrop = rpcMalloc(sizeof(SMDDropSTableMsg));
+      pDrop->vgId = htonl(vgId);
+      pDrop->uid = htobe64(pStable->uid);
+      mgmtExtractTableName(pStable->info.tableId, pDrop->tableId);
+
+      SVgObj *pVgroup = mgmtGetVgroup(vgId);
+      if (pVgroup != NULL) {
+        SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+        SRpcMsg rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
+        mgmtSendMsgToDnode(&ipSet, &rpcMsg);
+        mgmtDecVgroupRef(pVgroup);
+      }
+    }
+    //mError("stable:%s, numOfTables:%d not 0", pStable->info.tableId, pStable->numOfTables);
+    //mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OTHERS);
   } else {
     SSdbOper oper = {
       .type = SDB_OPER_GLOBAL,
