@@ -311,6 +311,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
 
   table->tableId = pCfg->tableId;
   table->name = strdup(pCfg->name);
+  table->lastKey = 0;
   if (IS_CREATE_STABLE(pCfg)) { // TSDB_CHILD_TABLE
     table->type = TSDB_CHILD_TABLE;
     table->superUid = pCfg->superUid;

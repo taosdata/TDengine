@@ -78,7 +78,7 @@ typedef struct STableMetaInfo {
    */
   int32_t vgroupIndex;
   char    name[TSDB_TABLE_ID_LEN];        // (super) table name
-  SArray* tagColList;                     // involved tag columns
+  SArray* tagColList;                     // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
 
 /* the structure for sql function in select clause */
@@ -298,6 +298,7 @@ typedef struct STscObj {
   char               sversion[TSDB_VERSION_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
+  void*              pMgmtConn;
   struct SSqlObj *   pSql;
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
@@ -359,7 +360,7 @@ typedef struct SSqlStream {
   struct SSqlStream *prev, *next;
 } SSqlStream;
 
-int32_t tscInitRpc(const char *user, const char *secret);
+int32_t tscInitRpc(const char *user, const char *secret, void** pMgmtConn);
 void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
@@ -427,9 +428,7 @@ int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 char *  tscGetResultColumnChr(SSqlRes *pRes, SQueryInfo *pQueryInfo, int32_t column);
 
 extern void *    pVnodeConn;
-extern void *    pTscMgmtConn;
 extern void *    tscCacheHandle;
-extern int       slaveIndex;
 extern void *    tscTmr;
 extern void *    tscQhandle;
 extern int       tscKeepConn[];

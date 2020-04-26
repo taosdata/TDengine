@@ -279,8 +279,17 @@ SArray *tsdbGetTableList(TsdbQueryHandleT *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-int32_t tsdbQueryByTagsCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagCond, size_t len, STableGroupInfo *pGroupList,
-                      SColIndex *pColIndex, int32_t numOfCols);
+int32_t tsdbQueryByTagsCond(
+  TsdbRepoT *tsdb,
+  int64_t uid,
+  const char *pTagCond,
+  size_t len,
+  int16_t tagNameRelType,
+  const char* tbnameCond,
+  STableGroupInfo *pGroupList,
+  SColIndex *pColIndex,
+  int32_t numOfCols
+  );
 
 int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, int64_t uid, STableGroupInfo *pGroupInfo);
 
