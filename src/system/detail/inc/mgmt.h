@@ -172,6 +172,8 @@ typedef struct _user_obj {
   char              pass[TSDB_KEY_LEN];
   char              acct[TSDB_USER_LEN];
   int64_t           createdTime;
+  int32_t           authAllowTime;
+  int16_t           authFailCount;
   char              superAuth : 1;
   char              writeAuth : 1;
   char              reserved[16];
@@ -272,6 +274,7 @@ int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid);
 int  mgmtInitShell();
 void mgmtCleanUpShell();
 int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey);
+int mgmtGetSetUserAuthFailInfo(char *user, int32_t *failedCount, int32_t *allowTime, bool opSet);
 
 // acct API
 int       mgmtInitAccts();

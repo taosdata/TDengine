@@ -62,6 +62,7 @@ typedef struct {
   void (*efp)(int cid);                 // call back function to process not activated chann
   int (*afp)(char *meterId, char *spi, char *encrypt, uint8_t *secret,
              uint8_t *ckey);  // call back to retrieve auth info
+  int (*ufp)(char *user, int32_t *failCount, int32_t *allowTime, bool opSet); // callback to update auth retry info 
 } SRpcInit;
 
 typedef struct {

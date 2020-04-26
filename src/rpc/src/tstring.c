@@ -244,4 +244,5 @@ char *tsError[] = {"success",
                    "failed to lock resources",
                    "table id/uid mismatch",
                    "client query cache erased",     // 119
+                   "too many authentication failed, try 10 minutes later",   //120
 };

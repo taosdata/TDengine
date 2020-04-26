@@ -134,6 +134,7 @@ int tsEnableHttpModule = 1;
 int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
 int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
+int tsMaxAuthRetry = 5;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -689,6 +690,10 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "maxSQLLength", &tsMaxSQLStringLen, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
                      TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_BYTE);
+  
+  tsInitConfigOption(cfg++, "maxAuthRetryTime", &tsMaxAuthRetry, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 10, 0, TSDB_CFG_UTYPE_BYTE);
   
   tsInitConfigOption(cfg++, "maxNumOfOrderedRes", &tsMaxNumOfOrderedResults, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
