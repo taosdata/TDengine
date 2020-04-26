@@ -2714,7 +2714,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tscTrace("%p build load multi-metermeta msg completed, numOfMeters:%d, msg size:%d", pSql, pCmd->count,
            pCmd->payloadLen);
 
-  return pCmd->payloadLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
@@ -2941,7 +2941,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = TSDB_MSG_TYPE_HEARTBEAT;
 
   assert(msgLen + minMsgSize() <= size);
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int tscProcessMeterMetaRsp(SSqlObj *pSql) {
