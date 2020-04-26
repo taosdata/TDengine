@@ -50,7 +50,8 @@ int tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes)
   if (pSchema->numOfCols == 0) {
     colSetOffset(pCol, 0);
   } else {
-    colSetOffset(pCol, pSchema->columns[pSchema->numOfCols - 1].offset + TYPE_BYTES[type]);
+    STColumn *pTCol = pSchema->columns + pSchema->numOfCols - 1;
+    colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
   }
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
