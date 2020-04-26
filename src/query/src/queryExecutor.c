@@ -4338,15 +4338,6 @@ static UNUSED_FUNC bool isGroupbyEachTable(SSqlGroupbyExpr *pGroupbyExpr, STable
   return false;
 }
 
-static UNUSED_FUNC bool doCheckWithPrevQueryRange(SQuery *pQuery, TSKEY nextKey) {
-  if ((nextKey > pQuery->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-      (nextKey < pQuery->window.ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-    return false;
-  }
-
-  return true;
-}
-
 static void enableExecutionForNextTable(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
