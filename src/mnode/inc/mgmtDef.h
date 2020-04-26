@@ -143,14 +143,15 @@ typedef struct SVgObj {
 } SVgObj;
 
 typedef struct {
-  int64_t maxCacheSize;
+  int32_t cacheBlockSize;
+  int32_t totalBlocks;
   int32_t maxTables;
   int32_t daysPerFile;
   int32_t daysToKeep;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t minRowsPerFileBlock;  // minimum rows per file block
-  int32_t maxRowsPerFileBlock;  // maximum rows per file block
+  int32_t minRowsPerFileBlock;
+  int32_t maxRowsPerFileBlock;
   int32_t commitTime;
   int8_t  precision;
   int8_t  compression;
@@ -163,6 +164,7 @@ typedef struct SDbObj {
   char    name[TSDB_DB_NAME_LEN + 1];
   char    acct[TSDB_USER_LEN + 1];
   int64_t createdTime;
+  int32_t cfgVersion;
   SDbCfg  cfg;
   int8_t  status;
   int8_t  reserved[14];

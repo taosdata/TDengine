@@ -36,6 +36,7 @@ typedef struct {
   void        *sync;
   void        *events;
   void        *cq;  // continuous query
+  int32_t     cfgVersion;
   STsdbCfg    tsdbCfg;
   SSyncCfg    syncCfg;
   SWalCfg     walCfg;

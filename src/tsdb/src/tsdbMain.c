@@ -1,4 +1,5 @@
 #include "os.h"
+#include "taosdef.h"
 #include "tulog.h"
 #include "talgo.h"
 #include "tsdb.h"
@@ -11,24 +12,6 @@
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 #define TSDB_MIN_ID 0
 #define TSDB_MAX_ID INT_MAX
-#define TSDB_MIN_TABLES 4
-#define TSDB_MAX_TABLES 100000
-#define TSDB_DEFAULT_TABLES 1000
-#define TSDB_DEFAULT_DAYS_PER_FILE 10
-#define TSDB_MIN_DAYS_PER_FILE 1
-#define TSDB_MAX_DAYS_PER_FILE 60
-#define TSDB_DEFAULT_MIN_ROW_FBLOCK 100
-#define TSDB_MIN_MIN_ROW_FBLOCK 10
-#define TSDB_MAX_MIN_ROW_FBLOCK 1000
-#define TSDB_DEFAULT_MAX_ROW_FBLOCK 4096
-#define TSDB_MIN_MAX_ROW_FBLOCK 200
-#define TSDB_MAX_MAX_ROW_FBLOCK 10000
-#define TSDB_DEFAULT_KEEP 3650
-#define TSDB_MIN_KEEP 1
-#define TSDB_MAX_KEEP INT_MAX
-#define TSDB_DEFAULT_CACHE_SIZE (16 * 1024 * 1024)  // 16M
-#define TSDB_MIN_CACHE_SIZE (4 * 1024 * 1024)       // 4M
-#define TSDB_MAX_CACHE_SIZE (1024 * 1024 * 1024)    // 1G
 
 #define TSDB_CFG_FILE_NAME "CONFIG"
 #define TSDB_DATA_DIR_NAME "data"
@@ -70,7 +53,6 @@ void tsdbSetDefaultCfg(STsdbCfg *pCfg) {
   pCfg->minRowsPerFileBlock = -1;
   pCfg->maxRowsPerFileBlock = -1;
   pCfg->keep = -1;
-  pCfg->maxCacheSize = -1;
   pCfg->compression = TWO_STAGE_COMP;
 }
 
@@ -220,7 +202,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1, (TsdbRepoT *)pRepo);
+  pRepo->tsdbCache = tsdbInitCache(-1, -1, (TsdbRepoT *)pRepo);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
@@ -648,13 +630,6 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
     pCfg->keep = TSDB_DEFAULT_KEEP;
   } else {
     if (pCfg->keep < TSDB_MIN_KEEP || pCfg->keep > TSDB_MAX_KEEP) return -1;
-  }
-
-  // Check maxCacheSize
-  if (pCfg->maxCacheSize == -1) {
-    pCfg->maxCacheSize = TSDB_DEFAULT_CACHE_SIZE;
-  } else {
-    if (pCfg->maxCacheSize < TSDB_MIN_CACHE_SIZE || pCfg->maxCacheSize > TSDB_MAX_CACHE_SIZE) return -1;
   }
 
   return 0;

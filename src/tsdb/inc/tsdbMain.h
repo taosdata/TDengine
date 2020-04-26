@@ -132,9 +132,6 @@ STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
 char *  getTupleKey(const void *data);
 
-// ------------------------------ TSDB CACHE INTERFACES ------------------------------
-#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16 * 1024 * 1024 /* 16M */
-
 typedef struct {
   int  blockId;
   int  offset;

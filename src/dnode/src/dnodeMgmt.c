@@ -128,14 +128,16 @@ static void dnodeCloseVnodes() {
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
+  pCreate->cfg.cfgVersion          = htonl(pCreate->cfg.cfgVersion);
   pCreate->cfg.maxTables           = htonl(pCreate->cfg.maxTables);
-  pCreate->cfg.maxCacheSize        = htobe64(pCreate->cfg.maxCacheSize);
-  pCreate->cfg.minRowsPerFileBlock = htonl(pCreate->cfg.minRowsPerFileBlock);
-  pCreate->cfg.maxRowsPerFileBlock = htonl(pCreate->cfg.maxRowsPerFileBlock);
+  pCreate->cfg.cacheBlockSize      = htonl(pCreate->cfg.cacheBlockSize);
+  pCreate->cfg.totalBlocks         = htonl(pCreate->cfg.totalBlocks);
   pCreate->cfg.daysPerFile         = htonl(pCreate->cfg.daysPerFile);
   pCreate->cfg.daysToKeep1         = htonl(pCreate->cfg.daysToKeep1);
   pCreate->cfg.daysToKeep2         = htonl(pCreate->cfg.daysToKeep2);
   pCreate->cfg.daysToKeep          = htonl(pCreate->cfg.daysToKeep);
+  pCreate->cfg.minRowsPerFileBlock = htonl(pCreate->cfg.minRowsPerFileBlock);
+  pCreate->cfg.maxRowsPerFileBlock = htonl(pCreate->cfg.maxRowsPerFileBlock);
   pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
   pCreate->cfg.arbitratorIp        = htonl(pCreate->cfg.arbitratorIp);
 

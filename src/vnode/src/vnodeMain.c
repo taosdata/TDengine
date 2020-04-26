@@ -104,8 +104,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
-  tsdbCfg.maxCacheSize        = pVnodeCfg->cfg.maxCacheSize;
-
+  
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
   code = tsdbCreateRepo(tsdbDir, &tsdbCfg, NULL);
@@ -332,6 +331,7 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
+  pLoad->cfgVersion = htonl(pVnode->cfgVersion);
   pLoad->totalStorage = htobe64(pLoad->totalStorage);
   pLoad->compStorage = htobe64(pLoad->compStorage);
   pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
@@ -390,25 +390,27 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
 
-  len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnodeCfg->cfg.precision);
-  len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnodeCfg->cfg.compression);
+  len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pVnodeCfg->cfg.cfgVersion);
+  len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pVnodeCfg->cfg.cacheBlockSize);
+  len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pVnodeCfg->cfg.totalBlocks);
   len += snprintf(content + len, maxLen - len, "  \"maxTables\": %d,\n", pVnodeCfg->cfg.maxTables);
   len += snprintf(content + len, maxLen - len, "  \"daysPerFile\": %d,\n", pVnodeCfg->cfg.daysPerFile);
+  len += snprintf(content + len, maxLen - len, "  \"daysToKeep\": %d,\n", pVnodeCfg->cfg.daysToKeep);
+  len += snprintf(content + len, maxLen - len, "  \"daysToKeep1\": %d,\n", pVnodeCfg->cfg.daysToKeep1);
+  len += snprintf(content + len, maxLen - len, "  \"daysToKeep2\": %d,\n", pVnodeCfg->cfg.daysToKeep2);
   len += snprintf(content + len, maxLen - len, "  \"minRowsPerFileBlock\": %d,\n", pVnodeCfg->cfg.minRowsPerFileBlock);
   len += snprintf(content + len, maxLen - len, "  \"maxRowsPerFileBlock\": %d,\n", pVnodeCfg->cfg.maxRowsPerFileBlock);
-  len += snprintf(content + len, maxLen - len, "  \"daysToKeep\": %d,\n", pVnodeCfg->cfg.daysToKeep);
-
-  len += snprintf(content + len, maxLen - len, "  \"maxCacheSize\": %" PRId64 ",\n", pVnodeCfg->cfg.maxCacheSize);
-  
+  len += snprintf(content + len, maxLen - len, "  \"commitTime\": %d,\n", pVnodeCfg->cfg.commitTime);  
+  len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnodeCfg->cfg.precision);
+  len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnodeCfg->cfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"commitLog\": %d,\n", pVnodeCfg->cfg.commitLog);
+  len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pVnodeCfg->cfg.replications);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pVnodeCfg->cfg.wals);
-
+  len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
+  
   uint32_t ipInt =  pVnodeCfg->cfg.arbitratorIp;
   sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   len += snprintf(content + len, maxLen - len, "  \"arbitratorIp\": \"%s\",\n", ipStr);
-
-  len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
-  len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pVnodeCfg->cfg.replications);
 
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pVnodeCfg->cfg.replications; i++) {
@@ -463,19 +465,26 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     goto PARSE_OVER;
   }
 
-  cJSON *precision = cJSON_GetObjectItem(root, "precision");
-  if (!precision || precision->type != cJSON_Number) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, precision not found", pVnode, pVnode->vgId);
+  cJSON *cfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
+  if (!cfgVersion || cfgVersion->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, cfgVersion not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->tsdbCfg.precision = (int8_t)precision->valueint;
+  pVnode->cfgVersion = cfgVersion->valueint;
 
-  cJSON *compression = cJSON_GetObjectItem(root, "compression");
-  if (!compression || compression->type != cJSON_Number) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, compression not found", pVnode, pVnode->vgId);
+  cJSON *cacheBlockSize = cJSON_GetObjectItem(root, "cacheBlockSize");
+  if (!cacheBlockSize || cacheBlockSize->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, cacheBlockSize not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->tsdbCfg.compression = (int8_t)compression->valueint;
+  pVnode->tsdbCfg.cacheBlockSize = cacheBlockSize->valueint;
+
+  cJSON *totalBlocks = cJSON_GetObjectItem(root, "totalBlocks");
+  if (!totalBlocks || totalBlocks->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, totalBlocks not found", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->tsdbCfg.totalBlocks = totalBlocks->valueint;
 
   cJSON *maxTables = cJSON_GetObjectItem(root, "maxTables");
   if (!maxTables || maxTables->type != cJSON_Number) {
@@ -484,12 +493,33 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->tsdbCfg.maxTables = maxTables->valueint;
 
-  cJSON *daysPerFile = cJSON_GetObjectItem(root, "daysPerFile");
+   cJSON *daysPerFile = cJSON_GetObjectItem(root, "daysPerFile");
   if (!daysPerFile || daysPerFile->type != cJSON_Number) {
     dError("pVnode:%p vgId:%d, failed to read vnode cfg, daysPerFile not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
   pVnode->tsdbCfg.daysPerFile = daysPerFile->valueint;
+
+  cJSON *daysToKeep = cJSON_GetObjectItem(root, "daysToKeep");
+  if (!daysToKeep || daysToKeep->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, daysToKeep not found", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->tsdbCfg.keep = daysToKeep->valueint;
+
+  cJSON *daysToKeep1 = cJSON_GetObjectItem(root, "daysToKeep1");
+  if (!daysToKeep1 || daysToKeep1->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, daysToKeep1 not found", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->tsdbCfg.keep1 = daysToKeep1->valueint;
+
+  cJSON *daysToKeep2 = cJSON_GetObjectItem(root, "daysToKeep2");
+  if (!daysToKeep2 || daysToKeep2->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, daysToKeep2 not found", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->tsdbCfg.keep2 = daysToKeep2->valueint;
 
   cJSON *minRowsPerFileBlock = cJSON_GetObjectItem(root, "minRowsPerFileBlock");
   if (!minRowsPerFileBlock || minRowsPerFileBlock->type != cJSON_Number) {
@@ -505,19 +535,26 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->tsdbCfg.maxRowsPerFileBlock = maxRowsPerFileBlock->valueint;
 
-  cJSON *daysToKeep = cJSON_GetObjectItem(root, "daysToKeep");
-  if (!daysToKeep || daysToKeep->type != cJSON_Number) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, daysToKeep not found", pVnode, pVnode->vgId);
+  cJSON *commitTime = cJSON_GetObjectItem(root, "commitTime");
+  if (!commitTime || commitTime->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, commitTime not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->tsdbCfg.keep = daysToKeep->valueint;
+  pVnode->tsdbCfg.commitTime = (int8_t)commitTime->valueint;
 
-  cJSON *maxCacheSize = cJSON_GetObjectItem(root, "maxCacheSize");
-  if (!maxCacheSize || maxCacheSize->type != cJSON_Number) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, maxCacheSize not found", pVnode, pVnode->vgId);
+  cJSON *precision = cJSON_GetObjectItem(root, "precision");
+  if (!precision || precision->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, precision not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->tsdbCfg.maxCacheSize = maxCacheSize->valueint;
+  pVnode->tsdbCfg.precision = (int8_t)precision->valueint;
+
+  cJSON *compression = cJSON_GetObjectItem(root, "compression");
+  if (!compression || compression->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, compression not found", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->tsdbCfg.compression = (int8_t)compression->valueint;
 
   cJSON *commitLog = cJSON_GetObjectItem(root, "commitLog");
   if (!commitLog || commitLog->type != cJSON_Number) {
@@ -534,12 +571,12 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   pVnode->walCfg.wals = (int8_t)wals->valueint;
   pVnode->walCfg.keep = 0;
 
-  cJSON *arbitratorIp = cJSON_GetObjectItem(root, "arbitratorIp");
-  if (!arbitratorIp || arbitratorIp->type != cJSON_String || arbitratorIp->valuestring == NULL) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, arbitratorIp not found", pVnode, pVnode->vgId);
+  cJSON *replica = cJSON_GetObjectItem(root, "replica");
+  if (!replica || replica->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, replica not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->syncCfg.arbitratorIp = inet_addr(arbitratorIp->valuestring);
+  pVnode->syncCfg.replica = (int8_t)replica->valueint;
 
   cJSON *quorum = cJSON_GetObjectItem(root, "quorum");
   if (!quorum || quorum->type != cJSON_Number) {
@@ -548,12 +585,12 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->syncCfg.quorum = (int8_t)quorum->valueint;
 
-  cJSON *replica = cJSON_GetObjectItem(root, "replica");
-  if (!replica || replica->type != cJSON_Number) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, replica not found", pVnode, pVnode->vgId);
+  cJSON *arbitratorIp = cJSON_GetObjectItem(root, "arbitratorIp");
+  if (!arbitratorIp || arbitratorIp->type != cJSON_String || arbitratorIp->valuestring == NULL) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, arbitratorIp not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->syncCfg.replica = (int8_t)replica->valueint;
+  pVnode->syncCfg.arbitratorIp = inet_addr(arbitratorIp->valuestring);
 
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {

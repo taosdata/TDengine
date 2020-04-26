@@ -238,7 +238,7 @@ typedef struct {
 
 typedef struct SSchema {
   uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
+  char    name[TSDB_COL_NAME_LEN + 1];
   int16_t colId;
   int16_t bytes;
 } SSchema;
@@ -256,14 +256,14 @@ typedef struct {
   uint64_t uid;
   uint64_t superTableUid;
   uint64_t createdTime;
-  char     tableId[TSDB_TABLE_ID_LEN];
-  char     superTableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
   char     data[];
 } SMDCreateTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN + 1];
   int8_t  igExists;
   int16_t numOfTags;
   int16_t numOfColumns;
@@ -274,13 +274,13 @@ typedef struct {
 } SCMCreateTableMsg;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN];
+  char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t igNotExists;
 } SCMDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN + 1];
   int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */
@@ -345,7 +345,6 @@ typedef struct {
 } SMDDropTableMsg;
 
 typedef struct {
-  int32_t contLen;
   int32_t vgId;
   int64_t uid;
   char    tableId[TSDB_TABLE_ID_LEN + 1];
@@ -492,6 +491,7 @@ typedef struct SRetrieveTableRsp {
 
 typedef struct {
   int32_t vgId;
+  int32_t cfgVersion;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
@@ -502,29 +502,23 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  char     acct[TSDB_USER_LEN];
-  char     db[TSDB_DB_NAME_LEN];
-  uint32_t vgId;
+  char     acct[TSDB_USER_LEN + 1];
+  char     db[TSDB_DB_NAME_LEN + 1];
   int32_t  maxSessions;
-  int32_t  cacheBlockSize;
-  union {
-    int32_t totalBlocks;
-    float   fraction;
-  } cacheNumOfBlocks;
-  int32_t daysPerFile;
-  int32_t daysToKeep1;
-  int32_t daysToKeep2;
-  int32_t daysToKeep;
-  int32_t commitTime;
-  int32_t rowsInFileBlock;
-  int16_t blocksPerTable;
-  int8_t  compression;
-  int8_t  commitLog;
-  int8_t  replications;
-  int8_t  repStrategy;
-  int8_t  loadLatest;  // load into mem or not
-  uint8_t precision;   // time resolution
-  int8_t  ignoreExist;
+  int32_t  cacheBlockSize; //MB
+  int32_t  totalBlocks;
+  int32_t  daysPerFile;
+  int32_t  daysToKeep1;
+  int32_t  daysToKeep2;
+  int32_t  daysToKeep;
+  int32_t  commitTime;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
+  int8_t   compression;
+  int8_t   commitLog;
+  int8_t   replications;
+  uint8_t  precision;   // time resolution
+  int8_t   ignoreExist;
 } SCMCreateDbMsg, SCMAlterDbMsg;
 
 typedef struct {
@@ -592,20 +586,22 @@ typedef struct {
 
 typedef struct {
   uint32_t vgId;
+  int32_t  cfgVersion;
+  int32_t  cacheBlockSize;
+  int32_t  totalBlocks;
   int32_t  maxTables;
-  int64_t  maxCacheSize;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
   int32_t  daysPerFile;
   int32_t  daysToKeep;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
   int32_t  commitTime;
-  uint8_t  precision;  // time resolution
+  int8_t   precision;
   int8_t   compression;
-  int8_t   wals;
   int8_t   commitLog;
   int8_t   replications;
+  int8_t   wals;
   int8_t   quorum;
   uint32_t arbitratorIp;
   int8_t   reserved[16];
@@ -640,7 +636,7 @@ typedef struct SCMSTableVgroupMsg {
 typedef struct {
   int32_t   vgId;
   int8_t    numOfIps;
-  SIpAddr   ipAddr[TSDB_REPLICA_MAX_NUM];
+  SIpAddr   ipAddr[TSDB_MAX_REPLICA_NUM];
 } SCMVgroupInfo;
 
 typedef struct {
@@ -684,7 +680,7 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
-  SVnodeDesc vpeerDesc[TSDB_REPLICA_MAX_NUM];
+  SVnodeDesc vpeerDesc[TSDB_MAX_REPLICA_NUM];
   int16_t    index;  // used locally
   int32_t    vgId;
   int32_t    numOfSids;
@@ -700,8 +696,8 @@ typedef struct {
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
-  char          tableId[TSDB_TABLE_ID_LEN];   // table id
-  char          stableId[TSDB_TABLE_ID_LEN];  // stable name if it is created according to super table
+  char          tableId[TSDB_TABLE_ID_LEN + 1];   // table id
+  char          stableId[TSDB_TABLE_ID_LEN + 1];  // stable name if it is created according to super table
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
