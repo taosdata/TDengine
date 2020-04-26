@@ -15,71 +15,6 @@
 #include "tdataformat.h"
 #include "tutil.h"
 
-static int tdFLenFromSchema(STSchema *pSchema);
-
-/**
- * Create a new STColumn object
- * ASSUMPTIONS: VALID PARAMETERS
- * 
- * @param type column type
- * @param colId column ID
- * @param bytes maximum bytes the col taken
- * 
- * @return a STColumn object on success
- *         NULL for failure
- */
-STColumn *tdNewCol(int8_t type, int16_t colId, int16_t bytes) {
-  if (!isValidDataType(type, 0)) return NULL;
-
-  STColumn *pCol = (STColumn *)calloc(1, sizeof(STColumn));
-  if (pCol == NULL) return NULL;
-
-  colSetType(pCol, type);
-  colSetColId(pCol, colId);
-  colSetOffset(pCol, -1);
-  switch (type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      colSetBytes(pCol, bytes);
-      break;
-    default:
-      colSetBytes(pCol, TYPE_BYTES[type]);
-      break;
-  }
-
-  return pCol;
-}
-
-/**
- * Free a STColumn object CREATED with tdNewCol
- */
-void tdFreeCol(STColumn *pCol) {
-  if (pCol) free(pCol);
-}
-
-/**
- * Copy from source to destinition
- */
-void tdColCpy(STColumn *dst, STColumn *src) { memcpy((void *)dst, (void *)src, sizeof(STColumn)); }
-
-/**
- * Set the column
- */
-void tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes) {
-  colSetType(pCol, type);
-  colSetColId(pCol, colId);
-  switch (type)
-  {
-  case TSDB_DATA_TYPE_BINARY:
-  case TSDB_DATA_TYPE_NCHAR:
-    colSetBytes(pCol, bytes);
-    break;
-  default:
-    colSetBytes(pCol, TYPE_BYTES[type]);
-    break;
-  }
-}
-
 /**
  * Create a SSchema object with nCols columns
  * ASSUMPTIONS: VALID PARAMETERS
@@ -90,11 +25,15 @@ void tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes) {
  *         NULL for failure
  */
 STSchema *tdNewSchema(int32_t nCols) {
-  int32_t  size = sizeof(STSchema) + sizeof(STColumn) * nCols;
+  int32_t size = sizeof(STSchema) + sizeof(STColumn) * nCols;
 
   STSchema *pSchema = (STSchema *)calloc(1, size);
   if (pSchema == NULL) return NULL;
+
   pSchema->numOfCols = 0;
+  pSchema->totalCols = nCols;
+  pSchema->flen = 0;
+  pSchema->tlen = 0;
 
   return pSchema;
 }
@@ -102,25 +41,33 @@ STSchema *tdNewSchema(int32_t nCols) {
 /**
  * Append a column to the schema
  */
-int tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes) {
-  // if (pSchema->numOfCols >= pSchema->totalCols) return -1;
-  if (!isValidDataType(type, 0)) return -1;
+int tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes) {
+  if (!isValidDataType(type, 0) || pSchema->numOfCols >= pSchema->totalCols) return -1;
 
   STColumn *pCol = schemaColAt(pSchema, schemaNCols(pSchema));
   colSetType(pCol, type);
   colSetColId(pCol, colId);
-  colSetOffset(pCol, -1);
+  if (pSchema->numOfCols == 0) {
+    colSetOffset(pCol, 0);
+  } else {
+    colSetOffset(pCol, pSchema->columns[pSchema->numOfCols - 1].offset + TYPE_BYTES[type]);
+  }
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       colSetBytes(pCol, bytes);
+      pSchema->tlen += (TYPE_BYTES[type] + sizeof(int16_t) + bytes);  // TODO: remove int16_t here
       break;
     default:
       colSetBytes(pCol, TYPE_BYTES[type]);
+      pSchema->tlen += TYPE_BYTES[type];
       break;
   }
 
   pSchema->numOfCols++;
+  pSchema->flen += TYPE_BYTES[type];
+
+  ASSERT(pCol->offset < pSchema->flen);
 
   return 0;
 }
@@ -139,39 +86,21 @@ STSchema *tdDupSchema(STSchema *pSchema) {
 }
 
 /**
- * Free the SSchema object created by tdNewSchema or tdDupSchema
- */
-void tdFreeSchema(STSchema *pSchema) {
-  if (pSchema != NULL) free(pSchema);
-}
-
-/**
- * Function to update each columns's offset field in the schema.
- * ASSUMPTIONS: VALID PARAMETERS
- */
-void tdUpdateSchema(STSchema *pSchema) {
-  STColumn *pCol = NULL;
-  int32_t offset = TD_DATA_ROW_HEAD_SIZE;
-  for (int i = 0; i < schemaNCols(pSchema); i++) {
-    pCol = schemaColAt(pSchema, i);
-    colSetOffset(pCol, offset);
-    offset += TYPE_BYTES[pCol->type];
-  }
-}
-
-/**
  * Return the size of encoded schema
  */
 int tdGetSchemaEncodeSize(STSchema *pSchema) {
-  return sizeof(STSchema) + schemaNCols(pSchema) * (T_MEMBER_SIZE(STColumn, type) + T_MEMBER_SIZE(STColumn, colId) +
-                                                    T_MEMBER_SIZE(STColumn, bytes));
+  return T_MEMBER_SIZE(STSchema, totalCols) +
+         schemaNCols(pSchema) *
+             (T_MEMBER_SIZE(STColumn, type) + T_MEMBER_SIZE(STColumn, colId) + T_MEMBER_SIZE(STColumn, bytes));
 }
 
 /**
  * Encode a schema to dst, and return the next pointer
  */
 void *tdEncodeSchema(void *dst, STSchema *pSchema) {
-  T_APPEND_MEMBER(dst, pSchema, STSchema, numOfCols);
+  ASSERT(pSchema->numOfCols == pSchema->totalCols);
+
+  T_APPEND_MEMBER(dst, pSchema, STSchema, totalCols);
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
     T_APPEND_MEMBER(dst, pCol, STColumn, type);
@@ -186,13 +115,13 @@ void *tdEncodeSchema(void *dst, STSchema *pSchema) {
  * Decode a schema from a binary.
  */
 STSchema *tdDecodeSchema(void **psrc) {
-  int numOfCols = 0;
+  int totalCols = 0;
 
-  T_READ_MEMBER(*psrc, int, numOfCols);
+  T_READ_MEMBER(*psrc, int, totalCols);
 
-  STSchema *pSchema = tdNewSchema(numOfCols);
+  STSchema *pSchema = tdNewSchema(totalCols);
   if (pSchema == NULL) return NULL;
-  for (int i = 0; i < numOfCols; i++) {
+  for (int i = 0; i < totalCols; i++) {
     int8_t  type = 0;
     int16_t colId = 0;
     int32_t bytes = 0;
@@ -200,7 +129,7 @@ STSchema *tdDecodeSchema(void **psrc) {
     T_READ_MEMBER(*psrc, int16_t, colId);
     T_READ_MEMBER(*psrc, int32_t, bytes);
 
-    tdSchemaAppendCol(pSchema, type, colId, bytes);
+    tdSchemaAddCol(pSchema, type, colId, bytes);
   }
 
   return pSchema;
@@ -209,52 +138,17 @@ STSchema *tdDecodeSchema(void **psrc) {
 /**
  * Initialize a data row
  */
-void tdInitDataRow(SDataRow row, STSchema *pSchema) {
-  dataRowSetFLen(row, TD_DATA_ROW_HEAD_SIZE);
-  dataRowSetLen(row, TD_DATA_ROW_HEAD_SIZE + tdFLenFromSchema(pSchema));
-}
+void tdInitDataRow(SDataRow row, STSchema *pSchema) { dataRowSetLen(row, TD_DATA_ROW_HEAD_SIZE + schemaFLen(pSchema)); }
 
-/**
- * Create a data row with maximum row length bytes.
- *
- * NOTE: THE AAPLICATION SHOULD MAKE SURE BYTES IS LARGE ENOUGH TO
- * HOLD THE WHOE ROW.
- *
- * @param bytes max bytes a row can take
- * @return SDataRow object for success
- *         NULL for failure
- */
-SDataRow tdNewDataRow(int32_t bytes, STSchema *pSchema) {
-  int32_t size = sizeof(int32_t) + bytes;
+SDataRow tdNewDataRowFromSchema(STSchema *pSchema) { 
+  int32_t size = dataRowMaxBytesFromSchema(pSchema);
 
   SDataRow row = malloc(size);
   if (row == NULL) return NULL;
 
   tdInitDataRow(row, pSchema);
-
   return row;
-}
-
-/**
- * Get maximum bytes a data row from a schema
- * ASSUMPTIONS: VALID PARAMETER
- */
-int tdMaxRowBytesFromSchema(STSchema *pSchema) {
-  // TODO
-  int bytes = TD_DATA_ROW_HEAD_SIZE;
-  for (int i = 0; i < schemaNCols(pSchema); i++) {
-    STColumn *pCol = schemaColAt(pSchema, i);
-    bytes += TYPE_BYTES[pCol->type];
-
-    if (pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR) {
-      bytes += pCol->bytes;
-    }
   }
-
-  return bytes;
-}
-
-SDataRow tdNewDataRowFromSchema(STSchema *pSchema) { return tdNewDataRow(tdMaxRowBytesFromSchema(pSchema), pSchema); }
 
 /**
  * Free the SDataRow object
@@ -266,20 +160,36 @@ void tdFreeDataRow(SDataRow row) {
 /**
  * Append a column value to the data row
  */
-int tdAppendColVal(SDataRow row, void *value, STColumn *pCol) {
-  switch (colType(pCol))
-  {
-  case TSDB_DATA_TYPE_BINARY:
-  case TSDB_DATA_TYPE_NCHAR:
-    *(int32_t *)dataRowAt(row, dataRowFLen(row)) = dataRowLen(row);
-    dataRowFLen(row) += TYPE_BYTES[colType(pCol)];
-    memcpy((void *)dataRowAt(row, dataRowLen(row)), value, strlen(value));
-    dataRowLen(row) += strlen(value);
-    break;
-  default:
-    memcpy(dataRowAt(row, dataRowFLen(row)), value, TYPE_BYTES[colType(pCol)]);
-    dataRowFLen(row) += TYPE_BYTES[colType(pCol)];
-    break;
+int tdAppendColVal(SDataRow row, void *value, STSchema *pSchema, int col) {
+  ASSERT(schemaNCols(pSchema) > col);
+  STColumn *pCol = schemaColAt(pSchema, col);
+  int32_t   toffset = pCol->offset + TD_DATA_ROW_HEAD_SIZE;
+  char *    ptr = dataRowAt(row, dataRowLen(row));
+
+  switch (colType(pCol)) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      if (value == NULL) {
+        *(int32_t *)dataRowAt(row, toffset) = -1;
+      } else {
+        int16_t slen = (colType(pCol) == TSDB_DATA_TYPE_BINARY) ? strlen((char *)value)
+                                                                : wcslen((wchar_t *)value) * TSDB_NCHAR_SIZE;
+        if (slen > colBytes(pCol)) return -1;
+
+        *(int32_t *)dataRowAt(row, toffset) = dataRowLen(row);
+        *(int16_t *)ptr = slen;
+        ptr += sizeof(int16_t);
+        memcpy((void *)ptr, value, slen);
+        dataRowLen(row) += (sizeof(int16_t) + slen);
+      }
+      break;
+    default:
+      if (value == NULL) {
+        setNull(dataRowAt(row, toffset), colType(pCol), colBytes(pCol));
+      } else {
+        memcpy(dataRowAt(row, toffset), value, TYPE_BYTES[colType(pCol)]);
+      }
+      break;
   }
 
   return 0;
@@ -390,19 +300,6 @@ void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
     }
   }
   pCols->numOfPoints = pointsLeft;
-}
-
-/**
- * Return the first part length of a data row for a schema
- */
-static int tdFLenFromSchema(STSchema *pSchema) {
-  int ret = 0;
-  for (int i = 0; i < schemaNCols(pSchema); i++) {
-    STColumn *pCol = schemaColAt(pSchema, i);
-    ret += TYPE_BYTES[pCol->type];
-  }
-
-  return ret;
 }
 
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {

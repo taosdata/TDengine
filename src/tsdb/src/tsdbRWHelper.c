@@ -330,7 +330,7 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
     int blkIdx = (pCompBlock == NULL) ? (pIdx->numOfBlocks - 1) : (pCompBlock - pHelper->pCompInfo->blocks);
 
     if (pCompBlock == NULL) {  // No key overlap, must has last block, just merge with the last block
-      ASSERT(pIdx->hasLast && pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last);
+      ASSERT(pIdx->hasLast && pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].last);
       rowsToWrite = tsdbMergeDataWithBlock(pHelper, blkIdx, pDataCols);
       if (rowsToWrite < 0) goto _err;
     } else {  // Has key overlap
@@ -782,7 +782,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
   TSKEY keyFirst = dataColsKeyFirst(pDataCols);
 
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
-  ASSERT(blkIdx < pIdx->numOfSuperBlocks);
+  ASSERT(blkIdx < pIdx->numOfBlocks);
 
   // SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + blkIdx;
   ASSERT(blockAtIdx(pHelper, blkIdx)->numOfSubBlocks >= 1);
@@ -790,7 +790,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
   // ASSERT(compareKeyBlock((void *)&keyFirst, (void *)pCompBlock) == 0);
 
   if (keyFirst > blockAtIdx(pHelper, blkIdx)->keyLast) { // Merge with the last block by append
-    ASSERT(blockAtIdx(pHelper, blkIdx)->numOfPoints < pHelper->config.minRowsPerFileBlock && blkIdx == pIdx->numOfSuperBlocks-1);
+    ASSERT(blockAtIdx(pHelper, blkIdx)->numOfPoints < pHelper->config.minRowsPerFileBlock && blkIdx == pIdx->numOfBlocks-1);
     int defaultRowsToWrite = pHelper->config.maxRowsPerFileBlock * 4 / 5;  // TODO: make a interface
 
     rowsWritten = MIN((defaultRowsToWrite - blockAtIdx(pHelper, blkIdx)->numOfPoints), pDataCols->numOfPoints);
@@ -961,7 +961,7 @@ static int tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t esize) {
 static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx) {
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
 
-  ASSERT(blkIdx >= 0 && blkIdx <= pIdx->numOfSuperBlocks);
+  ASSERT(blkIdx >= 0 && blkIdx <= pIdx->numOfBlocks);
   ASSERT(pCompBlock->numOfSubBlocks == 1);
 
   // Adjust memory if no more room
@@ -1004,7 +1004,7 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
   ASSERT(pCompBlock->numOfSubBlocks == 0);
 
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
-  ASSERT(blkIdx >= 0 && blkIdx < pIdx->numOfSuperBlocks);
+  ASSERT(blkIdx >= 0 && blkIdx < pIdx->numOfBlocks);
 
   SCompBlock *pSCompBlock = pHelper->pCompInfo->blocks + blkIdx;
   ASSERT(pSCompBlock->numOfSubBlocks >= 1 && pSCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS);
@@ -1088,7 +1088,7 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 
   SCompIdx *pIdx = pHelper->pCompIdx + pHelper->tableInfo.tid;
 
-  ASSERT(blkIdx >= 0 && blkIdx < pIdx->numOfSuperBlocks);
+  ASSERT(blkIdx >= 0 && blkIdx < pIdx->numOfBlocks);
 
   SCompBlock *pSCompBlock = pHelper->pCompInfo->blocks + blkIdx;
 

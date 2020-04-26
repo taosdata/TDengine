@@ -451,9 +451,8 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   // Update the pMeta->maxCols and pMeta->maxRowBytes
   if (pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_NORMAL_TABLE) {
     if (schemaNCols(pTable->schema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pTable->schema);
-    int bytes = tdMaxRowBytesFromSchema(pTable->schema);
+    int bytes = dataRowMaxBytesFromSchema(pTable->schema);
     if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
-    tdUpdateSchema(pTable->schema);
   }
 
   return tsdbAddTableIntoMap(pMeta, pTable);

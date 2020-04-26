@@ -105,9 +105,9 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
 
   for (int i = 0; i < nCols; i++) {
     if (i == 0) {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
     } else {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_INT, i, -1);
     }
   }
 
@@ -149,9 +149,9 @@ TEST(TsdbTest, createRepo) {
 
   for (int i = 0; i < nCols; i++) {
     if (i == 0) {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
     } else {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_INT, i, -1);
     }
   }
 

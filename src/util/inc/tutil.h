@@ -44,7 +44,7 @@ extern "C" {
 
 #define tclose(x) taosCloseSocket(x)
 
-#ifdef ASSERTION
+#ifndef NDEBUG
 #define ASSERT(x) assert(x)
 #else
 #define ASSERT(x)
