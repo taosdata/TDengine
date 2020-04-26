@@ -74,8 +74,11 @@ typedef struct STable {
   void *         pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void *         eventHandler;   // TODO
   void *         streamHandler;  // TODO
+  TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
 } STable;
+
+#define TSDB_GET_TABLE_LAST_KEY(pTable) ((pTable)->lastKey)
 
 void *  tsdbEncodeTable(STable *pTable, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);

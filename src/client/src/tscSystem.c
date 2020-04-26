@@ -17,8 +17,6 @@
 #include "taosmsg.h"
 #include "tcache.h"
 #include "trpc.h"
-#include "taosdef.h"
-#include "tsocket.h"
 #include "tsystem.h"
 #include "ttime.h"
 #include "ttimer.h"
@@ -34,7 +32,6 @@
 // global, not configurable
 void *  pVnodeConn;
 void *  tscCacheHandle;
-int     slaveIndex;
 void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
@@ -46,7 +43,7 @@ static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet);
 
-void tscCheckDiskUsage(void *para, void *unused) {
+void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosGetDisk();
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
@@ -156,7 +153,6 @@ void taos_init_imp() {
   }
 
   tscInitMsgsFp();
-  slaveIndex = rand();
   int queueSize = tsMaxVnodeConnections + tsMaxMeterConnections + tsMaxMgmtConnections + tsMaxMgmtConnections;
 
   if (tscEmbedded == 0) {
@@ -378,7 +374,6 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 
   return 0;
 }
-
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   static int32_t lock = 0;

@@ -40,7 +40,7 @@ void tVariantCreate(tVariant *pVar, SSQLToken *token);
 
 void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
 
-void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
+void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type);
 
 void tVariantDestroy(tVariant *pV);
 

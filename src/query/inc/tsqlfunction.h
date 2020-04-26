@@ -115,10 +115,10 @@ enum {
 
 typedef struct SArithmeticSupport {
   SArithExprInfo   *pArithExpr;
-  int32_t           elemSize[TSDB_MAX_COLUMNS];
   int32_t           numOfCols;
+  SColumnInfo*      colList;
   int32_t           offset;
-  char *            data[TSDB_MAX_COLUMNS];
+  char**            data;
 } SArithmeticSupport;
 
 typedef struct SQLPreAggVal {

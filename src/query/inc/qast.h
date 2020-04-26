@@ -82,10 +82,11 @@ void tExprTreeDestroy(tExprNode **pExprs, void (*fp)(void*));
 
 void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
 
-void tSQLBinaryExprCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
-                                char *(*cb)(void *, char *, int32_t));
+void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                                char *(*cb)(void *, const char*, int32_t));
 
-void tSQLBinaryExprTrv(tExprNode *pExprs, int32_t *val, int16_t *ids);
+// todo refactor: remove it
+void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res);
 
 uint8_t getBinaryExprOptr(SSQLToken *pToken);
 
