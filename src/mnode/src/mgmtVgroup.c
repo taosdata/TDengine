@@ -535,23 +535,21 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
 
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
+  pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
+  pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
   pCfg->maxTables           = htonl(pDb->cfg.maxTables);
-  pCfg->maxCacheSize        = htobe64(pDb->cfg.maxCacheSize);
-  pCfg->maxCacheSize        = htobe64(-1); //TODO
-  pCfg->minRowsPerFileBlock = htonl(-1);   //TODO
-  pCfg->maxRowsPerFileBlock = htonl(-1);   //TODO
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
-  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
-  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);
   pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
-  pCfg->daysToKeep          = htonl(-1);   //TODO
+  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
+  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);  
+  pCfg->minRowsPerFileBlock = htonl(pDb->cfg.minRowsPerFileBlock);
+  pCfg->maxRowsPerFileBlock = htonl(pDb->cfg.maxRowsPerFileBlock);
   pCfg->commitTime          = htonl(pDb->cfg.commitTime);
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;
-  pCfg->compression         = -1;
-  pCfg->wals                = 3;
   pCfg->commitLog           = pDb->cfg.commitLog;
   pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
+  pCfg->wals                = 3;
   pCfg->quorum              = 1;
   
   SMDVnodeDesc *pNodes = pVnode->nodes;

@@ -221,44 +221,56 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_MPEERS           5
 #define TSDB_MAX_MGMT_IPS         (TSDB_MAX_MPEERS+1)
 
-#define TSDB_REPLICA_MIN_NUM      1
-#define TSDB_REPLICA_MAX_NUM      3
-
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
 
-//default value == 10
-#define TSDB_FILE_MIN_PARTITION_RANGE   1         //minimum partition range of vnode file in days
-#define TSDB_FILE_MAX_PARTITION_RANGE   3650      //max partition range of vnode file in days
-
-#define TSDB_DATA_MIN_RESERVE_DAY       1        // data in db to be reserved.
-#define TSDB_DATA_DEFAULT_RESERVE_DAY   3650     // ten years
-
-#define TSDB_MIN_COMPRESSION_LEVEL      0
-#define TSDB_MAX_COMPRESSION_LEVEL      2
-
-#define TSDB_MIN_COMMIT_TIME_INTERVAL   30
-#define TSDB_MAX_COMMIT_TIME_INTERVAL   40960
-
-#define TSDB_MIN_ROWS_IN_FILEBLOCK      200
-#define TSDB_MAX_ROWS_IN_FILEBLOCK      500000
-
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
 #define TSDB_MAX_CACHE_BLOCK_SIZE       1000000
+#define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16
 
-#define TSDB_MIN_CACHE_BLOCKS           100
-#define TSDB_MAX_CACHE_BLOCKS           409600
+#define TSDB_MIN_TOTAL_BLOCKS           2
+#define TSDB_MAX_TOTAL_BLOCKS           10000
+#define TSDB_DEFAULT_TOTAL_BLOCKS       2
 
-#define TSDB_MIN_AVG_BLOCKS             2
-#define TSDB_MAX_AVG_BLOCKS             2048
-#define TSDB_DEFAULT_AVG_BLOCKS         4
+#define TSDB_MIN_TABLES                 4
+#define TSDB_MAX_TABLES                 200000
+#define TSDB_DEFAULT_TABLES             1000
 
-/*
- * There is a bug in function taosAllocateId.
- * When "create database tables 1" is executed, the wrong sid is assigned, so the minimum value is set to 2.
- */
-#define TSDB_MIN_TABLES_PER_VNODE       2
-#define TSDB_MAX_TABLES_PER_VNODE       220000
+#define TSDB_MIN_DAYS_PER_FILE          1
+#define TSDB_MAX_DAYS_PER_FILE          3650 
+#define TSDB_DEFAULT_DAYS_PER_FILE      10 
+
+#define TSDB_MIN_KEEP                   1        // data in db to be reserved.
+#define TSDB_MAX_KEEP                   365000   // data in db to be reserved.
+#define TSDB_DEFAULT_KEEP               3650     // ten years
+
+#define TSDB_DEFAULT_MIN_ROW_FBLOCK     100
+#define TSDB_MIN_MIN_ROW_FBLOCK         10
+#define TSDB_MAX_MIN_ROW_FBLOCK         1000
+
+#define TSDB_DEFAULT_MAX_ROW_FBLOCK     4096
+#define TSDB_MIN_MAX_ROW_FBLOCK         200
+#define TSDB_MAX_MAX_ROW_FBLOCK         10000
+
+#define TSDB_MIN_COMMIT_TIME            30
+#define TSDB_MAX_COMMIT_TIME            40960
+#define TSDB_DEFAULT_COMMIT_TIME        3600
+
+#define TSDB_MIN_PRECISION              TSDB_PRECISION_MILLI
+#define TSDB_MAX_PRECISION              TSDB_PRECISION_NANO
+#define TSDB_DEFAULT_PRECISION          TSDB_PRECISION_MILLI
+
+#define TSDB_MIN_COMP_LEVEL             0
+#define TSDB_MAX_COMP_LEVEL             2
+#define TSDB_DEFAULT_COMP_LEVEL         2
+
+#define TSDB_MIN_CLOG_LEVEL             0
+#define TSDB_MAX_CLOG_LEVEL             2
+#define TSDB_DEFAULT_CLOG_LEVEL         2
+
+#define TSDB_MIN_REPLICA_NUM            1
+#define TSDB_MAX_REPLICA_NUM            3
+#define TSDB_DEFAULT_REPLICA_NUM        1
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
 #define TSDB_MAX_UNION_CLAUSE           5

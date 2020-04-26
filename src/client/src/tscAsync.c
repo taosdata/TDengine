@@ -46,7 +46,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->signature = pSql;
   pSql->param = param;
   pSql->pTscObj = pObj;
-  pSql->maxRetry = TSDB_REPLICA_MAX_NUM;
+  pSql->maxRetry = TSDB_MAX_REPLICA_NUM;
   pSql->fp = fp;
   
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
