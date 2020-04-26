@@ -78,7 +78,7 @@ typedef struct STableMetaInfo {
    */
   int32_t vgroupIndex;
   char    name[TSDB_TABLE_ID_LEN];        // (super) table name
-  SArray* tagColList;                     // involved tag columns
+  SArray* tagColList;                     // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
 
 /* the structure for sql function in select clause */

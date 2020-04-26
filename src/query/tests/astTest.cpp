@@ -556,8 +556,7 @@ void exprSerializeTest1() {
   ASSERT_TRUE(size > 0);
   char* b = tbufGetData(&buf, false);
   
-  tExprNode* p2 = NULL;
-  exprTreeFromBinary(b, size, &p2);
+  tExprNode* p2 = exprTreeFromBinary(b, size);
   ASSERT_EQ(p1->nodeType, p2->nodeType);
   
   ASSERT_EQ(p2->_node.optr, p1->_node.optr);
@@ -593,8 +592,7 @@ void exprSerializeTest2() {
   ASSERT_TRUE(size > 0);
   char* b = tbufGetData(&buf, false);
   
-  tExprNode* p2 = NULL;
-  exprTreeFromBinary(b, size, &p2);
+  tExprNode* p2 = exprTreeFromBinary(b, size);
   ASSERT_EQ(p1->nodeType, p2->nodeType);
   
   ASSERT_EQ(p2->_node.optr, p1->_node.optr);

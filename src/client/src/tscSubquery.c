@@ -214,8 +214,8 @@ bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
   
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumn* pBase = taosArrayGet(pQueryInfo->colList, i);
-    if (pBase->colIndex.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    SColumn* base = taosArrayGet(pQueryInfo->colList, i);
+    if (base->colIndex.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       return true;
     }
   }
