@@ -199,7 +199,7 @@ void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg) {
     } else {}
   }
 
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_INVALID_SQL, temp);
+  httpSendErrorRespImp(pContext, httpCode, "Bad Request", 1000, temp);
 }
 
 void httpSendSuccResp(HttpContext *pContext, char *desc) {
