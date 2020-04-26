@@ -12,7 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import taos
 from util.log import *
 from util.cases import *
 from util.sql import *

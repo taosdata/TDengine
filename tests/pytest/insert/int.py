@@ -12,7 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import taos
 import datetime
 
 from util.log import *
