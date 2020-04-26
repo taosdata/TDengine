@@ -92,7 +92,7 @@ typedef void *SDataRow;
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
-int      tdAppendColVal(SDataRow row, void *value, STSchema *pSchema, int col);
+int      tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset);
 void     tdDataRowReset(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 

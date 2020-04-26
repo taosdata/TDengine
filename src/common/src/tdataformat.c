@@ -160,22 +160,22 @@ void tdFreeDataRow(SDataRow row) {
 
 /**
  * Append a column value to the data row
+ * @param type: column type
+ * @param bytes: column bytes
+ * @param offset: offset in the data row tuple, not including the data row header
  */
-int tdAppendColVal(SDataRow row, void *value, STSchema *pSchema, int col) {
-  ASSERT(schemaNCols(pSchema) > col);
-  STColumn *pCol = schemaColAt(pSchema, col);
-  int32_t   toffset = pCol->offset + TD_DATA_ROW_HEAD_SIZE;
-  char *    ptr = dataRowAt(row, dataRowLen(row));
+int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
+  int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
+  char *  ptr = dataRowAt(row, dataRowLen(row));
 
-  switch (colType(pCol)) {
+  switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       if (value == NULL) {
         *(int32_t *)dataRowAt(row, toffset) = -1;
       } else {
-        int16_t slen = (colType(pCol) == TSDB_DATA_TYPE_BINARY) ? strlen((char *)value)
-                                                                : wcslen((wchar_t *)value) * TSDB_NCHAR_SIZE;
-        if (slen > colBytes(pCol)) return -1;
+        int16_t slen = (type) ? strlen((char *)value) : wcslen((wchar_t *)value) * TSDB_NCHAR_SIZE;
+        if (slen > bytes) return -1;
 
         *(int32_t *)dataRowAt(row, toffset) = dataRowLen(row);
         *(int16_t *)ptr = slen;
@@ -186,9 +186,9 @@ int tdAppendColVal(SDataRow row, void *value, STSchema *pSchema, int col) {
       break;
     default:
       if (value == NULL) {
-        setNull(dataRowAt(row, toffset), colType(pCol), colBytes(pCol));
+        setNull(dataRowAt(row, toffset), type, bytes);
       } else {
-        memcpy(dataRowAt(row, toffset), value, TYPE_BYTES[colType(pCol)]);
+        memcpy(dataRowAt(row, toffset), value, TYPE_BYTES[type]);
       }
       break;
   }

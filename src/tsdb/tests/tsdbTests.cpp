@@ -52,11 +52,12 @@ static int insertData(SInsertInfo *pInfo) {
       tdInitDataRow(row, pInfo->pSchema);
 
       for (int j = 0; j < schemaNCols(pInfo->pSchema); j++) {
+        STColumn *pTCol = schemaColAt(pInfo->pSchema, j);
         if (j == 0) {  // Just for timestamp
-          tdAppendColVal(row, (void *)(&start_time), pInfo->pSchema, j);
+          tdAppendColVal(row, (void *)(&start_time), pTCol->type, pTCol->bytes, pTCol->offset);
         } else {  // For int
           int val = 10;
-          tdAppendColVal(row, (void *)(&val), pInfo->pSchema, j);
+          tdAppendColVal(row, (void *)(&val), pTCol->type, pTCol->bytes, pTCol->offset);
         }
       }
       pBlock->len += dataRowLen(row);

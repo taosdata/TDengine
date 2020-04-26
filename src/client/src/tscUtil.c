@@ -664,8 +664,8 @@ static void trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
     *(int32_t*) pDataBlock = total;
     pDataBlock += sizeof(int32_t);
     
-    *(int32_t*) pDataBlock = firstPartLen;
-    pDataBlock += sizeof(int32_t);
+    // *(int32_t*) pDataBlock = firstPartLen;
+    // pDataBlock += sizeof(int32_t);
     
     memcpy(pDataBlock, p, pTableDataBlock->rowSize);
     
