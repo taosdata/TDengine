@@ -940,8 +940,6 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     
     if (pInfo->pArithExprInfo != NULL) {
       tExprTreeDestroy(&pInfo->pArithExprInfo->pExpr, NULL);
-      assert(0);
-//      tfree(pInfo->pArithExprInfo->colList);
     }
   }
   
