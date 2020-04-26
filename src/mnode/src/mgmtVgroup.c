@@ -272,8 +272,9 @@ void mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVlo
     pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
   }
 
-  if (pVload->replica != pVgroup->numOfVnodes) {
-    mError("dnode:%d, vgroup:%d replica:%d not match with mgmt:%d", pDnode->dnodeId, pVload->vgId, pVload->replica,
+  if (pVload->cfgVersion != pVgroup->pDb->cfgVersion || pVload->replica != pVgroup->numOfVnodes) {
+    mError("dnode:%d, vgroup:%d, vnode cfgVersion:%d repica:%d not match with mgmt cfgVersion:%d replica:%d",
+           pDnode->dnodeId, pVload->vgId, pVload->cfgVersion, pVload->replica, pVgroup->pDb->cfgVersion,
            pVgroup->numOfVnodes);
     mgmtSendCreateVgroupMsg(pVgroup, NULL);
   }
@@ -535,6 +536,7 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
 
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
+  pCfg->cfgVersion          = htonl(pDb->cfgVersion);
   pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
   pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
   pCfg->maxTables           = htonl(pDb->cfg.maxTables);
@@ -769,15 +771,3 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
 
   mPrint("db:%s, all vgroups:%d is dropped from sdb", pDropDb->name, numOfVgroups);
 }
-
-void mgmtAlterVgroup(SVgObj *pVgroup, void *ahandle) {
-  assert(ahandle != NULL);
-
-  if (pVgroup->numOfVnodes != pVgroup->pDb->cfg.replications) {
-    // TODO:
-    // mgmtSendAlterVgroupMsg(pVgroup, NULL);
-  } else {
-    mgmtAddToShellQueue(ahandle);
-  }
-}
-

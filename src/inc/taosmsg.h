@@ -505,6 +505,7 @@ typedef struct SRetrieveTableRsp {
 
 typedef struct {
   int32_t vgId;
+  int32_t cfgVersion;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
@@ -599,6 +600,7 @@ typedef struct {
 
 typedef struct {
   uint32_t vgId;
+  int32_t  cfgVersion;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
   int32_t  maxTables;

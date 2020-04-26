@@ -331,6 +331,7 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
+  pLoad->cfgVersion = htonl(pVnode->cfgVersion);
   pLoad->totalStorage = htobe64(pLoad->totalStorage);
   pLoad->compStorage = htobe64(pLoad->compStorage);
   pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
@@ -389,6 +390,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
 
+  len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pVnodeCfg->cfg.cfgVersion);
   len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pVnodeCfg->cfg.cacheBlockSize);
   len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pVnodeCfg->cfg.totalBlocks);
   len += snprintf(content + len, maxLen - len, "  \"maxTables\": %d,\n", pVnodeCfg->cfg.maxTables);
@@ -462,6 +464,13 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     dError("pVnode:%p vgId:%d, failed to read vnode cfg, invalid json format", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
+
+  cJSON *cfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
+  if (!cfgVersion || cfgVersion->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, cfgVersion not found", pVnode, pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->cfgVersion = cfgVersion->valueint;
 
   cJSON *cacheBlockSize = cJSON_GetObjectItem(root, "cacheBlockSize");
   if (!cacheBlockSize || cacheBlockSize->type != cJSON_Number) {

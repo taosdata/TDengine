@@ -164,6 +164,7 @@ typedef struct SDbObj {
   char    name[TSDB_DB_NAME_LEN + 1];
   char    acct[TSDB_USER_LEN + 1];
   int64_t createdTime;
+  int32_t cfgVersion;
   SDbCfg  cfg;
   int8_t  status;
   int8_t  reserved[14];

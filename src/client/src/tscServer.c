@@ -1377,11 +1377,6 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SCMAlterDbMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_DB;
 
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-
   SCMAlterDbMsg *pAlterDbMsg = (SCMAlterDbMsg*)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   strcpy(pAlterDbMsg->db, pTableMetaInfo->name);

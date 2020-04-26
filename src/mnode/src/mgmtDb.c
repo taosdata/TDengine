@@ -22,6 +22,7 @@
 #include "tglobal.h"
 #include "ttime.h"
 #include "tname.h"
+#include "tbalance.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
@@ -715,39 +716,65 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
 
 static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   SDbCfg  newCfg = pDb->cfg;
-  int32_t daysToKeep = htonl(pAlter->daysToKeep);
+  int32_t cacheBlockSize = htonl(pAlter->daysToKeep);
+  int32_t totalBlocks = htonl(pAlter->totalBlocks);
   int32_t maxTables = htonl(pAlter->maxSessions);
+  int32_t daysToKeep = htonl(pAlter->daysToKeep);
+  int32_t daysToKeep1 = htonl(pAlter->daysToKeep1);
+  int32_t daysToKeep2 = htonl(pAlter->daysToKeep2);
+  int8_t  compression = pAlter->compression;
   int8_t  replications = pAlter->replications;
 
   terrno = TSDB_CODE_SUCCESS;
 
+  if (cacheBlockSize > 0 && cacheBlockSize != pDb->cfg.cacheBlockSize) {
+    mTrace("db:%s, cache:%d change to %d", pDb->name, pDb->cfg.cacheBlockSize, cacheBlockSize);
+    newCfg.cacheBlockSize = cacheBlockSize;
+  }
+
+  if (totalBlocks > 0 && totalBlocks != pDb->cfg.totalBlocks) {
+    mTrace("db:%s, blocks:%d change to %d", pDb->name, pDb->cfg.totalBlocks, totalBlocks);
+    newCfg.totalBlocks = totalBlocks;
+  }
+
+  if (maxTables > 0 && maxTables != pDb->cfg.maxTables) {
+    mTrace("db:%s, tables:%d change to %d", pDb->name, pDb->cfg.maxTables, maxTables);
+    newCfg.maxTables = maxTables;
+    if (newCfg.maxTables < pDb->cfg.maxTables) {
+      mTrace("db:%s, tables:%d should larger than origin:%d", pDb->name, newCfg.maxTables, pDb->cfg.maxTables);
+      terrno = TSDB_CODE_INVALID_OPTION;
+    }
+  }
+
   if (daysToKeep > 0 && daysToKeep != pDb->cfg.daysToKeep) {
     mTrace("db:%s, daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, daysToKeep);
     newCfg.daysToKeep = daysToKeep;
-  } 
-  
-  if (replications > 0 && replications != pDb->cfg.replications) {
-    mTrace("db:%s, replica:%d change to %d", pDb->name, pDb->cfg.replications, replications);
-    if (replications < TSDB_MIN_REPLICA_NUM || replications > TSDB_MAX_REPLICA_NUM) {
-      mError("invalid db option replica: %d valid range: %d--%d", replications, TSDB_MIN_REPLICA_NUM, TSDB_MAX_REPLICA_NUM);
-      terrno = TSDB_CODE_INVALID_OPTION;
-    }
-    newCfg.replications = replications;
-  } 
-  
-  if (maxTables > 0 && maxTables != pDb->cfg.maxTables) {
-    mTrace("db:%s, tables:%d change to %d", pDb->name, pDb->cfg.maxTables, maxTables);
-    if (maxTables < TSDB_MIN_TABLES || maxTables > TSDB_MAX_TABLES) {
-      mError("invalid db option tables: %d valid range: %d--%d", maxTables, TSDB_MIN_TABLES, TSDB_MAX_TABLES);
-      terrno = TSDB_CODE_INVALID_OPTION;
-    }
-    if (maxTables < pDb->cfg.maxTables) {
-      mError("invalid db option tables: %d should larger than original:%d", maxTables, pDb->cfg.maxTables);
-      terrno = TSDB_CODE_INVALID_OPTION;
-    }
-    newCfg.maxTables = maxTables;
   }
 
+  if (daysToKeep1 > 0 && daysToKeep1 != pDb->cfg.daysToKeep1) {
+    mTrace("db:%s, daysToKeep1:%d change to %d", pDb->name, pDb->cfg.daysToKeep1, daysToKeep1);
+    newCfg.daysToKeep1 = daysToKeep1;
+  }
+
+  if (daysToKeep2 > 0 && daysToKeep2 != pDb->cfg.daysToKeep2) {
+    mTrace("db:%s, daysToKeep2:%d change to %d", pDb->name, pDb->cfg.daysToKeep2, daysToKeep2);
+    newCfg.daysToKeep2 = daysToKeep2;
+  }
+
+  if (compression > 0 && compression != pDb->cfg.compression) {
+    mTrace("db:%s, compression:%d change to %d", pDb->name, pDb->cfg.compression, compression);
+    newCfg.compression = compression;
+  }
+
+  if (replications > 0 && replications != pDb->cfg.replications) {
+    mTrace("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
+    newCfg.replications = replications;
+  } 
+  if (replications > mgmtGetDnodesNum()) {
+    mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
+    terrno = TSDB_CODE_NO_ENOUGH_DNODES;
+  }
+  
   return newCfg;
 }
 
@@ -757,8 +784,16 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     return terrno;
   }
 
+  int32_t code = mgmtCheckDbCfg(&newCfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int32_t oldReplica = pDb->cfg.replications;
+
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
+    pDb->cfgVersion++;
     SSdbOper oper = {
       .type = SDB_OPER_GLOBAL,
       .table = tsDbSdb,
@@ -771,7 +806,20 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
       return TSDB_CODE_SDB_ERROR;
     }
   }
-  
+
+  void *pNode = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    if (pVgroup == NULL) break;   
+    mgmtSendCreateVgroupMsg(pVgroup, NULL);
+    mgmtDecVgroupRef(pVgroup);
+  }
+
+  if (oldReplica != pDb->cfg.replications) {
+    balanceNotify();
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -796,16 +844,6 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to alter, invalid db option", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, code);
-    return;
-  }
-
-  SVgObj *pVgroup = pDb->pHead;
-  if (pVgroup != NULL) {
-    mPrint("vgroup:%d, will be altered", pVgroup->vgId);
-    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
-    newMsg->ahandle = pVgroup;
-    newMsg->expected = pVgroup->numOfVnodes;
-    mgmtAlterVgroup(pVgroup, newMsg);
     return;
   }
 

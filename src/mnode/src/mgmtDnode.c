@@ -336,13 +336,14 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d, first access, privateIp:%s, name:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
   } else {
-    //mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
     pVload->vgId = htonl(pVload->vgId);
+    pVload->cfgVersion = htonl(pVload->cfgVersion);
 
     SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {

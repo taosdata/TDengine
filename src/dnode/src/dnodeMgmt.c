@@ -128,6 +128,7 @@ static void dnodeCloseVnodes() {
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
+  pCreate->cfg.cfgVersion          = htonl(pCreate->cfg.cfgVersion);
   pCreate->cfg.maxTables           = htonl(pCreate->cfg.maxTables);
   pCreate->cfg.cacheBlockSize      = htonl(pCreate->cfg.cacheBlockSize);
   pCreate->cfg.totalBlocks         = htonl(pCreate->cfg.totalBlocks);
