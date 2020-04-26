@@ -14,17 +14,18 @@
  */
 
 #include "os.h"
+#include "tutil.h"
+
+#include "tnote.h"
 #include "trpc.h"
 #include "tscLog.h"
 #include "tscProfile.h"
+#include "tscSubquery.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
-#include "tsclient.h"
-#include "tsocket.h"
-#include "tutil.h"
-#include "tnote.h"
 #include "tsched.h"
 #include "tschemautil.h"
+#include "tsclient.h"
 
 static void tscProcessFetchRow(SSchedMsg *pMsg);
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
@@ -219,12 +220,17 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
 
   pSql->param = param;
   tscResetForNextRetrieve(pRes);
-
-  if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC && pCmd->command < TSDB_SQL_LOCAL) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+  
+  // handle the sub queries of join query
+  if (pCmd->command == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
+    tscFetchDatablockFromSubquery(pSql);
+  } else {
+    if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC && pCmd->command < TSDB_SQL_LOCAL) {
+      pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+    }
+  
+    tscProcessSql(pSql);
   }
-
-  tscProcessSql(pSql);
 }
 
 void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW), void *param) {

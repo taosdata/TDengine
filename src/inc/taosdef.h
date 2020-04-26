@@ -199,7 +199,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_SHELL_VNODE_BITS     24
 #define TSDB_SHELL_SID_MASK       0xFF
 #define TSDB_HTTP_TOKEN_LEN       20
-#define TSDB_SHOW_SQL_LEN         32
+#define TSDB_SHOW_SQL_LEN         512
 
 #define TSDB_METER_STATE_OFFLINE  0
 #define TSDB_METER_STATE_ONLLINE  1

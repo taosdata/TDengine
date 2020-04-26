@@ -31,11 +31,11 @@ extern int32_t qdebugFlag;
 
 #define qError(...)                                   \
   if (qdebugFlag & DEBUG_ERROR) {                   \
-    taosPrintLog("ERROR RPC ", qdebugFlag, __VA_ARGS__); \
+    taosPrintLog("ERROR QRY ", qdebugFlag, __VA_ARGS__); \
   }
 #define qWarn(...)                                    \
   if (qdebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  RPC ", qdebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN  QRY ", qdebugFlag, __VA_ARGS__); \
   }  
 
 #ifdef __cplusplus

@@ -105,7 +105,7 @@ static int32_t getColumnIndexByName(const SSQLToken* pToken, SQueryInfo* pQueryI
 static int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t optrToString(tSQLExpr* pExpr, char** exprString);
 
-static int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
+static int32_t getTableIndexImpl(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql);
 static int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate);
@@ -1179,7 +1179,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
         tExprNode* pNode = NULL;
         SArray* colList = taosArrayInit(10, sizeof(SColIndex));
         
-        int32_t ret = exprTreeFromSqlExpr(&pNode, pItem->pNode, pQueryInfo->exprsInfo, pQueryInfo, colList);
+        int32_t ret = exprTreeFromSqlExpr(&pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, colList);
         if (ret != TSDB_CODE_SUCCESS) {
           tExprTreeDestroy(&pNode, NULL);
           return invalidSqlErrMsg(pQueryInfo->msg, "invalid arithmetic expression in select clause");
@@ -1218,7 +1218,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           tExprNode* pNode = NULL;
 //          SArray* colList = taosArrayInit(10, sizeof(SColIndex));
   
-          int32_t ret = exprTreeFromSqlExpr(&pNode, pItem->pNode, pQueryInfo->exprsInfo, pQueryInfo, NULL);
+          int32_t ret = exprTreeFromSqlExpr(&pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, NULL);
           if (ret != TSDB_CODE_SUCCESS) {
             tExprTreeDestroy(&pNode, NULL);
             return invalidSqlErrMsg(pQueryInfo->msg, "invalid expression in select clause");
@@ -1548,7 +1548,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
           int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
           pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, size, false);
         } else {
-          // count the number of meters created according to the metric
+          // count the number of meters created according to the super table
           if (getColumnIndexByName(pToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
             return invalidSqlErrMsg(pQueryInfo->msg, msg3);
           }
@@ -2002,7 +2002,7 @@ int32_t doGetColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColum
   }
 }
 
-int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
+int32_t getTableIndexImpl(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
   if (pTableToken->n == 0) {  // only one table and no table name prefix in column name
     if (pQueryInfo->numOfTables == 1) {
       pIndex->tableIndex = 0;
@@ -2035,7 +2035,7 @@ int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIn
   SSQLToken tableToken = {0};
   extractTableNameFromToken(pToken, &tableToken);
 
-  if (getMeterIndex(&tableToken, pQueryInfo, pIndex) != TSDB_CODE_SUCCESS) {
+  if (getTableIndexImpl(&tableToken, pQueryInfo, pIndex) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }
 
@@ -3199,7 +3199,6 @@ static bool validateJoinExprNode(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SColum
   const char* msg3 = "join column must have same type";
   const char* msg4 = "self join is not allowed";
   const char* msg5 = "join table must be the same type(table to table, super table to super table)";
-  const char* msg6 = "tags in join condition not support binary/nchar types";
 
   tSQLExpr* pRight = pExpr->pRight;
 
@@ -3233,9 +3232,6 @@ static bool validateJoinExprNode(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SColum
     return false;
   } else if (pLeftIndex->tableIndex == rightIndex.tableIndex) {
     invalidSqlErrMsg(pQueryInfo->msg, msg4);
-    return false;
-  } else if (leftType == TSDB_DATA_TYPE_BINARY || leftType == TSDB_DATA_TYPE_NCHAR) {
-    invalidSqlErrMsg(pQueryInfo->msg, msg6);
     return false;
   }
 
@@ -4044,7 +4040,7 @@ int32_t parseFillClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL) {
       }
     }
   
-    size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+    size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
     if ((pFillToken->nExpr < size) ||
         ((pFillToken->nExpr - 1 < size) && (tscIsPointInterpQuery(pQueryInfo)))) {
@@ -4079,7 +4075,7 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
     pQueryInfo->order.orderColId = -1;
   }
 
-  /* for metric query, set default ascending order for group output */
+  /* for super table query, set default ascending order for group output */
   if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
   }
@@ -4127,7 +4123,7 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
   SSQLToken    columnName = {pVar->nLen, pVar->nType, pVar->pz};
   SColumnIndex index = {0};
 
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {  // metric query
+  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {  // super table query
     if (getColumnIndexByName(&columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
@@ -4460,7 +4456,7 @@ int32_t validateSqlFunctionInStreamSql(SQueryInfo* pQueryInfo) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg0);
   }
   
-  size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+  size_t size = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < size; ++i) {
     int32_t functId = tscSqlExprGet(pQueryInfo, i)->functionId;
     if (!IS_STREAM_QUERY_VALID(aAggs[functId].nStatus)) {
@@ -4476,7 +4472,7 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SQueryInfo* pQueryInfo) {
   const char* msg1 = "column projection is not compatible with interval";
 
   // multi-output set/ todo refactor
-  size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+  size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
   for (int32_t k = 0; k < size; ++k) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
@@ -4736,7 +4732,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
   
-    size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+    size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
     // filter the query functions operating on "tbname" column that are not supported by normal columns.
     for (int32_t i = 0; i < size; ++i) {
@@ -4849,7 +4845,7 @@ void tscAddTimestampColumn(SQueryInfo* pQueryInfo, int16_t functionId, int16_t t
   if (pExpr == NULL || pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX || pExpr->functionId != functionId) {
     SColumnIndex index = {tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX};
 
-    pExpr = tscSqlExprAppend(pQueryInfo, functionId, &index, TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE, TSDB_KEYSIZE, false);
+    pExpr = tscSqlExprInsert(pQueryInfo, 0, functionId, &index, TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE, TSDB_KEYSIZE, false);
     pExpr->colInfo.flag = TSDB_COL_NORMAL;
 
     // NOTE: tag column does not add to source column list
@@ -4864,7 +4860,7 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
 
   if (pParentQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, subClauseIndex);
-    size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+    size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, size - 1);
 
@@ -4933,7 +4929,7 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex) {
 static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
   int32_t tagLength = 0;
   
-  size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+  size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
@@ -4960,7 +4956,7 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
 }
 
 static void doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
-  size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+  size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
@@ -4998,7 +4994,7 @@ static bool onlyTagPrjFunction(SQueryInfo* pQueryInfo) {
   bool hasTagPrj = false;
   bool hasColumnPrj = false;
   
-  size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+  size_t size = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_PRJ) {
@@ -5033,7 +5029,7 @@ static bool allTagPrjInGroupby(SQueryInfo* pQueryInfo) {
 }
 
 static void updateTagPrjFunction(SQueryInfo* pQueryInfo) {
-  size_t size = taosArrayGetSize(pQueryInfo->exprsInfo);
+  size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
@@ -5057,9 +5053,9 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo) {
   int16_t numOfSelectivity = 0;
   int16_t numOfAggregation = 0;
 
-  size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprsInfo);
+  size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < numOfExprs; ++i) {
-    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, i);
+    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
     if (pExpr->functionId == TSDB_FUNC_TAGPRJ ||
         (pExpr->functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
       tagColExists = true;
@@ -5068,7 +5064,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo) {
   }
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
-    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, i);
+    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
   
     int16_t functionId = pExpr->functionId;
     if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS ||
@@ -5275,7 +5271,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
       return TSDB_CODE_INVALID_SQL;
     }
 
-    // projection query on metric does not compatible with "group by" syntax
+    // projection query on super table does not compatible with "group by" syntax
     if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
@@ -5491,7 +5487,7 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
 
   pCmd->numOfCols = (int16_t)pFieldList->nField;
 
-  if (pTagList != NULL) {  // create metric[optional]
+  if (pTagList != NULL) {  // create super table[optional]
     for (int32_t i = 0; i < pTagList->nField; ++i) {
       tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &pTagList->p[i]);
     }

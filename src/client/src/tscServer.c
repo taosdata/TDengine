@@ -140,7 +140,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
     }
   } else {
-    tscTrace("heart beat failed, code:%d", code);
+    tscTrace("heart beat failed, code:%s", tstrerror(code));
   }
 
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
@@ -326,11 +326,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
       pRes->pRsp = NULL;
     }
 
-    // ignore the error information returned from mnode when set ignore flag in sql
-    if (pRes->code == TSDB_CODE_DB_ALREADY_EXIST && pCmd->existsCheck && pRes->rspType == TSDB_MSG_TYPE_CM_CREATE_DB_RSP) {
-      pRes->code = TSDB_CODE_SUCCESS;
-    }
-
     /*
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
@@ -427,8 +422,9 @@ int tscProcessSql(SSqlObj *pSql) {
 
     type = pQueryInfo->type;
   
-    // for heartbeat, numOfTables == 0;
-    assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) || pQueryInfo->numOfTables > 0);
+    // while numOfTables equals to 0, it must be Heartbeat
+    assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) ||
+            pQueryInfo->numOfTables > 0);
   }
 
   tscTrace("%p SQL cmd:%d will be processed, name:%s, type:%d", pSql, pCmd->command, name, type);
@@ -1474,12 +1470,10 @@ int tscProcessRetrieveMetricRsp(SSqlObj *pSql) {
   pRes->row = 0;
 
   uint8_t code = pRes->code;
-  if (pSql->fp) {  // async retrieve metric data
-    if (pRes->code == TSDB_CODE_SUCCESS) {
-      (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
-    } else {
-      tscQueueAsyncRes(pSql);
-    }
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
+  } else {
+    tscQueueAsyncRes(pSql);
   }
 
   return code;

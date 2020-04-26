@@ -38,6 +38,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql);
 
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql);
 
+void tscBuildResFromSubqueries(SSqlObj *pSql);
+void **doSetResultRowData(SSqlObj *pSql, bool finalResult);
+
 #ifdef __cplusplus
 }
 #endif

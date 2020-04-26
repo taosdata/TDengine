@@ -97,7 +97,7 @@ static int32_t vnodeProcessRetrieveMsg(SVnodeObj *pVnode, void *pCont, int32_t c
     if (qHasMoreResultsToRetrieve(pQInfo)) {
       pRet->qhandle = pQInfo;
       code = TSDB_CODE_ACTION_NEED_REPROCESSED;
-    } else {  
+    } else {
       // no further execution invoked, release the ref to vnode
       qDestroyQueryInfo(pQInfo);
       vnodeRelease(pVnode);

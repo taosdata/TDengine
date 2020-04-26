@@ -206,7 +206,7 @@ typedef struct SQueryInfo {
 
   SArray *         colList;      // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SArray *         exprsInfo;    // SArray<SSqlExpr*>
+  SArray *         exprList;    // SArray<SSqlExpr*>
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;

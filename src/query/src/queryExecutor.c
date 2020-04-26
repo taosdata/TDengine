@@ -5112,7 +5112,6 @@ static void tableQueryImpl(SQInfo *pQInfo) {
 
     pQInfo->pointsInterpo += numOfInterpo;
     qTrace("QInfo:%p current:%d returned, total:%d", pQInfo, pQuery->rec.rows, pQuery->rec.total);
-    sem_post(&pQInfo->dataReady);
     return;
   }
 
@@ -5133,7 +5132,6 @@ static void tableQueryImpl(SQInfo *pQInfo) {
 
         if (pQuery->rec.rows > 0) {
           qTrace("QInfo:%p %d rows returned from group results, total:%d", pQInfo, pQuery->rec.rows, pQuery->rec.total);
-          sem_post(&pQInfo->dataReady);
           return;
         }
       }
@@ -5141,7 +5139,6 @@ static void tableQueryImpl(SQInfo *pQInfo) {
 
     qTrace("QInfo:%p query over, %d rows are returned", pQInfo, pQuery->rec.total);
     //    vnodePrintQueryStatistics(pSupporter);
-    sem_post(&pQInfo->dataReady);
     return;
   }
 
@@ -5166,14 +5163,12 @@ static void tableQueryImpl(SQInfo *pQInfo) {
   /* check if query is killed or not */
   if (isQueryKilled(pQInfo)) {
     qTrace("QInfo:%p query is killed", pQInfo);
-  } else {
-    //    STableId* pTableId = taosArrayGet(pQInfo->groupInfo, 0);
-    //    qTrace("QInfo:%p uid:%" PRIu64 " tid:%d, query completed, %" PRId64 " rows returned, numOfTotal:%" PRId64 "
-    //    rows",
-    //        pQInfo, pTableId->uid, pTableId->tid, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
+  } else {// todo set the table uid and tid in log
+//    SArray* p = taosArrayGetP(pQInfo->groupInfo.pGroupList, 0);
+//    SPair* pair = taosArrayGet(p, 0);
+    qTrace("QInfo:%p query paused, %" PRId64 " rows returned, numOfTotal:%" PRId64 " rows",
+        pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
   }
-
-  sem_post(&pQInfo->dataReady);
 }
 
 static void stableQueryImpl(SQInfo *pQInfo) {
@@ -5201,8 +5196,6 @@ static void stableQueryImpl(SQInfo *pQInfo) {
            pQuery->rec.total);
     //    vnodePrintQueryStatistics(pSupporter);
   }
-
-  sem_post(&pQInfo->dataReady);
 }
 
 static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pExprMsg, SColumnInfo* pTagCols) {
@@ -6017,8 +6010,14 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 
       unlink(pQuery->sdata[0]->data);
     } else {
+      // todo return the error code to client
       qError("QInfo:%p failed to open tmp file to send ts-comp data to client, path:%s, reason:%s", pQInfo,
              pQuery->sdata[0]->data, strerror(errno));
+    }
+  
+    // all data returned, set query over
+    if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
+      setQueryStatus(pQuery, QUERY_OVER);
     }
   } else {
     doCopyQueryResultToMsg(pQInfo, pQuery->rec.rows, data);
@@ -6143,7 +6142,8 @@ void qTableQuery(qinfo_t qinfo) {
   } else {
     tableQueryImpl(pQInfo);
   }
-
+  
+  sem_post(&pQInfo->dataReady);
   //  vnodeDecRefCount(pQInfo);
 }
 

@@ -330,7 +330,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
   }
 
   int32_t totalNumOfResults = pMetricMeta->numOfTables;
-  int32_t rowLen = tscGetResRowLength(pQueryInfo->exprsInfo);
+  int32_t rowLen = tscGetResRowLength(pQueryInfo->exprList);
 
   tscInitResObjForLocalQuery(pSql, totalNumOfResults, rowLen);
 
@@ -370,7 +370,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
 #if 0
   SSuperTableMeta *pMetricMeta = tscGetMetaInfo(pQueryInfo, 0)->pMetricMeta;
   int32_t      totalNumOfResults = 1;  // count function only produce one result
-  int32_t      rowLen = tscGetResRowLength(pQueryInfo->exprsInfo);
+  int32_t      rowLen = tscGetResRowLength(pQueryInfo->exprList);
 
   tscInitResObjForLocalQuery(pSql, totalNumOfResults, rowLen);
 
@@ -408,7 +408,7 @@ static int tscProcessQueryTags(SSqlObj *pSql) {
     return pSql->res.code;
   }
 
-  SSqlExpr *pExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
+  SSqlExpr *pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   if (pExpr->functionId == TSDB_FUNC_COUNT) {
     return tscBuildMetricTagSqlFunctionResult(pSql);
   } else {
@@ -419,7 +419,7 @@ static int tscProcessQueryTags(SSqlObj *pSql) {
 static void tscProcessCurrentUser(SSqlObj *pSql) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
+  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   tscSetLocalQueryResult(pSql, pSql->pTscObj->user, pExpr->aliasName, TSDB_USER_LEN);
 }
 
@@ -434,7 +434,7 @@ static void tscProcessCurrentDB(SSqlObj *pSql) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
+  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   tscSetLocalQueryResult(pSql, db, pExpr->aliasName, TSDB_DB_NAME_LEN);
 }
 
@@ -442,14 +442,14 @@ static void tscProcessServerVer(SSqlObj *pSql) {
   const char* v = pSql->pTscObj->sversion;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
+  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   tscSetLocalQueryResult(pSql, v, pExpr->aliasName, tListLen(pSql->pTscObj->sversion));
 }
 
 static void tscProcessClientVer(SSqlObj *pSql) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
+  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   tscSetLocalQueryResult(pSql, version, pExpr->aliasName, strlen(version));
 }
 
@@ -469,7 +469,7 @@ static void tscProcessServStatus(SSqlObj *pSql) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
+  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   tscSetLocalQueryResult(pSql, "1", pExpr->aliasName, 2);
 }
 
@@ -491,7 +491,7 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, 0);
-  pInfo->pSqlExpr = taosArrayGetP(pQueryInfo->exprsInfo, 0);
+  pInfo->pSqlExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   
   strncpy(pRes->data, val, pField->bytes);
 }
