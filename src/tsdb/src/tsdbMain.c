@@ -163,6 +163,34 @@ int32_t tsdbDropRepo(TsdbRepoT *repo) {
   return 0;
 }
 
+static int tsdbRestoreInfo(STsdbRepo *pRepo) {
+  STsdbMeta * pMeta = pRepo->tsdbMeta;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  SFileGroup *pFGroup = NULL;
+
+  SFileGroupIter iter;
+  SRWHelper      rhelper = {0};
+
+  if (tsdbInitReadHelper(&rhelper, pRepo) < 0) goto _err;
+  tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_ASC);
+  while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
+    if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
+    for (int i = 0; i < pRepo->config.maxTables; i++) {
+      STable *  pTable = pMeta->tables[i];
+      SCompIdx *pIdx = &rhelper.pCompIdx[i];
+
+      if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;
+    }
+  }
+
+  tsdbDestroyHelper(&rhelper);
+  return 0;
+
+_err:
+  tsdbDestroyHelper(&rhelper);
+  return -1;
+}
+
 /**
  * Open an existing TSDB storage repository
  * @param tsdbDir the existing TSDB root directory
@@ -205,6 +233,16 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
   if (pRepo->tsdbFileH == NULL) {
     tsdbFreeCache(pRepo->tsdbCache);
     tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+
+  // Restore key from file
+  if (tsdbRestoreInfo(pRepo) < 0) {
+    tsdbFreeCache(pRepo->tsdbCache);
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    tsdbCloseFileH(pRepo->tsdbFileH);
     free(pRepo->rootDir);
     free(pRepo);
     return NULL;
@@ -755,6 +793,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   tSkipListPut(pTable->mem->pData, pNode);
   if (key > pTable->mem->keyLast) pTable->mem->keyLast = key;
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
+  if (key > pTable->lastKey) pTable->lastKey = key;
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
 
