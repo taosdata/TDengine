@@ -1348,11 +1348,11 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   strcpy(pAlterTableMsg->tableId, pTableMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
 
-  pAlterTableMsg->numOfCols = htons(tscNumOfFields(pQueryInfo));
+  pAlterTableMsg->numOfCols = tscNumOfFields(pQueryInfo);
   memcpy(pAlterTableMsg->tagVal, pAlterInfo->tagData.data, TSDB_MAX_TAGS_LEN);
 
   SSchema *pSchema = pAlterTableMsg->schema;
-  for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
+  for (int i = 0; i < pAlterTableMsg->numOfCols; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 
     pSchema->type = pField->type;

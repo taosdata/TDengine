@@ -238,7 +238,7 @@ typedef struct {
 
 typedef struct SSchema {
   uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
+  char    name[TSDB_COL_NAME_LEN + 1];
   int16_t colId;
   int16_t bytes;
 } SSchema;
@@ -256,14 +256,14 @@ typedef struct {
   uint64_t uid;
   uint64_t superTableUid;
   uint64_t createdTime;
-  char     tableId[TSDB_TABLE_ID_LEN];
-  char     superTableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
   char     data[];
 } SMDCreateTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN + 1];
   int8_t  igExists;
   int16_t numOfTags;
   int16_t numOfColumns;
@@ -274,13 +274,13 @@ typedef struct {
 } SCMCreateTableMsg;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN];
+  char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t igNotExists;
 } SCMDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN + 1];
   int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */
@@ -515,8 +515,8 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  char     acct[TSDB_USER_LEN];
-  char     db[TSDB_DB_NAME_LEN];
+  char     acct[TSDB_USER_LEN + 1];
+  char     db[TSDB_DB_NAME_LEN + 1];
   uint32_t vgId;
   int32_t  maxSessions;
   int32_t  cacheBlockSize;
@@ -713,8 +713,8 @@ typedef struct {
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
-  char          tableId[TSDB_TABLE_ID_LEN];   // table id
-  char          stableId[TSDB_TABLE_ID_LEN];  // stable name if it is created according to super table
+  char          tableId[TSDB_TABLE_ID_LEN + 1];   // table id
+  char          stableId[TSDB_TABLE_ID_LEN + 1];  // stable name if it is created according to super table
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
