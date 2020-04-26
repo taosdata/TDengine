@@ -762,14 +762,14 @@ typedef struct {
 } SMDCfgDnodeMsg, SCMCfgDnodeMsg;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN + 1];
+  char     sql[TSDB_SHOW_SQL_LEN];
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
 } SQueryDesc;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN + 1];
+  char     sql[TSDB_SHOW_SQL_LEN];
   uint32_t streamId;
   int64_t  num;  // number of computing/cycles
   int64_t  useconds;
@@ -781,12 +781,10 @@ typedef struct {
 
 typedef struct {
   int32_t    numOfQueries;
-  SQueryDesc qdesc[];
 } SQqueryList;
 
 typedef struct {
   int32_t     numOfStreams;
-  SStreamDesc sdesc[];
 } SStreamList;
 
 typedef struct {
