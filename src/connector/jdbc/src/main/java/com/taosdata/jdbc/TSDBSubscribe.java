@@ -42,6 +42,15 @@ public class TSDBSubscribe {
         }
     }
 
+    /**
+     * sync subscribe
+     *
+     * @param topic
+     * @param sql
+     * @param restart
+     * @param period
+     * @throws SQLException
+     */
     public long subscribe(String topic, String sql, boolean restart, int period) throws SQLException {
         if (this.connecter.isClosed()) {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
@@ -52,6 +61,16 @@ public class TSDBSubscribe {
         return this.connecter.subscribe(topic, sql, restart, period);
     }
 
+    /**
+     * async subscribe
+     *
+     * @param topic
+     * @param sql
+     * @param restart
+     * @param period
+     * @param callBack
+     * @throws SQLException
+     */
     public long subscribe(String topic, String sql, boolean restart, int period, TSDBSubscribeCallBack callBack) throws SQLException {
         if (this.connecter.isClosed()) {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
@@ -88,6 +107,13 @@ public class TSDBSubscribe {
         }
     }
 
+    /**
+     * cancel subscribe
+     *
+     * @param subscription
+     * @param isKeep
+     * @throws SQLException
+     */
     public void unsubscribe(long subscription, boolean isKeep) throws SQLException {
         if (this.connecter.isClosed()) {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
