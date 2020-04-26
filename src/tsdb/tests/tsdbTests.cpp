@@ -27,7 +27,7 @@ typedef struct {
 
 static int insertData(SInsertInfo *pInfo) {
   SSubmitMsg *pMsg =
-      (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(pInfo->pSchema) * pInfo->rowsPerSubmit);
+      (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + dataRowMaxBytesFromSchema(pInfo->pSchema) * pInfo->rowsPerSubmit);
   if (pMsg == NULL) return -1;
   TSKEY start_time = pInfo->startTime;
 
@@ -53,10 +53,10 @@ static int insertData(SInsertInfo *pInfo) {
 
       for (int j = 0; j < schemaNCols(pInfo->pSchema); j++) {
         if (j == 0) {  // Just for timestamp
-          tdAppendColVal(row, (void *)(&start_time), schemaColAt(pInfo->pSchema, j));
+          tdAppendColVal(row, (void *)(&start_time), pInfo->pSchema, j);
         } else {  // For int
           int val = 10;
-          tdAppendColVal(row, (void *)(&val), schemaColAt(pInfo->pSchema, j));
+          tdAppendColVal(row, (void *)(&val), pInfo->pSchema, j);
         }
       }
       pBlock->len += dataRowLen(row);
