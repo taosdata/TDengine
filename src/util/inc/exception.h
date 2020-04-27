@@ -18,6 +18,7 @@
 
 #include <setjmp.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <assert.h>
 
 #ifdef __cplusplus
@@ -58,7 +59,7 @@ void cleanupPush_int_int        ( bool failOnly, void* func, int arg );
 void cleanupPush_void           ( bool failOnly, void* func );
 
 int32_t cleanupGetActionCount();
-void cleanupExecute( bool failed, int32_t toIndex );
+void cleanupExecute( int32_t anchor, bool failed );
 
 #define CLEANUP_PUSH_VOID_PTR_PTR( failOnly, func, arg1, arg2 )  cleanupPush_void_ptr_ptr( (failOnly), (void*)(func), (void*)(arg1), (void*)(arg2) )
 #define CLEANUP_PUSH_VOID_PTR_BOOL( failOnly, func, arg1, arg2 ) cleanupPush_void_ptr_bool( (failOnly), (void*)(func), (void*)(arg1), (bool)(arg2) )
