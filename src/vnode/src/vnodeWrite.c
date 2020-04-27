@@ -58,7 +58,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
       return TSDB_CODE_NOT_ACTIVE_VNODE;
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
-      return TSDB_CODE_NO_MASTER;
+      return TSDB_CODE_NOT_READY;
 
     // assign version
     pVnode->version++;
@@ -74,15 +74,15 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
 
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
-  if ( code < 0) return code;
- 
+  if (code < 0) return code;
+
+  int32_t syncCode = syncForwardToPeer(pVnode->sync, pHead, item);
+  if (syncCode < 0) return syncCode;
+
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
   if (code < 0) return code;
 
-  if (pVnode->syncCfg.replica > 1) 
-    code = syncForwardToPeer(pVnode->sync, pHead, item);
-
-  return code;
+  return syncCode;
 }
 
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
