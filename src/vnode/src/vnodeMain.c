@@ -286,7 +286,7 @@ void *vnodeGetVnode(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
-    dError("vgId:%d not exist", vgId);
+    dPrint("vgId:%d not exist", vgId);
     return NULL;
   }
 
