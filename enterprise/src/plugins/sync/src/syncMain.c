@@ -249,7 +249,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   int         fwdLen;
   int         code = 0;
 
-  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return TSDB_CODE_NOT_READY;
+  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
 
   // always update version
   nodeVersion = pWalHead->version;
@@ -937,12 +937,14 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
     return;
   }
 
-  SSyncNode *pNode = *(SSyncNode **)taosGetIntHashData(vgIdHash, vgId); 
-  if (pNode == NULL) {
+  SSyncNode **ppNode = (SSyncNode **)taosGetIntHashData(vgIdHash, vgId); 
+  if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
     taosCloseTcpSocket(connFd);
     return;
   }
+
+  SSyncNode *pNode = *ppNode;
 
   SSyncPeer *pPeer;
   for (i = 0; i < pNode->replica; ++i) {
