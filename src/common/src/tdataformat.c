@@ -174,7 +174,7 @@ int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_
       if (value == NULL) {
         *(int32_t *)dataRowAt(row, toffset) = -1;
       } else {
-        int16_t slen = (type) ? strlen((char *)value) : wcslen((wchar_t *)value) * TSDB_NCHAR_SIZE;
+        int16_t slen = (type) ? strnlen((char *)value, bytes) : wcsnlen((wchar_t *)value, bytes/TSDB_NCHAR_SIZE) * TSDB_NCHAR_SIZE;
         if (slen > bytes) return -1;
 
         *(int32_t *)dataRowAt(row, toffset) = dataRowLen(row);
