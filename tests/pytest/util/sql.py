@@ -92,10 +92,10 @@ class TDSql:
 
         if data is None:
             tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
-                   (self.sql, row, col, self.queryResult[row][col], data))
+                       (self.sql, row, col, self.queryResult[row][col], data))
         else:
             tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%d" %
-                   (self.sql, row, col, self.queryResult[row][col], data))
+                       (self.sql, row, col, self.queryResult[row][col], data))
 
     def getData(self, row, col):
         if row < 0:
