@@ -283,20 +283,20 @@ class LinearQueue():
                 return 0
             return self.pop()
 
-    def use(self, i):
+    def allocate(self, i):
         with self.lock:
             if ( i in self.inUse ):
                 raise RuntimeError("Cannot re-use same index in queue: {}".format(i))
             self.inUse.add(i)
 
-    def unUse(self, i):
+    def release(self, i):
         with self.lock:
             self.inUse.remove(i) # KeyError possible
 
     def size(self):
         return self.lastIndex + 1 - self.firstIndex
 
-    def allocate(self):
+    def pickAndAllocate(self):
         with self.lock:
             cnt = 0 # counting the interations
             while True:
@@ -305,7 +305,7 @@ class LinearQueue():
                     raise RuntimeError("Failed to allocate LinearQueue element")
                 ret = Dice.throwRange(self.firstIndex, self.lastIndex+1)
                 if ( not ret in self.inUse ):
-                    return self.use(ret)
+                    return self.allocate(ret)
 
 
 # State of the database as we believe it to be
@@ -317,8 +317,12 @@ class DbState():
         self.openDbServerConnection()
         self.lock = threading.RLock()
 
-    def pickTable(self): # pick any table, and "use" it
-        return self.tableNumQueue.allocate()
+    def pickAndAllocateTable(self): # pick any table, and "use" it
+        return self.tableNumQueue.pickAndAllocate()
+
+    def releaseTable(self, i): # return the table back, so others can use it
+        self.tableNumQueue.release(i)
+
 
     def getNextTick(self):
         with self.lock: # prevent duplicate tick
@@ -329,9 +333,6 @@ class DbState():
         with self.lock:
             self.int += 1
             return self.int
-
-    def unuseTable(self, i): # return the table back, so others can use it
-        self.tableNumQueue.unUse(i)
 
     def openDbServerConnection(self):
         cfgPath = "../../build/test/cfg"   # was: tdDnodes.getSimCfgPath()
@@ -380,9 +381,10 @@ class DropTableTask(Task):
 class AddDataTask(Task):
     def execute(self):
         logger.info("    Adding some data...")
-        # ds = self.dbState
-        # tIndex = self.dbState.pickTable()
-        # tdSql.execute("insert into table_{} values ('{}', {});".format(tIndex, ds.getNextTick(), ds.getNextInt()))
+        ds = self.dbState
+        tIndex = ds.pickTable()
+        tdSql.execute("insert into table_{} values ('{}', {});".format(tIndex, ds.getNextTick(), ds.getNextInt()))
+        ds.r
 
 # Deterministic random number generator
 class Dice():
@@ -423,8 +425,8 @@ class WorkDispatcher():
         # self.totalNumMethods = 2
         self.tasks = [
             CreateTableTask(dbState),
-            DropTableTask(dbState),
-            # AddDataTask(dbState),
+            # DropTableTask(dbState),
+            AddDataTask(dbState),
         ]
 
     def throwDice(self):
@@ -443,7 +445,7 @@ if __name__ == "__main__":
 
     Dice.seed(0) # initial seeding of dice
     dbState = DbState()
-    threadPool = SteppingThreadPool(dbState, 3, 5, 0) 
+    threadPool = SteppingThreadPool(dbState, 1, 5, 0) 
     threadPool.run()
     logger.info("Finished running thread pool")
     dbState.closeDbServerConnection()
