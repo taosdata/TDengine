@@ -25,6 +25,7 @@ extern "C" {
  */
 #include "os.h"
 #include "tbuffer.h"
+#include "exception.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
 #include "tscSecondaryMerge.h"
@@ -177,7 +178,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
 SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);
-void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBuffer* pBuf);
+void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw);
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);

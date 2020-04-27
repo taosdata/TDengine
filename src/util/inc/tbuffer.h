@@ -66,8 +66,6 @@ int main( int argc, char** argv ) {
     printf( "you should not see this message.\n" );
   } CATCH( code ) {
     printf( "exception code is: %d, you will see this message after print out 5 integers and a string.\n", code );
-    // throw it again and the exception will be caught in main
-    THROW( code );
   } END_TRY
 
   tbufCloseWriter( &bw );
@@ -92,6 +90,7 @@ typedef struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 // common functions & macros for both reader & writer
+
 #define tbufTell( buf ) ((buf)->pos)
 
 
