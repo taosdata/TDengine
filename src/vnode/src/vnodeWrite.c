@@ -58,7 +58,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
       return TSDB_CODE_NOT_ACTIVE_VNODE;
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
-      return TSDB_CODE_NO_MASTER;
+      return TSDB_CODE_NOT_READY;
 
     // assign version
     pVnode->version++;
