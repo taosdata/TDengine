@@ -303,43 +303,60 @@ void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
         if (pCols->numOfPoints == 0) pCol->len = sizeof(int32_t) * pCols->maxPoints;
+
+        // set offset
+        ((int32_t *)(pCol->pData))[pCols->numOfPoints] = pCol->len;
+
+        // copy data
         toffset = *(int32_t *)dataRowAt(row, pCol->offset);
-        if (toffset < 0) {
-          // It is a NULL value
-          // TODO: make interface and macros to hide literal thing
-          ((int32_t *)pCol->pData)[pCols->numOfPoints] = -1;
-        } else {
-          ptr = dataRowAt(row, toffset);
-          // TODO: use interface to avoid int16_t stuff
-          memcpy(pCol->pData, ptr, *(int16_t *)ptr);
-          ((int32_t *)pCol->pData)[pCols->numOfPoints] = pCol->len;
-        }
+        ptr = dataRowAt(row, toffset);
+        memcpy(pCol->pData + pCol->len, ptr, *(int16_t *)ptr + sizeof(int16_t));
+        // update length
+        pCol->len += *(int16_t *)ptr + sizeof(int16_t);
         break;
       default:
         ASSERT(pCol->len == TYPE_BYTES[pCol->type] * pCols->numOfPoints);
+        // copy data
         memcpy(pCol->pData + pCol->len, dataRowAt(row, pCol->offset), pCol->bytes);
+        // update length
         pCol->len += pCol->bytes;
         break;
     }
   }
   pCols->numOfPoints++;
 }
+
 // Pop pointsToPop points from the SDataCols
 void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
   int pointsLeft = pCols->numOfPoints - pointsToPop;
-  if (pointsLeft < 0) return;
-  if (pointsLeft == 0) {
+  if (pointsLeft <= 0) {
     tdResetDataCols(pCols);
     return;
   }
 
+  int32_t offsetSize = sizeof(int32_t) * pCols->maxPoints;
+  int32_t toffset = 0;
+  int tlen = 0;
   for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
     SDataCol *pCol = pCols->cols + iCol;
     ASSERT(pCol->len > 0);
+
     switch (pCol->type) {
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
-        /* code */
+        // memmove offset part
+        memmove(pCol->pData, pCol->pData + sizeof(int32_t) * pointsToPop, sizeof(int32_t) * pointsLeft);
+        // memmove string part
+        toffset = *(int32_t *)pCol->pData;
+        ASSERT(toffset >= offsetSize);
+        tlen = pCol->len - toffset;
+        memmove(pCol->pData + offsetSize, pCol->pData + toffset, tlen);
+        // update offset part
+        for (int i = 0; i < pointsLeft; i++) {
+          ((int32_t *)(pCol->pData))[i] -= (toffset - offsetSize);
+        }
+        // Update length
+        pCol->len = offsetSize + tlen;
         break;
       default:
         ASSERT(pCol->len == TYPE_BYTES[pCol->type] * pCols->numOfPoints);
