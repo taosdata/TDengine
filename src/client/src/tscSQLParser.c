@@ -1207,7 +1207,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
         SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, slot);
         
         if (pInfo->pSqlExpr == NULL) {
-          SArithExprInfo* pFuncExpr = calloc(1, sizeof(SArithExprInfo));
+          SExprInfo* pFuncExpr = calloc(1, sizeof(SExprInfo));
           pInfo->pArithExprInfo = pFuncExpr;
           
           // arithmetic expression always return result in the format of double float

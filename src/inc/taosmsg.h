@@ -380,13 +380,13 @@ typedef struct SSqlFuncMsg {
   } arg[3];
 } SSqlFuncMsg;
 
-typedef struct SArithExprInfo {
+typedef struct SExprInfo {
   SSqlFuncMsg base;
   struct tExprNode* pExpr;
   int16_t     bytes;
   int16_t     type;
   int16_t     interResBytes;
-} SArithExprInfo;
+} SExprInfo;
 
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;

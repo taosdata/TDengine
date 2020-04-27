@@ -97,8 +97,8 @@ int  tsdbTableSetName(STableCfg *config, char *name, bool dup);
 int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
-int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId id, int32_t col, int16_t *type, int16_t *bytes, char **val);
-int32_t tsdbTableGetName(TsdbRepoT *repo, STableId id, char** name);
+int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId* id, int32_t col, int16_t *type, int16_t *bytes, char **val);
+int32_t tsdbTableGetName(TsdbRepoT *repo, STableId* id, char** name);
 
 int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
 int tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
@@ -150,21 +150,12 @@ typedef struct STsdbQueryCond {
   SColumnInfo     *colList;
 } STsdbQueryCond;
 
-typedef struct SBlockInfo {
-  STimeWindow window;
-
-  int32_t numOfRows;
-  int32_t numOfCols;
-
-  STableId tableId;
-} SBlockInfo;
-
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rows;
   int32_t     numOfCols;
   int64_t     uid;
-  int32_t     sid;
+  int32_t     tid;
 } SDataBlockInfo;
 
 typedef struct {
@@ -279,7 +270,7 @@ SArray *tsdbGetTableList(TsdbQueryHandleT *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-int32_t tsdbQueryByTagsCond(
+int32_t tsdbQuerySTableByTagCond(
   TsdbRepoT *tsdb,
   int64_t uid,
   const char *pTagCond,

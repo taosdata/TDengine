@@ -437,7 +437,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
 static UNUSED_FUNC char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
 //  SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
-//  SArithExprInfo *  pExpr = pSupport->pArithExpr;
+//  SExprInfo *  pExpr = pSupport->pArithExpr;
 
 //  int32_t index = -1;
 //  for (int32_t i = 0; i < pExpr->numOfCols; ++i) {

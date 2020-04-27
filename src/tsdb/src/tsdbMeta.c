@@ -225,9 +225,9 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
+int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
-  STable* pTable = tsdbGetTableByUid(pMeta, id.uid);
+  STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   
@@ -251,9 +251,9 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId id, int32_t colId, int16_t*
   return 0;
 }
 
-int32_t tsdbTableGetName(TsdbRepoT *repo, STableId id, char** name) {
+int32_t tsdbTableGetName(TsdbRepoT *repo, STableId* id, char** name) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
-  STable* pTable = tsdbGetTableByUid(pMeta, id.uid);
+  STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
   *name = strndup(pTable->name, TSDB_TABLE_NAME_LEN);
   if (*name == NULL) {
