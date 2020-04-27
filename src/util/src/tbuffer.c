@@ -22,137 +22,188 @@
 #include <taoserror.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-// common functions
+// reader functions
 
-void tbufSetup(
-  SBuffer* buf,
-  void* (*allocator)(void*, size_t),
-  bool endian
-) {
-  if (allocator != NULL) {
-    buf->allocator = allocator;
-  } else {
-    buf->allocator = realloc;
-  }
-
-  buf->endian = endian;
-}
-
-size_t tbufTell(SBuffer* buf) {
-  return buf->pos;
-}
-
-size_t tbufSeekTo(SBuffer* buf, size_t pos) {
-  if (pos > buf->size) {
+size_t tbufSkip(SBufferReader* buf, size_t size) {
+  if( (buf->pos + size) > buf->size ) {
     THROW( TSDB_CODE_MEMORY_CORRUPTED );
   }
   size_t old = buf->pos;
-  buf->pos = pos;
+  buf->pos += size;
   return old;
 }
 
-void tbufClose(SBuffer* buf, bool keepData) {
-  if (!keepData) {
-    (*buf->allocator)(buf->data, 0);
-  }
-  buf->data = NULL;
-  buf->pos = 0;
-  buf->size = 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// read functions
-
-void tbufBeginRead(SBuffer* buf, void* data, size_t len) {
-  buf->data = data;
-  buf->pos = 0;
-  buf->size = (data == NULL) ? 0 : len;
-}
-
-size_t tbufSkip(SBuffer* buf, size_t size) {
-  return tbufSeekTo(buf, buf->pos + size);
-}
-
-char* tbufRead(SBuffer* buf, size_t size) {
+char* tbufRead( SBufferReader* buf, size_t size ) {
   char* ret = buf->data + buf->pos;
-  tbufSkip(buf, size);
+  tbufSkip( buf, size );
   return ret;
 }
 
-void tbufReadToBuffer(SBuffer* buf, void* dst, size_t size) {
-  assert(dst != NULL);
+void tbufReadToBuffer( SBufferReader* buf, void* dst, size_t size ) {
+  assert( dst != NULL );
   // always using memcpy, leave optimization to compiler
-  memcpy(dst, tbufRead(buf, size), size);
+  memcpy( dst, tbufRead(buf, size), size );
 }
 
-static size_t tbufReadLength(SBuffer* buf) {
+static size_t tbufReadLength( SBufferReader* buf ) {
   // maximum length is 65535, if larger length is required
   // this function and the corresponding write function need to be
   // revised.
-  uint16_t l = tbufReadUint16(buf);
+  uint16_t l = tbufReadUint16( buf );
   return l;
 }
 
-const char* tbufReadString(SBuffer* buf, size_t* len) {
-  size_t l = tbufReadLength(buf);
-  char*    ret = buf->data + buf->pos;
-  tbufSkip(buf, l + 1);
-  ret[l] = 0;  // ensure the string end with '\0'
-  if (len != NULL) {
+const char* tbufReadString( SBufferReader* buf, size_t* len ) {
+  size_t l = tbufReadLength( buf );
+  char* ret = buf->data + buf->pos;
+  tbufSkip( buf, l + 1 );
+  if( ret[l] != 0 ) {
+    THROW( TSDB_CODE_MEMORY_CORRUPTED );
+  }
+  if( len != NULL ) {
     *len = l;
   }
   return ret;
 }
 
-size_t tbufReadToString(SBuffer* buf, char* dst, size_t size) {
-  assert(dst != NULL);
-  size_t      len;
-  const char* str = tbufReadString(buf, &len);
+size_t tbufReadToString( SBufferReader* buf, char* dst, size_t size ) {
+  assert( dst != NULL );
+  size_t len;
+  const char* str = tbufReadString( buf, &len );
   if (len >= size) {
     len = size - 1;
   }
-  memcpy(dst, str, len);
+  memcpy( dst, str, len );
   dst[len] = 0;
   return len;
 }
 
-const char* tbufReadBinary(SBuffer* buf, size_t *len) {
-  size_t l = tbufReadLength(buf);
+const char* tbufReadBinary( SBufferReader* buf, size_t *len ) {
+  size_t l = tbufReadLength( buf );
   char* ret = buf->data + buf->pos;
-  tbufSkip(buf, l);
-  if (len != NULL) {
+  tbufSkip( buf, l );
+  if( len != NULL ) {
     *len = l;
   }
   return ret;
 }
 
-size_t tbufReadToBinary(SBuffer* buf, void* dst, size_t size) {
-  assert(dst != NULL);
-  size_t      len;
-  const char* data = tbufReadBinary(buf, &len);
-  if (len >= size) {
+size_t tbufReadToBinary( SBufferReader* buf, void* dst, size_t size ) {
+  assert( dst != NULL );
+  size_t len;
+  const char* data = tbufReadBinary( buf, &len );
+  if( len >= size ) {
     len = size;
   }
-  memcpy(dst, data, len);
+  memcpy( dst, data, len );
   return len;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// write functions
+bool tbufReadBool( SBufferReader* buf ) {
+  bool ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  return ret;
+}
 
-void  tbufBeginWrite(SBuffer* buf) {
+char tbufReadChar( SBufferReader* buf ) {
+  char ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  return ret;
+}
+
+int8_t tbufReadInt8( SBufferReader* buf ) {
+  int8_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  return ret;
+}
+
+uint8_t tbufReadUint8( SBufferReader* buf ) {
+  uint8_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  return ret;
+}
+
+int16_t tbufReadInt16( SBufferReader* buf ) {
+  int16_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  if( buf->endian ) {
+    return (int16_t)ntohs( ret );
+  }
+  return ret;
+}
+
+uint16_t tbufReadUint16( SBufferReader* buf ) {
+  uint16_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  if( buf->endian ) {
+    return ntohs( ret );
+  }
+  return ret;
+}
+
+int32_t tbufReadInt32( SBufferReader* buf ) {
+  int32_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  if( buf->endian ) {
+    return (int32_t)ntohl( ret );
+  }
+  return ret;
+}
+
+uint32_t tbufReadUint32( SBufferReader* buf ) {
+  uint32_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  if( buf->endian ) {
+    return ntohl( ret );
+  }
+  return ret;
+}
+
+int64_t tbufReadInt64( SBufferReader* buf ) {
+  int64_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  if( buf->endian ) {
+    return (int64_t)htobe64( ret ); // TODO: ntohll
+  }
+  return ret;
+}
+
+uint64_t tbufReadUint64( SBufferReader* buf ) {
+  uint64_t ret;
+  tbufReadToBuffer( buf, &ret, sizeof(ret) );
+  if( buf->endian ) {
+    return htobe64( ret ); // TODO: ntohll
+  }
+  return ret;
+}
+
+float tbufReadFloat( SBufferReader* buf ) {
+  uint32_t ret = tbufReadUint32( buf );
+  return *(float*)( &ret );
+}
+
+double tbufReadDouble(SBufferReader* buf) {
+  uint64_t ret = tbufReadUint64( buf );
+  return *(double*)( &ret );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// writer functions
+
+void tbufCloseWriter( SBufferWriter* buf ) {
+  (*buf->allocator)( buf->data, 0 );
   buf->data = NULL;
   buf->pos = 0;
   buf->size = 0;
 }
 
-void tbufEnsureCapacity(SBuffer* buf, size_t size) {
+void tbufEnsureCapacity( SBufferWriter* buf, size_t size ) {
   size += buf->pos;
-  if (size > buf->size) {
+  if( size > buf->size ) {
     size_t nsize = size + buf->size;
-    char* data = (*buf->allocator)(buf->data, nsize);
-    if (data == NULL) {
-      // TODO: handle client out of memory
+    char* data = (*buf->allocator)( buf->data, nsize );
+    // TODO: the exception should be thrown by the allocator function
+    if( data == NULL ) {
       THROW( TSDB_CODE_SERV_OUT_OF_MEMORY );
     }
     buf->data = data;
@@ -160,279 +211,189 @@ void tbufEnsureCapacity(SBuffer* buf, size_t size) {
   }
 }
 
-size_t tbufReserve(SBuffer* buf, size_t size) {
-  tbufEnsureCapacity(buf, size);
-  return tbufSeekTo(buf, buf->pos + size);
+size_t tbufReserve( SBufferWriter* buf, size_t size ) {
+  tbufEnsureCapacity( buf, size );
+  size_t old = buf->pos;
+  buf->pos += size;
+  return old;
 }
 
-char* tbufGetData(SBuffer* buf, bool takeOver) {
+char* tbufGetData( SBufferWriter* buf, bool takeOver ) {
   char* ret = buf->data;
-  if (takeOver) {
+  if( takeOver ) {
     buf->pos = 0;
     buf->size = 0;
     buf->data = NULL;
   }
-
   return ret;
 }
 
-void tbufWrite(SBuffer* buf, const void* data, size_t size) {
-  assert(data != NULL);
-  tbufEnsureCapacity(buf, size);
-  memcpy(buf->data + buf->pos, data, size);
+void tbufWrite( SBufferWriter* buf, const void* data, size_t size ) {
+  assert( data != NULL );
+  tbufEnsureCapacity( buf, size );
+  memcpy( buf->data + buf->pos, data, size );
   buf->pos += size;
 }
 
-void tbufWriteAt(SBuffer* buf, size_t pos, const void* data, size_t size) {
-  assert(data != NULL);
+void tbufWriteAt( SBufferWriter* buf, size_t pos, const void* data, size_t size ) {
+  assert( data != NULL );
   // this function can only be called to fill the gap on previous writes,
   // so 'pos + size <= buf->pos' must be true
-  assert(pos + size <= buf->pos);
-  memcpy(buf->data + pos, data, size);
+  assert( pos + size <= buf->pos );
+  memcpy( buf->data + pos, data, size );
 }
 
-static void tbufWriteLength(SBuffer* buf, size_t len) {
+static void tbufWriteLength( SBufferWriter* buf, size_t len ) {
   // maximum length is 65535, if larger length is required
   // this function and the corresponding read function need to be
   // revised.
-  assert(len <= 0xffff);
-  tbufWriteUint16(buf, (uint16_t)len);
+  assert( len <= 0xffff );
+  tbufWriteUint16( buf, (uint16_t)len );
 }
 
-void tbufWriteStringLen(SBuffer* buf, const char* str, size_t len) {
-  tbufWriteLength(buf, len);
-  tbufWrite(buf, str, len);
-  tbufWriteChar(buf, '\0');
+void tbufWriteStringLen( SBufferWriter* buf, const char* str, size_t len ) {
+  tbufWriteLength( buf, len );
+  tbufWrite( buf, str, len );
+  tbufWriteChar( buf, '\0' );
 }
 
-void tbufWriteString(SBuffer* buf, const char* str) {
-  tbufWriteStringLen(buf, str, strlen(str));
+void tbufWriteString( SBufferWriter* buf, const char* str ) {
+  tbufWriteStringLen( buf, str, strlen(str) );
 }
 
-void tbufWriteBinary(SBuffer* buf, const void* data, size_t len) {
-  tbufWriteLength(buf, len);
-  tbufWrite(buf, data, len);
+void tbufWriteBinary( SBufferWriter* buf, const void* data, size_t len ) {
+  tbufWriteLength( buf, len );
+  tbufWrite( buf, data, len );
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// read / write functions for primitive types
-
-bool tbufReadBool(SBuffer* buf) {
-  bool ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  return ret;
+void tbufWriteBool( SBufferWriter* buf, bool data ) {
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-void tbufWriteBool(SBuffer* buf, bool data) {
-  tbufWrite(buf, &data, sizeof(data));
+void tbufWriteBoolAt( SBufferWriter* buf, size_t pos, bool data ) {
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-void tbufWriteBoolAt(SBuffer* buf, size_t pos, bool data) {
-  tbufWriteAt(buf, pos, &data, sizeof(data));
+void tbufWriteChar( SBufferWriter* buf, char data ) {
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-char tbufReadChar(SBuffer* buf) {
-  char ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  return ret;
+void tbufWriteCharAt( SBufferWriter* buf, size_t pos, char data ) {
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-void tbufWriteChar(SBuffer* buf, char data) {
-  tbufWrite(buf, &data, sizeof(data));
+void tbufWriteInt8( SBufferWriter* buf, int8_t data ) {
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-void tbufWriteCharAt(SBuffer* buf, size_t pos, char data) {
-  tbufWriteAt(buf, pos, &data, sizeof(data));
+void tbufWriteInt8At( SBufferWriter* buf, size_t pos, int8_t data ) {
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-int8_t tbufReadInt8(SBuffer* buf) {
-  int8_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  return ret;
+void tbufWriteUint8( SBufferWriter* buf, uint8_t data ) {
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-void tbufWriteInt8(SBuffer* buf, int8_t data) {
-  tbufWrite(buf, &data, sizeof(data));
+void tbufWriteUint8At( SBufferWriter* buf, size_t pos, uint8_t data ) {
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-void tbufWriteInt8At(SBuffer* buf, size_t pos, int8_t data) {
-  tbufWriteAt(buf, pos, &data, sizeof(data));
-}
-
-uint8_t tbufReadUint8(SBuffer* buf) {
-  uint8_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  return ret;
-}
-
-void tbufWriteUint8(SBuffer* buf, uint8_t data) {
-  tbufWrite(buf, &data, sizeof(data));
-}
-
-void tbufWriteUint8At(SBuffer* buf, size_t pos, uint8_t data) {
-  tbufWriteAt(buf, pos, &data, sizeof(data));
-}
-
-int16_t tbufReadInt16(SBuffer* buf) {
-  int16_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  if (buf->endian) {
-    return (int16_t)ntohs(ret);
+void tbufWriteInt16( SBufferWriter* buf, int16_t data ) {
+  if( buf->endian ) {
+    data = (int16_t)htons( data );
   }
-  return ret;
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-void tbufWriteInt16(SBuffer* buf, int16_t data) {
-  if (buf->endian) {
-    data = (int16_t)htons(data);
+void tbufWriteInt16At( SBufferWriter* buf, size_t pos, int16_t data ) {
+  if( buf->endian ) {
+    data = (int16_t)htons( data );
   }
-  tbufWrite(buf, &data, sizeof(data));
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-void tbufWriteInt16At(SBuffer* buf, size_t pos, int16_t data) {
-  if (buf->endian) {
-    data = (int16_t)htons(data);
+void tbufWriteUint16( SBufferWriter* buf, uint16_t data ) {
+  if( buf->endian ) {
+    data = htons( data );
   }
-  tbufWriteAt(buf, pos, &data, sizeof(data));
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-uint16_t tbufReadUint16(SBuffer* buf) {
-  uint16_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  if (buf->endian) {
-    return ntohs(ret);
+void tbufWriteUint16At( SBufferWriter* buf, size_t pos, uint16_t data ) {
+  if( buf->endian ) {
+    data = htons( data );
   }
-  return ret;
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-void tbufWriteUint16(SBuffer* buf, uint16_t data) {
-  if (buf->endian) {
-    data = htons(data);
+void tbufWriteInt32( SBufferWriter* buf, int32_t data ) {
+  if( buf->endian ) {
+    data = (int32_t)htonl( data );
   }
-  tbufWrite(buf, &data, sizeof(data));
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-void tbufWriteUint16At(SBuffer* buf, size_t pos, uint16_t data) {
-  if (buf->endian) {
-    data = htons(data);
+void tbufWriteInt32At( SBufferWriter* buf, size_t pos, int32_t data ) {
+  if( buf->endian ) {
+    data = (int32_t)htonl( data );
   }
-  tbufWriteAt(buf, pos, &data, sizeof(data));
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-int32_t tbufReadInt32(SBuffer* buf) {
-  int32_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  if (buf->endian) {
-    return (int32_t)ntohl(ret);
+void tbufWriteUint32( SBufferWriter* buf, uint32_t data ) {
+  if( buf->endian ) {
+    data = htonl( data );
   }
-  return ret;
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-void tbufWriteInt32(SBuffer* buf, int32_t data) {
-  if (buf->endian) {
-    data = (int32_t)htonl(data);
+void tbufWriteUint32At( SBufferWriter* buf, size_t pos, uint32_t data ) {
+  if( buf->endian ) {
+    data = htonl( data );
   }
-  tbufWrite(buf, &data, sizeof(data));
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-void tbufWriteInt32At(SBuffer* buf, size_t pos, int32_t data) {
-  if (buf->endian) {
-    data = (int32_t)htonl(data);
+void tbufWriteInt64( SBufferWriter* buf, int64_t data ) {
+  if( buf->endian ) {
+    data = (int64_t)htobe64( data );
   }
-  tbufWriteAt(buf, pos, &data, sizeof(data));
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-uint32_t tbufReadUint32(SBuffer* buf) {
-  uint32_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  if (buf->endian) {
-    return ntohl(ret);
+void tbufWriteInt64At( SBufferWriter* buf, size_t pos, int64_t data ) {
+  if( buf->endian ) {
+    data = (int64_t)htobe64( data );
   }
-  return ret;
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-void tbufWriteUint32(SBuffer* buf, uint32_t data) {
-  if (buf->endian) {
-    data = htonl(data);
+void tbufWriteUint64( SBufferWriter* buf, uint64_t data ) {
+  if( buf->endian ) {
+    data = htobe64( data );
   }
-  tbufWrite(buf, &data, sizeof(data));
+  tbufWrite( buf, &data, sizeof(data) );
 }
 
-void tbufWriteUint32At(SBuffer* buf, size_t pos, uint32_t data) {
-  if (buf->endian) {
-    data = htonl(data);
+void tbufWriteUint64At( SBufferWriter* buf, size_t pos, uint64_t data ) {
+  if( buf->endian ) {
+    data = htobe64( data );
   }
-  tbufWriteAt(buf, pos, &data, sizeof(data));
+  tbufWriteAt( buf, pos, &data, sizeof(data) );
 }
 
-int64_t tbufReadInt64(SBuffer* buf) {
-  int64_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  if (buf->endian) {
-    return (int64_t)htobe64(ret); // TODO: ntohll
-  }
-  return ret;
+void tbufWriteFloat( SBufferWriter* buf, float data ) {
+  tbufWriteUint32( buf, *(uint32_t*)(&data) );
 }
 
-void tbufWriteInt64(SBuffer* buf, int64_t data) {
-  if (buf->endian) {
-    data = (int64_t)htobe64(data);
-  }
-  tbufWrite(buf, &data, sizeof(data));
+void tbufWriteFloatAt( SBufferWriter* buf, size_t pos, float data ) {
+  tbufWriteUint32At( buf, pos, *(uint32_t*)(&data) );
 }
 
-void tbufWriteInt64At(SBuffer* buf, size_t pos, int64_t data) {
-  if (buf->endian) {
-    data = (int64_t)htobe64(data);
-  }
-  tbufWriteAt(buf, pos, &data, sizeof(data));
+void tbufWriteDouble( SBufferWriter* buf, double data ) {
+  tbufWriteUint64( buf, *(uint64_t*)(&data) );
 }
 
-uint64_t tbufReadUint64(SBuffer* buf) {
-  uint64_t ret;
-  tbufReadToBuffer(buf, &ret, sizeof(ret));
-  if (buf->endian) {
-    return htobe64(ret); // TODO: ntohll
-  }
-  return ret;
-}
-
-void tbufWriteUint64(SBuffer* buf, uint64_t data) {
-  if (buf->endian) {
-    data = htobe64(data);
-  }
-  tbufWrite(buf, &data, sizeof(data));
-}
-
-void tbufWriteUint64At(SBuffer* buf, size_t pos, uint64_t data) {
-  if (buf->endian) {
-    data = htobe64(data);
-  }
-  tbufWriteAt(buf, pos, &data, sizeof(data));
-}
-
-float tbufReadFloat(SBuffer* buf) {
-  uint32_t ret = tbufReadUint32(buf);
-  return *(float*)(&ret);
-}
-
-void tbufWriteFloat(SBuffer* buf, float data) {
-  tbufWriteUint32(buf, *(uint32_t*)(&data));
-}
-
-void tbufWriteFloatAt(SBuffer* buf, size_t pos, float data) {
-  tbufWriteUint32At(buf, pos, *(uint32_t*)(&data));
-}
-
-double tbufReadDouble(SBuffer* buf) {
-  uint64_t ret = tbufReadUint64(buf);
-  return *(double*)(&ret);
-}
-
-void tbufWriteDouble(SBuffer* buf, double data) {
-  tbufWriteUint64(buf, *(uint64_t*)(&data));
-}
-
-void tbufWriteDoubleAt(SBuffer* buf, size_t pos, double data) {
-  tbufWriteUint64At(buf, pos, *(uint64_t*)(&data));
+void tbufWriteDoubleAt( SBufferWriter* buf, size_t pos, double data ) {
+  tbufWriteUint64At( buf, pos, *(uint64_t*)(&data) );
 }
