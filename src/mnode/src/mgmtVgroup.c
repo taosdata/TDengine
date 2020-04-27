@@ -71,14 +71,14 @@ static int32_t mgmtVgroupActionInsert(SSdbOper *pOper) {
   pVgroup->prev = NULL;
   pVgroup->next = NULL;
 
-  int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxSessions;
-  pVgroup->tableList = calloc(pDb->cfg.maxSessions, sizeof(SChildTableObj *));
+  int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
+  pVgroup->tableList = calloc(pDb->cfg.maxTables, sizeof(SChildTableObj *));
   if (pVgroup->tableList == NULL) {
     mError("vgroup:%d, failed to malloc(size:%d) for the tableList of vgroups", pVgroup->vgId, size);
     return -1;
   }
 
-  pVgroup->idPool = taosInitIdPool(pDb->cfg.maxSessions);
+  pVgroup->idPool = taosInitIdPool(pDb->cfg.maxTables);
   if (pVgroup->idPool == NULL) {
     mError("vgroup:%d, failed to taosInitIdPool for vgroups", pVgroup->vgId);
     tfree(pVgroup->tableList);
@@ -146,15 +146,15 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
   int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
   SDbObj *pDb = pVgroup->pDb;
   if (pDb != NULL) {
-    if (pDb->cfg.maxSessions != oldTables) {
-      mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxSessions);
-      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxSessions);
-      int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxSessions;
+    if (pDb->cfg.maxTables != oldTables) {
+      mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxTables);
+      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxTables);
+      int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
       pVgroup->tableList = (SChildTableObj **)realloc(pVgroup->tableList, size);
     }
   }
 
-  mTrace("vgroup:%d, is updated, tables:%d numOfVnode:%d", pVgroup->vgId, pDb->cfg.maxSessions, pVgroup->numOfVnodes);
+  mTrace("vgroup:%d, is updated, tables:%d numOfVnode:%d", pVgroup->vgId, pDb->cfg.maxTables, pVgroup->numOfVnodes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -272,8 +272,9 @@ void mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVlo
     pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
   }
 
-  if (pVload->replica != pVgroup->numOfVnodes) {
-    mError("dnode:%d, vgroup:%d replica:%d not match with mgmt:%d", pDnode->dnodeId, pVload->vgId, pVload->replica,
+  if (pVload->cfgVersion != pVgroup->pDb->cfgVersion || pVload->replica != pVgroup->numOfVnodes) {
+    mError("dnode:%d, vgroup:%d, vnode cfgVersion:%d repica:%d not match with mgmt cfgVersion:%d replica:%d",
+           pDnode->dnodeId, pVload->vgId, pVload->cfgVersion, pVload->replica, pVgroup->pDb->cfgVersion,
            pVgroup->numOfVnodes);
     mgmtSendCreateVgroupMsg(pVgroup, NULL);
   }
@@ -511,7 +512,7 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables++;
   }
   
-  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
+  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxTables)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
 
@@ -522,7 +523,7 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables--;
   }
 
-  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
+  if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxTables)
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
 
@@ -535,23 +536,22 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
 
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
-  pCfg->maxTables           = htonl(pDb->cfg.maxSessions);
-  pCfg->maxCacheSize        = htobe64((int64_t)pDb->cfg.cacheBlockSize * pDb->cfg.cacheNumOfBlocks.totalBlocks);
-  pCfg->maxCacheSize        = htobe64(-1);
-  pCfg->minRowsPerFileBlock = htonl(-1);
-  pCfg->maxRowsPerFileBlock = htonl(-1);
+  pCfg->cfgVersion          = htonl(pDb->cfgVersion);
+  pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
+  pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
+  pCfg->maxTables           = htonl(pDb->cfg.maxTables);
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
-  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
-  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);
   pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
-  pCfg->daysToKeep          = htonl(-1);
+  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
+  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);  
+  pCfg->minRowsPerFileBlock = htonl(pDb->cfg.minRowsPerFileBlock);
+  pCfg->maxRowsPerFileBlock = htonl(pDb->cfg.maxRowsPerFileBlock);
   pCfg->commitTime          = htonl(pDb->cfg.commitTime);
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;
-  pCfg->compression         = -1;
-  pCfg->wals                = 3;
   pCfg->commitLog           = pDb->cfg.commitLog;
   pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
+  pCfg->wals                = 3;
   pCfg->quorum              = 1;
   
   SMDVnodeDesc *pNodes = pVnode->nodes;
@@ -744,12 +744,13 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
 void mgmtDropAllVgroups(SDbObj *pDropDb) {
   void *pNode = NULL;
   void *pLastNode = NULL;
-  int32_t numOfTables = 0;
+  int32_t numOfVgroups = 0;
   int32_t dbNameLen = strlen(pDropDb->name);
   SVgObj *pVgroup = NULL;
 
+  mPrint("db:%s, all vgroups will be dropped from sdb", pDropDb->name);
+
   while (1) {
-    mgmtDecVgroupRef(pVgroup);
     pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
 
@@ -761,22 +762,12 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
       };
       sdbDeleteRow(&oper);
       pNode = pLastNode;
-      numOfTables++;
-      continue;
+      numOfVgroups++;
     }
+
+    mgmtSendDropVgroupMsg(pVgroup, NULL);
+    mgmtDecVgroupRef(pVgroup);
   }
 
-  mTrace("db:%s, all vgroups is dropped from sdb", pDropDb->name, numOfTables);
+  mPrint("db:%s, all vgroups:%d is dropped from sdb", pDropDb->name, numOfVgroups);
 }
-
-void mgmtAlterVgroup(SVgObj *pVgroup, void *ahandle) {
-  assert(ahandle != NULL);
-
-  if (pVgroup->numOfVnodes != pVgroup->pDb->cfg.replications) {
-    // TODO:
-    // mgmtSendAlterVgroupMsg(pVgroup, NULL);
-  } else {
-    mgmtAddToShellQueue(ahandle);
-  }
-}
-

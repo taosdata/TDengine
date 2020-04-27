@@ -79,7 +79,9 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
   if (mgmtProcessDnodeRspFp[rpcMsg->msgType]) {
     (*mgmtProcessDnodeRspFp[rpcMsg->msgType])(rpcMsg);
   } else {
-    mError("%s is not processed in dclient", taosMsg[rpcMsg->msgType]);
+    mError("%s is not processed in mgmt dclient", taosMsg[rpcMsg->msgType]);
+    SRpcMsg rpcRsp = {.pCont = 0, .contLen = 0, .code = TSDB_CODE_OPS_NOT_SUPPORT, .handle = rpcMsg->handle};
+    rpcSendResponse(&rpcRsp);
   }
 
   rpcFreeCont(rpcMsg->pCont);

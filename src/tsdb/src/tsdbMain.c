@@ -1,4 +1,5 @@
 #include "os.h"
+#include "taosdef.h"
 #include "tulog.h"
 #include "talgo.h"
 #include "tsdb.h"
@@ -11,24 +12,6 @@
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 #define TSDB_MIN_ID 0
 #define TSDB_MAX_ID INT_MAX
-#define TSDB_MIN_TABLES 4
-#define TSDB_MAX_TABLES 100000
-#define TSDB_DEFAULT_TABLES 1000
-#define TSDB_DEFAULT_DAYS_PER_FILE 10
-#define TSDB_MIN_DAYS_PER_FILE 1
-#define TSDB_MAX_DAYS_PER_FILE 60
-#define TSDB_DEFAULT_MIN_ROW_FBLOCK 100
-#define TSDB_MIN_MIN_ROW_FBLOCK 10
-#define TSDB_MAX_MIN_ROW_FBLOCK 1000
-#define TSDB_DEFAULT_MAX_ROW_FBLOCK 4096
-#define TSDB_MIN_MAX_ROW_FBLOCK 200
-#define TSDB_MAX_MAX_ROW_FBLOCK 10000
-#define TSDB_DEFAULT_KEEP 3650
-#define TSDB_MIN_KEEP 1
-#define TSDB_MAX_KEEP INT_MAX
-#define TSDB_DEFAULT_CACHE_SIZE (16 * 1024 * 1024)  // 16M
-#define TSDB_MIN_CACHE_SIZE (4 * 1024 * 1024)       // 4M
-#define TSDB_MAX_CACHE_SIZE (1024 * 1024 * 1024)    // 1G
 
 #define TSDB_CFG_FILE_NAME "CONFIG"
 #define TSDB_DATA_DIR_NAME "data"
@@ -70,7 +53,6 @@ void tsdbSetDefaultCfg(STsdbCfg *pCfg) {
   pCfg->minRowsPerFileBlock = -1;
   pCfg->maxRowsPerFileBlock = -1;
   pCfg->keep = -1;
-  pCfg->maxCacheSize = -1;
   pCfg->compression = TWO_STAGE_COMP;
 }
 
@@ -163,6 +145,34 @@ int32_t tsdbDropRepo(TsdbRepoT *repo) {
   return 0;
 }
 
+static int tsdbRestoreInfo(STsdbRepo *pRepo) {
+  STsdbMeta * pMeta = pRepo->tsdbMeta;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  SFileGroup *pFGroup = NULL;
+
+  SFileGroupIter iter;
+  SRWHelper      rhelper = {0};
+
+  if (tsdbInitReadHelper(&rhelper, pRepo) < 0) goto _err;
+  tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_ASC);
+  while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
+    if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
+    for (int i = 0; i < pRepo->config.maxTables; i++) {
+      STable *  pTable = pMeta->tables[i];
+      SCompIdx *pIdx = &rhelper.pCompIdx[i];
+
+      if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;
+    }
+  }
+
+  tsdbDestroyHelper(&rhelper);
+  return 0;
+
+_err:
+  tsdbDestroyHelper(&rhelper);
+  return -1;
+}
+
 /**
  * Open an existing TSDB storage repository
  * @param tsdbDir the existing TSDB root directory
@@ -192,7 +202,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1, (TsdbRepoT *)pRepo);
+  pRepo->tsdbCache = tsdbInitCache(-1, -1, (TsdbRepoT *)pRepo);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
@@ -205,6 +215,16 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
   if (pRepo->tsdbFileH == NULL) {
     tsdbFreeCache(pRepo->tsdbCache);
     tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+
+  // Restore key from file
+  if (tsdbRestoreInfo(pRepo) < 0) {
+    tsdbFreeCache(pRepo->tsdbCache);
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    tsdbCloseFileH(pRepo->tsdbFileH);
     free(pRepo->rootDir);
     free(pRepo);
     return NULL;
@@ -612,13 +632,6 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
     if (pCfg->keep < TSDB_MIN_KEEP || pCfg->keep > TSDB_MAX_KEEP) return -1;
   }
 
-  // Check maxCacheSize
-  if (pCfg->maxCacheSize == -1) {
-    pCfg->maxCacheSize = TSDB_DEFAULT_CACHE_SIZE;
-  } else {
-    if (pCfg->maxCacheSize < TSDB_MIN_CACHE_SIZE || pCfg->maxCacheSize > TSDB_MAX_CACHE_SIZE) return -1;
-  }
-
   return 0;
 }
 
@@ -755,6 +768,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   tSkipListPut(pTable->mem->pData, pNode);
   if (key > pTable->mem->keyLast) pTable->mem->keyLast = key;
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
+  if (key > pTable->lastKey) pTable->lastKey = key;
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
 

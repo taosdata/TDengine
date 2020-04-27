@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "gcHandle.h"
 #include "gcJson.h"
 #include "httpJson.h"

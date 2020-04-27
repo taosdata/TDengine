@@ -15,12 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+
 #include "taoserror.h"
 #include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "tname.h"
+#include "tbalance.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
@@ -53,7 +55,7 @@ static int32_t mgmtDbActionDestroy(SSdbOper *pOper) {
 
 static int32_t mgmtDbActionInsert(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
 
   pDb->pHead = NULL;
   pDb->pTail = NULL;
@@ -66,7 +68,7 @@ static int32_t mgmtDbActionInsert(SSdbOper *pOper) {
     mgmtDecAcctRef(pAcct);
   }
   else {
-    mError("db:%s, acct:%s info not exist in sdb", pDb->name, pDb->cfg.acct);
+    mError("db:%s, acct:%s info not exist in sdb", pDb->name, pDb->acct);
     return TSDB_CODE_INVALID_ACCT;
   }
 
@@ -75,7 +77,7 @@ static int32_t mgmtDbActionInsert(SSdbOper *pOper) {
 
 static int32_t mgmtDbActionDelete(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = mgmtGetAcct(pDb->acct);
 
   mgmtDropDbFromAcct(pAcct, pDb);
   mgmtDropAllChildTables(pDb);
@@ -175,156 +177,156 @@ SDbObj *mgmtGetDbByTableId(char *tableId) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-static int32_t mgmtCheckDBParams(SCMCreateDbMsg *pCreate) {
-  if (pCreate->commitLog < 0 || pCreate->commitLog > 2) {
-    mError("invalid db option commitLog: %d, only 0-2 allowed", pCreate->commitLog);
+static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
+  if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) {
+    mError("invalid db option cacheBlockSize:%d valid range: [%d, %d]", pCfg->cacheBlockSize, TSDB_MIN_CACHE_BLOCK_SIZE,
+           TSDB_MAX_CACHE_BLOCK_SIZE);
+  }
+
+  if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) {
+    mError("invalid db option totalBlocks:%d valid range: [%d, %d]", pCfg->totalBlocks, TSDB_MIN_TOTAL_BLOCKS,
+           TSDB_MAX_TOTAL_BLOCKS);
+  }
+
+  if (pCfg->maxTables < TSDB_MIN_TABLES || pCfg->maxTables > TSDB_MAX_TABLES) {
+    mError("invalid db option maxTables:%d valid range: [%d, %d]", pCfg->maxTables, TSDB_MIN_TABLES, TSDB_MAX_TABLES);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->replications < TSDB_REPLICA_MIN_NUM || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
-    mError("invalid db option replications: %d valid range: [%d, %d]", pCreate->replications, TSDB_REPLICA_MIN_NUM,
-           TSDB_REPLICA_MAX_NUM);
+  if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) {
+    mError("invalid db option daysPerFile:%d valid range: [%d, %d]", pCfg->daysPerFile, TSDB_MIN_DAYS_PER_FILE,
+           TSDB_MAX_DAYS_PER_FILE);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->daysPerFile < TSDB_FILE_MIN_PARTITION_RANGE || pCreate->daysPerFile > TSDB_FILE_MAX_PARTITION_RANGE) {
-    mError("invalid db option daysPerFile: %d valid range: [%d, %d]", pCreate->daysPerFile, TSDB_FILE_MIN_PARTITION_RANGE,
-           TSDB_FILE_MAX_PARTITION_RANGE);
+  if (pCfg->daysToKeep < TSDB_MIN_KEEP || pCfg->daysToKeep > TSDB_MAX_KEEP) {
+    mError("invalid db option daysToKeep:%d", pCfg->daysToKeep);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->daysToKeep1 > pCreate->daysToKeep2 || pCreate->daysToKeep2 > pCreate->daysToKeep) {
-    mError("invalid db option daystokeep1: %d, daystokeep2: %d, daystokeep: %d", pCreate->daysToKeep1,
-           pCreate->daysToKeep2, pCreate->daysToKeep);
+  if (pCfg->daysToKeep < pCfg->daysPerFile) {
+    mError("invalid db option daysToKeep:%d daysPerFile:%d", pCfg->daysToKeep, pCfg->daysPerFile);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->daysToKeep1 < TSDB_FILE_MIN_PARTITION_RANGE || pCreate->daysToKeep1 < pCreate->daysPerFile) {
-    mError("invalid db option daystokeep: %d", pCreate->daysToKeep);
+  if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
+    mError("invalid db option minRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->minRowsPerFileBlock,
+           TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->rowsInFileBlock < TSDB_MIN_ROWS_IN_FILEBLOCK || pCreate->rowsInFileBlock > TSDB_MAX_ROWS_IN_FILEBLOCK) {
-    mError("invalid db option rowsInFileBlock: %d valid range: [%d, %d]", pCreate->rowsInFileBlock,
-           TSDB_MIN_ROWS_IN_FILEBLOCK, TSDB_MAX_ROWS_IN_FILEBLOCK);
+  if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
+    mError("invalid db option maxRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->maxRowsPerFileBlock,
+           TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCreate->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) {
-    mError("invalid db option cacheBlockSize: %d valid range: [%d, %d]", pCreate->cacheBlockSize,
-           TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
+  if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
+    mError("invalid db option minRowsPerFileBlock:%d maxRowsPerFileBlock:%d", pCfg->minRowsPerFileBlock,
+           pCfg->maxRowsPerFileBlock);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->maxSessions < TSDB_MIN_TABLES_PER_VNODE || pCreate->maxSessions > TSDB_MAX_TABLES_PER_VNODE) {
-    mError("invalid db option maxSessions: %d valid range: [%d, %d]", pCreate->maxSessions, TSDB_MIN_TABLES_PER_VNODE,
-           TSDB_MAX_TABLES_PER_VNODE);
+  if (pCfg->commitTime < TSDB_MIN_COMMIT_TIME || pCfg->commitTime > TSDB_MAX_COMMIT_TIME) {
+    mError("invalid db option commitTime:%d valid range: [%d, %d]", pCfg->commitTime, TSDB_MIN_COMMIT_TIME,
+           TSDB_MAX_COMMIT_TIME);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->precision != TSDB_TIME_PRECISION_MILLI && pCreate->precision != TSDB_TIME_PRECISION_MICRO) {
-    mError("invalid db option timePrecision: %d valid value: [%d, %d]", pCreate->precision, TSDB_TIME_PRECISION_MILLI,
-           TSDB_TIME_PRECISION_MICRO);
+  if (pCfg->precision != TSDB_MIN_PRECISION && pCfg->precision != TSDB_MAX_PRECISION) {
+    mError("invalid db option timePrecision:%d valid value: [%d, %d]", pCfg->precision, TSDB_MIN_PRECISION,
+           TSDB_MAX_PRECISION);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->cacheNumOfBlocks.fraction < TSDB_MIN_AVG_BLOCKS || pCreate->cacheNumOfBlocks.fraction > TSDB_MAX_AVG_BLOCKS) {
-    mError("invalid db option ablocks: %f valid value: [%d, %d]", pCreate->cacheNumOfBlocks.fraction, 0, TSDB_MAX_AVG_BLOCKS);
+  if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) {
+    mError("invalid db option compression:%d valid range: [%d, %d]", pCfg->compression, TSDB_MIN_COMP_LEVEL,
+           TSDB_MAX_COMP_LEVEL);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->commitTime < TSDB_MIN_COMMIT_TIME_INTERVAL || pCreate->commitTime > TSDB_MAX_COMMIT_TIME_INTERVAL) {
-    mError("invalid db option commitTime: %d valid range: [%d, %d]", pCreate->commitTime, TSDB_MIN_COMMIT_TIME_INTERVAL,
-           TSDB_MAX_COMMIT_TIME_INTERVAL);
+  if (pCfg->commitLog < TSDB_MIN_CLOG_LEVEL || pCfg->commitLog > TSDB_MAX_CLOG_LEVEL) {
+    mError("invalid db option commitLog:%d, only 0-2 allowed", pCfg->commitLog);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->compression < TSDB_MIN_COMPRESSION_LEVEL || pCreate->compression > TSDB_MAX_COMPRESSION_LEVEL) {
-    mError("invalid db option compression: %d valid range: [%d, %d]", pCreate->compression, TSDB_MIN_COMPRESSION_LEVEL,
-           TSDB_MAX_COMPRESSION_LEVEL);
+  if (pCfg->replications < TSDB_MIN_REPLICA_NUM || pCfg->replications > TSDB_MAX_REPLICA_NUM) {
+    mError("invalid db option replications:%d valid range: [%d, %d]", pCfg->replications, TSDB_MIN_REPLICA_NUM,
+           TSDB_MAX_REPLICA_NUM);
     return TSDB_CODE_INVALID_OPTION;
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
-  // assign default parameters
-  if (pCreate->maxSessions < 0) pCreate->maxSessions = tsSessionsPerVnode;
-  if (pCreate->cacheBlockSize < 0) pCreate->cacheBlockSize = tsCacheBlockSize;
-  if (pCreate->daysPerFile < 0) pCreate->daysPerFile = tsDaysPerFile;
-  if (pCreate->daysToKeep < 0) pCreate->daysToKeep = tsDaysToKeep;
-  if (pCreate->daysToKeep1 < 0) pCreate->daysToKeep1 = pCreate->daysToKeep;
-  if (pCreate->daysToKeep2 < 0) pCreate->daysToKeep2 = pCreate->daysToKeep;
-  if (pCreate->commitTime < 0) pCreate->commitTime = tsCommitTime;
-  if (pCreate->compression < 0) pCreate->compression = tsCompression;
-  if (pCreate->commitLog < 0) pCreate->commitLog = tsCommitLog;
-  if (pCreate->replications < 0) pCreate->replications = tsReplications;                                  //
-  if (pCreate->rowsInFileBlock < 0) pCreate->rowsInFileBlock = tsRowsInFileBlock;                         //
-  if (pCreate->cacheNumOfBlocks.fraction < 0) pCreate->cacheNumOfBlocks.fraction = tsAverageCacheBlocks;  //
-  
-  if (mgmtCheckDBParams(pCreate) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_INVALID_OPTION;
-  }
-  
-  pCreate->cacheNumOfBlocks.totalBlocks = (int32_t)(pCreate->cacheNumOfBlocks.fraction * pCreate->maxSessions);
-  
-  if (pCreate->cacheNumOfBlocks.totalBlocks > TSDB_MAX_CACHE_BLOCKS) {
-    mTrace("invalid db option cacheNumOfBlocks: %d valid range: [%d, %d]", pCreate->cacheNumOfBlocks.totalBlocks,
-           TSDB_MIN_CACHE_BLOCKS, TSDB_MAX_CACHE_BLOCKS);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  // calculate the blocks per table
-  if (pCreate->blocksPerTable < 0) {
-    pCreate->blocksPerTable = pCreate->cacheNumOfBlocks.totalBlocks / 4;
-  }
-  
-  if (pCreate->blocksPerTable > pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4) {
-    pCreate->blocksPerTable = pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4;
-  }
-  
-  if (pCreate->blocksPerTable < TSDB_MIN_AVG_BLOCKS) {
-    pCreate->blocksPerTable = TSDB_MIN_AVG_BLOCKS;
-  }
-
-  return TSDB_CODE_SUCCESS;
+static void mgmtSetDefaultDbCfg(SDbCfg *pCfg) {
+  if (pCfg->cacheBlockSize < 0) pCfg->cacheBlockSize = tsCacheBlockSize;
+  if (pCfg->totalBlocks < 0) pCfg->totalBlocks = tsTotalBlocks;
+  if (pCfg->maxTables < 0) pCfg->maxTables = tsTablesPerVnode;
+  if (pCfg->daysPerFile < 0) pCfg->daysPerFile = tsDaysPerFile;
+  if (pCfg->daysToKeep < 0) pCfg->daysToKeep = tsDaysToKeep;
+  if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep;
+  if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = pCfg->daysToKeep;
+  if (pCfg->minRowsPerFileBlock < 0) pCfg->minRowsPerFileBlock = tsMinRowsInFileBlock;
+  if (pCfg->maxRowsPerFileBlock < 0) pCfg->maxRowsPerFileBlock = tsMaxRowsInFileBlock;
+  if (pCfg->commitTime < 0) pCfg->commitTime = tsCommitTime;
+  if (pCfg->precision < 0) pCfg->precision = tsTimePrecision;
+  if (pCfg->compression < 0) pCfg->compression = tsCompression;
+  if (pCfg->commitLog < 0) pCfg->commitLog = tsCommitLog;
+  if (pCfg->replications < 0) pCfg->replications = tsReplications;
 }
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   int32_t code = acctCheck(pAcct, ACCT_GRANT_DB);
-  if (code != 0) {
-    return code;
-  }
+  if (code != 0) return code;
 
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb != NULL) {
-    mgmtDecDbRef(pDb);
-    return TSDB_CODE_DB_ALREADY_EXIST;
+    mgmtDecDbRef(pDb); 
+    if (pCreate->ignoreExist) {
+      return TSDB_CODE_SUCCESS;
+    } else {
+      return TSDB_CODE_DB_ALREADY_EXIST;
+    }
   }
 
-  code = mgmtCheckDbParams(pCreate);
-  if (code != TSDB_CODE_SUCCESS) return code;
-
-  assert(pCreate->daysToKeep1 <= pCreate->daysToKeep2 && pCreate->daysToKeep2 <= pCreate->daysToKeep);
-
   code = grantCheck(TSDB_GRANT_DB);
-  if (code != 0) {
+  if (code != 0) return code;
+
+  pDb = calloc(1, sizeof(SDbObj));
+  strncpy(pDb->name, pCreate->db, TSDB_DB_NAME_LEN);
+  strncpy(pDb->acct, pAcct->user, TSDB_USER_LEN); 
+  pDb->createdTime = taosGetTimestampMs(); 
+  pDb->cfg = (SDbCfg) {
+    .cacheBlockSize      = pCreate->cacheBlockSize,
+    .totalBlocks         = pCreate->totalBlocks,
+    .maxTables           = pCreate->maxSessions,
+    .daysPerFile         = pCreate->daysPerFile,
+    .daysToKeep          = pCreate->daysToKeep,
+    .daysToKeep1         = pCreate->daysToKeep1,
+    .daysToKeep2         = pCreate->daysToKeep2,
+    .minRowsPerFileBlock = pCreate->maxRowsPerFileBlock,
+    .maxRowsPerFileBlock = pCreate->maxRowsPerFileBlock,
+    .commitTime          = pCreate->commitTime,
+    .precision           = pCreate->precision,
+    .compression         = pCreate->compression,
+    .commitLog           = pCreate->commitLog,
+    .replications        = pCreate->replications
+  };
+
+  mgmtSetDefaultDbCfg(&pDb->cfg);
+
+  code = mgmtCheckDbCfg(&pDb->cfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(pDb);
     return code;
   }
 
-  pDb = malloc(sizeof(SDbObj));
-  memset(pDb, 0, sizeof(SDbObj));
-  strcpy(pDb->name, pCreate->db);
-  strcpy(pCreate->acct, pAcct->user);
-  pDb->createdTime = taosGetTimestampMs();
-  pDb->cfg = *pCreate;
-
   SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsDbSdb,
-    .pObj = pDb,
-    .rowSize = sizeof(SDbObj)
+    .type    = SDB_OPER_GLOBAL,
+    .table   = tsDbSdb,
+    .pObj    = pDb,
+    .rowSize = sizeof(SDbObj),
   };
 
   code = sdbInsertRow(&oper);
@@ -463,25 +465,25 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
-    strcpy(pSchema[cols].name, "rows");
+    strcpy(pSchema[cols].name, "cache(MB)");
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+    
+    pShow->bytes[cols] = 4;
+    pSchema[cols].type = TSDB_DATA_TYPE_INT;
+    strcpy(pSchema[cols].name, "blocks");
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+    
+    pShow->bytes[cols] = 4;
+    pSchema[cols].type = TSDB_DATA_TYPE_INT;
+    strcpy(pSchema[cols].name, "minrows");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
-    strcpy(pSchema[cols].name, "cache(b)");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 4;
-    pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
-    strcpy(pSchema[cols].name, "ablocks");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 2;
-    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-    strcpy(pSchema[cols].name, "tblocks");
+    strcpy(pSchema[cols].name, "maxrows");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -508,7 +510,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = 3;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "time precision");
+  strcpy(pSchema[cols].name, "precision");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -596,11 +598,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int32_t *)pWrite = pDb->cfg.maxSessions;  // table num can be created should minus 1
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int32_t *)pWrite = pDb->cfg.rowsInFileBlock;
+      *(int32_t *)pWrite = pDb->cfg.maxTables;  // table num can be created should minus 1
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -608,17 +606,17 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-#ifdef _TD_ARM_32_
-      *(int32_t *)pWrite = (pDb->cfg.cacheNumOfBlocks.totalBlocks * 1.0 / (pDb->cfg.maxSessions));
-#else
-      *(float *)pWrite = (pDb->cfg.cacheNumOfBlocks.totalBlocks * 1.0 / (pDb->cfg.maxSessions));
-#endif
+      *(int32_t *)pWrite = pDb->cfg.totalBlocks;
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *)pWrite = pDb->cfg.blocksPerTable;
+      *(int32_t *)pWrite = pDb->cfg.minRowsPerFileBlock;
       cols++;
 
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int32_t *)pWrite = pDb->cfg.maxRowsPerFileBlock;
+      cols++;
+      
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->cfg.commitTime;
       cols++;
@@ -692,14 +690,15 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
   SCMCreateDbMsg *pCreate = pMsg->pCont;
   pCreate->maxSessions     = htonl(pCreate->maxSessions);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
+  pCreate->totalBlocks     = htonl(pCreate->totalBlocks);
   pCreate->daysPerFile     = htonl(pCreate->daysPerFile);
   pCreate->daysToKeep      = htonl(pCreate->daysToKeep);
   pCreate->daysToKeep1     = htonl(pCreate->daysToKeep1);
   pCreate->daysToKeep2     = htonl(pCreate->daysToKeep2);
   pCreate->commitTime      = htonl(pCreate->commitTime);
-  pCreate->blocksPerTable  = htons(pCreate->blocksPerTable);
-  pCreate->rowsInFileBlock = htonl(pCreate->rowsInFileBlock);
-
+  pCreate->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
+  pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
+  
   int32_t code;
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
@@ -716,37 +715,66 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
 }
 
 static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
-  SDbCfg newCfg = pDb->cfg;
-  int32_t daysToKeep   = htonl(pAlter->daysToKeep);
-  int32_t maxSessions  = htonl(pAlter->maxSessions);
+  SDbCfg  newCfg = pDb->cfg;
+  int32_t cacheBlockSize = htonl(pAlter->daysToKeep);
+  int32_t totalBlocks = htonl(pAlter->totalBlocks);
+  int32_t maxTables = htonl(pAlter->maxSessions);
+  int32_t daysToKeep = htonl(pAlter->daysToKeep);
+  int32_t daysToKeep1 = htonl(pAlter->daysToKeep1);
+  int32_t daysToKeep2 = htonl(pAlter->daysToKeep2);
+  int8_t  compression = pAlter->compression;
   int8_t  replications = pAlter->replications;
 
   terrno = TSDB_CODE_SUCCESS;
 
+  if (cacheBlockSize > 0 && cacheBlockSize != pDb->cfg.cacheBlockSize) {
+    mTrace("db:%s, cache:%d change to %d", pDb->name, pDb->cfg.cacheBlockSize, cacheBlockSize);
+    newCfg.cacheBlockSize = cacheBlockSize;
+  }
+
+  if (totalBlocks > 0 && totalBlocks != pDb->cfg.totalBlocks) {
+    mTrace("db:%s, blocks:%d change to %d", pDb->name, pDb->cfg.totalBlocks, totalBlocks);
+    newCfg.totalBlocks = totalBlocks;
+  }
+
+  if (maxTables > 0 && maxTables != pDb->cfg.maxTables) {
+    mTrace("db:%s, tables:%d change to %d", pDb->name, pDb->cfg.maxTables, maxTables);
+    newCfg.maxTables = maxTables;
+    if (newCfg.maxTables < pDb->cfg.maxTables) {
+      mTrace("db:%s, tables:%d should larger than origin:%d", pDb->name, newCfg.maxTables, pDb->cfg.maxTables);
+      terrno = TSDB_CODE_INVALID_OPTION;
+    }
+  }
+
   if (daysToKeep > 0 && daysToKeep != pDb->cfg.daysToKeep) {
     mTrace("db:%s, daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, daysToKeep);
     newCfg.daysToKeep = daysToKeep;
-  } else if (replications > 0 && replications != pDb->cfg.replications) {
-    mTrace("db:%s, replica:%d change to %d", pDb->name, pDb->cfg.replications, replications);
-    if (replications < TSDB_REPLICA_MIN_NUM || replications > TSDB_REPLICA_MAX_NUM) {
-      mError("invalid db option replica: %d valid range: %d--%d", replications, TSDB_REPLICA_MIN_NUM, TSDB_REPLICA_MAX_NUM);
-      terrno = TSDB_CODE_INVALID_OPTION;
-    }
-    newCfg.replications = replications;
-  } else if (maxSessions > 0 && maxSessions != pDb->cfg.maxSessions) {
-    mTrace("db:%s, tables:%d change to %d", pDb->name, pDb->cfg.maxSessions, maxSessions);
-    if (maxSessions < TSDB_MIN_TABLES_PER_VNODE || maxSessions > TSDB_MAX_TABLES_PER_VNODE) {
-      mError("invalid db option tables: %d valid range: %d--%d", maxSessions, TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE);
-      terrno = TSDB_CODE_INVALID_OPTION;
-    }
-    if (maxSessions < pDb->cfg.maxSessions) {
-      mError("invalid db option tables: %d should larger than original:%d", maxSessions, pDb->cfg.maxSessions);
-      terrno = TSDB_CODE_INVALID_OPTION;
-    }
-    newCfg.maxSessions = maxSessions;
-  } else {
   }
 
+  if (daysToKeep1 > 0 && daysToKeep1 != pDb->cfg.daysToKeep1) {
+    mTrace("db:%s, daysToKeep1:%d change to %d", pDb->name, pDb->cfg.daysToKeep1, daysToKeep1);
+    newCfg.daysToKeep1 = daysToKeep1;
+  }
+
+  if (daysToKeep2 > 0 && daysToKeep2 != pDb->cfg.daysToKeep2) {
+    mTrace("db:%s, daysToKeep2:%d change to %d", pDb->name, pDb->cfg.daysToKeep2, daysToKeep2);
+    newCfg.daysToKeep2 = daysToKeep2;
+  }
+
+  if (compression > 0 && compression != pDb->cfg.compression) {
+    mTrace("db:%s, compression:%d change to %d", pDb->name, pDb->cfg.compression, compression);
+    newCfg.compression = compression;
+  }
+
+  if (replications > 0 && replications != pDb->cfg.replications) {
+    mTrace("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
+    newCfg.replications = replications;
+  } 
+  if (replications > mgmtGetDnodesNum()) {
+    mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
+    terrno = TSDB_CODE_NO_ENOUGH_DNODES;
+  }
+  
   return newCfg;
 }
 
@@ -756,8 +784,16 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     return terrno;
   }
 
+  int32_t code = mgmtCheckDbCfg(&newCfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int32_t oldReplica = pDb->cfg.replications;
+
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
+    pDb->cfgVersion++;
     SSdbOper oper = {
       .type = SDB_OPER_GLOBAL,
       .table = tsDbSdb,
@@ -770,7 +806,20 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
       return TSDB_CODE_SDB_ERROR;
     }
   }
-  
+
+  void *pNode = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    if (pVgroup == NULL) break;   
+    mgmtSendCreateVgroupMsg(pVgroup, NULL);
+    mgmtDecVgroupRef(pVgroup);
+  }
+
+  if (oldReplica != pDb->cfg.replications) {
+    balanceNotify();
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -795,16 +844,6 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to alter, invalid db option", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, code);
-    return;
-  }
-
-  SVgObj *pVgroup = pDb->pHead;
-  if (pVgroup != NULL) {
-    mPrint("vgroup:%d, will be altered", pVgroup->vgId);
-    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
-    newMsg->ahandle = pVgroup;
-    newMsg->expected = pVgroup->numOfVnodes;
-    mgmtAlterVgroup(pVgroup, newMsg);
     return;
   }
 
@@ -882,18 +921,27 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
 void  mgmtDropAllDbs(SAcctObj *pAcct)  {
   int32_t numOfDbs = 0;
   SDbObj *pDb = NULL;
-  void *pNode = NULL;
+  void *  pNode = NULL;
+
+  mPrint("acct:%s, all dbs will be dropped from sdb", pAcct->user);
 
   while (1) {
     pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
     if (pDb == NULL) break;
 
     if (pDb->pAcct == pAcct) {
-      mgmtSetDbDropping(pDb);
+      mPrint("db:%s, drop db from sdb for acct:%s is dropped", pDb->name, pAcct->user);
+      SSdbOper oper = {
+        .type = SDB_OPER_LOCAL,
+        .table = tsDbSdb,
+        .pObj = pDb
+      };
+      
+      sdbDeleteRow(&oper);
       numOfDbs++;
     }
     mgmtDecDbRef(pDb);
   }
 
-  mTrace("acct:%s, all dbs is is set dirty", pAcct->user, numOfDbs);
+  mPrint("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
 }

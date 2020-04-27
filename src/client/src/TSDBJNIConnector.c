@@ -281,7 +281,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
   int code = taos_query(tscon, dst);
   if (code != 0) {
-    jniError("jobj:%p, conn:%p, code:%d, msg:%s", jobj, tscon, code, taos_errstr(tscon));
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, tscon, tstrerror(code), taos_errstr(tscon));
     free(dst);
     return JNI_TDENGINE_ERROR;
   } else {
@@ -290,9 +290,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
     if (pSql->cmd.command == TSDB_SQL_INSERT) {
       affectRows = taos_affected_rows(tscon);
-      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d", jobj, tscon, code, affectRows);
+      jniTrace("jobj:%p, conn:%p, code:%s, affect rows:%d", jobj, tscon, tstrerror(code), affectRows);
     } else {
-      jniTrace("jobj:%p, conn:%p, code:%d", jobj, tscon, code);
+      jniTrace("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
     }
 
     free(dst);

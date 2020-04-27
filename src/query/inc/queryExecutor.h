@@ -39,10 +39,10 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 typedef struct SSqlGroupbyExpr {
   int16_t     tableIndex;
+  SArray*     columnInfo;      // SArray<SColIndex>, group by columns information
   int16_t     numOfGroupCols;
-  SColIndex*  columnInfo;                 // group by columns information
-  int16_t     orderIndex;                 // order by column index
-  int16_t     orderType;                  // order by type: asc/desc
+  int16_t     orderIndex;      // order by column index
+  int16_t     orderType;       // order by type: asc/desc
 } SSqlGroupbyExpr;
 
 typedef struct SPosInfo {
@@ -90,7 +90,7 @@ typedef struct SColumnFilterElem {
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {
-  SColumnInfoData    info;
+  SColumnInfo        info;
   int32_t            numOfFilters;
   SColumnFilterElem* pFilters;
   void*              pData;
@@ -108,7 +108,7 @@ typedef struct STableQueryInfo {
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
 
-typedef struct STableDataInfo {
+typedef struct STableDataInfo {  // todo merge with the STableQueryInfo struct
   int32_t          tableIndex;
   int32_t          groupIdx;  // group id in table list
   STableQueryInfo* pTableQInfo;
@@ -116,27 +116,29 @@ typedef struct STableDataInfo {
 
 typedef struct SQuery {
   int16_t           numOfCols;
+  int16_t           numOfTags;
+  
   SOrderVal         order;
   STimeWindow       window;
   int64_t           intervalTime;
   int64_t           slidingTime;      // sliding time for sliding window query
   char              slidingTimeUnit;  // interval data type, used for daytime revise
   int8_t            precision;
-  int16_t           numOfOutputCols;
+  int16_t           numOfOutput;
   int16_t           interpoType;
   int16_t           checkBuffer;  // check if the buffer is full during scan each block
   SLimitVal         limit;
   int32_t           rowSize;
   SSqlGroupbyExpr*  pGroupbyExpr;
-  SSqlFunctionExpr* pSelectExpr;
-  SColumnInfoData*    colList;
+  SArithExprInfo*   pSelectExpr;
+  SColumnInfo*      colList;
+  SColumnInfo*      tagColList;
   int32_t           numOfFilterCols;
   int64_t*          defaultVal;
   TSKEY             lastKey;
   uint32_t          status;  // query status
   SResultRec        rec;
   int32_t           pos;
-  int64_t           pointsOffset;  // the number of points offset to save read data
   SData**           sdata;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;

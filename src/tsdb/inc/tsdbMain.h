@@ -74,8 +74,11 @@ typedef struct STable {
   void *         pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void *         eventHandler;   // TODO
   void *         streamHandler;  // TODO
+  TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
 } STable;
+
+#define TSDB_GET_TABLE_LAST_KEY(pTable) ((pTable)->lastKey)
 
 void *  tsdbEncodeTable(STable *pTable, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);
@@ -128,9 +131,6 @@ STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
 char *  getTupleKey(const void *data);
-
-// ------------------------------ TSDB CACHE INTERFACES ------------------------------
-#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16 * 1024 * 1024 /* 16M */
 
 typedef struct {
   int  blockId;
@@ -245,7 +245,7 @@ typedef struct {
   int32_t len;
   int32_t offset;
   int32_t hasLast : 1;
-  int32_t numOfSuperBlocks : 31;
+  int32_t numOfBlocks : 31;
   int32_t checksum;
   TSKEY   maxKey;
 } SCompIdx; /* sizeof(SCompIdx) = 24 */

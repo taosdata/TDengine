@@ -45,15 +45,19 @@ typedef struct {
 
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
 typedef struct {
-  int8_t  precision;
-  int8_t  compression;
   int32_t tsdbId;
+  int32_t cacheBlockSize;
+  int32_t totalBlocks;
   int32_t maxTables;            // maximum number of tables this repository can have
   int32_t daysPerFile;          // day per file sharding policy
+  int32_t keep;                 // day of data to keep
+  int32_t keep1;
+  int32_t keep2;
   int32_t minRowsPerFileBlock;  // minimum rows per file block
   int32_t maxRowsPerFileBlock;  // maximum rows per file block
-  int32_t keep;                 // day of data to keep
-  int64_t maxCacheSize;         // maximum cache size this TSDB can use
+  int32_t commitTime;
+  int8_t  precision;
+  int8_t  compression;
 } STsdbCfg;
 
 void      tsdbSetDefaultCfg(STsdbCfg *pCfg);
@@ -98,6 +102,7 @@ int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
 int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId id, int32_t col, int16_t *type, int16_t *bytes, char **val);
+int32_t tsdbTableGetName(TsdbRepoT *repo, STableId id, char** name);
 
 int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
 int tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
@@ -146,7 +151,7 @@ typedef struct STsdbQueryCond {
   STimeWindow      twindow;
   int32_t          order;  // desc/asc order to iterate the data block
   int32_t          numOfCols;
-  SColumnInfoData *colList;
+  SColumnInfo     *colList;
 } STsdbQueryCond;
 
 typedef struct SBlockInfo {
@@ -278,8 +283,17 @@ SArray *tsdbGetTableList(TsdbQueryHandleT *pQueryHandle);
  * @param pTagCond. tag query condition
  *
  */
-int32_t tsdbQueryByTagsCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagCond, size_t len, STableGroupInfo *pGroupList,
-                      SColIndex *pColIndex, int32_t numOfCols);
+int32_t tsdbQueryByTagsCond(
+  TsdbRepoT *tsdb,
+  int64_t uid,
+  const char *pTagCond,
+  size_t len,
+  int16_t tagNameRelType,
+  const char* tbnameCond,
+  STableGroupInfo *pGroupList,
+  SColIndex *pColIndex,
+  int32_t numOfCols
+  );
 
 int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, int64_t uid, STableGroupInfo *pGroupInfo);
 

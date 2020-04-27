@@ -114,14 +114,13 @@ typedef struct SCreateDBInfo {
   int32_t   tablesPerVnode;
   int32_t   daysPerFile;
   int32_t   rowPerFileBlock;
-  
-  float   numOfAvgCacheBlocks;
-  int32_t numOfBlocksPerTable;
-  
+  float     numOfAvgCacheBlocks;
+  int32_t   numOfBlocksPerTable;
   int64_t   commitTime;
   int32_t   commitLog;
   int32_t   compressionLevel;
   SSQLToken precision;
+  bool      ignoreExists;
   
   tVariantList *keep;
 } SCreateDBInfo;

@@ -238,7 +238,7 @@ typedef struct {
 
 typedef struct SSchema {
   uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
+  char    name[TSDB_COL_NAME_LEN + 1];
   int16_t colId;
   int16_t bytes;
 } SSchema;
@@ -256,14 +256,14 @@ typedef struct {
   uint64_t uid;
   uint64_t superTableUid;
   uint64_t createdTime;
-  char     tableId[TSDB_TABLE_ID_LEN];
-  char     superTableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
   char     data[];
 } SMDCreateTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN + 1];
   int8_t  igExists;
   int16_t numOfTags;
   int16_t numOfColumns;
@@ -274,13 +274,13 @@ typedef struct {
 } SCMCreateTableMsg;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN];
+  char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t igNotExists;
 } SCMDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN + 1];
   int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */
@@ -345,7 +345,6 @@ typedef struct {
 } SMDDropTableMsg;
 
 typedef struct {
-  int32_t contLen;
   int32_t vgId;
   int64_t uid;
   char    tableId[TSDB_TABLE_ID_LEN + 1];
@@ -356,23 +355,15 @@ typedef struct {
 } SMDDropVnodeMsg;
 
 typedef struct SColIndex {
-  int16_t colId;
-  /*
-   * colIdx is the index of column in latest schema of table
-   * it is available in the client side. Also used to determine
-   * whether current table schema is up-to-date.
-   *
-   * colIdxInBuf is used to denote the index of column in pQuery->colList,
-   * this value is invalid in client side, as well as in cache block of vnode either.
-   */
-  int16_t  colIndex;
-  uint16_t flag;  // denote if it is a tag or not
+  int16_t  colId;      // column id
+  int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
+  uint16_t flag;       // denote if it is a tag or a normal column
   char     name[TSDB_COL_NAME_LEN];
 } SColIndex;
 
 /* sql function msg, to describe the message to vnode about sql function
  * operations in select clause */
-typedef struct SSqlFuncExprMsg {
+typedef struct SSqlFuncMsg {
   int16_t functionId;
   int16_t numOfParams;
 
@@ -386,26 +377,20 @@ typedef struct SSqlFuncExprMsg {
       char *  pz;
     } argValue;
   } arg[3];
-} SSqlFuncExprMsg;
+} SSqlFuncMsg;
 
-typedef struct SSqlBinaryExprInfo {
-  struct tExprNode *pBinExpr;    /*  for binary expression */
-  int32_t           numOfCols;   /*  binary expression involves the readed number of columns*/
-  SColIndex *     pReqColumns;   /*  source column list */
-} SSqlBinaryExprInfo;
-
-typedef struct SSqlFunctionExpr {
-  SSqlFuncExprMsg    pBase;
-  SSqlBinaryExprInfo binExprInfo;
-  int16_t            resBytes;
-  int16_t            resType;
-  int16_t            interResBytes;
-} SSqlFunctionExpr;
+typedef struct SArithExprInfo {
+  SSqlFuncMsg base;
+  struct tExprNode* pExpr;
+  int16_t     bytes;
+  int16_t     type;
+  int16_t     interResBytes;
+} SArithExprInfo;
 
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;
   int16_t upperRelOptr;
-  int16_t filterOnBinary; /* denote if current column is binary   */
+  int16_t filterstr;   // denote if current column is char(binary/nchar)
 
   union {
     struct {
@@ -469,16 +454,18 @@ typedef struct {
   int64_t     limit;
   int64_t     offset;
   uint16_t    queryType;        // denote another query process
-  int16_t     numOfOutputCols;  // final output columns numbers
+  int16_t     numOfOutput;  // final output columns numbers
+  int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     interpoType;      // interpolate type
   uint64_t    defaultVal;       // default value array list
 
-  int32_t     colNameLen;
-  int64_t     colNameList;
+//  int32_t     colNameLen;
+//  int64_t     colNameList;
   int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;          // total length of ts comp block
   int32_t     tsNumOfBlocks;  // ts comp block numbers
   int32_t     tsOrder;        // ts comp block order
+  int32_t     numOfTags;      // number of tags columns involved
   SColumnInfo colList[];
 } SQueryTableMsg;
 
@@ -504,12 +491,12 @@ typedef struct SRetrieveTableRsp {
 
 typedef struct {
   int32_t vgId;
+  int32_t cfgVersion;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
   uint8_t status;
   uint8_t role;
-  uint8_t accessState;
   uint8_t replica;
   uint8_t reserved[5];
 } SVnodeLoad;
@@ -517,28 +504,22 @@ typedef struct {
 typedef struct {
   char     acct[TSDB_USER_LEN + 1];
   char     db[TSDB_DB_NAME_LEN + 1];
-  uint32_t vgId;
   int32_t  maxSessions;
-  int32_t  cacheBlockSize;
-  union {
-    int32_t totalBlocks;
-    float   fraction;
-  } cacheNumOfBlocks;
-  int32_t daysPerFile;
-  int32_t daysToKeep1;
-  int32_t daysToKeep2;
-  int32_t daysToKeep;
-  int32_t commitTime;
-  int32_t rowsInFileBlock;
-  int16_t blocksPerTable;
-  int8_t  compression;
-  int8_t  commitLog;
-  int8_t  replications;
-  int8_t  repStrategy;
-  int8_t  loadLatest;  // load into mem or not
-  uint8_t precision;   // time resolution
-  int8_t  reserved[16];
-} SDbCfg, SCMCreateDbMsg, SCMAlterDbMsg;
+  int32_t  cacheBlockSize; //MB
+  int32_t  totalBlocks;
+  int32_t  daysPerFile;
+  int32_t  daysToKeep1;
+  int32_t  daysToKeep2;
+  int32_t  daysToKeep;
+  int32_t  commitTime;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
+  int8_t   compression;
+  int8_t   commitLog;
+  int8_t   replications;
+  uint8_t  precision;   // time resolution
+  int8_t   ignoreExist;
+} SCMCreateDbMsg, SCMAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_ID_LEN + 1];
@@ -605,20 +586,22 @@ typedef struct {
 
 typedef struct {
   uint32_t vgId;
+  int32_t  cfgVersion;
+  int32_t  cacheBlockSize;
+  int32_t  totalBlocks;
   int32_t  maxTables;
-  int64_t  maxCacheSize;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
   int32_t  daysPerFile;
   int32_t  daysToKeep;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
   int32_t  commitTime;
-  uint8_t  precision;  // time resolution
+  int8_t   precision;
   int8_t   compression;
-  int8_t   wals;
   int8_t   commitLog;
   int8_t   replications;
+  int8_t   wals;
   int8_t   quorum;
   uint32_t arbitratorIp;
   int8_t   reserved[16];
@@ -653,7 +636,7 @@ typedef struct SCMSTableVgroupMsg {
 typedef struct {
   int32_t   vgId;
   int8_t    numOfIps;
-  SIpAddr   ipAddr[TSDB_REPLICA_MAX_NUM];
+  SIpAddr   ipAddr[TSDB_MAX_REPLICA_NUM];
 } SCMVgroupInfo;
 
 typedef struct {
@@ -697,7 +680,7 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
-  SVnodeDesc vpeerDesc[TSDB_REPLICA_MAX_NUM];
+  SVnodeDesc vpeerDesc[TSDB_MAX_REPLICA_NUM];
   int16_t    index;  // used locally
   int32_t    vgId;
   int32_t    numOfSids;
@@ -713,8 +696,8 @@ typedef struct {
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
-  char          tableId[TSDB_TABLE_ID_LEN];   // table id
-  char          stableId[TSDB_TABLE_ID_LEN];  // stable name if it is created according to super table
+  char          tableId[TSDB_TABLE_ID_LEN + 1];   // table id
+  char          stableId[TSDB_TABLE_ID_LEN + 1];  // stable name if it is created according to super table
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
@@ -775,14 +758,14 @@ typedef struct {
 } SMDCfgDnodeMsg, SCMCfgDnodeMsg;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN + 1];
+  char     sql[TSDB_SHOW_SQL_LEN];
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
 } SQueryDesc;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN + 1];
+  char     sql[TSDB_SHOW_SQL_LEN];
   uint32_t streamId;
   int64_t  num;  // number of computing/cycles
   int64_t  useconds;
@@ -794,12 +777,10 @@ typedef struct {
 
 typedef struct {
   int32_t    numOfQueries;
-  SQueryDesc *qdesc;
 } SQqueryList;
 
 typedef struct {
   int32_t     numOfStreams;
-  SStreamDesc *sdesc;
 } SStreamList;
 
 typedef struct {

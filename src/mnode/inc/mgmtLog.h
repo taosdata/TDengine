@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tlog.h"
+#include "monitor.h"
 
 extern int32_t mdebugFlag;
 extern int32_t sdbDebugFlag;
@@ -41,9 +42,9 @@ extern int32_t sdbDebugFlag;
 #define mPrint(...) \
   { taosPrintLog("MND ", 255, __VA_ARGS__); }
 
-#define mLError(...) mError(__VA_ARGS__)
-#define mLWarn(...)  mWarn(__VA_ARGS__)
-#define mLPrint(...) mPrint(__VA_ARGS__)
+#define mLError(...) monitorSaveLog(2, __VA_ARGS__); mError(__VA_ARGS__)
+#define mLWarn(...)  monitorSaveLog(1, __VA_ARGS__); mWarn(__VA_ARGS__)
+#define mLPrint(...) monitorSaveLog(0, __VA_ARGS__); mPrint(__VA_ARGS__)
 
 #define sdbError(...)                            \
   if (sdbDebugFlag & DEBUG_ERROR) {              \
@@ -60,9 +61,9 @@ extern int32_t sdbDebugFlag;
 #define sdbPrint(...) \
   { taosPrintLog("MND-SDB ", 255, __VA_ARGS__); }
 
-#define sdbLError(...) sdbError(__VA_ARGS__)
-#define sdbLWarn(...)  sdbWarn(__VA_ARGS__)
-#define sdbLPrint(...) sdbPrint(__VA_ARGS__)
+#define sdbLError(...) monitorSaveLog(2, __VA_ARGS__); sdbError(__VA_ARGS__)
+#define sdbLWarn(...)  monitorSaveLog(1, __VA_ARGS__); sdbWarn(__VA_ARGS__)
+#define sdbLPrint(...) monitorSaveLog(0, __VA_ARGS__); sdbPrint(__VA_ARGS__)
 
 #ifdef __cplusplus
 }

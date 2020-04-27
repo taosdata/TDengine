@@ -161,9 +161,9 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->tableType = pTableMetaMsg->tableType;
   
   pTableMeta->tableInfo = (STableComInfo) {
-    .numOfTags = pTableMetaMsg->numOfTags,
+    .numOfTags    = pTableMetaMsg->numOfTags,
+    .precision    = pTableMetaMsg->precision,
     .numOfColumns = pTableMetaMsg->numOfColumns,
-    .precision = pTableMetaMsg->precision
   };
   
   pTableMeta->sid = pTableMetaMsg->sid;
@@ -172,7 +172,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
   
-  int32_t numOfTotalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  int32_t numOfTotalCols = pTableMeta->tableInfo.numOfColumns;
   for(int32_t i = 0; i < numOfTotalCols; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
   }

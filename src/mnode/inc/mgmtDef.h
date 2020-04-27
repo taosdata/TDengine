@@ -53,7 +53,7 @@ typedef struct SDnodeObj {
   int32_t    refCount;
   uint32_t   moduleStatus;
   uint32_t   lastReboot;       // time stamp for last reboot
-  float      score;          // calc in balance function
+  float      score;            // calc in balance function
   float      diskAvailable;    // from dnode status msg
   int16_t    diskAvgUsage;     // calc from sys.disk
   int16_t    cpuAvgUsage;      // calc from sys.cpu
@@ -142,12 +142,32 @@ typedef struct SVgObj {
   SChildTableObj **tableList;
 } SVgObj;
 
+typedef struct {
+  int32_t cacheBlockSize;
+  int32_t totalBlocks;
+  int32_t maxTables;
+  int32_t daysPerFile;
+  int32_t daysToKeep;
+  int32_t daysToKeep1;
+  int32_t daysToKeep2;
+  int32_t minRowsPerFileBlock;
+  int32_t maxRowsPerFileBlock;
+  int32_t commitTime;
+  int8_t  precision;
+  int8_t  compression;
+  int8_t  commitLog;
+  int8_t  replications;
+  int8_t  reserved[16];
+} SDbCfg;
+
 typedef struct SDbObj {
   char    name[TSDB_DB_NAME_LEN + 1];
-  int8_t  status;
+  char    acct[TSDB_USER_LEN + 1];
   int64_t createdTime;
+  int32_t cfgVersion;
   SDbCfg  cfg;
-  int8_t  reserved[15];
+  int8_t  status;
+  int8_t  reserved[14];
   int8_t  updateEnd[1];
   int32_t refCount;
   int32_t numOfVgroups;

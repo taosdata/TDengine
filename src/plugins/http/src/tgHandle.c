@@ -13,14 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
-#include "tgHandle.h"
-#include "shash.h"
-#include "taosmsg.h"
-#include "tgJson.h"
-#include "taosdef.h"
-#include "httpLog.h"
 #include "tglobal.h"
+#include "shash.h"
+#include "taosdef.h"
+#include "taosmsg.h"
+#include "tgHandle.h"
+#include "tgJson.h"
+#include "httpLog.h"
 
 /*
  * taos.telegraf.cfg formats like

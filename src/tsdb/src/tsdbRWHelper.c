@@ -322,12 +322,12 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols) {
 
     if (tsdbWriteBlockToFile(pHelper, pWFile, pDataCols, rowsToWrite, &compBlock, isLast, true) < 0) goto _err;
 
-    if (tsdbInsertSuperBlock(pHelper, &compBlock, pIdx->numOfSuperBlocks) < 0) goto _err;
+    if (tsdbInsertSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks) < 0) goto _err;
   } else {  // (Has old data) AND ((has last block) OR (key overlap)), need to merge the block
     SCompBlock *pCompBlock = taosbsearch((void *)(&keyFirst), (void *)(pHelper->pCompInfo->blocks),
-                                         pIdx->numOfSuperBlocks, sizeof(SCompBlock), compareKeyBlock, TD_GE);
+                                         pIdx->numOfBlocks, sizeof(SCompBlock), compareKeyBlock, TD_GE);
 
-    int blkIdx = (pCompBlock == NULL) ? (pIdx->numOfSuperBlocks - 1) : (pCompBlock - pHelper->pCompInfo->blocks);
+    int blkIdx = (pCompBlock == NULL) ? (pIdx->numOfBlocks - 1) : (pCompBlock - pHelper->pCompInfo->blocks);
 
     if (pCompBlock == NULL) {  // No key overlap, must has last block, just merge with the last block
       ASSERT(pIdx->hasLast && pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last);
@@ -362,18 +362,18 @@ int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
   if ((pHelper->files.nLastF.fd > 0) && (pHelper->hasOldLastBlock)) {
     if (tsdbLoadCompInfo(pHelper, NULL) < 0) return -1;
 
-    SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + pIdx->numOfSuperBlocks - 1;
+    SCompBlock *pCompBlock = pHelper->pCompInfo->blocks + pIdx->numOfBlocks - 1;
     ASSERT(pCompBlock->last);
 
     if (pCompBlock->numOfSubBlocks > 1) {
-      if (tsdbLoadBlockData(pHelper, blockAtIdx(pHelper, pIdx->numOfSuperBlocks - 1), NULL) < 0) return -1;
+      if (tsdbLoadBlockData(pHelper, blockAtIdx(pHelper, pIdx->numOfBlocks - 1), NULL) < 0) return -1;
       ASSERT(pHelper->pDataCols[0]->numOfPoints > 0 &&
              pHelper->pDataCols[0]->numOfPoints < pHelper->config.minRowsPerFileBlock);
       if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.nLastF), pHelper->pDataCols[0],
                                pHelper->pDataCols[0]->numOfPoints, &compBlock, true, true) < 0)
         return -1;
 
-      if (tsdbUpdateSuperBlock(pHelper, &compBlock, pIdx->numOfSuperBlocks - 1) < 0) return -1;
+      if (tsdbUpdateSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks - 1) < 0) return -1;
 
     } else {
       if (lseek(pHelper->files.lastF.fd, pCompBlock->offset, SEEK_SET) < 0) return -1;
@@ -827,7 +827,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
     ASSERT(keyFirst <= blockAtIdx(pHelper, blkIdx)->keyLast);
 
     TSKEY keyLimit =
-        (blkIdx == pIdx->numOfSuperBlocks - 1) ? INT64_MAX : pHelper->pCompInfo->blocks[blkIdx + 1].keyFirst - 1;
+        (blkIdx == pIdx->numOfBlocks - 1) ? INT64_MAX : pHelper->pCompInfo->blocks[blkIdx + 1].keyFirst - 1;
 
     // rows1: number of rows must merge in this block
     int rows1 = tsdbGetRowsInRange(pDataCols, blockAtIdx(pHelper, blkIdx)->keyFirst, blockAtIdx(pHelper, blkIdx)->keyLast);
@@ -969,7 +969,7 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
   if (tsdbAdjustInfoSizeIfNeeded(pHelper, pIdx->len + sizeof(SCompInfo)) < 0) goto _err;
 
   // Change the offset
-  for (int i = 0; i < pIdx->numOfSuperBlocks; i++) {
+  for (int i = 0; i < pIdx->numOfBlocks; i++) {
     SCompBlock *pTCompBlock = &pHelper->pCompInfo->blocks[i];
     if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset += sizeof(SCompBlock);
   }
@@ -984,13 +984,13 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
   }
   pHelper->pCompInfo->blocks[blkIdx] = *pCompBlock;
 
-  pIdx->numOfSuperBlocks++;
+  pIdx->numOfBlocks++;
   pIdx->len += sizeof(SCompBlock);
   ASSERT(pIdx->len <= tsizeof(pHelper->pCompInfo));
-  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].keyLast;
-  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last;
+  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].keyLast;
+  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].last;
 
-  if (pIdx->numOfSuperBlocks > 1) {
+  if (pIdx->numOfBlocks > 1) {
     ASSERT(pHelper->pCompInfo->blocks[0].keyLast < pHelper->pCompInfo->blocks[1].keyFirst);
   }
 
@@ -1022,7 +1022,7 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
       memmove((void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len + sizeof(SCompBlock)),
               (void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len), tsize);
 
-      for (int i = blkIdx + 1; i < pIdx->numOfSuperBlocks; i++) {
+      for (int i = blkIdx + 1; i < pIdx->numOfBlocks; i++) {
         SCompBlock *pTCompBlock = &pHelper->pCompInfo->blocks[i];
         if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset += sizeof(SCompBlock);
       }
@@ -1040,7 +1040,7 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
     pIdx->len += sizeof(SCompBlock);
   } else {  // Need to create two sub-blocks
     void *ptr = NULL;
-    for (int i = blkIdx + 1; i < pIdx->numOfSuperBlocks; i++) {
+    for (int i = blkIdx + 1; i < pIdx->numOfBlocks; i++) {
       SCompBlock *pTCompBlock = pHelper->pCompInfo->blocks + i;
       if (pTCompBlock->numOfSubBlocks > 1) {
         ptr = (void *)((char *)(pHelper->pCompInfo) + pTCompBlock->offset + pTCompBlock->len);
@@ -1053,7 +1053,7 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
     size_t tsize = pIdx->len - ((char *)ptr - (char *)(pHelper->pCompInfo));
     if (tsize > 0) {
       memmove((void *)((char *)ptr + sizeof(SCompBlock) * 2), ptr, tsize);
-      for (int i = blkIdx + 1; i < pIdx->numOfSuperBlocks; i++) {
+      for (int i = blkIdx + 1; i < pIdx->numOfBlocks; i++) {
         SCompBlock *pTCompBlock = pHelper->pCompInfo->blocks + i;
         if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset += (sizeof(SCompBlock) * 2);
       }
@@ -1074,8 +1074,8 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
     pIdx->len += (sizeof(SCompBlock) * 2);
   }
 
-  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].keyLast;
-  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last;
+  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].keyLast;
+  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].last;
 
   return 0;
 
@@ -1102,7 +1102,7 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
               (void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len), tsize);
     }
 
-    for (int i = blkIdx + 1; i < pIdx->numOfSuperBlocks; i++) {
+    for (int i = blkIdx + 1; i < pIdx->numOfBlocks; i++) {
       SCompBlock *pTCompBlock = &pHelper->pCompInfo->blocks[i];
       if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset -= (sizeof(SCompBlock) * pSCompBlock->numOfSubBlocks);
     }
@@ -1112,8 +1112,8 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 
   *pSCompBlock = *pCompBlock;
 
-  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].keyLast;
-  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfSuperBlocks - 1].last;
+  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].keyLast;
+  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].last;
 
   return 0;
 }

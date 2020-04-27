@@ -53,7 +53,7 @@ void* taosArrayPush(SArray* pArray, void* pData);
  *
  * @param pArray
  */
-void taosArrayPop(SArray* pArray);
+void* taosArrayPop(SArray* pArray);
 
 /**
  * get the data from array
@@ -61,7 +61,7 @@ void taosArrayPop(SArray* pArray);
  * @param index
  * @return
  */
-void* taosArrayGet(SArray* pArray, size_t index);
+void* taosArrayGet(const SArray* pArray, size_t index);
 
 /**
  * get the pointer data from the array
@@ -69,7 +69,7 @@ void* taosArrayGet(SArray* pArray, size_t index);
  * @param index
  * @return
  */
-void* taosArrayGetP(SArray* pArray, size_t index);
+void* taosArrayGetP(const SArray* pArray, size_t index);
 
 /**
  * return the size of array
@@ -111,6 +111,34 @@ SArray* taosArrayClone(SArray* pSrc);
  * @param pArray
  */
 void taosArrayDestroy(SArray* pArray);
+
+/**
+ * sort the array
+ * @param pArray
+ * @param compar
+ */
+void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*));
+
+/**
+ * sort string array
+ * @param pArray
+ */
+void taosArraySortString(SArray* pArray);
+
+/**
+ * search the array
+ * @param pArray
+ * @param compar
+ * @param key
+ */
+void* taosArraySearch(const SArray* pArray, int (*compar)(const void*, const void*), const void* key);
+
+/**
+ * search the array
+ * @param pArray
+ * @param key
+ */
+char* taosArraySearchString(const SArray* pArray, const char* key);
 
 #ifdef __cplusplus
 }

@@ -39,10 +39,6 @@ extern int32_t ddebugFlag;
 #define dPrint(...) \
   { taosPrintLog("DND ", 255, __VA_ARGS__); }
 
-#define dLError(...) taosLogError(__VA_ARGS__) dError(__VA_ARGS__)
-#define dLWarn(...) taosLogWarn(__VA_ARGS__) dWarn(__VA_ARGS__)
-#define dLPrint(...) taosLogPrint(__VA_ARGS__) dPrint(__VA_ARGS__)
-
 #ifdef __cplusplus
 }
 #endif
