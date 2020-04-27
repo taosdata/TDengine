@@ -187,7 +187,7 @@ extern char *taosMsg[];
 #pragma pack(push, 1)
 
 typedef struct {
-  uint32_t ip;
+  char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 } SIpAddr;
 
