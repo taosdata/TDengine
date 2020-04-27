@@ -74,11 +74,13 @@ extern int16_t  tsNumOfVnodesPerCore;
 extern int16_t  tsNumOfTotalVnodes;
 extern uint32_t tsPublicIpInt;
 
-extern int32_t tsMaxCacheSize;
-extern int32_t tsSessionsPerVnode;
+extern int32_t tsCacheBlockSize;
+extern int32_t tsTotalBlocks;
+extern int32_t tsTablesPerVnode;
 extern int16_t tsDaysPerFile;
 extern int32_t tsDaysToKeep;
-extern int32_t tsRowsInFileBlock;
+extern int32_t tsMinRowsInFileBlock;
+extern int32_t tsMaxRowsInFileBlock;
 extern int16_t tsCommitTime;  // seconds
 extern int32_t tsTimePrecision;
 extern int16_t tsCompression;

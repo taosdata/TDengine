@@ -26,6 +26,9 @@ STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, TsdbRepoT *pRepo) {
   if (pCache == NULL) return NULL;
 
   if (cacheBlockSize < 0) cacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+  cacheBlockSize *= (1024 * 1024);
+
+  if (maxBytes < 0) maxBytes = cacheBlockSize * TSDB_DEFAULT_TOTAL_BLOCKS;
 
   pCache->maxBytes = maxBytes;
   pCache->cacheBlockSize = cacheBlockSize;

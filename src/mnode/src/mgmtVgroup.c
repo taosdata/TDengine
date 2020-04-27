@@ -272,8 +272,9 @@ void mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVlo
     pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
   }
 
-  if (pVload->replica != pVgroup->numOfVnodes) {
-    mError("dnode:%d, vgroup:%d replica:%d not match with mgmt:%d", pDnode->dnodeId, pVload->vgId, pVload->replica,
+  if (pVload->cfgVersion != pVgroup->pDb->cfgVersion || pVload->replica != pVgroup->numOfVnodes) {
+    mError("dnode:%d, vgroup:%d, vnode cfgVersion:%d repica:%d not match with mgmt cfgVersion:%d replica:%d",
+           pDnode->dnodeId, pVload->vgId, pVload->cfgVersion, pVload->replica, pVgroup->pDb->cfgVersion,
            pVgroup->numOfVnodes);
     mgmtSendCreateVgroupMsg(pVgroup, NULL);
   }
@@ -535,23 +536,22 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
 
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
+  pCfg->cfgVersion          = htonl(pDb->cfgVersion);
+  pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
+  pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
   pCfg->maxTables           = htonl(pDb->cfg.maxTables);
-  pCfg->maxCacheSize        = htobe64(pDb->cfg.maxCacheSize);
-  pCfg->maxCacheSize        = htobe64(-1); //TODO
-  pCfg->minRowsPerFileBlock = htonl(-1);   //TODO
-  pCfg->maxRowsPerFileBlock = htonl(-1);   //TODO
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
-  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
-  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);
   pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
-  pCfg->daysToKeep          = htonl(-1);   //TODO
+  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
+  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);  
+  pCfg->minRowsPerFileBlock = htonl(pDb->cfg.minRowsPerFileBlock);
+  pCfg->maxRowsPerFileBlock = htonl(pDb->cfg.maxRowsPerFileBlock);
   pCfg->commitTime          = htonl(pDb->cfg.commitTime);
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;
-  pCfg->compression         = -1;
-  pCfg->wals                = 3;
   pCfg->commitLog           = pDb->cfg.commitLog;
   pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
+  pCfg->wals                = 3;
   pCfg->quorum              = 1;
   
   SMDVnodeDesc *pNodes = pVnode->nodes;
@@ -771,15 +771,3 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
 
   mPrint("db:%s, all vgroups:%d is dropped from sdb", pDropDb->name, numOfVgroups);
 }
-
-void mgmtAlterVgroup(SVgObj *pVgroup, void *ahandle) {
-  assert(ahandle != NULL);
-
-  if (pVgroup->numOfVnodes != pVgroup->pDb->cfg.replications) {
-    // TODO:
-    // mgmtSendAlterVgroupMsg(pVgroup, NULL);
-  } else {
-    mgmtAddToShellQueue(ahandle);
-  }
-}
-
