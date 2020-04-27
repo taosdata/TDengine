@@ -18,6 +18,7 @@
 #include "taosdef.h"
 #include "tulog.h"
 #include "tglobal.h"
+#include "tsocket.h"
 #include "tsync.h"
 
 int main(int argc, char *argv[]) {
@@ -50,8 +51,8 @@ int main(int argc, char *argv[]) {
   syncInfo.vgId = 1;
   syncInfo.ahandle = &syncInfo;
   syncInfo.syncCfg.nodeInfo[0].nodeId = 1;
-  strcpy(syncInfo.syncCfg.nodeInfo[0].name, tsPrivateIp);
-  syncInfo.syncCfg.nodeInfo[0].nodeIp = inet_addr(tsPrivateIp);
+  taosGetFqdn(syncInfo.syncCfg.nodeInfo[0].nodeFqdn);
+  syncInfo.syncCfg.nodeInfo[0].nodePort = tsSyncPort;
 
   void *syncHandle = syncStart(&syncInfo);
   if (syncHandle == NULL) {

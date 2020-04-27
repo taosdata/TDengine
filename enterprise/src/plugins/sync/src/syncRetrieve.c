@@ -31,19 +31,19 @@ static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  sTrace("vgId:%d peer:%s, start to monitor:%s", pNode->vgId, pPeer->ipstr, name);
+  sTrace("vgId:%d peer:%s, start to monitor:%s", pNode->vgId, pPeer->fqdn, name);
 
   if (pPeer->notifyFd <=0) {
     pPeer->watchNum = 0;
     pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
     if (pPeer->notifyFd < 0) {
-      sError("vgId:%d peer:%s, failed to init inotify(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
+      sError("vgId:%d peer:%s, failed to init inotify(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
       return -1;
     }
 
     if (pPeer->watchFd == NULL) pPeer->watchFd = malloc(sizeof(int)*tsMaxWatchFiles);
     if (pPeer->watchFd == NULL) {
-      sError("vgId:%d peer:%s, failed to allocate watchFd", pNode->vgId, pPeer->ipstr);
+      sError("vgId:%d peer:%s, failed to allocate watchFd", pNode->vgId, pPeer->fqdn);
       return -1;
     }
 
@@ -54,14 +54,14 @@ static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name)
 
   if (*wd >= 0) {
     if (inotify_rm_watch(pPeer->notifyFd, *wd) < 0) {
-      sError("vgId:%d peer:%s, failed to remove wd:%d(%s)", pNode->vgId, pPeer->ipstr, *wd, strerror(errno));
+      sError("vgId:%d peer:%s, failed to remove wd:%d(%s)", pNode->vgId, pPeer->fqdn, *wd, strerror(errno));
       return -1;
     }
   }
 
   *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY);
   if (*wd == -1) {
-    sError("vgId:%d peer:%s, failed to add %s(%s)", pNode->vgId, pPeer->ipstr, name, strerror(errno));
+    sError("vgId:%d peer:%s, failed to add %s(%s)", pNode->vgId, pPeer->fqdn, name, strerror(errno));
     return -1;
   }
 
@@ -79,13 +79,13 @@ static int syncAreFilesModified(SSyncPeer *pPeer)
   char buf[2048]; 
   int len = read(pPeer->notifyFd, buf, sizeof(buf));
   if (len <0 && errno != EAGAIN) {
-    sError("vgId:%d peer:%s, failed to read notify FD(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));    
+    sError("vgId:%d peer:%s, failed to read notify FD(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));    
     return -1;
   }
     
   int code = 0; 
   if (len >0) { 
-    sTrace("vgId:%d peer:%s, processed file is changed", pNode->vgId, pPeer->ipstr);    
+    sTrace("vgId:%d peer:%s, processed file is changed", pNode->vgId, pPeer->fqdn);    
     code = 1;
   }
 
@@ -114,7 +114,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
 
     // if no file anymore, break
     if (fileInfo.magic == 0 || fileInfo.name[0] == 0) { 
-      sTrace("vgId:%d peer:%s, no more files to sync", pNode->vgId, pPeer->ipstr);    
+      sTrace("vgId:%d peer:%s, no more files to sync", pNode->vgId, pPeer->fqdn);    
       code = 0; break; 
     }
 
@@ -131,7 +131,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     // if sync is not required, continue
     if (fileAck.sync == 0) {
       fileInfo.index++; 
-      sTrace("vgId:%d peer:%s, %s is the same", pNode->vgId, pPeer->ipstr, fileInfo.name);    
+      sTrace("vgId:%d peer:%s, %s is the same", pNode->vgId, pPeer->fqdn, fileInfo.name);    
       continue; 
     }
 
@@ -143,7 +143,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     close(sfd); 
     if (ret <0) break;
 
-    sTrace("vgId:%d peer:%s, %s is sent, size:%d", pNode->vgId, pPeer->ipstr, name, fileInfo.size);    
+    sTrace("vgId:%d peer:%s, %s is sent, size:%d", pNode->vgId, pPeer->fqdn, name, fileInfo.size);    
     fileInfo.index++; 
 
     // check if processed files are modified 
@@ -151,7 +151,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
   }
 
   if (code < 0) {
-    sError("vgId:%d peer:%s, failed to retrieve file(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
+    sError("vgId:%d peer:%s, failed to retrieve file(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
   }
 
   return code;
@@ -193,13 +193,13 @@ static int syncMonitorLastWal(SSyncPeer *pPeer, char *name)
   tclose(pPeer->notifyFd);
   pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
   if (pPeer->notifyFd < 0) {
-    sError("vgId:%d peer:%s, failed to init inotify(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
+    sError("vgId:%d peer:%s, failed to init inotify(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
     return -1;
   }
 
   if (pPeer->watchFd == NULL) pPeer->watchFd = malloc(sizeof(int)*tsMaxWatchFiles);
   if (pPeer->watchFd == NULL) {
-    sError("vgId:%d peer:%s, failed to allocate watchFd", pNode->vgId, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to allocate watchFd", pNode->vgId, pPeer->fqdn);
     return -1;
   }
 
@@ -208,7 +208,7 @@ static int syncMonitorLastWal(SSyncPeer *pPeer, char *name)
  
   *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY | IN_CLOSE_WRITE);
   if (*wd == -1) {
-    sError("vgId:%d peer:%s, failed to watch last wal(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
+    sError("vgId:%d peer:%s, failed to watch last wal(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
     return -1;
   }
 
@@ -222,7 +222,7 @@ static uint32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent)
 
   int  len = read(pPeer->notifyFd, buf, sizeof(buf));
   if (len <0 && errno != EAGAIN) {
-    sError("vgId:%d peer:%s, failed to read notify FD(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));    
+    sError("vgId:%d peer:%s, failed to read notify FD(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));    
     return -1;
   }
     
@@ -236,7 +236,7 @@ static uint32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent)
   }
 
   if (pEvent != 0)
-    sTrace("vgId:%d peer:%s, last wal event:0x%x", pNode->vgId, pPeer->ipstr, *pEvent);
+    sTrace("vgId:%d peer:%s, last wal event:0x%x", pNode->vgId, pPeer->fqdn, *pEvent);
 
   return 0;
 }
@@ -252,14 +252,14 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, int fversion, int32
   sfd = open(name, O_RDONLY);
   if (sfd < 0) return -1;
   lseek(sfd, offset, SEEK_SET);
-  sTrace("vgId:%d peer:%s, retrieve last wal, offset:%d", pNode->vgId, pPeer->ipstr, offset);
+  sTrace("vgId:%d peer:%s, retrieve last wal, offset:%d", pNode->vgId, pPeer->fqdn, offset);
 
   while (1) {
     int wsize = syncReadOneWalRecord(sfd, pHead, pEvent); 
     if (wsize <0) break;
     if (wsize == 0) { code = 0; break; }
 
-    sTrace("vgId:%d peer:%s, last wal is forwarded, ver:%d ", pNode->vgId, pPeer->ipstr, pHead->version);
+    sTrace("vgId:%d peer:%s, last wal is forwarded, ver:%d ", pNode->vgId, pPeer->fqdn, pHead->version);
     int ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if ( ret != wsize ) break;
     pPeer->version = pHead->version;
@@ -296,7 +296,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
 
     // get full path to wal file
     sprintf(fname, "%s/%s", pNode->path, wname);
-    sTrace("vgId:%d peer:%s, start to retrieve last wal:%s", pNode->vgId, pPeer->ipstr, fname);
+    sTrace("vgId:%d peer:%s, start to retrieve last wal:%s", pNode->vgId, pPeer->fqdn, fname);
 
     // monitor last wal
     if (syncMonitorLastWal(pPeer, fname) <0) break;
@@ -331,7 +331,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
       // if bytes>0, file is updated, or fversion is not reached but file still open, read again 
       once = 1;
       offset += bytes; 
-      sTrace("vgId:%d peer:%s, retrieve last wal, bytes:%d", pNode->vgId, pPeer->ipstr, bytes);
+      sTrace("vgId:%d peer:%s, retrieve last wal, bytes:%d", pNode->vgId, pPeer->fqdn, bytes);
       event = event & (~IN_MODIFY); // clear IN_MODIFY flag 
     }
 
@@ -344,7 +344,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     if ( wname[0] == 0 ) {code = 0; break;}
 
     // current last wal is closed, there is a new one 
-    sTrace("vgId:%d peer:%s, last wal is closed, try new one", pNode->vgId, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, last wal is closed, try new one", pNode->vgId, pPeer->fqdn);
   }
 
   tclose(pPeer->notifyFd);
@@ -368,7 +368,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
     code = (*pNode->getWalInfo)(pNode->ahandle, wname, &index);   
     if (code < 0) break;  // error
     if (wname[0] == 0) {  // no wal file
-      sTrace("vgId:%d peer:%s, no wal file", pNode->vgId, pPeer->ipstr);
+      sTrace("vgId:%d peer:%s, no wal file", pNode->vgId, pPeer->fqdn);
       break;
     }    
       
@@ -385,7 +385,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
     if ( stat(fname, &fstat) < 0 ) break;
     size = fstat.st_size;
 
-    sTrace("vgId:%d peer:%s, retrieve wal:%s size:%d", pNode->vgId, pPeer->ipstr, fname, size);    
+    sTrace("vgId:%d peer:%s, retrieve wal:%s size:%d", pNode->vgId, pPeer->fqdn, fname, size);    
     int sfd = open(fname, O_RDONLY);
     if (sfd < 0) break;
 
@@ -399,13 +399,13 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
   }
 
   if (code == 0) {
-    sTrace("vgId:%d peer:%s, wal retrieve is finished", pNode->vgId, pPeer->ipstr);    
+    sTrace("vgId:%d peer:%s, wal retrieve is finished", pNode->vgId, pPeer->fqdn);    
     pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
     SWalHead walHead;
     memset(&walHead, 0, sizeof(walHead));
     code = taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead));
   } else {
-    sError("vgId:%d peer:%s, failed to send wal(%s)", pNode->vgId, pPeer->ipstr, strerror(errno));
+    sError("vgId:%d peer:%s, failed to send wal(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
   }
 
   return code;
@@ -421,21 +421,21 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
   firstPkt.vgId = pNode->vgId;
 
   if (write(pPeer->syncFd, (char *) &firstPkt, sizeof(firstPkt)) < 0) {
-    sError("vgId:%d peer:%s, failed to send syncCmd", pNode->vgId, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to send syncCmd", pNode->vgId, pPeer->fqdn);
     return -1;
   }
 
   pPeer->version = 0;  
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
-  sTrace("vgId:%d peer:%s, start to retrieve file", pNode->vgId, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, start to retrieve file", pNode->vgId, pPeer->fqdn);
   if (syncRetrieveFile(pPeer) < 0) {
-    sError("vgId:%d peer:%s, failed to retrieve file", pNode->vgId, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to retrieve file", pNode->vgId, pPeer->fqdn);
     return -1;
   }
 
-  sTrace("vgId:%d peer:%s, start to retrieve wal", pNode->vgId, pPeer->ipstr);
+  sTrace("vgId:%d peer:%s, start to retrieve wal", pNode->vgId, pPeer->fqdn);
   if (syncRetrieveWal(pPeer) < 0) {
-    sError("vgId:%d peer:%s, failed to retrieve wal", pNode->vgId, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to retrieve wal", pNode->vgId, pPeer->fqdn);
     return -1;
   }
 
@@ -450,18 +450,18 @@ void *syncRetrieveData(void *param)
   assert(pPeer->syncFd < 0);
   taosBlockSIGPIPE();
 
-  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, tsSyncPort, tsPrivateIp);
+  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
-    sError("vgId:%d peer:%s, failed to open socket to sync", pNode->vgId, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to open socket to sync", pNode->vgId, pPeer->fqdn);
     return NULL;    
   } else {
-    sPrint("vgId:%d peer:%s, sync tcp is setup", pNode->vgId, pPeer->ipstr);
+    sPrint("vgId:%d peer:%s, sync tcp is setup", pNode->vgId, pPeer->fqdn);
   }
   
   if (syncRetrieveDataStepByStep(pPeer) == 0) {
-    sTrace("vgId:%d peer:%s, sync retrieve process is successful", pNode->vgId, pPeer->ipstr);
+    sTrace("vgId:%d peer:%s, sync retrieve process is successful", pNode->vgId, pPeer->fqdn);
   } else {
-    sError("vgId:%d peer:%s, failed to retrieve data, restart connection", pNode->vgId, pPeer->ipstr);
+    sError("vgId:%d peer:%s, failed to retrieve data, restart connection", pNode->vgId, pPeer->fqdn);
     syncRestartConnection(pPeer);
   }
 
