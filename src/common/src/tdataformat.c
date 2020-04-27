@@ -166,36 +166,38 @@ void tdFreeDataRow(SDataRow row) {
  * @param offset: offset in the data row tuple, not including the data row header
  */
 int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
+  ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
   char *  ptr = dataRowAt(row, dataRowLen(row));
 
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      if (value == NULL) {
-        *(int32_t *)dataRowAt(row, toffset) = -1;
+      // set offset
+      *(int32_t *)dataRowAt(row, toffset) = dataRowLen(row);
+
+      // set length
+      int16_t slen = 0;
+      if (isNull(value, type)) {
+        slen = (type == TSDB_DATA_TYPE_BINARY) ? sizeof(int8_t) : sizeof(int32_t);
       } else {
-        int16_t slen = 0;
         if (type == TSDB_DATA_TYPE_BINARY) {
           slen = strnlen((char *)value, bytes);
         } else {
           slen = wcsnlen((wchar_t *)value, (bytes) / TSDB_NCHAR_SIZE) * TSDB_NCHAR_SIZE;
         } 
-        if (slen > bytes) return -1;
-
-        *(int32_t *)dataRowAt(row, toffset) = dataRowLen(row);
-        *(int16_t *)ptr = slen;
-        ptr += sizeof(int16_t);
-        memcpy((void *)ptr, value, slen);
-        dataRowLen(row) += (sizeof(int16_t) + slen);
       }
+
+      ASSERT(slen <= bytes);
+      *(int16_t *)ptr = slen;
+      ptr += sizeof(int16_t);
+
+      memcpy((void *)ptr, value, slen);
+      dataRowLen(row) += (sizeof(int16_t) + slen);
+
       break;
     default:
-      if (value == NULL) {
-        setNull(dataRowAt(row, toffset), type, bytes);
-      } else {
-        memcpy(dataRowAt(row, toffset), value, TYPE_BYTES[type]);
-      }
+      memcpy(dataRowAt(row, toffset), value, TYPE_BYTES[type]);
       break;
   }
 
@@ -212,15 +214,16 @@ SDataRow tdDataRowDup(SDataRow row) {
   return trow;
 }
 
-SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
+SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows, int exColBytes) {
   SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * maxCols);
   if (pCols == NULL) return NULL;
 
   pCols->maxRowSize = maxRowSize;
   pCols->maxCols = maxCols;
   pCols->maxPoints = maxRows;
+  pCols->exColBytes = exColBytes;
 
-  pCols->buf = malloc(maxRowSize * maxRows);
+  pCols->buf = malloc(maxRowSize * maxRows + exColBytes * maxCols);
   if (pCols->buf == NULL) {
     free(pCols);
     return NULL;
@@ -234,30 +237,34 @@ void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
   tdResetDataCols(pCols);
   pCols->numOfCols = schemaNCols(pSchema);
 
-  pCols->cols[0].pData = pCols->buf;
-  int offset = TD_DATA_ROW_HEAD_SIZE;
+  void *ptr = pCols->buf;
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     if (i > 0) {
       pCols->cols[i].pData = (char *)(pCols->cols[i - 1].pData) + schemaColAt(pSchema, i - 1)->bytes * pCols->maxPoints;
     }
     pCols->cols[i].type = colType(schemaColAt(pSchema, i));
     pCols->cols[i].bytes = colBytes(schemaColAt(pSchema, i));
-    pCols->cols[i].offset = offset;
+    pCols->cols[i].offset = colOffset(schemaColAt(pSchema, i)) + TD_DATA_ROW_HEAD_SIZE;
     pCols->cols[i].colId = colColId(schemaColAt(pSchema, i));
+    pCols->cols[i].pData = ptr;
 
-    offset += TYPE_BYTES[pCols->cols[i].type];
+    ptr = ptr + pCols->exColBytes + colBytes(schemaColAt(pSchema, i)) * pCols->maxPoints;
+    if (colType(schemaColAt(pSchema, i)) == TSDB_DATA_TYPE_BINARY ||
+        colType(schemaColAt(pSchema, i)) == TSDB_DATA_TYPE_NCHAR)
+      ptr = ptr + (sizeof(int32_t) + sizeof(int16_t)) * pCols->maxPoints;
   }
 }
 
 void tdFreeDataCols(SDataCols *pCols) {
   if (pCols) {
-    if (pCols->buf) free(pCols->buf);
+    tfree(pCols->buf);
     free(pCols);
   }
 }
 
 SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
-  SDataCols *pRet = tdNewDataCols(pDataCols->maxRowSize, pDataCols->maxCols, pDataCols->maxPoints);
+  SDataCols *pRet =
+      tdNewDataCols(pDataCols->maxRowSize, pDataCols->maxCols, pDataCols->maxPoints, pDataCols->exColBytes);
   if (pRet == NULL) return NULL;
 
   pRet->numOfCols = pDataCols->numOfCols;
@@ -272,7 +279,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
     pRet->cols[i].offset = pDataCols->cols[i].offset;
     pRet->cols[i].pData = (void *)((char *)pRet->buf + ((char *)(pDataCols->cols[i].pData) - (char *)(pDataCols->buf)));
 
-    if (keepData) memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pRet->cols[i].bytes * pDataCols->numOfPoints);
+    if (keepData) memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
   }
 
   return pRet;
@@ -288,22 +295,58 @@ void tdResetDataCols(SDataCols *pCols) {
 void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
   for (int i = 0; i < pCols->numOfCols; i++) {
     SDataCol *pCol = pCols->cols + i;
-    memcpy((void *)((char *)(pCol->pData) + pCol->len), dataRowAt(row, pCol->offset), pCol->bytes);
-    pCol->len += pCol->bytes;
+    void *ptr = NULL;
+    int32_t toffset = 0;
+
+    switch (pCol->type)
+    {
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:
+        if (pCols->numOfPoints == 0) pCol->len = sizeof(int32_t) * pCols->maxPoints;
+        toffset = *(int32_t *)dataRowAt(row, pCol->offset);
+        if (toffset < 0) {
+          // It is a NULL value
+          // TODO: make interface and macros to hide literal thing
+          ((int32_t *)pCol->pData)[pCols->numOfPoints] = -1;
+        } else {
+          ptr = dataRowAt(row, toffset);
+          // TODO: use interface to avoid int16_t stuff
+          memcpy(pCol->pData, ptr, *(int16_t *)ptr);
+          ((int32_t *)pCol->pData)[pCols->numOfPoints] = pCol->len;
+        }
+        break;
+      default:
+        ASSERT(pCol->len == TYPE_BYTES[pCol->type] * pCols->numOfPoints);
+        memcpy(pCol->pData + pCol->len, dataRowAt(row, pCol->offset), pCol->bytes);
+        pCol->len += pCol->bytes;
+        break;
+    }
   }
   pCols->numOfPoints++;
 }
 // Pop pointsToPop points from the SDataCols
 void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
   int pointsLeft = pCols->numOfPoints - pointsToPop;
+  if (pointsLeft < 0) return;
+  if (pointsLeft == 0) {
+    tdResetDataCols(pCols);
+    return;
+  }
 
   for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
-    SDataCol *p_col = pCols->cols + iCol;
-    if (p_col->len > 0) {
-      p_col->len = TYPE_BYTES[p_col->type] * pointsLeft;
-      if (pointsLeft > 0) {
-        memmove((void *)(p_col->pData), (void *)((char *)(p_col->pData) + TYPE_BYTES[p_col->type] * pointsToPop), p_col->len);
-      }
+    SDataCol *pCol = pCols->cols + iCol;
+    ASSERT(pCol->len > 0);
+    switch (pCol->type) {
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:
+        /* code */
+        break;
+      default:
+        ASSERT(pCol->len == TYPE_BYTES[pCol->type] * pCols->numOfPoints);
+        pCol->len = TYPE_BYTES[pCol->type] * pointsLeft;
+        memmove((void *)(pCol->pData), (void *)((char *)(pCol->pData) + TYPE_BYTES[pCol->type] * pointsToPop),
+                pCol->len);
+        break;
     }
   }
   pCols->numOfPoints = pointsLeft;

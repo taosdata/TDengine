@@ -22,6 +22,7 @@ extern "C" {
 
 #include "taosdef.h"
 
+#define COMP_OVERFLOW_BYTES 2
 #define BITS_PER_BYTE 8
 // Masks
 #define INT64MASK(_x) ((1ul << _x) - 1)

@@ -656,7 +656,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
 
     int toffset = 0;
     for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
-      tdAppendColVal(trow, isNull(p, pSchema[j].type) ? NULL : p, pSchema[j].type, pSchema[j].bytes, toffset);
+      tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
       toffset += TYPE_BYTES[pSchema[j].type];
       p += pSchema[j].bytes;
     }

@@ -5,6 +5,7 @@
 #include "tsdb.h"
 #include "tsdbMain.h"
 #include "tscompression.h"
+#include "tchecksum.h"
 
 #define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
 #define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
@@ -878,7 +879,9 @@ static void *tsdbCommitData(void *arg) {
   }
 
   if (tsdbInitWriteHelper(&whelper, pRepo) < 0) goto _exit;
-  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) goto _exit;
+  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock,
+                                 sizeof(TSCKSUM) + COMP_OVERFLOW_BYTES)) == NULL)
+    goto _exit;
 
   int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
   int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);

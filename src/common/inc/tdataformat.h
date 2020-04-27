@@ -110,6 +110,8 @@ typedef struct {
   int      maxRowSize;
   int      maxCols;    // max number of columns
   int      maxPoints;  // max number of points
+  int      exColBytes; // extra column bytes to allocate for each column
+
   int      numOfPoints;
   int      numOfCols;  // Total number of cols
   int      sversion;   // TODO: set sversion
@@ -122,7 +124,7 @@ typedef struct {
 #define dataColsKeyFirst(pCols) dataColsKeyAt(pCols, 0)
 #define dataColsKeyLast(pCols) dataColsKeyAt(pCols, (pCols)->numOfPoints - 1)
 
-SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
+SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows, int exColBytes);
 void       tdResetDataCols(SDataCols *pCols);
 void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
