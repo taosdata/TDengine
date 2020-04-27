@@ -2341,7 +2341,7 @@ SArray *loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBl
   }
 
   if (r == BLK_DATA_NO_NEEDED) {
-    qTrace("QInfo:%p slot:%d, data block ignored, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_QINFO_ADDR(pRuntimeEnv),
+    qTrace("QInfo:%p data block ignored, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_QINFO_ADDR(pRuntimeEnv),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
   } else if (r == BLK_DATA_FILEDS_NEEDED) {
     if (tsdbRetrieveDataBlockStatisInfo(pRuntimeEnv->pQueryHandle, pStatis) != TSDB_CODE_SUCCESS) {
@@ -4419,7 +4419,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
   setTagVal(pRuntimeEnv, &item->id, pQInfo->tsdb);
 
   qTrace("QInfo:%p query on (%d): uid:%" PRIu64 ", tid:%d, qrange:%" PRId64 "-%" PRId64, pQInfo, index,
-         item->id.uid, item->info->lastKey, item->info->win.ekey);
+         item->id.uid, item->id.tid, item->info->lastKey, item->info->win.ekey);
 
   STsdbQueryCond cond = {
       .twindow   = {item->info->lastKey, item->info->win.ekey},
@@ -4724,8 +4724,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
   pQuery->rec.total += pQuery->rec.rows;
 
   qTrace(
-      "QInfo %p, numOfTables:%d, index:%d, numOfGroups:%d, %d points returned, total:%d totalReturn:%d,"
-      " offset:%" PRId64,
+      "QInfo %p, numOfTables:%d, index:%d, numOfGroups:%d, %d points returned, total:%"PRId64", offset:%" PRId64,
       pQInfo, pQInfo->groupInfo.numOfTables, pQInfo->tableIndex, numOfGroups, pQuery->rec.rows, pQuery->rec.total,
       pQuery->limit.offset);
 }
