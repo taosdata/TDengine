@@ -350,7 +350,7 @@ class DbState():
         return "table_{}".format(tblNum)
 
     def getTableNameToDelete(self):
-        if self.tableNumQueue.isEmpty:
+        if self.tableNumQueue.isEmpty():
             return False
         tblNum = self.tableNumQueue.pop() # TODO: race condition!
         return "table_{}".format(tblNum)
