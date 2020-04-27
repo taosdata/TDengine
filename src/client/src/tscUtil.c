@@ -632,6 +632,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
 }
 
 static void trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
+  // TODO: optimize this function
   int32_t firstPartLen = 0;
 
   STableMeta*   pTableMeta = pTableDataBlock->pTableMeta;
