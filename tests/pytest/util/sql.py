@@ -44,7 +44,7 @@ class TDSql:
         except BaseException:
             expectErrNotOccured = False
         if expectErrNotOccured:
-            tdLog.exit("sql:%.40s, expect error not occured" % (sql))
+            tdLog.exit("failed: sql:%.40s, expect error not occured" % (sql))
         else:
             tdLog.info("sql:%.40s, expect error occured" % (sql))
 
@@ -71,26 +71,29 @@ class TDSql:
     def checkData(self, row, col, data):
         if row < 0:
             tdLog.exit(
-                "sql:%.40s, row:%d is smaller than zero" %
+                "failed: sql:%.40s, row:%d is smaller than zero" %
                 (self.sql, row))
         if col < 0:
             tdLog.exit(
-                "sql:%.40s, col:%d is smaller than zero" %
+                "failed: sql:%.40s, col:%d is smaller than zero" %
                 (self.sql, col))
         if row >= self.queryRows:
             tdLog.exit(
-                "sql:%.40s, row:%d is larger than queryRows:%d" %
+                "failed: sql:%.40s, row:%d is larger than queryRows:%d" %
                 (self.sql, row, self.queryRows))
         if col >= self.queryCols:
             tdLog.exit(
-                "sql:%.40s, col:%d is larger than queryRows:%d" %
+                "failed: sql:%.40s, col:%d is larger than queryRows:%d" %
                 (self.sql, col, self.queryCols))
         if self.queryResult[row][col] != data:
             tdLog.exit(
-                "sql:%.40s row:%d col:%d data:%s != expect:%s" %
+                "failed: sql:%.40s row:%d col:%d data:%s != expect:%s" %
                 (self.sql, row, col, self.queryResult[row][col], data))
 
         if data is None:
+            tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
+                       (self.sql, row, col, self.queryResult[row][col], data))
+        elif isinstance(data, datetime.date):
             tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))
         else:
@@ -100,19 +103,19 @@ class TDSql:
     def getData(self, row, col):
         if row < 0:
             tdLog.exit(
-                "sql:%.40s, row:%d is smaller than zero" %
+                "failed: sql:%.40s, row:%d is smaller than zero" %
                 (self.sql, row))
         if col < 0:
             tdLog.exit(
-                "sql:%.40s, col:%d is smaller than zero" %
+                "failed: sql:%.40s, col:%d is smaller than zero" %
                 (self.sql, col))
         if row >= self.queryRows:
             tdLog.exit(
-                "sql:%.40s, row:%d is larger than queryRows:%d" %
+                "failed: sql:%.40s, row:%d is larger than queryRows:%d" %
                 (self.sql, row, self.queryRows))
         if col >= self.queryCols:
             tdLog.exit(
-                "sql:%.40s, col:%d is larger than queryRows:%d" %
+                "failed: sql:%.40s, col:%d is larger than queryRows:%d" %
                 (self.sql, col, self.queryCols))
         return self.queryResult[row][col]
 
@@ -131,7 +134,7 @@ class TDSql:
 
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
-            tdLog.exit("sql:%.40s, affectedRows:%d != expect:%d" %
+            tdLog.exit("failed: sql:%.40s, affectedRows:%d != expect:%d" %
                        (self.sql, self.affectedRows, expectAffectedRows))
         tdLog.info("sql:%.40s, affectedRows:%d == expect:%d" %
                    (self.sql, self.affectedRows, expectAffectedRows))
