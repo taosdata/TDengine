@@ -30,7 +30,6 @@
 
 #include "taos.h"
 #include "taosmsg.h"
-#include "tglobal.h"
 #include "tsclient.h"
 #include "taosdef.h"
 #include "tutil.h"
@@ -360,7 +359,7 @@ int main(int argc, char *argv[]) {
 
 void taosFreeDbInfos() {
   if (dbInfos == NULL) return;
-  for (int i = 0; i < tsMaxDbs; i++) tfree(dbInfos[i]);
+  for (int i = 0; i < TSDB_MAX_DBS; i++) tfree(dbInfos[i]);
   tfree(dbInfos);
 }
 
@@ -440,7 +439,7 @@ int taosDumpOut(struct arguments *arguments) {
     return -1;
   }
 
-  dbInfos = (SDbInfo **)calloc(tsMaxDbs, sizeof(SDbInfo *));
+  dbInfos = (SDbInfo **)calloc(TSDB_MAX_DBS, sizeof(SDbInfo *));
   if (dbInfos == NULL) {
     fprintf(stderr, "failed to allocate memory\n");
     goto _exit_failure;

@@ -43,7 +43,7 @@ lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
 cfg_dir="${top_dir}/packaging/cfg"
 install_files="${script_dir}/install.sh"
-nginx_dir="${code_dir}/../../enterprise/src/modules/web"
+nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 
 # Init file
 #init_dir=${script_dir}/deb

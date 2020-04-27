@@ -26,10 +26,6 @@ matrix:
           - python3-setuptools
           - valgrind
 
-    before_install:
-      - sudo apt update -y -qq
-      - sudo apt install -y net-tools python-pip python-setuptools python3-pip python3-setuptools valgrind
-
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
@@ -44,7 +40,7 @@ matrix:
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          sudo make install || travis_terminate $?
+          make install || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -63,11 +59,14 @@ matrix:
           GREEN_UNDERLINE='\033[4;32m'
           NC='\033[0m'
 
+          tail -10 mem-error-out.txt
+          defiMemError=`grep -m 1 'definitely lost' mem-error-out.txt | awk '{print $7}'`
           memError=`grep -m 1 'ERROR SUMMARY' mem-error-out.txt | awk '{print $4}'`
 
           if [ -n "$memError" ]; then
-            if [ "$memError" -gt 23 ]; then
-              echo -e "${RED} ## Memory errors number valgrind reports is $memError. More than our threshold! ## ${NC} "
+            if [ "$memError" -gt 16 ] || [ "$defiMemError" -gt 0 ]; then
+              echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
+                       Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
               travis_terminate $memError
             fi
           fi
@@ -131,10 +130,6 @@ matrix:
           - python3-setuptools
           - lcov
 
-    before_install:
-      - sudo apt update -y -qq
-      - sudo apt install -y net-tools python-pip python-setuptools python3-pip python3-setuptools lcov
-
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
@@ -149,7 +144,7 @@ matrix:
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          sudo make install || travis_terminate $?
+          make install || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -162,7 +157,7 @@ matrix:
             travis_terminate $?
           fi
 
-          sudo pkill taosd
+          pkill taosd
           sleep 1
 
           cd ${TRAVIS_BUILD_DIR}

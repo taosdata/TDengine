@@ -613,7 +613,7 @@ static void tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, in
 }
 
 // data block is disordered, sort it in ascending order
-void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
+void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
   SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
 
   // size is less than the total size, since duplicated rows may be removed yet.
@@ -779,7 +779,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    setMeterID(pSTableMeterMetaInfo, &sToken, pSql);
+    tscSetTableId(pSTableMeterMetaInfo, &sToken, pSql);
 
     strncpy(pTag->name, pSTableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
@@ -922,7 +922,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
 
-    int32_t ret = setMeterID(pTableMetaInfo, &tableToken, pSql);
+    int32_t ret = tscSetTableId(pTableMetaInfo, &tableToken, pSql);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -1059,7 +1059,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
 
-    if ((code = setMeterID(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableId(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }
 

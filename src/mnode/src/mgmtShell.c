@@ -151,8 +151,13 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
     
     SRpcIpSet ipSet = {0};
-    mgmtGetMnodeIpSet(&ipSet, usePublicIp);
-    mTrace("conn from ip:%s user:%s redirect msg", taosIpStr(connInfo.clientIp), connInfo.user);
+    ipSet.port = tsMnodeShellPort;
+    dnodeGetMnodeIpSet(&ipSet, usePublicIp);
+    mTrace("conn from shell ip:%s user:%s redirect msg, inUse:%d", taosIpStr(connInfo.clientIp), connInfo.user, ipSet.inUse);
+    for (int32_t i = 0; i < ipSet.numOfIps; ++i) {
+      mTrace("index:%d ip:%s", i, taosIpStr(ipSet.ip[i]));
+    }
+
     rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
     return;
   }
@@ -359,7 +364,7 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
 }
 
 static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  *spi = 0;
+  *spi = 1;
   *encrypt = 0;
   *ckey = 0;
 
@@ -429,9 +434,9 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
 connect_over:
   rpcRsp.code = code;
   if (code != TSDB_CODE_SUCCESS) {
-    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
+    mLError("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));
   } else {
-    mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
+    mLPrint("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));
     rpcRsp.pCont   = pConnectRsp;
     rpcRsp.contLen = sizeof(SCMConnectRsp);
   }
@@ -488,7 +493,7 @@ static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg) {
-  mError("%s is not processed in shell", taosMsg[rpcMsg->msgType]);
+  mError("%s is not processed in mnode shell", taosMsg[rpcMsg->msgType]);
   SRpcMsg rpcRsp = {
     .msgType = 0,
     .pCont   = 0,

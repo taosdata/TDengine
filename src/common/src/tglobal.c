@@ -74,43 +74,40 @@ int32_t tsVnodePeerHBTimer = 1;       // second
 int32_t tsMgmtPeerHBTimer = 1;        // second
 int32_t tsMeterMetaKeepTimer = 7200;  // second
 int32_t tsMetricMetaKeepTimer = 600;  // second
-int tsRpcTimer = 300;
-int tsRpcMaxTime = 600;      // seconds;
+int32_t tsRpcTimer = 300;
+int32_t tsRpcMaxTime = 600;      // seconds;
 
-float tsNumOfThreadsPerCore = 1.0;
-float tsRatioOfQueryThreads = 0.5;
-char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
+float   tsNumOfThreadsPerCore = 1.0;
+float   tsRatioOfQueryThreads = 0.5;
+char    tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
+char    tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
 int16_t tsNumOfVnodesPerCore = 8;
 int16_t tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
-int16_t tsCheckHeaderFile = 0;
 
 #ifdef _TD_ARM_32_
-int32_t tsSessionsPerVnode = 100;
+int32_t tsTablesPerVnode = 100;
 #else
-int32_t tsSessionsPerVnode = 1000;
+int32_t tsTablesPerVnode = TSDB_DEFAULT_TABLES;
 #endif
 
-int32_t tsCacheBlockSize = 16384;  // 256 columns
-int32_t tsAverageCacheBlocks = TSDB_DEFAULT_AVG_BLOCKS;
+int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+int32_t tsTotalBlocks = TSDB_DEFAULT_TOTAL_BLOCKS;
+int16_t tsDaysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
+int32_t tsDaysToKeep = TSDB_DEFAULT_KEEP;
+int32_t tsMinRowsInFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
+int32_t tsMaxRowsInFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
+int16_t tsCommitTime = TSDB_DEFAULT_COMMIT_TIME;  // seconds
+int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
+int16_t tsCompression = TSDB_DEFAULT_COMP_LEVEL;
+int16_t tsCommitLog = TSDB_DEFAULT_CLOG_LEVEL;
+int32_t tsReplications = TSDB_DEFAULT_REPLICA_NUM;
+
 /**
  * Change the meaning of affected rows:
  * 0: affected rows not include those duplicate records
  * 1: affected rows include those duplicate records
  */
 int16_t tsAffectedRowsMod = 0;
-
-int32_t tsRowsInFileBlock = 4096;
-float   tsFileBlockMinPercent = 0.05;
-
-int16_t tsNumOfBlocksPerMeter = 100;
-int16_t tsCommitTime = 3600;  // seconds
-int16_t tsCommitLog = 1;
-int16_t tsCompression = TSDB_MAX_COMPRESSION_LEVEL;
-int16_t tsDaysPerFile = 10;
-int32_t tsDaysToKeep = 3650;
-int32_t tsReplications = TSDB_REPLICA_MIN_NUM;
-
 int32_t tsNumOfMPeers = 3;
 int32_t tsMaxShellConns = 2000;
 int32_t tsMaxTables = 100000;
@@ -125,15 +122,16 @@ int32_t tsMaxVnodeConnections = 10000;
 
 int32_t tsBalanceMonitorInterval = 2;  // seconds
 int32_t tsBalanceStartInterval = 300;  // seconds
-int32_t tsBalancePolicy = 0;           // 1-use sys.montor
 int32_t tsOfflineThreshold = 864000;   // seconds 10days
 int32_t tsMgmtEqualVnodeNum = 4;
 
 int32_t tsEnableHttpModule = 1;
 int32_t tsEnableMonitorModule = 0;
+
 int32_t tsRestRowLimit = 10240;
 int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
+int32_t tsNumOfLogLines = 10000000;
 int32_t mdebugFlag = 135;
 int32_t sdbDebugFlag = 135;
 int32_t ddebugFlag = 131;
@@ -146,7 +144,6 @@ int32_t qdebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
-int tsNumOfLogLines = 10000000;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -164,9 +161,6 @@ int32_t tsCompressMsgSize = -1;
 
 // use UDP by default[option: udp, tcp]
 char tsSocketType[4] = "udp";
-
-// time precision, millisecond by default
-int32_t tsTimePrecision = TSDB_TIME_PRECISION_MILLI;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
@@ -575,16 +569,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
   taosInitConfigOption(cfg);
 
-  cfg.option = "ctime";
-  cfg.ptr = &tsCommitTime;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 30;
-  cfg.maxValue = 40960;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
-
   cfg.option = "statusInterval";
   cfg.ptr = &tsStatusInterval;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -686,62 +670,12 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   // database configs
-  cfg.option = "clog";
-  cfg.ptr = &tsCommitLog;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 2;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "comp";
-  cfg.ptr = &tsCompression;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 2;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "days";
-  cfg.ptr = &tsDaysPerFile;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 365;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "keep";
-  cfg.ptr = &tsDaysToKeep;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 365000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "replica";
-  cfg.ptr = &tsReplications;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 3;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "tables";
-  cfg.ptr = &tsSessionsPerVnode;
+  cfg.ptr = &tsTablesPerVnode;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_TABLES_PER_VNODE;
-  cfg.maxValue = TSDB_MAX_TABLES_PER_VNODE;
+  cfg.minValue = TSDB_MIN_TABLES;
+  cfg.maxValue = TSDB_MAX_TABLES;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -750,48 +684,98 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsCacheBlockSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 100;
-  cfg.maxValue = 1048576;
+  cfg.minValue = TSDB_MIN_CACHE_BLOCK_SIZE;
+  cfg.maxValue = TSDB_MAX_CACHE_BLOCK_SIZE;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "rows";
-  cfg.ptr = &tsRowsInFileBlock;
+  cfg.option = "blocks";
+  cfg.ptr = &tsTotalBlocks;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 200;
-  cfg.maxValue = 1048576;
+  cfg.minValue = TSDB_MIN_TOTAL_BLOCKS;
+  cfg.maxValue = TSDB_MAX_TOTAL_BLOCKS;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "fileBlockMinPercent";
-  cfg.ptr = &tsFileBlockMinPercent;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1.0;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "ablocks";
-  cfg.ptr = &tsAverageCacheBlocks;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_AVG_BLOCKS;
-  cfg.maxValue = TSDB_MAX_AVG_BLOCKS;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "tblocks";
-  cfg.ptr = &tsNumOfBlocksPerMeter;
+  cfg.option = "days";
+  cfg.ptr = &tsDaysPerFile;
   cfg.valType = TAOS_CFG_VTYPE_INT16;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 32;
-  cfg.maxValue = 4096;
+  cfg.minValue = TSDB_MIN_DAYS_PER_FILE;
+  cfg.maxValue = TSDB_MAX_DAYS_PER_FILE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "keep";
+  cfg.ptr = &tsDaysToKeep;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_KEEP;
+  cfg.maxValue = TSDB_MAX_KEEP;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "minRows";
+  cfg.ptr = &tsMinRowsInFileBlock;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_MIN_ROW_FBLOCK;
+  cfg.maxValue = TSDB_MAX_MIN_ROW_FBLOCK;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxRows";
+  cfg.ptr = &tsMaxRowsInFileBlock;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_MAX_ROW_FBLOCK;
+  cfg.maxValue = TSDB_MAX_MAX_ROW_FBLOCK;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "ctime";
+  cfg.ptr = &tsCommitTime;
+  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_COMMIT_TIME;
+  cfg.maxValue = TSDB_MAX_COMMIT_TIME;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "comp";
+  cfg.ptr = &tsCompression;
+  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_COMP_LEVEL;
+  cfg.maxValue = TSDB_MAX_COMP_LEVEL;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "clog";
+  cfg.ptr = &tsCommitLog;
+  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_CLOG_LEVEL;
+  cfg.maxValue = TSDB_MAX_CLOG_LEVEL;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "replica";
+  cfg.ptr = &tsReplications;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_REPLICA_NUM;
+  cfg.maxValue = TSDB_MAX_REPLICA_NUM;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

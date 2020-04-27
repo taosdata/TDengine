@@ -33,6 +33,7 @@ Target/
 *.failed
 *.sql
 sim/
+*DS_Store
 
 # Doxygen Generated files
 html/

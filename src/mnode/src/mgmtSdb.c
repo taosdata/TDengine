@@ -400,6 +400,8 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 
   if (pTable->keyType == SDB_KEY_AUTO) {
     pTable->autoIndex = MAX(pTable->autoIndex, *((uint32_t *)pOper->pObj));
+  } else {
+    pTable->autoIndex++;
   }
 
   pthread_mutex_unlock(&pTable->mutex);

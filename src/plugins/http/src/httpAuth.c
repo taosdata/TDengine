@@ -13,12 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
+#include "tkey.h"
 #include "tutil.h"
 #include "http.h"
 #include "httpLog.h"
 #include "httpHandle.h"
-#include "tkey.h"
+
 #define KEY_DES_4 4971256377704625728L
 
 bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {

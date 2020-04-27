@@ -72,7 +72,7 @@ void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t t
  * @param len
  * @param type
  */
-void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t type) {
+void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
@@ -109,10 +109,10 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
       
       break;
     }
-    case TSDB_DATA_TYPE_BINARY: {
-      pVar->pz = strndup(pz, len);
-      pVar->nLen = strdequote(pVar->pz);
-      
+    case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
+      pVar->pz = calloc(len, sizeof(char));
+      memcpy(pVar->pz, pz, len);
+      pVar->nLen = len;
       break;
     }
     
@@ -130,6 +130,17 @@ void tVariantDestroy(tVariant *pVar) {
     tfree(pVar->pz);
     pVar->nLen = 0;
   }
+
+  // NOTE: this is only for string array
+  if (pVar->nType == TSDB_DATA_TYPE_ARRAY) {
+    size_t num = taosArrayGetSize(pVar->arr);
+    for(size_t i = 0; i < num; i++) {
+      void* p = taosArrayGetP(pVar->arr, i);
+      free(p);
+    }
+    taosArrayDestroy(pVar->arr);
+    pVar->arr = NULL;
+  }
 }
 
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
@@ -145,6 +156,18 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
     
     pDst->pz = calloc(1, len);
     memcpy(pDst->pz, pSrc->pz, len);
+    return;
+  }
+
+  // this is only for string array
+  if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {
+    size_t num = taosArrayGetSize(pSrc->arr);
+    pDst->arr = taosArrayInit(num, sizeof(char*));
+    for(size_t i = 0; i < num; i++) {
+      char* p = (char*)taosArrayGetP(pSrc->arr, i);
+      char* n = strdup(p);
+      taosArrayPush(pDst->arr, &n);
+    }
   }
 }
 

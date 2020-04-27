@@ -224,11 +224,10 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   int32_t code = 0;
 
   dTrace("pVnode:%p vgId:%d, stable:%s, start to drop", pVnode, pVnode->vgId, pTable->tableId);
-  // int64_t uid = htobe64(pTable->uid);
-
   // TODO: drop stable in vvnode
+  //int64_t uid = htobe64(pTable->uid);
   //void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
-  //rpcRsp.code = tsdbDropSTable(pTsdb, pTable->uid);
+  //rpcRsp.code = tsdbDropTable(pTsdb, pTable->uid);
 
   code = TSDB_CODE_SUCCESS;
   dTrace("pVnode:%p vgId:%d, stable:%s, drop stable result:%x", pVnode, pTable->tableId, code);

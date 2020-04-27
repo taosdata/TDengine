@@ -20,16 +20,17 @@
 #include "taosmsg.h"
 #include "trpc.h"
 #include "tglobal.h"
+#include "http.h"
 #include "dnode.h"
 #include "dnodeLog.h"
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
 #include "dnodeShell.h"
 
-static void (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
-static void   dnodeProcessMsgFromShell(SRpcMsg *pMsg);
-static int    dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
-static void  *tsDnodeShellRpc = NULL;
+static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
+static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg);
+static int     dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+static void  * tsDnodeShellRpc = NULL;
 static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
@@ -110,7 +111,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
 SDnodeStatisInfo dnodeGetStatisInfo() {
   SDnodeStatisInfo info = {0};
   if (dnodeGetRunStatus() == TSDB_DNODE_RUN_STATUS_RUNING) {
-    //info.httpReqNum   = httpGetReqCount();
+    info.httpReqNum   = httpGetReqCount();
     info.queryReqNum  = atomic_exchange_32(&tsDnodeQueryReqNum, 0);
     info.submitReqNum = atomic_exchange_32(&tsDnodeSubmitReqNum, 0);
   }

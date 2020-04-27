@@ -42,9 +42,9 @@ static void median(void *src, size_t size, size_t s, size_t e, const void *param
   assert(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 && comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) <= 0);
 
 #ifdef _DEBUG_VIEW
-  tTagsPrints(src[s], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
-  tTagsPrints(src[mid], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
-  tTagsPrints(src[e], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
+//  tTagsPrints(src[s], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
+//  tTagsPrints(src[mid], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
+//  tTagsPrints(src[e], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
 #endif
 }
 

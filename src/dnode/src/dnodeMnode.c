@@ -88,7 +88,7 @@ static void dnodeProcessMsgFromMnode(SRpcMsg *pMsg) {
   if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
     (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
   } else {
-    dError("%s is not processed in mserver", taosMsg[pMsg->msgType]);
+    dError("%s is not processed in dnode mserver", taosMsg[pMsg->msgType]);
     rspMsg.code = TSDB_CODE_MSG_NOT_PROCESSED;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);

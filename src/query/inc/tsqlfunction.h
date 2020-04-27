@@ -114,11 +114,11 @@ enum {
 #define QUERY_IS_FREE_RESOURCE(type) (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
 
 typedef struct SArithmeticSupport {
-  SSqlFunctionExpr *pExpr;
-  int32_t           elemSize[TSDB_MAX_COLUMNS];
+  SArithExprInfo   *pArithExpr;
   int32_t           numOfCols;
+  SColumnInfo*      colList;
   int32_t           offset;
-  char *            data[TSDB_MAX_COLUMNS];
+  char**            data;
 } SArithmeticSupport;
 
 typedef struct SQLPreAggVal {

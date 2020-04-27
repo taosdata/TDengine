@@ -39,9 +39,4 @@ extern int32_t httpDebugFlag;
 #define httpPrint(...) \
   { taosPrintLog("HTP ", 255, __VA_ARGS__); }
 
-#define httpLError(...) taosLogError(__VA_ARGS__) httpError(__VA_ARGS__)
-#define httpLWarn(...) taosLogWarn(__VA_ARGS__) httpWarn(__VA_ARGS__)
-#define httpLPrint(...) taosLogPrint(__VA_ARGS__) httpPrint(__VA_ARGS__)
-
-
 #endif

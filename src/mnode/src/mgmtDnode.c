@@ -260,7 +260,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   }
   uint32_t dnodeIp = inet_addr(pCmCfgDnode->ip);
 
-  if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
     SRpcIpSet ipSet = mgmtGetIpSetFromIp(dnodeIp);
@@ -343,6 +343,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
     pVload->vgId = htonl(pVload->vgId);
+    pVload->cfgVersion = htonl(pVload->cfgVersion);
 
     SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
@@ -469,7 +470,7 @@ static void mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
   
   SCMCreateDnodeMsg *pCreate = pMsg->pCont;
 
-  if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
     uint32_t ip = inet_addr(pCreate->ip);
@@ -489,7 +490,7 @@ static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMDropDnodeMsg *pDrop = pMsg->pCont;
-  if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
     uint32_t ip = inet_addr(pDrop->ip);

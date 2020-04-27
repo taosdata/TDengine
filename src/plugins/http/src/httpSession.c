@@ -13,20 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-
-#include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
-#include "httpResp.h"
-
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "shash.h"
 #include "taos.h"
 #include "ttime.h"
 #include "ttimer.h"
+#include "http.h"
 #include "httpLog.h"
+#include "httpCode.h"
+#include "httpHandle.h"
+#include "httpResp.h"
+
 
 void httpAccessSession(HttpContext *pContext) {
   HttpServer *server = pContext->pThread->pServer;

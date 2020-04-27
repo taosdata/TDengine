@@ -106,7 +106,7 @@ if $system_content != @{"status":"error","code":1029,"desc":"metric name length 
   return -1
 endi
 
-system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
 print $system_content
 
 if $system_content != @{"status":"error","code":1030,"desc":"metric name length too long"}@ then
@@ -204,7 +204,7 @@ if $system_content != @{"status":"error","code":1042,"desc":"table is null"}@ th
   return -1
 endi
 
-system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"host111111111111222222222222222222222host111111111111222222222222222222222"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
 print $system_content
 
 if $system_content != @{"status":"error","code":1043,"desc":"table name length too long"}@ then
