@@ -197,7 +197,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
-  sprintf(syncInfo.path, "%s/tsdb/", rootDir);
+  sprintf(syncInfo.path, "%s", rootDir);
   syncInfo.ahandle = pVnode;
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
