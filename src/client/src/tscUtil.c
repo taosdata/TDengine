@@ -631,9 +631,9 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
   return TSDB_CODE_SUCCESS;
 }
 
-static void trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
+static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
   // TODO: optimize this function
-  int32_t firstPartLen = 0;
+  int len = 0;
 
   STableMeta*   pTableMeta = pTableDataBlock->pTableMeta;
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
@@ -666,7 +666,9 @@ static void trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
     pBlock->len += dataRowLen(trow);
   }
 
+  len = pBlock->len;
   pBlock->len = htonl(pBlock->len);
+  return len;
 }
 
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockList) {
@@ -729,7 +731,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     pBlocks->len = htonl(len);
     
     // erase the empty space reserved for binary data
-    trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock);
+    len = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock);
     dataBuf->size += (len + sizeof(SSubmitBlk));
     dataBuf->numOfTables += 1;
   }
