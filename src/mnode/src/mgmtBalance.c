@@ -17,6 +17,7 @@
 #include "os.h"
 #include "trpc.h"
 #include "tbalance.h"
+#include "tglobal.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtMnode.h"
@@ -41,7 +42,10 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
     if (pDnode == NULL) break;
 
     if (pDnode->totalVnodes > 0 && pDnode->openVnodes < pDnode->totalVnodes) {
-      float usage = (float)pDnode->openVnodes / pDnode->totalVnodes;
+      float openVnodes = pDnode->openVnodes;
+      if (pDnode->isMgmt) openVnodes += tsMgmtEqualVnodeNum;
+
+      float usage = openVnodes / pDnode->totalVnodes;
       if (usage <= vnodeUsage) {
         pSelDnode = pDnode;
         vnodeUsage = usage;

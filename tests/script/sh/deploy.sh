@@ -101,6 +101,7 @@ echo "monitorDebugFlag    131"            >> $TAOS_CFG
 echo "udebugFlag          131"            >> $TAOS_CFG
 echo "jnidebugFlag        131"            >> $TAOS_CFG
 echo "monitor             0"              >> $TAOS_CFG
+echo "http                0"              >> $TAOS_CFG
 echo "numOfThreadsPerCore 2.0"            >> $TAOS_CFG
 echo "defaultPass         taosdata"       >> $TAOS_CFG
 echo "numOfLogLines       100000000"      >> $TAOS_CFG
