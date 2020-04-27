@@ -52,25 +52,6 @@ typedef struct SCleanupAction {
     } arg1, arg2;
 } SCleanupAction;
 
-void cleanupPush_void_ptr_ptr   ( bool failOnly, void* func, void* arg1, void* arg2 );
-void cleanupPush_void_ptr_bool  ( bool failOnly, void* func, void* arg1, bool arg2 );
-void cleanupPush_void_ptr       ( bool failOnly, void* func, void* arg );
-void cleanupPush_int_int        ( bool failOnly, void* func, int arg );
-void cleanupPush_void           ( bool failOnly, void* func );
-
-int32_t cleanupGetActionCount();
-void cleanupExecute( int32_t anchor, bool failed );
-
-#define CLEANUP_PUSH_VOID_PTR_PTR( failOnly, func, arg1, arg2 )  cleanupPush_void_ptr_ptr( (failOnly), (void*)(func), (void*)(arg1), (void*)(arg2) )
-#define CLEANUP_PUSH_VOID_PTR_BOOL( failOnly, func, arg1, arg2 ) cleanupPush_void_ptr_bool( (failOnly), (void*)(func), (void*)(arg1), (bool)(arg2) )
-#define CLEANUP_PUSH_VOID_PTR( failOnly, func, arg )             cleanupPush_void_ptr( (failOnly), (void*)(func), (void*)(arg) )
-#define CLEANUP_PUSH_INT_INT( failOnly, func, arg )              cleanupPush_void_ptr( (failOnly), (void*)(func), (int)(arg) )
-#define CLEANUP_PUSH_VOID( failOnly, func )                      cleanupPush_void( (failOnly), (void*)(func) )
-#define CLEANUP_PUSH_FREE( failOnly, arg )                       cleanupPush_void_ptr( (failOnly), free, (void*)(arg) )
-#define CLEANUP_PUSH_CLOSE( failOnly, arg )                      cleanupPush_int_int( (failOnly), close, (int)(arg) )
-
-#define CLEANUP_CREATE_ANCHOR()     int32_t cleanupAnchor = cleanupGetActionCount()
-#define CLEANUP_EXECUTE( failed )   cleanupExecute( cleanupAnchor, (failed) )
 
 /*
  * exception hander registration
@@ -84,29 +65,57 @@ typedef struct SExceptionNode {
    SCleanupAction* cleanupActions;
 } SExceptionNode;
 
+////////////////////////////////////////////////////////////////////////////////
+// functions & macros for auto-cleanup
+
+void cleanupPush_void_ptr_ptr   ( bool failOnly, void* func, void* arg1, void* arg2 );
+void cleanupPush_void_ptr_bool  ( bool failOnly, void* func, void* arg1, bool arg2 );
+void cleanupPush_void_ptr       ( bool failOnly, void* func, void* arg );
+void cleanupPush_int_int        ( bool failOnly, void* func, int arg );
+void cleanupPush_void           ( bool failOnly, void* func );
+
+int32_t cleanupGetActionCount();
+void cleanupExecuteTo( int32_t anchor, bool failed );
+void cleanupExecute( SExceptionNode* node, bool failed );
+
+#define CLEANUP_PUSH_VOID_PTR_PTR( failOnly, func, arg1, arg2 )  cleanupPush_void_ptr_ptr( (failOnly), (void*)(func), (void*)(arg1), (void*)(arg2) )
+#define CLEANUP_PUSH_VOID_PTR_BOOL( failOnly, func, arg1, arg2 ) cleanupPush_void_ptr_bool( (failOnly), (void*)(func), (void*)(arg1), (bool)(arg2) )
+#define CLEANUP_PUSH_VOID_PTR( failOnly, func, arg )             cleanupPush_void_ptr( (failOnly), (void*)(func), (void*)(arg) )
+#define CLEANUP_PUSH_INT_INT( failOnly, func, arg )              cleanupPush_void_ptr( (failOnly), (void*)(func), (int)(arg) )
+#define CLEANUP_PUSH_VOID( failOnly, func )                      cleanupPush_void( (failOnly), (void*)(func) )
+#define CLEANUP_PUSH_FREE( failOnly, arg )                       cleanupPush_void_ptr( (failOnly), free, (void*)(arg) )
+#define CLEANUP_PUSH_CLOSE( failOnly, arg )                      cleanupPush_int_int( (failOnly), close, (int)(arg) )
+
+#define CLEANUP_GET_ANCHOR()          cleanupGetActionCount()
+#define CLEANUP_EXECUTE_TO( anchor, failed )  cleanupExecuteTo( (anchor), (failed) )
+
+
+////////////////////////////////////////////////////////////////////////////////
+// functions & macros for exception handling
+
 void exceptionPushNode( SExceptionNode* node );
 int32_t exceptionPopNode();
 void exceptionThrow( int code );
 
 #define TRY(maxCleanupActions) do { \
     SExceptionNode exceptionNode = { 0 }; \
-    SDeferedOperation cleanupActions[maxCleanupActions > 0 ? maxCleanupActions : 1]; \
-    exceptionNode.maxCleanupAction = maxCleanupActions > 0 ? maxDefered : 1; \
+    SCleanupAction cleanupActions[(maxCleanupActions) > 0 ? (maxCleanupActions) : 1]; \
+    exceptionNode.maxCleanupAction = (maxCleanupActions) > 0 ? (maxCleanupActions) : 1; \
     exceptionNode.cleanupActions = cleanupActions; \
-    int32_t cleanupAnchor = 0; \
     exceptionPushNode( &exceptionNode ); \
     int caughtException = setjmp( exceptionNode.jb ); \
     if( caughtException == 0 )
 
 #define CATCH( code ) int code = exceptionPopNode(); \
-    if( caughtEexception == 1 )
+    if( caughtException == 1 )
 
 #define FINALLY( code ) int code = exceptionPopNode();
 
 #define END_TRY } while( 0 );
 
 #define THROW( x )          exceptionThrow( (x) )
-#define CAUGHT_EXCEPTION()  ((bool)(caughtEexception == 1))
+#define CAUGHT_EXCEPTION()  ((bool)(caughtException == 1))
+#define CLEANUP_EXECUTE()   cleanupExecute( &exceptionNode, CAUGHT_EXCEPTION() )
 
 #ifdef __cplusplus
 }

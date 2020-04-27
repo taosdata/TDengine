@@ -114,11 +114,19 @@ int32_t cleanupGetActionCount() {
 }
 
 
-void cleanupExecute( int32_t anchor, bool failed ) {
-    while( expList->numCleanupAction > anchor ) {
-        --expList->numCleanupAction;
-        SCleanupAction *ca = expList->cleanupActions + expList->numCleanupAction;
+static void doExecuteCleanup( SExceptionNode* node, int32_t anchor, bool failed ) {
+    while( node->numCleanupAction > anchor ) {
+        --node->numCleanupAction;
+        SCleanupAction *ca = node->cleanupActions + node->numCleanupAction;
         if( failed || !(ca->failOnly) )
             wrappers[ca->wrapper]( ca );
     }
+}
+
+void cleanupExecuteTo( int32_t anchor, bool failed ) {
+    doExecuteCleanup( expList, anchor, failed );
+}
+
+void cleanupExecute( SExceptionNode* node, bool failed ) {
+    doExecuteCleanup( node, 0, failed );
 }

@@ -23,6 +23,58 @@
 extern "C" {
 #endif
 
+////////////////////////////////////////////////////////////////////////////////
+// usage example
+/*
+#include <stdio.h>
+#include "exception.h"
+
+int main( int argc, char** argv ) {
+  SBufferWriter bw = tbufInitWriter( NULL, false );
+
+  TRY( 1 ) {
+    //--------------------- write ------------------------
+    // reserve 1024 bytes for the buffer to improve performance
+    tbufEnsureCapacity( &bw, 1024 );
+
+    // reserve space for the interger count
+    size_t pos = tbufReserve( &bw, sizeof(int32_t) );
+    // write 5 integers to the buffer
+    for( int i = 0; i < 5; i++) {
+      tbufWriteInt32( &bw, i );
+    }
+    // write the integer count to buffer at reserved position
+    tbufWriteInt32At( &bw, pos, 5 );
+
+    // write a string to the buffer
+    tbufWriteString( &bw, "this is a string.\n" );
+    // acquire the result and close the write buffer
+    size_t size = tbufTell( &bw );
+    char*  data = tbufGetData( &bw, false );
+
+    //------------------------ read -----------------------
+    SBufferReader br = tbufInitReader( data, size, false );
+    // read & print out all integers
+    int32_t count = tbufReadInt32( &br );
+    for( int i = 0; i < count; i++ ) {
+      printf( "%d\n", tbufReadInt32(&br) );
+    }
+    // read & print out a string
+    puts( tbufReadString(&br, NULL) );
+    // try read another integer, this result in an error as there no this integer
+    tbufReadInt32( &br );
+    printf( "you should not see this message.\n" );
+  } CATCH( code ) {
+    printf( "exception code is: %d, you will see this message after print out 5 integers and a string.\n", code );
+    // throw it again and the exception will be caught in main
+    THROW( code );
+  } END_TRY
+
+  tbufCloseWriter( &bw );
+  return 0;
+}
+*/
+
 typedef struct {
   bool endian;
   const char* data;
@@ -51,7 +103,7 @@ typedef struct {
 
 size_t      tbufSkip( SBufferReader* buf, size_t size );
 
-char*       tbufRead( SBufferReader* buf, size_t size );
+const char* tbufRead( SBufferReader* buf, size_t size );
 void        tbufReadToBuffer( SBufferReader* buf, void* dst, size_t size );
 const char* tbufReadString( SBufferReader* buf, size_t* len );
 size_t      tbufReadToString( SBufferReader* buf, char* dst, size_t size );

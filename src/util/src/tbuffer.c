@@ -33,8 +33,8 @@ size_t tbufSkip(SBufferReader* buf, size_t size) {
   return old;
 }
 
-char* tbufRead( SBufferReader* buf, size_t size ) {
-  char* ret = buf->data + buf->pos;
+const char* tbufRead( SBufferReader* buf, size_t size ) {
+  const char* ret = buf->data + buf->pos;
   tbufSkip( buf, size );
   return ret;
 }
@@ -55,7 +55,7 @@ static size_t tbufReadLength( SBufferReader* buf ) {
 
 const char* tbufReadString( SBufferReader* buf, size_t* len ) {
   size_t l = tbufReadLength( buf );
-  char* ret = buf->data + buf->pos;
+  const char* ret = buf->data + buf->pos;
   tbufSkip( buf, l + 1 );
   if( ret[l] != 0 ) {
     THROW( TSDB_CODE_MEMORY_CORRUPTED );
@@ -80,7 +80,7 @@ size_t tbufReadToString( SBufferReader* buf, char* dst, size_t size ) {
 
 const char* tbufReadBinary( SBufferReader* buf, size_t *len ) {
   size_t l = tbufReadLength( buf );
-  char* ret = buf->data + buf->pos;
+  const char* ret = buf->data + buf->pos;
   tbufSkip( buf, l );
   if( len != NULL ) {
     *len = l;
