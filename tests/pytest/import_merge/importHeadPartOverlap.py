@@ -1,15 +1,15 @@
 ###################################################################
- #       Copyright (c) 2016 by TAOS Technologies, Inc.
- #             All rights reserved.
- #
- #  This file is proprietary and confidential to TAOS Technologies.
- #  No part of this file may be reproduced, stored, transmitted, 
- #  disclosed or used in any form or by any means other than as 
- #  expressly provided by the written permission from Jianhui Tao
- #
+#       Copyright (c) 2016 by TAOS Technologies, Inc.
+#             All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
 ###################################################################
 
-# -*- coding: utf-8 -*-  
+# -*- coding: utf-8 -*-
 
 import sys
 import taos
@@ -18,50 +18,52 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import *
 
+
 class TDTestCase:
-  def init(self, conn):
-    tdLog.debug("start to execute %s" % __file__)
-    tdSql.init(conn.cursor())
-    
-  def run(self):
-    self.ntables = 1
-    self.startTime = 1520000010000
+    def init(self, conn):
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor())
 
-    tdSql.prepare()
+    def run(self):
+        self.ntables = 1
+        self.startTime = 1520000010000
 
-    tdLog.info("================= step1")
-    tdLog.info("create 1 table")
-    tdSql.execute('create table tb1 (ts timestamp, i int)')
+        tdSql.prepare()
 
-    tdLog.info("================= step2")
-    tdLog.info("import 8 sequential data with gap")
-    startTime = self.startTime
-    for rid in range(1,4):
-      tdSql.execute('import into tb1 values(%ld, %d)' %(startTime, rid))
-      startTime += 1
-    startTime += 2
-    for rid in range(6,11):
-      tdSql.execute('import into tb1 values(%ld, %d)' %(startTime, rid))
-      startTime += 1
-    
-    tdLog.info("================= step3")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(8)
+        tdLog.info("================= step1")
+        tdLog.info("create 1 table")
+        tdSql.execute('create table tb1 (ts timestamp, i int)')
 
-    tdLog.info("================= step4")
-    tdLog.info("import 8 data before with partly overlap")
-    startTime = self.startTime - 2
-    for rid in range(1, 9):
-      tdSql.execute('import into tb1 values(%ld, %d)' %(startTime, rid))
-      startTime += 1
+        tdLog.info("================= step2")
+        tdLog.info("import 8 sequential data with gap")
+        startTime = self.startTime
+        for rid in range(1, 4):
+            tdSql.execute('import into tb1 values(%ld, %d)' % (startTime, rid))
+            startTime += 1
+        startTime += 2
+        for rid in range(6, 11):
+            tdSql.execute('import into tb1 values(%ld, %d)' % (startTime, rid))
+            startTime += 1
 
-    tdLog.info("================= step5")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(12)
+        tdLog.info("================= step3")
+        tdSql.query('select * from tb1')
+        tdSql.checkRows(8)
 
-  def stop(self):
-    tdSql.close()
-    tdLog.success("%s successfully executed" % __file__)
-  
+        tdLog.info("================= step4")
+        tdLog.info("import 8 data before with partly overlap")
+        startTime = self.startTime - 2
+        for rid in range(1, 9):
+            tdSql.execute('import into tb1 values(%ld, %d)' % (startTime, rid))
+            startTime += 1
+
+        tdLog.info("================= step5")
+        tdSql.query('select * from tb1')
+        tdSql.checkRows(12)
+
+    def stop(self):
+        tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
+
+
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
