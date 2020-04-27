@@ -90,9 +90,10 @@ void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res);
 
 uint8_t getBinaryExprOptr(SSQLToken *pToken);
 
-SBuffer exprTreeToBinary(tExprNode* pExprTree);
+void       tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
+void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 
-tExprNode* exprTreeFromBinary(const void* pBuf, size_t size);
+tExprNode* exprTreeFromBinary(const void* data, size_t size);
 tExprNode* exprTreeFromTableName(const char* tbnameCond);
 
 #ifdef __cplusplus
