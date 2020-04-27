@@ -1529,7 +1529,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
     w.ekey = w.skey + pQuery->intervalTime - 1;
   }
 
-  assert(ts >= w.skey && ts <= w.ekey && w.skey != 0);
+  assert(ts >= w.skey && ts <= w.ekey/* && w.skey != 0*/);
 
   return w;
 }
@@ -1646,7 +1646,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     setQueryStatus(pQuery, QUERY_COMPLETED | QUERY_RESBUF_FULL);
   } else {  // set the current index to be the last unclosed window
     int32_t i = 0;
-    int64_t skey = 0;
+    int64_t skey = INT64_MIN;
 
     for (i = 0; i < pWindowResInfo->size; ++i) {
       SWindowResult *pResult = &pWindowResInfo->pResult[i];
@@ -1668,7 +1668,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     }
 
     // all windows are closed, set the last one to be the skey
-    if (skey == 0) {
+    if (skey == INT64_MIN) {
       assert(i == pWindowResInfo->size);
       pWindowResInfo->curIndex = pWindowResInfo->size - 1;
     } else {
@@ -1686,7 +1686,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     dTrace("QInfo:%p total window:%d, closed:%d", GET_QINFO_ADDR(pQuery), pWindowResInfo->size, n);
   }
 
-  assert(pWindowResInfo->prevSKey != 0);
+  assert(pWindowResInfo->prevSKey != INT64_MIN);
 }
 
 static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SBlockInfo *pBlockInfo, TSKEY *pPrimaryColumn, int32_t startPos,
@@ -4020,16 +4020,7 @@ bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, STableQuerySup
         *key = nextKey;
       }
       
-      // needs the data before the begin timestamp of query time window
-      if (nextKey != pQuery->skey) {
-        if (!pRuntimeEnv->hasTimeWindow) {
-          pQuery->skey = nextKey;  // change the query skey
-          pQuery->lastKey = pQuery->skey;
-        }
-        return true;
-      } else {
-        return doGetQueryPos(nextKey, pSupporter, pPointInterpSupporter);
-      }
+      return doGetQueryPos(nextKey, pSupporter, pPointInterpSupporter);
     }
 
     // set no data in file

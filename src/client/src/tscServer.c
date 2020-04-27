@@ -710,15 +710,21 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
 int doProcessSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
+  int32_t  code = TSDB_CODE_SUCCESS;
 
   void *asyncFp = pSql->fp;
   if (pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_FETCH || pCmd->command == TSDB_SQL_RETRIEVE ||
       pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_CONNECT || pCmd->command == TSDB_SQL_HB ||
       pCmd->command == TSDB_SQL_META || pCmd->command == TSDB_SQL_METRIC) {
-    tscBuildMsg[pCmd->command](pSql, NULL);
+    code = tscBuildMsg[pCmd->command](pSql, NULL);
   }
 
-  int32_t code = tscSendMsgToServer(pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRes->code = code;
+    return code;
+  }
+
+  code = tscSendMsgToServer(pSql);
 
   if (asyncFp) {
     if (code != TSDB_CODE_SUCCESS) {
@@ -994,7 +1000,13 @@ int tscLaunchSTableSubqueries(SSqlObj *pSql) {
     SRetrieveSupport* pSupport = pSub->param;
     
     tscTrace("%p sub:%p launch subquery, orderOfSub:%d.", pSql, pSub, pSupport->subqueryIndex);
-    tscProcessSql(pSub);
+    int code = tscProcessSql(pSub);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, numOfSubQueries);
+      doCleanupSubqueries(pSql, i, pState);
+      pRes->code = code;
+      return pRes->code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2702,7 +2714,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tscTrace("%p build load multi-metermeta msg completed, numOfMeters:%d, msg size:%d", pSql, pCmd->count,
            pCmd->payloadLen);
 
-  return pCmd->payloadLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
@@ -2929,7 +2941,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = TSDB_MSG_TYPE_HEARTBEAT;
 
   assert(msgLen + minMsgSize() <= size);
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int tscProcessMeterMetaRsp(SSqlObj *pSql) {

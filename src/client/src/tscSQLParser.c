@@ -1945,6 +1945,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SSQLToken
 
     if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
       columnIndex = i;
+      break;
     }
   }
 

@@ -2010,7 +2010,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     }
     
     // create the fields info from the sql functions
-    SColumnList columnList = {.num = 1};
+    SColumnList columnList = {.num = 0};
   
     for(int32_t k = 0; k < numOfOutputCols; ++k) {
       SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, indexList[k]);
