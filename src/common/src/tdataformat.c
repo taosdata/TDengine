@@ -14,6 +14,7 @@
  */
 #include "tdataformat.h"
 #include "tutil.h"
+#include "wchar.h"
 
 /**
  * Create a SSchema object with nCols columns
@@ -174,7 +175,12 @@ int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_
       if (value == NULL) {
         *(int32_t *)dataRowAt(row, toffset) = -1;
       } else {
-        int16_t slen = (type) ? strnlen((char *)value, bytes) : wcsnlen((wchar_t *)value, bytes/TSDB_NCHAR_SIZE) * TSDB_NCHAR_SIZE;
+        int16_t slen = 0;
+        if (type == TSDB_DATA_TYPE_BINARY) {
+          slen = strnlen((char *)value, bytes);
+        } else {
+          slen = wcsnlen((wchar_t *)value, (bytes) / TSDB_NCHAR_SIZE) * TSDB_NCHAR_SIZE;
+        } 
         if (slen > bytes) return -1;
 
         *(int32_t *)dataRowAt(row, toffset) = dataRowLen(row);
