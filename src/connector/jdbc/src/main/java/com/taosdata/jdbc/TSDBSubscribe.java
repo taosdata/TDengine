@@ -119,21 +119,25 @@ public class TSDBSubscribe {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }
 
-        synchronized (timerTaskMap.get(subscription)) {
-            while (1 == timerTaskMap.get(subscription).getState()) {
-                try {
-                    Thread.sleep(10);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+        if (null != timerTaskMap.get(subscription)) {
+            synchronized (timerTaskMap.get(subscription)) {
+                while (1 == timerTaskMap.get(subscription).getState()) {
+                    try {
+                        Thread.sleep(10);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
                 }
+                timerTaskMap.get(subscription).setState(2);
+                if (!timerTaskMap.isEmpty() && timerTaskMap.containsKey(subscription)) {
+                    timerTaskMap.get(subscription).cancel();
+                    timerTaskMap.remove(subscription);
+                    scheduledMap.get(subscription).cancel(false);
+                    scheduledMap.remove(subscription);
+                }
+                this.connecter.unsubscribe(subscription, isKeep);
             }
-            timerTaskMap.get(subscription).setState(2);
-            if (!timerTaskMap.isEmpty() && timerTaskMap.containsKey(subscription)) {
-                timerTaskMap.get(subscription).cancel();
-                timerTaskMap.remove(subscription);
-                scheduledMap.get(subscription).cancel(false);
-                scheduledMap.remove(subscription);
-            }
+        } else {
             this.connecter.unsubscribe(subscription, isKeep);
         }
     }
