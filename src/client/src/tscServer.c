@@ -294,11 +294,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
       }
     }
   }
-
-  if (pRes->code == TSDB_CODE_SUCCESS) {
-    tscTrace("%p reset retry counter to be 0 due to success rsp, old:%d", pSql, pSql->retry);
-    pSql->retry = 0;
-  }
   
   pRes->rspLen = 0;
   
@@ -306,6 +301,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_NETWORK_UNAVAIL;
   } else {
     tscTrace("%p query is cancelled, code:%d", pSql, tstrerror(pRes->code));
+  }
+
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    tscTrace("%p reset retry counter to be 0 due to success rsp, old:%d", pSql, pSql->retry);
+    pSql->retry = 0;
   }
 
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
@@ -569,7 +569,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
   tscSetDnodeIpList(pSql, pTableMeta);
   
-  tscTrace("%p build submit msg, vgId:%d numOfVgroup:%d", pSql, vgId, htonl(pMsgDesc->numOfVnodes));
+  tscTrace("%p build submit msg, vgId:%d numOfVgroup:%d numberOfIP:%d", pSql, vgId, htonl(pMsgDesc->numOfVnodes), pSql->ipList.numOfIps);
   return TSDB_CODE_SUCCESS;
 }
 

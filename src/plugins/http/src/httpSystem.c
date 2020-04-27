@@ -117,7 +117,7 @@ void httpCleanUpSystem() {
   httpPrint("http service cleanup");
   httpStopSystem();
 
-#if 1
+#if 0
   if (httpServer == NULL) {
     return;
   }

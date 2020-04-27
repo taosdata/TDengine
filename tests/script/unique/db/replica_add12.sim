@@ -145,7 +145,9 @@ if $rows != 2 then
 	return -1
 endi
 
+sql reset query cache
 sleep 2000
+
 print ========= step5 
 system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 sleep 5000
@@ -155,7 +157,7 @@ if $rows != 2 then
 	return -1
 endi
 
-sql select * from d2.t2
+sql select * from d2.t2 
 if $rows != 2 then
 	return -1
 endi
@@ -172,12 +174,39 @@ endi
 
 print ===== insert data
 
-
 sql insert into d1.t1 values(now, 3)
-sql insert into d2.t2 values(now, 3)
+# no master
+sql_error insert into d2.t2 values(now, 3)
 sql insert into d3.t3 values(now, 3)
-sql insert into d4.t4 values(now, 3)
+# no master
+sql_error insert into d4.t4 values(now, 3)
 
+sql select * from d1.t1
+if $rows != 3 then
+	return -1
+endi
+
+sql select * from d2.t2
+if $rows != 2 then
+	return -1
+endi
+
+sql select * from d3.t3
+if $rows != 3 then
+	return -1
+endi
+
+sql select * from d4.t4
+if $rows != 2 then
+	return -1
+endi
+
+print ========= step6
+system sh/exec_up.sh -n dnode2 -s start
+sleep 5000
+
+sql insert into d2.t2 values(now, 3)
+sql insert into d4.t4 values(now, 3)
 sql select * from d1.t1
 if $rows != 3 then
 	return -1
@@ -198,28 +227,19 @@ if $rows != 3 then
 	return -1
 endi
 
-print ========= step6
-system sh/exec_up.sh -n dnode2 -s start
-sleep 10000
-system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
-sleep 10000
+print ========= step61
 
-sql insert into d1.t1 values(now, 4)
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+sleep 5000
+
+# no master
+sql_error insert into d1.t1 values(now, 4)
 sql insert into d2.t2 values(now, 4)
-sql insert into d3.t3 values(now, 4)
+# no master
+sql_error insert into d3.t3 values(now, 4)
 sql insert into d4.t4 values(now, 4)
 
-sql select * from d1.t1
-if $rows != 4 then
-	return -1
-endi
-
 sql select * from d2.t2
-if $rows != 4 then
-	return -1
-endi
-
-sql select * from d3.t3
 if $rows != 4 then
 	return -1
 endi
@@ -231,9 +251,7 @@ endi
 
 print ========= step7
 system sh/exec_up.sh -n dnode3 -s start
-sleep 10000
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
-sleep 10000
+sleep 5000
 
 sql insert into d1.t1 values(now, 5)
 sql insert into d2.t2 values(now, 5)
@@ -241,7 +259,7 @@ sql insert into d3.t3 values(now, 5)
 sql insert into d4.t4 values(now, 5)
 
 sql select * from d1.t1
-if $rows != 5 then
+if $rows != 4 then
 	return -1
 endi
 
@@ -251,7 +269,7 @@ if $rows != 5 then
 endi
 
 sql select * from d3.t3
-if $rows != 5 then
+if $rows != 4 then
 	return -1
 endi
 

@@ -667,7 +667,7 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   fclose(fp);
   free(content);
 
-  dPrint("pVnode:%p vgId:%d, save vnode version successed", pVnode, pVnode->vgId);
+  dPrint("pVnode:%p vgId:%d, save vnode version:%" PRId64 " successed", pVnode, pVnode->vgId, pVnode->version);
 
   return 0;
 }
@@ -675,7 +675,7 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
 static bool vnodeReadVersion(SVnodeObj *pVnode) {
   char versionFile[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
-  FILE *fp = fopen(versionFile, "w");
+  FILE *fp = fopen(versionFile, "r");
   if (!fp) {
     dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId, strerror(errno));
     return false;
