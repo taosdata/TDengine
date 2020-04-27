@@ -1185,10 +1185,18 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           return invalidSqlErrMsg(pQueryInfo->msg, "invalid arithmetic expression in select clause");
         }
         
-        SBuffer buf = exprTreeToBinary(pNode);
+        SBufferWriter bw = tbufInitWriter(NULL, false);
+
+        TRY(0) {
+          exprTreeToBinary(&bw, pNode);
+        } CATCH(code) {
+          tbufCloseWriter(&bw);
+          UNUSED(code);
+          // TODO: other error handling
+        } END_TRY
         
-        size_t len = tbufTell(&buf);
-        char* c = tbufGetData(&buf, true);
+        size_t len = tbufTell(&bw);
+        char* c = tbufGetData(&bw, true);
         
         // set the serialized binary string as the parameter of arithmetic expression
         addExprParams(pExpr, c, TSDB_DATA_TYPE_BINARY, len, index.tableIndex);
@@ -3751,7 +3759,15 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
   
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));
     ret = exprTreeFromSqlExpr(&p, p1, NULL, pQueryInfo, colList);
-    SBuffer buf = exprTreeToBinary(p);
+    SBufferWriter bw = tbufInitWriter(NULL, false);
+
+    TRY(0) {
+      exprTreeToBinary(&bw, p);
+    } CATCH(code) {
+      tbufCloseWriter(&bw);
+      UNUSED(code);
+      // TODO: more error handling
+    } END_TRY
     
     // add to source column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
@@ -3765,7 +3781,7 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
       addRequiredTagColumn(pTableMetaInfo, &index);
     }
     
-    tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &buf);
+    tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
     doCompactQueryExpr(pExpr);
     
     tSQLExprDestroy(p1);

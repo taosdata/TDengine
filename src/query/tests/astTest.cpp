@@ -550,11 +550,12 @@ tExprNode* createExpr2() {
 
 void exprSerializeTest1() {
   tExprNode* p1 = createExpr1();
-  SBuffer buf = exprTreeToBinary(p1);
+  SBufferWriter bw = tbufInitWriter(NULL, false);
+  exprTreeToBinary(&bw, p1);
   
-  size_t size = tbufTell(&buf);
+  size_t size = tbufTell(&bw);
   ASSERT_TRUE(size > 0);
-  char* b = tbufGetData(&buf, false);
+  char* b = tbufGetData(&bw, false);
   
   tExprNode* p2 = exprTreeFromBinary(b, size);
   ASSERT_EQ(p1->nodeType, p2->nodeType);
@@ -581,16 +582,17 @@ void exprSerializeTest1() {
   tExprTreeDestroy(&p1, nullptr);
   tExprTreeDestroy(&p2, nullptr);
   
-  tbufClose(&buf, false);
+  tbufClose(&bw);
 }
 
 void exprSerializeTest2() {
   tExprNode* p1 = createExpr2();
-  SBuffer buf = exprTreeToBinary(p1);
+  SBufferWriter bw = tbufInitWriter(NULL, false);
+  exprTreeToBinary(&bw, p1);
   
-  size_t size = tbufTell(&buf);
+  size_t size = tbufTell(&bw);
   ASSERT_TRUE(size > 0);
-  char* b = tbufGetData(&buf, false);
+  char* b = tbufGetData(&bw, false);
   
   tExprNode* p2 = exprTreeFromBinary(b, size);
   ASSERT_EQ(p1->nodeType, p2->nodeType);
@@ -625,7 +627,7 @@ void exprSerializeTest2() {
   tExprTreeDestroy(&p1, nullptr);
   tExprTreeDestroy(&p2, nullptr);
 
-  tbufClose(&buf, false);
+  tbufClose(&bw);
 }
 }  // namespace
 TEST(testCase, astTest) {

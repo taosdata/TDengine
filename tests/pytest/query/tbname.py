@@ -26,12 +26,14 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute('create table cars (ts timestamp, speed int) tags(id int)')
+        tdSql.execute(
+            'create table cars (ts timestamp, speed int) tags(id int)')
         tdSql.execute("create table carzero using cars tags(0)")
         tdSql.execute("create table carone using cars tags(1)")
         tdSql.execute("create table cartwo using cars tags(2)")
 
-        tdSql.execute("insert into carzero values(now, 100) carone values(now, 110)")
+        tdSql.execute(
+            "insert into carzero values(now, 100) carone values(now, 110)")
 
         tdSql.query("select * from cars where tbname in ('carzero', 'carone')")
         tdSql.checkRows(2)
@@ -39,13 +41,16 @@ class TDTestCase:
         tdSql.query("select * from cars where tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(1)
 
-        tdSql.query("select * from cars where id=1 or tbname in ('carzero', 'cartwo')")
+        tdSql.query(
+            "select * from cars where id=1 or tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(2)
 
-        tdSql.query("select * from cars where id=1 and tbname in ('carzero', 'cartwo')")
+        tdSql.query(
+            "select * from cars where id=1 and tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(0)
 
-        tdSql.query("select * from cars where id=0 and tbname in ('carzero', 'cartwo')")
+        tdSql.query(
+            "select * from cars where id=0 and tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(1)
 
         """
