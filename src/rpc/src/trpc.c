@@ -928,13 +928,8 @@ int taosProcessMsgHeader(STaosHeader *pHeader, SRpcConn **ppConn, STaosRpc *pSer
           code = ret;
           goto _exit;
         }
-      }else {
-        tError("%s cid:%d sid:%d id:%s, auth update callback not found, msg discarded pConn:%p", pServer->label, chann, sid,
-               pConn->meterId, pConn);
-        code = TSDB_CODE_AUTH_FAILURE;
-        goto _exit;
       }
-
+      
       if (taosAuthenticateMsg((uint8_t *)pHeader, dataLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
         char ipstr[24];
         tinet_ntoa(ipstr, ip);
