@@ -710,7 +710,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
 int doProcessSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-  int32_t  code;
+  int32_t  code = TSDB_CODE_SUCCESS;
 
   void *asyncFp = pSql->fp;
   if (pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_FETCH || pCmd->command == TSDB_SQL_RETRIEVE ||
