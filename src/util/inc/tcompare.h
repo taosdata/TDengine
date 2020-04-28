@@ -40,7 +40,7 @@ int WCSPatternMatch(const wchar_t *zPattern, const wchar_t *zString, size_t size
 
 __compar_fn_t getKeyComparFunc(int32_t keyType);
 
-__compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr);
+__compar_fn_t getComparFunc(int32_t type, int32_t optr);
 
 #ifdef __cplusplus
 }

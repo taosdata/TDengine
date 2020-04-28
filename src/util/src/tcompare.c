@@ -216,7 +216,7 @@ static UNUSED_FUNC int32_t compareStrPatternComp(const void* pLeft, const void* 
 }
 
 static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
-  const SArray* arr = (const SArray*)pRight;
+  const SArray* arr = (const SArray*) pRight;
   return taosArraySearchString(arr, pLeft) == NULL ? 0 : 1;
 }
 
@@ -232,55 +232,42 @@ static UNUSED_FUNC int32_t compareWStrPatternComp(const void* pLeft, const void*
 }
 
 // todo promote the type definition before the comparsion
-__compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr) {
+__compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
   
   switch (type) {
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_SMALLINT: {
+      comparFn = compareInt16Val; break;
+    }
+    
+    case TSDB_DATA_TYPE_INT: {
+      comparFn = compareInt32Val; break;
+    }
+    
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-//      assert(type == filterDataType);
-      if (filterDataType == TSDB_DATA_TYPE_BIGINT || filterDataType == TSDB_DATA_TYPE_TIMESTAMP) {
-        comparFn = compareInt64Val;
-      } else if (filterDataType >= TSDB_DATA_TYPE_FLOAT && filterDataType <= TSDB_DATA_TYPE_DOUBLE) {
-        comparFn = compareIntDoubleVal;
-      }
-      
-      break;
+      comparFn = compareInt64Val; break;
     }
 
-    case TSDB_DATA_TYPE_BOOL: {
-      if (filterDataType >= TSDB_DATA_TYPE_BOOL && filterDataType <= TSDB_DATA_TYPE_BIGINT) {
-        comparFn = compareInt32Val;
-      } else if (filterDataType >= TSDB_DATA_TYPE_FLOAT && filterDataType <= TSDB_DATA_TYPE_DOUBLE) {
-        comparFn = compareIntDoubleVal;
-      }
-      break;
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:{
+      comparFn = compareInt8Val; break;
     }
 
-    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_FLOAT: {
+      comparFn = compareDoubleVal; break;
+    }
+    
     case TSDB_DATA_TYPE_DOUBLE: {
-      if (filterDataType >= TSDB_DATA_TYPE_BOOL && filterDataType <= TSDB_DATA_TYPE_BIGINT) {
-        comparFn = compareDoubleIntVal;
-      } else if (filterDataType >= TSDB_DATA_TYPE_FLOAT && filterDataType <= TSDB_DATA_TYPE_DOUBLE) {
-        comparFn = compareDoubleVal;
-      }
-      break;
+      comparFn = compareDoubleVal; break;
     }
 
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
-        assert(filterDataType == TSDB_DATA_TYPE_BINARY);
         comparFn = compareStrPatternComp;
-
       } else if (optr == TSDB_RELATION_IN) {
-        assert(filterDataType == TSDB_DATA_TYPE_ARRAY);
         comparFn = compareFindStrInArray;
-
       } else { /* normal relational comparFn */
-        assert(filterDataType == TSDB_DATA_TYPE_BINARY);
         comparFn = compareStrVal;
       }
     
@@ -288,8 +275,6 @@ __compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr) 
     }
   
     case TSDB_DATA_TYPE_NCHAR: {
-      assert(filterDataType == TSDB_DATA_TYPE_NCHAR);
-    
       if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
       } else {

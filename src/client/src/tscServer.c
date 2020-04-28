@@ -622,7 +622,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
   
-  if (taosArrayGetSize(pQueryInfo->colList) <= 0) {
+  if (taosArrayGetSize(pQueryInfo->colList) <= 0 && !tscQueryTags(pQueryInfo)) {
     tscError("%p illegal value of numOfCols in query msg: %d", pSql, tscGetNumOfColumns(pTableMeta));
     return -1;
   }
@@ -827,7 +827,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSchema = tscGetTableTagSchema(pTableMeta);
     
     for (int32_t i = 0; i < numOfTags; ++i) {
-      SColumn *pCol = taosArrayGetP(pQueryInfo->colList, i);
+      SColumn *pCol = taosArrayGetP(pTableMetaInfo->tagColList, i);
       SSchema *pColSchema = &pSchema[pCol->colIndex.columnIndex];
 
       if ((pCol->colIndex.columnIndex >= numOfTagColumns || pCol->colIndex.columnIndex < -1) ||
@@ -2642,7 +2642,6 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
 
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_TAGS] = tscProcessTagRetrieveRsp;
   tscProcessMsgRsp[TSDB_SQL_CURRENT_DB] = tscProcessTagRetrieveRsp;
   tscProcessMsgRsp[TSDB_SQL_CURRENT_USER] = tscProcessTagRetrieveRsp;
   tscProcessMsgRsp[TSDB_SQL_SERV_VERSION] = tscProcessTagRetrieveRsp;

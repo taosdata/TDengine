@@ -151,14 +151,10 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
     return false;
   }
   
-  // for select query super table, the metricmeta can not be null in any cases.
+  // for select query super table, the super table vgroup list can not be null in any cases.
   if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-//    assert(pTableMetaInfo->pMetricMeta != NULL);
+    assert(pTableMetaInfo->vgroupList != NULL);
   }
-  
-//  if (pTableMetaInfo->pMetricMeta == NULL) {
-//    return false;
-//  }
   
   if ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     return false;
@@ -191,12 +187,11 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
     return false;
   }
   
-  // only query on tag, not a projection query
+  // only query on tag, a project query
   if (tscQueryTags(pQueryInfo)) {
-    return false;
+    return true;
   }
   
-  // for project query, only the following two function is allowed
   for (int32_t i = 0; i < numOfExprs; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
     if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
@@ -1793,19 +1788,24 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   pNewQueryInfo->command = pQueryInfo->command;
-  pNewQueryInfo->type = pQueryInfo->type;
   pNewQueryInfo->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
-  pNewQueryInfo->window = pQueryInfo->window;
   pNewQueryInfo->intervalTime = pQueryInfo->intervalTime;
-  pNewQueryInfo->slidingTime = pQueryInfo->slidingTime;
-  pNewQueryInfo->limit = pQueryInfo->limit;
+  pNewQueryInfo->slidingTime  = pQueryInfo->slidingTime;
+  pNewQueryInfo->type   = pQueryInfo->type;
+  pNewQueryInfo->window = pQueryInfo->window;
+  pNewQueryInfo->limit  = pQueryInfo->limit;
   pNewQueryInfo->slimit = pQueryInfo->slimit;
-  pNewQueryInfo->order = pQueryInfo->order;
+  pNewQueryInfo->order  = pQueryInfo->order;
   pNewQueryInfo->clauseLimit = pQueryInfo->clauseLimit;
   pNewQueryInfo->pTableMetaInfo = NULL;
-  pNewQueryInfo->defaultVal = NULL;
+  pNewQueryInfo->defaultVal  = NULL;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->tsBuf = NULL;
+  
+  pNewQueryInfo->groupbyExpr = pQueryInfo->groupbyExpr;
+  if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
+    pNewQueryInfo->groupbyExpr.columnInfo = taosArrayClone(pQueryInfo->groupbyExpr.columnInfo);
+  }
   
   tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond);
 

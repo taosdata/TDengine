@@ -73,8 +73,8 @@ typedef struct STableMetaInfo {
   SVgroupsInfo *vgroupList;
 
   /*
-   * 1. keep the vnode index during the multi-vnode super table projection query
-   * 2. keep the vnode index for multi-vnode insertion
+   * 1. keep the vgroup index during the multi-vnode super table projection query
+   * 2. keep the vgroup index for multi-vnode insertion
    */
   int32_t vgroupIndex;
   char    name[TSDB_TABLE_ID_LEN];        // (super) table name

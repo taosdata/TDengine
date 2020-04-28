@@ -304,118 +304,6 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   return tscSetValueToResObj(pSql, rowLen);
 }
 
-// todo add order support
-static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
-#if 0
-  // the result structure has been completed in sql parse, so we
-  // only need to reorganize the results in the column format
-  SSqlCmd *       pCmd = &pSql->cmd;
-  SSqlRes *       pRes = &pSql->res;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
-  SSchema *    pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-
-  int32_t vOffset[TSDB_MAX_COLUMNS] = {0};
-
-  for (int32_t f = 1; f < pTableMetaInfo->numOfTags; ++f) {
-    int16_t tagColumnIndex = pTableMetaInfo->tagColumnIndex[f - 1];
-    if (tagColumnIndex == -1) {
-      vOffset[f] = vOffset[f - 1] + TSDB_TABLE_NAME_LEN;
-    } else {
-      vOffset[f] = vOffset[f - 1] + pSchema[tagColumnIndex].bytes;
-    }
-  }
-
-  int32_t totalNumOfResults = pMetricMeta->numOfTables;
-  int32_t rowLen = tscGetResRowLength(pQueryInfo->exprList);
-
-  tscInitResObjForLocalQuery(pSql, totalNumOfResults, rowLen);
-
-  int32_t rowIdx = 0;
-  for (int32_t i = 0; i < pMetricMeta->numOfVnodes; ++i) {
-    SVnodeSidList *pSidList = (SVnodeSidList *)((char *)pMetricMeta + pMetricMeta->list[i]);
-
-    for (int32_t j = 0; j < pSidList->numOfSids; ++j) {
-      STableIdInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
-      
-      for (int32_t k = 0; k < pQueryInfo->fieldsInfo.numOfOutput; ++k) {
-        SColIndex *pColIndex = &tscSqlExprGet(pQueryInfo, k)->colInfo;
-        int16_t      offsetId = pColIndex->colIdx;
-
-        assert((pColIndex->flag & TSDB_COL_TAG) != 0);
-        assert(0);
-        
-        char *      val = NULL;//pSidExt->tags + vOffset[offsetId];
-        TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, k);
-
-        memcpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, k) * totalNumOfResults + pField->bytes * rowIdx, val,
-               (size_t)pField->bytes);
-      }
-      rowIdx++;
-    }
-  }
-
-#endif
-  return 0;
-}
-
-static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
-//  SSqlCmd *pCmd = &pSql->cmd;
-//  SSqlRes *pRes = &pSql->res;
-
-//  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-#if 0
-  SSuperTableMeta *pMetricMeta = tscGetMetaInfo(pQueryInfo, 0)->pMetricMeta;
-  int32_t      totalNumOfResults = 1;  // count function only produce one result
-  int32_t      rowLen = tscGetResRowLength(pQueryInfo->exprList);
-
-  tscInitResObjForLocalQuery(pSql, totalNumOfResults, rowLen);
-
-  int32_t rowIdx = 0;
-  for (int32_t i = 0; i < totalNumOfResults; ++i) {
-    for (int32_t k = 0; k < pQueryInfo->fieldsInfo.numOfOutput; ++k) {
-      SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
-
-      if (pExpr->colInfo.colIdx == -1 && pExpr->functionId == TSDB_FUNC_COUNT) {
-        TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, k);
-
-        memcpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, i) * totalNumOfResults + pField->bytes * rowIdx,
-               &pMetricMeta->numOfTables, sizeof(pMetricMeta->numOfTables));
-      } else {
-        tscError("not support operations");
-        continue;
-      }
-    }
-    rowIdx++;
-  }
-#endif
-  
-  return 0;
-}
-
-static int tscProcessQueryTags(SSqlObj *pSql) {
-  SSqlCmd *pCmd = &pSql->cmd;
-  
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  
-  STableMeta *pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
-  if (pTableMeta == NULL || tscGetNumOfTags(pTableMeta) == 0 || tscGetNumOfColumns(pTableMeta) == 0) {
-    strcpy(pCmd->payload, "invalid table");
-    pSql->res.code = TSDB_CODE_INVALID_TABLE;
-    return pSql->res.code;
-  }
-
-  SSqlExpr *pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
-  if (pExpr->functionId == TSDB_FUNC_COUNT) {
-    return tscBuildMetricTagSqlFunctionResult(pSql);
-  } else {
-    return tscBuildMetricTagProjectionResult(pSql);
-  }
-}
-
 static void tscProcessCurrentUser(SSqlObj *pSql) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
@@ -503,8 +391,6 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     pSql->res.code = (uint8_t)taosCfgDynamicOptions(pCmd->payload);
   } else if (pCmd->command == TSDB_SQL_DESCRIBE_TABLE) {
     pSql->res.code = (uint8_t)tscProcessDescribeTable(pSql);
-  } else if (pCmd->command == TSDB_SQL_RETRIEVE_TAGS) {
-    pSql->res.code = (uint8_t)tscProcessQueryTags(pSql);
   } else if (pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     /*
      * set the qhandle to be 1 in order to pass the qhandle check, and to call partial release function to

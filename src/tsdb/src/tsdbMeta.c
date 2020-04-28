@@ -239,6 +239,10 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
     }
   }
   
+  if (pCol == NULL) {
+    return -1;  // No matched tags. Maybe the modification of tags has not been done yet.
+  }
+  
   assert(pCol != NULL);
   
   SDataRow row = (SDataRow)pTable->tagVal;
@@ -248,10 +252,10 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   *type  = pCol->type;
   *bytes = pCol->bytes;
   
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbTableGetName(TsdbRepoT *repo, STableId* id, char** name) {
+int32_t tsdbGetTableName(TsdbRepoT *repo, STableId* id, char** name) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   

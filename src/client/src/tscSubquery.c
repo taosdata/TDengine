@@ -994,7 +994,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   // pRes->code check only serves in launching metric sub-queries
   if (pRes->code == TSDB_CODE_QUERY_CANCELLED) {
-    pCmd->command = TSDB_SQL_RETRIEVE_METRIC;  // enable the abort of kill metric function.
+    pCmd->command = TSDB_SQL_RETRIEVE_METRIC;  // enable the abort of kill super table function.
     return pRes->code;
   }
   
@@ -1015,10 +1015,8 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
   if (ret != 0) {
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    if (pSql->fp) {
-      tscQueueAsyncRes(pSql);
-    }
-    return pRes->code;
+    tscQueueAsyncRes(pSql);
+    return ret;
   }
   
   pSql->pSubs = calloc(pSql->numOfSubs, POINTER_BYTES);
@@ -1129,9 +1127,7 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
   tscError("sub:%p failed to flush data to disk:reason:%s", tres, lpMsgBuf);
   LocalFree(lpMsgBuf);
 #else
-  char buf[256] = {0};
-  strerror_r(errno, buf, 256);
-  tscError("sub:%p failed to flush data to disk:reason:%s", tres, buf);
+  tscError("sub:%p failed to flush data to disk:reason:%s", tres, strerror(errno));
 #endif
   
   trsupport->pState->code = -errCode;
@@ -1198,8 +1194,8 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       return;
     } else {  // reach the maximum retry count, abort
       atomic_val_compare_exchange_32(&pState->code, TSDB_CODE_SUCCESS, numOfRows);
-      tscError("%p sub:%p retrieve failed,code:%d,orderOfSub:%d failed.no more retry,set global code:%d", pPObj, pSql,
-               numOfRows, subqueryIndex, pState->code);
+      tscError("%p sub:%p retrieve failed,code:%s,orderOfSub:%d failed.no more retry,set global code:%d", pPObj, pSql,
+               numOfRows, subqueryIndex, tstrerror(pState->code));
     }
   }
   

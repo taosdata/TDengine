@@ -1264,14 +1264,6 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
 
   if (isSTable) {
     pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_QUERY;
-    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-    int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-    
-    if (tscQueryTags(pQueryInfo)) {                      // local handle the metric tag query
-      pCmd->count = numOfCols;  // the number of meter schema, tricky.
-      pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
-    }
-
     /*
      * transfer sql functions that need secondary merge into another format
      * in dealing with metric queries such as: count/first/last
@@ -1320,8 +1312,8 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
   
   if (functionId == TSDB_FUNC_TAGPRJ) {
     index.columnIndex = colIndex - tscGetNumOfColumns(pTableMeta);
-    
-    addRequiredTagColumn(pTableMetaInfo, &index);
+  
+    tscColumnListInsert(pTableMetaInfo->tagColList, &index);
     pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;
   } else {
     index.columnIndex = colIndex;
@@ -1333,7 +1325,7 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
 }
 
 void addRequiredTagColumn(STableMetaInfo* pTableMetaInfo, SColumnIndex* index) {
-  tscColumnListInsert(pTableMetaInfo->tagColList, index);
+
 }
 
 static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSQLExprItem* pItem) {
@@ -1374,7 +1366,7 @@ void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
   
   if (TSDB_COL_IS_TAG(flag)) {
-    addRequiredTagColumn(pTableMetaInfo, pIndex);
+    tscColumnListInsert(pTableMetaInfo->tagColList, pIndex);
   }
 }
 
@@ -2532,12 +2524,11 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
         relIndex -= numOfCols;
       }
 
-      SColIndex colIndex = {
-          .colIndex = relIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId,
-      };
-      
+      SColIndex colIndex = { .colIndex = relIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId, };
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
-      addRequiredTagColumn(pTableMetaInfo, &index);
+      
+      index.columnIndex = relIndex;
+      tscColumnListInsert(pTableMetaInfo->tagColList, &index);
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
       if (pSchema->type > TSDB_DATA_TYPE_BINARY) {
@@ -3724,13 +3715,13 @@ static void doAddJoinTagsColumnsIntoTagList(SQueryInfo* pQueryInfo, SCondExpr* p
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
 //    int32_t columnInfo = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-    addRequiredTagColumn(pTableMetaInfo, &index);
-
+    tscColumnListInsert(pTableMetaInfo->tagColList, &index);
+  
     getColumnIndexByName(&pCondExpr->pJoinExpr->pRight->colInfo, pQueryInfo, &index);
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
 //    columnInfo = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-    addRequiredTagColumn(pTableMetaInfo, &index);
+    tscColumnListInsert(pTableMetaInfo->tagColList, &index);
   }
 }
 
@@ -3758,7 +3749,7 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
     for(int32_t j = 0; j < num; ++j) {
       SColIndex* pIndex = taosArrayGet(colList, j);
       SColumnIndex index = {.tableIndex = i, .columnIndex = pIndex->colIndex - numOfCols};
-      addRequiredTagColumn(pTableMetaInfo, &index);
+      tscColumnListInsert(pTableMetaInfo->tagColList, &index);
     }
     
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &buf);
@@ -4668,14 +4659,9 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   }
 
   if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    bool queryOnTags = false;
-//    if (tscQueryOnlyMetricTags(pQueryInfo, &queryOnTags) != TSDB_CODE_SUCCESS) {
-//      return TSDB_CODE_INVALID_SQL;
-//    }
-
-    if (queryOnTags == true) {  // local handle the super table tag query
-      pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
-    } else {
+    bool queryOnTags = tscQueryTags(pQueryInfo);
+    
+    if (queryOnTags != true) {  // local handle the super table tag query
       if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
           return invalidSqlErrMsg(pQueryInfo->msg, msg3);
@@ -4709,6 +4695,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     if (pTableMetaInfo->vgroupList->numOfVgroups == 0) {
       tscTrace("%p no table in super table, no output result", pSql);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      return TSDB_CODE_SUCCESS;
     }
 
     // keep original limitation value in globalLimit
@@ -4888,7 +4875,7 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
       pColIndex->colIndex = relIndex;
 
       index = (SColumnIndex) {.tableIndex = tableIndex, .columnIndex = relIndex};
-      addRequiredTagColumn(pTableMetaInfo, &index);
+      tscColumnListInsert(pTableMetaInfo->tagColList, &index);
     }
   }
 }
@@ -5209,7 +5196,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
 
   // only retrieve tags, group by is not supportted
-  if (pCmd->command == TSDB_SQL_RETRIEVE_TAGS) {
+  if (tscQueryTags(pQueryInfo)) {
     if (pQueryInfo->groupbyExpr.numOfGroupCols > 0 || pQueryInfo->intervalTime > 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     } else {

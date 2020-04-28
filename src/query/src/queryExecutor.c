@@ -1651,8 +1651,7 @@ static bool needReverseScan(SQuery *pQuery) {
 static bool onlyQueryTags(SQuery* pQuery) {
   for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     int32_t functionId = pQuery->pSelectExpr[i].base.functionId;
-    
-    if (functionId != TSDB_FUNC_TAG) {
+    if (functionId != TSDB_FUNC_TAGPRJ) {
       return false;
     }
   }
@@ -2548,7 +2547,7 @@ static void doSetTagValueInParam(void *tsdb, STableId* pTableId, int32_t tagColI
   int16_t type = 0;
 
   if (tagColId == TSDB_TBNAME_COLUMN_INDEX) {
-    tsdbTableGetName(tsdb, pTableId, &val);
+    tsdbGetTableName(tsdb, pTableId, &val);
     bytes = TSDB_TABLE_NAME_LEN;
     type = TSDB_DATA_TYPE_BINARY;
   } else {
@@ -4380,6 +4379,10 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
           break;
         }
       }
+      
+      if (pTableQueryInfo != NULL) {
+        break;
+      }
     }
 
     assert(pTableQueryInfo != NULL && pTableQueryInfo != NULL);
@@ -4852,8 +4855,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
 
   // do check all qualified data blocks
   int64_t el = queryOnDataBlocks(pQInfo);
-  qTrace("QInfo:%p forward scan completed, elapsed time: %lldms, reversed scan start, order:%d", pQInfo, el,
-         pQuery->order.order ^ 1u);
+  qTrace("QInfo:%p forward scan completed, elapsed time: %lldms, reversed scan start", pQInfo, el);
 
   // query error occurred or query is killed, abort current execution
   if (pQInfo->code != TSDB_CODE_SUCCESS || isQueryKilled(pQInfo)) {
@@ -4883,8 +4885,6 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
   }
 
   if (isIntervalQuery(pQuery) || isSumAvgRateQuery(pQuery)) {
-    //    assert(pSupporter->groupIndex == 0 && pSupporter->numOfGroupResultPages == 0);
-
     if (mergeIntoGroupResult(pQInfo) == TSDB_CODE_SUCCESS) {
       copyResToQueryResultBuf(pQInfo, pQuery);
 
@@ -5213,11 +5213,12 @@ bool validateExprColumnInfo(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pExprMsg, SC
 
 static int32_t validateQueryMsg(SQueryTableMsg *pQueryMsg) {
   if (pQueryMsg->intervalTime < 0) {
-    qError("qmsg:%p illegal value of aggTimeInterval %" PRId64 "", pQueryMsg, pQueryMsg->intervalTime);
+    qError("qmsg:%p illegal value of interval time %" PRId64 "", pQueryMsg, pQueryMsg->intervalTime);
     return -1;
   }
 
-  if (pQueryMsg->numOfCols <= 0 || pQueryMsg->numOfCols > TSDB_MAX_COLUMNS) {
+  if (pQueryMsg->numOfCols < 0 || pQueryMsg->numOfTags < 0 || (pQueryMsg->numOfCols + pQueryMsg->numOfTags <= 0) ||
+      pQueryMsg->numOfCols > TSDB_MAX_COLUMNS) {
     qError("qmsg:%p illegal value of numOfCols %d", pQueryMsg, pQueryMsg->numOfCols);
     return -1;
   }
@@ -5513,7 +5514,7 @@ static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo
       bytes = TSDB_TABLE_NAME_LEN;
     } else{
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
-      assert(j < pQueryMsg->numOfCols);
+      assert(j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags);
 
       SColumnInfo* pCol = (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag))? &pTagCols[j]:&pQueryMsg->colList[j];
       type = pCol->type;
@@ -6148,7 +6149,7 @@ void qTableQuery(qinfo_t qinfo) {
   qTrace("QInfo:%p query task is launched", pQInfo);
   
   if (onlyQueryTags(pQInfo->runtimeEnv.pQuery)) {
-    buildTagQueryResult(pQInfo);
+    buildTagQueryResult(pQInfo);   // todo support the limit/offset
   } else if (pQInfo->runtimeEnv.stableQuery) {
     stableQueryImpl(pQInfo);
   } else {
@@ -6258,16 +6259,26 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
   
   for(int32_t i = 0; i < num; ++i) {
     SExprInfo* pExprInfo = pQuery->pSelectExpr;
-    char* data = NULL;
-  
     SGroupItem* item = taosArrayGet(pa, i);
     
+    char* data = NULL;
     for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
-      tsdbGetTableTagVal(pQInfo->tsdb, &item->id, j, &type, &bytes, &data);
-      assert(bytes == pExprInfo[j].bytes && type == pExprInfo[j].type);
-      
-      memcpy(pQuery->sdata[j]->data + num * bytes, data, bytes);
+      // todo check the return value
+      if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+        tsdbGetTableName(pQInfo->tsdb, &item->id, &data);
+        strncpy(pQuery->sdata[j]->data + i * TSDB_TABLE_NAME_LEN, data, TSDB_TABLE_NAME_LEN);
+        tfree(data);
+  
+      } else {
+        tsdbGetTableTagVal(pQInfo->tsdb, &item->id, pExprInfo[j].base.colInfo.colId, &type, &bytes, &data);
+        assert(bytes == pExprInfo[j].bytes && type == pExprInfo[j].type);
+        memcpy(pQuery->sdata[j]->data + i * bytes, data, bytes);
+      }
+
     }
   }
+  
+  pQuery->rec.rows = num;
+  setQueryStatus(pQuery, QUERY_COMPLETED);
 }
 
