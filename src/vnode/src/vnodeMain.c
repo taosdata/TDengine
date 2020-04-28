@@ -197,7 +197,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
-  sprintf(syncInfo.path, "%s/tsdb/", rootDir);
+  sprintf(syncInfo.path, "%s", rootDir);
   syncInfo.ahandle = pVnode;
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
@@ -286,7 +286,7 @@ void *vnodeGetVnode(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
-    dError("vgId:%d not exist", vgId);
+    dPrint("vgId:%d not exist", vgId);
     return NULL;
   }
 

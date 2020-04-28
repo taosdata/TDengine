@@ -46,10 +46,10 @@ matrix:
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
-          ./test-all.sh || travis_terminate $?
+          ./test-all.sh $TRAVIS_EVENT_TYPE || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
-          ./simpletest.sh -g 2>&1 | tee mem-error-out.txt
+          ./smoketest.sh -g 2>&1 | tee mem-error-out.txt
           sleep 1
 
           # Color setting
@@ -86,13 +86,12 @@ matrix:
 
     addons:
       coverity_scan:
-
         # GitHub project metadata
         # ** specific to your project **
         project:
           name: TDengine
           version: 2.x
-          description: taosdata/TDengine
+          description: TDengine
 
         # Where email notification of build analysis results will be sent
         notification_email: sdsang@taosdata.com
