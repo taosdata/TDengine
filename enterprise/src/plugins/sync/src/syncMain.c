@@ -163,6 +163,9 @@ void syncStop(void *param)
     if (pPeer) syncRemovePeer(pPeer); 
   }
 
+  pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
+  if (pPeer) syncRemovePeer(pPeer);
+
   taosDeleteIntHash(vgIdHash, pNode->vgId);
   syncDecNodeRef(pNode);
   atomic_sub_fetch_32(&tsNodeNum, 1);
@@ -361,7 +364,8 @@ static void syncAddArbitrator(SSyncNode *pNode, const char *fqdn, uint16_t port)
   if (pPeer) syncRemovePeer(pPeer);
   pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = NULL;
 
-  if (fqdn[0] == 0) return;
+  // if not configured, or number of replications is odd, dont start arbitrator
+  if (fqdn[0] == 0 || (pNode->replica & 1)) return;
 
   SNodeInfo nodeInfo;
   nodeInfo.nodePort = port;
@@ -446,8 +450,6 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
     sTrace("vgId:%d peer:%s, start to check peer connection", pNode->vgId, pPeer->fqdn);
     taosTmrReset(syncCheckPeerConnection, 10, pPeer, syncTmrCtrl, &pPeer->timer);
   }
-
-  syncAddPeerRef(pPeer);
 
   return pPeer;
 }
@@ -804,21 +806,21 @@ static void syncProcessPeerMsg(void *param, void *buffer)
   int hlen = taosReadMsg(pPeer->peerFd, &head, sizeof(head));
   if (hlen != sizeof(head)) {
     sTrace("vgId:%d peer:%s, failed to read msg, hlen:%d", pNode->vgId, pPeer->fqdn, hlen);
-    syncRestartConnection(pPeer);
+    syncProcessBrokenLink(pPeer);
     return;
   }
 
   // head.len = htonl(head.len);
   if (head.len > TSDB_DEFAULT_PKT_SIZE || head.len <0) {
     sError("vgId:%d peer:%s, invalid pkt length, len:%d", pNode->vgId, pPeer->fqdn, head.len);
-    syncRestartConnection(pPeer);
+    syncProcessBrokenLink(pPeer);
     return;
   } 
 
   bytes = taosReadMsg(pPeer->peerFd, cont, head.len);
   if (bytes != head.len) {
     sError("vgId:%d peer:%s, failed to read, bytes:%d len:%d", pNode->vgId, pPeer->fqdn, bytes, head.len);
-    syncRestartConnection(pPeer);
+    syncProcessBrokenLink(pPeer);
     return;
   }
 
