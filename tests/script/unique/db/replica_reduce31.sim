@@ -20,12 +20,12 @@ system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql connect
 sql create dnode 192.168.0.2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sql create dnode 192.168.0.3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 3000
 
 print ======== step1 
@@ -39,8 +39,8 @@ sql create table d2.t2 (ts timestamp, i int)
 sql create table d3.t3 (ts timestamp, i int)
 sql create table d4.t4 (ts timestamp, i int)
 
-sql insert into d2.t2 values(now, 1)
 sql insert into d1.t1 values(now, 1)
+sql insert into d2.t2 values(now, 1)
 sql insert into d3.t3 values(now, 1)
 sql insert into d4.t4 values(now, 1)
 
@@ -65,9 +65,13 @@ if $rows != 1 then
 endi
 
 print ========= step2 alter db
-sql alter database d1 replica 1
-sql alter database d2 replica 1
-sql alter database d3 replica 1
+sql_error alter database d1 replica 1
+sql_error alter database d2 replica 1
+sql_error alter database d3 replica 1
+sql alter database d1 replica 2
+sql alter database d2 replica 2
+sql alter database d3 replica 2
+
 sleep 12000
 
 print ========= step3
@@ -128,7 +132,7 @@ if $rows != 3 then
 endi
 
 print ========= step4
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 sleep 3000
 
 sql insert into d1.t1 values(now, 4)
@@ -158,9 +162,9 @@ endi
 
 
 print ========= step5
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 5000
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 sleep 3000
 
 sql insert into d1.t1 values(now, 5)
@@ -190,9 +194,9 @@ endi
 
 
 print ========= step6
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 5000
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 sleep 3000
 sql insert into d1.t1 values(now, 6)
 sql insert into d2.t2 values(now, 6)

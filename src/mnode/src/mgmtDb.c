@@ -770,11 +770,17 @@ static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     mTrace("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
     newCfg.replications = replications;
   } 
+
   if (replications > mgmtGetDnodesNum()) {
     mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
     terrno = TSDB_CODE_NO_ENOUGH_DNODES;
   }
-  
+
+  if (pDb->cfg.replications - replications >= 2) {
+    mError("db:%s, replica number can't change from 3 to 1", pDb->name, replications);
+    terrno = TSDB_CODE_INVALID_OPTION;
+  }
+
   return newCfg;
 }
 

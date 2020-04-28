@@ -66,7 +66,7 @@ int32_t tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 0.1;
-char    logDir[TSDB_FILENAME_LEN] = "/var/log/taos";
+char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
 
 static SLogObj   tsLogObj = { .fileNum = 1 };
 static void *    taosAsyncOutputLog(void *param);
@@ -298,7 +298,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 
 void taosPrintLog(const char *const flags, int32_t dflag, const char *const format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", tsLogDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
     return;
   }
@@ -356,7 +356,7 @@ void taosPrintLog(const char *const flags, int32_t dflag, const char *const form
 
 void taosDumpData(unsigned char *msg, int32_t len) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop dump log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop dump log.\n", tsLogDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
     return;
   }
@@ -385,7 +385,7 @@ void taosDumpData(unsigned char *msg, int32_t len) {
 
 void taosPrintLongString(const char *const flags, int32_t dflag, const char *const format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop write log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop write log.\n", tsLogDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
     return;
   }

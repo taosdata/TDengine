@@ -939,7 +939,7 @@ char *taos_errstr(TAOS *taos) {
 
 void taos_config(int debug, char *log_path) {
   uDebugFlag = debug;
-  strcpy(logDir, log_path);
+  strcpy(tsLogDir, log_path);
 }
 
 char *taos_get_server_info(TAOS *taos) {

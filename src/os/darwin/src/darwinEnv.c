@@ -23,8 +23,8 @@ void osInit() {
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
-  strcpy(dataDir, "/var/lib/taos");
-  strcpy(logDir, "~/TDengineLog");
-  strcpy(scriptDir, "/etc/taos");
-  strcpy(osName, "Darwin");
+  strcpy(tsDataDir, "/var/lib/taos");
+  strcpy(tsLogDir, "~/TDengineLog");
+  strcpy(tsScriptDir, "/etc/taos");
+  strcpy(tsOsName, "Darwin");
 }

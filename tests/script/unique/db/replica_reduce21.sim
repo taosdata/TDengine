@@ -20,10 +20,10 @@ system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql connect
 sql create dnode 192.168.0.2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 3000
 
 print ======== step1 
@@ -70,7 +70,7 @@ error1:
 
 print ========= step3 alter d1
 sql alter database d1 replica 1
-sleep 8000
+sleep 12000
 
 print ========= step4 query d1
 sql insert into d1.t1 values(now, 2)
@@ -86,16 +86,12 @@ sql select * from d5.t5
 if $rows != 1 then
 	return -1
 endi
-
-print ========= step6 alter d5
-sql alter database d5 replica 2 -x error2
-  return -1
-error2:
-
+return
 print ========= step7 drop d1
 sql drop database d1
-sleep 12000
+sleep 5000
 
+sql reset query cache
 print ========= step8
 sql insert into d5.t5 values(now, 2)
 sql insert into d2.t2 values(now, 2)
@@ -123,7 +119,7 @@ if $rows != 2 then
 endi
 
 print ======== step9 stop dnode2
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 sleep 3000
 
 sql insert into d5.t5 values(now, 3)

@@ -745,16 +745,14 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
   void *pNode = NULL;
   void *pLastNode = NULL;
   int32_t numOfVgroups = 0;
-  int32_t dbNameLen = strlen(pDropDb->name);
   SVgObj *pVgroup = NULL;
 
   mPrint("db:%s, all vgroups will be dropped from sdb", pDropDb->name);
-
   while (1) {
     pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
 
-    if (strncmp(pDropDb->name, pVgroup->dbName, dbNameLen) == 0) {
+    if (pVgroup->pDb == pDropDb) {
       SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
@@ -763,9 +761,9 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
       sdbDeleteRow(&oper);
       pNode = pLastNode;
       numOfVgroups++;
+      mgmtSendDropVgroupMsg(pVgroup, NULL);
     }
 
-    mgmtSendDropVgroupMsg(pVgroup, NULL);
     mgmtDecVgroupRef(pVgroup);
   }
 

@@ -24,10 +24,10 @@ extern char configDir[];
 extern char tsVnodeDir[];
 extern char tsDnodeDir[];
 extern char tsMnodeDir[];
-extern char dataDir[];
-extern char logDir[];
-extern char scriptDir[];
-extern char osName[];
+extern char tsDataDir[];
+extern char tsLogDir[];
+extern char tsScriptDir[];
+extern char tsOsName[];
 
 // system info
 extern int64_t tsPageSize;

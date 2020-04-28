@@ -379,7 +379,8 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   sprintf(cfgFile, "%s/vnode%d/config.json", tsVnodeDir, pVnodeCfg->cfg.vgId);
   FILE *fp = fopen(cfgFile, "w");
   if (!fp) {
-    dError("vgId:%d, failed to open vnode cfg file for write, error:%s", pVnodeCfg->cfg.vgId, strerror(errno));
+    dError("vgId:%d, failed to open vnode cfg file for write, file:%s error:%s", pVnodeCfg->cfg.vgId, cfgFile,
+           strerror(errno));
     return errno;
   }
 
@@ -444,7 +445,8 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   sprintf(cfgFile, "%s/vnode%d/config.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(cfgFile, "r");
   if (!fp) {
-    dError("pVnode:%p vgId:%d, failed to open vnode cfg file for read, error:%s", pVnode, pVnode->vgId, strerror(errno));
+    dError("pVnode:%p vgId:%d, failed to open vnode cfg file for read, file:%s, error:%s", pVnode, pVnode->vgId,
+           cfgFile, strerror(errno));
     return errno;
   }
 
@@ -645,13 +647,13 @@ PARSE_OVER:
   return ret;
 }
 
-
 static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   char versionFile[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "w");
   if (!fp) {
-    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId, strerror(errno));
+    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, file:%s error:%s", pVnode, pVnode->vgId,
+           versionFile, strerror(errno));
     return errno;
   }
 
@@ -677,7 +679,8 @@ static bool vnodeReadVersion(SVnodeObj *pVnode) {
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "r");
   if (!fp) {
-    dError("pVnode:%p vgId:%d, failed to open vnode version file for write, error:%s", pVnode, pVnode->vgId, strerror(errno));
+    dTrace("pVnode:%p vgId:%d, failed to open version file:%s error:%s", pVnode, pVnode->vgId,
+           versionFile, strerror(errno));
     return false;
   }
 

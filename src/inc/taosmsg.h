@@ -265,6 +265,7 @@ typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
   char    db[TSDB_DB_NAME_LEN + 1];
   int8_t  igExists;
+  int8_t  getMeta;
   int16_t numOfTags;
   int16_t numOfColumns;
   int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string

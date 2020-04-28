@@ -144,12 +144,12 @@ static int32_t dnodeInitSystem() {
   signal(SIGPIPE, SIG_IGN);
 
   struct stat dirstat;
-  if (stat(logDir, &dirstat) < 0) {
-    mkdir(logDir, 0755);
+  if (stat(tsLogDir, &dirstat) < 0) {
+    mkdir(tsLogDir, 0755);
   }
 
   char temp[TSDB_FILENAME_LEN];
-  sprintf(temp, "%s/taosdlog", logDir);
+  sprintf(temp, "%s/taosdlog", tsLogDir);
   if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
     printf("failed to init log file\n");
   }
@@ -218,13 +218,13 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 
 static int32_t dnodeInitStorage() {
   struct stat dirstat;
-  if (stat(dataDir, &dirstat) < 0) {
-    mkdir(dataDir, 0755);
+  if (stat(tsDataDir, &dirstat) < 0) {
+    mkdir(tsDataDir, 0755);
   }
 
-  sprintf(tsMnodeDir, "%s/mnode", dataDir);
-  sprintf(tsVnodeDir, "%s/vnode", dataDir);
-  sprintf(tsDnodeDir, "%s/dnode", dataDir);
+  sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
+  sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
+  sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
   mkdir(tsVnodeDir, 0755);
   mkdir(tsDnodeDir, 0755);
 
