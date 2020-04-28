@@ -257,7 +257,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   int         fwdLen;
   int         code = 0;
 
-  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return TSDB_CODE_NOT_READY;
+  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
 
   // always update version
   nodeVersion = pWalHead->version;

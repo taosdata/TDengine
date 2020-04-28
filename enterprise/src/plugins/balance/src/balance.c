@@ -483,6 +483,22 @@ static bool balanceStart() {
   return updateSoon;
 }
 
+static void balanceSetVgroupOffline(SDnodeObj* pDnode) {
+  void *pNode = NULL;
+  while (1) {
+    SVgObj *pVgroup;
+    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+      if (pVgroup->vnodeGid[i].pDnode == pDnode) {
+        pVgroup->vnodeGid[i].role = TAOS_SYNC_ROLE_OFFLINE;
+      }
+    }
+    mgmtDecVgroupRef(pVgroup);
+  }
+}
+
 static void balanceCheckDnodeAccess() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
@@ -494,6 +510,8 @@ static void balanceCheckDnodeAccess() {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         mPrint("dnode:%d, set to offline state", pDnode->dnodeId);
+        balanceSetVgroupOffline(pDnode);
+        mPrint("dnode:%d, set to offline over", pDnode->dnodeId);
       }
     }
     mgmtDecDnodeRef(pDnode);
@@ -510,8 +528,9 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   bool updateSoon = false;
 
   if (handle == NULL) {
+    mTrace("balance function is scheduled by timer");
+      
     if (tsAccessSquence % tsBalanceStartInterval == 0) {
-      mTrace("balance function is scheduled by timer");
       updateSoon = balanceStart();
     }
   } else {
