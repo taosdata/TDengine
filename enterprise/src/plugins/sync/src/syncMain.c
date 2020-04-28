@@ -37,7 +37,6 @@ int       tsMaxWatchFiles = 100;
 int       tsMaxFwdInfo = 200;
 int       tsSyncTimer = 1;
 int       sDebugFlag = 135;
-uint16_t  tsSyncPort = 6050;
 
 // module global, not configurable
 int       tsSyncNum;    // number of sync in process in whole system
@@ -46,7 +45,7 @@ static int            tsNodeNum;    // number of nodes in system
 static ttpool_h       tsTcpPool;
 static void          *syncTmrCtrl = NULL;
 static void          *vgIdHash;
-static char           tsLocalFqdn[TSDB_FQDN_LEN];
+static char           tsNodeFqdn[TSDB_FQDN_LEN];
 static pthread_once_t syncModuleInit = PTHREAD_ONCE_INIT;
 
 // local functions
@@ -91,7 +90,7 @@ static void syncModuleInitFunc() {
   syncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
   vgIdHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SSyncNode *), taosHashInt); 
 
-  taosGetFqdn(tsLocalFqdn);
+  taosGetFqdn(tsNodeFqdn);
 }
 
 void *syncStart(const SSyncInfo *pInfo) 
@@ -122,7 +121,7 @@ void *syncStart(const SSyncInfo *pInfo)
   for (int i = 0; i < pCfg->replica; ++i) {
     const SNodeInfo *pNodeInfo = pCfg->nodeInfo + i;
     pNode->peerInfo[i] = syncAddPeer(pNode, pNodeInfo);
-    if ((strcmp(pNodeInfo->nodeFqdn, tsLocalFqdn) == 0) && (pNodeInfo->nodePort == tsSyncPort)) 
+    if ((strcmp(pNodeInfo->nodeFqdn, tsNodeFqdn) == 0) && (pNodeInfo->nodePort == tsSyncPort)) 
       pNode->selfIndex = i;
   }
 
@@ -212,7 +211,7 @@ int syncReconfig(void *param, const SSyncCfg *pNewCfg)
       newPeers[i] = pNode->peerInfo[j];
     }
 
-    if ((strcmp(pNewNode->nodeFqdn, tsLocalFqdn) == 0) && (pNewNode->nodePort == tsSyncPort)) 
+    if ((strcmp(pNewNode->nodeFqdn, tsNodeFqdn) == 0) && (pNewNode->nodePort == tsSyncPort)) 
       pNode->selfIndex = i;
   }
 
@@ -226,7 +225,7 @@ int syncReconfig(void *param, const SSyncCfg *pNewCfg)
   pNode->selfIndex = -1;
   for (i=0; i<pNode->replica; ++i) {
     const SNodeInfo *pNodeInfo = pNewCfg->nodeInfo + i;
-    if ((strcmp(pNodeInfo->nodeFqdn, tsLocalFqdn) == 0) && (pNodeInfo->nodePort == tsSyncPort)) 
+    if ((strcmp(pNodeInfo->nodeFqdn, tsNodeFqdn) == 0) && (pNodeInfo->nodePort == tsSyncPort)) 
       pNode->selfIndex = i;
   }
     
@@ -442,7 +441,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
   pPeer->refCount = 1;
 
   sPrint("vgId:%d peer:%s, it is configured, port:%d", pNode->vgId, pPeer->fqdn, pPeer->port);
-  int ret = strcmp(pPeer->fqdn, tsLocalFqdn);
+  int ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     sTrace("vgId:%d peer:%s, start to check peer connection", pNode->vgId, pPeer->fqdn);
     taosTmrReset(syncCheckPeerConnection, 10, pPeer, syncTmrCtrl, &pPeer->timer);
@@ -545,7 +544,7 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
         index = i;
       } else { // multiple masters, it shall not happen 
         if ( i == pNode->selfIndex ) {
-          sError("vgId:%d, peer:%s: is master, work as slave instead", pNode->vgId, pTemp->fqdn);
+          sError("vgId:%d peer:%s: is master, work as slave instead", pNode->vgId, pTemp->fqdn);
           nodeRole = TAOS_SYNC_ROLE_SLAVE;
           (*pNode->notifyRole)(pNode->ahandle, nodeRole);
         }
@@ -580,7 +579,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
       if ( nodeVersion < pMaster->version) {
         syncRequired = 1;
       } else {
-        sPrint("vgId:%d, peer:%s is master, work as slave, ver:%d", pNode->vgId, pMaster->fqdn, pMaster->version);
+        sPrint("vgId:%d peer:%s is master, work as slave, ver:%d", pNode->vgId, pMaster->fqdn, pMaster->version);
         nodeRole = TAOS_SYNC_ROLE_SLAVE;
         (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       }
@@ -626,7 +625,7 @@ void syncRestartConnection(SSyncPeer *pPeer)
 
   pPeer->sstatus = TAOS_SYNC_STATUS_INIT;
 
-  int ret = strcmp(pPeer->fqdn, tsLocalFqdn);
+  int ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (ret > 0 || (ret == 0 && pPeer->port > tsSyncPort) )
     taosTmrReset(syncCheckPeerConnection, tsSyncTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
 
@@ -699,7 +698,7 @@ static void syncRecoverFromMaster(void *param, void *tmrId)
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_REQ;
   firstPkt.syncHead.vgId = pNode->vgId;
-  strcpy(firstPkt.fqdn, tsLocalFqdn);
+  strcpy(firstPkt.fqdn, tsNodeFqdn);
   firstPkt.port = tsSyncPort;
   taosTmrReset(syncNotStarted, tsSyncTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
 
@@ -899,7 +898,7 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.vgId = pPeer->nodeId ? pNode->vgId:0;
   firstPkt.syncHead.type = TAOS_SMSG_STATUS;
-  strcpy(firstPkt.fqdn, tsLocalFqdn); 
+  strcpy(firstPkt.fqdn, tsNodeFqdn); 
   firstPkt.port = tsSyncPort;
 
   if ( write(connFd, &firstPkt, sizeof(firstPkt)) == sizeof(firstPkt)) {
