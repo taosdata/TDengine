@@ -44,12 +44,12 @@ void odbc_setup_init_imp(void)
 #if defined(_WIN32) || defined(_WIN64)
   if (!odbcLoaded) {
     struct stat dirstat;
-    if (stat(logDir, &dirstat) < 0) mkdir(logDir, 0755); 
+    if (stat(tsLogDir, &dirstat) < 0) mkdir(tsLogDir, 0755); 
     
     char temp[128];
-    sprintf(temp, "%s/setuplog", logDir);
+    sprintf(temp, "%s/setuplog", tsLogDir);
     if (taosInitLog(temp, 10000, 10) < 0) {
-      printf("failed to open log file in directory:%s\n", logDir);
+      printf("failed to open log file in directory:%s\n", tsLogDir);
     }
 
     odbcTrace("taosodbc.dll for setup load success");
@@ -58,7 +58,7 @@ void odbc_setup_init_imp(void)
 #else
   if (!odbcLoaded) {
     char temp[128];
-    sprintf(temp, "%s/setuplog", logDir);
+    sprintf(temp, "%s/setuplog", tsLogDir);
     taosOpenLogFileWithMaxLines(temp, 10000, 10);
     odbcTrace("libtaosodbc.so for setup load success");
     odbcLoaded = true;
