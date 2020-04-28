@@ -60,8 +60,10 @@ int32_t tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
-char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
+char  tsMaster[TSDB_FQDN_LEN] = {0};
+char  tsSecond[TSDB_FQDN_LEN] = {0};
+char  tsLocalEp[TSDB_FQDN_LEN] = {0};  // Local End Point, hostname:port
+uint16_t tsServerPort = 6030;
 uint16_t tsMnodeShellPort = 6030;   // udp[6030-6034] tcp[6030]
 uint16_t tsDnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
 uint16_t tsMnodeDnodePort = 6040;   // udp/tcp
@@ -70,8 +72,6 @@ uint16_t tsSyncPort = 6050;
 
 int32_t tsStatusInterval = 1;         // second
 int32_t tsShellActivityTimer = 3;     // second
-int32_t tsVnodePeerHBTimer = 1;       // second
-int32_t tsMgmtPeerHBTimer = 1;        // second
 int32_t tsMeterMetaKeepTimer = 7200;  // second
 int32_t tsMetricMetaKeepTimer = 600;  // second
 int32_t tsRpcTimer = 300;
@@ -79,8 +79,6 @@ int32_t tsRpcMaxTime = 600;      // seconds;
 
 float   tsNumOfThreadsPerCore = 1.0;
 float   tsRatioOfQueryThreads = 0.5;
-char    tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
-char    tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
 int16_t tsNumOfVnodesPerCore = 8;
 int16_t tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 
@@ -112,7 +110,6 @@ int32_t tsNumOfMPeers = 3;
 int32_t tsMaxShellConns = 2000;
 int32_t tsMaxTables = 100000;
 
-char    tsLocalIp[TSDB_IPv4ADDR_LEN] = {0};
 char    tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
 char    tsDefaultUser[64] = "root";
 char    tsDefaultPass[64] = "taosdata";
@@ -183,7 +180,6 @@ float tsStreamComputDelayRatio = 0.1;
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
-char     tsHttpIp[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
 uint16_t tsHttpPort = 6020;                 // only tcp, range tcp[6020]
 // uint16_t tsNginxPort = 6060;             //only tcp, range tcp[6060]
 int32_t tsHttpCacheSessions = 100;
@@ -194,7 +190,6 @@ int32_t tsHttpEnableRecordSql = 0;
 int32_t tsTelegrafUseFieldNum = 0;
 
 int32_t  tsTscEnableRecordSql = 0;
-int32_t  tsAnyIp = 1;
 uint32_t tsPublicIpInt = 0;
 
 char tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
@@ -274,121 +269,31 @@ static void doInitGlobalConfig() {
   SGlobalCfg cfg = {0};
   
   // ip address
-  cfg.option = "masterIp";
-  cfg.ptr = tsMasterIp;
+  cfg.option = "master";
+  cfg.ptr = tsMaster;
   cfg.valType = TAOS_CFG_VTYPE_IPSTR;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_IPv4ADDR_LEN;
+  cfg.ptrLength = TSDB_FQDN_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "secondIp";
-  cfg.ptr = tsSecondIp;
+  cfg.option = "second";
+  cfg.ptr = tsSecond;
   cfg.valType = TAOS_CFG_VTYPE_IPSTR;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_IPv4ADDR_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "publicIp";
-  cfg.ptr = tsPublicIp;
-  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_IPv4ADDR_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "privateIp";
-  cfg.ptr = tsPrivateIp;
-  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_IPv4ADDR_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "localIp";
-  cfg.ptr = tsLocalIp;
-  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_IPv4ADDR_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "httpIp";
-  cfg.ptr = tsHttpIp;
-  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_IPv4ADDR_LEN;
+  cfg.ptrLength = TSDB_FQDN_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   // port
-  cfg.option = "mnodeShellPort";
-  cfg.ptr = &tsMnodeShellPort;
+  cfg.option = "serverPort";
+  cfg.ptr = &tsServerPort;
   cfg.valType = TAOS_CFG_VTYPE_INT16;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 1;
-  cfg.maxValue = 65535;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "dnodeShellPort";
-  cfg.ptr = &tsDnodeShellPort;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 1;
-  cfg.maxValue = 65535;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "mnodeDnodePort";
-  cfg.ptr = &tsMnodeDnodePort;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 65535;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "dnodeMnodePort";
-  cfg.ptr = &tsDnodeMnodePort;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 65535;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  // cfg.option = "syncPort";
-  // cfg.ptr = &syncPort;
-  // cfg.valType = TAOS_CFG_VTYPE_INT16;
-  // cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  // cfg.minValue = 1;
-  // cfg.maxValue = 65535;
-  // cfg.ptrLength = 0;
-  // cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  // taosInitConfigOption(cfg);
-
-  cfg.option = "httpPort";
-  cfg.ptr = &tsHttpPort;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
   cfg.maxValue = 65535;
   cfg.ptrLength = 0;
@@ -1227,16 +1132,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "anyIp";
-  cfg.ptr = &tsAnyIp;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   // version info
   cfg.option = "gitinfo";
   cfg.ptr = gitinfo;
@@ -1284,25 +1179,15 @@ void taosInitGlobalCfg() {
 }
 
 bool taosCheckGlobalCfg() {
-  if (tsPrivateIp[0] == 0) {
-    taosGetPrivateIp(tsPrivateIp);
+  taosGetFqdn(tsLocalEp);
+  sprintf(tsLocalEp + strlen(tsLocalEp), ":%d", tsServerPort);
+
+  if (tsMaster[0] == 0) {
+    strcpy(tsMaster, tsLocalEp);
   }
 
-  if (tsPublicIp[0] == 0) {
-    strcpy(tsPublicIp, tsPrivateIp);
-  }
-  tsPublicIpInt = inet_addr(tsPublicIp);
-
-  if (tsLocalIp[0] == 0) {
-    strcpy(tsLocalIp, tsPrivateIp);
-  }
-
-  if (tsMasterIp[0] == 0) {
-    strcpy(tsMasterIp, tsPrivateIp);
-  }
-
-  if (tsSecondIp[0] == 0) {
-    strcpy(tsSecondIp, tsMasterIp);
+  if (tsSecond[0] == 0) {
+    strcpy(tsSecond, tsLocalEp);
   }
   
   taosGetSystemInfo();
@@ -1324,15 +1209,6 @@ bool taosCheckGlobalCfg() {
     tsNumOfTotalVnodes = tsNumOfTotalVnodes < TSDB_MIN_VNODES ? TSDB_MIN_VNODES : tsNumOfTotalVnodes;     
   }
 
-  if (strlen(tsPrivateIp) == 0) {
-    uError("privateIp is null");
-    return false;
-  }
-
-  if (tscEmbedded) {
-    strcpy(tsLocalIp, tsPrivateIp);
-  }
-
   // todo refactor
   tsVersion = 0;
   for (int i = 0; i < 10; i++) {
@@ -1345,5 +1221,26 @@ bool taosCheckGlobalCfg() {
   
   tsVersion = 10 * tsVersion;
 
+  tsMnodeShellPort = tsServerPort + TSDB_PORT_MNODESHELL;   // udp[6030-6034] tcp[6030]
+  tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
+  tsMnodeDnodePort = tsServerPort + TSDB_PORT_MNODEDNODE;   // udp/tcp
+  tsDnodeMnodePort = tsServerPort + TSDB_PORT_DNODEMNODE;   // udp/tcp
+  tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
+
   return true;
+}
+
+int taosGetFqdnPortFromEp(char *ep, char *fqdn, uint16_t *port) {
+  *port = 0;
+  strcpy(fqdn, ep);
+
+  char *temp = strchr(fqdn, ':');
+  if (temp) {   
+    *temp = 0;
+    *port = atoi(temp+1);
+  } 
+  
+  if (*port == 0) *port = tsServerPort;
+
+  return 0; 
 }

@@ -48,7 +48,7 @@ int httpInitSystem() {
   memset(httpServer, 0, sizeof(HttpServer));
 
   strcpy(httpServer->label, "rest");
-  strcpy(httpServer->serverIp, tsHttpIp);
+  httpServer->serverIp = 0;
   httpServer->serverPort = tsHttpPort;
   httpServer->cacheContext = tsHttpCacheSessions;
   httpServer->sessionExpire = tsHttpSessionExpire;

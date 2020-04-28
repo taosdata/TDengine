@@ -387,7 +387,6 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
     return errno;
   }
 
-  char    ipStr[20];
   int32_t len = 0;
   int32_t maxLen = 1000;
   char *  content = calloc(1, maxLen + 1);
@@ -412,19 +411,10 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pVnodeCfg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
   
-  uint32_t ipInt =  pVnodeCfg->cfg.arbitratorIp;
-  sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
-  len += snprintf(content + len, maxLen - len, "  \"arbitratorIp\": \"%s\",\n", ipStr);
-
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pVnodeCfg->cfg.replications; i++) {
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", pVnodeCfg->nodes[i].nodeId);
-
-    uint32_t ipInt = pVnodeCfg->nodes[i].nodeIp;
-    sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
-    len += snprintf(content + len, maxLen - len, "    \"nodeIp\": \"%s\",\n", ipStr);
-
-    len += snprintf(content + len, maxLen - len, "    \"nodeName\": \"%s\"\n", pVnodeCfg->nodes[i].nodeName);
+    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", pVnodeCfg->nodes[i].nodeEp);
 
     if (i < pVnodeCfg->cfg.replications - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
@@ -590,13 +580,6 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->syncCfg.quorum = (int8_t)quorum->valueint;
 
-  cJSON *arbitratorIp = cJSON_GetObjectItem(root, "arbitratorIp");
-  if (!arbitratorIp || arbitratorIp->type != cJSON_String || arbitratorIp->valuestring == NULL) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, arbitratorIp not found", pVnode, pVnode->vgId);
-    goto PARSE_OVER;
-  }
-  pVnode->syncCfg.arbitratorIp = inet_addr(arbitratorIp->valuestring);
-
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
     dError("pVnode:%p vgId:%d, failed to read vnode cfg, nodeInfos not found", pVnode, pVnode->vgId);
@@ -620,27 +603,22 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     }
     pVnode->syncCfg.nodeInfo[i].nodeId = nodeId->valueint;
 
-    cJSON *nodeIp = cJSON_GetObjectItem(nodeInfo, "nodeIp");
-    if (!nodeIp || nodeIp->type != cJSON_String || nodeIp->valuestring == NULL) {
-      dError("pVnode:%p vgId:%d, failed to read vnode cfg, nodeIp not found", pVnode, pVnode->vgId);
+    cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
+    if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
+      dError("pVnode:%p vgId:%d, failed to read vnode cfg, nodeFqdn not found", pVnode, pVnode->vgId);
       goto PARSE_OVER;
     }
-    pVnode->syncCfg.nodeInfo[i].nodeIp = inet_addr(nodeIp->valuestring);
 
-    cJSON *nodeName = cJSON_GetObjectItem(nodeInfo, "nodeName");
-    if (!nodeName || nodeName->type != cJSON_String || nodeName->valuestring == NULL) {
-      dError("pVnode:%p vgId:%d, failed to read vnode cfg, nodeName not found", pVnode, pVnode->vgId);
-      goto PARSE_OVER;
-    }
-    strncpy(pVnode->syncCfg.nodeInfo[i].name, nodeName->valuestring, TSDB_NODE_NAME_LEN);
+    taosGetFqdnPortFromEp(nodeEp->valuestring, pVnode->syncCfg.nodeInfo[i].nodeFqdn, &pVnode->syncCfg.nodeInfo[i].nodePort);
+    pVnode->syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
   }
 
   ret = 0;
 
   dPrint("pVnode:%p vgId:%d, read vnode cfg successed, replcia:%d", pVnode, pVnode->vgId, pVnode->syncCfg.replica);
   for (int32_t i = 0; i < pVnode->syncCfg.replica; i++) {
-    dPrint("pVnode:%p vgId:%d, dnode:%d, ip:%s name:%s", pVnode, pVnode->vgId, pVnode->syncCfg.nodeInfo[i].nodeId,
-           taosIpStr(pVnode->syncCfg.nodeInfo[i].nodeIp), pVnode->syncCfg.nodeInfo[i].name);
+    dPrint("pVnode:%p vgId:%d, dnode:%d, %s:%d", pVnode, pVnode->vgId, pVnode->syncCfg.nodeInfo[i].nodeId,
+           pVnode->syncCfg.nodeInfo[i].nodeFqdn, pVnode->syncCfg.nodeInfo[i].nodePort);
   }
 
 PARSE_OVER:

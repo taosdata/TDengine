@@ -68,7 +68,7 @@ typedef enum {
 typedef struct {
   void * conn;
   void * timer;
-  char   privateIpStr[TSDB_IPv4ADDR_LEN];
+  char   ep[TSDB_FQDN_LEN];
   int8_t cmdIndex;
   int8_t state;
   char   sql[SQL_LENGTH];
@@ -112,14 +112,8 @@ static void monitorInitConn(void *para, void *unused) {
   monitorPrint("starting to initialize monitor service ..");
   tsMonitorConn.state = MONITOR_STATE_INITIALIZING;
 
-  if (tsMonitorConn.privateIpStr[0] == 0) {
-    strcpy(tsMonitorConn.privateIpStr, tsPrivateIp);
-    for (int32_t i = 0; i < TSDB_IPv4ADDR_LEN; ++i) {
-      if (tsMonitorConn.privateIpStr[i] == '.') {
-        tsMonitorConn.privateIpStr[i] = '_';
-      }
-    }
-  }
+  if (tsMonitorConn.ep[0] == 0) 
+    strcpy(tsMonitorConn.ep, tsLocalEp);
 
   if (tsMonitorConn.conn == NULL) {
     taos_connect_a(NULL, "monitor", tsInternalPass, "", 0, monitorInitConnCb, &tsMonitorConn, &(tsMonitorConn.conn));
@@ -163,7 +157,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              tsMonitorDbName, IP_LEN_STR + 1);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn_%s using %s.dn tags('%s')", tsMonitorDbName,
-             tsMonitorConn.privateIpStr, tsMonitorDbName, tsPrivateIp);
+             tsMonitorConn.ep, tsMonitorDbName, tsLocalEp);
   } else if (cmd == MONITOR_CMD_CREATE_MT_ACCT) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.acct(ts timestamp "
@@ -214,7 +208,7 @@ static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
   if (-code == TSDB_CODE_TABLE_ALREADY_EXIST || -code == TSDB_CODE_DB_ALREADY_EXIST || code >= 0) {
     monitorTrace("monitor:%p, sql success, reason:%d, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
     if (tsMonitorConn.cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
-      monitorPrint("dnode:%s is started", tsPrivateIp);
+      monitorPrint("dnode:%s is started", tsLocalEp);
     }
     tsMonitorConn.cmdIndex++;
     monitorInitDatabase();
@@ -346,7 +340,7 @@ static void monitorSaveSystemInfo() {
 
   int64_t ts = taosGetTimestampUs();
   char *  sql = tsMonitorConn.sql;
-  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%" PRId64, tsMonitorDbName, tsMonitorConn.privateIpStr, ts);
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%" PRId64, tsMonitorDbName, tsMonitorConn.ep, ts);
 
   pos += monitorBuildCpuSql(sql + pos);
   pos += monitorBuildMemorySql(sql + pos);
@@ -414,7 +408,7 @@ void monitorSaveLog(int32_t level, const char *const format, ...) {
   va_end(argpointer);
   if (len > max_length) len = max_length;
 
-  len += sprintf(sql + len, "', '%s')", tsPrivateIp);
+  len += sprintf(sql + len, "', '%s')", tsLocalEp);
   sql[len++] = 0;
 
   monitorTrace("monitor:%p, save log, sql: %s", tsMonitorConn.conn, sql);

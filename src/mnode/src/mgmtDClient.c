@@ -38,7 +38,6 @@ static void  *tsMgmtDClientRpc = NULL;
 
 int32_t mgmtInitDClient() {
   SRpcInit rpcInit = {0};
-  rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
   rpcInit.localPort    = 0;
   rpcInit.label        = "MND-DC";
   rpcInit.numOfThreads = 1;

@@ -187,11 +187,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_CITY_LEN             20
 #define TSDB_STATE_LEN            20
 #define TSDB_COUNTRY_LEN          20
-#define TSDB_VNODES_SUPPORT       6
-#define TSDB_MGMT_SUPPORT         4
 #define TSDB_LOCALE_LEN           64
 #define TSDB_TIMEZONE_LEN         64
 
+#define TSDB_FQDN_LEN             64
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_METER_VNODE_BITS     20
@@ -218,8 +217,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_DNODE_ROLE_MGMT      1
 #define TSDB_DNODE_ROLE_VNODE     2
 
-#define TSDB_MAX_MPEERS           5
-#define TSDB_MAX_MGMT_IPS         (TSDB_MAX_MPEERS+1)
+#define TSDB_MAX_REPLICA          5
 
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
@@ -319,6 +317,12 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_SUPER_TABLES  100
 #define TSDB_MAX_NORMAL_TABLES 1000
 #define TSDB_MAX_CHILD_TABLES  100000
+
+#define TSDB_PORT_MNODESHELL 0
+#define TSDB_PORT_DNODESHELL 5
+#define TSDB_PORT_DNODEMNODE 10
+#define TSDB_PORT_MNODEDNODE 15 
+#define TSDB_PORT_SYNC 20
 
 typedef enum {
   TSDB_PRECISION_MILLI,

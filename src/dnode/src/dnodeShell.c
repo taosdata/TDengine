@@ -47,7 +47,6 @@ int32_t dnodeInitShell() {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
   rpcInit.localPort    = tsDnodeShellPort;
   rpcInit.label        = "DND-shell";
   rpcInit.numOfThreads = numOfThreads;

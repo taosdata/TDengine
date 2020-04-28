@@ -130,7 +130,7 @@ int32_t mgmtInitSystem() {
 
   struct stat dirstat;
   bool fileExist  = (stat(tsMnodeDir, &dirstat) == 0);
-  bool asMaster = (strcmp(tsMasterIp, tsPrivateIp) == 0);
+  bool asMaster = (strcmp(tsMaster, tsLocalEp) == 0);
 
   if (asMaster || fileExist) {
     if (mgmtStartSystem() != 0) {

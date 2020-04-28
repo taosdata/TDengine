@@ -22,8 +22,8 @@ extern "C" {
 
 void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer);
 void  rpcCloseConnCache(void *handle);
-void  rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, int8_t connType);
-void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, int8_t connType);
+void  rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, int8_t connType);
+void *rpcGetConnFromCache(void *handle, char *fqdn, uint16_t port, int8_t connType);
 
 #ifdef __cplusplus
 }

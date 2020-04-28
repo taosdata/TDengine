@@ -23,7 +23,7 @@
 #include "rpcCache.h"
 
 typedef struct SConnHash {
-  uint32_t          ip;
+  char              fqdn[TSDB_FQDN_LEN];
   uint16_t          port;
   char              connType;
   struct SConnHash *prev;
@@ -46,7 +46,7 @@ typedef struct {
   int64_t        *lockedBy;
 } SConnCache;
 
-static int  rpcHashConn(void *handle, uint32_t ip, uint16_t port, int8_t connType);
+static int  rpcHashConn(void *handle, char *fqdn, uint16_t port, int8_t connType);
 static void rpcLockCache(int64_t *lockedBy);
 static void rpcUnlockCache(int64_t *lockedBy);
 static void rpcCleanConnCache(void *handle, void *tmrId);
@@ -114,7 +114,7 @@ void rpcCloseConnCache(void *handle) {
   free(pCache);
 }
 
-void rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, int8_t connType) {
+void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, int8_t connType) {
   int         hash;
   SConnHash * pNode;
   SConnCache *pCache;
@@ -125,9 +125,9 @@ void rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, i
   assert(pCache); 
   assert(data);
 
-  hash = rpcHashConn(pCache, ip, port, connType);
+  hash = rpcHashConn(pCache, fqdn, port, connType);
   pNode = (SConnHash *)taosMemPoolMalloc(pCache->connHashMemPool);
-  pNode->ip = ip;
+  strcpy(pNode->fqdn, fqdn);
   pNode->port = port;
   pNode->connType = connType;
   pNode->data = data;
@@ -147,12 +147,12 @@ void rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, i
 
   pCache->total++;
 
-  tTrace("%p ip:0x%x:%hu:%d:%d:%p added into cache, connections:%d", data, ip, port, connType, hash, pNode, pCache->count[hash]);
+  tTrace("%p %s:%hu:%d:%d:%p added into cache, connections:%d", data, fqdn, port, connType, hash, pNode, pCache->count[hash]);
 
   return;
 }
 
-void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, int8_t connType) {
+void *rpcGetConnFromCache(void *handle, char *fqdn, uint16_t port, int8_t connType) {
   int         hash;
   SConnHash * pNode;
   SConnCache *pCache;
@@ -163,7 +163,7 @@ void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, int8_t connT
 
   uint64_t time = taosGetTimestampMs();
 
-  hash = rpcHashConn(pCache, ip, port, connType);
+  hash = rpcHashConn(pCache, fqdn, port, connType);
   rpcLockCache(pCache->lockedBy+hash);
 
   pNode = pCache->connHashList[hash];
@@ -174,7 +174,7 @@ void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, int8_t connT
       break;
     }
 
-    if (pNode->ip == ip && pNode->port == port && pNode->connType == connType) break;
+    if (strcmp(pNode->fqdn, fqdn) == 0 && pNode->port == port && pNode->connType == connType) break;
 
     pNode = pNode->next;
   }
@@ -201,7 +201,7 @@ void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, int8_t connT
   rpcUnlockCache(pCache->lockedBy+hash);
 
   if (pData) {
-    tTrace("%p ip:0x%x:%hu:%d:%d:%p retrieved from cache, connections:%d", pData, ip, port, connType, hash, pNode, pCache->count[hash]);
+    tTrace("%p %s:%hu:%d:%d:%p retrieved from cache, connections:%d", pData, fqdn, port, connType, hash, pNode, pCache->count[hash]);
   }
 
   return pData;
@@ -239,7 +239,7 @@ static void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash
     pNext = pNode->next;
     pCache->total--;
     pCache->count[hash]--;
-    tTrace("%p ip:0x%x:%hu:%d:%d:%p removed from cache, connections:%d", pNode->data, pNode->ip, pNode->port, pNode->connType, hash, pNode,
+    tTrace("%p %s:%hu:%d:%d:%p removed from cache, connections:%d", pNode->data, pNode->fqdn, pNode->port, pNode->connType, hash, pNode,
              pCache->count[hash]);
     taosMemPoolFree(pCache->connHashMemPool, (char *)pNode);
     pNode = pNext;
@@ -251,12 +251,16 @@ static void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash
     pCache->connHashList[hash] = NULL;
 }
 
-static int rpcHashConn(void *handle, uint32_t ip, uint16_t port, int8_t connType) {
+static int rpcHashConn(void *handle, char *fqdn, uint16_t port, int8_t connType) {
   SConnCache *pCache = (SConnCache *)handle;
   int         hash = 0;
+  char       *temp = fqdn;
 
-  hash = ip >> 16;
-  hash += (unsigned short)(ip & 0xFFFF);
+  while (*temp) {
+    hash += *temp;
+    ++temp;
+  }
+
   hash += port;
   hash += connType;
 

@@ -38,7 +38,6 @@ int32_t dnodeInitMnode() {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
   rpcInit.localPort    = tsDnodeMnodePort;
   rpcInit.label        = "DND-MS";
   rpcInit.numOfThreads = 1;

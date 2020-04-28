@@ -19,87 +19,21 @@
 #include "tsocket.h"
 #include "tutil.h"
 
-/*
- * Function to get the public ip address of current machine. If get IP
- * successfully, return 0, else, return -1. The return values is ip.
- *
- * Use:
- * if (taosGetPublicIp(ip) != 0) {
- *     perror("Fail to get public IP address\n");
- *     exit(EXIT_FAILURE);
- * }
- */
-int taosGetPublicIp(char *const ip) {
-  /* bool flag; */
-  int                flag;
-  int                sock;
-  char **            pptr = NULL;
-  struct sockaddr_in destAddr;
-  struct hostent *   ptr = NULL;
-  char               destIP[128];
-  char               szBuffer[] = {
-      "GET / HTTP/1.1\nHost: ident.me\nUser-Agent: curl/7.47.0\nAccept: "
-      "*/*\n\n"};
-  char res[1024];
+int taosGetFqdn(char *fqdn) {
+  char hostname[1024];
+  hostname[1023] = '\0';
+  gethostname(hostname, 1023);
 
-  // Create socket
-  sock = (int)socket(AF_INET, SOCK_STREAM, 0);
-  if (sock == -1) {
-    return -1;
-  }
-
-  bzero((void *)&destAddr, sizeof(destAddr));
-  destAddr.sin_family = AF_INET;
-  destAddr.sin_port = htons(80);
-
-  ptr = gethostbyname("ident.me");
-  if (ptr == NULL) {
-    return -1;
-  }
-
-  // Loop to find a valid IP address
-  for (flag = 0, pptr = ptr->h_addr_list; NULL != *pptr; ++pptr) {
-    inet_ntop(ptr->h_addrtype, *pptr, destIP, sizeof(destIP));
-    destAddr.sin_addr.s_addr = inet_addr(destIP);
-    if (connect(sock, (struct sockaddr *)&destAddr, sizeof(struct sockaddr)) != -1) {
-      flag = 1;
-      break;
-    }
-  }
-
-  // Check if the host is available.
-  if (flag == 0) {
-    return -1;
-  }
-
-  // Check send.
-  if (strlen(szBuffer) != taosWriteSocket(sock, szBuffer, (size_t)strlen(szBuffer))) {
-    return -1;
-  }
-
-  // Receive response.
-  if (taosReadSocket(sock, res, 1024) == -1) {
-    return -1;
-  }
-
-  // Extract the IP address from the response.
-  int c_start = 0, c_end = 0;
-  for (; c_start < (int)strlen(res); c_start = c_end + 1) {
-    for (c_end = c_start; c_end < (int)strlen(res) && res[c_end] != '\n'; c_end++) {
-    }
-
-    if (c_end >= (int)strlen(res)) {
-      return -1;
-    }
-
-    if (res[c_start] >= '0' && res[c_start] <= '9') {
-      strncpy(ip, res + c_start, (size_t)(c_end - c_start));
-      ip[c_end - c_start] = '\0';
-      break;
-    }
-  }
-
+  struct hostent* h;
+  h = gethostbyname(hostname);
+  strcpy(fqdn, h->h_name);
   return 0;
+}
+
+uint32_t taosGetIpFromFqdn(const char *fqdn) {
+  struct hostent * record = gethostbyname(fqdn);
+  if(record == NULL) return -1;
+  return ((struct in_addr *)record->h_addr)->s_addr;
 }
 
 // Function converting an IP address string to an unsigned int.
@@ -259,7 +193,7 @@ int taosReadn(int fd, char *ptr, int nbytes) {
   return (nbytes - nleft);
 }
 
-int taosOpenUdpSocket(char *ip, uint16_t port) {
+int taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in localAddr;
   int                sockFd;
   int                ttl = 128;
@@ -270,7 +204,7 @@ int taosOpenUdpSocket(char *ip, uint16_t port) {
 
   memset((char *)&localAddr, 0, sizeof(localAddr));
   localAddr.sin_family = AF_INET;
-  localAddr.sin_addr.s_addr = inet_addr(ip);
+  localAddr.sin_addr.s_addr = ip;
   localAddr.sin_port = (uint16_t)htons(port);
 
   if ((sockFd = (int)socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -325,12 +259,10 @@ int taosOpenUdpSocket(char *ip, uint16_t port) {
   return sockFd;
 }
 
-int taosOpenTcpClientSocket(char *destIp, uint16_t destPort, char *clientIp) {
+int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientIp) {
   int                sockFd = 0;
   struct sockaddr_in serverAddr, clientAddr;
   int                ret;
-
-  // uTrace("open tcp client socket:%s:%d, local Ip:%s", destIp, destPort, clientIp);
 
   sockFd = (int)socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -339,16 +271,16 @@ int taosOpenTcpClientSocket(char *destIp, uint16_t destPort, char *clientIp) {
     return -1;
   }
 
-  if (clientIp && clientIp[0] && clientIp[0] != '0') {
+  if ( clientIp != 0) {
     memset((char *)&clientAddr, 0, sizeof(clientAddr));
     clientAddr.sin_family = AF_INET;
-    clientAddr.sin_addr.s_addr = inet_addr(clientIp);
+    clientAddr.sin_addr.s_addr = clientIp;
     clientAddr.sin_port = 0;
 
     /* bind socket to client address */
     if (bind(sockFd, (struct sockaddr *)&clientAddr, sizeof(clientAddr)) < 0) {
-      uError("bind tcp client socket failed, client(%s:0), dest(%s:%d), reason:%d(%s)",
-             clientIp, destIp, destPort, errno, strerror(errno));
+      uError("bind tcp client socket failed, client(0x%x:0), dest(0x%x:%d), reason:(%s)",
+             clientIp, destIp, destPort, strerror(errno));
       close(sockFd);
       return -1;
     }
@@ -356,13 +288,13 @@ int taosOpenTcpClientSocket(char *destIp, uint16_t destPort, char *clientIp) {
 
   memset((char *)&serverAddr, 0, sizeof(serverAddr));
   serverAddr.sin_family = AF_INET;
-  serverAddr.sin_addr.s_addr = inet_addr(destIp);
+  serverAddr.sin_addr.s_addr = destIp;
   serverAddr.sin_port = (uint16_t)htons((uint16_t)destPort);
 
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 
   if (ret != 0) {
-    //uError("failed to connect socket, ip:%s, port:%hu, reason: %s", destIp, destPort, strerror(errno));
+    //uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
     taosCloseSocket(sockFd);
     sockFd = -1;
   }
@@ -420,7 +352,7 @@ int taosKeepTcpAlive(int sockFd) {
   return 0;
 }
 
-int taosOpenTcpServerSocket(char *ip, uint16_t port) {
+int taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   int                sockFd;
   int                reuse;
@@ -429,7 +361,7 @@ int taosOpenTcpServerSocket(char *ip, uint16_t port) {
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sin_family = AF_INET;
-  serverAdd.sin_addr.s_addr = inet_addr(ip);
+  serverAdd.sin_addr.s_addr = ip;
   serverAdd.sin_port = (uint16_t)htons(port);
 
   if ((sockFd = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
@@ -447,7 +379,7 @@ int taosOpenTcpServerSocket(char *ip, uint16_t port) {
 
   /* bind socket to server address */
   if (bind(sockFd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
-    uError("bind tcp server socket failed, %s:%hu, reason:%d(%s)", ip, port, errno, strerror(errno));
+    uError("bind tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
     close(sockFd);
     return -1;
   }
@@ -455,14 +387,14 @@ int taosOpenTcpServerSocket(char *ip, uint16_t port) {
   if (taosKeepTcpAlive(sockFd) < 0) return -1;
 
   if (listen(sockFd, 10) < 0) {
-    uError("listen tcp server socket failed, %s:%hu, reason:%d(%s)", ip, port, errno, strerror(errno));
+    uError("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
     return -1;
   }
 
   return sockFd;
 }
 
-int taosOpenRawSocket(char *ip) {
+int taosOpenRawSocket(uint32_t ip) {
   int                fd, hold;
   struct sockaddr_in rawAdd;
 
@@ -483,10 +415,10 @@ int taosOpenRawSocket(char *ip) {
 
   bzero((char *)&rawAdd, sizeof(rawAdd));
   rawAdd.sin_family = AF_INET;
-  rawAdd.sin_addr.s_addr = inet_addr(ip);
+  rawAdd.sin_addr.s_addr = ip;
 
   if (bind(fd, (struct sockaddr *)&rawAdd, sizeof(rawAdd)) < 0) {
-    uError("failed to bind RAW socket: %d (%s)", errno, strerror(errno));
+    uError("failed to bind RAW socket:(%s)", strerror(errno));
     close(fd);
     return -1;
   }

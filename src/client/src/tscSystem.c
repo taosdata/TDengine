@@ -55,7 +55,6 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pMgmtConn) {
 
   if (pVnodeConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localIp = tsLocalIp;
     rpcInit.localPort = 0;
     rpcInit.label = "TSC-vnode";
     rpcInit.numOfThreads = tscNumOfThreads;
@@ -76,7 +75,6 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pMgmtConn) {
 
   if (*pMgmtConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localIp = tsLocalIp;
     rpcInit.localPort = 0;
     rpcInit.label = "TSC-mgmt";
     rpcInit.numOfThreads = 1;
@@ -109,12 +107,6 @@ void taos_init_imp() {
   deltaToUtcInitOnce();
 
   if (tscEmbedded == 0) {
-    /*
-     * set localIp = 0
-     * means unset tsLocalIp in client
-     * except read from config file
-     */
-    strcpy(tsLocalIp, "0.0.0.0");
 
     // Read global configuration.
     taosInitGlobalCfg();
@@ -133,7 +125,7 @@ void taos_init_imp() {
     taosPrintGlobalCfg();
 
     tscTrace("starting to initialize TAOS client ...");
-    tscTrace("Local IP address is:%s", tsLocalIp);
+    tscTrace("Local End Point is:%s", tsLocalEp);
   }
 
   taosSetCoreDump();
@@ -143,13 +135,12 @@ void taos_init_imp() {
   }
 
   tscMgmtIpSet.inUse = 0;
-  tscMgmtIpSet.port = tsMnodeShellPort;
   tscMgmtIpSet.numOfIps = 1;
-  tscMgmtIpSet.ip[0] = inet_addr(tsMasterIp);
+  taosGetFqdnPortFromEp(tsMaster, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
 
-  if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
+  if (tsSecond[0] && strcmp(tsSecond, tsMaster) != 0) {
     tscMgmtIpSet.numOfIps = 2;
-    tscMgmtIpSet.ip[1] = inet_addr(tsSecondIp);
+    taosGetFqdnPortFromEp(tsSecond, tscMgmtIpSet.fqdn[1], &tscMgmtIpSet.port[1]);
   }
 
   tscInitMsgsFp();

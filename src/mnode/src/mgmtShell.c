@@ -72,7 +72,6 @@ int32_t mgmtInitShell() {
   }
 
   SRpcInit rpcInit = {0};
-  rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
   rpcInit.localPort    = tsMnodeShellPort;
   rpcInit.label        = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
@@ -148,14 +147,12 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   if (!sdbIsMaster()) {
     SRpcConnInfo connInfo;
     rpcGetConnInfo(rpcMsg->handle, &connInfo);
-    bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
     
     SRpcIpSet ipSet = {0};
-    ipSet.port = tsMnodeShellPort;
-    dnodeGetMnodeIpSet(&ipSet, usePublicIp);
+    mgmtGetMnodeIpSet(&ipSet);
     mTrace("conn from shell ip:%s user:%s redirect msg, inUse:%d", taosIpStr(connInfo.clientIp), connInfo.user, ipSet.inUse);
     for (int32_t i = 0; i < ipSet.numOfIps; ++i) {
-      mTrace("index:%d ip:%s", i, taosIpStr(ipSet.ip[i]));
+      mTrace("index:%d ip:%s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
     }
 
     rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
@@ -343,7 +340,7 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  mgmtGetMnodeIpSet(&pHBRsp->ipList, pMsg->usePublicIp);
+  mgmtGetMnodeIpSet(&pHBRsp->ipList);
   
   /*
    * TODO
@@ -429,7 +426,7 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
 
-  mgmtGetMnodeIpSet(&pConnectRsp->ipList, pMsg->usePublicIp);
+  mgmtGetMnodeIpSet(&pConnectRsp->ipList);
   
 connect_over:
   rpcRsp.code = code;

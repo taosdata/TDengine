@@ -51,8 +51,10 @@ extern int32_t tsVersion;
 extern int32_t tscEmbedded;
 extern int64_t tsMsPerDay[2];
 
-extern char  tsMasterIp[];
-extern char  tsSecondIp[];
+extern char  tsMaster[];
+extern char  tsSecond[];
+extern char  tsLocalEp[];
+extern uint16_t tsServerPort;
 extern uint16_t tsMnodeDnodePort;
 extern uint16_t tsMnodeShellPort;
 extern uint16_t tsDnodeShellPort;
@@ -178,7 +180,8 @@ void taosInitGlobalCfg();
 bool taosCheckGlobalCfg();
 void taosSetAllDebugFlag();
 bool taosCfgDynamicOptions(char *msg);
-
+int  taosGetFqdnPortFromEp(char *ep, char *fqdn, uint16_t *port);
+ 
 #ifdef __cplusplus
 }
 #endif

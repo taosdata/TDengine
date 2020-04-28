@@ -31,8 +31,8 @@ extern int tsRpcHeadSize;
 typedef struct {
   int8_t    inUse; 
   int8_t    numOfIps;
-  uint16_t  port;
-  uint32_t  ip[TSDB_MAX_MPEERS];
+  uint16_t  port[TSDB_MAX_REPLICA];
+  char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
 } SRpcIpSet;
 
 typedef struct {
@@ -51,7 +51,6 @@ typedef struct {
 } SRpcMsg;
 
 typedef struct {
-  char  *localIp;      // local IP used
   uint16_t localPort; // local port
   char  *label;        // for debug purpose
   int    numOfThreads; // number of threads to handle connections
