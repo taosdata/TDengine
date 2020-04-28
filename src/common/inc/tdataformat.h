@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "taosdef.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -96,6 +97,18 @@ int      tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, i
 void     tdDataRowReset(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
+static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t offset) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      return dataRowAt(row, *(int32_t *)dataRowAt(row, offset));
+      break;
+    default:
+      return row + offset;
+      break;
+  }
+}
+
 // ----------------- Data column structure
 typedef struct SDataCol {
   int8_t  type;
@@ -105,6 +118,23 @@ typedef struct SDataCol {
   int     offset;
   void *  pData; // Original data
 } SDataCol;
+
+void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoints);
+
+// Get the data pointer from a column-wised data
+static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
+  switch (pCol->type)
+  {
+  case TSDB_DATA_TYPE_BINARY:
+  case TSDB_DATA_TYPE_NCHAR:
+    return pCol->pData + ((int32_t *)(pCol->pData))[row];
+    break;
+
+  default:
+    return pCol->pData + TYPE_BYTES[pCol->type] * row;
+    break;
+  }
+}
 
 typedef struct {
   int      maxRowSize;
