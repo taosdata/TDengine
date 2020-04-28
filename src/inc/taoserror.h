@@ -138,8 +138,9 @@ extern "C" {
 #define TSDB_CODE_FAILED_TO_LOCK_RESOURCES   117
 #define TSDB_CODE_TABLE_ID_MISMATCH          118
 #define TSDB_CODE_QUERY_CACHE_ERASED         119
+#define TSDB_CODE_AUTH_BANNED_PERIOD         120
 
-#define TSDB_CODE_MAX_ERROR_CODE             120
+#define TSDB_CODE_MAX_ERROR_CODE             121
 
 #ifdef __cplusplus
 }
