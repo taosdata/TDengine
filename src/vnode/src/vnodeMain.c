@@ -311,7 +311,7 @@ void *vnodeGetWqueue(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAccquireVnode(vgId);
   if (pVnode == NULL) return NULL;
   return pVnode->wqueue;
-} 
+}
 
 void *vnodeGetWal(void *pVnode) {
   return ((SVnodeObj *)pVnode)->wal; 
@@ -341,10 +341,13 @@ static void vnodeBuildVloadMsg(char *pNode, void * param) {
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
-  
   taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
 
-  //syncStop(pVnode->sync);
+  if (pVnode->sync) {
+    syncStop(pVnode->sync);
+    pVnode->sync = NULL;
+  }
+
   tsdbCloseRepo(pVnode->tsdb);
   walClose(pVnode->wal);
   vnodeSaveVersion(pVnode);

@@ -6,5 +6,5 @@ run unique/db/replica_add23.sim
 run unique/db/replica_reduce21.sim
 run unique/db/replica_reduce32.sim
 run unique/db/replica_reduce31.sim
-#run unique/db/replica_part.sim
+run unique/db/replica_part.sim
 #run unique/db/delete_part.sim
