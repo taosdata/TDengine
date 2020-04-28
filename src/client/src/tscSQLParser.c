@@ -282,6 +282,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg2 = "name too long";
 
       SCreateDBInfo* pCreateDB = &(pInfo->pDCLInfo->dbOpt);
+      pCmd->existsCheck = pInfo->pDCLInfo->existsCheck;
       if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
