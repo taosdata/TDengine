@@ -89,7 +89,7 @@ static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     mgmtDecDnodeRef(pDnode);
   }
 
-  SVnodeGid vnodeGid[TSDB_VNODES_SUPPORT] = {0};
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA] = {0};
   int32_t   numOfVnodes = 0;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pTmpVodeGid = pVgroup->vnodeGid + i;
@@ -99,7 +99,7 @@ static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     vnodeGid[numOfVnodes] = *pTmpVodeGid;
     ++numOfVnodes;
   }
-  memcpy(pVgroup->vnodeGid, vnodeGid, TSDB_VNODES_SUPPORT * sizeof(SVnodeGid));
+  memcpy(pVgroup->vnodeGid, vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   pVgroup->numOfVnodes = numOfVnodes;
 
   mgmtUpdateVgroup(pVgroup);
@@ -438,7 +438,7 @@ static bool balanceMontiorDropping() {
 
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       if (pDnode->lastAccess + tsOfflineThreshold > tsAccessSquence) continue;
-      if (pDnode->privateIp == dnodeGetMnodeMasteIp()) continue;
+      if (pDnode->dnodeEp == dnodeGetMnodeMasterEp()) continue;
       if (mgmtGetDnodesNum() <= 1) continue;
 
       mLPrint("dnode:%d, set to removing state for it offline:%d seconds", pDnode->dnodeId,
