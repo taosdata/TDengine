@@ -121,11 +121,11 @@ void taos_init_imp() {
     taosReadGlobalLogCfg();
 
     // For log directory
-    if (stat(logDir, &dirstat) < 0) mkdir(logDir, 0755);
+    if (stat(tsLogDir, &dirstat) < 0) mkdir(tsLogDir, 0755);
 
-    sprintf(temp, "%s/taoslog", logDir);
+    sprintf(temp, "%s/taoslog", tsLogDir);
     if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
-      printf("failed to open log file in directory:%s\n", logDir);
+      printf("failed to open log file in directory:%s\n", tsLogDir);
     }
 
     taosReadGlobalCfg();

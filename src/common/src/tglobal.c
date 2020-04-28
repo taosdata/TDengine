@@ -30,9 +30,9 @@ char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
 char tsVnodeDir[TSDB_FILENAME_LEN] = {0};
 char tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char dataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
-char scriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char osName[10] = "Linux";
+char tsDataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
+char tsScriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char tsOsName[10] = "Linux";
 
 // system info, not configurable
 int64_t tsPageSize;
@@ -407,7 +407,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "logDir";
-  cfg.ptr = logDir;
+  cfg.ptr = tsLogDir;
   cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
@@ -417,7 +417,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "scriptDir";
-  cfg.ptr = scriptDir;
+  cfg.ptr = tsScriptDir;
   cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
@@ -427,7 +427,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "dataDir";
-  cfg.ptr = dataDir;
+  cfg.ptr = tsDataDir;
   cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;

@@ -24,7 +24,7 @@
 void simLogSql(char *sql) {
   static FILE *fp = NULL;
   char filename[256];
-  sprintf(filename, "%s/sim.sql", scriptDir);
+  sprintf(filename, "%s/sim.sql", tsScriptDir);
   if (fp == NULL) {
     fp = fopen(filename, "w");
     if (fp == NULL) {
@@ -270,7 +270,7 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
 
-  sprintf(buf, "cd %s; ", scriptDir);
+  sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 
   int code = system(buf);
@@ -306,9 +306,9 @@ void simStoreSystemContentResult(SScript *script, char *filename) {
 bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
   char filename[400] = {0};
-  sprintf(filename, "%s/%s.tmp", scriptDir, script->fileName);
+  sprintf(filename, "%s/%s.tmp", tsScriptDir, script->fileName);
 
-  sprintf(buf, "cd %s; ", scriptDir);
+  sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   sprintf(buf, "%s > %s 2>/dev/null", buf, filename);
 

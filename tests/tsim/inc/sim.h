@@ -160,7 +160,7 @@ extern SCommand simCmdList[];
 extern int simScriptPos;
 extern int simScriptSucced;
 extern int simDebugFlag;
-extern char scriptDir[];
+extern char tsScriptDir[];
 extern bool simAsyncQuery;
 
 SScript *simParseScript(char *fileName);

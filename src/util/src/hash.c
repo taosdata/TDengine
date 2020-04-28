@@ -540,7 +540,7 @@ bool taosHashIterNext(SHashMutableIterator *pIter) {
   }
 
   size_t size = taosHashGetSize(pIter->pHashObj);
-  if (size == 0 || pIter->num >= size) {
+  if (size == 0) {
     return false;
   }
 

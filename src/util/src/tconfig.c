@@ -249,7 +249,7 @@ void taosReadGlobalLogCfg() {
   }
   wordfree(&full_path);
 
-  taosReadLogOption("logDir", logDir);
+  taosReadLogOption("tsLogDir", tsLogDir);
   
   sprintf(fileName, "%s/taos.cfg", configDir);
   fp = fopen(fileName, "r");

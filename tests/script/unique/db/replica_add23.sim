@@ -30,14 +30,14 @@ system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql connect
 sql create dnode 192.168.0.2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sql create dnode 192.168.0.3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sql create dnode 192.168.0.4
-system sh/exec.sh -n dnode4 -s start
+system sh/exec_up.sh -n dnode4 -s start
 sleep 3000
 
 print ======== step1 
@@ -81,7 +81,7 @@ sql alter database d1 replica 3
 sql alter database d2 replica 3
 sql alter database d3 replica 3
 sql alter database d4 replica 3
-sleep 12000
+sleep 10000
 
 print ======== step3
 $x = 0
@@ -93,41 +93,25 @@ show3:
 	endi
 	
 sql show dnodes
-print dnode192.168.0.1 ==> openVnodes: $data2_192.168.0.1  freeVnodes: $data3_192.168.0.1
-print dnode192.168.0.2 ==> openVnodes: $data2_192.168.0.2  freeVnodes: $data3_192.168.0.2
-print dnode192.168.0.3 ==> openVnodes: $data2_192.168.0.3  freeVnodes: $data3_192.168.0.3
-print dnode192.168.0.4 ==> openVnodes: $data2_192.168.0.4  freeVnodes: $data3_192.168.0.4
+print dnode192.168.0.1 ==> openVnodes: $data3_1
+print dnode192.168.0.2 ==> openVnodes: $data3_2
+print dnode192.168.0.3 ==> openVnodes: $data3_3
+print dnode192.168.0.4 ==> openVnodes: $data3_4
 
-if $data2_192.168.0.1 != 0 then
-  goto show3
+if $data3_1 != 0 then
+   return -1
 endi
 
-if $data2_192.168.0.2 != 4 then
-  goto show3
+if $data3_2 != 4 then
+   return -1
 endi
 
-if $data2_192.168.0.3 != 4 then
-  goto show3
+if $data3_3 != 4 then
+   return -1
 endi
 
-if $data2_192.168.0.4 != 4 then
-  goto show3
-endi
-
-if $data3_192.168.0.1 != 4 then
-  goto show3
-endi
-
-if $data3_192.168.0.2 != 0 then
-  goto show3
-endi
-
-if $data3_192.168.0.3 != 0 then
-  goto show3
-endi
-
-if $data3_192.168.0.4 != 0 then
-  goto show3
+if $data3_3 != 4 then
+   return -1
 endi
 
 print ======== step4
@@ -156,10 +140,12 @@ if $rows != 2 then
 	return -1
 endi
 
-sleep 10000
+sql reset query cache
+sleep 1000
+
 print ========= step5 
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 3000
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
 
 sql insert into d1.t1 values(now, 3)
 sql insert into d2.t2 values(now, 3)
@@ -187,10 +173,10 @@ if $rows != 3 then
 endi
 
 print ========= step6
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 5000
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 3000
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+sleep 5000
 
 sql insert into d1.t1 values(now, 4)
 sql insert into d2.t2 values(now, 4)
@@ -218,10 +204,10 @@ if $rows != 4 then
 endi
 
 print ========= step7
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 5000
-system sh/exec.sh -n dnode4 -s stop -x SIGINT
-sleep 3000
+system sh/exec_up.sh -n dnode4 -s stop -x SIGINT
+sleep 5000
 
 sql insert into d1.t1 values(now, 5)
 sql insert into d2.t2 values(now, 5)
@@ -249,10 +235,10 @@ if $rows != 5 then
 endi
 
 print ========= step8
-system sh/exec.sh -n dnode4 -s start
+system sh/exec_up.sh -n dnode4 -s start
 sleep 5000
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 3000
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
 
 sql insert into d1.t1 values(now, 6)
 sql insert into d2.t2 values(now, 6)
