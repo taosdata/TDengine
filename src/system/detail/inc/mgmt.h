@@ -172,13 +172,13 @@ typedef struct _user_obj {
   char              pass[TSDB_KEY_LEN];
   char              acct[TSDB_USER_LEN];
   int64_t           createdTime;
-  int32_t           authAllowTime;
-  int32_t           authFailCount;
   char              superAuth : 1;
   char              writeAuth : 1;
   char              reserved[16];
   char              updateEnd[1];
   struct _user_obj *prev, *next;
+  int32_t           authAllowTime;
+  int32_t           authFailCount;
 } SUserObj;
 
 typedef struct {
