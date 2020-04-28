@@ -455,7 +455,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   // tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
   if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObjPartial(pSql);
+    tscPartiallyFreeSqlObj(pSql);
   }
 
   return pRes->code;

@@ -1301,7 +1301,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
     char* p = pSql->sqlstr;
     pSql->sqlstr = NULL;
     
-    tscFreeSqlObjPartial(pSql);
+    tscPartiallyFreeSqlObj(pSql);
     pSql->sqlstr = p;
   } else {
     tscTrace("continue parse sql: %s", pSql->cmd.curSql);

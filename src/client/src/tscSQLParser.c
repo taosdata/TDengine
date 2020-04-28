@@ -2363,6 +2363,7 @@ bool hasUnsupportFunctionsForSTableQuery(SQueryInfo* pQueryInfo) {
 
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo) {
   int32_t startIdx = 0;
+  
   SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, startIdx);
   int32_t functionID = pExpr->functionId;
 
@@ -2378,14 +2379,14 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   
   for (int32_t i = startIdx + 1; i < size; ++i) {
-    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    SSqlExpr* pExpr1 = tscSqlExprGet(pQueryInfo, i);
 
-    int16_t functionId = pExpr->functionId;
+    int16_t functionId = pExpr1->functionId;
     if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS) {
       continue;
     }
 
-    if (functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    if (functionId == TSDB_FUNC_PRJ && pExpr1->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       continue;
     }
 
@@ -3531,7 +3532,7 @@ static int32_t setTableCondForSTableQuery(SQueryInfo* pQueryInfo, const char* ac
     return TSDB_CODE_SUCCESS;
   }
 
-  SStringBuilder sb1 = { 0 };
+  SStringBuilder sb1 = {0};
   taosStringBuilderAppendStringLen(&sb1, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
 
   char db[TSDB_TABLE_ID_LEN] = {0};
@@ -4030,9 +4031,7 @@ int32_t parseFillClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg);
       }
     }
-  
-    size_t size = taosArrayGetSize(pQueryInfo->exprList);
-  
+    
     if ((pFillToken->nExpr < size) ||
         ((pFillToken->nExpr - 1 < size) && (tscIsPointInterpQuery(pQueryInfo)))) {
       tVariantListItem* lastItem = &pFillToken->a[pFillToken->nExpr - 1];
@@ -4228,7 +4227,24 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg4 = "set tag value only available for table";
   const char* msg5 = "only support add one tag";
   const char* msg6 = "column can only be modified by super table";
-
+  
+  const char* msg7 = "no tags can be dropped";
+  const char* msg8 = "only support one tag";
+  const char* msg9 = "tag name too long";
+  
+  const char* msg10 = "invalid tag name";
+  const char* msg11 = "primary tag cannot be dropped";
+  
+  const char* msg12 = "update normal column not supported";
+  
+  const char* msg13 = "invalid tag value";
+  const char* msg14 = "tag value too long";
+  
+  const char* msg15 = "no columns can be dropped";
+  const char* msg16 = "only support one column";
+  const char* msg17 = "invalid column name";
+  const char* msg18 = "primary timestamp column cannot be dropped";
+  
   SSqlCmd*        pCmd = &pSql->cmd;
   SAlterTableSQL* pAlterSQL = pInfo->pAlterInfo;
   SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -4274,24 +4290,18 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &pFieldList->p[0]);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN) {
-    const char* msg1 = "no tags can be dropped";
-    const char* msg2 = "only support one tag";
-    const char* msg3 = "tag name too long";
-    const char* msg4 = "illegal tag name";
-    const char* msg5 = "primary tag cannot be dropped";
-
     if (tscGetNumOfTags(pTableMeta) == 1) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg1);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg7);
     }
 
     // numOfTags == 1
     if (pAlterSQL->varList->nExpr > 1) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg8);
     }
 
     tVariantListItem* pItem = &pAlterSQL->varList->a[0];
     if (pItem->pVar.nLen > TSDB_COL_NAME_LEN) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg9);
     }
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -4302,9 +4312,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     if (index.columnIndex < tscGetNumOfColumns(pTableMeta)) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg4);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg10);
     } else if (index.columnIndex == 0) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg5);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg11);
     }
 
     char name1[128] = {0};
@@ -4313,9 +4323,6 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
-    const char* msg1 = "tag name too long";
-    const char* msg2 = "invalid tag name";
-
     tVariantList* pVarList = pAlterSQL->varList;
     if (pVarList->nExpr > 2) {
       return TSDB_CODE_INVALID_SQL;
@@ -4325,11 +4332,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tVariantListItem* pDstItem = &pAlterSQL->varList->a[1];
 
     if (pSrcItem->pVar.nLen >= TSDB_COL_NAME_LEN || pDstItem->pVar.nLen >= TSDB_COL_NAME_LEN) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg1);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg9);
     }
 
     if (pSrcItem->pVar.nType != TSDB_DATA_TYPE_BINARY || pDstItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg10);
     }
 
     SColumnIndex srcIndex = COLUMN_INDEX_INITIALIZER;
@@ -4355,10 +4362,6 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
-    const char* msg1 = "invalid tag value";
-    const char* msg2 = "update normal column not supported";
-    const char* msg3 = "tag value too long";
-
     // Note: update can only be applied to table not super table.
     // the following is handle display tags value for meters created according to super table
     tVariantList* pVarList = pAlterSQL->varList;
@@ -4371,19 +4374,19 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     if (columnIndex.columnIndex < tscGetNumOfColumns(pTableMeta)) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg12);
     }
 
     SSchema* pTagsSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
     if (tVariantDump(&pVarList->a[1].pVar, pAlterSQL->tagData.data /*pCmd->payload*/, pTagsSchema->type) !=
         TSDB_CODE_SUCCESS) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg1);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg13);
     }
 
     // validate the length of binary
     if ((pTagsSchema->type == TSDB_DATA_TYPE_BINARY || pTagsSchema->type == TSDB_DATA_TYPE_NCHAR) &&
         pVarList->a[1].pVar.nLen > pTagsSchema->bytes) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg14);
     }
 
     char name1[128] = {0};
@@ -4405,17 +4408,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &pFieldList->p[0]);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
-    const char* msg1 = "no columns can be dropped";
-    const char* msg2 = "only support one column";
-    const char* msg4 = "illegal column name";
-    const char* msg3 = "primary timestamp column cannot be dropped";
-
     if (tscGetNumOfColumns(pTableMeta) == TSDB_MIN_COLUMNS) {  //
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg15);
     }
 
     if (pAlterSQL->varList->nExpr > 1) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg16);
     }
 
     tVariantListItem* pItem = &pAlterSQL->varList->a[0];
@@ -4423,11 +4421,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SSQLToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg4);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg17);
     }
 
     if (columnIndex.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+      return invalidSqlErrMsg(pQueryInfo->msg, msg18);
     }
 
     char name1[TSDB_COL_NAME_LEN + 1] = {0};

@@ -397,7 +397,7 @@ void tscFreeSqlResult(SSqlObj *pSql);
  * Note: this function is multi-thread safe.
  * @param pObj
  */
-void tscFreeSqlObjPartial(SSqlObj *pObj);
+void tscPartiallyFreeSqlObj(SSqlObj *pObj);
 
 /**
  * free sql object, release allocated resource

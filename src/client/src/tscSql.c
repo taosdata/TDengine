@@ -270,7 +270,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   }
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObjPartial(pSql);
+    tscPartiallyFreeSqlObj(pSql);
   }
 
   return pRes->code;
@@ -576,7 +576,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
       if (keepCmd) {
         tscFreeSqlResult(pSql);
       } else {
-        tscFreeSqlObjPartial(pSql);
+        tscPartiallyFreeSqlObj(pSql);
       }
     }
     
@@ -586,7 +586,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
   // set freeFlag to 1 in retrieve message if there are un-retrieved results
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
-    tscFreeSqlObjPartial(pSql);
+    tscPartiallyFreeSqlObj(pSql);
     return;
   }
 
@@ -638,7 +638,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
         tscFreeSqlResult(pSql);
         tscTrace("%p sql result is freed by app while sql command is kept", pSql);
       } else {
-        tscFreeSqlObjPartial(pSql);
+        tscPartiallyFreeSqlObj(pSql);
         tscTrace("%p sql result is freed by app", pSql);
       }
     } else {  // for async release, remove its link
@@ -659,7 +659,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
         tscFreeSqlResult(pSql);
         tscTrace("%p sql result is freed while sql command is kept", pSql);
       } else {
-        tscFreeSqlObjPartial(pSql);
+        tscPartiallyFreeSqlObj(pSql);
         tscTrace("%p sql result is freed by app", pSql);
       }
     }
@@ -1004,7 +1004,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   tscTrace("%p load multi metermeta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
   if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObjPartial(pSql);
+    tscPartiallyFreeSqlObj(pSql);
   }
 
   return pRes->code;

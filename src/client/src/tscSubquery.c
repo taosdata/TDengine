@@ -237,8 +237,8 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   SJoinSubquerySupporter* pSupporter = NULL;
   
   /*
-   * If the columns are not involved in the final select clause, the secondary query will not be launched
-   * for the subquery.
+   * If the columns are not involved in the final select clause,
+   * the corresponding query will not be issued.
    */
   SSubqueryState* pState = NULL;
   
@@ -269,7 +269,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pSupporter = pPrevSub->param;
   
     if (taosArrayGetSize(pSupporter->exprList) == 0) {
-      tscTrace("%p subIndex: %d, not need to launch query, ignore it", pSql, i);
+      tscTrace("%p subIndex: %d, no need to launch query, ignore it", pSql, i);
     
       tscDestroyJoinSupporter(pSupporter);
       tscFreeSqlObj(pPrevSub);
@@ -314,15 +314,6 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pSupporter->exprList = NULL;
     pSupporter->colList = NULL;
     memset(&pSupporter->fieldsInfo, 0, sizeof(SFieldInfo));
-    
-    /*
-     * if the first column of the secondary query is not ts function, add this function.
-     * Because this column is required to filter with timestamp after intersecting.
-     */
-//    SSqlExpr* pExpr = taosArrayGet(pQueryInfo->exprList, 0);
-//    if (pExpr->functionId != TSDB_FUNC_TS) {
-//      tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
-//    }
   
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
@@ -347,8 +338,6 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
       pExpr->param[0].i64Key = tagColIndex;
       pExpr->numOfParams = 1;
     }
-  
-    tscPrintSelectClause(pNew, 0);
   
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
     tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
@@ -917,7 +906,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
   
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
   
-    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
+    tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
              "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
              pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
              tscSqlExprNumOfExprs(pNewQueryInfo), numOfCols,
@@ -928,7 +917,6 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
   }
 
-  tscPrintSelectClause(pNew, 0);
   return tscProcessSql(pNew);
 }
 
@@ -938,9 +926,9 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
   
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
-  
   pState->numOfTotal = pQueryInfo->numOfTables;
   
+  tscTrace("%p start launched subquery, total:%d", pSql, pQueryInfo->numOfTables);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SJoinSubquerySupporter *pSupporter = tscCreateJoinSupporter(pSql, pState, i);
     

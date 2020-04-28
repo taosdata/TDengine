@@ -301,12 +301,10 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 }
 
 void tscDestroyResPointerInfo(SSqlRes* pRes) {
-  if (pRes->buffer != NULL) {
-    // free all buffers containing the multibyte string
+  if (pRes->buffer != NULL) { // free all buffers containing the multibyte string
     for (int i = 0; i < pRes->numOfCols; i++) {
       tfree(pRes->buffer[i]);
     }
-    
     pRes->numOfCols = 0;
   }
   
@@ -335,50 +333,15 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd) {
   tscFreeQueryInfo(pCmd);
 }
 
-/*
- * this function must not change the pRes->code value, since it may be used later.
- */
-void tscFreeResData(SSqlObj* pSql) {
-  SSqlRes* pRes = &pSql->res;
-  
-  pRes->row = 0;
-  
-  pRes->rspType = 0;
-  pRes->rspLen = 0;
-  pRes->row = 0;
-  
-  pRes->numOfRows = 0;
-  pRes->numOfTotal = 0;
-  pRes->numOfTotalInCurrentClause = 0;
-  
-  pRes->numOfGroups = 0;
-  pRes->precision = 0;
-  pRes->qhandle = 0;
-  
-  pRes->offset = 0;
-  pRes->useconds = 0;
-  
-  tscDestroyLocalReducer(pSql);
-  
-  tscDestroyResPointerInfo(pRes);
-}
-
 void tscFreeSqlResult(SSqlObj* pSql) {
-  tfree(pSql->res.pRsp);
-  pSql->res.row = 0;
-  pSql->res.numOfRows = 0;
-  pSql->res.numOfTotal = 0;
-
-  pSql->res.numOfGroups = 0;
-  tfree(pSql->res.pGroupRec);
-
   tscDestroyLocalReducer(pSql);
-
-  tscDestroyResPointerInfo(&pSql->res);
-  tfree(pSql->res.pColumnIndex);
+  
+  SSqlRes* pRes = &pSql->res;
+  tscDestroyResPointerInfo(pRes);
+  memset(&pSql->res, 0, sizeof(SSqlRes));
 }
 
-void tscFreeSqlObjPartial(SSqlObj* pSql) {
+void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
   }
@@ -412,7 +375,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) return;
 
   tscTrace("%p start to free sql object", pSql);
-  tscFreeSqlObjPartial(pSql);
+  tscPartiallyFreeSqlObj(pSql);
 
   pSql->signature = NULL;
   pSql->fp = NULL;
@@ -1897,7 +1860,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     size_t size = taosArrayGetSize(pNewQueryInfo->colList);
     
     tscTrace(
-        "%p new subquery: %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
+        "%p new subquery:%p, tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d,"
         "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
         pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
         size, pNewQueryInfo->fieldsInfo.numOfOutput, pFinalInfo->name, pNewQueryInfo->window.skey,
@@ -2107,7 +2070,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
 
   //backup the total number of result first
   int64_t num = pRes->numOfTotal + pRes->numOfTotalInCurrentClause;
-  tscFreeResData(pSql);
+  tscFreeSqlResult(pSql);
   
   pRes->numOfTotal = num;
   

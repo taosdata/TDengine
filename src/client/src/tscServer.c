@@ -502,7 +502,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
     }
   }
 
-  tscTrace("%p metric query is cancelled", pSql);
+  tscTrace("%p super table query cancelled", pSql);
 }
 
 int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -649,7 +649,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     numOfTables = 1;
     tscSetDnodeIpList(pSql, pTableMeta);
     pQueryMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-    tscTrace("%p queried tables:%d, table id: %s", pSql, 1, pTableMetaInfo->name);
+    tscTrace("%p queried tables:%d, table name: %s", pSql, 1, pTableMetaInfo->name);
   } else {  // query super table
     int32_t index = pTableMetaInfo->vgroupIndex;
     if (index < 0) {
