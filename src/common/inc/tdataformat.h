@@ -104,7 +104,7 @@ static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t o
       return dataRowAt(row, *(int32_t *)dataRowAt(row, offset));
       break;
     default:
-      return row + offset;
+      return dataRowAt(row, offset);
       break;
   }
 }
@@ -127,11 +127,11 @@ static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   {
   case TSDB_DATA_TYPE_BINARY:
   case TSDB_DATA_TYPE_NCHAR:
-    return pCol->pData + ((int32_t *)(pCol->pData))[row];
+    return (void *)((char *)(pCol->pData) + ((int32_t *)(pCol->pData))[row]);
     break;
 
   default:
-    return pCol->pData + TYPE_BYTES[pCol->type] * row;
+    return (void *)((char *)(pCol->pData) + TYPE_BYTES[pCol->type] * row);
     break;
   }
 }
