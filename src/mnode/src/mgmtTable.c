@@ -1637,7 +1637,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
     SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
     if (pDnode == NULL) break;
     strcpy(pMeta->vgroup.ipAddr[i].fqdn, pDnode->dnodeFqdn);
-    pMeta->vgroup.ipAddr[i].port = htonl(pDnode->dnodePort + TSDB_PORT_DNODESHELL);
+    pMeta->vgroup.ipAddr[i].port = htons(pDnode->dnodePort + TSDB_PORT_DNODESHELL);
     pMeta->vgroup.numOfIps++;
     mgmtDecDnodeRef(pDnode);
   }
