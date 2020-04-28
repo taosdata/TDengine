@@ -87,6 +87,7 @@ int mgmtInitShell() {
   rpcInit.idleTime = tsShellActivityTimer * 2000;
   rpcInit.qhandle = mgmtQhandle;
   rpcInit.afp = mgmtRetriveUserAuthInfo;
+  rpcInit.ufp = mgmtGetSetUserAuthFailInfo;
 
   pShellConn = taosOpenRpc(&rpcInit);
   if (pShellConn == NULL) {
@@ -1268,6 +1269,21 @@ int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secre
   *encrypt = 0;
   memcpy(secret, pUser->pass, TSDB_KEY_LEN);
 
+  return 0;
+}
+
+int mgmtGetSetUserAuthFailInfo(char *user, int32_t *failCount, int32_t *allowTime, bool opSet) {
+  SUserObj *pUser = NULL;
+
+  pUser = mgmtGetUser(user);
+  if (pUser == NULL) return TSDB_CODE_INVALID_USER;
+  if (opSet) {
+    pUser->authAllowTime = *allowTime;
+    pUser->authFailCount = *failCount;
+  }else {
+    *allowTime = pUser->authAllowTime;
+    *failCount = pUser->authFailCount;
+  }  
   return 0;
 }
 

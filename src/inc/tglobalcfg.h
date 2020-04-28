@@ -150,6 +150,7 @@ extern int   tsHttpMaxThreads;
 extern int   tsHttpEnableCompress;
 extern int   tsHttpEnableRecordSql;
 extern int   tsTelegrafUseFieldNum;
+extern int   tsMaxAuthRetry;
 
 extern int   tsTscEnableRecordSql;
 extern int   tsAnyIp;
@@ -255,7 +256,7 @@ extern int            tsGlobalConfigNum;
 extern char *         tsCfgStatusStr[];
 SGlobalConfig *tsGetConfigOption(const char *option);
 
-#define TSDB_CFG_MAX_NUM    110
+#define TSDB_CFG_MAX_NUM    111
 #define TSDB_CFG_PRINT_LEN  23
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41

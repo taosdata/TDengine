@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "tsdb.h"
 #include "ttime.h"
@@ -156,6 +157,19 @@ int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePre
   } else {
     return parseLocaltime(timestr, time, timePrec);
   }
+}
+
+int32_t taosTimeSecToString(time_t ts,char* outstr) {
+  if (NULL == outstr) {
+    return 1;
+  }
+  struct tm *t;
+  t = localtime(&ts);
+  if (NULL == t) return 1;
+
+  sprintf(outstr,"%4d-%02d-%02d %02d:%02d:%02d\n", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+  return 0;
+
 }
 
 char* forwardToTimeStringEnd(char* str) {
