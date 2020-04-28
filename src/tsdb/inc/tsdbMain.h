@@ -447,13 +447,11 @@ typedef struct {
 
 int  tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
 int  tsdbInitWriteHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
-// int  tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg);
 void tsdbDestroyHelper(SRWHelper *pHelper);
 void tsdbResetHelper(SRWHelper *pHelper);
 
 // --------- For set operations
 int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup);
-// void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema *pSchema);
 void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo);
 int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
 
