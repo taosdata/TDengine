@@ -438,7 +438,7 @@ static bool balanceMontiorDropping() {
 
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       if (pDnode->lastAccess + tsOfflineThreshold > tsAccessSquence) continue;
-      if (pDnode->dnodeEp == dnodeGetMnodeMasterEp()) continue;
+      if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) continue; 
       if (mgmtGetDnodesNum() <= 1) continue;
 
       mLPrint("dnode:%d, set to removing state for it offline:%d seconds", pDnode->dnodeId,

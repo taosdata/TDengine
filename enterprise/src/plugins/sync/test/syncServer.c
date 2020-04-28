@@ -18,6 +18,7 @@
 #include "os.h"
 #include "tulog.h"
 #include "tglobal.h"
+#include "tsocket.h"
 #include "trpc.h"
 #include "tqueue.h"
 #include "twal.h"
@@ -32,8 +33,6 @@ uint64_t  tversion = 0;
 void *syncHandle;
 int   role;
 int  nodeId;
-extern uint32_t  tsPrivateIpv4;
-char localIp[40] = "0.0.0.0";
 char path[256];
 int  numOfWrites ;
 SSyncInfo syncInfo;
@@ -318,34 +317,42 @@ void initSync() {
   syncInfo.writeToCache = writeToCache;
   syncInfo.confirmForward = confirmForward;
   syncInfo.notifyRole = notifyRole;
-  pCfg->nodeInfo[0].nodeId = 1;
-  strcpy(pCfg->nodeInfo[0].name, "192.168.0.1");
-  pCfg->nodeInfo[1].nodeId = 2;
-  strcpy(pCfg->nodeInfo[1].name, "192.168.0.2");
-  pCfg->nodeInfo[2].nodeId = 3;
-  strcpy(pCfg->nodeInfo[2].name, "192.168.0.3");
-  pCfg->nodeInfo[3].nodeId = 4;
-  strcpy(pCfg->nodeInfo[3].name, "192.168.0.4");
-  pCfg->nodeInfo[4].nodeId = 5;
-  strcpy(pCfg->nodeInfo[4].name, "192.168.0.5");
 
+  pCfg->nodeInfo[0].nodeId = 1;
+  pCfg->nodeInfo[0].nodePort = 7010;
+  taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
+
+  pCfg->nodeInfo[1].nodeId = 2;
+  pCfg->nodeInfo[1].nodePort = 7110;
+  taosGetFqdn(pCfg->nodeInfo[1].nodeFqdn);
+
+  pCfg->nodeInfo[2].nodeId = 3;
+  pCfg->nodeInfo[2].nodePort = 7210;
+  taosGetFqdn(pCfg->nodeInfo[2].nodeFqdn);
+
+  pCfg->nodeInfo[3].nodeId = 4;
+  pCfg->nodeInfo[3].nodePort = 7310;
+  taosGetFqdn(pCfg->nodeInfo[3].nodeFqdn);
+
+  pCfg->nodeInfo[4].nodeId = 5;
+  pCfg->nodeInfo[4].nodePort = 7410;
+  taosGetFqdn(pCfg->nodeInfo[4].nodeFqdn);
 }
 
 void doSync()
 {
   for (int i=0; i<5; ++i) {
-    pCfg->nodeInfo[i].nodeIp = inet_addr(pCfg->nodeInfo[i].name);
-    if ( strcmp(localIp, pCfg->nodeInfo[i].name) == 0 ) 
+    if (tsSyncPort == pCfg->nodeInfo[i].nodePort) 
       nodeId = pCfg->nodeInfo[i].nodeId;
   }
 
-  sprintf(path, "/home/jhtao/test/d%d", nodeId);
+  sprintf(path, "/root/test/d%d", nodeId);
   strcpy(syncInfo.path, path);
 
   if ((pCfg->replica & 1) == 0) {
-    pCfg->arbitratorIp = inet_addr("192.168.0.6");
+    taosGetFqdn(pCfg->arbitratorFqdn);
   } else {
-    pCfg->arbitratorIp = 0;
+    pCfg->arbitratorFqdn[0] = 0;
   }
 
   if ( syncHandle == NULL) {
@@ -354,7 +361,7 @@ void doSync()
       if (syncReconfig(syncHandle, pCfg) < 0) syncHandle = NULL;
   }
 
-  uPrint("nodeId:%d path:%s localIp:%s", nodeId, path, localIp);
+  uPrint("nodeId:%d path:%s syncPort:%d", nodeId, path, tsSyncPort);
 }
 
 int main(int argc, char *argv[]) {
@@ -365,7 +372,6 @@ int main(int argc, char *argv[]) {
   initSync();
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp      = localIp;
   rpcInit.localPort    = 7000;
   rpcInit.label        = "SER";
   rpcInit.numOfThreads = 1;
@@ -377,8 +383,6 @@ int main(int argc, char *argv[]) {
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       rpcInit.localPort = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-i")==0 && i < argc-1) {
-      strcpy(localIp, argv[++i]); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
@@ -397,11 +401,8 @@ int main(int argc, char *argv[]) {
       pCfg->quorum = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
-      rpcDebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-i ip]: server IP address, default is:%s\n", rpcInit.localIp);
       printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInit.sessions);
@@ -430,9 +431,9 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  tsSyncPort = rpcInit.localPort + 10;
   qhandle = taosOpenQueue();
 
-  strcpy(tsPrivateIp, localIp);
   doSync();
 
   pthread_attr_t thattr;
@@ -444,7 +445,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  printf("server is running, ip:%s\n", rpcInit.localIp);
+  printf("server is running, localPort:%d\n", rpcInit.localPort);
   SNodesRole nroles;
 
   while (1) {
@@ -469,7 +470,7 @@ int main(int argc, char *argv[]) {
       case 's':
         syncGetNodesRole(syncHandle, &nroles);
         for (int i=0; i<pCfg->replica; ++i) 
-          uPrint("=== nodeId:%d role:%s", nroles.nodeId[i], syncRole[nroles.role[i]]);
+          printf("=== nodeId:%d role:%s\n", nroles.nodeId[i], syncRole[nroles.role[i]]);
         break;
       default:
         break;

@@ -49,6 +49,12 @@ typedef struct {
 } SSyncHead;
 
 typedef struct {
+  SSyncHead syncHead;
+  uint16_t  port;
+  char      fqdn[TSDB_FQDN_LEN];
+} SFirstPkt;
+
+typedef struct {
   int8_t    role;
   uint64_t  version;
 } SPeerStatus;
@@ -106,7 +112,8 @@ typedef struct {
 typedef struct SsyncPeer {
   int32_t     nodeId;
   uint32_t    ip;
-  char        ipstr[20];  // peer ip string
+  uint16_t    port;
+  char        fqdn[TSDB_FQDN_LEN];  // peer ip string
   int8_t      role;
   int8_t      sstatus;    // sync status
   uint64_t    version;

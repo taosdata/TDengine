@@ -18,6 +18,7 @@
 #include "taosdef.h"
 #include "tulog.h"
 #include "tglobal.h"
+#include "tsocket.h"
 #include "tsync.h"
 
 int main(int argc, char *argv[]) {
@@ -25,13 +26,10 @@ int main(int argc, char *argv[]) {
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       tsSyncPort = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-i")==0 && i < argc-1) {
-      strcpy(tsPrivateIp, argv[++i]); 
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       ddebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-i ip]: server IP address, default is:%s\n", tsPrivateIp);
       printf("  [-p port]: server port number, default is:%d\n", tsSyncPort);
       printf("  [-d debugFlag]: debug flag, default:%d\n", ddebugFlag);
       printf("  [-h help]: print out this help\n\n");
@@ -50,8 +48,8 @@ int main(int argc, char *argv[]) {
   syncInfo.vgId = 1;
   syncInfo.ahandle = &syncInfo;
   syncInfo.syncCfg.nodeInfo[0].nodeId = 1;
-  strcpy(syncInfo.syncCfg.nodeInfo[0].name, tsPrivateIp);
-  syncInfo.syncCfg.nodeInfo[0].nodeIp = inet_addr(tsPrivateIp);
+  taosGetFqdn(syncInfo.syncCfg.nodeInfo[0].nodeFqdn);
+  syncInfo.syncCfg.nodeInfo[0].nodePort = tsSyncPort;
 
   void *syncHandle = syncStart(&syncInfo);
   if (syncHandle == NULL) {
@@ -59,7 +57,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  uPrint("TAOS arbitrator is running, ip:%s\n", tsPrivateIp);
+  uPrint("TAOS arbitrator: %s:%d is running\n", syncInfo.syncCfg.nodeInfo[0].nodeFqdn, tsSyncPort);
 
   while (1) {
     sleep(1);
