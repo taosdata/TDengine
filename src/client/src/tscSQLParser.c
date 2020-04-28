@@ -4234,9 +4234,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   
   const char* msg10 = "invalid tag name";
   const char* msg11 = "primary tag cannot be dropped";
-  
   const char* msg12 = "update normal column not supported";
-  
   const char* msg13 = "invalid tag value";
   const char* msg14 = "tag value too long";
   

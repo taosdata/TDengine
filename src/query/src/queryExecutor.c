@@ -5211,34 +5211,44 @@ bool validateExprColumnInfo(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pExprMsg, SC
   return j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags;
 }
 
-static int32_t validateQueryMsg(SQueryTableMsg *pQueryMsg) {
+static bool validateQueryMsg(SQueryTableMsg *pQueryMsg) {
   if (pQueryMsg->intervalTime < 0) {
     qError("qmsg:%p illegal value of interval time %" PRId64 "", pQueryMsg, pQueryMsg->intervalTime);
-    return -1;
-  }
-
-  if (pQueryMsg->numOfCols < 0 || pQueryMsg->numOfTags < 0 || (pQueryMsg->numOfCols + pQueryMsg->numOfTags <= 0) ||
-      pQueryMsg->numOfCols > TSDB_MAX_COLUMNS) {
-    qError("qmsg:%p illegal value of numOfCols %d", pQueryMsg, pQueryMsg->numOfCols);
-    return -1;
+    return false;
   }
 
   if (pQueryMsg->numOfTables <= 0) {
     qError("qmsg:%p illegal value of numOfTables %d", pQueryMsg, pQueryMsg->numOfTables);
-    return -1;
+    return false;
   }
 
   if (pQueryMsg->numOfGroupCols < 0) {
     qError("qmsg:%p illegal value of numOfGroupbyCols %d", pQueryMsg, pQueryMsg->numOfGroupCols);
-    return -1;
+    return false;
   }
 
   if (pQueryMsg->numOfOutput > TSDB_MAX_COLUMNS || pQueryMsg->numOfOutput <= 0) {
     qError("qmsg:%p illegal value of output columns %d", pQueryMsg, pQueryMsg->numOfOutput);
-    return -1;
+    return false;
   }
 
-  return 0;
+  return true;
+}
+
+static bool validateQuerySourceCols(SQueryTableMsg *pQueryMsg, SSqlFuncMsg** pExprMsg) {
+  int32_t numOfTotal = pQueryMsg->numOfCols + pQueryMsg->numOfTags;
+  if (pQueryMsg->numOfCols < 0 || pQueryMsg->numOfTags < 0 || numOfTotal > TSDB_MAX_COLUMNS) {
+    qError("qmsg:%p illegal value of numOfCols %d numOfTags:%d", pQueryMsg, pQueryMsg->numOfCols, pQueryMsg->numOfTags);
+    return false;
+  } else if (numOfTotal == 0) {
+    for(int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
+      if (pExprMsg[i]->functionId != TSDB_FUNC_TAGPRJ) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
 }
 
 static char *createTableIdList(SQueryTableMsg *pQueryMsg, char *pMsg, SArray **pTableIdList) {
@@ -5305,7 +5315,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   pQueryMsg->numOfTags = htonl(pQueryMsg->numOfTags);
 
   // query msg safety check
-  if (validateQueryMsg(pQueryMsg) != 0) {
+  if (!validateQueryMsg(pQueryMsg)) {
     return TSDB_CODE_INVALID_QUERY_MSG;
   }
 
@@ -5389,6 +5399,12 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
 
     pExprMsg = (SSqlFuncMsg *)pMsg;
   }
+  
+  if (!validateQuerySourceCols(pQueryMsg, *pExpr)) {
+    tfree(*pExpr);
+    
+    return TSDB_CODE_INVALID_QUERY_MSG;
+  }
 
   pMsg = createTableIdList(pQueryMsg, pMsg, pTableIdList);
 
@@ -5454,10 +5470,8 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     pMsg += len;
   }
 
-  qTrace("qmsg:%p query on %d table(s), qrange:%" PRId64 "-%" PRId64
-         ", numOfGroupbyTagCols:%d, ts order:%d, "
-         "outputCols:%d, numOfCols:%d, interval:%d" PRId64 ", fillType:%d, comptsLen:%d, limit:%" PRId64
-         ", offset:%" PRId64,
+  qTrace("qmsg:%p query on %d table(s), qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, ts order:%d, "
+         "outputCols:%d, numOfCols:%d, interval:%d" PRId64 ", fillType:%d, comptsLen:%d, limit:%" PRId64 ", offset:%" PRId64,
          pQueryMsg, pQueryMsg->numOfTables, pQueryMsg->window.skey, pQueryMsg->window.ekey, pQueryMsg->numOfGroupCols,
          pQueryMsg->order, pQueryMsg->numOfOutput, pQueryMsg->numOfCols, pQueryMsg->intervalTime,
          pQueryMsg->interpoType, pQueryMsg->tsLen, pQueryMsg->limit, pQueryMsg->offset);
