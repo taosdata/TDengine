@@ -55,10 +55,10 @@ int main(int argc, char *argv[]) {
   taosReadGlobalLogCfg();
 
   struct stat dirstat;
-  if (stat(logDir, &dirstat) < 0) mkdir(logDir, 0755);
+  if (stat(tsLogDir, &dirstat) < 0) mkdir(tsLogDir, 0755);
 
   char temp[128] = {0};
-  sprintf(temp, "%s/taoslog", logDir);
+  sprintf(temp, "%s/taoslog", tsLogDir);
   if (taosOpenLogFileWithMaxLines(temp, tsNumOfLogLines, 1) < 0) printf("failed to init log file\n");
 
   tsReadGlobalConfig();
