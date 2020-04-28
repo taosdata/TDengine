@@ -120,6 +120,9 @@ typedef struct SDataCol {
 } SDataCol;
 
 void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoints);
+bool isNEleNull(SDataCol *pCol, int nEle);
+void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
+void dataColSetOffset(SDataCol *pCol, int nEle, int maxPoints);
 
 // Get the data pointer from a column-wised data
 static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
@@ -135,6 +138,24 @@ static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
     break;
   }
 }
+
+static FORCE_INLINE void dataColGetNEleStartAndLen(SDataCol *pDataCol, int rows, void **pStart, int32_t *len, int32_t maxPoints) {
+  void *ptr = NULL;
+  switch (pDataCol->type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      ptr = tdGetColDataOfRow(pDataCol, rows - 1);
+      *pStart = (char *)(pDataCol->pData) + sizeof(int32_t) * maxPoints;
+      *len = (char *)ptr - (char *)(*pStart) + sizeof(int16_t) + *(int16_t *)ptr;
+      break;
+
+    default:
+      *pStart = pDataCol->pData;
+      *len = TYPE_BYTES[pDataCol->type] * rows;
+      break;
+  }
+}
+
 
 typedef struct {
   int      maxRowSize;

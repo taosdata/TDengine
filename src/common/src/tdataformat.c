@@ -235,6 +235,58 @@ void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoint
   }
 }
 
+bool isNEleNull(SDataCol *pCol, int nEle) {
+  void *ptr = NULL;
+  switch (pCol->type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      for (int i = 0; i < nEle; i++) {
+        ptr = tdGetColDataOfRow(pCol, i);
+        ptr = (void *)((char *)ptr + sizeof(int16_t));
+        if (!isNull(ptr, pCol->type)) return false;
+      }
+      return true;
+    default:
+      for (int i = 0; i < nEle; i++) {
+        if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
+      }
+      return true;
+  }
+}
+
+void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
+  char *ptr = NULL;
+  switch (pCol->type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      pCol->len = sizeof(int32_t) * maxPoints;
+      for (int i = 0; i < nEle; i++) {
+        ((int32_t *)(pCol->pData))[i] = pCol->len;
+
+        ptr = ((char *)pCol->pData) + pCol->len;
+        *(int16_t *)ptr = (pCol->type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : TSDB_NCHAR_SIZE;
+        setNull(ptr + sizeof(int16_t), pCol->type, pCol->bytes);
+
+        pCol->len += (sizeof(int16_t) + ((int16_t *)ptr)[0]);
+      }
+      break;
+    default:
+      setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
+      pCol->len = TYPE_BYTES[pCol->type] * nEle;
+      break;
+  }
+}
+
+void dataColSetOffset(SDataCol *pCol, int nEle, int maxPoints) {
+  ASSERT(nEle <= maxPoints && ((pCol->type == TSDB_DATA_TYPE_BINARY) || (pCol->type == TSDB_DATA_TYPE_NCHAR)));
+
+  char *tptr = (char *)(pCol->pData) + sizeof(int32_t) * maxPoints;
+  for (int i = 0; i < nEle; i++) {
+    ((int32_t *)(pCol->pData))[i] = tptr - (char *)(pCol->pData);
+    tptr = tptr + *(int16_t *)tptr;
+  }
+}
+
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows, int exColBytes) {
   SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * maxCols);
   if (pCols == NULL) return NULL;

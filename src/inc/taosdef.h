@@ -121,6 +121,10 @@ typedef struct tDataTypeDescriptor {
   int16_t nameLen;
   int32_t nSize;
   char *  aName;
+  int (*compFunc)(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
+                  char algorithm, char *const buffer, int bufferSize);
+  int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
+                    int outputSize, char algorithm, char *const buffer, int bufferSize);
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypeDesc[11];

@@ -297,7 +297,7 @@ typedef struct {
 // TODO: take pre-calculation into account
 typedef struct {
   int16_t colId;  // Column ID
-  int16_t len;    // Column length
+  int16_t len;    // Column length // TODO: int16_t is not enough
   int32_t type : 8;
   int32_t offset : 24;
 } SCompCol;
@@ -426,6 +426,8 @@ typedef struct {
   SCompData *pCompData;
   SDataCols *pDataCols[2];
 
+  void *blockBuffer;  // Buffer to hold the whole data block
+  void *compBuffer;   // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
 // --------- Helper state
