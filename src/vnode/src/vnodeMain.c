@@ -410,7 +410,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pVnodeCfg->cfg.replications; i++) {
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", pVnodeCfg->nodes[i].nodeId);
-    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\",\n", pVnodeCfg->nodes[i].nodeEp);
+    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", pVnodeCfg->nodes[i].nodeEp);
 
     if (i < pVnodeCfg->cfg.replications - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
