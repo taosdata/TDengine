@@ -18,6 +18,7 @@
 #include "talgo.h"
 #include "tutil.h"
 #include "tcompare.h"
+#include "exception.h"
 
 #include "../../../query/inc/qast.h"  // todo move to common module
 #include "../../../query/inc/tlosertree.h"  // todo move to util module
@@ -1473,21 +1474,35 @@ int32_t tsdbQueryByTagsCond(
   }
 
   int32_t    ret = TSDB_CODE_SUCCESS;
+  tExprNode* expr = NULL;
 
-  tExprNode* expr = exprTreeFromTableName(tbnameCond);
-  tExprNode* tagExpr = exprTreeFromBinary(pTagCond, len);
-  if (tagExpr != NULL) {
+  TRY(32) {
+    expr = exprTreeFromTableName(tbnameCond);
     if (expr == NULL) {
-      expr = tagExpr;
+      expr = exprTreeFromBinary(pTagCond, len);
     } else {
-      tExprNode* tbnameExpr = expr;
-      expr = calloc(1, sizeof(tExprNode));
-      expr->nodeType = TSQL_NODE_EXPR;
-      expr->_node.optr = tagNameRelType;
-      expr->_node.pLeft = tagExpr;
-      expr->_node.pRight = tbnameExpr;
+      CLEANUP_PUSH_VOID_PTR_PTR(true, tExprNodeDestroy, expr, NULL);
+      tExprNode* tagExpr = exprTreeFromBinary(pTagCond, len);
+      if (tagExpr != NULL) {
+        CLEANUP_PUSH_VOID_PTR_PTR(true, tExprNodeDestroy, tagExpr, NULL);
+        tExprNode* tbnameExpr = expr;
+        expr = calloc(1, sizeof(tExprNode));
+        if (expr == NULL) {
+          THROW( TSDB_CODE_SERV_OUT_OF_MEMORY );
+        }
+        expr->nodeType = TSQL_NODE_EXPR;
+        expr->_node.optr = tagNameRelType;
+        expr->_node.pLeft = tagExpr;
+        expr->_node.pRight = tbnameExpr;
+      }
     }
-  }
+    CLEANUP_EXECUTE();
+
+  } CATCH( code ) {
+    CLEANUP_EXECUTE();
+    ret = code;
+    // TODO: more error handling
+  } END_TRY
 
   doQueryTableList(pSTable, res, expr);
   pGroupInfo->numOfTables = taosArrayGetSize(res);

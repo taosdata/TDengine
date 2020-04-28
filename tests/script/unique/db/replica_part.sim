@@ -6,12 +6,12 @@ system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
 system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
 
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode2 -c commitLog -v 0
-system sh/cfg.sh -n dnode3 -c commitLog -v 0
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode1 -c clog -v 2
+system sh/cfg.sh -n dnode2 -c clog -v 2
+system sh/cfg.sh -n dnode3 -c clog -v 2
+system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
+system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
+system sh/cfg.sh -n dnode3 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4

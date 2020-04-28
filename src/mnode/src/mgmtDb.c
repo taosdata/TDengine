@@ -233,7 +233,7 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCfg->precision != TSDB_MIN_PRECISION && pCfg->precision != TSDB_MAX_PRECISION) {
+  if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) {
     mError("invalid db option timePrecision:%d valid value: [%d, %d]", pCfg->precision, TSDB_MIN_PRECISION,
            TSDB_MAX_PRECISION);
     return TSDB_CODE_INVALID_OPTION;

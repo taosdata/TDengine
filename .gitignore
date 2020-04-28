@@ -33,4 +33,5 @@ Target/
 *.failed
 *.sql
 sim/
+*DS_Store
 

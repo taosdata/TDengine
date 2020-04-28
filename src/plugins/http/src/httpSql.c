@@ -239,7 +239,7 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
   if (code < 0) {
     SSqlObj *pObj = (SSqlObj *)result;
     if (code == TSDB_CODE_INVALID_SQL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s:invalidsql, sqlObj:%p, error:%s",
+      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s, sqlObj:%p, error:%s",
                 pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), pObj, pObj->cmd.payload);
       httpSendTaosdInvalidSqlErrorResp(pContext, pObj->cmd.payload);
     } else {

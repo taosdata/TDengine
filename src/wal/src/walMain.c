@@ -269,7 +269,7 @@ int walGetWalFile(void *handle, char *name, uint32_t *index) {
   if (*index < first && *index > pWal->id) {
     code = -1;  // index out of range
   } else { 
-    sprintf(name, "%s/%s%d", pWal->path, walPrefix, *index);
+    sprintf(name, "wal/%s%d", walPrefix, *index);
     code = (*index == pWal->id) ? 0:1;
   }
 
