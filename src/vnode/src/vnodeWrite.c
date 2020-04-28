@@ -135,7 +135,8 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     }
     tsdbTableSetTagSchema(&tCfg, pDestTagSchema, false);
     tsdbTableSetSName(&tCfg, pTable->superTableId, false);
-
+    tsdbTableSetSuperUid(&tCfg, htobe64(pTable->superTableUid));
+    
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
     SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);

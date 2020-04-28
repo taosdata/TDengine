@@ -6099,9 +6099,7 @@ int32_t qCreateQueryInfo(void *tsdb, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo)
 
   if ((pQueryMsg->queryType & TSDB_QUERY_TYPE_STABLE_QUERY) != 0) {
     isSTableQuery = true;
-
     STableId *id = taosArrayGet(pTableIdList, 0);
-    id->uid = -1;  // todo fix me
     
     // group by normal column, do not pass the group by condition to tsdb to group table into different group
     int32_t numOfGroupByCols = pQueryMsg->numOfGroupCols;
