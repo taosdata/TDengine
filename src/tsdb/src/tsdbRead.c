@@ -407,7 +407,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
 
   if (pCheckInfo->pDataCols == NULL) {
-    pCheckInfo->pDataCols = tdNewDataCols(1000, 2, 4096, 0);
+    pCheckInfo->pDataCols = tdNewDataCols(1000, 2, 4096);
   }
 
   tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(tsdbGetMeta(pQueryHandle->pTsdb), pCheckInfo->pTableObj));

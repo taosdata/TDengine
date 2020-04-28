@@ -287,16 +287,15 @@ void dataColSetOffset(SDataCol *pCol, int nEle, int maxPoints) {
   }
 }
 
-SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows, int exColBytes) {
+SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
   SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * maxCols);
   if (pCols == NULL) return NULL;
 
   pCols->maxRowSize = maxRowSize;
   pCols->maxCols = maxCols;
   pCols->maxPoints = maxRows;
-  pCols->exColBytes = exColBytes;
 
-  pCols->buf = malloc(maxRowSize * maxRows + exColBytes * maxCols);
+  pCols->buf = malloc(maxRowSize * maxRows);
   if (pCols->buf == NULL) {
     free(pCols);
     return NULL;
@@ -312,16 +311,13 @@ void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
 
   void *ptr = pCols->buf;
   for (int i = 0; i < schemaNCols(pSchema); i++) {
-    if (i > 0) {
-      pCols->cols[i].pData = (char *)(pCols->cols[i - 1].pData) + schemaColAt(pSchema, i - 1)->bytes * pCols->maxPoints;
-    }
     pCols->cols[i].type = colType(schemaColAt(pSchema, i));
     pCols->cols[i].bytes = colBytes(schemaColAt(pSchema, i));
     pCols->cols[i].offset = colOffset(schemaColAt(pSchema, i)) + TD_DATA_ROW_HEAD_SIZE;
     pCols->cols[i].colId = colColId(schemaColAt(pSchema, i));
     pCols->cols[i].pData = ptr;
 
-    ptr = ptr + pCols->exColBytes + colBytes(schemaColAt(pSchema, i)) * pCols->maxPoints;
+    ptr = ptr + colBytes(schemaColAt(pSchema, i)) * pCols->maxPoints;
     if (colType(schemaColAt(pSchema, i)) == TSDB_DATA_TYPE_BINARY ||
         colType(schemaColAt(pSchema, i)) == TSDB_DATA_TYPE_NCHAR)
       ptr = ptr + (sizeof(int32_t) + sizeof(int16_t)) * pCols->maxPoints;
@@ -337,7 +333,7 @@ void tdFreeDataCols(SDataCols *pCols) {
 
 SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
   SDataCols *pRet =
-      tdNewDataCols(pDataCols->maxRowSize, pDataCols->maxCols, pDataCols->maxPoints, pDataCols->exColBytes);
+      tdNewDataCols(pDataCols->maxRowSize, pDataCols->maxCols, pDataCols->maxPoints);
   if (pRet == NULL) return NULL;
 
   pRet->numOfCols = pDataCols->numOfCols;

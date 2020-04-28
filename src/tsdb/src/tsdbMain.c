@@ -879,9 +879,7 @@ static void *tsdbCommitData(void *arg) {
   }
 
   if (tsdbInitWriteHelper(&whelper, pRepo) < 0) goto _exit;
-  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock,
-                                 sizeof(TSCKSUM) + COMP_OVERFLOW_BYTES)) == NULL)
-    goto _exit;
+  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) goto _exit;
 
   int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
   int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);

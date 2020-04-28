@@ -90,8 +90,8 @@ static void tsdbResetHelperBlock(SRWHelper *pHelper) {
 }
 
 static int tsdbInitHelperBlock(SRWHelper *pHelper) {
-  pHelper->pDataCols[0] = tdNewDataCols(pHelper->config.maxRowSize, pHelper->config.maxCols, pHelper->config.maxRows, sizeof(TSCKSUM) + COMP_OVERFLOW_BYTES);
-  pHelper->pDataCols[1] = tdNewDataCols(pHelper->config.maxRowSize, pHelper->config.maxCols, pHelper->config.maxRows, sizeof(TSCKSUM) + COMP_OVERFLOW_BYTES);
+  pHelper->pDataCols[0] = tdNewDataCols(pHelper->config.maxRowSize, pHelper->config.maxCols, pHelper->config.maxRows);
+  pHelper->pDataCols[1] = tdNewDataCols(pHelper->config.maxRowSize, pHelper->config.maxCols, pHelper->config.maxRows);
   if (pHelper->pDataCols[0] == NULL || pHelper->pDataCols[1] == NULL) return -1;
 
   tsdbResetHelperBlockImpl(pHelper);
