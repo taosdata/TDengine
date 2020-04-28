@@ -31,8 +31,8 @@ extern int tsRpcHeadSize;
 typedef struct {
   int8_t    inUse; 
   int8_t    numOfIps;
-  uint16_t  port[TSDB_MAX_MPEERS];
-  char      fqdn[TSDB_MAX_MPEERS][TSDB_FQDN_LEN];
+  uint16_t  port[TSDB_MAX_REPLICA];
+  char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
 } SRpcIpSet;
 
 typedef struct {

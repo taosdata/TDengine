@@ -231,8 +231,8 @@ void sdbUpdateSync() {
   for (int32_t i = 0; i < mnodes->nodeNum; ++i) {
     SDMMnodeInfo *node = &mnodes->nodeInfos[i];
     syncCfg.nodeInfo[i].nodeId = node->nodeId;
-    syncCfg.nodeInfo[i].nodeIp = node->nodeIp;
-    strcpy(syncCfg.nodeInfo[i].name, node->nodeName);
+    taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[i].nodeFqdn, &syncCfg.nodeInfo[i].nodePort);
+    syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
     index++;
   }
 
@@ -244,8 +244,8 @@ void sdbUpdateSync() {
       if (pMnode == NULL) break;
 
       syncCfg.nodeInfo[index].nodeId = pMnode->mnodeId;
-      syncCfg.nodeInfo[index].nodeIp = pMnode->pDnode->privateIp;
-      strcpy(syncCfg.nodeInfo[index].name, pMnode->pDnode->dnodeName);
+      syncCfg.nodeInfo[index].nodePort = pMnode->pDnode->dnodePort + TSDB_PORT_SYNC;
+      strcpy(syncCfg.nodeInfo[index].nodeFqdn, pMnode->pDnode->dnodeEp);
       index++;
 
       mgmtReleaseMnode(pMnode);
@@ -253,7 +253,8 @@ void sdbUpdateSync() {
   }
 
   syncCfg.replica = index;
-  syncCfg.arbitratorIp = syncCfg.nodeInfo[0].nodeIp;
+  syncCfg.arbitratorPort = syncCfg.nodeInfo[0].nodePort;
+  strcpy(syncCfg.arbitratorFqdn, syncCfg.nodeInfo[0].nodeFqdn);
   if (syncCfg.replica == 1) {
     syncCfg.quorum = 1;
   } else {
@@ -271,10 +272,9 @@ void sdbUpdateSync() {
   if (!hasThisDnode) return;
   if (memcmp(&syncCfg, &tsSdbObj.cfg, sizeof(SSyncCfg)) == 0) return;
 
-  sdbPrint("work as mnode, replica:%d arbitratorIp:%s", syncCfg.replica, taosIpStr(syncCfg.arbitratorIp));
+  sdbPrint("work as mnode, replica:%d arbitrator:%s", syncCfg.replica, syncCfg.arbitratorFqdn);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
-    sdbPrint("mnode:%d, ip:%s name:%s", syncCfg.nodeInfo[i].nodeId, taosIpStr(syncCfg.nodeInfo[i].nodeIp),
-           syncCfg.nodeInfo[i].name);
+    sdbPrint("mnode:%d, ip:%s", syncCfg.nodeInfo[i].nodeId, syncCfg.nodeInfo[i].nodeFqdn);
   }
 
   SSyncInfo syncInfo;

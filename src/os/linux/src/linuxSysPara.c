@@ -361,6 +361,8 @@ static bool taosGetCardName(char *ip, char *name) {
 
 static bool taosGetCardInfo(int64_t *bytes) {
   static char tsPublicCard[1000] = {0};
+  static char tsPrivateIp[40];
+
   if (tsPublicCard[0] == 0) {
     if (!taosGetCardName(tsPrivateIp, tsPublicCard)) {
       uError("can't get card name from ip:%s", tsPrivateIp);

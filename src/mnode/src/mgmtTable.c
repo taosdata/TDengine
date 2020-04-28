@@ -1230,8 +1230,8 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
       SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
       if (pDnode == NULL) break;
 
-      pRsp->vgroups[vg].ipAddr[vn].ip = htonl(pDnode->privateIp);
-      pRsp->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
+      strcpy(pRsp->vgroups[vg].ipAddr[vn].fqdn, pDnode->dnodeFqdn);
+      pRsp->vgroups[vg].ipAddr[vn].port = htons(pDnode->dnodePort + TSDB_PORT_DNODESHELL);
       pRsp->vgroups[vg].numOfIps++;
     }
 
@@ -1607,7 +1607,6 @@ static int32_t mgmtSetSchemaFromNormalTable(SSchema *pSchema, SChildTableObj *pT
 static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
   SDbObj *pDb = pMsg->pDb;
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
-  int8_t usePublicIp = pMsg->usePublicIp;
 
   pMeta->uid       = htobe64(pTable->uid);
   pMeta->sid       = htonl(pTable->sid);
@@ -1637,13 +1636,8 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].dnodeId);
     if (pDnode == NULL) break;
-    if (usePublicIp) {
-      pMeta->vgroup.ipAddr[i].ip = htonl(pDnode->publicIp);
-      pMeta->vgroup.ipAddr[i].port = htonl(tsDnodeShellPort);
-    } else {
-      pMeta->vgroup.ipAddr[i].ip = htonl(pDnode->privateIp);
-      pMeta->vgroup.ipAddr[i].port = htonl(tsDnodeShellPort);
-    }
+    strcpy(pMeta->vgroup.ipAddr[i].fqdn, pDnode->dnodeFqdn);
+    pMeta->vgroup.ipAddr[i].port = htonl(pDnode->dnodePort + TSDB_PORT_DNODESHELL);
     pMeta->vgroup.numOfIps++;
     mgmtDecDnodeRef(pDnode);
   }
@@ -1799,8 +1793,8 @@ static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg) {
     mgmtDecTableRef(pTable);
     return;
   }
-
-  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
+  SDnodeObj *pDnode = mgmtGetDnode(pCfg->dnode);
+  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->dnodeEp);
   SRpcMsg rpcRsp = {
       .handle  = NULL,
       .pCont   = pMDCreate,

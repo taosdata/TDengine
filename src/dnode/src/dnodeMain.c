@@ -161,8 +161,7 @@ static int32_t dnodeInitSystem() {
   }
   taosPrintGlobalCfg();
 
-  dPrint("Server IP address is:%s", tsPrivateIp);
-  dPrint("starting to initialize TDengine ...");
+  dPrint("start to initialize TDengine on %s", tsLocalEp);
 
   if (dnodeInitStorage() != 0) return -1;
   if (dnodeInitRead() != 0) return -1;
@@ -237,5 +236,5 @@ static int32_t dnodeInitStorage() {
 static void dnodeCleanupStorage() {}
 
 bool  dnodeIsFirstDeploy() {
-  return strcmp(tsMasterIp, tsPrivateIp) == 0;
+  return strcmp(tsMaster, tsLocalEp) == 0;
 }

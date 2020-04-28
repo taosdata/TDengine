@@ -50,7 +50,7 @@ void    mgmtSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle);
 void    mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup);
-SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip);
+SRpcIpSet mgmtGetIpSetFromIp(char *ep);
 
 #ifdef __cplusplus
 }
