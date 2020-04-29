@@ -67,6 +67,13 @@ int       tdGetSchemaEncodeSize(STSchema *pSchema);
 void *    tdEncodeSchema(void *dst, STSchema *pSchema);
 STSchema *tdDecodeSchema(void **psrc);
 
+// ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
+typedef int32_t VarDataOffsetT;
+typedef int16_t VarDataLenT;
+#define varDataLen(v) ((VarDataLenT *)(v))[0]
+#define varDataTLen(v) (sizeof(VarDataLenT) + varDataLen(v))
+#define varDataVal(v) ((void *)((char *)v + sizeof(VarDataLenT)))
+
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
@@ -111,18 +118,25 @@ static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t o
 
 // ----------------- Data column structure
 typedef struct SDataCol {
-  int8_t  type;
-  int16_t colId;
-  int     bytes;
-  int     len;
-  int     offset;
-  void *  pData; // Original data
+  int8_t          type;       // column type
+  int16_t         colId;      // column ID
+  int             bytes;      // column data bytes defined
+  int             offset;     // data offset in a SDataRow
+  int             spaceSize;  // Total space size for this column
+  int             len;        // column data length
+  VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
+  void *          pData;      // Actual data pointer
 } SDataCol;
 
+static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
+
+void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
 void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoints);
+void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfPoints);
+void dataColSetOffset(SDataCol *pCol, int nEle);
+
 bool isNEleNull(SDataCol *pCol, int nEle);
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
-void dataColSetOffset(SDataCol *pCol, int nEle, int maxPoints);
 
 // Get the data pointer from a column-wised data
 static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
@@ -130,7 +144,7 @@ static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   {
   case TSDB_DATA_TYPE_BINARY:
   case TSDB_DATA_TYPE_NCHAR:
-    return (void *)((char *)(pCol->pData) + ((int32_t *)(pCol->pData))[row]);
+    return (void *)((char *)(pCol->pData) + pCol->dataOff[row]);
     break;
 
   default:
@@ -139,20 +153,17 @@ static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   }
 }
 
-static FORCE_INLINE void dataColGetNEleStartAndLen(SDataCol *pDataCol, int rows, void **pStart, int32_t *len, int32_t maxPoints) {
+static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
   void *ptr = NULL;
   switch (pDataCol->type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       ptr = tdGetColDataOfRow(pDataCol, rows - 1);
-      *pStart = (char *)(pDataCol->pData) + sizeof(int32_t) * maxPoints;
-      *len = (char *)ptr - (char *)(*pStart) + sizeof(int16_t) + *(int16_t *)ptr;
+      return ((VarDataOffsetT *)(pDataCol->pData))[rows-1] + varDataTLen(ptr);
       break;
 
     default:
-      *pStart = pDataCol->pData;
-      *len = TYPE_BYTES[pDataCol->type] * rows;
-      break;
+      return TYPE_BYTES[pDataCol->type] * rows;
   }
 }
 
@@ -161,6 +172,7 @@ typedef struct {
   int      maxRowSize;
   int      maxCols;    // max number of columns
   int      maxPoints;  // max number of points
+  int      bufSize;
 
   int      numOfPoints;
   int      numOfCols;  // Total number of cols

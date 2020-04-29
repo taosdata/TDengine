@@ -578,7 +578,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32
                                                                   INT32_MAX, comp, buffer, bufferSize);
     if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
       pDataCol->len += (sizeof(int32_t) * maxPoints);
-      dataColSetOffset(pDataCol, numOfPoints, maxPoints);
+      dataColSetOffset(pDataCol, numOfPoints);
     }
   } else {
     // No need to decompress, just memcpy it
@@ -588,7 +588,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32
         pDataCol->len = sizeof(int32_t) * maxPoints;
         memcpy((char *)pDataCol->pData + pDataCol->len, content, len - sizeof(TSCKSUM));
         pDataCol->len += (len - sizeof(TSCKSUM));
-        dataColSetOffset(pDataCol, numOfPoints, maxPoints);
+        dataColSetOffset(pDataCol, numOfPoints);
         break;
 
       default:
@@ -736,12 +736,8 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
 
     pCompCol->offset = toffset;
 
-    void *pStart = NULL;
-    int32_t tlen = 0;
+    int32_t tlen = dataColGetNEleLen(pDataCol, rowsToWrite);
 
-    dataColGetNEleStartAndLen(pDataCol, rowsToWrite, &pStart, &tlen, pDataCols->maxPoints);
-
-    // TODO: compresee the data
     if (pHelper->config.compress) {
       if (pHelper->config.compress == TWO_STAGE_COMP) {
         pHelper->compBuffer = trealloc(pHelper->compBuffer, tlen + COMP_OVERFLOW_BYTES);
@@ -749,11 +745,11 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
       }
 
       pCompCol->len = (*(tDataTypeDesc[pDataCol->type].compFunc))(
-          (char *)pStart, tlen, rowsToWrite, tptr, tsizeof(pHelper->blockBuffer) - lsize, pHelper->config.compress,
-          pHelper->compBuffer, tsizeof(pHelper->compBuffer));
+          (char *)pDataCol->pData, tlen, rowsToWrite, tptr, tsizeof(pHelper->blockBuffer) - lsize,
+          pHelper->config.compress, pHelper->compBuffer, tsizeof(pHelper->compBuffer));
     } else {
       pCompCol->len = tlen;
-      memcpy(tptr, pStart, pCompCol->len);
+      memcpy(tptr, pDataCol->pData, pCompCol->len);
     }
 
     // Add checksum
