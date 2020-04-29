@@ -528,9 +528,8 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   bool updateSoon = false;
 
   if (handle == NULL) {
-    mTrace("balance function is scheduled by timer");
-      
     if (tsAccessSquence % tsBalanceStartInterval == 0) {
+      mTrace("balance function is scheduled by timer");
       updateSoon = balanceStart();
     }
   } else {
