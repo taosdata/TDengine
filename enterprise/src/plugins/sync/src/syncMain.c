@@ -371,6 +371,7 @@ static void syncAddArbitrator(SSyncNode *pNode)
   SNodeInfo nodeInfo;
   nodeInfo.nodeId = 0;
   taosGetFqdnPortFromEp(tsArbitrator, nodeInfo.nodeFqdn, &nodeInfo.nodePort);
+  nodeInfo.nodePort += TSDB_PORT_SYNC;
 
   pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = syncAddPeer(pNode, &nodeInfo);
 }
