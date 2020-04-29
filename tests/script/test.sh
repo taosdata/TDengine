@@ -54,7 +54,7 @@ fi
 if [ $UNIQUE -eq 0 ]; then
   PROGRAM=$BUILD_DIR/bin/tsim
 else
-  PROGRAM="$TOP_DIR/../debug/build/bin/tsim -a"
+  PROGRAM="$TOP_DIR/../debug/build/bin/tsim"
 fi 
 
 PRG_DIR=$SIM_DIR/tsim
