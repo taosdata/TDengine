@@ -25,6 +25,7 @@
 #include "tutil.h"
 #include "tlocale.h"
 #include "ttimezone.h"
+#include "tsync.h"
 
 char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
 char tsVnodeDir[TSDB_FILENAME_LEN] = {0};
@@ -62,6 +63,7 @@ int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
 char  tsMaster[TSDB_FQDN_LEN] = {0};
 char  tsSecond[TSDB_FQDN_LEN] = {0};
+char  tsArbitrator[TSDB_FQDN_LEN] = {0};
 char  tsLocalEp[TSDB_FQDN_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
 uint16_t tsMnodeShellPort = 6030;   // udp[6030-6034] tcp[6030]
@@ -141,6 +143,7 @@ int32_t qdebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
+int32_t sDebugFlag = 131;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -338,6 +341,16 @@ static void doInitGlobalConfig() {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_FILENAME_LEN;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "arbitrator";
+  cfg.ptr = tsArbitrator;
+  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = TSDB_FQDN_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -1004,6 +1017,16 @@ static void doInitGlobalConfig() {
 
   cfg.option = "dDebugFlag";
   cfg.ptr = &ddebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "sDebugFlag";
+  cfg.ptr = &sDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
