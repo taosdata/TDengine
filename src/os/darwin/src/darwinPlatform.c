@@ -151,67 +151,6 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 
-int taosOpenUDClientSocket(char *ip, uint16_t port) {
-  int                sockFd = 0;
-  struct sockaddr_un serverAddr;
-  int                ret;
-  char               name[128];
-  sprintf(name, "%s.%hu", ip, port);
-
-  sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-  if (sockFd < 0) {
-    uError("failed to open the UD socket:%s, reason:%s", name, strerror(errno));
-    return -1;
-  }
-
-  memset((char *)&serverAddr, 0, sizeof(serverAddr));
-  serverAddr.sun_family = AF_UNIX;
-  strcpy(serverAddr.sun_path + 1, name);
-
-  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
-
-  if (ret != 0) {
-    uError("failed to connect UD socket, name:%d, reason: %s", name, strerror(errno));
-    sockFd = -1;
-  }
-
-  return sockFd;
-}
-
-int taosOpenUDServerSocket(char *ip, uint16_t port) {
-  struct sockaddr_un serverAdd;
-  int                sockFd;
-  char               name[128];
-
-  uTrace("open ud socket:%s", name);
-  sprintf(name, "%s.%hu", ip, port);
-
-  bzero((char *)&serverAdd, sizeof(serverAdd));
-  serverAdd.sun_family = AF_UNIX;
-  strcpy(serverAdd.sun_path + 1, name);
-  unlink(name);
-
-  if ((sockFd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-    uError("failed to open UD socket:%s, reason:%s", name, strerror(errno));
-    return -1;
-  }
-
-  /* bind socket to server address */
-  if (bind(sockFd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
-    uError("bind socket:%s failed, reason:%s", name, strerror(errno));
-    tclose(sockFd);
-    return -1;
-  }
-
-  if (listen(sockFd, 10) < 0) {
-    uError("listen socket:%s failed, reason:%s", name, strerror(errno));
-    return -1;
-  }
-
-  return sockFd;
-}
-
 int taosInitTimer(void (*callback)(int), int ms) {
   signal(SIGALRM, callback);
 
