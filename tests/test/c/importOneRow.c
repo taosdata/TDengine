@@ -107,7 +107,7 @@ void* taos_execute(void *param) {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
-  taosGetFqdnPortFromEp(tsMaster, fqdn, &port);
+  taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
   void *taos = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
   if (taos == NULL) taos_error(taos);

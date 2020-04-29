@@ -1,24 +1,24 @@
 system sh/stop_dnodes.sh
 
-system sh/ip.sh -i 1 -s up
-system sh/ip.sh -i 2 -s up
-system sh/ip.sh -i 3 -s up
-system sh/ip.sh -i 4 -s up
-system sh/ip.sh -i 5 -s up
-system sh/ip.sh -i 6 -s up
-system sh/ip.sh -i 7 -s up
-system sh/ip.sh -i 8 -s up
+
+
+
+
+
+
+
+
 
 sleep 1000
 
-system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
-system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
-system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
-system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
-system sh/deploy.sh -n dnode5 -m 192.168.0.1 -i 192.168.0.5
-system sh/deploy.sh -n dnode6 -m 192.168.0.1 -i 192.168.0.6
-system sh/deploy.sh -n dnode7 -m 192.168.0.1 -i 192.168.0.7
-system sh/deploy.sh -n dnode8 -m 192.168.0.1 -i 192.168.0.8
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/deploy.sh -n dnode6 -i 6
+system sh/deploy.sh -n dnode7 -i 7
+system sh/deploy.sh -n dnode8 -i 8
 
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
@@ -161,15 +161,15 @@ show1:
 	endi
 sql show dnodes -x show1
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 1 then
   goto show1
@@ -202,15 +202,15 @@ show2:
 	endi
 sql show dnodes -x show2
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 
 if $dnode5Vnodes != 2 then
@@ -231,15 +231,15 @@ show3:
 	endi
 sql show dnodes -x show3
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 1 then
   goto show3
@@ -274,15 +274,15 @@ show4:
 	endi
 sql show dnodes -x show4
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode2Vnodes != 2 then
   goto show4
@@ -302,15 +302,15 @@ show5:
 	endi
 sql show dnodes -x show5
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 1 then
   goto show5
@@ -345,15 +345,15 @@ show6:
 	endi
 sql show dnodes -x show6
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode3Vnodes != 2 then
   goto show6
@@ -373,15 +373,15 @@ show7:
 	endi
 sql show dnodes -x show7
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 1 then
   goto show7
@@ -416,15 +416,15 @@ show8:
 	endi
 sql show dnodes -x show8
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode4Vnodes != 2 then
   goto show8
@@ -444,15 +444,15 @@ show9:
 	endi
 sql show dnodes -x show9
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 1 then
   goto show9
@@ -487,15 +487,15 @@ show10:
 	endi
 sql show dnodes -x show10
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode5Vnodes != 2 then
   goto show10
@@ -520,15 +520,15 @@ show11:
 	endi
 sql show dnodes -x show11
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != null then
   goto show11
@@ -561,15 +561,15 @@ show12:
 	endi
 sql show dnodes -x show12
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 2 then
   goto show12
@@ -621,15 +621,15 @@ show13:
 	endi
 sql show dnodes -x show13
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data3_192.168.0.3
-print 192.168.0.3 $dnode3Vnodes
+print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data3_192.168.0.4
-print 192.168.0.4 $dnode4Vnodes
+print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data3_192.168.0.5
-print 192.168.0.5 $dnode5Vnodes
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 0 then
   goto show13
