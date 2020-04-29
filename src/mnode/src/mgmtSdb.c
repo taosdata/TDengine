@@ -253,13 +253,7 @@ void sdbUpdateSync() {
   }
 
   syncCfg.replica = index;
-  syncCfg.arbitratorPort = syncCfg.nodeInfo[0].nodePort;
-  strcpy(syncCfg.arbitratorFqdn, syncCfg.nodeInfo[0].nodeFqdn);
-  if (syncCfg.replica == 1) {
-    syncCfg.quorum = 1;
-  } else {
-    syncCfg.quorum = 2;
-  }
+  syncCfg.quorum = (syncCfg.replica == 1) ? 1:2;
 
   bool hasThisDnode = false;
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
@@ -272,9 +266,9 @@ void sdbUpdateSync() {
   if (!hasThisDnode) return;
   if (memcmp(&syncCfg, &tsSdbObj.cfg, sizeof(SSyncCfg)) == 0) return;
 
-  sdbPrint("work as mnode, replica:%d arbitrator:%s", syncCfg.replica, syncCfg.arbitratorFqdn);
+  sdbPrint("work as mnode, replica:%d", syncCfg.replica);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
-    sdbPrint("mnode:%d, ip:%s", syncCfg.nodeInfo[i].nodeId, syncCfg.nodeInfo[i].nodeFqdn);
+    sdbPrint("mnode:%d, %s:%d", syncCfg.nodeInfo[i].nodeId, syncCfg.nodeInfo[i].nodeFqdn, syncCfg.nodeInfo[i].nodePort);
   }
 
   SSyncInfo syncInfo;

@@ -33,10 +33,6 @@ int  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int  taosKeepTcpAlive(int sockFd);
 void taosCloseTcpSocket(int sockFd);
 
-int taosOpenUDServerSocket(uint32_t ip, uint16_t port);
-int taosOpenUDClientSocket(uint32_t ip, uint16_t port);
-int taosOpenRawSocket(uint32_t ip);
-
 int      taosGetFqdn(char *);
 uint32_t taosGetIpFromFqdn(const char *);
 void     tinet_ntoa(char *ipstr, unsigned int ip);
