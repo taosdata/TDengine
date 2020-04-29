@@ -25,12 +25,12 @@ int main(int argc, char *argv[]) {
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
-      tsSyncPort = atoi(argv[++i]);
+      tsServerPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       ddebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-p port]: server port number, default is:%d\n", tsSyncPort);
+      printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
       printf("  [-d debugFlag]: debug flag, default:%d\n", ddebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   syncInfo.ahandle = &syncInfo;
   syncInfo.syncCfg.nodeInfo[0].nodeId = 1;
   taosGetFqdn(syncInfo.syncCfg.nodeInfo[0].nodeFqdn);
-  syncInfo.syncCfg.nodeInfo[0].nodePort = tsSyncPort;
+  syncInfo.syncCfg.nodeInfo[0].nodePort = tsServerPort + TSDB_PORT_SYNC;
 
   void *syncHandle = syncStart(&syncInfo);
   if (syncHandle == NULL) {

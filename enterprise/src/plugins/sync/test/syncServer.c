@@ -349,12 +349,6 @@ void doSync()
   sprintf(path, "/root/test/d%d", nodeId);
   strcpy(syncInfo.path, path);
 
-  if ((pCfg->replica & 1) == 0) {
-    taosGetFqdn(pCfg->arbitratorFqdn);
-  } else {
-    pCfg->arbitratorFqdn[0] = 0;
-  }
-
   if ( syncHandle == NULL) {
       syncHandle = syncStart(&syncInfo);
   } else {
