@@ -156,7 +156,12 @@ static void taosProcessTcpData(void *param) {
         continue;
       }
 
-      (*pInfo->processIncomingMsg)(ahandle, buffer);
+      if ((*pInfo->processIncomingMsg)(ahandle, buffer) < 0) {
+        epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, fd, NULL);
+        pThread->numOfFds--;
+        (*pInfo->processBrokenLink)(ahandle);
+        continue;
+      }
     }
   }
 
