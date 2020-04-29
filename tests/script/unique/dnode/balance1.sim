@@ -262,6 +262,9 @@ endi
 
 system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 
+sql reset query cache
+sleep 1000
+
 print ========== step10
 sql select * from d1.t1 order by t desc
 print $data01 $data11 $data21 $data31 $data41 
