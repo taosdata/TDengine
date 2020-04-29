@@ -283,7 +283,7 @@ void dataColSetOffset(SDataCol *pCol, int nEle, int maxPoints) {
   char *tptr = (char *)(pCol->pData) + sizeof(int32_t) * maxPoints;
   for (int i = 0; i < nEle; i++) {
     ((int32_t *)(pCol->pData))[i] = tptr - (char *)(pCol->pData);
-    tptr = tptr + *(int16_t *)tptr;
+    tptr = tptr + *(int16_t *)tptr + sizeof(int16_t);
   }
 }
 
