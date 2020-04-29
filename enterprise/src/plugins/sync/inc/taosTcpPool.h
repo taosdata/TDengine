@@ -29,7 +29,7 @@ typedef struct {
   short     port;
   int       bufferSize;
   void     (*processBrokenLink)(void *ahandle);
-  void     (*processIncomingMsg)(void *ahandle, void *buffer);
+  int      (*processIncomingMsg)(void *ahandle, void *buffer);
   void     (*processIncomingConn)(int fd, uint32_t ip);
 } SPoolInfo;
 
