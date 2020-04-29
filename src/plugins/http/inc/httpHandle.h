@@ -210,7 +210,7 @@ typedef struct HttpThread {
 
 typedef struct HttpServer {
   char              label[HTTP_LABEL_SIZE];
-  char              serverIp[16];
+  uint32_t          serverIp;
   uint16_t          serverPort;
   int               cacheContext;
   int               sessionExpire;

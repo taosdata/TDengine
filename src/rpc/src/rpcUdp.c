@@ -51,7 +51,7 @@ typedef struct {
 typedef struct {
   int       index;
   int       server;
-  char      ip[16];   // local IP
+  uint32_t  ip;       // local IP
   uint16_t  port;     // local Port
   void     *shandle;  // handle passed by upper layer during server initialization
   int       threads;
@@ -77,7 +77,7 @@ static void *taosRecvUdpData(void *param);
 static SUdpBuf *taosCreateUdpBuf(SUdpConn *pConn, uint32_t ip, uint16_t port);
 static void taosProcessUdpBufTimer(void *param, void *tmrId);
 
-void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
+void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
   SUdpConn    *pConn;
   SUdpConnSet *pSet;
 
@@ -89,7 +89,7 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
   }
 
   memset(pSet, 0, (size_t)size);
-  strcpy(pSet->ip, ip);
+  pSet->ip = ip;
   pSet->port = port;
   pSet->shandle = shandle;
   pSet->fp = fp;
@@ -111,7 +111,7 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
     ownPort = (port ? port + i : 0);
     pConn->fd = taosOpenUdpSocket(ip, ownPort);
     if (pConn->fd < 0) {
-      tError("%s failed to open UDP socket %s:%hu", label, ip, port);
+      tError("%s failed to open UDP socket %x:%hu", label, ip, port);
       taosCleanUpUdpConnection(pSet);
       return NULL;
     }
@@ -157,7 +157,7 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
     ++pSet->threads;
   }
 
-  tTrace("%s UDP connection is initialized, ip:%s port:%hu threads:%d", label, ip, port, threads);
+  tTrace("%s UDP connection is initialized, ip:%x port:%hu threads:%d", label, ip, port, threads);
 
   return pSet;
 }
@@ -190,7 +190,7 @@ void taosCleanUpUdpConnection(void *handle) {
   tfree(pSet);
 }
 
-void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
+void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
   SUdpConnSet *pSet = (SUdpConnSet *)shandle;
 
   pSet->index = (pSet->index + 1) % pSet->threads;
@@ -198,7 +198,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t por
   SUdpConn *pConn = pSet->udpConn + pSet->index;
   pConn->port = port;
 
-  tTrace("%s UDP connection is setup, ip: %s:%hu, local: %s:%d", pConn->label, ip, port, pSet->ip,
+  tTrace("%s UDP connection is setup, ip:%x:%hu, local:%x:%d", pConn->label, ip, port, pSet->ip,
          ntohs((uint16_t)pConn->localPort));
 
   return pConn;

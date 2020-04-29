@@ -64,6 +64,8 @@ print error of no master
 
 print ============== step6
 system sh/exec_up.sh -n dnode1 -s start
+sql close
+sql connect
 
 $x = 0
 show6: 

@@ -72,24 +72,24 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     return NULL;
   }
 
+  tscMgmtIpSet.numOfIps = 0;
+
   if (ip && ip[0]) {
     tscMgmtIpSet.inUse = 0;
-    tscMgmtIpSet.port = tsMnodeShellPort;
     tscMgmtIpSet.numOfIps = 1;
-    tscMgmtIpSet.ip[0] = inet_addr(ip);
-
-    if (tsMasterIp[0] && strcmp(ip, tsMasterIp) != 0) {
-      tscMgmtIpSet.numOfIps = 2;
-      tscMgmtIpSet.ip[1] = inet_addr(tsMasterIp);
+    strcpy(tscMgmtIpSet.fqdn[0], ip);
+    tscMgmtIpSet.port[0] = port? port: tsMnodeShellPort;
+  } else {
+    if (tsMaster[0] != 0) {
+      taosGetFqdnPortFromEp(tsMaster, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
+      tscMgmtIpSet.numOfIps++;
     }
 
-    if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
-      tscMgmtIpSet.numOfIps = 3;
-      tscMgmtIpSet.ip[2] = inet_addr(tsSecondIp);
+    if (tsSecond[0] != 0) {
+      taosGetFqdnPortFromEp(tsSecond, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
+      tscMgmtIpSet.numOfIps++;
     }
   }
-
-  tscMgmtIpSet.port = port ? port : tsMnodeShellPort;
   
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
@@ -167,10 +167,6 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
-    ip = tsMasterIp;
-  }
-  
   tscTrace("try to create a connection to %s", ip);
 
   STscObj *pObj = taosConnectImpl(ip, user, pass, db, port, NULL, NULL, NULL);
@@ -939,7 +935,7 @@ char *taos_errstr(TAOS *taos) {
 
 void taos_config(int debug, char *log_path) {
   uDebugFlag = debug;
-  strcpy(logDir, log_path);
+  strcpy(tsLogDir, log_path);
 }
 
 char *taos_get_server_info(TAOS *taos) {

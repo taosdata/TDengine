@@ -38,14 +38,15 @@ typedef enum _TAOS_SYNC_STATUS {
 
 typedef struct {
   uint32_t  nodeId;    // node ID assigned by TDengine
-  uint32_t  nodeIp;    // node IP address
-  char      name[TSDB_FILENAME_LEN]; // external node name 
+  uint16_t  nodePort;  // node sync Port
+  char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
 } SNodeInfo;
 
 typedef struct {
-  uint32_t   arbitratorIp;  // arbitrator IP address
   int8_t     quorum;    // number of confirms required, >=1 
   int8_t     replica;   // number of replications, >=1
+  uint16_t   arbitratorPort;  // arbitrator port
+  char       arbitratorFqdn[TSDB_FQDN_LEN]; // arbitrator IP address
   SNodeInfo  nodeInfo[TAOS_SYNC_MAX_REPLICA];
 } SSyncCfg;
 

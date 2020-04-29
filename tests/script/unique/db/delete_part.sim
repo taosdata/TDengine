@@ -35,10 +35,10 @@ system sh/cfg.sh -n dnode3 -c tables -v 4
 system sh/cfg.sh -n dnode4 -c tables -v 4
 
 print ========= start dnodes
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sql connect
 sql create dnode 192.168.0.2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 3000
 
 $loop = 0
@@ -59,13 +59,13 @@ begin:
 	endw
 
 	print ======== step2
-	system sh/exec.sh -n dnode2 -s stop
+	system sh/exec_up.sh -n dnode2 -s stop
 	sql drop database $db 
 
 	
 	print ======== step3
 	sleep 3000
-	system sh/exec.sh -n dnode2 -s start
+	system sh/exec_up.sh -n dnode2 -s start
 	sleep 20000
 	
 	print ===> test times : $loop

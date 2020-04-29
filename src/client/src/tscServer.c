@@ -49,11 +49,11 @@ static void tscSetDnodeIpList(SSqlObj* pSql, STableMeta* pTableMeta) {
   SRpcIpSet* pIpList = &pSql->ipList;
   
   pIpList->numOfIps = pTableMeta->vgroupInfo.numOfIps;
-  pIpList->port     = tsDnodeShellPort;
   pIpList->inUse    = 0;
   
   for(int32_t i = 0; i < pTableMeta->vgroupInfo.numOfIps; ++i) {
-    pIpList->ip[i] = pTableMeta->vgroupInfo.ipAddr[i].ip;
+    strcpy(pIpList->fqdn[i], pTableMeta->vgroupInfo.ipAddr[i].fqdn);
+    pIpList->port[i] = pTableMeta->vgroupInfo.ipAddr[i].port;
   }
 }
 
@@ -62,7 +62,7 @@ void tscPrintMgmtIp() {
     tscError("invalid mgmt IP list:%d", tscMgmtIpSet.numOfIps);
   } else {
     for (int i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-      tscTrace("mgmt index:%d ip:%d", i, tscMgmtIpSet.ip[i]);
+      tscTrace("mgmt index:%d %s:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
     }
   }
 }
@@ -70,9 +70,8 @@ void tscPrintMgmtIp() {
 void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
   tscMgmtIpSet.numOfIps = pIpList->numOfIps;
   tscMgmtIpSet.inUse = pIpList->inUse;
-  tscMgmtIpSet.port = htons(pIpList->port);
   for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-    tscMgmtIpSet.ip[i] = htonl(pIpList->ip[i]);
+    tscMgmtIpSet.port[i] = htons(pIpList->port[i]);
   }
 }
 
@@ -80,8 +79,7 @@ void tscSetMgmtIpListFromEdge() {
   if (tscMgmtIpSet.numOfIps != 1) {
     tscMgmtIpSet.numOfIps = 1;
     tscMgmtIpSet.inUse = 0;
-    tscMgmtIpSet.port = tsMnodeShellPort;
-    tscMgmtIpSet.ip[0] = inet_addr(tsMasterIp);
+    taosGetFqdnPortFromEp(tsMaster, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]); 
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
   }
@@ -213,9 +211,6 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     rpcSendRequest(pVnodeConn, &pSql->ipList, &rpcMsg);
   } else {
     pSql->ipList = tscMgmtIpSet;
-    pSql->ipList.port = tsMnodeShellPort;
-    
-    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
     memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
     SRpcMsg rpcMsg = {
         .msgType = pSql->cmd.msgType,
@@ -224,6 +219,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
         .handle  = pSql,
         .code   = 0
     };
+    tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
     rpcSendRequest(pObj->pMgmtConn, &pSql->ipList, &rpcMsg);
   }
 
@@ -294,11 +290,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
       }
     }
   }
-
-  if (pRes->code == TSDB_CODE_SUCCESS) {
-    tscTrace("%p reset retry counter to be 0 due to success rsp, old:%d", pSql, pSql->retry);
-    pSql->retry = 0;
-  }
   
   pRes->rspLen = 0;
   
@@ -306,6 +297,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_NETWORK_UNAVAIL;
   } else {
     tscTrace("%p query is cancelled, code:%d", pSql, tstrerror(pRes->code));
+  }
+
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    tscTrace("%p reset retry counter to be 0 due to success rsp, old:%d", pSql, pSql->retry);
+    pSql->retry = 0;
   }
 
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
@@ -569,7 +565,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
   tscSetDnodeIpList(pSql, pTableMeta);
   
-  tscTrace("%p build submit msg, vgId:%d numOfVgroup:%d", pSql, vgId, htonl(pMsgDesc->numOfVnodes));
+  tscTrace("%p build submit msg, vgId:%d numOfVgroup:%d numberOfIP:%d", pSql, vgId, htonl(pMsgDesc->numOfVnodes), pSql->ipList.numOfIps);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -664,11 +660,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     SCMVgroupInfo* pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
     
     pSql->ipList.numOfIps = pVgroupInfo->numOfIps; // todo fix me
-    pSql->ipList.port     = tsDnodeShellPort;
     pSql->ipList.inUse    = 0;
   
     for(int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
-      pSql->ipList.ip[i] = pVgroupInfo->ipAddr[i].ip;
+      strcpy(pSql->ipList.fqdn[i], pVgroupInfo->ipAddr[i].fqdn);
+      pSql->ipList.port[i] = pVgroupInfo->ipAddr[i].port;
     }
     
     tscTrace("%p query on super table, numOfVgroup:%d, vgroupIndex:%d", pSql, pTableMetaInfo->vgroupList->numOfVgroups, index);
@@ -935,7 +931,8 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SCMCreateDnodeMsg *pCreate = (SCMCreateDnodeMsg *)pCmd->payload;
-  strncpy(pCreate->ip, pInfo->pDCLInfo->a[0].z, pInfo->pDCLInfo->a[0].n);
+  strncpy(pCreate->ep, pInfo->pDCLInfo->a[0].z, pInfo->pDCLInfo->a[0].n);
+  
   pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_DNODE;
 
   return TSDB_CODE_SUCCESS;
@@ -1078,7 +1075,7 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMDropDnodeMsg *pDrop = (SCMDropDnodeMsg *)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strcpy(pDrop->ip, pTableMetaInfo->name);
+  strcpy(pDrop->ep, pTableMetaInfo->name);
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_DNODE;
 
   return TSDB_CODE_SUCCESS;
@@ -1857,10 +1854,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   }
 
   for (int i = 0; i < pMetaMsg->vgroup.numOfIps; ++i) {
-    pMetaMsg->vgroup.ipAddr[i].ip = htonl(pMetaMsg->vgroup.ipAddr[i].ip);
     pMetaMsg->vgroup.ipAddr[i].port = htons(pMetaMsg->vgroup.ipAddr[i].port);
-    
-    assert(pMetaMsg->vgroup.ipAddr[i].ip != 0);
   }
 
   SSchema* pSchema = pMetaMsg->schema;
@@ -2144,7 +2138,6 @@ _error_clean:
     assert(pVgroups->numOfIps >= 1);
     
     for(int32_t j = 0; j < pVgroups->numOfIps; ++j) {
-      pVgroups->ipAddr[j].ip = htonl(pVgroups->ipAddr[j].ip);
       pVgroups->ipAddr[j].port = htons(pVgroups->ipAddr[j].port);
     }
   }

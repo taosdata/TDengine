@@ -1245,7 +1245,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   // data in from current vnode is stored in cache and disk
   uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
     tscTrace("%p sub:%p all data retrieved from ip:%u,vgId:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql,
-        pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].ip, pTableMetaInfo->vgroupList->vgroups[0].vgId,
+        pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
   
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
@@ -1473,12 +1473,12 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   
   if (pState->code != TSDB_CODE_SUCCESS) {  // at least one peer subquery failed, abort current query
     tscTrace("%p sub:%p query failed,ip:%u,vgId:%d,orderOfSub:%d,global code:%d", pParentSql, pSql,
-               pVgroup->ipAddr[0].ip, pVgroup->vgId, trsupport->subqueryIndex, pState->code);
+               pVgroup->ipAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex, pState->code);
   
     tscHandleSubqueryError(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
     tscTrace("%p sub:%p query complete, ip:%u, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSqlObj, pSql,
-               pVgroup->ipAddr[0].ip, pVgroup->vgId, trsupport->subqueryIndex);
+               pVgroup->ipAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
     
     if (pSql->res.qhandle == 0) { // qhandle is NULL, code is TSDB_CODE_SUCCESS means no results generated from this vnode
       tscRetrieveFromDnodeCallBack(param, pSql, 0);

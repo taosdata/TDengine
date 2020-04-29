@@ -290,11 +290,12 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
 bool taosGetDisk() {
   struct statvfs info;
   const double   unit = 1024 * 1024 * 1024;
-
+  
   if (tscEmbedded) {
-    if (statvfs(dataDir, &info)) {
-      tsTotalDataDirGB = 0;
-      tsAvailDataDirGB = 0;
+    if (statvfs(tsDataDir, &info)) {
+      //tsTotalDataDirGB = 0;
+      //tsAvailDataDirGB = 0;
+      uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
       return false;
     } else {
       tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
@@ -302,9 +303,10 @@ bool taosGetDisk() {
     }
   }
 
-  if (statvfs(logDir, &info)) {
-    tsTotalLogDirGB = 0;
-    tsAvailLogDirGB = 0;
+  if (statvfs(tsLogDir, &info)) {
+    //tsTotalLogDirGB = 0;
+    //tsAvailLogDirGB = 0;
+    uError("failed to get disk size, logDir:%s errno:%s", tsLogDir, strerror(errno));
     return false;
   } else {
     tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
@@ -312,8 +314,9 @@ bool taosGetDisk() {
   }
 
   if (statvfs("/tmp", &info)) {
-    tsTotalTmpDirGB = 0;
-    tsAvailTmpDirGB = 0;
+    //tsTotalTmpDirGB = 0;
+    //tsAvailTmpDirGB = 0;
+    uError("failed to get disk size, tmpDir:/tmp errno:%s", strerror(errno));
     return false;
   } else {
     tsTotalTmpDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
@@ -361,6 +364,8 @@ static bool taosGetCardName(char *ip, char *name) {
 
 static bool taosGetCardInfo(int64_t *bytes) {
   static char tsPublicCard[1000] = {0};
+  static char tsPrivateIp[40];
+
   if (tsPublicCard[0] == 0) {
     if (!taosGetCardName(tsPrivateIp, tsPublicCard)) {
       uError("can't get card name from ip:%s", tsPrivateIp);

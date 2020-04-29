@@ -126,10 +126,8 @@ void processRequestMsg(SRpcMsg *pMsg) {
 int main(int argc, char *argv[]) {
   SRpcInit rpcInit;
   char     dataName[20] = "server.data";
-  char     localIp[40] = "0.0.0.0";
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp      = localIp;
   rpcInit.localPort    = 7000;
   rpcInit.label        = "SER";
   rpcInit.numOfThreads = 1;
@@ -141,8 +139,6 @@ int main(int argc, char *argv[]) {
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       rpcInit.localPort = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-i")==0 && i < argc-1) {
-      strcpy(rpcInit.localIp, argv[++i]); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
@@ -159,7 +155,6 @@ int main(int argc, char *argv[]) {
       uDebugFlag = rpcDebugFlag;
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-i ip]: server IP address, default is:%s\n", rpcInit.localIp);
       printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInit.sessions);
