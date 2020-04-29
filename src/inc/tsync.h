@@ -45,8 +45,6 @@ typedef struct {
 typedef struct {
   int8_t     quorum;    // number of confirms required, >=1 
   int8_t     replica;   // number of replications, >=1
-  uint16_t   arbitratorPort;  // arbitrator port
-  char       arbitratorFqdn[TSDB_FQDN_LEN]; // arbitrator IP address
   SNodeInfo  nodeInfo[TAOS_SYNC_MAX_REPLICA];
 } SSyncCfg;
 
@@ -108,6 +106,7 @@ extern  int   tsMaxWatchFiles;
 extern  int   tsSyncTimer;
 extern  int   tsMaxFwdInfo; 
 extern  int   sDebugFlag;
+extern  char  tsArbitrator[];
 extern  uint16_t tsSyncPort;
 
 #ifdef __cplusplus
