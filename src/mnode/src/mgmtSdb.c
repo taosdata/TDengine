@@ -40,7 +40,7 @@ typedef enum {
 typedef enum {
   SDB_STATUS_OFFLINE,
   SDB_STATUS_SERVING,
-  SDB_ACTION_CLOSING
+  SDB_STATUS_CLOSING
 } ESdbStatus;
 
 typedef struct _SSdbTable {
@@ -105,6 +105,10 @@ uint64_t sdbGetVersion() {
 
 bool sdbIsMaster() { 
   return tsSdbObj.role == TAOS_SYNC_ROLE_MASTER; 
+}
+
+bool sdbIsServing() {
+  return tsSdbObj.status == SDB_STATUS_SERVING; 
 }
 
 static char *sdbGetActionStr(int32_t action) {
@@ -314,6 +318,7 @@ int32_t sdbInit() {
 void sdbCleanUp() {
   if (tsSdbObj.status != SDB_STATUS_SERVING) return;
 
+  tsSdbObj.status = SDB_STATUS_CLOSING;
   syncStop(tsSdbObj.sync);
   free(tsSdbObj.sync);
   walClose(tsSdbObj.wal);

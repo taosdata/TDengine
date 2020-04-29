@@ -324,7 +324,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
   } else {
-    mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    //mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);

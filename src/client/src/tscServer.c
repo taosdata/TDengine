@@ -79,7 +79,7 @@ void tscSetMgmtIpListFromEdge() {
   if (tscMgmtIpSet.numOfIps != 1) {
     tscMgmtIpSet.numOfIps = 1;
     tscMgmtIpSet.inUse = 0;
-    taosGetFqdnPortFromEp(tsMaster, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]); 
+    taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]); 
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
   }

@@ -236,5 +236,5 @@ static int32_t dnodeInitStorage() {
 static void dnodeCleanupStorage() {}
 
 bool  dnodeIsFirstDeploy() {
-  return strcmp(tsMaster, tsLocalEp) == 0;
+  return strcmp(tsFirst, tsLocalEp) == 0;
 }

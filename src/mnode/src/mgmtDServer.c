@@ -107,6 +107,7 @@ static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
     
     SRpcIpSet ipSet = {0};
     dnodeGetMnodeDnodeIpSet(&ipSet);
+    
     mTrace("conn from dnode ip:%s user:%s redirect msg, inUse:%d", taosIpStr(connInfo.clientIp), connInfo.user, ipSet.inUse);
     for (int32_t i = 0; i < ipSet.numOfIps; ++i) {
       mTrace("index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);

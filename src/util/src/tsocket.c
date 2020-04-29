@@ -25,8 +25,13 @@ int taosGetFqdn(char *fqdn) {
 
   struct hostent* h;
   h = gethostbyname(hostname);
-  strcpy(fqdn, h->h_name);
-  return 0;
+  if (h != NULL) {
+    strcpy(fqdn, h->h_name);
+    return 0;
+  } else {
+    uError("failed to get host name");
+    return -1;
+  }
 }
 
 uint32_t taosGetIpFromFqdn(const char *fqdn) {

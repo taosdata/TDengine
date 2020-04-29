@@ -26,7 +26,7 @@ do
     v)
       VALGRIND=1
       ;;
-    v)
+    u)
       UNIQUE=1
       ;;
     ?)

@@ -136,9 +136,9 @@ void taos_init_imp() {
 
   tscMgmtIpSet.inUse = 0;
   tscMgmtIpSet.numOfIps = 1;
-  taosGetFqdnPortFromEp(tsMaster, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
+  taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
 
-  if (tsSecond[0] && strcmp(tsSecond, tsMaster) != 0) {
+  if (tsSecond[0] && strcmp(tsSecond, tsFirst) != 0) {
     tscMgmtIpSet.numOfIps = 2;
     taosGetFqdnPortFromEp(tsSecond, tscMgmtIpSet.fqdn[1], &tscMgmtIpSet.port[1]);
   }

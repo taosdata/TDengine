@@ -51,7 +51,7 @@ extern int32_t tsVersion;
 extern int32_t tscEmbedded;
 extern int64_t tsMsPerDay[2];
 
-extern char  tsMaster[];
+extern char  tsFirst[];
 extern char  tsSecond[];
 extern char  tsLocalEp[];
 extern uint16_t tsServerPort;
