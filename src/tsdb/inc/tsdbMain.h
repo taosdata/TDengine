@@ -153,17 +153,16 @@ typedef struct {
 } SCacheMem;
 
 typedef struct {
-  int              maxBytes;
   int              cacheBlockSize;
   int              totalCacheBlocks;
   STsdbCachePool   pool;
   STsdbCacheBlock *curBlock;
   SCacheMem *      mem;
   SCacheMem *      imem;
-  TsdbRepoT *    pRepo;
+  TsdbRepoT *      pRepo;
 } STsdbCache;
 
-STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, TsdbRepoT *pRepo);
+STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo);
 void        tsdbFreeCache(STsdbCache *pCache);
 void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key);
 

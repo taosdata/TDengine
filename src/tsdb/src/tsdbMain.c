@@ -203,7 +203,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(-1, -1, (TsdbRepoT *)pRepo);
+  pRepo->tsdbCache = tsdbInitCache(pRepo->config.cacheBlockSize, pRepo->config.totalBlocks, (TsdbRepoT *)pRepo);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
