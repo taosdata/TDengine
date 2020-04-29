@@ -88,12 +88,14 @@ int32_t dnodeInitMClient() {
     if (strcmp(tsSecond, tsMaster) != 0) {
       tsMnodeIpSet.numOfIps = 2;
       taosGetFqdnPortFromEp(tsSecond, tsMnodeIpSet.fqdn[1], &tsMnodeIpSet.port[1]);
+      tsMnodeIpSet.port[0] += TSDB_PORT_MNODEDNODE;
     }
   } else {
     tsMnodeIpSet.inUse = tsMnodeInfos.inUse;
     tsMnodeIpSet.numOfIps = tsMnodeInfos.nodeNum;
     for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
       taosGetFqdnPortFromEp(tsMnodeInfos.nodeInfos[i].nodeEp, tsMnodeIpSet.fqdn[i], &tsMnodeIpSet.port[i]);
+      tsMnodeIpSet.port[i] += TSDB_PORT_MNODEDNODE;
     }
   }
 
