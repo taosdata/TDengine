@@ -431,8 +431,8 @@ static int32_t mgmtSuperTableActionUpdate(SSdbOper *pOper) {
     void *oldSchema = pTable->schema;
     memcpy(pTable, pNew, pOper->rowSize);
     pTable->schema = pNew->schema;
-    free(pNew);
     free(pNew->vgList);
+    free(pNew);
     free(oldSchema);
   }
 
