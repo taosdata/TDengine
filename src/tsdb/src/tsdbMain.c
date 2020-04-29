@@ -367,6 +367,15 @@ int tsdbAlterTable(TsdbRepoT *pRepo, STableCfg *pCfg) {
   return 0;
 }
 
+TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, uid);
+  if (pTable == NULL) return -1;
+
+  return TSDB_GET_TABLE_LAST_KEY(pTable);
+}
+
 int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
   if (repo == NULL) return -1;
   STsdbRepo *pRepo = (STsdbRepo *)repo;

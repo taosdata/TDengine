@@ -104,9 +104,10 @@ void tsdbClearTableCfg(STableCfg *config);
 int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId id, int32_t col, int16_t *type, int16_t *bytes, char **val);
 int32_t tsdbTableGetName(TsdbRepoT *repo, STableId id, char** name);
 
-int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
-int tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
-int tsdbAlterTable(TsdbRepoT *repo, STableCfg *pCfg);
+int   tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
+int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
+int   tsdbAlterTable(TsdbRepoT *repo, STableCfg *pCfg);
+TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid);
 
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
