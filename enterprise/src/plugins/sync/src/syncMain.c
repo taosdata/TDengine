@@ -36,7 +36,8 @@ int       tsSyncTcpThreads = 2;
 int       tsMaxWatchFiles = 100;
 int       tsMaxFwdInfo = 200;
 int       tsSyncTimer = 1;
-int       sDebugFlag = 135;
+//int       sDebugFlag = 135;
+//char      tsArbitrator[TSDB_FQDN_LEN] = {0};
 
 // module global, not configurable
 int       tsSyncNum;    // number of sync in process in whole system
@@ -57,7 +58,7 @@ static void  syncProcessBrokenLink(void *param);
 static int   syncProcessPeerMsg(void *param, void *buffer);
 static void  syncProcessIncommingConnection(int connFd, uint32_t sourceIp); 
 static void  syncRemovePeer(SSyncPeer *pPeer);
-static void  syncAddArbitrator(SSyncNode *pNode, const char *fqdn, uint16_t port);
+static void  syncAddArbitrator(SSyncNode *pNode);
 static void  syncAddNodeRef(SSyncNode *pNode);
 static void  syncAddPeerRef(SSyncPeer *pPeer);
 static int   syncDecNodeRef(SSyncNode *pNode);
@@ -138,7 +139,7 @@ void *syncStart(const SSyncInfo *pInfo)
   pNode->pSyncFwds = calloc(sizeof(SSyncFwds) + tsMaxFwdInfo*sizeof(SFwdInfo), 1);
   pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, pNode, syncTmrCtrl);
 
-  syncAddArbitrator(pNode, pCfg->arbitratorFqdn, pCfg->arbitratorPort);
+  syncAddArbitrator(pNode);
   pthread_mutex_init(&pNode->mutex, NULL);
 
   atomic_add_fetch_32(&tsNodeNum, 1);
@@ -238,7 +239,7 @@ int syncReconfig(void *param, const SSyncCfg *pNewCfg)
     return -1;
   }  
 
-  syncAddArbitrator(pNode, pNewCfg->arbitratorFqdn, pNewCfg->arbitratorPort);
+  syncAddArbitrator(pNode);
 
   if (pNewCfg->replica <= 1) {
     sPrint("vgId:%d, no peers are configured, work as master!", pNode->vgId);
@@ -357,7 +358,7 @@ int syncGetNodesRole(void *param, SNodesRole *pNodesRole)
   return 0;
 }
 
-static void syncAddArbitrator(SSyncNode *pNode, const char *fqdn, uint16_t port)
+static void syncAddArbitrator(SSyncNode *pNode)
 {
   SSyncPeer *pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
 
@@ -365,12 +366,11 @@ static void syncAddArbitrator(SSyncNode *pNode, const char *fqdn, uint16_t port)
   pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = NULL;
 
   // if not configured, or number of replications is odd, dont start arbitrator
-  if (fqdn[0] == 0 || (pNode->replica & 1)) return;
+  if (tsArbitrator[0] == 0 || (pNode->replica & 1)) return;
 
   SNodeInfo nodeInfo;
-  nodeInfo.nodePort = port;
   nodeInfo.nodeId = 0;
-  strcpy(nodeInfo.nodeFqdn, fqdn);
+  taosGetFqdnPortFromEp(tsArbitrator, nodeInfo.nodeFqdn, &nodeInfo.nodePort);
 
   pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = syncAddPeer(pNode, &nodeInfo);
 }
