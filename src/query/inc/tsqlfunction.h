@@ -108,17 +108,17 @@ enum {
   SECONDARY_STAGE_MERGE = 0x20u,
 };
 
-#define QUERY_IS_STABLE_QUERY(type) (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
-#define QUERY_IS_JOIN_QUERY(type) (((type)&TSDB_QUERY_TYPE_JOIN_QUERY) != 0)
+#define QUERY_IS_STABLE_QUERY(type)      (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
+#define QUERY_IS_JOIN_QUERY(type)        (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_JOIN_QUERY))
 #define QUERY_IS_PROJECTION_QUERY(type) (((type)&TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0)
-#define QUERY_IS_FREE_RESOURCE(type) (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
+#define QUERY_IS_FREE_RESOURCE(type)     (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
 
 typedef struct SArithmeticSupport {
   SExprInfo   *pArithExpr;
-  int32_t           numOfCols;
-  SColumnInfo*      colList;
-  int32_t           offset;
-  char**            data;
+  int32_t      numOfCols;
+  SColumnInfo *colList;
+  int32_t      offset;
+  char**       data;
 } SArithmeticSupport;
 
 typedef struct SQLPreAggVal {

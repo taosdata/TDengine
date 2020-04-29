@@ -31,13 +31,9 @@ struct SMnodeObj;
 
 typedef struct SDnodeObj {
   int32_t    dnodeId;
-  uint32_t   privateIp;
-  uint32_t   publicIp;
-  uint16_t   mnodeShellPort;
-  uint16_t   mnodeDnodePort;
-  uint16_t   dnodeShellPort;
-  uint16_t   dnodeMnodePort;
-  uint16_t   syncPort;
+  uint16_t   dnodePort;
+  char       dnodeFqdn[TSDB_FQDN_LEN];
+  char       dnodeEp[TSDB_FQDN_LEN];
   int64_t    createdTime;
   uint32_t   lastAccess;
   int32_t    openVnodes;
@@ -47,7 +43,6 @@ typedef struct SDnodeObj {
   int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
   int8_t     status;           // set in balance function
   int8_t     isMgmt;
-  char       dnodeName[TSDB_NODE_NAME_LEN + 1];
   int8_t     reserved[15];
   int8_t     updateEnd[1];
   int32_t    refCount;
@@ -123,7 +118,7 @@ typedef struct SVgObj {
   uint32_t       vgId;
   char           dbName[TSDB_DB_NAME_LEN + 1];
   int64_t        createdTime;
-  SVnodeGid      vnodeGid[TSDB_VNODES_SUPPORT];
+  SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
   int32_t        numOfVnodes;
   int32_t        lbDnodeId;
   int32_t        lbTime;
@@ -143,14 +138,15 @@ typedef struct SVgObj {
 } SVgObj;
 
 typedef struct {
-  int64_t maxCacheSize;
+  int32_t cacheBlockSize;
+  int32_t totalBlocks;
   int32_t maxTables;
   int32_t daysPerFile;
   int32_t daysToKeep;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t minRowsPerFileBlock;  // minimum rows per file block
-  int32_t maxRowsPerFileBlock;  // maximum rows per file block
+  int32_t minRowsPerFileBlock;
+  int32_t maxRowsPerFileBlock;
   int32_t commitTime;
   int8_t  precision;
   int8_t  compression;
@@ -163,6 +159,7 @@ typedef struct SDbObj {
   char    name[TSDB_DB_NAME_LEN + 1];
   char    acct[TSDB_USER_LEN + 1];
   int64_t createdTime;
+  int32_t cfgVersion;
   SDbCfg  cfg;
   int8_t  status;
   int8_t  reserved[14];

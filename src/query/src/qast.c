@@ -31,6 +31,7 @@
 #include "tskiplist.h"
 #include "queryLog.h"
 #include "tsdbMain.h"
+#include "exception.h"
 
 /*
  *
@@ -43,7 +44,6 @@
  *
  */
 static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken);
-static void       tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
 
 static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i);
 static void       destroySyntaxTree(tExprNode *);
@@ -427,7 +427,7 @@ void tSQLBinaryExprToString(tExprNode *pExpr, char *dst, int32_t *len) {
 
 static void UNUSED_FUNC destroySyntaxTree(tExprNode *pNode) { tExprNodeDestroy(pNode, NULL); }
 
-static void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *)) {
+void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   if (pNode == NULL) {
     return;
   }
@@ -1015,104 +1015,116 @@ void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res) {
   }
 }
 
-static void exprTreeToBinaryImpl(tExprNode* pExprTree, SBuffer* pBuf) {
-  tbufWrite(pBuf, &pExprTree->nodeType, sizeof(pExprTree->nodeType));
+static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
+  tbufWriteUint8(bw, expr->nodeType);
   
-  if (pExprTree->nodeType == TSQL_NODE_VALUE) {
-    tVariant* pVal = pExprTree->pVal;
+  if (expr->nodeType == TSQL_NODE_VALUE) {
+    tVariant* pVal = expr->pVal;
     
-    tbufWrite(pBuf, &pVal->nType, sizeof(pVal->nType));
+    tbufWriteUint32(bw, pVal->nType);
     if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
-      tbufWrite(pBuf, &pVal->nLen, sizeof(pVal->nLen));
-      tbufWrite(pBuf, pVal->pz, pVal->nLen);
+      tbufWriteInt32(bw, pVal->nLen);
+      tbufWrite(bw, pVal->pz, pVal->nLen);
     } else {
-      tbufWrite(pBuf, &pVal->pz, sizeof(pVal->i64Key));
+      tbufWriteInt64(bw, pVal->i64Key);
     }
     
-  } else if (pExprTree->nodeType == TSQL_NODE_COL) {
-    SSchema* pSchema = pExprTree->pSchema;
-    tbufWrite(pBuf, &pSchema->colId, sizeof(pSchema->colId));
-    tbufWrite(pBuf, &pSchema->bytes, sizeof(pSchema->bytes));
-    tbufWrite(pBuf, &pSchema->type, sizeof(pSchema->type));
+  } else if (expr->nodeType == TSQL_NODE_COL) {
+    SSchema* pSchema = expr->pSchema;
+    tbufWriteInt16(bw, pSchema->colId);
+    tbufWriteInt16(bw, pSchema->bytes);
+    tbufWriteUint8(bw, pSchema->type);
+    tbufWriteString(bw, pSchema->name);
     
-    int32_t len = strlen(pSchema->name);
-    tbufWriteStringLen(pBuf, pSchema->name, len);
-    
-  } else if (pExprTree->nodeType == TSQL_NODE_EXPR) {
-    tbufWrite(pBuf, &pExprTree->_node.optr, sizeof(pExprTree->_node.optr));
-    tbufWrite(pBuf, &pExprTree->_node.hasPK, sizeof(pExprTree->_node.hasPK));
-  
-    exprTreeToBinaryImpl(pExprTree->_node.pLeft, pBuf);
-    exprTreeToBinaryImpl(pExprTree->_node.pRight, pBuf);
+  } else if (expr->nodeType == TSQL_NODE_EXPR) {
+    tbufWriteUint8(bw, expr->_node.optr);
+    tbufWriteUint8(bw, expr->_node.hasPK);
+    exprTreeToBinaryImpl(bw, expr->_node.pLeft);
+    exprTreeToBinaryImpl(bw, expr->_node.pRight);
   }
 }
 
-SBuffer exprTreeToBinary(tExprNode* pExprTree) {
-  SBuffer buf = {0};
-  if (pExprTree == NULL) {
-    return buf;
+void exprTreeToBinary(SBufferWriter* bw, tExprNode* expr) {
+  if (expr != NULL) {
+    exprTreeToBinaryImpl(bw, expr);
   }
-  
-  int32_t code = tbufBeginWrite(&buf);
-  if (code != 0) {
-    return buf;
-  }
-  
-  exprTreeToBinaryImpl(pExprTree, &buf);
-  return buf;
 }
 
-static tExprNode* exprTreeFromBinaryImpl(SBuffer* pBuf) {
-  tExprNode* pExpr = calloc(1, sizeof(tExprNode));
-  pExpr->nodeType = tbufReadUint8(pBuf);
+// TODO: these three functions should be made global
+static void* exception_calloc(size_t nmemb, size_t size) {
+  void* p = calloc(nmemb, size);
+  if (p == NULL) {
+    THROW(TSDB_CODE_SERV_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
+static void* exception_malloc(size_t size) {
+  void* p = malloc(size);
+  if (p == NULL) {
+    THROW(TSDB_CODE_SERV_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
+static char* exception_strdup(const char* str) {
+  char* p = strdup(str);
+  if (p == NULL) {
+    THROW(TSDB_CODE_SERV_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
+
+static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
+  int32_t anchor = CLEANUP_GET_ANCHOR();
+
+  tExprNode* pExpr = exception_calloc(1, sizeof(tExprNode));
+  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprNodeDestroy, pExpr, NULL);
+
+  pExpr->nodeType = tbufReadUint8(br);
   
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
-    tVariant* pVal = calloc(1, sizeof(tVariant));
-    if (pVal == NULL) {
-      // TODO:
-    }
+    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
     pExpr->pVal = pVal;
   
-    pVal->nType = tbufReadUint32(pBuf);
+    pVal->nType = tbufReadUint32(br);
     if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
-      tbufReadToBuffer(pBuf, &pVal->nLen, sizeof(pVal->nLen));
+      tbufReadToBuffer(br, &pVal->nLen, sizeof(pVal->nLen));
       pVal->pz = calloc(1, pVal->nLen + 1);
-      tbufReadToBuffer(pBuf, pVal->pz, pVal->nLen);
+      tbufReadToBuffer(br, pVal->pz, pVal->nLen);
     } else {
-      pVal->i64Key = tbufReadInt64(pBuf);
+      pVal->i64Key = tbufReadInt64(br);
     }
     
   } else if (pExpr->nodeType == TSQL_NODE_COL) {
-    SSchema* pSchema = calloc(1, sizeof(SSchema));
-    if (pSchema == NULL) {
-      // TODO:
-    }
+    SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
     pExpr->pSchema = pSchema;
 
-    pSchema->colId = tbufReadInt16(pBuf);
-    pSchema->bytes = tbufReadInt16(pBuf);
-    pSchema->type = tbufReadUint8(pBuf);
-    tbufReadToString(pBuf, pSchema->name, TSDB_COL_NAME_LEN);
+    pSchema->colId = tbufReadInt16(br);
+    pSchema->bytes = tbufReadInt16(br);
+    pSchema->type = tbufReadUint8(br);
+    tbufReadToString(br, pSchema->name, TSDB_COL_NAME_LEN);
     
   } else if (pExpr->nodeType == TSQL_NODE_EXPR) {
-    pExpr->_node.optr = tbufReadUint8(pBuf);
-    pExpr->_node.hasPK = tbufReadUint8(pBuf);
-    pExpr->_node.pLeft = exprTreeFromBinaryImpl(pBuf);
-    pExpr->_node.pRight = exprTreeFromBinaryImpl(pBuf);
+    pExpr->_node.optr = tbufReadUint8(br);
+    pExpr->_node.hasPK = tbufReadUint8(br);
+    pExpr->_node.pLeft = exprTreeFromBinaryImpl(br);
+    pExpr->_node.pRight = exprTreeFromBinaryImpl(br);
     
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
   }
   
+  CLEANUP_EXECUTE_TO(anchor, false);
   return pExpr;
 }
 
-tExprNode* exprTreeFromBinary(const void* pBuf, size_t size) {
+tExprNode* exprTreeFromBinary(const void* data, size_t size) {
   if (size == 0) {
     return NULL;
   }
-  SBuffer rbuf = {0};
-  tbufBeginRead(&rbuf, pBuf, size);
-  return exprTreeFromBinaryImpl(&rbuf);
+  SBufferReader br = tbufInitReader(data, size, false);
+  return exprTreeFromBinaryImpl(&br);
 }
 
 tExprNode* exprTreeFromTableName(const char* tbnameCond) {
@@ -1120,23 +1132,18 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     return NULL;
   }
 
-  tExprNode* expr = calloc(1, sizeof(tExprNode));
-  if (expr == NULL) {
-    // TODO:
-  }
+  int32_t anchor = CLEANUP_GET_ANCHOR();
+
+  tExprNode* expr = exception_calloc(1, sizeof(tExprNode));
+  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprNodeDestroy, expr, NULL);
+
   expr->nodeType = TSQL_NODE_EXPR;
 
-  tExprNode* left = calloc(1, sizeof(tExprNode));
-  if (left == NULL) {
-    // TODO:
-  }
+  tExprNode* left = exception_calloc(1, sizeof(tExprNode));
   expr->_node.pLeft = left;
 
   left->nodeType = TSQL_NODE_COL;
-  SSchema* pSchema = calloc(1, sizeof(SSchema));
-  if (pSchema == NULL) {
-    // TODO:
-  }
+  SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
   left->pSchema = pSchema;
 
   pSchema->type = TSDB_DATA_TYPE_BINARY;
@@ -1144,36 +1151,24 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   strcpy(pSchema->name, TSQL_TBNAME_L);
   pSchema->colId = -1;
 
-  tExprNode* right = calloc(1, sizeof(tExprNode));
-  if (right == NULL) {
-    // TODO
-  }
+  tExprNode* right = exception_calloc(1, sizeof(tExprNode));
   expr->_node.pRight = right;
 
   if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;
     expr->_node.optr = TSDB_RELATION_LIKE;
-    tVariant* pVal = calloc(1, sizeof(tVariant));
-    if (pVal == NULL) {
-      // TODO:
-    }
+    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
     right->pVal = pVal;
-    pVal->nType = TSDB_DATA_TYPE_BINARY;
     size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN) + 1;
-    pVal->pz = malloc(len);
-    if (pVal->pz == NULL) {
-      // TODO:
-    }
+    pVal->pz = exception_malloc(len);
     memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN, len);
+    pVal->nType = TSDB_DATA_TYPE_BINARY;
     pVal->nLen = (int32_t)len;
 
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;
     expr->_node.optr = TSDB_RELATION_IN;
-    tVariant* pVal = calloc(1, sizeof(tVariant));
-    if (pVal == NULL) {
-      // TODO:
-    }
+    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
     right->pVal = pVal;
     pVal->nType = TSDB_DATA_TYPE_ARRAY;
     pVal->arr = taosArrayInit(2, sizeof(char*));
@@ -1184,7 +1179,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
         cond = e + 1;
       } else if (*e == ',') {
         size_t len = e - cond + 1;
-        char* p = malloc( len );
+        char* p = exception_malloc( len );
         memcpy(p, cond, len);
         p[len - 1] = 0;
         cond += len;
@@ -1193,12 +1188,13 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     }
 
     if (*cond != 0) {
-        char* p = strdup( cond );
+        char* p = exception_strdup( cond );
         taosArrayPush(pVal->arr, &p);
     }
 
     taosArraySortString(pVal->arr);
   }
 
+  CLEANUP_EXECUTE_TO(anchor, false);
   return expr;
 }

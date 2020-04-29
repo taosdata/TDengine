@@ -47,18 +47,18 @@ SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   return NULL;
 }
 
-void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBuffer* pBuf) {
-  if (tbufTell(pBuf) == 0) {
+void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw) {
+  if (tbufTell(bw) == 0) {
     return;
   }
   
   SCond cond = {
     .uid = uid,
-    .len = tbufTell(pBuf),
+    .len = tbufTell(bw),
     .cond = NULL,
   };
   
-  cond.cond = tbufGetData(pBuf, true);
+  cond.cond = tbufGetData(bw, true);
   
   if (pTagCond->pCond == NULL) {
     pTagCond->pCond = taosArrayInit(3, sizeof(SCond));

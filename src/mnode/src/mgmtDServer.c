@@ -43,7 +43,6 @@ static void  *tsMgmtDServerQhandle = NULL;
 
 int32_t mgmtInitDServer() {
   SRpcInit rpcInit = {0};
-  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
   rpcInit.localPort    = tsMnodeDnodePort;
   rpcInit.label        = "MND-DS";
   rpcInit.numOfThreads = 1;
@@ -105,14 +104,12 @@ static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
   if (!sdbIsMaster()) {
     SRpcConnInfo connInfo;
     rpcGetConnInfo(rpcMsg->handle, &connInfo);
-    bool usePublicIp = false;
     
     SRpcIpSet ipSet = {0};
-    ipSet.port = tsMnodeDnodePort;
-    dnodeGetMnodeIpSet(&ipSet, usePublicIp);
+    dnodeGetMnodeDnodeIpSet(&ipSet);
     mTrace("conn from dnode ip:%s user:%s redirect msg, inUse:%d", taosIpStr(connInfo.clientIp), connInfo.user, ipSet.inUse);
     for (int32_t i = 0; i < ipSet.numOfIps; ++i) {
-      mTrace("index:%d ip:%s", i, taosIpStr(ipSet.ip[i]));
+      mTrace("index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
     }
     rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
     return;

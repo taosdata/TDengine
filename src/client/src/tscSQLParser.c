@@ -385,7 +385,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pMsg += sizeof(SMgmtHead);
 
       SCMCfgDnodeMsg* pCfg = (SCMCfgDnodeMsg*)pMsg;
-      strncpy(pCfg->ip, pDCL->a[0].z, pDCL->a[0].n);
+      strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
 
       strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);
 
@@ -1185,10 +1185,18 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           return invalidSqlErrMsg(pQueryInfo->msg, "invalid arithmetic expression in select clause");
         }
         
-        SBuffer buf = exprTreeToBinary(pNode);
+        SBufferWriter bw = tbufInitWriter(NULL, false);
+
+        TRY(0) {
+          exprTreeToBinary(&bw, pNode);
+        } CATCH(code) {
+          tbufCloseWriter(&bw);
+          UNUSED(code);
+          // TODO: other error handling
+        } END_TRY
         
-        size_t len = tbufTell(&buf);
-        char* c = tbufGetData(&buf, true);
+        size_t len = tbufTell(&bw);
+        char* c = tbufGetData(&bw, true);
         
         // set the serialized binary string as the parameter of arithmetic expression
         addExprParams(pExpr, c, TSDB_DATA_TYPE_BINARY, len, index.tableIndex);
@@ -3294,7 +3302,7 @@ static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, S
 
     // set join query condition
     if (pRight->nSQLOptr == TK_ID) {  // no need to keep the timestamp join condition
-      pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_QUERY;
+      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY);
       pCondExpr->tsJoin = true;
 
       /*
@@ -3714,14 +3722,14 @@ static void doAddJoinTagsColumnsIntoTagList(SQueryInfo* pQueryInfo, SCondExpr* p
 
     getColumnIndexByName(&pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index);
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-
-//    int32_t columnInfo = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+  
+    index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     tscColumnListInsert(pTableMetaInfo->tagColList, &index);
   
     getColumnIndexByName(&pCondExpr->pJoinExpr->pRight->colInfo, pQueryInfo, &index);
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-
-//    columnInfo = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+  
+    index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     tscColumnListInsert(pTableMetaInfo->tagColList, &index);
   }
 }
@@ -3739,7 +3747,15 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
   
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));
     ret = exprTreeFromSqlExpr(&p, p1, NULL, pQueryInfo, colList);
-    SBuffer buf = exprTreeToBinary(p);
+    SBufferWriter bw = tbufInitWriter(NULL, false);
+
+    TRY(0) {
+      exprTreeToBinary(&bw, p);
+    } CATCH(code) {
+      tbufCloseWriter(&bw);
+      UNUSED(code);
+      // TODO: more error handling
+    } END_TRY
     
     // add to source column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
@@ -3753,7 +3769,7 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
       tscColumnListInsert(pTableMetaInfo->tagColList, &index);
     }
     
-    tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &buf);
+    tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
     doCompactQueryExpr(pExpr);
     
     tSQLExprDestroy(p1);
@@ -4654,17 +4670,17 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     return TSDB_CODE_SUCCESS;
   }
 
+  // todo refactor
   if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    bool queryOnTags = tscQueryTags(pQueryInfo);
-    
-    if (queryOnTags != true) {  // local handle the super table tag query
+    if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
       if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
           return invalidSqlErrMsg(pQueryInfo->msg, msg3);
         }
 
         // for projection query on super table, all queries are subqueries
-        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+            !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
           pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
         }
       }
@@ -4785,16 +4801,15 @@ static int32_t setTimePrecisionOption(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCrea
 }
 
 static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
-  pMsg->blocksPerTable = htons(pCreateDb->numOfBlocksPerTable);
-  pMsg->compression = pCreateDb->compressionLevel;
-
-  pMsg->commitLog = (char)pCreateDb->commitLog;
-  pMsg->commitTime = htonl(pCreateDb->commitTime);
   pMsg->maxSessions = htonl(pCreateDb->tablesPerVnode);
-  pMsg->cacheNumOfBlocks.fraction = pCreateDb->numOfAvgCacheBlocks;
-  pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
-  pMsg->rowsInFileBlock = htonl(pCreateDb->rowPerFileBlock);
+  pMsg->cacheBlockSize = htonl(-1);
+  pMsg->totalBlocks = htonl(-1);
   pMsg->daysPerFile = htonl(pCreateDb->daysPerFile);
+  pMsg->commitTime = htonl(pCreateDb->commitTime);
+  pMsg->minRowsPerFileBlock = htonl(-1);
+  pMsg->maxRowsPerFileBlock = htonl(-1);
+  pMsg->compression = pCreateDb->compressionLevel;
+  pMsg->commitLog = (char)pCreateDb->commitLog;
   pMsg->replications = pCreateDb->replica;
   pMsg->ignoreExist = pCreateDb->ignoreExists;
 }
@@ -5327,29 +5342,22 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   char msg[512] = {0};
 
-  if (pCreate->commitLog != -1 && (pCreate->commitLog < 0 || pCreate->commitLog > 2)) {
+  if (pCreate->commitLog != -1 && (pCreate->commitLog < TSDB_MIN_CLOG_LEVEL || pCreate->commitLog > TSDB_MAX_CLOG_LEVEL)) {
     snprintf(msg, tListLen(msg), "invalid db option commitLog: %d, only 0-2 allowed", pCreate->commitLog);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
   if (pCreate->replications != -1 &&
-      (pCreate->replications < TSDB_REPLICA_MIN_NUM || pCreate->replications > TSDB_REPLICA_MAX_NUM)) {
+      (pCreate->replications < TSDB_MIN_REPLICA_NUM || pCreate->replications > TSDB_MAX_REPLICA_NUM)) {
     snprintf(msg, tListLen(msg), "invalid db option replications: %d valid range: [%d, %d]", pCreate->replications,
-             TSDB_REPLICA_MIN_NUM, TSDB_REPLICA_MAX_NUM);
+             TSDB_MIN_REPLICA_NUM, TSDB_MAX_REPLICA_NUM);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
   int32_t val = htonl(pCreate->daysPerFile);
-  if (val != -1 && (val < TSDB_FILE_MIN_PARTITION_RANGE || val > TSDB_FILE_MAX_PARTITION_RANGE)) {
+  if (val != -1 && (val < TSDB_MIN_DAYS_PER_FILE || val > TSDB_MAX_DAYS_PER_FILE)) {
     snprintf(msg, tListLen(msg), "invalid db option daysPerFile: %d valid range: [%d, %d]", val,
-             TSDB_FILE_MIN_PARTITION_RANGE, TSDB_FILE_MAX_PARTITION_RANGE);
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-  }
-
-  val = htonl(pCreate->rowsInFileBlock);
-  if (val != -1 && (val < TSDB_MIN_ROWS_IN_FILEBLOCK || val > TSDB_MAX_ROWS_IN_FILEBLOCK)) {
-    snprintf(msg, tListLen(msg), "invalid db option rowsInFileBlock: %d valid range: [%d, %d]", val,
-             TSDB_MIN_ROWS_IN_FILEBLOCK, TSDB_MAX_ROWS_IN_FILEBLOCK);
+             TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
@@ -5361,9 +5369,9 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   }
 
   val = htonl(pCreate->maxSessions);
-  if (val != -1 && (val < TSDB_MIN_TABLES_PER_VNODE || val > TSDB_MAX_TABLES_PER_VNODE)) {
+  if (val != -1 && (val < TSDB_MIN_TABLES || val > TSDB_MAX_TABLES)) {
     snprintf(msg, tListLen(msg), "invalid db option maxSessions: %d valid range: [%d, %d]", val,
-             TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE);
+             TSDB_MIN_TABLES, TSDB_MAX_TABLES);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
@@ -5373,24 +5381,17 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
-  if (pCreate->cacheNumOfBlocks.fraction != -1 && (pCreate->cacheNumOfBlocks.fraction < TSDB_MIN_AVG_BLOCKS ||
-                                                   pCreate->cacheNumOfBlocks.fraction > TSDB_MAX_AVG_BLOCKS)) {
-    snprintf(msg, tListLen(msg), "invalid db option ablocks: %f valid value: [%d, %d]",
-             pCreate->cacheNumOfBlocks.fraction, TSDB_MIN_AVG_BLOCKS, TSDB_MAX_AVG_BLOCKS);
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-  }
-
   val = htonl(pCreate->commitTime);
-  if (val != -1 && (val < TSDB_MIN_COMMIT_TIME_INTERVAL || val > TSDB_MAX_COMMIT_TIME_INTERVAL)) {
+  if (val != -1 && (val < TSDB_MIN_COMMIT_TIME || val > TSDB_MAX_COMMIT_TIME)) {
     snprintf(msg, tListLen(msg), "invalid db option commitTime: %d valid range: [%d, %d]", val,
-             TSDB_MIN_COMMIT_TIME_INTERVAL, TSDB_MAX_COMMIT_TIME_INTERVAL);
+             TSDB_MIN_COMMIT_TIME, TSDB_MAX_COMMIT_TIME);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
   if (pCreate->compression != -1 &&
-      (pCreate->compression < TSDB_MIN_COMPRESSION_LEVEL || pCreate->compression > TSDB_MAX_COMPRESSION_LEVEL)) {
+      (pCreate->compression < TSDB_MIN_COMP_LEVEL || pCreate->compression > TSDB_MAX_COMP_LEVEL)) {
     snprintf(msg, tListLen(msg), "invalid db option compression: %d valid range: [%d, %d]", pCreate->compression,
-             TSDB_MIN_COMPRESSION_LEVEL, TSDB_MAX_COMPRESSION_LEVEL);
+             TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 

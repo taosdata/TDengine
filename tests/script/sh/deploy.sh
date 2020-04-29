@@ -93,7 +93,7 @@ echo "privateIp           $NODE_IP"       >> $TAOS_CFG
 echo "dDebugFlag          199"            >> $TAOS_CFG
 echo "mDebugFlag          199"            >> $TAOS_CFG
 echo "sdbDebugFlag        199"            >> $TAOS_CFG
-echo "rpcDebugFlag        131"            >> $TAOS_CFG
+echo "rpcDebugFlag        135"            >> $TAOS_CFG
 echo "tmrDebugFlag        131"            >> $TAOS_CFG
 echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "httpDebugFlag       135"            >> $TAOS_CFG
@@ -101,6 +101,7 @@ echo "monitorDebugFlag    131"            >> $TAOS_CFG
 echo "udebugFlag          131"            >> $TAOS_CFG
 echo "jnidebugFlag        131"            >> $TAOS_CFG
 echo "monitor             0"              >> $TAOS_CFG
+echo "http                0"              >> $TAOS_CFG
 echo "numOfThreadsPerCore 2.0"            >> $TAOS_CFG
 echo "defaultPass         taosdata"       >> $TAOS_CFG
 echo "numOfLogLines       100000000"      >> $TAOS_CFG

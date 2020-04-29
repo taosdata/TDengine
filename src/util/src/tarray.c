@@ -176,7 +176,6 @@ SArray* taosArrayClone(const SArray* pSrc) {
   return dst;
 }
 
-
 void taosArrayDestroy(SArray* pArray) {
   if (pArray == NULL) {
     return;

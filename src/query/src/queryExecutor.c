@@ -55,8 +55,8 @@
 
 typedef struct SPointInterpoSupporter {
   int32_t numOfCols;
-  char ** pPrevPoint;
-  char ** pNextPoint;
+  SArray* prev;
+  SArray* next;
 } SPointInterpoSupporter;
 
 typedef enum {
@@ -1627,7 +1627,7 @@ static bool isFirstLastRowQuery(SQuery *pQuery) {
   return false;
 }
 
-static bool notHasQueryTimeRange(SQuery *pQuery) {
+static UNUSED_FUNC bool notHasQueryTimeRange(SQuery *pQuery) {
   return (pQuery->window.skey == 0 && pQuery->window.ekey == INT64_MAX && QUERY_IS_ASC_QUERY(pQuery)) ||
          (pQuery->window.skey == INT64_MAX && pQuery->window.ekey == 0 && (!QUERY_IS_ASC_QUERY(pQuery)));
 }
@@ -1950,7 +1950,7 @@ static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
   }
 }
 
-static void doSetInterpVal(SQLFunctionCtx *pCtx, TSKEY ts, int16_t type, int32_t index, char *data) {
+static UNUSED_FUNC void doSetInterpVal(SQLFunctionCtx *pCtx, TSKEY ts, int16_t type, int32_t index, char *data) {
   assert(pCtx->param[index].pz == NULL);
 
   int32_t len = 0;
@@ -2015,6 +2015,7 @@ static void doSetInterpVal(SQLFunctionCtx *pCtx, TSKEY ts, int16_t type, int32_t
  * @param pInterpoRaw
  */
 void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupport) {
+#if 0
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
@@ -2024,7 +2025,7 @@ void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointI
   }
 
   int32_t count = 1;
-  TSKEY   key = *(TSKEY *)pPointInterpSupport->pNextPoint[0];
+  TSKEY key = *(TSKEY *)pPointInterpSupport->next[0];
 
   if (key == pQuery->window.skey) {
     // the queried timestamp has value, return it directly without interpolation
@@ -2107,9 +2108,11 @@ void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointI
       }
     }
   }
+#endif
 }
 
 void pointInterpSupporterInit(SQuery *pQuery, SPointInterpoSupporter *pInterpoSupport) {
+#if 0
   if (isPointInterpoQuery(pQuery)) {
     pInterpoSupport->pPrevPoint = malloc(pQuery->numOfCols * POINTER_BYTES);
     pInterpoSupport->pNextPoint = malloc(pQuery->numOfCols * POINTER_BYTES);
@@ -2136,9 +2139,11 @@ void pointInterpSupporterInit(SQuery *pQuery, SPointInterpoSupporter *pInterpoSu
       offset += pQuery->colList[i].bytes;
     }
   }
+#endif
 }
 
 void pointInterpSupporterDestroy(SPointInterpoSupporter *pPointInterpSupport) {
+#if 0
   if (pPointInterpSupport->numOfCols <= 0 || pPointInterpSupport->pPrevPoint == NULL) {
     return;
   }
@@ -2150,6 +2155,7 @@ void pointInterpSupporterDestroy(SPointInterpoSupporter *pPointInterpSupport) {
   tfree(pPointInterpSupport->pNextPoint);
 
   pPointInterpSupport->numOfCols = 0;
+#endif
 }
 
 static UNUSED_FUNC void allocMemForInterpo(SQInfo *pQInfo, SQuery *pQuery, void *pMeterObj) {
@@ -4223,7 +4229,11 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, bool isSTableQuery)
       .numOfCols = pQuery->numOfCols,
   };
   
-  if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
+  
+  // normal query setup the queryhandle here
+  if (isFirstLastRowQuery(pQuery)) {  // in case of last_row query, invoke a different API.
+    pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
+  } else if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
     pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
   }
   
@@ -4285,36 +4295,36 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, bool isSTableQuery)
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
 
-  SPointInterpoSupporter interpInfo = {0};
-  pointInterpSupporterInit(pQuery, &interpInfo);
+//  SPointInterpoSupporter interpInfo = {0};
+//  pointInterpSupporterInit(pQuery, &interpInfo);
 
   /*
-   * in case of last_row query without query range, we set the query timestamp to
-   * pMeterObj->lastKey. Otherwise, keep the initial query time range unchanged.
+   * in case of last_row query without query range, we set the query timestamp to be
+   * STable->lastKey. Otherwise, keep the initial query time range unchanged.
    */
-  if (isFirstLastRowQuery(pQuery) && notHasQueryTimeRange(pQuery)) {
-    if (!normalizeUnBoundLastRowQuery(pQInfo, &interpInfo)) {
-      sem_post(&pQInfo->dataReady);
-      pointInterpSupporterDestroy(&interpInfo);
-      return TSDB_CODE_SUCCESS;
-    }
-  }
+//  if (isFirstLastRowQuery(pQuery)) {
+//    if (!normalizeUnBoundLastRowQuery(pQInfo, &interpInfo)) {
+//      sem_post(&pQInfo->dataReady);
+//      pointInterpSupporterDestroy(&interpInfo);
+//      return TSDB_CODE_SUCCESS;
+//    }
+//  }
 
   /*
    * here we set the value for before and after the specified time into the
    * parameter for interpolation query
    */
-  pointInterpSupporterSetData(pQInfo, &interpInfo);
-  pointInterpSupporterDestroy(&interpInfo);
+//  pointInterpSupporterSetData(pQInfo, &interpInfo);
+//  pointInterpSupporterDestroy(&interpInfo);
 
-  int64_t rs = taosGetIntervalStartTimestamp(pQuery->window.skey, pQuery->intervalTime, pQuery->slidingTimeUnit,
-                                             pQuery->precision);
-  taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, rs, 0, 0);
+//  int64_t rs = taosGetIntervalStartTimestamp(pQuery->window.skey, pQuery->intervalTime, pQuery->slidingTimeUnit,
+//                                             pQuery->precision);
+//  taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, rs, 0, 0);
   //  allocMemForInterpo(pQInfo, pQuery, pMeterObj);
 
-  if (!isPointInterpoQuery(pQuery)) {
+//  if (!isPointInterpoQuery(pQuery)) {
     //    assert(pQuery->pos >= 0 && pQuery->slot >= 0);
-  }
+//  }
 
   // the pQuery->window.skey is changed during normalizedFirstQueryRange, so set the newest lastkey value
   pQuery->lastKey = pQuery->window.skey;

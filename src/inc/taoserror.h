@@ -97,6 +97,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE,              0, 203, "invalid table n
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPER_TABLE,            0, 204, "no super table")           // operation only available for super table
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_TABLE,           0, 205, "not active table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ID_MISMATCH,          0, 206, "table id mismatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_TAG_ALREAY_EXIST,           0, 207, "tag already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_TAG_NOT_EXIST,              0, 208, "tag not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_ALREAY_EXIST,         0, 209, "field already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_NOT_EXIST,            0, 210, "field not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_COL_NAME_TOO_LONG,          0, 211, "column name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TAGS,              0, 211, "too many tags")
+
 
 // dnode & mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DNODES,           0, 250, "no enough dnodes")

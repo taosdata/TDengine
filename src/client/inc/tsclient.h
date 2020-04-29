@@ -45,8 +45,6 @@ enum {
   DATA_FROM_DATA_FILE = 2,
 };
 
-typedef SCMSTableVgroupRspMsg SVgroupsInfo;
-
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;

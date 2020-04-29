@@ -27,10 +27,10 @@ void taosInitNote(int numOfNoteLines, int maxNotes, char* lable)
 
     if (strcasecmp(lable, "http_note") == 0) {
         pNote = &m_HttpNote;
-        sprintf(temp, "%s/httpnote", logDir);
+        sprintf(temp, "%s/httpnote", tsLogDir);
     } else if (strcasecmp(lable, "tsc_note") == 0) {
         pNote = &m_TscNote;        
-        sprintf(temp, "%s/tscnote-%d", logDir, getpid());
+        sprintf(temp, "%s/tscnote-%d", tsLogDir, getpid());
     } else {
         return;
     }

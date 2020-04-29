@@ -42,8 +42,8 @@ void  dnodeFreeRqueue(void *rqueue);
 void  dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code);
 
 bool     dnodeIsFirstDeploy();
-uint32_t dnodeGetMnodeMasteIp();
-void     dnodeGetMnodeIpSet(void *ipSet, bool usePublicIp);
+char    *dnodeGetMnodeMasterEp();
+void     dnodeGetMnodeDnodeIpSet(void *ipSet);
 void *   dnodeGetMnodeInfos();
 int32_t  dnodeGetDnodeId();
 

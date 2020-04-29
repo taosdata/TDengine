@@ -24,10 +24,10 @@ extern char configDir[];
 extern char tsVnodeDir[];
 extern char tsDnodeDir[];
 extern char tsMnodeDir[];
-extern char dataDir[];
-extern char logDir[];
-extern char scriptDir[];
-extern char osName[];
+extern char tsDataDir[];
+extern char tsLogDir[];
+extern char tsScriptDir[];
+extern char tsOsName[];
 
 // system info
 extern int64_t tsPageSize;
@@ -51,8 +51,10 @@ extern int32_t tsVersion;
 extern int32_t tscEmbedded;
 extern int64_t tsMsPerDay[2];
 
-extern char  tsMasterIp[];
-extern char  tsSecondIp[];
+extern char  tsMaster[];
+extern char  tsSecond[];
+extern char  tsLocalEp[];
+extern uint16_t tsServerPort;
 extern uint16_t tsMnodeDnodePort;
 extern uint16_t tsMnodeShellPort;
 extern uint16_t tsDnodeShellPort;
@@ -74,11 +76,13 @@ extern int16_t  tsNumOfVnodesPerCore;
 extern int16_t  tsNumOfTotalVnodes;
 extern uint32_t tsPublicIpInt;
 
-extern int32_t tsMaxCacheSize;
-extern int32_t tsSessionsPerVnode;
+extern int32_t tsCacheBlockSize;
+extern int32_t tsTotalBlocks;
+extern int32_t tsTablesPerVnode;
 extern int16_t tsDaysPerFile;
 extern int32_t tsDaysToKeep;
-extern int32_t tsRowsInFileBlock;
+extern int32_t tsMinRowsInFileBlock;
+extern int32_t tsMaxRowsInFileBlock;
 extern int16_t tsCommitTime;  // seconds
 extern int32_t tsTimePrecision;
 extern int16_t tsCompression;
@@ -176,7 +180,8 @@ void taosInitGlobalCfg();
 bool taosCheckGlobalCfg();
 void taosSetAllDebugFlag();
 bool taosCfgDynamicOptions(char *msg);
-
+int  taosGetFqdnPortFromEp(char *ep, char *fqdn, uint16_t *port);
+ 
 #ifdef __cplusplus
 }
 #endif
