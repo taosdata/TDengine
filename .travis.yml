@@ -32,15 +32,15 @@ matrix:
       - cd debug
 
     script:
-      - cmake ..
-      - make
+      - cmake .. > /dev/null
+      - make > /dev/null
 
     after_success:
       - |-
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          make install || travis_terminate $?
+          make install > /dev/null || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -135,15 +135,15 @@ matrix:
       - cd debug
 
     script:
-      - cmake -DCOVER=true ..
-      - make
+      - cmake -DCOVER=true .. > /dev/null
+      - make > /dev/null
 
     after_success:
       - |-
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          make install || travis_terminate $?
+          make install > /dev/null || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -208,8 +208,8 @@ matrix:
       - cd debug
 
     script:
-      - cmake ..
-      - make
+      - cmake .. > /dev/null
+      - make > /dev/null
 
         #  - os: osx
         #    language: c
@@ -225,5 +225,5 @@ matrix:
         #      - cd ${TRAVIS_BUILD_DIR}
         #      - mkdir debug
         #      - cd debug
-        #      - cmake ..
-        #      - make
+        #      - cmake .. > /dev/null
+        #      - make > /dev/null
