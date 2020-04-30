@@ -19,17 +19,17 @@
 #include "tscompression.h"
 
 const int32_t TYPE_BYTES[11] = {
-    -1,               // TSDB_DATA_TYPE_NULL
-    sizeof(int8_t),   // TSDB_DATA_TYPE_BOOL
-    sizeof(int8_t),   // TSDB_DATA_TYPE_TINYINT
-    sizeof(int16_t),  // TSDB_DATA_TYPE_SMALLINT
-    sizeof(int32_t),  // TSDB_DATA_TYPE_INT
-    sizeof(int64_t),  // TSDB_DATA_TYPE_BIGINT
-    sizeof(float),    // TSDB_DATA_TYPE_FLOAT
-    sizeof(double),   // TSDB_DATA_TYPE_DOUBLE
-    sizeof(int32_t),  // TSDB_DATA_TYPE_BINARY
-    sizeof(TSKEY),    // TSDB_DATA_TYPE_TIMESTAMP
-    sizeof(int32_t)   // TSDB_DATA_TYPE_NCHAR
+    -1,                      // TSDB_DATA_TYPE_NULL
+    sizeof(int8_t),          // TSDB_DATA_TYPE_BOOL
+    sizeof(int8_t),          // TSDB_DATA_TYPE_TINYINT
+    sizeof(int16_t),         // TSDB_DATA_TYPE_SMALLINT
+    sizeof(int32_t),         // TSDB_DATA_TYPE_INT
+    sizeof(int64_t),         // TSDB_DATA_TYPE_BIGINT
+    sizeof(float),           // TSDB_DATA_TYPE_FLOAT
+    sizeof(double),          // TSDB_DATA_TYPE_DOUBLE
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_BINARY
+    sizeof(TSKEY),           // TSDB_DATA_TYPE_TIMESTAMP
+    sizeof(VarDataOffsetT)   // TSDB_DATA_TYPE_NCHAR
 };
 
 tDataTypeDescriptor tDataTypeDesc[11] = {

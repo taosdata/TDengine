@@ -67,13 +67,6 @@ int       tdGetSchemaEncodeSize(STSchema *pSchema);
 void *    tdEncodeSchema(void *dst, STSchema *pSchema);
 STSchema *tdDecodeSchema(void **psrc);
 
-// ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
-typedef int32_t VarDataOffsetT;
-typedef int16_t VarDataLenT;
-#define varDataLen(v) ((VarDataLenT *)(v))[0]
-#define varDataTLen(v) (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataVal(v) ((void *)((char *)v + sizeof(VarDataLenT)))
-
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
@@ -90,28 +83,27 @@ typedef void *SDataRow;
 #define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
 
 #define dataRowLen(r) (*(int32_t *)(r))
-#define dataRowAt(r, idx) ((char *)(r) + (idx))
-#define dataRowTuple(r) dataRowAt(r, TD_DATA_ROW_HEAD_SIZE)
+#define dataRowTuple(r) POINTER_DRIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
-#define dataRowMaxBytesFromSchema(s) ((s)->tlen + TD_DATA_ROW_HEAD_SIZE)
+#define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
 
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 int      tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset);
-void     tdDataRowReset(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
+// NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t offset) {
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      return dataRowAt(row, *(int32_t *)dataRowAt(row, offset));
+      return POINTER_DRIFT(row, *(VarDataOffsetT *)POINTER_DRIFT(row, offset));
       break;
     default:
-      return dataRowAt(row, offset);
+      return POINTER_DRIFT(row, offset);
       break;
   }
 }
@@ -121,7 +113,7 @@ typedef struct SDataCol {
   int8_t          type;       // column type
   int16_t         colId;      // column ID
   int             bytes;      // column data bytes defined
-  int             offset;     // data offset in a SDataRow
+  int             offset;     // data offset in a SDataRow (including the header size)
   int             spaceSize;  // Total space size for this column
   int             len;        // column data length
   VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
@@ -140,28 +132,26 @@ void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
 // Get the data pointer from a column-wised data
 static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
-  switch (pCol->type)
-  {
-  case TSDB_DATA_TYPE_BINARY:
-  case TSDB_DATA_TYPE_NCHAR:
-    return (void *)((char *)(pCol->pData) + pCol->dataOff[row]);
-    break;
+  switch (pCol->type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      return POINTER_DRIFT(pCol->pData, pCol->dataOff[row]);
+      break;
 
-  default:
-    return (void *)((char *)(pCol->pData) + TYPE_BYTES[pCol->type] * row);
-    break;
+    default:
+      return POINTER_DRIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
+      break;
   }
 }
 
 static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
-  void *ptr = NULL;
+  ASSERT(rows > 0);
+
   switch (pDataCol->type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      ptr = tdGetColDataOfRow(pDataCol, rows - 1);
-      return ((VarDataOffsetT *)(pDataCol->pData))[rows-1] + varDataTLen(ptr);
+      return pDataCol->dataOff[rows - 1] + varDataTLen(tdGetColDataOfRow(pDataCol, rows - 1));
       break;
-
     default:
       return TYPE_BYTES[pDataCol->type] * rows;
   }
@@ -182,7 +172,7 @@ typedef struct {
 } SDataCols;
 
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
-#define dataColsKeyAt(pCols, idx) ((int64_t *)(keyCol(pCols)->pData))[(idx)]
+#define dataColsKeyAt(pCols, idx) ((TSKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyFirst(pCols) dataColsKeyAt(pCols, 0)
 #define dataColsKeyLast(pCols) dataColsKeyAt(pCols, (pCols)->numOfPoints - 1)
 

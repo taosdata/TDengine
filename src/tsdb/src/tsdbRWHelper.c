@@ -566,16 +566,9 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32
 
   // Decode the data
   if (comp) {
-    // Need to decompress
-    void *pStart = NULL;
-    if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
-      pStart = (char *)(pDataCol->pData) + sizeof(int32_t) * maxPoints;
-    } else {
-      pStart = pDataCol->pData;
-    }
-    // TODO: get rid of INT32_MAX here
-    pDataCol->len = (*(tDataTypeDesc[pDataCol->type].decompFunc))(content, len - sizeof(TSCKSUM), numOfPoints, pStart,
-                                                                  INT32_MAX, comp, buffer, bufferSize);
+    // // Need to decompress
+    pDataCol->len = (*(tDataTypeDesc[pDataCol->type].decompFunc))(
+        content, len - sizeof(TSCKSUM), numOfPoints, pDataCol->pData, pDataCol->spaceSize, comp, buffer, bufferSize);
     if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
       pDataCol->len += (sizeof(int32_t) * maxPoints);
       dataColSetOffset(pDataCol, numOfPoints);

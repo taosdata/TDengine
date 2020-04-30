@@ -32,6 +32,13 @@ extern "C" {
 #define TSKEY int64_t
 #endif
 
+// ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
+typedef int32_t VarDataOffsetT;
+typedef int16_t VarDataLenT;
+#define varDataLen(v) ((VarDataLenT *)(v))[0]
+#define varDataTLen(v) (sizeof(VarDataLenT) + varDataLen(v))
+#define varDataVal(v) ((void *)((char *)v + sizeof(VarDataLenT)))
+
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
 
