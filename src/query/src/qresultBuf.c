@@ -191,7 +191,7 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId) 
   }
 }
 
-void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
+void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
   if (pResultBuf == NULL) {
     return;
   }
@@ -200,7 +200,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
     close(pResultBuf->fd);
   }
 
-  qTrace("disk-based output buffer closed, %" PRId64 " bytes, file:%s", pResultBuf->totalBufSize, pResultBuf->path);
+  qTrace("QInfo:%p disk-based output buffer closed, %" PRId64 " bytes, file:%s", handle, pResultBuf->totalBufSize, pResultBuf->path);
   munmap(pResultBuf->pBuf, pResultBuf->totalBufSize);
   unlink(pResultBuf->path);
   

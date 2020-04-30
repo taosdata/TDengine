@@ -103,7 +103,7 @@ int32_t getNumOfResultBufGroupId(SDiskbasedResultBuf* pResultBuf);
  * destroy result buffer
  * @param pResultBuf
  */
-void destroyResultBuf(SDiskbasedResultBuf* pResultBuf);
+void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle);
 
 /**
  *

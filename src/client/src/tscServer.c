@@ -419,13 +419,11 @@ int tscProcessSql(SSqlObj *pSql) {
     type = pQueryInfo->type;
   
     // while numOfTables equals to 0, it must be Heartbeat
-    assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) ||
-            pQueryInfo->numOfTables > 0);
+    assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) || pQueryInfo->numOfTables > 0);
   }
 
   tscTrace("%p SQL cmd:%d will be processed, name:%s, type:%d", pSql, pCmd->command, name, type);
-  if (pSql->cmd.command < TSDB_SQL_MGMT) {
-    // the pTableMetaInfo cannot be NULL
+  if (pSql->cmd.command < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
     if (pTableMetaInfo == NULL) {
       pSql->res.code = TSDB_CODE_OTHERS;
       return pSql->res.code;

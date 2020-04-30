@@ -1500,8 +1500,9 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
-
-  qTrace("QInfo:%p teardown runtime env", GET_QINFO_ADDR(pRuntimeEnv));
+  SQInfo* pQInfo = (SQInfo*) GET_QINFO_ADDR(pRuntimeEnv);
+  
+  qTrace("QInfo:%p teardown runtime env", pQInfo);
   cleanupTimeWindowInfo(&pRuntimeEnv->windowResInfo, pQuery->numOfOutput);
 
   if (pRuntimeEnv->pCtx != NULL) {
@@ -1531,7 +1532,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     tfree(pRuntimeEnv->pInterpoBuf);
   }
 
-  destroyResultBuf(pRuntimeEnv->pResultBuf);
+  destroyResultBuf(pRuntimeEnv->pResultBuf, pQInfo);
   tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
   tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
 
