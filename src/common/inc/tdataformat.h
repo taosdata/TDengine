@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "taosdef.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +31,7 @@ typedef struct {
   int8_t  type;    // Column type
   int16_t colId;   // column ID
   int32_t bytes;   // column bytes
-  int32_t offset;  // point offset in a row data
+  int32_t offset;  // point offset in SDataRow after the header part
 } STColumn;
 
 #define colType(col) ((col)->type)
@@ -43,26 +44,25 @@ typedef struct {
 #define colSetBytes(col, b) (colBytes(col) = (b))
 #define colSetOffset(col, o) (colOffset(col) = (o))
 
-STColumn *tdNewCol(int8_t type, int16_t colId, int16_t bytes);
-void      tdFreeCol(STColumn *pCol);
-void      tdColCpy(STColumn *dst, STColumn *src);
-void      tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes);
-
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
+  int      totalCols;  // Total columns allocated
   int      numOfCols;  // Number of columns appended
-  int      padding;  // Total columns allocated
+  int      tlen;       // maximum length of a SDataRow without the header part
+  int      flen;       // First part length in a SDataRow after the header part
   STColumn columns[];
 } STSchema;
 
 #define schemaNCols(s) ((s)->numOfCols)
+#define schemaTotalCols(s) ((s)->totalCols)
+#define schemaTLen(s) ((s)->tlen)
+#define schemaFLen(s) ((s)->flen)
 #define schemaColAt(s, i) ((s)->columns + i)
 
 STSchema *tdNewSchema(int32_t nCols);
-int       tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes);
+#define   tdFreeSchema(s) tfree((s))
+int       tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes);
 STSchema *tdDupSchema(STSchema *pSchema);
-void      tdFreeSchema(STSchema *pSchema);
-void      tdUpdateSchema(STSchema *pSchema);
 int       tdGetSchemaEncodeSize(STSchema *pSchema);
 void *    tdEncodeSchema(void *dst, STSchema *pSchema);
 STSchema *tdDecodeSchema(void **psrc);
@@ -70,53 +70,100 @@ STSchema *tdDecodeSchema(void **psrc);
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
- * +----------+---------+---------------------------------+---------------------------------+
- * | int32_t  | int32_t |                                 |                                 |
- * +----------+---------+---------------------------------+---------------------------------+
- * |   len    |  flen   |           First part            |             Second part         |
- * +----------+---------+---------------------------------+---------------------------------+
- * plen: first part length
- * len: the length including sizeof(row) + sizeof(len)
- * row: actual row data encoding
+ * |<------------------------------------- len ---------------------------------->|
+ * |<--Head ->|<---------   flen -------------->|                                 |
+ * +----------+---------------------------------+---------------------------------+
+ * | int32_t  |                                 |                                 |
+ * +----------+---------------------------------+---------------------------------+
+ * |   len    |           First part            |             Second part         |
+ * +----------+---------------------------------+---------------------------------+
  */
 typedef void *SDataRow;
 
-
-#define TD_DATA_ROW_HEAD_SIZE (2 * sizeof(int32_t))
+#define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
 
 #define dataRowLen(r) (*(int32_t *)(r))
-#define dataRowFLen(r) (*(int32_t *)((char *)(r) + sizeof(int32_t)))
-#define dataRowTuple(r) ((char *)(r) + TD_DATA_ROW_HEAD_SIZE)
+#define dataRowTuple(r) POINTER_DRIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
-#define dataRowSetFLen(r, l) (dataRowFLen(r) = (l))
-#define dataRowIdx(r, i) ((char *)(r) + i)
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
-#define dataRowAt(r, idx) ((char *)(r) + (idx))
+#define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
 
-void     tdInitDataRow(SDataRow row, STSchema *pSchema);
-int      tdMaxRowBytesFromSchema(STSchema *pSchema);
-SDataRow tdNewDataRow(int32_t bytes, STSchema *pSchema);
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
-int      tdAppendColVal(SDataRow row, void *value, STColumn *pCol);
-void     tdDataRowReset(SDataRow row, STSchema *pSchema);
+void     tdInitDataRow(SDataRow row, STSchema *pSchema);
+int      tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset);
 SDataRow tdDataRowDup(SDataRow row);
+
+// NOTE: offset here including the header size
+static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t offset) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      return POINTER_DRIFT(row, *(VarDataOffsetT *)POINTER_DRIFT(row, offset));
+      break;
+    default:
+      return POINTER_DRIFT(row, offset);
+      break;
+  }
+}
 
 // ----------------- Data column structure
 typedef struct SDataCol {
-  int8_t  type;
-  int16_t colId;
-  int     bytes;
-  int     len;
-  int     offset;
-  void *  pData; // Original data
+  int8_t          type;       // column type
+  int16_t         colId;      // column ID
+  int             bytes;      // column data bytes defined
+  int             offset;     // data offset in a SDataRow (including the header size)
+  int             spaceSize;  // Total space size for this column
+  int             len;        // column data length
+  VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
+  void *          pData;      // Actual data pointer
 } SDataCol;
+
+static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
+
+void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
+void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoints);
+void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfPoints);
+void dataColSetOffset(SDataCol *pCol, int nEle);
+
+bool isNEleNull(SDataCol *pCol, int nEle);
+void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
+
+// Get the data pointer from a column-wised data
+static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
+  switch (pCol->type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      return POINTER_DRIFT(pCol->pData, pCol->dataOff[row]);
+      break;
+
+    default:
+      return POINTER_DRIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
+      break;
+  }
+}
+
+static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
+  ASSERT(rows > 0);
+
+  switch (pDataCol->type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      return pDataCol->dataOff[rows - 1] + varDataTLen(tdGetColDataOfRow(pDataCol, rows - 1));
+      break;
+    default:
+      return TYPE_BYTES[pDataCol->type] * rows;
+  }
+}
+
 
 typedef struct {
   int      maxRowSize;
   int      maxCols;    // max number of columns
   int      maxPoints;  // max number of points
+  int      bufSize;
+
   int      numOfPoints;
   int      numOfCols;  // Total number of cols
   int      sversion;   // TODO: set sversion
@@ -125,7 +172,7 @@ typedef struct {
 } SDataCols;
 
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
-#define dataColsKeyAt(pCols, idx) ((int64_t *)(keyCol(pCols)->pData))[(idx)]
+#define dataColsKeyAt(pCols, idx) ((TSKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyFirst(pCols) dataColsKeyAt(pCols, 0)
 #define dataColsKeyLast(pCols) dataColsKeyAt(pCols, (pCols)->numOfPoints - 1)
 

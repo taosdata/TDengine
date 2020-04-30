@@ -582,7 +582,7 @@ void exprSerializeTest1() {
   tExprTreeDestroy(&p1, nullptr);
   tExprTreeDestroy(&p2, nullptr);
   
-  tbufClose(&bw);
+  // tbufClose(&bw);
 }
 
 void exprSerializeTest2() {
@@ -627,7 +627,7 @@ void exprSerializeTest2() {
   tExprTreeDestroy(&p1, nullptr);
   tExprTreeDestroy(&p2, nullptr);
 
-  tbufClose(&bw);
+  // tbufClose(&bw);
 }
 }  // namespace
 TEST(testCase, astTest) {

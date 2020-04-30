@@ -631,47 +631,44 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
   return TSDB_CODE_SUCCESS;
 }
 
-static void trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
-  int32_t firstPartLen = 0;
-  
-  STableMeta* pTableMeta = pTableDataBlock->pTableMeta;
+static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
+  // TODO: optimize this function
+  int len = 0;
+
+  STableMeta*   pTableMeta = pTableDataBlock->pTableMeta;
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
-  SSchema* pSchema = tscGetTableSchema(pTableMeta);
-  
+  SSchema*      pSchema = tscGetTableSchema(pTableMeta);
+
+  SSubmitBlk* pBlock = pDataBlock;
   memcpy(pDataBlock, pTableDataBlock->pData, sizeof(SSubmitBlk));
   pDataBlock += sizeof(SSubmitBlk);
-  
-  int32_t total = sizeof(int32_t)*2;
-  for(int32_t i = 0; i < tinfo.numOfColumns; ++i) {
-    switch (pSchema[i].type) {
-      case TSDB_DATA_TYPE_NCHAR:
-      case TSDB_DATA_TYPE_BINARY: {
-        assert(0);  // not support binary yet
-        firstPartLen += sizeof(int32_t);break;
-      }
-      default:
-        firstPartLen += tDataTypeDesc[pSchema[i].type].nSize;
-        total += tDataTypeDesc[pSchema[i].type].nSize;
-    }
+
+  int32_t flen = 0;
+  for (int32_t i = 0; i < tinfo.numOfColumns; ++i) {
+    flen += TYPE_BYTES[pSchema[i].type];
   }
-  
+
   char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
-  
-  SSubmitBlk* pBlock = (SSubmitBlk*) pTableDataBlock->pData;
-  int32_t rows = htons(pBlock->numOfRows);
-  
-  for(int32_t i = 0; i < rows; ++i) {
-    *(int32_t*) pDataBlock = total;
-    pDataBlock += sizeof(int32_t);
-    
-    *(int32_t*) pDataBlock = firstPartLen;
-    pDataBlock += sizeof(int32_t);
-    
-    memcpy(pDataBlock, p, pTableDataBlock->rowSize);
-    
-    p += pTableDataBlock->rowSize;
-    pDataBlock += pTableDataBlock->rowSize;
+  pBlock->len = 0;
+  for (int32_t i = 0; i < htons(pBlock->numOfRows); ++i) {
+    SDataRow trow = (SDataRow)pDataBlock;
+    dataRowSetLen(trow, TD_DATA_ROW_HEAD_SIZE + flen);
+
+    int toffset = 0;
+    for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
+      tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
+      toffset += TYPE_BYTES[pSchema[j].type];
+      p += pSchema[j].bytes;
+    }
+
+    // p += pTableDataBlock->rowSize;
+    pDataBlock += dataRowLen(trow);
+    pBlock->len += dataRowLen(trow);
   }
+
+  len = pBlock->len;
+  pBlock->len = htonl(pBlock->len);
+  return len;
 }
 
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockList) {
@@ -734,7 +731,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     pBlocks->len = htonl(len);
     
     // erase the empty space reserved for binary data
-    trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock);
+    len = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock);
     dataBuf->size += (len + sizeof(SSubmitBlk));
     dataBuf->numOfTables += 1;
   }
