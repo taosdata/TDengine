@@ -421,6 +421,7 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
       code = TSDB_CODE_INVALID_DB;
       goto connect_over;
     }
+    mgmtDecDbRef(pDb);
   }
 
   SCMConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
@@ -454,9 +455,8 @@ static void mgmtProcessUseMsg(SQueuedMsg *pMsg) {
   SCMUseDbMsg *pUseDbMsg = pMsg->pCont;
   
   // todo check for priority of current user
-  pMsg->pDb = mgmtGetDb(pUseDbMsg->db);
-  
   int32_t code = TSDB_CODE_SUCCESS;
+  if (pMsg->pDb == NULL) pMsg->pDb = mgmtGetDb(pUseDbMsg->db);
   if (pMsg->pDb == NULL) {
     code = TSDB_CODE_INVALID_DB;
   }
@@ -470,7 +470,7 @@ static void mgmtProcessUseMsg(SQueuedMsg *pMsg) {
  */
 static bool mgmtCheckTableMetaMsgReadOnly(SQueuedMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->pCont;
-  pMsg->pTable = mgmtGetTable(pInfo->tableId);
+  if (pMsg->pTable == NULL) pMsg->pTable = mgmtGetTable(pInfo->tableId);
   if (pMsg->pTable != NULL) return true;
 
   // If table does not exists and autoCreate flag is set, we add the handler into task queue
@@ -551,8 +551,7 @@ void mgmtFreeQhandle(void *qhandle, bool forceRemove) {
 }
 
 void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg) {
-  bool usePublicIp = false;
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, &usePublicIp);
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
   if (pUser == NULL) {
     return NULL;
   }
@@ -563,7 +562,6 @@ void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg) {
   pMsg->contLen = rpcMsg->contLen;
   pMsg->pCont = rpcMsg->pCont;
   pMsg->pUser = pUser;
-  pMsg->usePublicIp = usePublicIp;
 
   return pMsg;
 }
@@ -591,8 +589,7 @@ void* mgmtCloneQueuedMsg(SQueuedMsg *pSrcMsg) {
   pDestMsg->retry   = pSrcMsg->retry;
   pDestMsg->maxRetry= pSrcMsg->maxRetry;
   pDestMsg->pUser   = pSrcMsg->pUser;
-  pDestMsg->usePublicIp = pSrcMsg->usePublicIp;
-
+ 
   pSrcMsg->pCont = NULL;
   pSrcMsg->pUser = NULL;
   

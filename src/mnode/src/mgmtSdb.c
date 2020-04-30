@@ -184,7 +184,7 @@ void sdbUpdateMnodeRoles() {
     if (pMnode != NULL) {
       pMnode->role = roles.role[i];
       sdbPrint("mnode:%d, role:%s", pMnode->mnodeId, mgmtGetMnodeRoleStr(pMnode->role));
-      mgmtReleaseMnode(pMnode);
+      mgmtDecMnodeRef(pMnode);
     }
   }
 }
@@ -252,7 +252,7 @@ void sdbUpdateSync() {
       strcpy(syncCfg.nodeInfo[index].nodeFqdn, pMnode->pDnode->dnodeEp);
       index++;
 
-      mgmtReleaseMnode(pMnode);
+      mgmtDecMnodeRef(pMnode);
     }
   }
 

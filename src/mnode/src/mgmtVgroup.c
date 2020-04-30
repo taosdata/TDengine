@@ -36,8 +36,8 @@
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
-void   *tsVgroupSdb = NULL;
-int32_t tsVgUpdateSize = 0;
+static void   *tsVgroupSdb = NULL;
+static int32_t tsVgUpdateSize = 0;
 
 static int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -62,6 +62,8 @@ static int32_t mgmtVgroupActionDestroy(SSdbOper *pOper) {
 
 static int32_t mgmtVgroupActionInsert(SSdbOper *pOper) {
   SVgObj *pVgroup = pOper->pObj;
+
+  // refer to db
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
     return TSDB_CODE_INVALID_DB;
@@ -140,6 +142,7 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
       if (pDnode != NULL) {
         atomic_add_fetch_32(&pDnode->openVnodes, 1);
       }
+      mgmtDecDnodeRef(pDnode);
     }
   }
 
@@ -154,6 +157,7 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
     }
   }
 
+  mgmtDecVgroupRef(pVgroup);
   mTrace("vgroup:%d, is updated, tables:%d numOfVnode:%d", pVgroup->vgId, pDb->cfg.maxTables, pVgroup->numOfVnodes);
   return TSDB_CODE_SUCCESS;
 }
@@ -237,8 +241,7 @@ void mgmtUpdateVgroup(SVgObj *pVgroup) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
-    .pObj = pVgroup,
-    .rowSize = tsVgUpdateSize
+    .pObj = pVgroup
   };
 
   sdbUpdateRow(&oper);
@@ -379,6 +382,7 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   if (pShow->payloadLen > 0 ) {
     pTable = mgmtGetTable(pShow->payload);
     if (NULL == pTable || pTable->type == TSDB_SUPER_TABLE) {
+      mgmtDecTableRef(pTable);
       return TSDB_CODE_INVALID_TABLE_ID;
     }
     mgmtDecTableRef(pTable);
@@ -736,7 +740,33 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
   mgmtSendCreateVnodeMsg(pVgroup, &ipSet, NULL);
 }
 
-void mgmtDropAllVgroups(SDbObj *pDropDb) {
+void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
+  void *  pNode = NULL;
+  void *  pLastNode = NULL;
+  SVgObj *pVgroup = NULL;
+  int32_t numOfVgroups = 0;
+
+  while (1) {
+    pLastNode = pNode;
+    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    if (pVgroup->vnodeGid[0].dnodeId == pDropDnode->dnodeId) {
+      SSdbOper oper = {
+        .type = SDB_OPER_LOCAL,
+        .table = tsVgroupSdb,
+        .pObj = pVgroup,
+      };
+      sdbDeleteRow(&oper);
+      pNode = pLastNode;
+      numOfVgroups++;
+      continue;
+    }
+    mgmtDecVgroupRef(pVgroup);
+  }
+}
+
+void mgmtDropAllDbVgroups(SDbObj *pDropDb) {
   void *pNode = NULL;
   void *pLastNode = NULL;
   int32_t numOfVgroups = 0;
@@ -744,7 +774,7 @@ void mgmtDropAllVgroups(SDbObj *pDropDb) {
 
   mPrint("db:%s, all vgroups will be dropped from sdb", pDropDb->name);
   while (1) {
-    pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
+    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
     if (pVgroup == NULL) break;
 
     if (pVgroup->pDb == pDropDb) {
