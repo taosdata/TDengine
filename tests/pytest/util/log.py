@@ -23,14 +23,14 @@ class TDLog:
         self.path = ""
 
     def info(self, info):
-        printf("%s %s" % (datetime.datetime.now(), info))
+        print("%s %s" % (datetime.datetime.now(), info))
 
     def sleep(self, sec):
-        printf("%s sleep %d seconds" % (datetime.datetime.now(), sec))
+        print("%s sleep %d seconds" % (datetime.datetime.now(), sec))
         time.sleep(sec)
 
     def debug(self, err):
-        printf("\033[1;36m%s %s\033[0m" % (datetime.datetime.now(), err))
+        print("\033[1;36m%s %s\033[0m" % (datetime.datetime.now(), err))
 
     def success(self, info):
         printf("\033[1;32m%s %s\033[0m" % (datetime.datetime.now(), info))
@@ -43,7 +43,7 @@ class TDLog:
         sys.exit(1)
 
     def printNoPrefix(self, info):
-        printf("\033[1;36m%s\033[0m" % (info))
+        print("\033[1;36m%s\033[0m" % (info))
 
 
 tdLog = TDLog()
