@@ -561,17 +561,6 @@ int32_t mgmtKillConnection(char *qidstr, void *pConn) {
   return TSDB_CODE_INVALID_CONNECTION;
 }
 
-bool mgmtCheckQhandle(uint64_t qhandle) {
-  return true;
-}
-
-void mgmtSaveQhandle(void *qhandle) {
-  mTrace("qhandle:%p is allocated", qhandle);
-}
-
-void mgmtFreeQhandle(void *qhandle) {
-  mTrace("qhandle:%p is freed", qhandle);
-}
 
 int mgmtGetConns(SShowObj *pShow, void *pConn) {
   //  SAcctObj * pAcct = pConn->pAcct;
@@ -770,53 +759,4 @@ int32_t mgmtInitProfile() {
 }
 
 void mgmtCleanUpProfile() {
-}
-
-void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg) {
-  bool usePublicIp = false;
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, &usePublicIp);
-  if (pUser == NULL) {
-    return NULL;
-  }
-
-  SQueuedMsg *pMsg = calloc(1, sizeof(SQueuedMsg));
-  pMsg->thandle = rpcMsg->handle;
-  pMsg->msgType = rpcMsg->msgType;
-  pMsg->contLen = rpcMsg->contLen;
-  pMsg->pCont = rpcMsg->pCont;
-  pMsg->pUser = pUser;
-  pMsg->usePublicIp = usePublicIp;
-
-  return pMsg;
-}
-
-void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
-  if (pMsg != NULL) {
-    rpcFreeCont(pMsg->pCont);
-    if (pMsg->pUser) mgmtDecUserRef(pMsg->pUser);
-    if (pMsg->pDb) mgmtDecDbRef(pMsg->pDb);
-    if (pMsg->pVgroup) mgmtDecVgroupRef(pMsg->pVgroup);
-    if (pMsg->pTable) mgmtDecTableRef(pMsg->pTable);
-    if (pMsg->pAcct) mgmtDecAcctRef(pMsg->pAcct);
-    if (pMsg->pDnode) mgmtDecDnodeRef(pMsg->pDnode);
-    free(pMsg);
-  }
-}
-
-void* mgmtCloneQueuedMsg(SQueuedMsg *pSrcMsg) {
-  SQueuedMsg *pDestMsg = calloc(1, sizeof(SQueuedMsg));
-  
-  pDestMsg->thandle = pSrcMsg->thandle;
-  pDestMsg->msgType = pSrcMsg->msgType;
-  pDestMsg->pCont   = pSrcMsg->pCont;
-  pDestMsg->contLen = pSrcMsg->contLen;
-  pDestMsg->retry   = pSrcMsg->retry;
-  pDestMsg->maxRetry= pSrcMsg->maxRetry;
-  pDestMsg->pUser   = pSrcMsg->pUser;
-  pDestMsg->usePublicIp = pSrcMsg->usePublicIp;
-
-  pSrcMsg->pCont = NULL;
-  pSrcMsg->pUser = NULL;
-  
-  return pDestMsg;
 }

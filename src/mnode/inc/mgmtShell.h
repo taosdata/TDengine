@@ -34,6 +34,14 @@ void mgmtAddToShellQueue(SQueuedMsg *queuedMsg);
 void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg);
 void mgmtSendSimpleResp(void *thandle, int32_t code);
 
+bool  mgmtCheckQhandle(uint64_t qhandle);
+void *mgmtSaveQhandle(void *qhandle, int32_t size);
+void  mgmtFreeQhandle(void *qhandle, bool forceRemove);
+
+void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg);
+void *mgmtCloneQueuedMsg(SQueuedMsg *pSrcMsg);
+void  mgmtFreeQueuedMsg(SQueuedMsg *pMsg);
+
 #ifdef __cplusplus
 }
 #endif
