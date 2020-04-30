@@ -129,7 +129,7 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
 void tsdbOrgMeta(void *pHandle) {
   STsdbMeta *pMeta = (STsdbMeta *)pHandle;
 
-  for (int i = 0; i < pMeta->maxTables; i++) {
+  for (int i = 1; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable != NULL && pTable->type == TSDB_CHILD_TABLE) {
       tsdbAddTableIntoIndex(pMeta, pTable);
@@ -179,7 +179,7 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
 
   tsdbCloseMetaFile(pMeta->mfh);
 
-  for (int i = 0; i < pMeta->maxTables; i++) {
+  for (int i = 1; i < pMeta->maxTables; i++) {
     if (pMeta->tables[i] != NULL) {
       tsdbFreeTable(pMeta->tables[i]);
     }
