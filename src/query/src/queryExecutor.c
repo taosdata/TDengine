@@ -1501,7 +1501,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  qTrace("QInfo:%p teardown runtime env", GET_QINFO_ADDR(pQuery));
+  qTrace("QInfo:%p teardown runtime env", GET_QINFO_ADDR(pRuntimeEnv));
   cleanupTimeWindowInfo(&pRuntimeEnv->windowResInfo, pQuery->numOfOutput);
 
   if (pRuntimeEnv->pCtx != NULL) {
@@ -6306,7 +6306,7 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       memcpy(output, data, bytes);
     }
   
-    qTrace("QInfo:%p create (tableId, tag) info completed, rows:%d", num);
+    qTrace("QInfo:%p create (tableId, tag) info completed, rows:%d", pQInfo, num);
   } else {  // return only the tags|table name etc.
     for(int32_t i = 0; i < num; ++i) {
       SExprInfo* pExprInfo = pQuery->pSelectExpr;
@@ -6329,7 +6329,7 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       }
     }
   
-    qTrace("QInfo:%p create tag values results completed, rows:%d", num);
+    qTrace("QInfo:%p create tag values results completed, rows:%d", pQInfo, num);
   }
   
   pQuery->rec.rows = num;
