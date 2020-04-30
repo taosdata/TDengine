@@ -913,15 +913,17 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
+#if 0
   SVgObj *pVgroup = pMsg->pDb->pHead;
   if (pVgroup != NULL) {
-    mPrint("vgroup:%d, will be dropped", pVgroup->vgId);
+    mPrint("vgId:%d, will be dropped", pVgroup->vgId);
     SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
     newMsg->ahandle = pVgroup;
     newMsg->expected = pVgroup->numOfVnodes;
     mgmtDropVgroup(pVgroup, newMsg);
     return;
   }
+#endif  
 
   mTrace("db:%s, all vgroups is dropped", pMsg->pDb->name);
   mgmtDropDb(pMsg);

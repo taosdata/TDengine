@@ -309,7 +309,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
       SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->dnodeEp);
-      mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
+      mPrint("dnode:%d, vgId:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
       mgmtSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
       mgmtUpdateVgroupStatus(pVgroup, pDnode, pVload);

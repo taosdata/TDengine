@@ -97,14 +97,14 @@ static int32_t mgmtChildTableActionInsert(SSdbOper *pOper) {
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
-    mError("ctable:%s, not in vgroup:%d", pTable->info.tableId, pTable->vgId);
+    mError("ctable:%s, not in vgId:%d", pTable->info.tableId, pTable->vgId);
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
   mgmtDecVgroupRef(pVgroup);
 
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
-    mError("ctable:%s, vgroup:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
+    mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_INVALID_DB;
   }
   mgmtDecDbRef(pDb);
@@ -147,7 +147,7 @@ static int32_t mgmtChildTableActionDelete(SSdbOper *pOper) {
 
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
-    mError("ctable:%s, vgroup:%d not in DB:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
+    mError("ctable:%s, vgId:%d not in DB:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_INVALID_DB;
   }
   mgmtDecDbRef(pDb);
@@ -270,7 +270,7 @@ static int32_t mgmtChildTableActionRestored() {
 
     SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
     if (pVgroup == NULL) {
-      mError("ctable:%s, failed to get vgroup:%d sid:%d, discard it", pTable->info.tableId, pTable->vgId, pTable->sid);
+      mError("ctable:%s, failed to get vgId:%d sid:%d, discard it", pTable->info.tableId, pTable->vgId, pTable->sid);
       pTable->vgId = 0;
       SSdbOper desc = {0};
       desc.type = SDB_OPER_LOCAL;
@@ -283,7 +283,7 @@ static int32_t mgmtChildTableActionRestored() {
     mgmtDecVgroupRef(pVgroup);
 
     if (strcmp(pVgroup->dbName, pDb->name) != 0) {
-      mError("ctable:%s, db:%s not match with vgroup:%d db:%s sid:%d, discard it",
+      mError("ctable:%s, db:%s not match with vgId:%d db:%s sid:%d, discard it",
              pTable->info.tableId, pDb->name, pTable->vgId, pVgroup->dbName, pTable->sid);
       pTable->vgId = 0;
       SSdbOper desc = {0};
@@ -296,7 +296,7 @@ static int32_t mgmtChildTableActionRestored() {
     }
 
     if (pVgroup->tableList == NULL) {
-      mError("ctable:%s, vgroup:%d tableList is null", pTable->info.tableId, pTable->vgId);
+      mError("ctable:%s, vgId:%d tableList is null", pTable->info.tableId, pTable->vgId);
       pTable->vgId = 0;
       SSdbOper desc = {0};
       desc.type = SDB_OPER_LOCAL;
@@ -1157,6 +1157,7 @@ void mgmtDropAllSuperTables(SDbObj *pDropDb) {
   mPrint("db:%s, all super tables will be dropped from sdb", pDropDb->name);
 
   while (1) {
+    pLastNode = pNode;
     pNode = mgmtGetNextSuperTable(pNode, &pTable);
     if (pTable == NULL) break;
 
@@ -1432,7 +1433,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
 
   int32_t sid = taosAllocateId(pVgroup->idPool);
   if (sid <= 0) {
-    mTrace("tables:%s, no enough sid in vgroup:%d", pCreate->tableId, pVgroup->vgId);
+    mTrace("tables:%s, no enough sid in vgId:%d", pCreate->tableId, pVgroup->vgId);
     mgmtCreateVgroup(mgmtCloneQueuedMsg(pMsg), pMsg->pDb);
     return;
   }
@@ -1716,6 +1717,7 @@ void mgmtDropAllChildTables(SDbObj *pDropDb) {
   mPrint("db:%s, all child tables will be dropped from sdb", pDropDb->name);
 
   while (1) {
+    pLastNode = pNode;
     pNode = mgmtGetNextChildTable(pNode, &pTable);
     if (pTable == NULL) break;
 
@@ -1744,6 +1746,7 @@ static void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable) {
   mPrint("stable:%s, all child tables will dropped from sdb", pStable->info.tableId, numOfTables);
 
   while (1) {
+    pLastNode = pNode;
     pNode = mgmtGetNextChildTable(pNode, &pTable);
     if (pTable == NULL) break;
 
@@ -1768,7 +1771,7 @@ static SChildTableObj* mgmtGetTableByPos(int32_t vnode, int32_t sid) {
   SVgObj *pVgroup = mgmtGetVgroup(vnode);
   if (pVgroup == NULL) return NULL;
 
-  SChildTableObj *pTable = pVgroup->tableList[sid];
+  SChildTableObj *pTable = pVgroup->tableList[sid - 1];
   mgmtIncTableRef((STableObj *)pTable);
 
   mgmtDecVgroupRef(pVgroup);
@@ -1852,7 +1855,7 @@ static void mgmtProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   }
 
   if (queueMsg->pVgroup->numOfTables <= 0) {
-    mPrint("vgroup:%d, all tables is dropped, drop vgroup", queueMsg->pVgroup->vgId);
+    mPrint("vgId:%d, all tables is dropped, drop vgroup", queueMsg->pVgroup->vgId);
     mgmtDropVgroup(queueMsg->pVgroup, NULL);
   }
 
