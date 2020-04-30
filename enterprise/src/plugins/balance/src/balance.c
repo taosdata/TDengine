@@ -81,7 +81,7 @@ static bool balanceCheckFree(SDnodeObj *pDnode) {
 }
 
 static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
-  mTrace("vgroup:%d, dnode:%d is dropping", pVgroup->vgId, pVnodeGid->dnodeId);
+  mTrace("vgId:%d, dnode:%d is dropping", pVgroup->vgId, pVnodeGid->dnodeId);
 
   SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->dnodeId);
   if (pDnode != NULL) {
@@ -134,7 +134,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   }
 
   if (vnodes != pVgroup->numOfVnodes) {
-    mTrace("vgroup:%d, db:%s need vnodes:%d, but alloc:%d, free them", pVgroup->vgId, pVgroup->dbName,
+    mTrace("vgId:%d, db:%s need vnodes:%d, but alloc:%d, free them", pVgroup->vgId, pVgroup->dbName,
            pVgroup->numOfVnodes, vnodes);
     balanceUnLock();
     return -1;
@@ -211,16 +211,16 @@ static void balanceRemoveVnode(SVgObj *pVgroup) {
     SDnodeObj *pDnode = mgmtGetDnode(pVnode->dnodeId);
 
     if (pDnode == NULL) {
-      mError("vgroup:%d, dnode:%d not exist, remove it", pVgroup->vgId, pVnode->dnodeId);
+      mError("vgId:%d, dnode:%d not exist, remove it", pVgroup->vgId, pVnode->dnodeId);
       pRmVnode = pVnode;
       break;
     }
 
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
-      mTrace("vgroup:%d, dnode:%d in dropping state", pVgroup->vgId, pVnode->dnodeId);
+      mTrace("vgId:%d, dnode:%d in dropping state", pVgroup->vgId, pVnode->dnodeId);
       pRmVnode = pVnode;
     } else if (pVnode->dnodeId == pVgroup->lbDnodeId) {
-      mTrace("vgroup:%d, dnode:%d is updating", pVgroup->vgId, pVnode->dnodeId);
+      mTrace("vgId:%d, dnode:%d is updating", pVgroup->vgId, pVnode->dnodeId);
       pRmVnode = pVnode;
     } else {
       if (pSelVnode == NULL) {
@@ -242,9 +242,9 @@ static void balanceRemoveVnode(SVgObj *pVgroup) {
   }
 
   if (!balanceCheckVgroupReady(pVgroup, pSelVnode)) {
-    mTrace("vgroup:%d, is not ready", pVgroup->vgId);
+    mTrace("vgId:%d, is not ready", pVgroup->vgId);
   } else {
-    mTrace("vgroup:%d, is ready, discard dnode:%d", pVgroup->vgId, pSelVnode->dnodeId);
+    mTrace("vgId:%d, is ready, discard dnode:%d", pVgroup->vgId, pSelVnode->dnodeId);
     balanceDiscardVnode(pVgroup, pSelVnode);
   }
 }
@@ -273,7 +273,7 @@ static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pD
       if (!balanceCheckFree(pDnode)) continue;
       
       pDestDnode = pDnode;
-      mTrace("vgroup:%d, add vnode to dnode:%d", pVgroup->vgId, pDnode->dnodeId);
+      mTrace("vgId:%d, add vnode to dnode:%d", pVgroup->vgId, pDnode->dnodeId);
       break;
     }
   }
@@ -329,7 +329,7 @@ static bool balanceMonitorBalance() {
           float destScore = balanceTryCalcDnodeScore(pDestDnode, 1);
           if (srcScore + 0.0001 < destScore) continue;
           
-          mTrace("vgroup:%d, balance from dnode:%d to dnode:%d, srcScore:%.1f:%.1f, destScore:%.1f:%.1f",
+          mTrace("vgId:%d, balance from dnode:%d to dnode:%d, srcScore:%.1f:%.1f, destScore:%.1f:%.1f",
                  pVgroup->vgId, pSrcDnode->dnodeId, pDestDnode->dnodeId, pSrcDnode->score,
                  srcScore, pDestDnode->score, destScore);
           balanceAddVnode(pVgroup, pSrcDnode, pDestDnode);
@@ -388,14 +388,14 @@ static int32_t balanceMonitorVgroups() {
         pVgroup->lbDnodeId = 0;
         mgmtUpdateVgroup(pVgroup);
         hasUpdatingVgroup = true;
-        mPrint("vgroup:%d, set to ready state", pVgroup->vgId);
+        mPrint("vgId:%d, set to ready state", pVgroup->vgId);
       }
     } else if (vgReplica > dbReplica) {
-      mPrint("vgroup:%d, replica:%d numOfVnodes:%d, try remove one vnode", pVgroup->vgId, dbReplica, vgReplica);
+      mPrint("vgId:%d, replica:%d numOfVnodes:%d, try remove one vnode", pVgroup->vgId, dbReplica, vgReplica);
       hasUpdatingVgroup = true;
       balanceRemoveVnode(pVgroup);
     } else {
-      mPrint("vgroup:%d, replica:%d numOfVnodes:%d, try add one vnode", pVgroup->vgId, dbReplica, vgReplica);
+      mPrint("vgId:%d, replica:%d numOfVnodes:%d, try add one vnode", pVgroup->vgId, dbReplica, vgReplica);
       hasUpdatingVgroup = true;
       balanceAddVnode(pVgroup, NULL, NULL);
     }
@@ -738,7 +738,7 @@ void balanceReleaseDnodeList() {
 }
 
 static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0)  {
