@@ -5,6 +5,7 @@
 #include "tsdb.h"
 #include "tsdbMain.h"
 #include "tscompression.h"
+#include "tchecksum.h"
 
 #define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
 #define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
@@ -202,7 +203,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(-1, -1, (TsdbRepoT *)pRepo);
+  pRepo->tsdbCache = tsdbInitCache(pRepo->config.cacheBlockSize, pRepo->config.totalBlocks, (TsdbRepoT *)pRepo);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);

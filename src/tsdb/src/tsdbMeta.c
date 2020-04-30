@@ -242,7 +242,7 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId id, int32_t colId, int16_t*
   assert(pCol != NULL);
   
   SDataRow row = (SDataRow)pTable->tagVal;
-  char* d = dataRowAt(row, TD_DATA_ROW_HEAD_SIZE);
+  char* d = dataRowTuple(row);
   
   *val = d;
   *type  = pCol->type;
@@ -451,9 +451,8 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   // Update the pMeta->maxCols and pMeta->maxRowBytes
   if (pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_NORMAL_TABLE) {
     if (schemaNCols(pTable->schema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pTable->schema);
-    int bytes = tdMaxRowBytesFromSchema(pTable->schema);
+    int bytes = dataRowMaxBytesFromSchema(pTable->schema);
     if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
-    tdUpdateSchema(pTable->schema);
   }
 
   return tsdbAddTableIntoMap(pMeta, pTable);
@@ -524,5 +523,5 @@ static int tsdbEstimateTableEncodeSize(STable *pTable) {
 char *getTupleKey(const void * data) {
   SDataRow row = (SDataRow)data;
 
-  return dataRowAt(row, TD_DATA_ROW_HEAD_SIZE);
+  return POINTER_DRIFT(row, TD_DATA_ROW_HEAD_SIZE);
 }
