@@ -304,10 +304,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       SSQLToken* pIpAddr = &pInfo->pDCLInfo->a[0];
-      if (!validateIpAddress(pIpAddr->z, pIpAddr->n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-      }
+      // if (!validateIpAddress(pIpAddr->z, pIpAddr->n)) {
+      //   return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+      // }
 
+      pIpAddr->n = strdequote(pIpAddr->z);
       break;
     }
 

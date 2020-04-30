@@ -40,7 +40,6 @@ fi
 
 totalPyFailed=`grep 'failed\|fault' pytest-out.txt | wc -l`
 if [ "$totalPyFailed" -ne "0" ]; then
-  cat pytest-out.txt
   echo -e "${RED} ### Total $totalPyFailed python case(s) failed! ### ${NC}"
   exit $totalPyFailed
 fi

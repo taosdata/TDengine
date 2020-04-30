@@ -72,6 +72,7 @@ void    sdbCleanUp();
 void *  sdbOpenTable(SSdbTableDesc *desc);
 void    sdbCloseTable(void *handle);
 bool    sdbIsMaster();
+bool    sdbIsServing();
 void    sdbUpdateMnodeRoles();
 
 int32_t sdbInsertRow(SSdbOper *pOper);

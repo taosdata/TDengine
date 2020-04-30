@@ -36,7 +36,12 @@ void simLogSql(char *sql) {
   fflush(fp);
 }
 
+char *simParseHostName(char *varName);
 char *simGetVariable(SScript *script, char *varName, int varLen) {
+  if (strncmp(varName, "hostname", 8) == 0) {
+    return simParseHostName(varName);
+  }
+
   if (strncmp(varName, "error", varLen) == 0) return script->error;
 
   if (strncmp(varName, "rows", varLen) == 0) return script->rows;

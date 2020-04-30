@@ -71,7 +71,7 @@ void createDbAndTable() {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
-  taosGetFqdnPortFromEp(tsMaster, fqdn, &port);
+  taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
   con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
   if (con == NULL) {
@@ -198,7 +198,7 @@ void *syncTest(void *param) {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
-  taosGetFqdnPortFromEp(tsMaster, fqdn, &port);
+  taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
   con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
   if (con == NULL) {

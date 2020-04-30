@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
-system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
-system sh/deploy.sh -n dnode2 -m 192.168.0.2 -i 192.168.0.2
-
-system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.1
-system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.1
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
 
 print ========== step1 dnode2 start
 system sh/exec_up.sh -n dnode2 -s start
@@ -17,10 +13,10 @@ sleep 3000
 
 print ========== step3 
 sql show dnodes
-print 192.168.0.1 openvnodes $data3_1
-print 192.168.0.2 openvnodes $data3_2
-print 192.168.0.1 totalvnodes $data4_1
-print 192.168.0.2 totalvnodes $data4_2
+print dnode1 openvnodes $data3_1
+print dnode2 openvnodes $data3_2
+print dnode1 totalvnodes $data4_1
+print dnode2 totalvnodes $data4_2
 
 if $rows != 2 then 
   return -1

@@ -61,7 +61,7 @@ int32_t tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
-char  tsMaster[TSDB_FQDN_LEN] = {0};
+char  tsFirst[TSDB_FQDN_LEN] = {0};
 char  tsSecond[TSDB_FQDN_LEN] = {0};
 char  tsArbitrator[TSDB_FQDN_LEN] = {0};
 char  tsLocalEp[TSDB_FQDN_LEN] = {0};  // Local End Point, hostname:port
@@ -272,9 +272,9 @@ static void doInitGlobalConfig() {
   SGlobalCfg cfg = {0};
   
   // ip address
-  cfg.option = "master";
-  cfg.ptr = tsMaster;
-  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
+  cfg.option = "first";
+  cfg.ptr = tsFirst;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
@@ -284,7 +284,7 @@ static void doInitGlobalConfig() {
 
   cfg.option = "second";
   cfg.ptr = tsSecond;
-  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
@@ -346,7 +346,7 @@ static void doInitGlobalConfig() {
 
   cfg.option = "arbitrator";
   cfg.ptr = tsArbitrator;
-  cfg.valType = TAOS_CFG_VTYPE_IPSTR;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
@@ -1204,9 +1204,10 @@ void taosInitGlobalCfg() {
 bool taosCheckGlobalCfg() {
   taosGetFqdn(tsLocalEp);
   sprintf(tsLocalEp + strlen(tsLocalEp), ":%d", tsServerPort);
+  uPrint("localEp is %s", tsLocalEp);
 
-  if (tsMaster[0] == 0) {
-    strcpy(tsMaster, tsLocalEp);
+  if (tsFirst[0] == 0) {
+    strcpy(tsFirst, tsLocalEp);
   }
 
   if (tsSecond[0] == 0) {

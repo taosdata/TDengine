@@ -1,18 +1,18 @@
 system sh/stop_dnodes.sh
 
-system sh/ip.sh -i 1 -s up
-system sh/ip.sh -i 2 -s up
-system sh/ip.sh -i 3 -s up
-system sh/ip.sh -i 4 -s up
-system sh/ip.sh -i 5 -s up
-system sh/ip.sh -i 6 -s up
 
-system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
-system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
-system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
-system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
-system sh/deploy.sh -n dnode5 -m 192.168.0.1 -i 192.168.0.5
-system sh/deploy.sh -n dnode6 -m 192.168.0.1 -i 192.168.0.6
+
+
+
+
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/deploy.sh -n dnode6 -i 6
 
 system sh/cfg.sh -n dnode1 -c balanceMonitorInterval -v 1
 system sh/cfg.sh -n dnode2 -c balanceMonitorInterval -v 1
@@ -71,10 +71,10 @@ sql insert into d2.t2 values(now+4s, 22)
 sql insert into d2.t2 values(now+5s, 21)
 
 sql show dnodes
-print 192.168.0.1 openVnodes $data3_1
-print 192.168.0.2 openVnodes $data3_2
-print 192.168.0.3 openVnodes $data3_3
-print 192.168.0.4 openVnodes $data3_4
+print dnode1 openVnodes $data3_1
+print dnode2 openVnodes $data3_2
+print dnode3 openVnodes $data3_3
+print dnode4 openVnodes $data3_4
 
 if $data3_1 != 4 then
 	return -1
@@ -101,10 +101,10 @@ show2:
 	endi
 
 sql show dnodes
-print 192.168.0.1 openVnodes $data3_1
-print 192.168.0.2 openVnodes $data3_2
-print 192.168.0.3 openVnodes $data3_3
-print 192.168.0.4 openVnodes $data3_4
+print dnode1 openVnodes $data3_1
+print dnode2 openVnodes $data3_2
+print dnode3 openVnodes $data3_3
+print dnode4 openVnodes $data3_4
 
 if $data3_1 != 2 then
 	goto show2
@@ -134,11 +134,11 @@ show3:
 	endi
 	
 sql show dnodes
-print 192.168.0.1 openVnodes $data3_1
-print 192.168.0.2 openVnodes $data3_2
-print 192.168.0.3 openVnodes $data3_3
-print 192.168.0.4 openVnodes $data3_4
-print 192.168.0.5 openVnodes $data3_5
+print dnode1 openVnodes $data3_1
+print dnode2 openVnodes $data3_2
+print dnode3 openVnodes $data3_3
+print dnode4 openVnodes $data3_4
+print dnode5 openVnodes $data3_5
 
 if $data3_1 != 4 then
 	goto show3
@@ -174,11 +174,11 @@ show4:
 	endi
 
 sql show dnodes
-print 192.168.0.1 openVnodes $data3_1
-print 192.168.0.2 openVnodes $data3_2
-print 192.168.0.3 openVnodes $data3_3
-print 192.168.0.4 openVnodes $data3_4
-print 192.168.0.5 openVnodes $data3_5
+print dnode1 openVnodes $data3_1
+print dnode2 openVnodes $data3_2
+print dnode3 openVnodes $data3_3
+print dnode4 openVnodes $data3_4
+print dnode5 openVnodes $data3_5
 
 if $data3_1 != 4 then
 	goto show4
@@ -209,11 +209,11 @@ show5:
 	endi
 
 sql show dnodes
-print 192.168.0.1 openVnodes $data3_1
-print 192.168.0.2 openVnodes $data3_2
-print 192.168.0.3 openVnodes $data3_3
-print 192.168.0.4 openVnodes $data3_4
-print 192.168.0.5 openVnodes $data3_5
+print dnode1 openVnodes $data3_1
+print dnode2 openVnodes $data3_2
+print dnode3 openVnodes $data3_3
+print dnode4 openVnodes $data3_4
+print dnode5 openVnodes $data3_5
 
 if $data3_1 != 4 then
 	goto show5
@@ -236,11 +236,11 @@ show6:
 	endi
 
 sql show dnodes
-print 192.168.0.1 openVnodes $data3_1
-print 192.168.0.2 openVnodes $data3_2
-print 192.168.0.3 openVnodes $data3_3
-print 192.168.0.4 openVnodes $data3_4
-print 192.168.0.5 openVnodes $data3_5
+print dnode1 openVnodes $data3_1
+print dnode2 openVnodes $data3_2
+print dnode3 openVnodes $data3_3
+print dnode4 openVnodes $data3_4
+print dnode5 openVnodes $data3_5
 
 if $data3_1 != 4 then
 	goto show6
