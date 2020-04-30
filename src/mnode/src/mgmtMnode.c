@@ -30,7 +30,7 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-void * tsMnodeSdb = NULL;
+static void *  tsMnodeSdb = NULL;
 static int32_t tsMnodeUpdateSize = 0;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -71,7 +71,7 @@ static int32_t mgmtMnodeActionUpdate(SSdbOper *pOper) {
     memcpy(pSaved, pMnode, pOper->rowSize);
     free(pMnode);
   }
-
+  mgmtDecMnodeRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -97,7 +97,7 @@ static int32_t mgmtMnodeActionRestored() {
     mgmtGetNextMnode(NULL, &pMnode);
     if (pMnode != NULL) {
       pMnode->role = TAOS_SYNC_ROLE_MASTER;
-      mgmtReleaseMnode(pMnode);
+      mgmtDecMnodeRef(pMnode);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -148,7 +148,11 @@ void *mgmtGetMnode(int32_t mnodeId) {
   return sdbGetRow(tsMnodeSdb, &mnodeId);
 }
 
-void mgmtReleaseMnode(SMnodeObj *pMnode) {
+void mgmtIncMnodeRef(SMnodeObj *pMnode) {
+  sdbIncRef(tsMnodeSdb, pMnode);
+}
+
+void mgmtDecMnodeRef(SMnodeObj *pMnode) {
   sdbDecRef(tsMnodeSdb, pMnode);
 }
 
@@ -187,7 +191,7 @@ void mgmtGetMnodeIpSet(SRpcIpSet *ipSet) {
 
     ipSet->numOfIps++;
     
-    mgmtReleaseMnode(pMnode);
+    mgmtDecMnodeRef(pMnode);
   }
 }
 
@@ -209,7 +213,7 @@ void mgmtGetMnodeInfos(void *param) {
     }
 
     index++;
-    mgmtReleaseMnode(pMnode);
+    mgmtDecMnodeRef(pMnode);
   }
 
   mnodes->nodeNum = index;
@@ -235,8 +239,17 @@ int32_t mgmtAddMnode(int32_t dnodeId) {
   return code;
 }
 
+void mgmtDropMnodeLocal(int32_t dnodeId) {
+  SMnodeObj *pMnode = mgmtGetMnode(dnodeId);
+  if (pMnode != NULL) {
+    SSdbOper oper = {.type = SDB_OPER_LOCAL, .table = tsMnodeSdb, .pObj = pMnode};
+    sdbDeleteRow(&oper);
+    mgmtDecMnodeRef(pMnode);
+  }
+}
+
 int32_t mgmtDropMnode(int32_t dnodeId) {
-  SMnodeObj *pMnode = sdbGetRow(tsMnodeSdb, &dnodeId);
+  SMnodeObj *pMnode = mgmtGetMnode(dnodeId);
   if (pMnode == NULL) {
     return TSDB_CODE_DNODE_NOT_EXIST;
   }
@@ -258,7 +271,7 @@ int32_t mgmtDropMnode(int32_t dnodeId) {
 
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   sdbUpdateMnodeRoles();
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0)  {
@@ -339,7 +352,7 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     
     numOfRows++;
 
-    mgmtReleaseMnode(pMnode);
+    mgmtDecMnodeRef(pMnode);
   }
 
   pShow->numOfReads += numOfRows;

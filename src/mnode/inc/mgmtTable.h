@@ -22,13 +22,15 @@ extern "C" {
 
 #include "mgmtDef.h"
 
-int32_t     mgmtInitTables();
-void        mgmtCleanUpTables();
-STableObj*  mgmtGetTable(char* tableId);
-void        mgmtIncTableRef(void *pTable); 
-void        mgmtDecTableRef(void *pTable);
-void        mgmtDropAllChildTables(SDbObj *pDropDb);
-void        mgmtDropAllSuperTables(SDbObj *pDropDb);
+int32_t mgmtInitTables();
+void    mgmtCleanUpTables();
+void *  mgmtGetTable(char *tableId);
+void    mgmtIncTableRef(void *pTable);
+void    mgmtDecTableRef(void *pTable);
+void *  mgmtGetNextChildTable(void *pNode, SChildTableObj **pTable);
+void *  mgmtGetNextSuperTable(void *pNode, SSuperTableObj **pTable);
+void    mgmtDropAllChildTables(SDbObj *pDropDb);
+void    mgmtDropAllSuperTables(SDbObj *pDropDb);
 
 #ifdef __cplusplus
 }

@@ -36,9 +36,9 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-void   *tsDnodeSdb = NULL;
-int32_t tsDnodeUpdateSize = 0;
 int32_t tsAccessSquence = 0;
+static void   *tsDnodeSdb = NULL;
+static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
 extern void *  tsVgroupSdb;
 
@@ -73,39 +73,12 @@ static int32_t mgmtDnodeActionInsert(SSdbOper *pOper) {
 
 static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
-  void *     pNode = NULL;
-  void *     pLastNode = NULL;
-  SVgObj *   pVgroup = NULL;
-  int32_t    numOfVgroups = 0;
-
-  while (1) {
-    pLastNode = pNode;
-    pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
-    if (pVgroup == NULL) break;
-
-    if (pVgroup->vnodeGid[0].dnodeId == pDnode->dnodeId) {
-      SSdbOper oper = {
-        .type = SDB_OPER_LOCAL,
-        .table = tsVgroupSdb,
-        .pObj = pVgroup,
-      };
-      sdbDeleteRow(&oper);
-      pNode = pLastNode;
-      numOfVgroups++;
-      continue;
-    }
-  }
-
-  SMnodeObj *pMnode = mgmtGetMnode(pDnode->dnodeId);
-  if (pMnode != NULL) {
-    SSdbOper oper = {.type = SDB_OPER_LOCAL, .table = tsMnodeSdb, .pObj = pMnode};
-    sdbDeleteRow(&oper);
-    mgmtReleaseMnode(pMnode);
-  }
-
+ 
+  mgmtDropAllDnodeVgroups(pDnode);
+  mgmtDropMnodeLocal(pDnode->dnodeId);
   balanceNotify();
 
-  mTrace("dnode:%d, all vgroups:%d is dropped from sdb", pDnode->dnodeId, numOfVgroups);
+  mTrace("dnode:%d, all vgroups is dropped from sdb", pDnode->dnodeId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -116,6 +89,7 @@ static int32_t mgmtDnodeActionUpdate(SSdbOper *pOper) {
     memcpy(pSaved, pDnode, pOper->rowSize);
     free(pDnode);
   }
+  mgmtDecDnodeRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -212,7 +186,7 @@ void *mgmtGetDnodeByIp(char *ep) {
   void *     pNode = NULL;
 
   while (1) {
-    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)&pDnode);
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
     if (strcmp(ep, pDnode->dnodeEp) == 0) {
       return pDnode;
@@ -235,8 +209,7 @@ void mgmtUpdateDnode(SDnodeObj *pDnode) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
-    .pObj = pDnode,
-    .rowSize = tsDnodeUpdateSize
+    .pObj = pDnode
   };
 
   sdbUpdateRow(&oper);
@@ -336,7 +309,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
       SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->dnodeEp);
-      mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
+      mPrint("dnode:%d, vgId:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
       mgmtSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
       mgmtUpdateVgroupStatus(pVgroup, pDnode, pVload);
@@ -387,6 +360,7 @@ static int32_t mgmtCreateDnode(char *ep) {
 
   SDnodeObj *pDnode = mgmtGetDnodeByIp(ep);
   if (pDnode != NULL) {
+    mgmtDecDnodeRef(pDnode);
     mError("dnode:%d is alredy exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
     return TSDB_CODE_DNODE_ALREADY_EXIST;
   }
@@ -440,6 +414,7 @@ static int32_t mgmtDropDnodeByIp(char *ep) {
     return TSDB_CODE_DNODE_NOT_EXIST;
   }
 
+  mgmtDecDnodeRef(pDnode);
   if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
     return TSDB_CODE_NO_REMOVE_MASTER;
@@ -464,6 +439,7 @@ static void mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
       SDnodeObj *pDnode = mgmtGetDnodeByIp(pCreate->ep);
       mLPrint("dnode:%d, %s is created by %s", pDnode->dnodeId, pCreate->ep, pMsg->pUser->user);
+      mgmtDecDnodeRef(pDnode);
     } else {
       mError("failed to create dnode:%s, reason:%s", pCreate->ep, tstrerror(rpcRsp.code));
     }
@@ -492,7 +468,7 @@ static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
 }
 
 static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
@@ -609,7 +585,7 @@ static bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
 static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->user, "root") != 0)  {
@@ -719,7 +695,7 @@ static bool mgmtCheckConfigShow(SGlobalCfg *cfg) {
 static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->user, "root") != 0)  {
@@ -806,7 +782,7 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
 
 static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
   
   if (strcmp(pUser->user, "root") != 0)  {

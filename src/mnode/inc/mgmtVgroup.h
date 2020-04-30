@@ -32,7 +32,8 @@ void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
 void    mgmtIncVgroupRef(SVgObj *pVgroup);
 void    mgmtDecVgroupRef(SVgObj *pVgroup);
-void    mgmtDropAllVgroups(SDbObj *pDropDb);
+void    mgmtDropAllDbVgroups(SDbObj *pDropDb);
+void    mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode);
 
 void *  mgmtGetNextVgroup(void *pNode, SVgObj **pVgroup);
 void    mgmtUpdateVgroup(SVgObj *pVgroup);

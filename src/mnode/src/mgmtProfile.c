@@ -675,7 +675,7 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
 void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
-  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
@@ -699,7 +699,7 @@ void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
 void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
-  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
@@ -723,7 +723,7 @@ void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
 void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
-  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
