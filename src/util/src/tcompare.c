@@ -333,3 +333,30 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
   
   return comparFn;
 }
+
+int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
+  switch (type) {
+    case TSDB_DATA_TYPE_INT:        DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
+    case TSDB_DATA_TYPE_DOUBLE:     DEFAULT_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
+    case TSDB_DATA_TYPE_FLOAT:      DEFAULT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
+    case TSDB_DATA_TYPE_BIGINT:     DEFAULT_COMP(GET_INT64_VAL(f1), GET_INT64_VAL(f2));
+    case TSDB_DATA_TYPE_SMALLINT:   DEFAULT_COMP(GET_INT16_VAL(f1), GET_INT16_VAL(f2));
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_BOOL:       DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
+    case TSDB_DATA_TYPE_NCHAR: {
+      int32_t ret = wcsncmp((wchar_t*) f1, (wchar_t*) f2, size/TSDB_NCHAR_SIZE);
+      if (ret == 0) {
+        return ret;
+      }
+      return (ret < 0) ? -1 : 1;
+    }
+    default: {
+      int32_t ret = strncmp(f1, f2, (size_t)size);
+      if (ret == 0) {
+        return ret;
+      }
+      
+      return (ret < 0) ? -1 : 1;
+    }
+  }
+}

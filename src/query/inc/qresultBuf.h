@@ -51,7 +51,7 @@ typedef struct SDiskbasedResultBuf {
  * @param rowSize
  * @return
  */
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize);
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize, void* handle);
 
 /**
  *

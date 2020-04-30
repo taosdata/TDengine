@@ -1252,8 +1252,10 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
       for (int32_t vn = 0; vn < vgItem->numOfVnodes; ++vn) {
         SDnodeObj *pDnode = vgItem->vnodeGid[vn].pDnode;
         if (pDnode == NULL) break;
-      
+  
+        strncpy(pVgroup->vgroups[vg].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
         pVgroup->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
+        
         pVgroup->vgroups[vg].numOfIps++;
       }
     

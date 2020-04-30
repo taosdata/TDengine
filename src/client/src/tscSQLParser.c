@@ -296,17 +296,17 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       break;
     }
 
-    case TSDB_SQL_CREATE_DNODE: {  // todo parse hostname
-      const char* msg = "invalid ip address";
+    case TSDB_SQL_CREATE_DNODE: {  // todo hostname
+      const char* msg = "invalid host name (ip address)";
 
       if (pInfo->pDCLInfo->nTokens > 1) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       }
 
-      SSQLToken* pIpAddr = &pInfo->pDCLInfo->a[0];
-      if (!validateIpAddress(pIpAddr->z, pIpAddr->n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-      }
+//      SSQLToken* pIpAddr = &pInfo->pDCLInfo->a[0];
+//      if (!validateIpAddress(pIpAddr->z, pIpAddr->n)) {
+//        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+//      }
 
       break;
     }
@@ -1325,7 +1325,7 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
     pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;
   } else {
     index.columnIndex = colIndex;
-    pQueryInfo->type = TSDB_QUERY_TYPE_PROJECTION_QUERY;
+    pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
   }
   
   return tscSqlExprAppend(pQueryInfo, functionId, &index, pSchema->type, pSchema->bytes,
@@ -2342,7 +2342,7 @@ bool hasUnsupportFunctionsForSTableQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
-    if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_METRIC) == 0) {
+    if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_STABLE) == 0) {
       invalidSqlErrMsg(pQueryInfo->msg, msg3);
       return true;
     }
@@ -5111,7 +5111,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo) {
       doUpdateSqlFunctionForColPrj(pQueryInfo);
     }
   } else {
-    if ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) == TSDB_QUERY_TYPE_PROJECTION_QUERY) {
+    if ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0) {
       if (numOfAggregation > 0 && pQueryInfo->groupbyExpr.numOfGroupCols == 0) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg3);
       }
@@ -5747,6 +5747,8 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
    if (code != TSDB_CODE_SUCCESS) {
      return code;
    }
+  } else {
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
   }
 
   // parse the group by clause in the first place

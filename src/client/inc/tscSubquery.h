@@ -29,8 +29,8 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql);
 int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql);
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 
-SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
-void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter);
+SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
+void tscDestroyJoinSupporter(SJoinSupporter* pSupporter);
 
 int32_t tscHandleMasterJoinQuery(SSqlObj* pSql);
 

@@ -51,7 +51,14 @@ typedef struct SParsedDataColInfo {
   bool           hasVal[TSDB_MAX_COLUMNS];
 } SParsedDataColInfo;
 
-typedef struct SJoinSubquerySupporter {
+typedef struct STidTags {
+  int64_t  uid;
+  int32_t  tid;
+  int32_t  vgId;
+  char     tag[];
+} STidTags;
+
+typedef struct SJoinSupporter {
   SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
@@ -65,8 +72,17 @@ typedef struct SJoinSubquerySupporter {
   SSqlGroupbyExpr groupbyExpr;
   struct STSBuf*  pTSBuf;          // the TSBuf struct that holds the compressed timestamp array
   FILE*           f;               // temporary file in order to create TSBuf
-  char            path[PATH_MAX];  // temporary file path
-} SJoinSubquerySupporter;
+  char            path[PATH_MAX];  // temporary file path, todo dynamic allocate memory
+  int32_t         tagSize;         // the length of each in the first filter stage
+  char*           pIdTagList;      // result of first stage tags
+  int32_t         totalLen;
+  int32_t         num;
+} SJoinSupporter;
+
+typedef struct SVgroupTableInfo {
+  SCMVgroupInfo vgInfo;
+  SArray*       itemList;   //SArray<STableIdInfo>
+} SVgroupTableInfo;
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
                            STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
@@ -87,7 +103,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
                                 int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks);
 
-UNUSED_FUNC STableIdInfo*  tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
+//UNUSED_FUNC STableIdInfo*  tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
 
 /**
  *
@@ -190,7 +206,6 @@ bool tscShouldFreeHeatBeat(SSqlObj* pHb);
 void tscCleanSqlCmd(SSqlCmd* pCmd);
 bool tscShouldBeFreed(SSqlObj* pSql);
 
-void            tscClearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
 STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 

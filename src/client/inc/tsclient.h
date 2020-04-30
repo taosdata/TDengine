@@ -67,9 +67,10 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct STableMetaInfo {
-  STableMeta *  pTableMeta;  // table meta, cached in client side and acquried by name
+  STableMeta *  pTableMeta;      // table meta, cached in client side and acquired by name
   SVgroupsInfo *vgroupList;
-
+  SArray       *pVgroupTables;   // SArray<SVgroupTableInfo>
+  
   /*
    * 1. keep the vgroup index during the multi-vnode super table projection query
    * 2. keep the vgroup index for multi-vnode insertion
@@ -382,7 +383,6 @@ int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscResetSqlCmdObj(SSqlCmd *pCmd);
-void tscFreeResData(SSqlObj *pSql);
 
 /**
  * free query result of the sql object

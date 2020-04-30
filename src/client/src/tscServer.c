@@ -45,15 +45,15 @@ void tscSaveSubscriptionProgress(void* sub);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 
-static void tscSetDnodeIpList(SSqlObj* pSql, STableMeta* pTableMeta) {
+static void tscSetDnodeIpList(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
   SRpcIpSet* pIpList = &pSql->ipList;
   
-  pIpList->numOfIps = pTableMeta->vgroupInfo.numOfIps;
+  pIpList->numOfIps = pVgroupInfo->numOfIps;
   pIpList->inUse    = 0;
   
-  for(int32_t i = 0; i < pTableMeta->vgroupInfo.numOfIps; ++i) {
-    strcpy(pIpList->fqdn[i], pTableMeta->vgroupInfo.ipAddr[i].fqdn);
-    pIpList->port[i] = pTableMeta->vgroupInfo.ipAddr[i].port;
+  for(int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
+    strcpy(pIpList->fqdn[i], pVgroupInfo->ipAddr[i].fqdn);
+    pIpList->port[i] = pVgroupInfo->ipAddr[i].port;
   }
 }
 
@@ -198,7 +198,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   }
 
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
-    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
+    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port[0]);
     memcpy(pMsg, pSql->cmd.payload + tsRpcHeadSize, pSql->cmd.payloadLen);
 
     SRpcMsg rpcMsg = {
@@ -341,7 +341,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
       tscTrace("%p cmd:%d code:%s rsp len:%d", pSql, pCmd->command, tstrerror(pRes->code), pRes->rspLen);
     }
   }
-
+  
   if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   
@@ -559,7 +559,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscSetDnodeIpList(pSql, pTableMeta);
+  tscSetDnodeIpList(pSql, &pTableMeta->vgroupInfo);
   
   tscTrace("%p build submit msg, vgId:%d numOfVgroup:%d numberOfIP:%d", pSql, vgId, htonl(pMsgDesc->numOfVnodes), pSql->ipList.numOfIps);
   return TSDB_CODE_SUCCESS;
@@ -589,18 +589,65 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   return size;
 }
 
-static char *doSerializeTableInfo(SSqlObj *pSql, int32_t vgId, char *pMsg) {
+static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-  tscTrace("%p vgId:%d, query on table:%s, uid:%" PRIu64, pSql, vgId, pTableMetaInfo->name, pTableMeta->uid);
+  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
+    
+    SCMVgroupInfo* pVgroupInfo = NULL;
+    if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+      pVgroupInfo = &pTableMeta->vgroupInfo;
+    } else {
+      int32_t index = pTableMetaInfo->vgroupIndex;
+      assert(index >= 0);
+      
+      pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
+      tscTrace("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
+    }
+    
+    tscSetDnodeIpList(pSql, pVgroupInfo);
+    pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
+    
+    STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
+    pTableIdInfo->tid = htonl(pTableMeta->sid);
+    pTableIdInfo->uid = htobe64(pTableMeta->uid);
+    pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
   
-  STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
-  pTableIdInfo->sid = htonl(pTableMeta->sid);
-  pTableIdInfo->uid = htobe64(pTableMeta->uid);
-  pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
+    pQueryMsg->numOfTables = htonl(1);  // set the number of tables
+    
+    pMsg += sizeof(STableIdInfo);
+  } else {
+    int32_t index = pTableMetaInfo->vgroupIndex;
+    int32_t numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+    assert(index >= 0 && index < numOfVgroups);
   
-  pMsg += sizeof(STableIdInfo);
+    tscTrace("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, numOfVgroups);
+    
+    SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
+    
+    // set the vgroup info
+    tscSetDnodeIpList(pSql, &pTableIdList->vgInfo);
+    pQueryMsg->head.vgId = htonl(pTableIdList->vgInfo.vgId);
+    
+    int32_t numOfTables = taosArrayGetSize(pTableIdList->itemList);
+    pQueryMsg->numOfTables = htonl(numOfTables);  // set the number of tables
+  
+    // serialize each table id info
+    for(int32_t i = 0; i < numOfTables; ++i) {
+      STableIdInfo* pItem = taosArrayGet(pTableIdList->itemList, i);
+      
+      STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
+      pTableIdInfo->tid = htonl(pItem->tid);
+      pTableIdInfo->uid = htobe64(pItem->uid);
+//      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
+      pMsg += sizeof(STableIdInfo);
+    }
+  }
+  
+  tscTrace("%p vgId:%d, query on table:%s, uid:%" PRIu64, pSql, htonl(pQueryMsg->head.vgId), pTableMetaInfo->name,
+      pTableMeta->uid);
+  
   return pMsg;
 }
 
@@ -637,38 +684,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pStart;
 
-  int32_t msgLen      = 0;
-  int32_t numOfTables = 0;
-  int32_t numOfTags   = taosArrayGetSize(pTableMetaInfo->tagColList);
-
-  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
-    numOfTables = 1;
-    tscSetDnodeIpList(pSql, pTableMeta);
-    pQueryMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-    tscTrace("%p queried tables:%d, table name: %s", pSql, 1, pTableMetaInfo->name);
-  } else {  // query super table
-    int32_t index = pTableMetaInfo->vgroupIndex;
-    if (index < 0) {
-      tscError("%p error vgroupIndex:%d", pSql, index);
-      return -1;
-    }
-    
-    SCMVgroupInfo* pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
-    
-    pSql->ipList.numOfIps = pVgroupInfo->numOfIps; // todo fix me
-    pSql->ipList.inUse    = 0;
+  int32_t numOfTags = taosArrayGetSize(pTableMetaInfo->tagColList);
   
-    for(int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
-      strcpy(pSql->ipList.fqdn[i], pVgroupInfo->ipAddr[i].fqdn);
-      pSql->ipList.port[i] = pVgroupInfo->ipAddr[i].port;
-    }
-    
-    tscTrace("%p query on super table, numOfVgroup:%d, vgroupIndex:%d", pSql, pTableMetaInfo->vgroupList->numOfVgroups, index);
-    
-    pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
-    numOfTables = 1;
-  }
-
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {
     pQueryMsg->window.skey = htobe64(pQueryInfo->window.skey);
     pQueryMsg->window.ekey = htobe64(pQueryInfo->window.ekey);
@@ -677,7 +694,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->window.ekey = htobe64(pQueryInfo->window.skey);
   }
 
-  pQueryMsg->numOfTables    = htonl(numOfTables);
   pQueryMsg->order          = htons(pQueryInfo->order.order);
   pQueryMsg->orderColId     = htons(pQueryInfo->order.orderColId);
   pQueryMsg->interpoType    = htons(pQueryInfo->interpoType);
@@ -782,10 +798,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   }
-
+  
   // serialize the table info (sid, uid, tags)
-  pMsg = doSerializeTableInfo(pSql, htons(pQueryMsg->head.vgId), pMsg);
-
+  pMsg = doSerializeTableInfo(pQueryMsg, pSql, pMsg);
+  
   SSqlGroupbyExpr *pGroupbyExpr = &pQueryInfo->groupbyExpr;
   if (pGroupbyExpr->numOfGroupCols > 0) {
     pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
@@ -891,8 +907,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pMsg += strlen(pQueryInfo->tagCond.tbnameCond.cond) + 1;
   }
 
-  // tbname in/like query expression should be sent to mgmt node
-  msgLen = pMsg - pStart;
+  int32_t msgLen = pMsg - pStart;
 
   tscTrace("%p msg built success,len:%d bytes", pSql, msgLen);
   pCmd->payloadLen = msgLen;

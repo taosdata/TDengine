@@ -76,7 +76,9 @@ bool tscQueryOnSTable(SSqlCmd* pCmd) {
 
 bool tscQueryTags(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    if (tscSqlExprGet(pQueryInfo, i)->functionId != TSDB_FUNC_TAGPRJ) {
+    int32_t functId = tscSqlExprGet(pQueryInfo, i)->functionId;
+    
+    if (functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_TID_TAG) {
       return false;
     }
   }
@@ -123,23 +125,23 @@ void tscGetDBInfoFromMeterId(char* tableId, char* db) {
   db[0] = 0;
 }
 
-STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
-  if (pSidList == NULL) {
-    tscError("illegal sidlist");
-    return 0;
-  }
-
-  if (idx < 0 || idx >= pSidList->numOfSids) {
-    int32_t sidRange = (pSidList->numOfSids > 0) ? (pSidList->numOfSids - 1) : 0;
-
-    tscError("illegal sidIdx:%d, reset to 0, sidIdx range:%d-%d", idx, 0, sidRange);
-    idx = 0;
-  }
-  
-  assert(pSidList->pSidExtInfoList[idx] >= 0);
-  
-  return (STableIdInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
-}
+//STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
+//  if (pSidList == NULL) {
+//    tscError("illegal sidlist");
+//    return 0;
+//  }
+//
+//  if (idx < 0 || idx >= pSidList->numOfSids) {
+//    int32_t sidRange = (pSidList->numOfSids > 0) ? (pSidList->numOfSids - 1) : 0;
+//
+//    tscError("illegal sidIdx:%d, reset to 0, sidIdx range:%d-%d", idx, 0, sidRange);
+//    idx = 0;
+//  }
+//
+//  assert(pSidList->pSidExtInfoList[idx] >= 0);
+//
+//  return (STableIdInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
+//}
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
@@ -919,7 +921,6 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   
   SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
-  
   pExpr->functionId = functionId;
   
   // set the correct column index
@@ -1596,6 +1597,35 @@ void tscClearSubqueryInfo(SSqlCmd* pCmd) {
   }
 }
 
+void doRemoveTableMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFromCache) {
+  if (index < 0 || index >= pQueryInfo->numOfTables) {
+    return;
+  }
+  
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index);
+  
+  tscClearTableMetaInfo(pTableMetaInfo, removeFromCache);
+  free(pTableMetaInfo);
+  
+  int32_t after = pQueryInfo->numOfTables - index - 1;
+  if (after > 0) {
+    memmove(&pQueryInfo->pTableMetaInfo[index], &pQueryInfo->pTableMetaInfo[index + 1], after * POINTER_BYTES);
+  }
+  
+  pQueryInfo->numOfTables -= 1;
+}
+
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
+  tscTrace("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
+  
+  int32_t index = pQueryInfo->numOfTables;
+  while (index >= 0) {
+    doRemoveTableMetaInfo(pQueryInfo, --index, removeFromCache);
+  }
+  
+  tfree(pQueryInfo->pTableMetaInfo);
+}
+
 void tscFreeQueryInfo(SSqlCmd* pCmd) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return;
@@ -1606,7 +1636,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
 
     freeQueryInfoImpl(pQueryInfo);
-    tscClearAllTableMetaInfo(pQueryInfo, (const char*)addr, false);
+    clearAllTableMetaInfo(pQueryInfo, (const char*)addr, false);
     tfree(pQueryInfo);
   }
 
@@ -1655,35 +1685,6 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo* pQueryInfo) {
   return tscAddTableMetaInfo(pQueryInfo, NULL, NULL, NULL, NULL);
-}
-
-void doRemoveTableMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFromCache) {
-  if (index < 0 || index >= pQueryInfo->numOfTables) {
-    return;
-  }
-
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index);
-
-  tscClearTableMetaInfo(pTableMetaInfo, removeFromCache);
-  free(pTableMetaInfo);
-
-  int32_t after = pQueryInfo->numOfTables - index - 1;
-  if (after > 0) {
-    memmove(&pQueryInfo->pTableMetaInfo[index], &pQueryInfo->pTableMetaInfo[index + 1], after * POINTER_BYTES);
-  }
-
-  pQueryInfo->numOfTables -= 1;
-}
-
-void tscClearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
-  tscTrace("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
-
-  int32_t index = pQueryInfo->numOfTables;
-  while (index >= 0) {
-    doRemoveTableMetaInfo(pQueryInfo, --index, removeFromCache);
-  }
-
-  tfree(pQueryInfo->pTableMetaInfo);
 }
 
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache) {

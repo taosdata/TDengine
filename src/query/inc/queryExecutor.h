@@ -169,6 +169,7 @@ typedef struct SQInfo {
   int32_t          code;              // error code to returned to client
   sem_t            dataReady;
   void*            tsdb;
+  int32_t          vgId;
   
   STableGroupInfo  tableIdGroupInfo;  // table id list < only includes the STableId list>
   STableGroupInfo  groupInfo;         //
@@ -185,7 +186,6 @@ typedef struct SQInfo {
    */
   int32_t         tableIndex;
   int32_t         numOfGroupResultPages;
-  TSKEY*          tsList;
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

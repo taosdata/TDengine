@@ -7,7 +7,7 @@
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize) {
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize, void* handle) {
   SDiskbasedResultBuf* pResBuf = calloc(1, sizeof(SDiskbasedResultBuf));
   pResBuf->numOfRowsPerPage = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / rowSize;
   pResBuf->numOfPages = size;
@@ -41,11 +41,13 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
 
   pResBuf->pBuf = mmap(NULL, pResBuf->totalBufSize, PROT_READ | PROT_WRITE, MAP_SHARED, pResBuf->fd, 0);
   if (pResBuf->pBuf == MAP_FAILED) {
-    qError("QInfo:%p failed to map temp file: %s. %s", pResBuf->path, strerror(errno));
+    qError("QInfo:%p failed to map temp file: %s. %s", handle, pResBuf->path, strerror(errno));
     return TSDB_CODE_CLI_OUT_OF_MEMORY; // todo change error code
   }
 
-  qTrace("create tmp file for output result, %s, " PRId64 "bytes", pResBuf->path, pResBuf->totalBufSize);
+  qTrace("QInfo:%p create tmp file for output result, %s, %" PRId64 "bytes", handle, pResBuf->path,
+      pResBuf->totalBufSize);
+  
   *pResultBuf = pResBuf;
   return TSDB_CODE_SUCCESS;
 }

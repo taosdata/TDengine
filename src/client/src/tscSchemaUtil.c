@@ -83,7 +83,6 @@ STableComInfo tscGetTableInfo(const STableMeta* pTableMeta) {
   return pTableMeta->tableInfo;
 }
 
-
 bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
   if (!VALIDNUMOFCOLS(numOfCols)) {
     return false;
@@ -183,7 +182,6 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   
   return pTableMeta;
 }
-
 
 /**
  * the TableMeta data format in memory is as follows:
