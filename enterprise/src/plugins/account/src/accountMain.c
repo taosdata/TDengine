@@ -53,10 +53,8 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
-extern void *  tsMgmtTmr;
 extern void *  tsAcctSdb;
-extern int32_t tsAcctUpdateSize;
-extern void *  tsDnodeSdb;
+extern void *  tsMgmtTmr;
 static void *  tsMgmtStatisTimer = NULL;
 
 static int64_t acctGetStatistic(SAcctObj *pAcct);
@@ -281,7 +279,7 @@ void acctCleanUp() {
 }
 
 static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
@@ -480,8 +478,7 @@ static int32_t acctUpdateAcct(SAcctObj *pAcct) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
-    .pObj = pAcct,
-    .rowSize = tsAcctUpdateSize
+    .pObj = pAcct
   };
 
   int32_t code = sdbUpdateRow(&oper);

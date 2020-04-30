@@ -25,6 +25,9 @@
 #include "machine.h"
 #include "mnode.h"
 #include "mgmtDef.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtTable.h"
 #include "mgmtDServer.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
@@ -36,9 +39,6 @@
 #define min(x, y) (x)<(y)?(x):(y)
 
 extern void *tsMgmtTmr;
-extern void *tsDnodeSdb;
-extern void *tsDbSdb;
-extern void *tsChildTableSdb;
 extern SGrantObj grantObj;
 
 static char   *grantSecondsToString(uint32_t seconds);
@@ -102,6 +102,7 @@ static char *grantSecondsToString(uint32_t seconds) {
   strftime(ts, 64, "%Y-%m-%d %H:%M:%S", ptm);
   return ts;
 }
+
 static uint32_t grantGetCulsterCreateTime() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
@@ -111,9 +112,10 @@ static uint32_t grantGetCulsterCreateTime() {
 
   int64_t createTime = (int64_t)taosGetTimestampMs();
   while (1) {
-    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
     createTime = createTime < pDnode->createdTime ? createTime : pDnode->createdTime;
+    mgmtDecDnodeRef(pDnode);
   }
 
   while (1) {
@@ -131,9 +133,10 @@ static uint32_t grantGetCulsterCreateTime() {
   }
 
   while (1) {
-    pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
+    pNode = mgmtGetNextDb(pNode, &pDb);
     if (pDb == NULL) break;
     createTime = createTime < pDb->createdTime ? createTime : pDb->createdTime;
+    mgmtDecDbRef(pDb);
   }
 
   return (uint32_t)(createTime / 1000);
@@ -147,13 +150,14 @@ static uint32_t grantGetCulsterCurTimeSeries() {
   uint32_t        numOfPoints = 0;
 
   while (1) {
-    pNode = sdbFetchRow(tsChildTableSdb, pNode, (void **)&pTable);
+    pNode = mgmtGetNextChildTable(pNode, &pTable);
     if (pTable == NULL) break;
     if (pTable->superTable != NULL) {
       numOfPoints += (pTable->superTable->numOfColumns - 1);
     } else {
       numOfPoints += (pTable->numOfColumns - 1);
     }
+    mgmtDecTableRef(pTable);
   }
 
   return numOfPoints;
@@ -167,9 +171,10 @@ static uint32_t grantGetCulsterCurDbs() {
   uint32_t numOfDbs = 0;
 
   while (1) {
-    pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
+    pNode = mgmtGetNextDb(pNode, &pDb);
     if (pDb == NULL) break;
     if (strcmp(pDb->name, tsMonitorDbName) != 0) numOfDbs++;
+    mgmtDecDbRef(pDb);
   }
 
   return numOfDbs;
@@ -219,9 +224,10 @@ static uint32_t grantGetCulsterCurDnodes() {
   int32_t    numOfDnodes = 0;
 
   while (1) {
-    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
     numOfDnodes++;
+    mgmtDecDnodeRef(pDnode);
   }
 
   return numOfDnodes;
@@ -234,9 +240,10 @@ static uint32_t grantGetCulsterCurCpuCores() {
   uint32_t   numOfCpuCores = 0;
 
   while (1) {
-    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
     numOfCpuCores += pDnode->numOfCores;
+    mgmtDecDnodeRef(pDnode);
   }
 
   return numOfCpuCores;
@@ -561,12 +568,15 @@ static void grantCheckGrantInfo() {
     void *     pNode = NULL;
     SDnodeObj *pDnode = NULL;
     while (1) {
-      pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
+      pNode = mgmtGetNextDnode(pNode, &pDnode);
       if (pDnode == NULL) break;
 
-      if (pDnode->status == 0) { //TSDB_DN_STATUS_OFFLINE
+      if (pDnode->status == 0) {  // TSDB_DN_STATUS_OFFLINE
+        mgmtDecDnodeRef(pDnode);
         return;
-      };
+      }
+
+      mgmtDecDnodeRef(pDnode);
     }
 
     uint32_t curTime = taosGetTimestampSec();
@@ -699,9 +709,9 @@ static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 }
 
 int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t   numOfRows = 0;
-  char *pWrite;
-  int32_t   cols = 0;
+  int32_t numOfRows = 0;
+  char *  pWrite;
+  int32_t cols = 0;
 
   if (pShow->numOfReads < 1) {
     cols = 0;
