@@ -41,8 +41,8 @@
 #include "mgmtVgroup.h"
 #include "tcompare.h"
 
-static void *  tsChildTableSdb;
-static void *  tsSuperTableSdb;
+void *  tsChildTableSdb;
+void *  tsSuperTableSdb;
 static int32_t tsChildTableUpdateSize;
 static int32_t tsSuperTableUpdateSize;
 static void *  mgmtGetChildTable(char *tableId);
