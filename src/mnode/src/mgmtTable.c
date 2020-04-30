@@ -41,8 +41,8 @@
 #include "mgmtVgroup.h"
 #include "tcompare.h"
 
-void *  tsChildTableSdb;
-void *  tsSuperTableSdb;
+static void *  tsChildTableSdb;
+static void *  tsSuperTableSdb;
 static int32_t tsChildTableUpdateSize;
 static int32_t tsSuperTableUpdateSize;
 static void *  mgmtGetChildTable(char *tableId);
@@ -361,7 +361,7 @@ static void mgmtCleanUpChildTables() {
 
 static void mgmtAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
   if (pStable->vgLen == 0) {
-    pStable->vgLen = 10;
+    pStable->vgLen = 8;
     pStable->vgList = calloc(pStable->vgLen, sizeof(int32_t));
   }
   
