@@ -351,8 +351,27 @@ bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
 }
 
+#if 0
+void mgmtPrintVgroups(SDbObj *pDb, char *oper) {
+  mPrint("db:%s, vgroup link from head, oper:%s", pDb->name, oper);  
+  SVgObj *pVgroup = pDb->pHead;
+  while (pVgroup != NULL) {
+    mPrint("vgId:%d", pVgroup->vgId);
+    pVgroup = pVgroup->next;
+  }
+
+  mPrint("db:%s, vgroup link from tail", pDb->name, pDb->numOfVgroups);
+  pVgroup = pDb->pTail;
+  while (pVgroup != NULL) {
+    mPrint("vgId:%d", pVgroup->vgId);
+    pVgroup = pVgroup->prev;
+  }
+}
+#endif
+
 void mgmtAddVgroupIntoDb(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
+
   pVgroup->next = pDb->pHead;
   pVgroup->prev = NULL;
 

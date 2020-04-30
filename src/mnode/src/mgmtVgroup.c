@@ -516,7 +516,7 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   }
   
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxTables) {
-    mgmtAddVgroupIntoDbTail(pVgroup);
+    mgmtMoveVgroupToTail(pVgroup);
   }
 
   mgmtIncVgroupRef(pVgroup);
@@ -529,10 +529,7 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
     pVgroup->numOfTables--;
   }
 
-  if (pVgroup->numOfTables == 0) {
-    mgmtRemoveVgroupFromDb(pVgroup);
-  }
-
+  mgmtMoveVgroupToHead(pVgroup);
   mgmtDecVgroupRef(pVgroup);
 }
 
