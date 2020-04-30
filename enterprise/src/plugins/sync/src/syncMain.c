@@ -41,12 +41,12 @@ int       tsSyncTimer = 1;
 
 // module global, not configurable
 int       tsSyncNum;    // number of sync in process in whole system
+char      tsNodeFqdn[TSDB_FQDN_LEN];
 
 static int            tsNodeNum;    // number of nodes in system
 static ttpool_h       tsTcpPool;
 static void          *syncTmrCtrl = NULL;
 static void          *vgIdHash;
-static char           tsNodeFqdn[TSDB_FQDN_LEN];
 static pthread_once_t syncModuleInit = PTHREAD_ONCE_INIT;
 
 // local functions

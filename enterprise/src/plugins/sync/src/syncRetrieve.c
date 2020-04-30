@@ -414,11 +414,13 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
 static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
-  SSyncHead   firstPkt;
 
+  SFirstPkt firstPkt;
   memset(&firstPkt, 0, sizeof(firstPkt));
-  firstPkt.type = TAOS_SMSG_SYNC_DATA;
-  firstPkt.vgId = pNode->vgId;
+  firstPkt.syncHead.type = TAOS_SMSG_SYNC_DATA;
+  firstPkt.syncHead.vgId = pNode->vgId;
+  strcpy(firstPkt.fqdn, tsNodeFqdn);
+  firstPkt.port = tsSyncPort;
 
   if (write(pPeer->syncFd, (char *) &firstPkt, sizeof(firstPkt)) < 0) {
     sError("vgId:%d peer:%s, failed to send syncCmd", pNode->vgId, pPeer->fqdn);
