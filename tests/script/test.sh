@@ -80,7 +80,7 @@ TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
 TAOS_FLAG=$PRG_DIR/flag
 
-HOSTNAME=`hostname`
+HOSTNAME=`hostname -f`
 
 echo " "                                     >> $TAOS_CFG
 echo "first            ${HOSTNAME}:7100"     >> $TAOS_CFG
