@@ -1431,8 +1431,8 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
   }
 
   int32_t sid = taosAllocateId(pVgroup->idPool);
-  if (sid < 0) {
-    mTrace("tables:%s, no enough sid in vgroup:%d", pVgroup->vgId);
+  if (sid <= 0) {
+    mTrace("tables:%s, no enough sid in vgroup:%d", pCreate->tableId, pVgroup->vgId);
     mgmtCreateVgroup(mgmtCloneQueuedMsg(pMsg), pMsg->pDb);
     return;
   }
