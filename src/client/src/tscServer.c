@@ -403,7 +403,6 @@ int doProcessSql(SSqlObj *pSql) {
 
 int tscProcessSql(SSqlObj *pSql) {
   char *   name = NULL;
-  SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
@@ -423,36 +422,35 @@ int tscProcessSql(SSqlObj *pSql) {
   }
 
   tscTrace("%p SQL cmd:%d will be processed, name:%s, type:%d", pSql, pCmd->command, name, type);
-  if (pSql->cmd.command < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
+  if (pCmd->command < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
     if (pTableMetaInfo == NULL) {
       pSql->res.code = TSDB_CODE_OTHERS;
       return pSql->res.code;
     }
-  } else if (pSql->cmd.command < TSDB_SQL_LOCAL) {
-    pSql->ipList = tscMgmtIpSet;
+  } else if (pCmd->command < TSDB_SQL_LOCAL) {
+    pSql->ipList = tscMgmtIpSet; //?
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
-  // todo handle async situation
-  if (QUERY_IS_JOIN_QUERY(type)) {
-    if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0) {
-      return tscHandleMasterJoinQuery(pSql);
-    } else {
-      // for first stage sub query, iterate all vnodes to get all timestamp
-      if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) != TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
-        return doProcessSql(pSql);
-      }
-    }
-  }
-  
-  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) { // super table query
-    tscHandleMasterSTableQuery(pSql);
-    return pRes->code;
-  } else if (pSql->fp == (void(*)())tscHandleMultivnodeInsert) {  // multi-vnodes insertion
-    tscHandleMultivnodeInsert(pSql);
-    return pSql->res.code;
-  }
+//  if (QUERY_IS_JOIN_QUERY(type)) {
+//    if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0) {
+//      return tscHandleMasterJoinQuery(pSql);
+//    } else {
+//      // for first stage sub query, iterate all vnodes to get all timestamp
+//      if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) != TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
+//        return doProcessSql(pSql);
+//      }
+//    }
+//  }
+//
+//  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) { // super table query
+//    tscHandleMasterSTableQuery(pSql);
+//    return pRes->code;
+//  } else if (pSql->fp == (void(*)())tscHandleMultivnodeInsert) {  // multi-vnodes insertion
+//    tscHandleMultivnodeInsert(pSql);
+//    return pRes->code;
+//  }
   
   return doProcessSql(pSql);
 }
@@ -489,7 +487,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
   const int64_t MAX_WAITING_TIME = 10000;  // 10 Sec.
   int64_t       stime = taosGetTimestampMs();
 
-  while (pSql->cmd.command != TSDB_SQL_RETRIEVE_METRIC && pSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+  while (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     taosMsleep(100);
     if (taosGetTimestampMs() - stime > MAX_WAITING_TIME) {
       break;
@@ -1461,7 +1459,7 @@ int tscProcessTagRetrieveRsp(SSqlObj *pSql) {
   return tscLocalResultCommonBuilder(pSql, numOfRes);
 }
 
-int tscProcessRetrieveMetricRsp(SSqlObj *pSql) {
+int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -2257,7 +2255,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
   pObj->superAuth = pConnect->superAuth;
-  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+//  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;
 }
@@ -2637,7 +2635,7 @@ void tscInitMsgsFp() {
 
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_EMPTY_RESULT] = tscProcessEmptyResultRsp;
 
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_METRIC] = tscProcessRetrieveMetricRsp;
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_LOCALMERGE] = tscProcessRetrieveLocalMergeRsp;
 
   tscProcessMsgRsp[TSDB_SQL_ALTER_TABLE] = tscProcessAlterTableMsgRsp;
   tscProcessMsgRsp[TSDB_SQL_ALTER_DB] = tscProcessAlterDbMsgRsp;

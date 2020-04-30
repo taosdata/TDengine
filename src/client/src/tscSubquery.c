@@ -1254,7 +1254,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   // pRes->code check only serves in launching metric sub-queries
   if (pRes->code == TSDB_CODE_QUERY_CANCELLED) {
-    pCmd->command = TSDB_SQL_RETRIEVE_METRIC;  // enable the abort of kill super table function.
+    pCmd->command = TSDB_SQL_RETRIEVE_LOCALMERGE;  // enable the abort of kill super table function.
     return pRes->code;
   }
   
@@ -1564,7 +1564,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tscFreeSubSqlObj(trsupport, pSql);
   
   // set the command flag must be after the semaphore been correctly set.
-  pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
+  pPObj->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
   if (pPObj->res.code == TSDB_CODE_SUCCESS) {
     (*pPObj->fp)(pPObj->param, pPObj, 0);
   } else {

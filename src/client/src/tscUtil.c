@@ -352,7 +352,7 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   STscObj* pObj = pSql->pTscObj;
 
   int32_t cmd = pCmd->command;
-  if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_METRIC || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+  if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_LOCALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       cmd == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
     tscRemoveFromSqlList(pSql);
   }
@@ -1819,6 +1819,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 // todo handle the agg arithmetic expression
     for(int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutput; ++f) {
       TAOS_FIELD* field = tscFieldInfoGetField(&pNewQueryInfo->fieldsInfo, f);
+      numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
+      
       for(int32_t k1 = 0; k1 < numOfExprs; ++k1) {
         SSqlExpr* pExpr1 = tscSqlExprGet(pNewQueryInfo, k1);
         
@@ -1875,24 +1877,54 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   return pNew;
 }
 
+/**
+ * To decide if current is a two-stage super table query, join query, or insert. And invoke different
+ * procedure accordingly
+ * @param pSql
+ */
 void tscDoQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
   
-  pSql->res.code = TSDB_CODE_SUCCESS;
+  pRes->code = TSDB_CODE_SUCCESS;
   
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
-  } else {
-    if (pCmd->command == TSDB_SQL_SELECT) {
-      tscAddIntoSqlList(pSql);
-    }
+    return;
+  }
+  
+  if (pCmd->command == TSDB_SQL_SELECT) {
+    tscAddIntoSqlList(pSql);
+  }
 
-    if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
-      tscProcessMultiVnodesInsertFromFile(pSql);
-    } else {
-      // pSql may be released in this function if it is a async insertion.
-      tscProcessSql(pSql);
+  if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
+    tscProcessMultiVnodesInsertFromFile(pSql);
+  } else {
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+    uint16_t type = pQueryInfo->type;
+  
+    if (pSql->fp == (void(*)())tscHandleMultivnodeInsert) {  // multi-vnodes insertion
+      tscHandleMultivnodeInsert(pSql);
+      return;
     }
+  
+    if (QUERY_IS_JOIN_QUERY(type)) {
+      if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0) {
+        tscHandleMasterJoinQuery(pSql);
+        return;
+      } else {
+        // for first stage sub query, iterate all vnodes to get all timestamp
+        if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) != TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
+//          doProcessSql(pSql);
+          assert(0);
+        }
+      }
+    } else if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
+      tscHandleMasterSTableQuery(pSql);
+      return;
+    }
+    
+    tscProcessSql(pSql);
   }
 }
 

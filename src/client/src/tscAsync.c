@@ -45,9 +45,9 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   SSqlRes *pRes = &pSql->res;
   
   pSql->signature = pSql;
-  pSql->param = param;
-  pSql->pTscObj = pObj;
-  pSql->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pSql->param     = param;
+  pSql->pTscObj   = pObj;
+  pSql->maxRetry  = TSDB_MAX_REPLICA_NUM;
   pSql->fp = fp;
   
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
@@ -146,7 +146,7 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
   }
   
   // local reducer has handle this situation during super table non-projection query.
-  if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
+  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
     pRes->numOfTotalInCurrentClause += pRes->numOfRows;
   }
 
@@ -176,7 +176,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   }
 
   pSql->fp = fp;
-  if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC && pCmd->command < TSDB_SQL_LOCAL) {
+  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
   }
   tscProcessSql(pSql);
@@ -225,7 +225,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   if (pCmd->command == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
     tscFetchDatablockFromSubquery(pSql);
   } else {
-    if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC && pCmd->command < TSDB_SQL_LOCAL) {
+    if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }
   
@@ -257,7 +257,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
     tscResetForNextRetrieve(pRes);
     pSql->fp = tscAsyncFetchSingleRowProxy;
     
-    if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC && pCmd->command < TSDB_SQL_LOCAL) {
+    if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }
     
