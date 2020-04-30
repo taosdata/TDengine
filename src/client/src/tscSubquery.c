@@ -234,7 +234,7 @@ bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
  * launch secondary stage query to fetch the result that contains timestamp in set
  */
 int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
-  int32_t                 numOfSub = 0;
+  int32_t         numOfSub = 0;
   SJoinSupporter* pSupporter = NULL;
   
   /*
@@ -299,7 +299,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pQueryInfo->tsBuf = pTSBuf;  // transfer the ownership of timestamp comp-z data to the new created object
   
     // set the second stage sub query for join process
-    pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
   
     pQueryInfo->intervalTime = pSupporter->interval;
     pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
@@ -438,7 +438,6 @@ static void tSIntersectionAndLaunchSecQuery(SJoinSupporter* pSupporter, SSqlObj*
   
   int32_t numOfTotal = pSupporter->pState->numOfTotal;
   int32_t finished = atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1);
-  printf("---------------------------------%d, total:%d\n", finished, numOfTotal);
   
   if (finished >= numOfTotal) {
     assert(finished == numOfTotal);
@@ -722,12 +721,12 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   }
   
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
-   if (numOfRows < 0) {
-    tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
-    pSupporter->pState->code = numOfRows;
-    quitAllSubquery(pParentSql, pSupporter);
-    return;
-  }
+    if (numOfRows < 0) {
+      tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
+      pSupporter->pState->code = numOfRows;
+      quitAllSubquery(pParentSql, pSupporter);
+      return;
+    }
 
     if (numOfRows == 0) {
       tSIntersectionAndLaunchSecQuery(pSupporter, pSql);
@@ -861,14 +860,14 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     
     SSqlRes *pRes = &pSub->res;
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSub->cmd, 0);
-    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-    if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vgroupIndex < pTableMetaInfo->vgroupList->numOfVgroups &&
-          (!tscHasReachLimitation(pQueryInfo, pRes)) && !pRes->completed) {
-        numOfFetch++;
-      }
-    } else {
+//    if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+//      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vgroupIndex < pTableMetaInfo->vgroupList->numOfVgroups &&
+//          (!tscHasReachLimitation(pQueryInfo, pRes)) && !pRes->completed) {
+//        numOfFetch++;
+//      }
+//    } else {
       if (!tscHasReachLimitation(pQueryInfo, pRes)) {
         if (pRes->row >= pRes->numOfRows) {
           hasData = false;
@@ -882,7 +881,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
       }
       
     }
-  }
+//  }
 
   // has data remains in client side, and continue to return data to app
   if (hasData) {
@@ -1010,10 +1009,10 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     }
 
     if (code != TSDB_CODE_SUCCESS) {
-      tscError("%p sub query failed, code:%d, set global code:%d, index:%d", pSql, code, code,
+      tscError("%p sub query failed, code:%s, set global code:%s, index:%d", pSql, tstrerror(code), tstrerror(code),
                pSupporter->subqueryIndex);
-      pSupporter->pState->code = code;  // todo set the informative code
-
+      
+      pSupporter->pState->code = code;
       quitAllSubquery(pParentSql, pSupporter);
     } else {
       int32_t numOfTotal = pSupporter->pState->numOfTotal;
@@ -1856,7 +1855,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     
     int32_t numOfTableHasRes = 0;
     for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-      if (pSql->pSubs[i] != 0) {
+      if (pSql->pSubs[i] != NULL) {
         numOfTableHasRes++;
       }
     }
@@ -1901,6 +1900,9 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
         }
         
         free(pState);
+        
+        pRes->completed = true; // set query completed
+        sem_post(&pSql->rspSem);
         return;
       }
       
