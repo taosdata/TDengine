@@ -32,15 +32,15 @@ matrix:
       - cd debug
 
     script:
-      - cmake ..
-      - make
+      - cmake .. > /dev/null
+      - make > /dev/null
 
     after_success:
       - |-
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          make install || travis_terminate $?
+          make install > /dev/null || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -98,11 +98,11 @@ matrix:
 
         # Commands to prepare for build_command
         # ** likely specific to your build **
-        build_command_prepend: cmake .
+        build_command_prepend: cmake . > /dev/null
 
         # The command that will be added as an argument to "cov-build" to compile your project for analysis,
         # ** likely specific to your build **
-        build_command: make
+        build_command: make > /dev/null
 
         # Pattern to match selecting branches that will run analysis. We recommend leaving this set to 'coverity_scan'.
         # Take care in resource usage, and consider the build frequency allowances per
@@ -135,15 +135,15 @@ matrix:
       - cd debug
 
     script:
-      - cmake -DCOVER=true ..
-      - make
+      - cmake -DCOVER=true .. > /dev/null
+      - make > /dev/null
 
     after_success:
       - |-
         case $TRAVIS_OS_NAME in
           linux)
           cd ${TRAVIS_BUILD_DIR}/debug
-          make install || travis_terminate $?
+          make install > /dev/null || travis_terminate $?
 
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
@@ -208,8 +208,8 @@ matrix:
       - cd debug
 
     script:
-      - cmake ..
-      - make
+      - cmake .. > /dev/null
+      - make > /dev/null
 
         #  - os: osx
         #    language: c
@@ -225,5 +225,5 @@ matrix:
         #      - cd ${TRAVIS_BUILD_DIR}
         #      - mkdir debug
         #      - cd debug
-        #      - cmake ..
-        #      - make
+        #      - cmake .. > /dev/null
+        #      - make > /dev/null

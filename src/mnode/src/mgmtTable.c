@@ -361,7 +361,7 @@ static void mgmtCleanUpChildTables() {
 
 static void mgmtAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
   if (pStable->vgLen == 0) {
-    pStable->vgLen = 10;
+    pStable->vgLen = 8;
     pStable->vgList = calloc(pStable->vgLen, sizeof(int32_t));
   }
   

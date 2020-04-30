@@ -70,7 +70,7 @@ if [ -f "$TAOS_FLAG" ] ; then
   sudo rm -rf $LOG_DIR
 fi
 
-HOSTNAME=`hostname`
+HOSTNAME=`hostname -f`
 
 if [ $NODE -eq 1 ]; then
   NODE=7100

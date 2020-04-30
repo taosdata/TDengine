@@ -332,7 +332,7 @@ void sdbIncRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
+    if (0 && pTable->tableId == SDB_TABLE_CTABLE) {
       sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -344,7 +344,7 @@ void sdbDecRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
+    if (0 && pTable->tableId == SDB_TABLE_CTABLE) {
       sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }

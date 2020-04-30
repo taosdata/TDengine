@@ -27,9 +27,9 @@ fi
 cd ../pytest
 
 if [ "$1" == "cron" ]; then
-  ./fulltest.sh 2>&1 | tee pytest-out.txt
+  ./fulltest.sh > /dev/null | tee pytest-out.txt
 else
-  ./smoketest.sh 2>&1 | tee pytest-out.txt
+  ./smoketest.sh > /dev/null | tee pytest-out.txt
 fi
 totalPySuccess=`grep 'successfully executed' pytest-out.txt | wc -l`
 
