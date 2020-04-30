@@ -20,44 +20,23 @@
 extern "C" {
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
-
-int taosNonblockwrite(int fd, char *ptr, int nbytes);
-
 int taosReadn(int sock, char *buffer, int len);
-
 int taosWriteMsg(int fd, void *ptr, int nbytes);
-
 int taosReadMsg(int fd, void *ptr, int nbytes);
+int taosNonblockwrite(int fd, char *ptr, int nbytes);
+int taosCopyFds(int sfd, int dfd, int64_t len);
+int taosSetNonblocking(int sock, int on);
 
-int taosOpenUdpSocket(char *ip, uint16_t port);
-
-int taosOpenTcpClientSocket(char *ip, uint16_t port, char *localIp);
-
-int taosOpenTcpServerSocket(char *ip, uint16_t port);
-
-int taosKeepTcpAlive(int sockFd);
-
+int  taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
+int  taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
+int  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
+int  taosKeepTcpAlive(int sockFd);
 void taosCloseTcpSocket(int sockFd);
 
-int taosOpenUDServerSocket(char *ip, uint16_t port);
-
-int taosOpenUDClientSocket(char *ip, uint16_t port);
-
-int taosOpenRawSocket(char *ip);
-
-int taosCopyFds(int sfd, int dfd, int64_t len);
-
-int taosGetPublicIp(char *const ip);
-
-int taosGetPrivateIp(char *const ip);
-
-void tinet_ntoa(char *ipstr, unsigned int ip);
-
-int taosSetNonblocking(int sock, int on);
+int      taosGetFqdn(char *);
+uint32_t taosGetIpFromFqdn(const char *);
+void     tinet_ntoa(char *ipstr, unsigned int ip);
+uint32_t ip2uint(const char *const ip_addr);
 
 #ifdef __cplusplus
 }

@@ -21,29 +21,25 @@ static int  tsdbAllocBlockFromPool(STsdbCache *pCache);
 static void tsdbFreeBlockList(SList *list);
 static void tsdbFreeCacheMem(SCacheMem *mem);
 
-STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, TsdbRepoT *pRepo) {
+STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo) {
   STsdbCache *pCache = (STsdbCache *)calloc(1, sizeof(STsdbCache));
   if (pCache == NULL) return NULL;
 
   if (cacheBlockSize < 0) cacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
   cacheBlockSize *= (1024 * 1024);
 
-  if (maxBytes < 0) maxBytes = cacheBlockSize * TSDB_DEFAULT_TOTAL_BLOCKS;
+  if (totalBlocks <= 1) totalBlocks = TSDB_DEFAULT_TOTAL_BLOCKS;
 
-  pCache->maxBytes = maxBytes;
   pCache->cacheBlockSize = cacheBlockSize;
+  pCache->totalCacheBlocks = totalBlocks;
   pCache->pRepo = pRepo;
-
-  int nBlocks = maxBytes / cacheBlockSize + 1;
-  if (nBlocks <= 1) nBlocks = 2;
-  pCache->totalCacheBlocks = nBlocks;
 
   STsdbCachePool *pPool = &(pCache->pool);
   pPool->index = 0;
   pPool->memPool = tdListNew(sizeof(STsdbCacheBlock *));
   if (pPool->memPool == NULL) goto _err;
 
-  for (int i = 0; i < nBlocks; i++) {
+  for (int i = 0; i < totalBlocks; i++) {
     STsdbCacheBlock *pBlock = (STsdbCacheBlock *)malloc(sizeof(STsdbCacheBlock) + cacheBlockSize);
     if (pBlock == NULL) {
       goto _err;

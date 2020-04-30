@@ -186,7 +186,7 @@ SScript *simParseScript(char *fileName) {
   if ((fileName[0] == '.') || (fileName[0] == '/')) {
     strcpy(name, fileName);
   } else {
-    sprintf(name, "%s/%s", scriptDir, fileName);
+    sprintf(name, "%s/%s", tsScriptDir, fileName);
   }
 
   if ((fd = fopen(name, "r")) == NULL) {

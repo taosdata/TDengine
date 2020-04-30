@@ -68,7 +68,12 @@ void createDbAndTable() {
   int64_t        st, et;
   char           qstr[64000];
 
-  con = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, NULL, 0);
+  char     fqdn[TSDB_FQDN_LEN];
+  uint16_t port;
+
+  taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
+
+  con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
   if (con == NULL) {
     pError("failed to connect to DB, reason:%s", taos_errstr(con));
     exit(1);
@@ -191,7 +196,12 @@ void *syncTest(void *param) {
 
   pPrint("thread:%d, start to run", pInfo->threadIndex);
 
-  con = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, NULL, 0);
+  char     fqdn[TSDB_FQDN_LEN];
+  uint16_t port;
+
+  taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
+
+  con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
   if (con == NULL) {
     pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
     exit(1);

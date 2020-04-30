@@ -139,11 +139,9 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.minRowsPerFileBlock = htonl(pCreate->cfg.minRowsPerFileBlock);
   pCreate->cfg.maxRowsPerFileBlock = htonl(pCreate->cfg.maxRowsPerFileBlock);
   pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
-  pCreate->cfg.arbitratorIp        = htonl(pCreate->cfg.arbitratorIp);
 
   for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
-    pCreate->nodes[j].nodeIp = htonl(pCreate->nodes[j].nodeIp);
   }
   
   void *pVnode = vnodeAccquireVnode(pCreate->cfg.vgId);

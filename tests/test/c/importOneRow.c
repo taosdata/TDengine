@@ -104,7 +104,12 @@ void taos_error(TAOS *con) {
 void* taos_execute(void *param) {
   ThreadObj *pThread = (ThreadObj *)param;
 
-  void *taos = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, NULL, 0);
+  char     fqdn[TSDB_FQDN_LEN];
+  uint16_t port;
+
+  taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
+
+  void *taos = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
   if (taos == NULL) taos_error(taos);
 
   char sql[1024] = {0};

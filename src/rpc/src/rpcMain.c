@@ -44,7 +44,6 @@ typedef struct {
   int      sessions;     // number of sessions allowed
   int      numOfThreads; // number of threads to process incoming messages
   int      idleTime;     // milliseconds;
-  char     localIp[TSDB_IPv4ADDR_LEN];
   uint16_t localPort;
   int8_t   connType;
   int      index;        // for UDP server only, round robin for multiple threads
@@ -101,9 +100,8 @@ typedef struct SRpcConn {
   uint16_t  localPort;      // for UDP only
   uint32_t  linkUid;        // connection unique ID assigned by client
   uint32_t  peerIp;         // peer IP
-  uint32_t  destIp;         // server destination IP to handle NAT 
   uint16_t  peerPort;       // peer port
-  char      peerIpstr[TSDB_IPv4ADDR_LEN];  // peer IP string
+  char      peerFqdn[TSDB_FQDN_LEN]; // peer FQDN or ip string
   uint16_t  tranId;         // outgoing transcation ID, for build message
   uint16_t  outTranId;      // outgoing transcation ID
   uint16_t  inTranId;       // transcation ID for incoming msg
@@ -140,7 +138,7 @@ int tsRpcOverhead;
 #define RPC_CONN_TCPC   3
 #define RPC_CONN_TCP    2
 
-void *(*taosInitConn[])(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
+void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpConnection,
     taosInitUdpConnection,
     taosInitTcpServer, 
@@ -161,7 +159,7 @@ int (*taosSendData[])(uint32_t ip, uint16_t port, void *data, int len, void *cha
     taosSendTcpData
 };
 
-void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, uint16_t port) = {
+void *(*taosOpenConn[])(void *shandle, void *thandle, uint32_t ip, uint16_t port) = {
     taosOpenUdpConnection,
     taosOpenUdpConnection,
     NULL,
@@ -175,7 +173,7 @@ void (*taosCloseConn[])(void *chandle) = {
     taosCloseTcpConnection
 };
 
-static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort, int8_t connType);
+static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, int8_t connType);
 static void      rpcCloseConn(void *thandle);
 static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext);
 static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc);
@@ -217,7 +215,6 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
   pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
-  if (pInit->localIp) strcpy(pRpc->localIp, pInit->localIp);
   pRpc->localPort = pInit->localPort;
   pRpc->afp = pInit->afp;
   pRpc->sessions = pInit->sessions;
@@ -229,13 +226,13 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
 
-  pRpc->tcphandle = (*taosInitConn[pRpc->connType|RPC_CONN_TCP])(pRpc->localIp, pRpc->localPort, pRpc->label, 
+  pRpc->tcphandle = (*taosInitConn[pRpc->connType|RPC_CONN_TCP])(0, pRpc->localPort, pRpc->label, 
                                                   pRpc->numOfThreads, rpcProcessMsgFromPeer, pRpc);
-  pRpc->udphandle = (*taosInitConn[pRpc->connType])(pRpc->localIp, pRpc->localPort, pRpc->label, 
+  pRpc->udphandle = (*taosInitConn[pRpc->connType])(0, pRpc->localPort, pRpc->label, 
                                                   pRpc->numOfThreads, rpcProcessMsgFromPeer, pRpc);
 
   if (pRpc->tcphandle == NULL || pRpc->udphandle == NULL) {
-    tError("%s failed to init network, %s:%d", pRpc->label, pRpc->localIp, pRpc->localPort);
+    tError("%s failed to init network, port:%d", pRpc->label, pRpc->localPort);
     rpcClose(pRpc);
     return NULL;
   }
@@ -457,7 +454,7 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
 
   pInfo->clientIp = pConn->peerIp;
   pInfo->clientPort = pConn->peerPort;
-  pInfo->serverIp = pConn->destIp;
+  // pInfo->serverIp = pConn->destIp;
 
   strcpy(pInfo->user, pConn->user);
   return 0;
@@ -490,27 +487,32 @@ static void rpcFreeMsg(void *msg) {
   }
 }
 
-static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort, int8_t connType) {
+static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, int8_t connType) {
   SRpcConn *pConn;
+
+  uint32_t peerIp = taosGetIpFromFqdn(peerFqdn);
+  if (peerIp == -1) {
+    tError("%s, failed to resolve FQDN:%s", pRpc->label, peerFqdn); 
+    return NULL;
+  }
 
   pConn = rpcAllocateClientConn(pRpc); 
 
   if (pConn) { 
-    strcpy(pConn->peerIpstr, peerIpStr);
-    pConn->peerIp = inet_addr(peerIpStr);
+    strcpy(pConn->peerFqdn, peerFqdn);
+    pConn->peerIp = peerIp;
     pConn->peerPort = peerPort;
     strcpy(pConn->user, pRpc->user);
     pConn->connType = connType;
 
     if (taosOpenConn[connType]) {
       void *shandle = (connType & RPC_CONN_TCP)? pRpc->tcphandle:pRpc->udphandle;
-      pConn->chandle = (*taosOpenConn[connType])(shandle, pConn, pConn->peerIpstr, pConn->peerPort);
+      pConn->chandle = (*taosOpenConn[connType])(shandle, pConn, pConn->peerIp, pConn->peerPort);
       if (pConn->chandle) {
-        tTrace("%s %p, rpc connection is set up, sid:%d id:%s ip:%s:%hu connType:%d", pRpc->label, 
-                pConn, pConn->sid, pRpc->user, pConn->peerIpstr, pConn->peerPort, pConn->connType);
+        tTrace("%s %p, rpc connection is set up, sid:%d id:%s %s:%hu connType:%d", pRpc->label, 
+                pConn, pConn->sid, pRpc->user, peerFqdn, pConn->peerPort, pConn->connType);
       } else {
-        tError("%s %p, failed to set up connection to ip:%s:%hu", pRpc->label, pConn, 
-                pConn->peerIpstr, pConn->peerPort);
+        tError("%s %p, failed to set up connection to %s:%hu", pRpc->label, pConn, peerFqdn, pConn->peerPort);
         terrno = TSDB_CODE_NETWORK_UNAVAIL;
         rpcCloseConn(pConn);
         pConn = NULL;
@@ -661,12 +663,9 @@ static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
   SRpcInfo   *pRpc = pContext->pRpc;
   SRpcIpSet  *pIpSet = &pContext->ipSet;
 
-  pConn = rpcGetConnFromCache(pRpc->pCache, pIpSet->ip[pIpSet->inUse], pIpSet->port, pContext->connType);
+  pConn = rpcGetConnFromCache(pRpc->pCache, pIpSet->fqdn[pIpSet->inUse], pIpSet->port[pIpSet->inUse], pContext->connType);
   if ( pConn == NULL || pConn->user[0] == 0) {
-    char ipstr[20] = {0};
-    tinet_ntoa(ipstr, pIpSet->ip[pIpSet->inUse]);
-    pConn = rpcOpenConn(pRpc, ipstr, pIpSet->port, pContext->connType);
-    if (pConn) pConn->destIp = pIpSet->ip[pIpSet->inUse];
+    pConn = rpcOpenConn(pRpc, pIpSet->fqdn[pIpSet->inUse], pIpSet->port[pIpSet->inUse], pContext->connType);
   } else {
     tTrace("%s %p, connection is retrieved from cache", pRpc->label, pConn);
   }
@@ -789,7 +788,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     pConn->peerIp = pRecv->ip;
     char ipstr[20] = {0};
     tinet_ntoa(ipstr, pRecv->ip);
-    strcpy(pConn->peerIpstr, ipstr);
+    strcpy(pConn->peerFqdn, ipstr);
   }
   
   if (pRecv->port) pConn->peerPort = pRecv->port;
@@ -922,7 +921,6 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
    
   if ( rpcIsReq(pHead->msgType) ) {
     rpcMsg.handle = pConn;
-    pConn->destIp = pHead->destIp;
     taosTmrReset(rpcProcessProgressTimer, tsRpcTimer/2, pConn, pRpc->tmrCtrl, &pConn->pTimer);
     (*(pRpc->cfp))(&rpcMsg);
   } else {
@@ -932,7 +930,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     pConn->pContext = NULL;
 
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
-    rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerIp, pContext->ipSet.port, pConn->connType);    
+    rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->ipSet.port[pContext->ipSet.inUse], pConn->connType);    
 
     if (pHead->code == TSDB_CODE_REDIRECT) {
       pContext->redirect = 1;
@@ -1053,7 +1051,6 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pHead->tranId = pConn->tranId;
   pHead->sourceId = pConn->ownId;
   pHead->destId = pConn->peerId;
-  pHead->destIp = pConn->destIp;
   pHead->port = 0;
   pHead->linkUid = pConn->linkUid;
   if (!pConn->secured) memcpy(pHead->user, pConn->user, tListLen(pHead->user));
@@ -1081,12 +1078,12 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   if ( rpcIsReq(pHead->msgType)) {
     if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace("%s %p, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
-             pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr,
+             pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerFqdn,
              pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
     if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace( "%s %p, %s is sent to %s:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
-          pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr, pConn->peerPort, 
+          pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
           htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
@@ -1141,13 +1138,13 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
 
     if (pConn->retry < 4) {
       tTrace("%s %p, re-send msg:%s to %s:%hud", pRpc->label, pConn, 
-             taosMsg[pConn->outType], pConn->peerIpstr, pConn->peerPort);
+             taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
       rpcSendMsgToPeer(pConn, pConn->pReqMsg, pConn->reqMsgLen);      
       taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
     } else {
       // close the connection
       tTrace("%s %p, failed to send msg:%s to %s:%hu", pRpc->label, pConn,
-              taosMsg[pConn->outType], pConn->peerIpstr, pConn->peerPort);
+              taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
       reportDisc = 1;
     }
   } else {

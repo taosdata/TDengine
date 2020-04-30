@@ -1,29 +1,20 @@
 system sh/stop_dnodes.sh
-
-system sh/ip.sh -i 1 -s up
-system sh/ip.sh -i 2 -s up
-system sh/ip.sh -i 3 -s up
-
-system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
-system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
-system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
 
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 2
-
-system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
-system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
-system sh/cfg.sh -n dnode3 -c secondIp -v 192.168.0.2
 
 print ============== step1
 system sh/exec_up.sh -n dnode1 -s start
 sql connect
 
 sql show mnodes
-print 192.168.0.1 ==> $data3_1
-print 192.168.0.2 ==> $data3_2
-if $data3_1 != master then
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
   return -1
 endi
 
@@ -40,12 +31,12 @@ show2:
 	endi
 
 sql show mnodes
-print 192.168.0.1 ==> $data3_1
-print 192.168.0.2 ==> $data3_2
-if $data3_1 != master then
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
 	goto show2
 endi
-if $data3_2 != slave then
+if $data2_2 != slave then
 	goto show2
 endi
 
@@ -58,9 +49,9 @@ sql show mnodes
 $dnode1Role = $data3_1
 $dnode2Role = $data3_2
 $dnode3Role = $data3_3
-print 192.168.0.1 ==> $dnode1Role
-print 192.168.0.2 ==> $dnode2Role
-print 192.168.0.3 ==> $dnode3Role
+print dnode1 ==> $dnode1Role
+print dnode2 ==> $dnode2Role
+print dnode3 ==> $dnode3Role
 
 if $dnode1Role != master then
   return -1
@@ -80,9 +71,9 @@ sql show mnodes
 $dnode1Role = $data3_1
 $dnode2Role = $data3_2
 $dnode3Role = $data3_3
-print 192.168.0.1 ==> $dnode1Role
-print 192.168.0.2 ==> $dnode2Role
-print 192.168.0.3 ==> $dnode3Role
+print dnode1 ==> $dnode1Role
+print dnode2 ==> $dnode2Role
+print dnode3 ==> $dnode3Role
 
 if $dnode1Role != master then
   return -1
@@ -99,9 +90,8 @@ system sh/exec_up.sh -n dnode2 -s stop
 print ============== step5
 sleep 2000
 sql create dnode 192.168.0.2
-system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
-system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.3
 system sh/exec_up.sh -n dnode2 -s start
 sleep 8000
 
@@ -109,9 +99,9 @@ sql show mnodes
 $dnode1Role = $data3_1
 $dnode2Role = $data3_2
 $dnode3Role = $data3_3
-print 192.168.0.1 ==> $dnode1Role
-print 192.168.0.2 ==> $dnode2Role
-print 192.168.0.3 ==> $dnode3Role
+print dnode1 ==> $dnode1Role
+print dnode2 ==> $dnode2Role
+print dnode3 ==> $dnode3Role
 
 if $dnode1Role != master then
   return -1

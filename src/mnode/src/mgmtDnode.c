@@ -36,13 +36,13 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-void   *tsDnodeSdb = NULL;
-int32_t tsDnodeUpdateSize = 0;
 int32_t tsAccessSquence = 0;
+static void   *tsDnodeSdb = NULL;
+static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
 extern void *  tsVgroupSdb;
 
-static int32_t mgmtCreateDnode(uint32_t ip);
+static int32_t mgmtCreateDnode(char *ep);
 static void    mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
@@ -68,50 +68,17 @@ static int32_t mgmtDnodeActionInsert(SSdbOper *pOper) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
   }
 
-  pDnode->mnodeShellPort = tsMnodeShellPort;
-  pDnode->mnodeDnodePort = tsMnodeDnodePort;
-  pDnode->dnodeShellPort = tsDnodeShellPort;
-  pDnode->dnodeMnodePort = tsDnodeMnodePort;
-  pDnode->syncPort       = tsSyncPort;
-
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
-  void *     pNode = NULL;
-  void *     pLastNode = NULL;
-  SVgObj *   pVgroup = NULL;
-  int32_t    numOfVgroups = 0;
-
-  while (1) {
-    pLastNode = pNode;
-    pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
-    if (pVgroup == NULL) break;
-
-    if (pVgroup->vnodeGid[0].dnodeId == pDnode->dnodeId) {
-      SSdbOper oper = {
-        .type = SDB_OPER_LOCAL,
-        .table = tsVgroupSdb,
-        .pObj = pVgroup,
-      };
-      sdbDeleteRow(&oper);
-      pNode = pLastNode;
-      numOfVgroups++;
-      continue;
-    }
-  }
-
-  SMnodeObj *pMnode = mgmtGetMnode(pDnode->dnodeId);
-  if (pMnode != NULL) {
-    SSdbOper oper = {.type = SDB_OPER_LOCAL, .table = tsMnodeSdb, .pObj = pMnode};
-    sdbDeleteRow(&oper);
-    mgmtReleaseMnode(pMnode);
-  }
-
+ 
+  mgmtDropAllDnodeVgroups(pDnode);
+  mgmtDropMnodeLocal(pDnode->dnodeId);
   balanceNotify();
 
-  mTrace("dnode:%d, all vgroups:%d is dropped from sdb", pDnode->dnodeId, numOfVgroups);
+  mTrace("dnode:%d, all vgroups is dropped from sdb", pDnode->dnodeId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -122,6 +89,7 @@ static int32_t mgmtDnodeActionUpdate(SSdbOper *pOper) {
     memcpy(pSaved, pDnode, pOper->rowSize);
     free(pDnode);
   }
+  mgmtDecDnodeRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -144,9 +112,8 @@ static int32_t mgmtDnodeActionDecode(SSdbOper *pOper) {
 static int32_t mgmtDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
-    uint32_t ip = inet_addr(tsPrivateIp);
-    mgmtCreateDnode(ip);
-    SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+    mgmtCreateDnode(tsLocalEp);
+    SDnodeObj *pDnode = mgmtGetDnodeByIp(tsLocalEp);
     mgmtAddMnode(pDnode->dnodeId);
     mgmtDecDnodeRef(pDnode);
   }
@@ -214,14 +181,14 @@ void *mgmtGetDnode(int32_t dnodeId) {
   return sdbGetRow(tsDnodeSdb, &dnodeId);
 }
 
-void *mgmtGetDnodeByIp(uint32_t ip) {
+void *mgmtGetDnodeByIp(char *ep) {
   SDnodeObj *pDnode = NULL;
   void *     pNode = NULL;
 
   while (1) {
-    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void**)&pDnode);
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
-    if (ip == pDnode->privateIp) {
+    if (strcmp(ep, pDnode->dnodeEp) == 0) {
       return pDnode;
     }
     mgmtDecDnodeRef(pDnode);
@@ -242,8 +209,7 @@ void mgmtUpdateDnode(SDnodeObj *pDnode) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
-    .pObj = pDnode,
-    .rowSize = tsDnodeUpdateSize
+    .pObj = pDnode
   };
 
   sdbUpdateRow(&oper);
@@ -253,19 +219,18 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMCfgDnodeMsg *pCmCfgDnode = pMsg->pCont;
-  if (pCmCfgDnode->ip[0] == 0) {
-    strcpy(pCmCfgDnode->ip, tsPrivateIp);
+  if (pCmCfgDnode->ep[0] == 0) {
+    strcpy(pCmCfgDnode->ep, tsLocalEp);
   } else {
-    strcpy(pCmCfgDnode->ip, pCmCfgDnode->ip);
+    strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep);
   }
-  uint32_t dnodeIp = inet_addr(pCmCfgDnode->ip);
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
-    SRpcIpSet ipSet = mgmtGetIpSetFromIp(dnodeIp);
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCmCfgDnode->ep);
     SMDCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SMDCfgDnodeMsg));
-    strcpy(pMdCfgDnode->ip, pCmCfgDnode->ip);
+    strcpy(pMdCfgDnode->ep, pCmCfgDnode->ep);
     strcpy(pMdCfgDnode->config, pCmCfgDnode->config);
     SRpcMsg rpcMdCfgDnodeMsg = {
         .handle = 0,
@@ -279,7 +244,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   }
 
   if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-    mPrint("dnode:%s, is configured by %s", pCmCfgDnode->ip, pMsg->pUser->user);
+    mPrint("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
   }
 
   rpcSendResponse(&rpcRsp);
@@ -292,8 +257,6 @@ static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   SDMStatusMsg *pStatus = rpcMsg->pCont;
   pStatus->dnodeId      = htonl(pStatus->dnodeId);
-  pStatus->privateIp    = htonl(pStatus->privateIp);
-  pStatus->publicIp     = htonl(pStatus->publicIp);
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
@@ -308,23 +271,21 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
 
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
-    pDnode = mgmtGetDnodeByIp(pStatus->privateIp);
+    pDnode = mgmtGetDnodeByIp(pStatus->dnodeEp);
     if (pDnode == NULL) {
-      mTrace("dnode not created, privateIp:%s", taosIpStr(pStatus->privateIp));
+      mTrace("dnode %s not created", pStatus->dnodeEp);
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
   } else {
     pDnode = mgmtGetDnode(pStatus->dnodeId);
     if (pDnode == NULL) {
-      mError("dnode:%d, not exist, privateIp:%s", pStatus->dnodeId, taosIpStr(pStatus->privateIp));
+      mError("dnode id:%d, %s not exist", pStatus->dnodeId, pStatus->dnodeEp);
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
   }
-  
-  pDnode->privateIp        = pStatus->privateIp;
-  pDnode->publicIp         = pStatus->publicIp;
+
   pDnode->lastReboot       = pStatus->lastReboot;
   pDnode->numOfCores       = pStatus->numOfCores;
   pDnode->diskAvailable    = pStatus->diskAvailable;
@@ -334,7 +295,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->lastAccess       = tsAccessSquence;
   
   if (pStatus->dnodeId == 0) {
-    mTrace("dnode:%d, first access, privateIp:%s, name:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
+    mTrace("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
   } else {
     //mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
   }
@@ -347,8 +308,8 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
 
     SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
-      SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
-      mPrint("dnode:%d, vgroup:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
+      SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->dnodeEp);
+      mPrint("dnode:%d, vgId:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
       mgmtSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
       mgmtUpdateVgroupStatus(pVgroup, pDnode, pVload);
@@ -391,25 +352,25 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
-static int32_t mgmtCreateDnode(uint32_t ip) {
+static int32_t mgmtCreateDnode(char *ep) {
   int32_t grantCode = grantCheck(TSDB_GRANT_DNODE);
   if (grantCode != TSDB_CODE_SUCCESS) {
     return grantCode;
   }
 
-  SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+  SDnodeObj *pDnode = mgmtGetDnodeByIp(ep);
   if (pDnode != NULL) {
-    mError("dnode:%d is alredy exist, ip:%s", pDnode->dnodeId, taosIpStr(pDnode->privateIp));
+    mgmtDecDnodeRef(pDnode);
+    mError("dnode:%d is alredy exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
     return TSDB_CODE_DNODE_ALREADY_EXIST;
   }
 
   pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
-  pDnode->privateIp = ip;
-  pDnode->publicIp = ip;
   pDnode->createdTime = taosGetTimestampMs();
   pDnode->status = TAOS_DN_STATUS_OFFLINE; 
   pDnode->totalVnodes = TSDB_INVALID_VNODE_NUM; 
-  sprintf(pDnode->dnodeName, "n%d", sdbGetId(tsDnodeSdb) + 1);
+  strcpy(pDnode->dnodeEp, ep);
+  taosGetFqdnPortFromEp(ep, pDnode->dnodeFqdn, &pDnode->dnodePort);
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -446,15 +407,16 @@ int32_t mgmtDropDnode(SDnodeObj *pDnode) {
   return code;
 }
 
-static int32_t mgmtDropDnodeByIp(uint32_t ip) {
-  SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
+static int32_t mgmtDropDnodeByIp(char *ep) {
+  SDnodeObj *pDnode = mgmtGetDnodeByIp(ep);
   if (pDnode == NULL) {
-    mError("dnode:%s, is not exist", taosIpStr(ip));
+    mError("dnode:%s, is not exist", ep);
     return TSDB_CODE_DNODE_NOT_EXIST;
   }
 
-  if (pDnode->privateIp == dnodeGetMnodeMasteIp()) {
-    mError("dnode:%d, can't drop dnode which is master", pDnode->dnodeId);
+  mgmtDecDnodeRef(pDnode);
+  if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) {
+    mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
     return TSDB_CODE_NO_REMOVE_MASTER;
   }
 
@@ -473,13 +435,13 @@ static void mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
-    uint32_t ip = inet_addr(pCreate->ip);
-    rpcRsp.code = mgmtCreateDnode(ip);
+    rpcRsp.code = mgmtCreateDnode(pCreate->ep);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      SDnodeObj *pDnode = mgmtGetDnodeByIp(ip);
-      mLPrint("dnode:%d, ip:%s is created by %s", pDnode->dnodeId, pCreate->ip, pMsg->pUser->user);
+      SDnodeObj *pDnode = mgmtGetDnodeByIp(pCreate->ep);
+      mLPrint("dnode:%d, %s is created by %s", pDnode->dnodeId, pCreate->ep, pMsg->pUser->user);
+      mgmtDecDnodeRef(pDnode);
     } else {
-      mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(rpcRsp.code));
+      mError("failed to create dnode:%s, reason:%s", pCreate->ep, tstrerror(rpcRsp.code));
     }
   }
   rpcSendResponse(&rpcRsp);
@@ -490,15 +452,15 @@ static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMDropDnodeMsg *pDrop = pMsg->pCont;
+
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
-    uint32_t ip = inet_addr(pDrop->ip);
-    rpcRsp.code = mgmtDropDnodeByIp(ip);
+    rpcRsp.code = mgmtDropDnodeByIp(pDrop->ep);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      mLPrint("dnode:%s is dropped by %s", pDrop->ip, pMsg->pUser->user);
+      mLPrint("dnode:%s is dropped by %s", pDrop->ep, pMsg->pUser->user);
     } else {
-      mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(rpcRsp.code));
+      mError("failed to drop dnode:%s, reason:%s", pDrop->ep, tstrerror(rpcRsp.code));
     }
   }
 
@@ -506,7 +468,7 @@ static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
 }
 
 static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
@@ -523,15 +485,9 @@ static int32_t mgmtGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 16;
+  pShow->bytes[cols] = 40;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "private ip");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 16;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "public ip");
+  strcpy(pSchema[cols].name, "end point");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -581,7 +537,6 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
   int32_t    cols      = 0;
   SDnodeObj *pDnode   = NULL;
   char      *pWrite;
-  char       ipstr[32];
 
   while (numOfRows < rows) {
     pShow->pNode = mgmtGetNextDnode(pShow->pNode, &pDnode);
@@ -593,14 +548,8 @@ static int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, voi
     *(int16_t *)pWrite = pDnode->dnodeId;
     cols++;
 
-    tinet_ntoa(ipstr, pDnode->privateIp);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, ipstr);
-    cols++;
-
-    tinet_ntoa(ipstr, pDnode->publicIp);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, ipstr);
+    strncpy(pWrite, pDnode->dnodeEp, pShow->bytes[cols]-1);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -636,7 +585,7 @@ static bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
 static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->user, "root") != 0)  {
@@ -652,9 +601,9 @@ static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 16;
+  pShow->bytes[cols] = 40;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "ip");
+  strcpy(pSchema[cols].name, "end point");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -702,10 +651,8 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
       *(int16_t *)pWrite = pDnode->dnodeId;
       cols++;
 
-      char ipstr[20];
-      tinet_ntoa(ipstr, pDnode->privateIp);
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, ipstr);
+      strncpy(pWrite, pDnode->dnodeEp, pShow->bytes[cols]-1);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -748,7 +695,7 @@ static bool mgmtCheckConfigShow(SGlobalCfg *cfg) {
 static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->user, "root") != 0)  {
@@ -835,7 +782,7 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
 
 static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
   
   if (strcmp(pUser->user, "root") != 0)  {
@@ -865,8 +812,7 @@ static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 
   SDnodeObj *pDnode = NULL;
   if (pShow->payloadLen > 0 ) {
-    uint32_t ip = ip2uint(pShow->payload);
-    pDnode = mgmtGetDnodeByIp(ip);
+    pDnode = mgmtGetDnodeByIp(pShow->payload);
   } else {
     mgmtGetNextDnode(NULL, (SDnodeObj **)&pDnode);
   }

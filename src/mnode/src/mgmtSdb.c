@@ -40,7 +40,7 @@ typedef enum {
 typedef enum {
   SDB_STATUS_OFFLINE,
   SDB_STATUS_SERVING,
-  SDB_ACTION_CLOSING
+  SDB_STATUS_CLOSING
 } ESdbStatus;
 
 typedef struct _SSdbTable {
@@ -105,6 +105,10 @@ uint64_t sdbGetVersion() {
 
 bool sdbIsMaster() { 
   return tsSdbObj.role == TAOS_SYNC_ROLE_MASTER; 
+}
+
+bool sdbIsServing() {
+  return tsSdbObj.status == SDB_STATUS_SERVING; 
 }
 
 static char *sdbGetActionStr(int32_t action) {
@@ -180,7 +184,7 @@ void sdbUpdateMnodeRoles() {
     if (pMnode != NULL) {
       pMnode->role = roles.role[i];
       sdbPrint("mnode:%d, role:%s", pMnode->mnodeId, mgmtGetMnodeRoleStr(pMnode->role));
-      mgmtReleaseMnode(pMnode);
+      mgmtDecMnodeRef(pMnode);
     }
   }
 }
@@ -231,8 +235,8 @@ void sdbUpdateSync() {
   for (int32_t i = 0; i < mnodes->nodeNum; ++i) {
     SDMMnodeInfo *node = &mnodes->nodeInfos[i];
     syncCfg.nodeInfo[i].nodeId = node->nodeId;
-    syncCfg.nodeInfo[i].nodeIp = node->nodeIp;
-    strcpy(syncCfg.nodeInfo[i].name, node->nodeName);
+    taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[i].nodeFqdn, &syncCfg.nodeInfo[i].nodePort);
+    syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
     index++;
   }
 
@@ -244,21 +248,16 @@ void sdbUpdateSync() {
       if (pMnode == NULL) break;
 
       syncCfg.nodeInfo[index].nodeId = pMnode->mnodeId;
-      syncCfg.nodeInfo[index].nodeIp = pMnode->pDnode->privateIp;
-      strcpy(syncCfg.nodeInfo[index].name, pMnode->pDnode->dnodeName);
+      syncCfg.nodeInfo[index].nodePort = pMnode->pDnode->dnodePort + TSDB_PORT_SYNC;
+      strcpy(syncCfg.nodeInfo[index].nodeFqdn, pMnode->pDnode->dnodeEp);
       index++;
 
-      mgmtReleaseMnode(pMnode);
+      mgmtDecMnodeRef(pMnode);
     }
   }
 
   syncCfg.replica = index;
-  syncCfg.arbitratorIp = syncCfg.nodeInfo[0].nodeIp;
-  if (syncCfg.replica == 1) {
-    syncCfg.quorum = 1;
-  } else {
-    syncCfg.quorum = 2;
-  }
+  syncCfg.quorum = (syncCfg.replica == 1) ? 1:2;
 
   bool hasThisDnode = false;
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
@@ -271,10 +270,9 @@ void sdbUpdateSync() {
   if (!hasThisDnode) return;
   if (memcmp(&syncCfg, &tsSdbObj.cfg, sizeof(SSyncCfg)) == 0) return;
 
-  sdbPrint("work as mnode, replica:%d arbitratorIp:%s", syncCfg.replica, taosIpStr(syncCfg.arbitratorIp));
+  sdbPrint("work as mnode, replica:%d", syncCfg.replica);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
-    sdbPrint("mnode:%d, ip:%s name:%s", syncCfg.nodeInfo[i].nodeId, taosIpStr(syncCfg.nodeInfo[i].nodeIp),
-           syncCfg.nodeInfo[i].name);
+    sdbPrint("mnode:%d, %s:%d", syncCfg.nodeInfo[i].nodeId, syncCfg.nodeInfo[i].nodeFqdn, syncCfg.nodeInfo[i].nodePort);
   }
 
   SSyncInfo syncInfo;
@@ -320,6 +318,7 @@ int32_t sdbInit() {
 void sdbCleanUp() {
   if (tsSdbObj.status != SDB_STATUS_SERVING) return;
 
+  tsSdbObj.status = SDB_STATUS_CLOSING;
   syncStop(tsSdbObj.sync);
   free(tsSdbObj.sync);
   walClose(tsSdbObj.wal);
@@ -333,7 +332,7 @@ void sdbIncRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
+    if (0 && pTable->tableId == SDB_TABLE_CTABLE) {
       sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -345,7 +344,7 @@ void sdbDecRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
-    if (0 && strcmp(pTable->tableName, "accounts") == 0) {
+    if (0 && pTable->tableId == SDB_TABLE_CTABLE) {
       sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }

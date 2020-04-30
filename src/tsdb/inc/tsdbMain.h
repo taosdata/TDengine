@@ -153,17 +153,16 @@ typedef struct {
 } SCacheMem;
 
 typedef struct {
-  int              maxBytes;
   int              cacheBlockSize;
   int              totalCacheBlocks;
   STsdbCachePool   pool;
   STsdbCacheBlock *curBlock;
   SCacheMem *      mem;
   SCacheMem *      imem;
-  TsdbRepoT *    pRepo;
+  TsdbRepoT *      pRepo;
 } STsdbCache;
 
-STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, TsdbRepoT *pRepo);
+STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo);
 void        tsdbFreeCache(STsdbCache *pCache);
 void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key);
 
@@ -297,7 +296,7 @@ typedef struct {
 // TODO: take pre-calculation into account
 typedef struct {
   int16_t colId;  // Column ID
-  int16_t len;    // Column length
+  int16_t len;    // Column length // TODO: int16_t is not enough
   int32_t type : 8;
   int32_t offset : 24;
 } SCompCol;
@@ -426,6 +425,8 @@ typedef struct {
   SCompData *pCompData;
   SDataCols *pDataCols[2];
 
+  void *blockBuffer;  // Buffer to hold the whole data block
+  void *compBuffer;   // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
 // --------- Helper state
@@ -445,13 +446,11 @@ typedef struct {
 
 int  tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
 int  tsdbInitWriteHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
-// int  tsdbInitHelper(SRWHelper *pHelper, SHelperCfg *pCfg);
 void tsdbDestroyHelper(SRWHelper *pHelper);
 void tsdbResetHelper(SRWHelper *pHelper);
 
 // --------- For set operations
 int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup);
-// void tsdbSetHelperTable(SRWHelper *pHelper, SHelperTable *pHelperTable, STSchema *pSchema);
 void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo);
 int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
 

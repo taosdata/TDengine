@@ -23,8 +23,8 @@ void osInit() {
   strcpy(tsVnodeDir, "C:/TDengine/data");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
-  strcpy(dataDir, "C:/TDengine/data");
-  strcpy(logDir, "C:/TDengine/log");
-  strcpy(scriptDir, "C:/TDengine/script");
-  strcpy(osName, "Windows");
+  strcpy(tsDataDir, "C:/TDengine/data");
+  strcpy(tsLogDir, "C:/TDengine/log");
+  strcpy(tsScriptDir, "C:/TDengine/script");
+  strcpy(tsOsName, "Windows");
 }

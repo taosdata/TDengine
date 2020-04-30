@@ -1,8 +1,8 @@
 system sh/stop_dnodes.sh
-system sh/ip.sh -i 1 -s up
-system sh/ip.sh -i 2 -s up
-system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
-system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/cfg.sh -n dnode2 -c commitLog -v 0
 system sh/cfg.sh -n dnode1 -c numofMpeers -v 3
@@ -120,7 +120,7 @@ endi
 
 print =================== step 8
 system sh/ip.sh -i 1 -s down
-system sh/ip.sh -i 2 -s up
+
 sleep 2000
 $y = $x + $N
 $expect = $N * 6
@@ -137,7 +137,7 @@ if $rows != $expect then
 endi
 
 print =================== step 9
-system sh/ip.sh -i 2 -s up
+
 sleep 2000
 $y = $x + $N
 $expect = $N * 7
@@ -155,7 +155,7 @@ endi
 
 print =================== step 10
 system sh/ip.sh -i 2 -s down
-system sh/ip.sh -i 1 -s up
+
 sleep 2000
 $y = $x + $N
 $expect = $N * 8
@@ -172,7 +172,7 @@ if $rows != $expect then
 endi
 
 print =================== step 11
-system sh/ip.sh -i 2 -s up
+
 sleep 2000
 $y = $x + $N
 $expect = $N * 9

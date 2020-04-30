@@ -304,10 +304,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       SSQLToken* pIpAddr = &pInfo->pDCLInfo->a[0];
-      if (!validateIpAddress(pIpAddr->z, pIpAddr->n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-      }
+      // if (!validateIpAddress(pIpAddr->z, pIpAddr->n)) {
+      //   return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+      // }
 
+      pIpAddr->n = strdequote(pIpAddr->z);
       break;
     }
 
@@ -385,7 +386,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pMsg += sizeof(SMgmtHead);
 
       SCMCfgDnodeMsg* pCfg = (SCMCfgDnodeMsg*)pMsg;
-      strncpy(pCfg->ip, pDCL->a[0].z, pDCL->a[0].n);
+      strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
 
       strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);
 

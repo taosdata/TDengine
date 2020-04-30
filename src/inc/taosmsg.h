@@ -187,7 +187,7 @@ extern char *taosMsg[];
 #pragma pack(push, 1)
 
 typedef struct {
-  uint32_t ip;
+  char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 } SIpAddr;
 
@@ -265,6 +265,7 @@ typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
   char    db[TSDB_DB_NAME_LEN + 1];
   int8_t  igExists;
+  int8_t  getMeta;
   int16_t numOfTags;
   int16_t numOfColumns;
   int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
@@ -549,24 +550,19 @@ typedef struct {
 
 typedef struct {
   int32_t   nodeId;
-  uint32_t  nodeIp;
-  uint16_t  nodePort;
-  uint16_t  syncPort;
-  char      nodeName[TSDB_NODE_NAME_LEN + 1];
+  char      nodeEp[TSDB_FQDN_LEN];
 } SDMMnodeInfo;
 
 typedef struct {
   int8_t       inUse;
   int8_t       nodeNum;
-  SDMMnodeInfo nodeInfos[TSDB_MAX_MPEERS];
+  SDMMnodeInfo nodeInfos[TSDB_MAX_REPLICA];
 } SDMMnodeInfos;
 
 typedef struct {
   uint32_t   version;
   int32_t    dnodeId;
-  char       dnodeName[TSDB_NODE_NAME_LEN + 1];
-  uint32_t   privateIp;
-  uint32_t   publicIp;
+  char       dnodeEp[TSDB_FQDN_LEN];
   uint32_t   moduleStatus;
   uint32_t   lastReboot;        // time stamp for last reboot
   uint16_t   numOfTotalVnodes;  // from config file
@@ -603,19 +599,17 @@ typedef struct {
   int8_t   replications;
   int8_t   wals;
   int8_t   quorum;
-  uint32_t arbitratorIp;
   int8_t   reserved[16];
 } SMDVnodeCfg;
 
 typedef struct {
   int32_t  nodeId;
-  uint32_t nodeIp;
-  char     nodeName[TSDB_NODE_NAME_LEN + 1];
+  char     nodeEp[TSDB_FQDN_LEN];
 } SMDVnodeDesc;
 
 typedef struct {
   SMDVnodeCfg  cfg;
-  SMDVnodeDesc nodes[TSDB_MAX_MPEERS];
+  SMDVnodeDesc nodes[TSDB_MAX_REPLICA];
 } SMDCreateVnodeMsg;
 
 typedef struct {
@@ -738,7 +732,7 @@ typedef struct SCMShowRsp {
 } SCMShowRsp;
 
 typedef struct {
-  char ip[32];
+  char     ep[TSDB_FQDN_LEN];  // end point, hostname:port
 } SCMCreateDnodeMsg, SCMDropDnodeMsg;
 
 typedef struct {
@@ -753,7 +747,7 @@ typedef struct {
 } SDMConfigVnodeMsg;
 
 typedef struct {
-  char ip[32];
+  char ep[TSDB_FQDN_LEN];  // end point, hostname:port
   char config[64];
 } SMDCfgDnodeMsg, SCMCfgDnodeMsg;
 

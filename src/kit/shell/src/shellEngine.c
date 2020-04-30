@@ -40,7 +40,7 @@ History   history;
  */
 TAOS *shellInit(struct arguments *args) {
   printf("\n");
-  printf(CLIENT_VERSION, osName, taos_get_client_info());
+  printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
   fflush(stdout);
 
   // set options before initializing

@@ -2,28 +2,23 @@
 
 echo "Executing deploy.sh"
 
-if [ $# != 6 ]; then 
+if [ $# != 4 ]; then 
   echo "argument list need input : "
   echo "  -n nodeName"
-  echo "  -i nodeIp"
-  echo "  -m masterIp"
+  echo "  -i nodePort"
   exit 1
 fi
 
 NODE_NAME=
-NODE_IP=
-MSATER_IP=
-while getopts "n:i:m:" arg 
+NODE=
+while getopts "n:i:" arg 
 do
   case $arg in
     n)
       NODE_NAME=$OPTARG
       ;;
     i)
-      NODE_IP=$OPTARG
-      ;;
-    m)
-      MASTER_IP=$OPTARG
+      NODE=$OPTARG
       ;;
     ?)
       echo "unkonw argument"
@@ -47,14 +42,6 @@ EXE_DIR=$BUILD_DIR/bin
 CFG_DIR=$NODE_DIR/cfg
 LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data
-
-#echo ============ deploy $NODE_NAME
-#echo === masterIp : $MASTER_IP
-#echo === nodeIp : $NODE_IP
-#echo === nodePath : $EXE_DIR
-#echo === cfgPath : $CFG_DIR
-#echo === logPath : $LOG_DIR
-#echo === dataPath : $DATA_DIR
 
 rm -rf $NODE_DIR
 
@@ -83,13 +70,32 @@ if [ -f "$TAOS_FLAG" ] ; then
   sudo rm -rf $LOG_DIR
 fi
 
-echo " "                                  >> $TAOS_CFG   
-echo "masterIp            $MASTER_IP"     >> $TAOS_CFG
+HOSTNAME=`hostname -f`
+
+if [ $NODE -eq 1 ]; then
+  NODE=7100
+elif [ $NODE -eq 2 ]; then
+  NODE=7200
+elif [ $NODE -eq 3 ]; then
+  NODE=7300
+elif [ $NODE -eq 4 ]; then
+  NODE=7400
+elif [ $NODE -eq 5 ]; then
+  NODE=7500
+elif [ $NODE -eq 6 ]; then
+  NODE=7600  
+elif [ $NODE -eq 7 ]; then
+  NODE=7700  
+elif [ $NODE -eq 8 ]; then
+  NODE=7800    
+fi
+
+echo " "                                    >> $TAOS_CFG   
+echo "first               ${HOSTNAME}:7100" >> $TAOS_CFG
+echo "second              ${HOSTNAME}:7200" >> $TAOS_CFG
+echo "serverPort          ${NODE}"          >> $TAOS_CFG
 echo "dataDir             $DATA_DIR"      >> $TAOS_CFG
 echo "logDir              $LOG_DIR"       >> $TAOS_CFG
-echo "publicIp            $NODE_IP"       >> $TAOS_CFG
-echo "internalIp          $NODE_IP"       >> $TAOS_CFG
-echo "privateIp           $NODE_IP"       >> $TAOS_CFG
 echo "dDebugFlag          199"            >> $TAOS_CFG
 echo "mDebugFlag          199"            >> $TAOS_CFG
 echo "sdbDebugFlag        199"            >> $TAOS_CFG

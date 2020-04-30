@@ -1,6 +1,6 @@
 system sh/stop_dnodes.sh
-system sh/ip.sh -i 1 -s up
-system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+
+system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c clog           -v 0
 system sh/cfg.sh -n dnode1 -c tables         -v 100
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v 256
@@ -37,8 +37,8 @@ if $data00 != 25600 then
   return -1
 endi  
 
-system sh/ip.sh -i 2 -s up
-system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+
+system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c clog           -v 0
 system sh/cfg.sh -n dnode2 -c tables         -v 100
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes    -v 256
@@ -60,8 +60,8 @@ show3:
 	endi
 	
 sql show dnodes
-print 192.168.0.1 freeVnodes $data3_192.168.0.1
-print 192.168.0.2 freeVnodes $data3_192.168.0.2
+print dnode1 freeVnodes $data3_192.168.0.1
+print dnode2 freeVnodes $data3_192.168.0.2
 if $data3_192.168.0.1 != 126 then
 	goto show3
 endi

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taos.h"
 #include "tglobal.h"
 #include "trpc.h"
 #include "tutil.h"
@@ -144,12 +145,12 @@ static int32_t dnodeInitSystem() {
   signal(SIGPIPE, SIG_IGN);
 
   struct stat dirstat;
-  if (stat(logDir, &dirstat) < 0) {
-    mkdir(logDir, 0755);
+  if (stat(tsLogDir, &dirstat) < 0) {
+    mkdir(tsLogDir, 0755);
   }
 
   char temp[TSDB_FILENAME_LEN];
-  sprintf(temp, "%s/taosdlog", logDir);
+  sprintf(temp, "%s/taosdlog", tsLogDir);
   if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
     printf("failed to init log file\n");
   }
@@ -161,8 +162,7 @@ static int32_t dnodeInitSystem() {
   }
   taosPrintGlobalCfg();
 
-  dPrint("Server IP address is:%s", tsPrivateIp);
-  dPrint("starting to initialize TDengine ...");
+  dPrint("start to initialize TDengine on %s", tsLocalEp);
 
   if (dnodeInitStorage() != 0) return -1;
   if (dnodeInitRead() != 0) return -1;
@@ -191,6 +191,7 @@ static void dnodeCleanUpSystem() {
     dnodeCleanupWrite();
     dnodeCleanupRead();
     dnodeCleanUpModules();
+    taos_cleanup();
     dnodeCleanupStorage();
     taosCloseLog();
   }
@@ -218,13 +219,13 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 
 static int32_t dnodeInitStorage() {
   struct stat dirstat;
-  if (stat(dataDir, &dirstat) < 0) {
-    mkdir(dataDir, 0755);
+  if (stat(tsDataDir, &dirstat) < 0) {
+    mkdir(tsDataDir, 0755);
   }
 
-  sprintf(tsMnodeDir, "%s/mnode", dataDir);
-  sprintf(tsVnodeDir, "%s/vnode", dataDir);
-  sprintf(tsDnodeDir, "%s/dnode", dataDir);
+  sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
+  sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
+  sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
   mkdir(tsVnodeDir, 0755);
   mkdir(tsDnodeDir, 0755);
 
@@ -237,5 +238,5 @@ static int32_t dnodeInitStorage() {
 static void dnodeCleanupStorage() {}
 
 bool  dnodeIsFirstDeploy() {
-  return strcmp(tsMasterIp, tsPrivateIp) == 0;
+  return strcmp(tsFirst, tsLocalEp) == 0;
 }

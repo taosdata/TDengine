@@ -220,7 +220,7 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
 static int tscLoadSubscriptionProgress(SSub* pSub) {
   char buf[TSDB_MAX_SQL_LEN];
-  sprintf(buf, "%s/subscribe/%s", dataDir, pSub->topic);
+  sprintf(buf, "%s/subscribe/%s", tsDataDir, pSub->topic);
 
   FILE* fp = fopen(buf, "r");
   if (fp == NULL) {
@@ -281,12 +281,12 @@ void tscSaveSubscriptionProgress(void* sub) {
   SSub* pSub = (SSub*)sub;
 
   char path[256];
-  sprintf(path, "%s/subscribe", dataDir);
+  sprintf(path, "%s/subscribe", tsDataDir);
   if (access(path, 0) != 0) {
     mkdir(path, 0777);
   }
 
-  sprintf(path, "%s/subscribe/%s", dataDir, pSub->topic);
+  sprintf(path, "%s/subscribe/%s", tsDataDir, pSub->topic);
   FILE* fp = fopen(path, "w+");
   if (fp == NULL) {
     tscError("failed to create progress file for subscription: %s", pSub->topic);
@@ -416,7 +416,7 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
     tscSaveSubscriptionProgress(pSub);
   } else {
     char path[256];
-    sprintf(path, "%s/subscribe/%s", dataDir, pSub->topic);
+    sprintf(path, "%s/subscribe/%s", tsDataDir, pSub->topic);
     remove(path);
   }
 
