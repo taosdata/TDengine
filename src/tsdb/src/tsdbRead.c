@@ -216,7 +216,7 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
     return false;
   }
   
-  if (pCheckInfo->iter == NULL) {
+  if (pCheckInfo->iter == NULL && pTable->mem) {
     pCheckInfo->iter = tSkipListCreateIterFromVal(pTable->mem->pData, (const char*) &pCheckInfo->lastKey,
         TSDB_DATA_TYPE_TIMESTAMP, pHandle->order);
     

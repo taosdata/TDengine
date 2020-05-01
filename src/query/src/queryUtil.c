@@ -62,7 +62,10 @@ void destroyTimeWindowRes(SWindowResult *pWindowRes, int32_t nOutputCols) {
 }
 
 void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, int32_t numOfCols) {
-  if (pWindowResInfo == NULL || pWindowResInfo->capacity == 0) {
+  if (pWindowResInfo == NULL) {
+    return;
+  }
+  if (pWindowResInfo->capacity == 0) {
     assert(pWindowResInfo->hashList == NULL && pWindowResInfo->pResult == NULL);
     return;
   }
