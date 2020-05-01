@@ -201,7 +201,7 @@ if $dnode2Vnodes != null then
 endi
 
 print =============== step4 start dnode2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sleep 8000
 

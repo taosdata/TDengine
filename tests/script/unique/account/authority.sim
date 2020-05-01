@@ -84,11 +84,11 @@ sql alter user read pass 'taosdata' -x step23
   return -1
 step23:
 
-sql create dnode 192.168.0.2 -x step24
+sql create dnode $hostname2 -x step24
   return -1
 step24:
 
-sql drop dnode 192.168.0.2 -x step25
+sql drop dnode $hostname2 -x step25
   return -1
 step25:
 

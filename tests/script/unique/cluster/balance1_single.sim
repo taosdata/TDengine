@@ -34,7 +34,7 @@ print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0
@@ -93,7 +93,7 @@ endi
 print ============================== step2
 print ========= start dnode3
 sleep 3000
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 sleep 8000
 
@@ -141,7 +141,7 @@ sql insert into c_b1_t3 values(now+5s, 31)
 
 print ============================== step4
 print ========= drop dnode3
-sql drop dnode 192.168.0.3
+sql drop dnode $hostname3
 sleep 9000
 
 $x = 0
@@ -179,7 +179,7 @@ print ========= add dnode3
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep 5000
 system sh/exec.sh -n dnode3 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 sleep 9000
 
 $x = 0
@@ -208,7 +208,7 @@ system sh/exec.sh -n dnode2 -s stop -x SIGINT
 print stop dnode2 and sleep 10000
 sleep 10000
 
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 print drop dnode2 and sleep 9000
 sleep 9000
 
@@ -236,7 +236,7 @@ endi
 
 print ============================== step7
 print ========= add dnode2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sleep 9000
 
@@ -265,7 +265,7 @@ print ========= drop dnode3
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 print stop dnode3 and sleep 10000
 sleep 10000
-sql drop dnode 192.168.0.3
+sql drop dnode $hostname3
 print drop dnode3 and sleep 9000
 sleep 9000
 
@@ -291,7 +291,7 @@ endi
 
 print ============================== step9
 print ========= add dnode3
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 sleep 9000
 
@@ -354,7 +354,7 @@ sql insert into c_b1_t2 values(now+1s, 25)
 
 print ============================== step11
 print ========= drop dnode3
-sql drop dnode 192.168.0.3
+sql drop dnode $hostname3
 sleep 9000
 
 $x = 0
@@ -386,7 +386,7 @@ sql use c_b1_d5
 
 print ============================== step13
 print ========= add dnode3
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 sleep 9000
 
@@ -436,7 +436,7 @@ print dnode3 $dnode3Vnodes
 
 print ============================== step14
 print ========= add dnode4
-sql create dnode 192.168.0.4
+sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
 sleep 10000
 
@@ -488,8 +488,8 @@ sql insert into c_b1_t8 values(now+5s, 81)
 
 
 print ========== add dnode5
-sql create dnode 192.168.0.5
-print sql create dnode 192.168.0.5 over
+sql create dnode $hostname5
+print sql create dnode $hostname5 over
 system sh/exec.sh -n dnode5 -s start
 print sleep 12000
 sleep 12000
@@ -528,7 +528,7 @@ endi
 print ============================== step16
 print ========= drop dnode5, create db9
 
-sql drop dnode 192.168.0.5
+sql drop dnode $hostname5
 sleep 10000
 sql create database c_b1_d9 tables 4
 sql use c_b1_d9

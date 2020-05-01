@@ -14,7 +14,7 @@ system sh/exec.sh -n dnode1 -s start
 
 sql connect
 
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0

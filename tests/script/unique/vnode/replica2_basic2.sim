@@ -32,9 +32,9 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 sleep 3000
 
@@ -77,9 +77,9 @@ if $rows != 1 then
 endi
 
 sql show dnodes
-print dnode192.168.0.1 ==> openVnodes: $data2_192.168.0.1  freeVnodes: $data3_192.168.0.1
-print dnode192.168.0.2 ==> openVnodes: $data2_192.168.0.2  freeVnodes: $data3_192.168.0.2
-print dnode192.168.0.3 ==> openVnodes: $data2_192.168.0.3  freeVnodes: $data3_192.168.0.3
+print dnode1 ==> openVnodes: $data2_192.168.0.1  freeVnodes: $data3_192.168.0.1
+print dnode2 ==> openVnodes: $data2_192.168.0.2  freeVnodes: $data3_192.168.0.2
+print dnode3 ==> openVnodes: $data2_192.168.0.3  freeVnodes: $data3_192.168.0.3
 
 if $data2_192.168.0.1 != 0 then
  return -1

@@ -12,7 +12,7 @@ system sh/exec.sh -n dnode1 -s start
 
 sql connect
 
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 $x = 0
 createDnode: 
@@ -115,7 +115,7 @@ connectTbase2:
 sql connect -x connectTbase2
 sleep 3000
 
-sql create dnode 192.168.0.1
+sql create dnode $hostname1
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 print ======================== dnode start

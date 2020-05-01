@@ -31,7 +31,7 @@ system sh/cfg.sh -n dnode3 -c clog -v 1
 print ========== step1
 system sh/exec_up.sh -n dnode1 -s start
 sql connect
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
 sleep 3000
 
@@ -71,9 +71,9 @@ if $data4_192.168.0.2 != offline then
 endi
 
 print ========== step4
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 
 sleep 5000
 $x = 0

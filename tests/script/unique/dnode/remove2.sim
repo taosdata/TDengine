@@ -58,7 +58,7 @@ if $data3_1 != 2 then
 endi
 
 print ========== step2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
 sleep 9000
 
@@ -90,7 +90,7 @@ endi
 
 print ========== step3
 system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 sleep 7001
 
 $x = 0
@@ -106,7 +106,7 @@ print dnode1 openVnodes $data3_1
 print dnode2 openVnodes $data3_2 $data5_192.168.0.2
 
 print ========== step4
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
 
 $x = 0

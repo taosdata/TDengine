@@ -35,7 +35,7 @@ system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
 sql create database ir2db replica 2 days 7

@@ -48,7 +48,7 @@ system sh/cfg.sh -n dnode2 -c maxShellConns       -v 100000
 system sh/cfg.sh -n dnode2 -c maxMgmtConnections  -v 100000
 
 print ==========  step2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0
