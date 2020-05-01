@@ -99,9 +99,11 @@ void *taosAllocateTcpThread(void *param, void *pPeer, int connFd)
 
   if (pThread ) {
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
+      uError("failed to add fd:%d(%s)", connFd, strerror(errno));
       pThread = NULL;
     } else {
       pThread->numOfFds++;
+      //uTrace("fd:%d is added, num:%d", connFd, pThread->numOfFds);
     }
   }
 
@@ -117,6 +119,7 @@ void taosFreeTcpThread(void *param, int *pfd)
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, *pfd, NULL);
   taosCloseTcpSocket(*pfd);
   pThread->numOfFds--;
+  //uTrace("fd:%d is removed, num:%d", *pfd, pThread->numOfFds);
   
   *pfd = -1;
 }
@@ -135,30 +138,26 @@ static void taosProcessTcpData(void *param) {
 
   while (1) {
     int fdNum = epoll_wait(pThread->pollFd, events, maxEvents, -1);
-    if (fdNum < 0) continue;
+    if (fdNum < 0) { 
+      uError("epoll_wait failed (%s)", strerror(errno));
+      continue;
+    }
 
     for (int i = 0; i < fdNum; ++i) {
       void *ahandle = events[i].data.ptr;
-      int   fd = events[i].data.fd;
       if (ahandle == NULL) continue;
 
       if (events[i].events & EPOLLERR) {
-        epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, fd, NULL);
-        pThread->numOfFds--;
         (*pInfo->processBrokenLink)(ahandle);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
-        epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, fd, NULL);
-        pThread->numOfFds--;
         (*pInfo->processBrokenLink)(ahandle);
         continue;
       }
 
       if ((*pInfo->processIncomingMsg)(ahandle, buffer) < 0) {
-        epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, fd, NULL);
-        pThread->numOfFds--;
         (*pInfo->processBrokenLink)(ahandle);
         continue;
       }
@@ -214,7 +213,10 @@ static SThreadObj *taosGetTcpThread(SThreadPool *pPool) {
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  if (pthread_create(&(pThread->thread), &thattr, (void *) taosProcessTcpData, pThread) != 0) {
+  int ret = pthread_create(&(pThread->thread), &thattr, (void *) taosProcessTcpData, pThread);
+  pthread_attr_destroy(&thattr);
+
+  if (ret != 0) {
     free(pThread);
     return NULL;
   }

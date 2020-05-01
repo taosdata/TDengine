@@ -30,7 +30,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
   SFileInfo  sinfo;   // slave file info
   SFileAck   fileAck;
   int        code = -1;
-  char       name[TSDB_FILENAME_LEN * 2];
+  char       name[TSDB_FILENAME_LEN * 2] = {0};
 
   while (1) {
     // read file info
@@ -96,7 +96,7 @@ static int syncRestoreWal(SSyncPeer *pPeer)
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         ret, code = -1;
 
-  void *buffer = malloc(1024000);  // size for one record
+  void *buffer = calloc(1024000, 1);  // size for one record
   if (buffer == NULL) return -1;
 
   SWalHead *pHead = (SWalHead *)buffer;
