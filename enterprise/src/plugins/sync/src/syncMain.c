@@ -302,7 +302,7 @@ void syncConfirmForward(void *param, uint64_t version, int32_t code)
 {
   SSyncNode  *pNode = param;
   SSyncPeer  *pPeer = pNode->pMaster;
-  char        msg[sizeof(SSyncHead) + sizeof(SFwdRsp)];
+  char        msg[sizeof(SSyncHead) + sizeof(SFwdRsp)] = {0};
 
   if (pNode->quorum <= 1) return;
   if (pPeer == NULL) return;
@@ -535,8 +535,8 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
   if (onlineNum <= pNode->replica*0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
-      (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       pNode->peerInfo[pNode->selfIndex]->role = nodeRole;
+      (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       sPrint("vgId:%d, change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, pNode->replica);
     }
   } else {
@@ -658,7 +658,10 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
   pthread_t       thread;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
-  if (pthread_create(&thread, &thattr, syncRetrieveData, pPeer) != 0) {
+  int ret = pthread_create(&thread, &thattr, syncRetrieveData, pPeer);
+  pthread_attr_destroy(&thattr);
+
+  if (ret != 0) {
     sError("vgId:%d peer:%s, failed to create sync thread(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
   } else {
     pPeer->sstatus = TAOS_SYNC_STATUS_START;
@@ -701,6 +704,7 @@ static void syncRecoverFromMaster(void *param, void *tmrId)
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_REQ;
   firstPkt.syncHead.vgId = pNode->vgId;
+  firstPkt.syncHead.len = sizeof(firstPkt) - sizeof(SSyncHead);
   strcpy(firstPkt.fqdn, tsNodeFqdn);
   firstPkt.port = tsSyncPort;
   taosTmrReset(syncNotStarted, tsSyncTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
@@ -840,7 +844,7 @@ static int syncProcessPeerMsg(void *param, void *buffer)
 static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
-  char       msg[statusMsgLen];
+  char       msg[statusMsgLen] = {0};
 
   if (pPeer->peerFd <0 || pPeer->ip ==0) return;
 
@@ -925,11 +929,13 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer)
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
 
-  if (pthread_create(&(thread), &thattr, (void *)syncRestoreData, pPeer) < 0) {
+  int ret = pthread_create(&(thread), &thattr, (void *)syncRestoreData, pPeer);
+  pthread_attr_destroy(&thattr);
+
+  if (ret < 0) {
     sError("vgId:%d peer:%s, failed to create sync thread(%s)", pNode->vgId, pPeer->fqdn);
     tclose(pPeer->syncFd);
   } else { 
-    pthread_attr_destroy(&thattr);
     sPrint("vgId:%d peer:%s, sync connection is up", pNode->vgId, pPeer->fqdn);
   }
 }
@@ -1009,7 +1015,7 @@ static void syncProcessBrokenLink(void *param) {
 
   sTrace("vgId:%d peer:%s, TCP link is broken(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
 
-  tclose(pPeer->peerFd);
+  taosFreeTcpThread(pPeer->pThread, &pPeer->peerFd);
 
   if (syncDecPeerRef(pPeer) != 0) 
     syncRestartConnection(pPeer);

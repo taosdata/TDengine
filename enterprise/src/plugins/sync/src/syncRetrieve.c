@@ -98,9 +98,10 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
   SFileInfo   fileInfo;
   SFileAck    fileAck;
   int         code = -1;
-  char        name[TSDB_FILENAME_LEN * 2];
+  char        name[TSDB_FILENAME_LEN * 2] = {0};
 
-  fileInfo.index = 0;
+  memset(&fileInfo, 0, sizeof(fileInfo));
+  memset(&fileAck, 0, sizeof(fileAck));
 
   while (1) {
     // retrieve file info

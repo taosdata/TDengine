@@ -268,7 +268,7 @@ int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
   char         aname[256];
 
   name[0] = 0;
-  if (*index > walNum -1) return 0;
+  if (*index + 1> walNum) return 0;
 
   sprintf(aname, "%s/wal/wal.%d", path, *index);
   sprintf(name, "wal/wal.%d", *index); 
