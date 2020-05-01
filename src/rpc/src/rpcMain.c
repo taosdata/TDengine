@@ -298,7 +298,8 @@ void rpcClose(void *param) {
   (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
   (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
-  taosHashCleanup(pRpc->hash);
+//  taosHashCleanup(pRpc->hash);
+  taosCleanUpStrHash(pRpc->hash);
   taosTmrCleanUp(pRpc->tmrCtrl);
   taosIdPoolCleanUp(pRpc->idPool);
   rpcCloseConnCache(pRpc->pCache);
