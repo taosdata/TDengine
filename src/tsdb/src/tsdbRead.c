@@ -595,6 +595,10 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
   }
 
   int32_t start = MIN(cur->pos, endPos);
+  
+//  if (start > 0) {
+//    tdPopDataColsPoints(pQueryHandle->rhelper.pDataCols[0], start);
+//  }
 
   // move the data block in the front to data block if needed
   int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
@@ -604,12 +608,20 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
 
     for (int32_t j = 0; j < numOfCols; ++j) {
       SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, j);
+      int32_t bytes = pCol->info.bytes;
 
       if (pCol->info.colId == colId) {
-        memmove(pCol->pData, &pQueryHandle->rhelper.pDataCols[0]->cols[i],
-                     sizeof(SDataCol) + pQueryHandle->rhelper.pDataCols[0]->cols[i].len);
-        
-        tdPopDataColsPoints(pCol->pData, start);
+        if (pCol->info.type != TSDB_DATA_TYPE_BINARY && pCol->info.type != TSDB_DATA_TYPE_NCHAR) {
+          memmove(pCol->pData, pQueryHandle->rhelper.pDataCols[0]->cols[i].pData + bytes * start,
+                       bytes * pQueryHandle->realNumOfRows);
+        } else {
+          SDataCol* src = &pQueryHandle->rhelper.pDataCols[0]->cols[i];
+          
+          for(int32_t k = start; k < pQueryHandle->realNumOfRows + start; ++k) {
+            char* p = tdGetColDataOfRow(src, k);
+            memcpy(pCol->pData + k * bytes, p, *(int16_t*) p + sizeof(int16_t));  // todo refactor
+          }
+        }
         break;
       }
     }

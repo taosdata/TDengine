@@ -2126,6 +2126,13 @@ char* tscGetResultColumnChr(SSqlRes* pRes, SQueryInfo* pQueryInfo, int32_t colum
   SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, column);
   
-  return ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows;
+  int32_t type = pInfo->pSqlExpr->resType;
+  char* pData = ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows;
+  
+  if (type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_BINARY) {
+    return pData;
+  } else {
+    return pData + sizeof(int16_t); // head is the length of binary/nchar data
+  }
 }
 
