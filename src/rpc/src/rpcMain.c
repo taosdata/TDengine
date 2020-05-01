@@ -643,9 +643,10 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv) {
 
   if (sid) {
     pConn = pRpc->connList + sid;
-  } else {
-    pConn = rpcAllocateServerConn(pRpc, pRecv);
+    if (pConn->user[0] == 0) pConn = NULL;
   } 
+
+  if (pConn == NULL) pConn = rpcAllocateServerConn(pRpc, pRecv);
 
   if (pConn) {
     if (pConn->linkUid != pHead->linkUid) {
