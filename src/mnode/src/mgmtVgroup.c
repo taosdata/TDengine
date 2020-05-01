@@ -158,7 +158,11 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
   }
 
   mgmtDecVgroupRef(pVgroup);
-  mTrace("vgId:%d, is updated, tables:%d numOfVnode:%d", pVgroup->vgId, pDb->cfg.maxTables, pVgroup->numOfVnodes);
+
+  mTrace("vgId:%d, is updated, numOfVnode:%d", pVgroup->vgId, pVgroup->numOfVnodes);
+  if (pDb) {
+    mTrace("tables:%d", pDb->cfg.maxTables);
+  }
   return TSDB_CODE_SUCCESS;
 }
 

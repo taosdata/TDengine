@@ -149,7 +149,9 @@ void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
-  if (rpcMsg == NULL || rpcMsg->pCont == NULL) {
+  assert(rpcMsg);
+
+  if (rpcMsg->pCont == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
     return;
   }

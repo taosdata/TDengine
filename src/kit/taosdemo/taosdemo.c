@@ -340,6 +340,9 @@ int main(int argc, char *argv[]) {
   int count_data_type = 0;
   char dataString[512];
   bool do_aggreFunc = true;
+
+  memset(dataString, 0, 512);
+
   if (strcasecmp(data_type[0], "BINARY") == 0 || strcasecmp(data_type[0], "BOOL") == 0) {
     do_aggreFunc = false;
   }

@@ -228,7 +228,11 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
   SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
-  if (pSql == NULL || pSql->signature != pSql) {
+  if (pSql == NULL) {
+    tscError("%p sql is already released", pSql->signature);
+    return;
+  }
+  if (pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
     return;
   }
@@ -310,7 +314,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     pRes->rspType = rpcMsg->msgType;
     pRes->rspLen  = rpcMsg->contLen;
 
-    if (pRes->rspLen > 0) {
+    if (pRes->rspLen > 0 && rpcMsg->pCont) {
       char *tmp = (char *)realloc(pRes->pRsp, pRes->rspLen);
       if (tmp == NULL) {
         pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;

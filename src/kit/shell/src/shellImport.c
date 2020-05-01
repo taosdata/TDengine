@@ -142,6 +142,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
+    free(cmd);
     return;
   }
 
