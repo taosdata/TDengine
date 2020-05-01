@@ -1,7 +1,7 @@
 from .cinterface import CTaosInterface
 from .error import *
 
-querySeqNum = 0
+# querySeqNum = 0
 
 class TDengineCursor(object):
     """Database cursor which is used to manage the context of a fetch operation.
