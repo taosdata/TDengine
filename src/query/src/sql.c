@@ -2267,7 +2267,7 @@ static void yy_reduce(
       case 103: /* cmd ::= CREATE TABLE ifnotexists ids cpxName create_table_args */
 {
     yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
-    setCreatedMeterName(pInfo, &yymsp[-2].minor.yy0, &yymsp[-3].minor.yy0);
+    setCreatedTableName(pInfo, &yymsp[-2].minor.yy0, &yymsp[-3].minor.yy0);
 }
         break;
       case 104: /* create_table_args ::= LP columnlist RP */

@@ -79,7 +79,7 @@ static FORCE_INLINE void taosFreeNode(void *data) {
  */
 static SCacheDataNode *taosCreateHashNode(const char *key, size_t keyLen, const char *pData, size_t size,
                                           uint64_t duration) {
-  size_t totalSize = size + sizeof(SCacheDataNode) + keyLen;
+  size_t totalSize = size + sizeof(SCacheDataNode) + keyLen + 1;
   
   SCacheDataNode *pNewNode = calloc(1, totalSize);
   if (pNewNode == NULL) {

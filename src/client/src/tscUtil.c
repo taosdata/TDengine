@@ -603,14 +603,16 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
   memcpy(pDataBlock, pTableDataBlock->pData, sizeof(SSubmitBlk));
   pDataBlock += sizeof(SSubmitBlk);
 
-  int32_t flen = 0;
+  int32_t flen = 0;  // original total length of row
   for (int32_t i = 0; i < tinfo.numOfColumns; ++i) {
     flen += TYPE_BYTES[pSchema[i].type];
   }
 
   char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
   pBlock->len = 0;
-  for (int32_t i = 0; i < htons(pBlock->numOfRows); ++i) {
+  int32_t numOfRows = htons(pBlock->numOfRows);
+  
+  for (int32_t i = 0; i < numOfRows; ++i) {
     SDataRow trow = (SDataRow)pDataBlock;
     dataRowSetLen(trow, TD_DATA_ROW_HEAD_SIZE + flen);
 

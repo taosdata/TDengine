@@ -560,7 +560,6 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
   SQueryFilePos* cur = &pQueryHandle->cur;
   SDataBlockInfo blockInfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
   
-//  pQueryHandle->rhelper.pDataCols[0]->cols[0];
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
 
   int32_t endPos = cur->pos;
@@ -607,8 +606,10 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
       SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, j);
 
       if (pCol->info.colId == colId) {
-        memmove(pCol->pData, pQueryHandle->rhelper.pDataCols[0]->cols[i].pData + pCol->info.bytes * start,
-               pQueryHandle->realNumOfRows * pCol->info.bytes);
+        memmove(pCol->pData, &pQueryHandle->rhelper.pDataCols[0]->cols[i],
+                     sizeof(SDataCol) + pQueryHandle->rhelper.pDataCols[0]->cols[i].len);
+        
+        tdPopDataColsPoints(pCol->pData, start);
         break;
       }
     }
