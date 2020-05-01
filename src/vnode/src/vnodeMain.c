@@ -96,14 +96,16 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   }
 
   STsdbCfg tsdbCfg = {0};
-  tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-  tsdbCfg.compression         = pVnodeCfg->cfg.compression;;
   tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
+  tsdbCfg.cacheBlockSize      = pVnodeCfg->cfg.cacheBlockSize;
+  tsdbCfg.totalBlocks         = pVnodeCfg->cfg.totalBlocks;
   tsdbCfg.maxTables           = pVnodeCfg->cfg.maxTables;
   tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
+  tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
   tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
-  tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
+  tsdbCfg.precision           = pVnodeCfg->cfg.precision;
+  tsdbCfg.compression         = pVnodeCfg->cfg.compression;;
   
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);

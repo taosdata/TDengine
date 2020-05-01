@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "tglobal.h"
 #include "tulog.h"
 #include "tsocket.h"
 #include "tutil.h"
@@ -26,8 +25,13 @@ int taosGetFqdn(char *fqdn) {
 
   struct hostent* h;
   h = gethostbyname(hostname);
-  strcpy(fqdn, h->h_name);
-  return 0;
+  if (h != NULL) {
+    strcpy(fqdn, h->h_name);
+    return 0;
+  } else {
+    uError("failed to get host name");
+    return -1;
+  }
 }
 
 uint32_t taosGetIpFromFqdn(const char *fqdn) {
@@ -392,38 +396,6 @@ int taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   }
 
   return sockFd;
-}
-
-int taosOpenRawSocket(uint32_t ip) {
-  int                fd, hold;
-  struct sockaddr_in rawAdd;
-
-  uTrace("open udp raw socket:%s", ip);
-
-  fd = (int)socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
-  if (fd < 0) {
-    uError("failed to open raw socket: %d (%s)", errno, strerror(errno));
-    return -1;
-  }
-
-  hold = 1;
-  if (taosSetSockOpt(fd, IPPROTO_IP, IP_HDRINCL, (void *)&hold, sizeof(hold)) < 0) {
-    uError("failed to set hold option: %d (%s)", errno, strerror(errno));
-    close(fd);
-    return -1;
-  }
-
-  bzero((char *)&rawAdd, sizeof(rawAdd));
-  rawAdd.sin_family = AF_INET;
-  rawAdd.sin_addr.s_addr = ip;
-
-  if (bind(fd, (struct sockaddr *)&rawAdd, sizeof(rawAdd)) < 0) {
-    uError("failed to bind RAW socket:(%s)", strerror(errno));
-    close(fd);
-    return -1;
-  }
-
-  return fd;
 }
 
 void tinet_ntoa(char *ipstr, unsigned int ip) {

@@ -16,33 +16,34 @@
 
 #include "taosdef.h"
 #include "ttokendef.h"
+#include "tscompression.h"
 
 const int32_t TYPE_BYTES[11] = {
-    -1,               // TSDB_DATA_TYPE_NULL
-    sizeof(int8_t),   // TSDB_DATA_TYPE_BOOL
-    sizeof(int8_t),   // TSDB_DATA_TYPE_TINYINT
-    sizeof(int16_t),  // TSDB_DATA_TYPE_SMALLINT
-    sizeof(int32_t),  // TSDB_DATA_TYPE_INT
-    sizeof(int64_t),  // TSDB_DATA_TYPE_BIGINT
-    sizeof(float),    // TSDB_DATA_TYPE_FLOAT
-    sizeof(double),   // TSDB_DATA_TYPE_DOUBLE
-    sizeof(int32_t),  // TSDB_DATA_TYPE_BINARY
-    sizeof(TSKEY),    // TSDB_DATA_TYPE_TIMESTAMP
-    sizeof(int32_t)   // TSDB_DATA_TYPE_NCHAR
+    -1,                      // TSDB_DATA_TYPE_NULL
+    sizeof(int8_t),          // TSDB_DATA_TYPE_BOOL
+    sizeof(int8_t),          // TSDB_DATA_TYPE_TINYINT
+    sizeof(int16_t),         // TSDB_DATA_TYPE_SMALLINT
+    sizeof(int32_t),         // TSDB_DATA_TYPE_INT
+    sizeof(int64_t),         // TSDB_DATA_TYPE_BIGINT
+    sizeof(float),           // TSDB_DATA_TYPE_FLOAT
+    sizeof(double),          // TSDB_DATA_TYPE_DOUBLE
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_BINARY
+    sizeof(TSKEY),           // TSDB_DATA_TYPE_TIMESTAMP
+    sizeof(VarDataOffsetT)   // TSDB_DATA_TYPE_NCHAR
 };
 
 tDataTypeDescriptor tDataTypeDesc[11] = {
-  {TSDB_DATA_TYPE_NULL,      6, 1,            "NOTYPE"},
-  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL"},
-  {TSDB_DATA_TYPE_TINYINT,   7, CHAR_BYTES,   "TINYINT"},
-  {TSDB_DATA_TYPE_SMALLINT,  8, SHORT_BYTES,  "SMALLINT"},
-  {TSDB_DATA_TYPE_INT,       3, INT_BYTES,    "INT"},
-  {TSDB_DATA_TYPE_BIGINT,    6, LONG_BYTES,   "BIGINT"},
-  {TSDB_DATA_TYPE_FLOAT,     5, FLOAT_BYTES,  "FLOAT"},
-  {TSDB_DATA_TYPE_DOUBLE,    6, DOUBLE_BYTES, "DOUBLE"},
-  {TSDB_DATA_TYPE_BINARY,    6, 0,            "BINARY"},
-  {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES,   "TIMESTAMP"},
-  {TSDB_DATA_TYPE_NCHAR,     5, 8,            "NCHAR"},
+  {TSDB_DATA_TYPE_NULL,      6, 1,            "NOTYPE",    NULL,                NULL},
+  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool},
+  {TSDB_DATA_TYPE_TINYINT,   7, CHAR_BYTES,   "TINYINT",   tsCompressTinyint,   tsDecompressTinyint},
+  {TSDB_DATA_TYPE_SMALLINT,  8, SHORT_BYTES,  "SMALLINT",  tsCompressSmallint,  tsDecompressSmallint},
+  {TSDB_DATA_TYPE_INT,       3, INT_BYTES,    "INT",       tsCompressInt,       tsDecompressInt},
+  {TSDB_DATA_TYPE_BIGINT,    6, LONG_BYTES,   "BIGINT",    tsCompressBigint,    tsDecompressBigint},
+  {TSDB_DATA_TYPE_FLOAT,     5, FLOAT_BYTES,  "FLOAT",     tsCompressFloat,     tsDecompressFloat},
+  {TSDB_DATA_TYPE_DOUBLE,    6, DOUBLE_BYTES, "DOUBLE",    tsCompressDouble,    tsDecompressDouble},
+  {TSDB_DATA_TYPE_BINARY,    6, 0,            "BINARY",    tsCompressString,    tsDecompressString},
+  {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES,   "TIMESTAMP", tsCompressTimestamp, tsDecompressTimestamp},
+  {TSDB_DATA_TYPE_NCHAR,     5, 8,            "NCHAR",     tsCompressString,    tsDecompressString},
 };
 
 char tTokenTypeSwitcher[13] = {

@@ -79,15 +79,18 @@ void tscSetMgmtIpListFromEdge() {
   if (tscMgmtIpSet.numOfIps != 1) {
     tscMgmtIpSet.numOfIps = 1;
     tscMgmtIpSet.inUse = 0;
-    taosGetFqdnPortFromEp(tsMaster, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
+    taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
   }
 }
 
 void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
-  tscTrace("mgmt IP list is changed for ufp is called");
   tscMgmtIpSet = *pIpSet;
+  tscTrace("mgmt IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
+  for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
+    tscTrace("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
+  }
 }
 
 void tscSetMgmtIpList(SRpcIpSet *pIpList) {

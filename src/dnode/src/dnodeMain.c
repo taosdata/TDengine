@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taos.h"
 #include "tglobal.h"
 #include "trpc.h"
 #include "tutil.h"
@@ -190,6 +191,7 @@ static void dnodeCleanUpSystem() {
     dnodeCleanupWrite();
     dnodeCleanupRead();
     dnodeCleanUpModules();
+    taos_cleanup();
     dnodeCleanupStorage();
     taosCloseLog();
   }
@@ -236,5 +238,5 @@ static int32_t dnodeInitStorage() {
 static void dnodeCleanupStorage() {}
 
 bool  dnodeIsFirstDeploy() {
-  return strcmp(tsMaster, tsLocalEp) == 0;
+  return strcmp(tsFirst, tsLocalEp) == 0;
 }

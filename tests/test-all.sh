@@ -27,9 +27,9 @@ fi
 cd ../pytest
 
 if [ "$1" == "cron" ]; then
-  ./fulltest.sh 2>&1 | tee pytest-out.txt
+  ./fulltest.sh > /dev/null | tee pytest-out.txt
 else
-  ./smoketest.sh 2>&1 | tee pytest-out.txt
+  ./smoketest.sh > /dev/null | tee pytest-out.txt
 fi
 totalPySuccess=`grep 'successfully executed' pytest-out.txt | wc -l`
 
@@ -40,7 +40,6 @@ fi
 
 totalPyFailed=`grep 'failed\|fault' pytest-out.txt | wc -l`
 if [ "$totalPyFailed" -ne "0" ]; then
-  cat pytest-out.txt
   echo -e "${RED} ### Total $totalPyFailed python case(s) failed! ### ${NC}"
   exit $totalPyFailed
 fi

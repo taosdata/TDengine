@@ -69,6 +69,7 @@ typedef struct {
   SHashObj *   pHashTable;
   int          numOfElemsInTrash;  // number of element in trash
   int16_t      deleting;           // set the deleting flag to stop refreshing ASAP.
+  T_REF_DECLARE()
 
 #if defined(LINUX)
   pthread_rwlock_t lock;

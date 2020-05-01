@@ -168,8 +168,7 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
-    .pObj = pUser,
-    .rowSize = tsUserUpdateSize
+    .pObj = pUser
   };
 
   int32_t code = sdbUpdateRow(&oper);
@@ -249,7 +248,7 @@ static int32_t mgmtDropUser(SUserObj *pUser) {
 }
 
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) {
     return TSDB_CODE_NO_USER_FROM_CONN;
   }
@@ -298,7 +297,7 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
   char     *pWrite;
 
   while (numOfRows < rows) {
-    pShow->pNode = sdbFetchRow(tsUserSdb, pShow->pNode, (void **) &pUser);
+    pShow->pNode = mgmtGetNextUser(pShow->pNode, &pUser);
     if (pUser == NULL) break;
     
     cols = 0;
@@ -329,12 +328,9 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
   return numOfRows;
 }
 
-SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp) {
+SUserObj *mgmtGetUserFromConn(void *pConn) {
   SRpcConnInfo connInfo;
   if (rpcGetConnInfo(pConn, &connInfo) == 0) {
-    if (usePublicIp) {
-      *usePublicIp = (connInfo.serverIp == tsPublicIpInt);
-    }
     return mgmtGetUser(connInfo.user);
   } else {
     mError("can not get user from conn:%p", pConn);
@@ -510,7 +506,7 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
 
   while (1) {
     pLastNode = pNode;
-    pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
+    pNode = mgmtGetNextUser(pNode, &pUser);
     if (pUser == NULL) break;
 
     if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {

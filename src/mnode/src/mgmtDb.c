@@ -36,7 +36,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-void *  tsDbSdb = NULL;
+static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
@@ -82,7 +82,7 @@ static int32_t mgmtDbActionDelete(SSdbOper *pOper) {
   mgmtDropDbFromAcct(pAcct, pDb);
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
-  mgmtDropAllVgroups(pDb);
+  mgmtDropAllDbVgroups(pDb);
   mgmtDecAcctRef(pAcct);
   
   return TSDB_CODE_SUCCESS;
@@ -95,6 +95,7 @@ static int32_t mgmtDbActionUpdate(SSdbOper *pOper) {
     memcpy(pSaved, pDb, pOper->rowSize);
     free(pDb);
   }
+  mgmtDecDbRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -154,6 +155,10 @@ int32_t mgmtInitDbs() {
   return 0;
 }
 
+void *mgmtGetNextDb(void *pNode, SDbObj **pDb) {
+  return sdbFetchRow(tsDbSdb, pNode, (void **)pDb);
+}
+
 SDbObj *mgmtGetDb(char *db) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
@@ -174,7 +179,7 @@ SDbObj *mgmtGetDbByTableId(char *tableId) {
   memset(db, 0, sizeof(db));
   strncpy(db, tableId, pos - tableId);
 
-  return (SDbObj *)sdbGetRow(tsDbSdb, db);
+  return mgmtGetDb(db);
 }
 
 static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
@@ -346,8 +351,27 @@ bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
 }
 
+#if 0
+void mgmtPrintVgroups(SDbObj *pDb, char *oper) {
+  mPrint("db:%s, vgroup link from head, oper:%s", pDb->name, oper);  
+  SVgObj *pVgroup = pDb->pHead;
+  while (pVgroup != NULL) {
+    mPrint("vgId:%d", pVgroup->vgId);
+    pVgroup = pVgroup->next;
+  }
+
+  mPrint("db:%s, vgroup link from tail", pDb->name, pDb->numOfVgroups);
+  pVgroup = pDb->pTail;
+  while (pVgroup != NULL) {
+    mPrint("vgId:%d", pVgroup->vgId);
+    pVgroup = pVgroup->prev;
+  }
+}
+#endif
+
 void mgmtAddVgroupIntoDb(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
+
   pVgroup->next = pDb->pHead;
   pVgroup->prev = NULL;
 
@@ -397,7 +421,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   int32_t cols = 0;
 
   SSchema *pSchema = pMeta->schema;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   pShow->bytes[cols] = TSDB_DB_NAME_LEN;
@@ -545,11 +569,11 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
   SDbObj *pDb = NULL;
   char *  pWrite;
   int32_t cols = 0;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   while (numOfRows < rows) {
-    pShow->pNode = sdbFetchRow(tsDbSdb, pShow->pNode, (void **) &pDb);
+    pShow->pNode = mgmtGetNextDb(pShow->pNode, &pDb);
     if (pDb == NULL) break;
 
     cols = 0;
@@ -674,8 +698,7 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
-    .pObj = pDb,
-    .rowSize = tsDbUpdateSize
+    .pObj = pDb
   };
 
   int32_t code = sdbUpdateRow(&oper);
@@ -803,8 +826,7 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     SSdbOper oper = {
       .type = SDB_OPER_GLOBAL,
       .table = tsDbSdb,
-      .pObj = pDb,
-      .rowSize = tsDbUpdateSize
+      .pObj = pDb
     };
 
     int32_t code = sdbUpdateRow(&oper);
@@ -839,21 +861,21 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  SDbObj *pDb = pMsg->pDb = mgmtGetDb(pAlter->db);
-  if (pDb == NULL) {
+  if (pMsg->pDb == NULL) pMsg->pDb = mgmtGetDb(pAlter->db);
+  if (pMsg->pDb == NULL) {
     mError("db:%s, failed to alter, invalid db", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_DB);
     return;
   }
 
-  int32_t code = mgmtAlterDb(pDb, pAlter);
+  int32_t code = mgmtAlterDb(pMsg->pDb, pAlter);
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to alter, invalid db option", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
 
-  mTrace("db:%s, all vgroups is altered", pDb->name);
+  mTrace("db:%s, all vgroups is altered", pMsg->pDb->name);
   mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
 }
 
@@ -884,8 +906,8 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  SDbObj *pDb = pMsg->pDb = mgmtGetDb(pDrop->db);
-  if (pDb == NULL) {
+  if (pMsg->pDb == NULL) pMsg->pDb = mgmtGetDb(pDrop->db);
+  if (pMsg->pDb == NULL) {
     if (pDrop->ignoreNotExists) {
       mTrace("db:%s, db is not exist, think drop success", pDrop->db);
       mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
@@ -897,30 +919,32 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
     }
   }
 
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+  if (mgmtCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("db:%s, can't drop monitor database", pDrop->db);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MONITOR_DB_FORBIDDEN);
     return;
   }
 
-  int32_t code = mgmtSetDbDropping(pDb);
+  int32_t code = mgmtSetDbDropping(pMsg->pDb);
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to drop, reason:%s", pDrop->db, tstrerror(code));
     mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
 
-  SVgObj *pVgroup = pDb->pHead;
+#if 0
+  SVgObj *pVgroup = pMsg->pDb->pHead;
   if (pVgroup != NULL) {
-    mPrint("vgroup:%d, will be dropped", pVgroup->vgId);
+    mPrint("vgId:%d, will be dropped", pVgroup->vgId);
     SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
     newMsg->ahandle = pVgroup;
     newMsg->expected = pVgroup->numOfVnodes;
     mgmtDropVgroup(pVgroup, newMsg);
     return;
   }
+#endif  
 
-  mTrace("db:%s, all vgroups is dropped", pDb->name);
+  mTrace("db:%s, all vgroups is dropped", pMsg->pDb->name);
   mgmtDropDb(pMsg);
 }
 
@@ -932,7 +956,7 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
   mPrint("acct:%s, all dbs will be dropped from sdb", pAcct->user);
 
   while (1) {
-    pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
+    pNode = mgmtGetNextDb(pNode, &pDb);
     if (pDb == NULL) break;
 
     if (pDb->pAcct == pAcct) {

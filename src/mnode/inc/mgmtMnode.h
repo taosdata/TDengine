@@ -33,15 +33,18 @@ void    mgmtCleanupMnodes();
 
 int32_t mgmtAddMnode(int32_t dnodeId);
 int32_t mgmtDropMnode(int32_t dnodeId);
+void    mgmtDropMnodeLocal(int32_t dnodeId);
 
 void *  mgmtGetMnode(int32_t mnodeId);
 int32_t mgmtGetMnodesNum();
 void *  mgmtGetNextMnode(void *pNode, struct SMnodeObj **pMnode);
-void    mgmtReleaseMnode(struct SMnodeObj *pMnode);
+void    mgmtIncMnodeRef(struct SMnodeObj *pMnode);
+void    mgmtDecMnodeRef(struct SMnodeObj *pMnode);
 
 char *  mgmtGetMnodeRoleStr();
 void    mgmtGetMnodeIpSet(SRpcIpSet *ipSet);
 void    mgmtGetMnodeInfos(void *mnodes);
+
 
 #ifdef __cplusplus
 }

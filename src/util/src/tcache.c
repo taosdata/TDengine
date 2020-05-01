@@ -324,13 +324,26 @@ static void doCleanupDataCache(SCacheObj *pCacheObj) {
 static void taosCacheRefresh(void *handle, void *tmrId) {
   SCacheObj *pCacheObj = (SCacheObj *)handle;
   
-  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0) {
+  if (pCacheObj == NULL || T_REF_VAL_GET(pCacheObj) == 0) {
     uTrace("object is destroyed. no refresh retry");
     return;
   }
   
-  if (pCacheObj->deleting == 1) {
-    doCleanupDataCache(pCacheObj);
+  int16_t ref = T_REF_INC(pCacheObj);
+  if (ref == 1) {
+    T_REF_DEC(pCacheObj);
+    return;
+  }
+  
+  // todo add the ref before start the timer
+  int32_t num = taosHashGetSize(pCacheObj->pHashTable);
+  if (num == 0) {
+    ref = T_REF_DEC(pCacheObj);
+    if (ref == 0) {
+      doCleanupDataCache(pCacheObj);
+    } else {
+      taosTmrReset(taosCacheRefresh, pCacheObj->refreshTime, pCacheObj, pCacheObj->tmrCtrl, &pCacheObj->pTimer);
+    }
     return;
   }
   
@@ -355,13 +368,16 @@ static void taosCacheRefresh(void *handle, void *tmrId) {
   __cache_unlock(pCacheObj);
   
   taosHashDestroyIter(pIter);
-  
-  if (pCacheObj->deleting == 1) {  // clean up resources and abort
-    doCleanupDataCache(pCacheObj);
-  } else {
+
     taosTrashEmpty(pCacheObj, false);
-    taosTmrReset(taosCacheRefresh, pCacheObj->refreshTime, pCacheObj, pCacheObj->tmrCtrl, &pCacheObj->pTimer);
-  }
+    
+    ref = T_REF_DEC(pCacheObj);
+    if (ref == 0)  {
+      doCleanupDataCache(pCacheObj);
+      return;
+    } else {
+      taosTmrReset(taosCacheRefresh, pCacheObj->refreshTime, pCacheObj, pCacheObj->tmrCtrl, &pCacheObj->pTimer);
+    }
 }
 
 SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
@@ -399,6 +415,7 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
     return NULL;
   }
   
+  T_REF_INC(pCacheObj);
   return pCacheObj;
 }
 
@@ -552,5 +569,8 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
     return;
   }
   
-  pCacheObj->deleting = 1;
+  int32_t ref = T_REF_DEC(pCacheObj);
+  if (ref == 0) {
+    doCleanupDataCache(pCacheObj);
+  }
 }

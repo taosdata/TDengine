@@ -80,8 +80,8 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     strcpy(tscMgmtIpSet.fqdn[0], ip);
     tscMgmtIpSet.port[0] = port? port: tsMnodeShellPort;
   } else {
-    if (tsMaster[0] != 0) {
-      taosGetFqdnPortFromEp(tsMaster, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
+    if (tsFirst[0] != 0) {
+      taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
       tscMgmtIpSet.numOfIps++;
     }
 

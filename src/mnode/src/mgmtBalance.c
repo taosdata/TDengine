@@ -35,7 +35,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   SDnodeObj *pSelDnode = NULL;
-  float      vnodeUsage = 1.0;
+  float      vnodeUsage = 1000.0;
 
   while (1) {
     pNode = mgmtGetNextDnode(pNode, &pDnode);

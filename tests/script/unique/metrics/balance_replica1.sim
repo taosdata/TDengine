@@ -1,9 +1,9 @@
 system sh/stop_dnodes.sh
 
-system sh/ip.sh -i 1 -s up
-system sh/ip.sh -i 2 -s up
-system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
-system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode1 -c statusInterval -v 1
@@ -71,9 +71,9 @@ show1:
 	endi
 sql show dnodes -x show1
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 
 if $dnode1Vnodes != 0 then
   goto show1
@@ -95,9 +95,9 @@ show2:
 	endi
 sql show dnodes -x show2
 $dnode1Vnodes = $data3_192.168.0.1
-print 192.168.0.1 $dnode1Vnodes
+print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
-print 192.168.0.2 $dnode2Vnodes
+print dnode2 $dnode2Vnodes
 
 if $dnode1Vnodes != 2 then
   goto show2

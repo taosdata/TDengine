@@ -520,8 +520,8 @@ SHashMutableIterator *taosHashCreateIter(SHashObj *pHashObj) {
 
 static SHashNode *getNextHashNode(SHashMutableIterator *pIter) {
   assert(pIter != NULL);
-  pIter->entryIndex += 1;
-  
+
+  pIter->entryIndex++;
   while (pIter->entryIndex < pIter->pHashObj->capacity) {
     SHashEntry *pEntry = pIter->pHashObj->hashList[pIter->entryIndex];
     if (pEntry->next == NULL) {

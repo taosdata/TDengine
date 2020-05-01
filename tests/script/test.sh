@@ -7,12 +7,14 @@
 ##################################################
 
 set +e
+#set -x
 
 FILE_NAME=
 RELEASE=0
 ASYNC=0
 VALGRIND=0
-while getopts "f:av" arg
+UNIQUE=0
+while getopts "f:avu" arg
 do
   case $arg in
     f)
@@ -24,6 +26,9 @@ do
     v)
       VALGRIND=1
       ;;
+    u)
+      UNIQUE=1
+      ;;
     ?)
       echo "unknow argument"
       ;;
@@ -31,11 +36,6 @@ do
 done
 
 cd .
-sh/ip.sh -i 1 -s up > /dev/null 2>&1 & 
-sh/ip.sh -i 2 -s up > /dev/null 2>&1 & 
-sh/ip.sh -i 3 -s up > /dev/null 2>&1 & 
-sh/ip.sh -i 4 -s up > /dev/null 2>&1 & 
-sh/ip.sh -i 5 -s up > /dev/null 2>&1 & 
 
 # Get responsible directories
 CODE_DIR=`dirname $0`
@@ -50,6 +50,12 @@ if [ $ASYNC -eq 0 ]; then
 else
   PROGRAM="$BUILD_DIR/bin/tsim -a"
 fi
+
+if [ $UNIQUE -eq 0 ]; then
+  PROGRAM=$BUILD_DIR/bin/tsim
+else
+  PROGRAM="$TOP_DIR/../debug/build/bin/tsim"
+fi 
 
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
@@ -74,13 +80,15 @@ TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
 TAOS_FLAG=$PRG_DIR/flag
 
-echo " "                                    >> $TAOS_CFG
-echo "scriptDir        ${CODE_DIR}/../script">> $TAOS_CFG
-echo "masterIp         192.168.0.1"          >> $TAOS_CFG
-echo "secondIp         192.168.0.2"          >> $TAOS_CFG
-echo "localIp          127.0.0.1"            >> $TAOS_CFG
+HOSTNAME=`hostname -f`
+
+echo " "                                     >> $TAOS_CFG
+echo "first            ${HOSTNAME}:7100"     >> $TAOS_CFG
+echo "second           ${HOSTNAME}:7200"     >> $TAOS_CFG
+echo "serverPort       7100"                 >> $TAOS_CFG
 echo "dataDir          $DATA_DIR"            >> $TAOS_CFG
 echo "logDir           $LOG_DIR"             >> $TAOS_CFG
+echo "scriptDir        ${CODE_DIR}/../script">> $TAOS_CFG
 echo "numOfLogLines    100000000"            >> $TAOS_CFG
 echo "dDebugFlag       135"                  >> $TAOS_CFG
 echo "mDebugFlag       135"                  >> $TAOS_CFG
@@ -89,12 +97,12 @@ echo "rpcDebugFlag     135"                  >> $TAOS_CFG
 echo "tmrDebugFlag     131"                  >> $TAOS_CFG
 echo "cDebugFlag       135"                  >> $TAOS_CFG
 echo "httpDebugFlag    135"                  >> $TAOS_CFG
-echo "monitorDebugFlag 135"                 >> $TAOS_CFG
+echo "monitorDebugFlag 135"                  >> $TAOS_CFG
 echo "udebugFlag       135"                  >> $TAOS_CFG
 echo "clog             0"                    >> $TAOS_CFG
 echo "asyncLog         0"                    >> $TAOS_CFG
 echo "locale           en_US.UTF-8"          >> $TAOS_CFG
-echo " "                                    >> $TAOS_CFG
+echo " "                                     >> $TAOS_CFG
 
 ulimit -n 600000
 ulimit -c unlimited

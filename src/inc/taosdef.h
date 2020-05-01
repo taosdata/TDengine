@@ -32,6 +32,13 @@ extern "C" {
 #define TSKEY int64_t
 #endif
 
+// ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
+typedef int32_t VarDataOffsetT;
+typedef int16_t VarDataLenT;
+#define varDataLen(v) ((VarDataLenT *)(v))[0]
+#define varDataTLen(v) (sizeof(VarDataLenT) + varDataLen(v))
+#define varDataVal(v) ((void *)((char *)v + sizeof(VarDataLenT)))
+
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
 
@@ -121,6 +128,10 @@ typedef struct tDataTypeDescriptor {
   int16_t nameLen;
   int32_t nSize;
   char *  aName;
+  int (*compFunc)(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
+                  char algorithm, char *const buffer, int bufferSize);
+  int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
+                    int outputSize, char algorithm, char *const buffer, int bufferSize);
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypeDesc[11];
@@ -190,7 +201,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_LOCALE_LEN           64
 #define TSDB_TIMEZONE_LEN         64
 
-#define TSDB_FQDN_LEN             64
+#define TSDB_FQDN_LEN             72
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_METER_VNODE_BITS     20

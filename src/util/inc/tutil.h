@@ -44,7 +44,10 @@ extern "C" {
 
 #define tclose(x) taosCloseSocket(x)
 
-#ifdef ASSERTION
+// Pointer p drift right by b bytes
+#define POINTER_DRIFT(p, b) ((void *)((char *)(p) + (b)))
+
+#ifndef NDEBUG
 #define ASSERT(x) assert(x)
 #else
 #define ASSERT(x)

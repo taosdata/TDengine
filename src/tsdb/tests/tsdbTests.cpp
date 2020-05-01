@@ -27,7 +27,7 @@ typedef struct {
 
 static int insertData(SInsertInfo *pInfo) {
   SSubmitMsg *pMsg =
-      (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(pInfo->pSchema) * pInfo->rowsPerSubmit);
+      (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + dataRowMaxBytesFromSchema(pInfo->pSchema) * pInfo->rowsPerSubmit);
   if (pMsg == NULL) return -1;
   TSKEY start_time = pInfo->startTime;
 
@@ -52,11 +52,12 @@ static int insertData(SInsertInfo *pInfo) {
       tdInitDataRow(row, pInfo->pSchema);
 
       for (int j = 0; j < schemaNCols(pInfo->pSchema); j++) {
+        STColumn *pTCol = schemaColAt(pInfo->pSchema, j);
         if (j == 0) {  // Just for timestamp
-          tdAppendColVal(row, (void *)(&start_time), schemaColAt(pInfo->pSchema, j));
+          tdAppendColVal(row, (void *)(&start_time), pTCol->type, pTCol->bytes, pTCol->offset);
         } else {  // For int
           int val = 10;
-          tdAppendColVal(row, (void *)(&val), schemaColAt(pInfo->pSchema, j));
+          tdAppendColVal(row, (void *)(&val), pTCol->type, pTCol->bytes, pTCol->offset);
         }
       }
       pBlock->len += dataRowLen(row);
@@ -105,9 +106,9 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
 
   for (int i = 0; i < nCols; i++) {
     if (i == 0) {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
     } else {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_INT, i, -1);
     }
   }
 
@@ -149,9 +150,9 @@ TEST(TsdbTest, createRepo) {
 
   for (int i = 0; i < nCols; i++) {
     if (i == 0) {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
     } else {
-      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+      tdSchemaAddCol(schema, TSDB_DATA_TYPE_INT, i, -1);
     }
   }
 
@@ -244,7 +245,7 @@ TEST(TsdbTest, DISABLED_openRepo) {
 //   tsdbLoadCompCols(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, (void *)pCompData);
 
   // STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, pCompData->uid);
-  // SDataCols *pDataCols = tdNewDataCols(tdMaxRowBytesFromSchema(tsdbGetTableSchema(pRepo->tsdbMeta, pTable)), 5, 10);
+  // SDataCols *pDataCols = tdNewDataCols(tdMaxRowBytesFromSchema(tsdbGetTableSchema(pRepo->tsdbMeta, pTable)), 5);
   // tdInitDataCols(pDataCols, tsdbGetTableSchema(pRepo->tsdbMeta, pTable));
 
 //   tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_DATA], pBlock, 1, pDataCols, pCompData);

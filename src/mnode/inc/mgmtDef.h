@@ -237,7 +237,6 @@ typedef struct {
 
 typedef struct {
   uint8_t  msgType;
-  int8_t   usePublicIp;
   int8_t   received;
   int8_t   successed;
   int8_t   expected;
