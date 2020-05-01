@@ -43,6 +43,8 @@ extern int32_t tscEmbedded;
   }
 #define uPrint(...) \
   { taosPrintLog("UTL ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }
+#define uForcePrint(...) \
+  { taosPrintLog("ERROR UTL ", 255, __VA_ARGS__); }
 
 #define pError(...) \
   { taosPrintLog("ERROR APP ", 255, __VA_ARGS__); }  

@@ -27,27 +27,20 @@
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
 void tsSetLocale() {
-  char msgLocale[] = "Invalid locale:%s, please set the valid locale in config file\n";
-  char msgCharset[] = "Invalid charset:%s, please set the valid charset in config file\n";
-  char msgCharset1[] = "failed to get charset, please set the valid charset in config file\n";
-
   char *locale = setlocale(LC_CTYPE, tsLocale);
 
   // default locale or user specified locale is not valid, abort launch
   if (locale == NULL) {
-    printf(msgLocale, tsLocale);
-    uPrint(msgLocale, tsLocale);
+    uForcePrint("Invalid locale:%s, please set the valid locale in config file", tsLocale);
   }
 
   if (strlen(tsCharset) == 0) {
-    printf("%s\n", msgCharset1);
-    uPrint(msgCharset1);
+    uForcePrint("failed to get charset, please set the valid charset in config file");
     exit(-1);
   }
 
   if (!taosValidateEncodec(tsCharset)) {
-    printf(msgCharset, tsCharset);
-    uPrint(msgCharset, tsCharset);
+    uForcePrint("Invalid charset:%s, please set the valid charset in config file", tsCharset);
     exit(-1);
   }
 }

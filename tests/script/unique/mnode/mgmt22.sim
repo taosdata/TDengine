@@ -55,6 +55,7 @@ print error of no master
 
 print ============== step6
 system sh/exec_up.sh -n dnode1 -s start
+sleep 2000
 sql close
 sql connect
 
@@ -66,7 +67,7 @@ show6:
 		return -1
 	endi
 	
-sql show mnodes
+sql show mnodes -x show6
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
 if $data2_1 != master then

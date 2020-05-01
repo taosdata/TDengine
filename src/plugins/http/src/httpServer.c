@@ -508,7 +508,7 @@ void httpAcceptHttpConnection(void *arg) {
               pServer->serverPort);
     return;
   } else {
-    httpPrint("http service init success at ip:%s:%u", pServer->serverIp, pServer->serverPort);
+    httpPrint("http service init success at %u", pServer->serverPort);
     pServer->online = true;
   }
 
