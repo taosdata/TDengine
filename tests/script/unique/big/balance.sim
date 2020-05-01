@@ -92,7 +92,7 @@ if $data00 != $totalNum then
 endi
 
 print ========== step1
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0
@@ -144,12 +144,12 @@ if $data00 != $totalNum then
 endi
 
 print ========== step2
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 sleep 10000
 
 print ========== step3
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 
 $x = 0
 show3: 
@@ -206,7 +206,7 @@ if $data00 != $totalNum then
 endi
 
 print ========== step4
-sql drop dnode 192.168.0.3
+sql drop dnode $hostname3
 
 $x = 0
 show4: 
@@ -260,7 +260,7 @@ endi
 
 print ========== step5
 sql alter database db replica 2
-sql create dnode 192.168.0.4
+sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
 
 $x = 0

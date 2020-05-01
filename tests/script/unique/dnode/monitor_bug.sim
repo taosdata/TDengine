@@ -33,7 +33,7 @@ if $data3_1 != 3 then
 endi
 
 print ========== step2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0

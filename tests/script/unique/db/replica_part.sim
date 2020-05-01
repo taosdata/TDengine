@@ -22,9 +22,9 @@ system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
 sql connect
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
 sleep 3000
 

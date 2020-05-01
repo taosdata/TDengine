@@ -36,14 +36,14 @@ endi
 
 print ============== step2
 system sh/exec_up.sh -n dnode2 -s start
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
-$dnode4Role = $data3_4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -64,14 +64,14 @@ endi
 
 print ============== step3
 system sh/exec_up.sh -n dnode3 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
-$dnode4Role = $data3_4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -93,14 +93,14 @@ endi
 
 print ============== step4
 system sh/exec_up.sh -n dnode4 -s start
-sql create dnode 192.168.0.4
+sql create dnode $hostname4
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
-$dnode4Role = $data3_4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -120,14 +120,14 @@ if $dnode4Role != null then
 endi
 
 print ============== step5
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
-$dnode4Role = $data3_4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -154,14 +154,14 @@ system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/exec_up.sh -n dnode2 -s start
 
 print ============== step6
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
-$dnode4Role = $data3_4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -185,10 +185,10 @@ system sh/exec_up.sh -n dnode1 -s stop
 sleep 4000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
-$dnode4Role = $data3_4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -199,14 +199,14 @@ if $dnode1Role != offline then
 endi
 
 print ============== step8
-sql drop dnode 192.168.0.1
+sql drop dnode $hostname1
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
+$dnode1Role = $data2_1
 $dnode2Role = $data3_5
-$dnode3Role = $data3_3
-$dnode4Role = $data3_4
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role

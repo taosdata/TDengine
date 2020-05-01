@@ -13,9 +13,9 @@ sql connect
 sleep 3000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -31,9 +31,9 @@ if $dnode3Role != null then
 endi
 
 print ============== step2
-sql create dnode 192.168.0.2 
+sql create dnode $hostname2 
 sleep 1700
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 
 print ============== step3
 print ========= start dnode2 and dnode3
@@ -58,9 +58,9 @@ system sh/exec_up.sh -n dnode3 -s start
 print ============== step4
 sql show mnodes
 
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role

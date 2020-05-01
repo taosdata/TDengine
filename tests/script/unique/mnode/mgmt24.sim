@@ -20,7 +20,7 @@ endi
 
 print ============== step2
 system sh/exec_up.sh -n dnode2 -s start
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 
 $x = 0
 show2: 
@@ -45,11 +45,11 @@ system sh/exec_up.sh -n dnode1 -s stop
 sql_error show mnodes
 
 print ============== step4
-sql_error drop dnode 192.168.0.1 
+sql_error drop dnode $hostname1 
 
 print ============== step5
 system sh/exec_up.sh -n dnode1 -s start
-sql_error create dnode 192.168.0.1
+sql_error create dnode $hostname1
 
 sql close
 sql connect

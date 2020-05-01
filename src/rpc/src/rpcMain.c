@@ -613,11 +613,13 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     pConn->tranId = (uint16_t)(rand() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = pHead->linkUid;
-    if (pRpc->afp && (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey) < 0) {
-      tWarn("%s %p, user not there", pRpc->label, pConn);
-      taosFreeId(pRpc->idPool, sid);   // sid shall be released
-      terrno = TSDB_CODE_INVALID_USER;
-      pConn = NULL;
+    if (pRpc->afp) {
+      terrno = (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
+      if (terrno != 0) {
+        tWarn("%s %p, user not there or server not ready", pRpc->label, pConn);
+        taosFreeId(pRpc->idPool, sid);   // sid shall be released
+        pConn = NULL;
+      }
     }
   }      
 
@@ -643,9 +645,10 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv) {
 
   if (sid) {
     pConn = pRpc->connList + sid;
-  } else {
-    pConn = rpcAllocateServerConn(pRpc, pRecv);
+    if (pConn->user[0] == 0) pConn = NULL;
   } 
+
+  if (pConn == NULL) pConn = rpcAllocateServerConn(pRpc, pRecv);
 
   if (pConn) {
     if (pConn->linkUid != pHead->linkUid) {
@@ -1333,7 +1336,8 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
   if ( !rpcIsReq(pHead->msgType) ) {
     // for response, if code is auth failure, it shall bypass the auth process
     code = htonl(pHead->code);
-    if (code==TSDB_CODE_INVALID_TIME_STAMP || code==TSDB_CODE_AUTH_FAILURE || code==TSDB_CODE_INVALID_USER) {
+    if (code==TSDB_CODE_INVALID_TIME_STAMP || code==TSDB_CODE_AUTH_FAILURE || 
+        code==TSDB_CODE_INVALID_USER || code == TSDB_CODE_NOT_READY) {
       pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
       return 0;
     } 

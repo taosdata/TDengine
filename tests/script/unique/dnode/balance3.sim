@@ -46,9 +46,9 @@ print ========== step1
 system sh/exec_up.sh -n dnode1 -s start
 sql connect
 
-sql create dnode 192.168.0.2
-sql create dnode 192.168.0.3
-sql create dnode 192.168.0.4
+sql create dnode $hostname2
+sql create dnode $hostname3
+sql create dnode $hostname4
 system sh/exec_up.sh -n dnode2 -s start
 system sh/exec_up.sh -n dnode3 -s start
 system sh/exec_up.sh -n dnode4 -s start
@@ -90,7 +90,7 @@ if $data3_4 != 2 then
 endi
 
 print ========== step2
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 
 $x = 0
 show2: 
@@ -122,7 +122,7 @@ endi
 system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 
 print ========== step
-sql create dnode 192.168.0.5
+sql create dnode $hostname5
 system sh/exec_up.sh -n dnode5 -s start
 
 $x = 0
@@ -197,7 +197,7 @@ if $data3_5 != 1 then
 endi
 
 print ========== step5
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
@@ -225,7 +225,7 @@ endi
 sleep 8000
 
 print ========== step6
-sql drop dnode 192.168.0.3
+sql drop dnode $hostname3
 
 $x = 0
 show6: 

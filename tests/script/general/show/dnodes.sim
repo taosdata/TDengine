@@ -4,8 +4,8 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== unsupport
-sql_error create dnode 192.168.0.2
-sql_error drop dnode 192.168.0.2
+sql_error create dnode $hostname2
+sql_error drop dnode $hostname2
 
 print =============== show dnodes
 sql show dnodes;

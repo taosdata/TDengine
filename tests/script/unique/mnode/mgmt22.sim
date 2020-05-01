@@ -41,7 +41,7 @@ if $data2_2 != slave then
 endi
 
 print ============== step3
-sql_error drop dnode 192.168.0.1 -x error1
+sql_error drop dnode $hostname1 -x error1
 print should not drop master
 
 print ============== step4
@@ -50,11 +50,12 @@ sql_error show mnodes
 print error of no master
 
 print ============== step5
-sql_error drop dnode 192.168.0.1 
+sql_error drop dnode $hostname1
 print error of no master
 
 print ============== step6
 system sh/exec_up.sh -n dnode1 -s start
+sleep 2000
 sql close
 sql connect
 
@@ -66,7 +67,7 @@ show6:
 		return -1
 	endi
 	
-sql show mnodes
+sql show mnodes -x show6
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
 if $data2_1 != master then
@@ -78,7 +79,7 @@ endi
 
 print ============== step7
 system sh/exec_up.sh -n dnode3 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 sleep 5000
 
 $x = 0
@@ -92,7 +93,7 @@ show7:
 sql show mnodes
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
-print dnode3 ==> $data3_3
+print dnode3 ==> $data2_3
 if $data2_1 != master then
 	goto show7
 endi

@@ -1,9 +1,5 @@
 system sh/stop_dnodes.sh
 
-
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
@@ -32,9 +28,9 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
 sql connect
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
 sleep 3000
 
@@ -77,19 +73,19 @@ endi
 sleep 2000
 
 sql show dnodes
-print dnode192.168.0.1 ==> openVnodes: $data3_1
-print dnode192.168.0.2 ==> openVnodes: $data3_2
-print dnode192.168.0.3 ==> openVnodes: $data3_3
+print dnode1 ==> openVnodes: $data3_1
+print dnode2 ==> openVnodes: $data3_2
+print dnode3 ==> openVnodes: $data3_3
 
-if $data3_1 != 0 then
+if $data2_1 != 0 then
    return -1
 endi
 
-if $data3_2 != 2 then
+if $data2_2 != 2 then
    return -1
 endi
 
-if $data3_3 != 2 then
+if $data2_3 != 2 then
    return -1
 endi
 
@@ -103,19 +99,19 @@ sleep 10000
 print ======== step3
 	
 sql show dnodes
-print dnode192.168.0.1 ==> openVnodes: $data3_1
-print dnode192.168.0.2 ==> openVnodes: $data3_2
-print dnode192.168.0.3 ==> openVnodes: $data3_3
+print dnode1 ==> openVnodes: $data3_1
+print dnode2 ==> openVnodes: $data3_2
+print dnode3 ==> openVnodes: $data3_3
 
-if $data3_1 != 0 then
+if $data2_1 != 0 then
    return -1
 endi
 
-if $data3_2 != 4 then
+if $data2_2 != 4 then
   return -1
 endi
 
-if $data3_3 != 4 then
+if $data2_3 != 4 then
   return -1
 endi
 
@@ -174,15 +170,13 @@ endi
 
 print ===== insert data
 
-sql insert into d1.t1 values(now, 3)
-# no master
+sql_error insert into d1.t1 values(now, 3)
 sql_error insert into d2.t2 values(now, 3)
-sql insert into d3.t3 values(now, 3)
-# no master
+sql_error insert into d3.t3 values(now, 3)
 sql_error insert into d4.t4 values(now, 3)
 
 sql select * from d1.t1
-if $rows != 3 then
+if $rows != 2 then
 	return -1
 endi
 
@@ -192,7 +186,7 @@ if $rows != 2 then
 endi
 
 sql select * from d3.t3
-if $rows != 3 then
+if $rows != 2 then
 	return -1
 endi
 
@@ -205,8 +199,11 @@ print ========= step6
 system sh/exec_up.sh -n dnode2 -s start
 sleep 5000
 
+sql insert into d1.t1 values(now, 3)
 sql insert into d2.t2 values(now, 3)
+sql insert into d3.t3 values(now, 3)
 sql insert into d4.t4 values(now, 3)
+
 sql select * from d1.t1
 if $rows != 3 then
 	return -1
@@ -232,20 +229,28 @@ print ========= step61
 system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 sleep 5000
 
-# no master
-sql_error insert into d1.t1 values(now, 4)
-sql insert into d2.t2 values(now, 4)
-# no master
-sql_error insert into d3.t3 values(now, 4)
-sql insert into d4.t4 values(now, 4)
+sql_error insert into d1.t1 values(now, 3)
+sql_error insert into d2.t2 values(now, 3)
+sql_error insert into d3.t3 values(now, 3)
+sql_error insert into d4.t4 values(now, 3)
+
+sql select * from d1.t1
+if $rows != 3 then
+	return -1
+endi
 
 sql select * from d2.t2
-if $rows != 4 then
+if $rows != 3 then
+	return -1
+endi
+
+sql select * from d3.t3
+if $rows != 3 then
 	return -1
 endi
 
 sql select * from d4.t4
-if $rows != 4 then
+if $rows != 3 then
 	return -1
 endi
 
@@ -264,7 +269,7 @@ if $rows != 4 then
 endi
 
 sql select * from d2.t2
-if $rows != 5 then
+if $rows != 4 then
 	return -1
 endi
 
@@ -274,6 +279,6 @@ if $rows != 4 then
 endi
 
 sql select * from d4.t4
-if $rows != 5 then
+if $rows != 4 then
 	return -1
 endi
