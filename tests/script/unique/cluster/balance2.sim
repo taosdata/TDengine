@@ -50,8 +50,8 @@ system sh/exec.sh -n dnode1 -s start
 
 sql connect
 sleep 4001
-sql create dnode 192.168.0.2
-sql create dnode 192.168.0.3
+sql create dnode $hostname2
+sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sleep 4001
@@ -110,7 +110,7 @@ endi
 
 print ============================== step2
 print ========= drop dnode2
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 sleep 9000
 
 $x = 0
@@ -152,7 +152,7 @@ system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 
 print ============================== step3
 print ========= start dnode2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 
 sleep 3000
 system sh/deploy.sh -n dnode2 -i 2
@@ -202,7 +202,7 @@ print dnode4 ==> $dnode4Role
 
 print ============================== step4
 print ========= drop dnode3
-sql drop dnode 192.168.0.3
+sql drop dnode $hostname3
 sleep 9000
 
 $x = 0
@@ -244,7 +244,7 @@ system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 
 print ============================== step5
 print ========= start dnode3
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 
 sleep 3000
 system sh/deploy.sh -n dnode3 -i 3
@@ -298,7 +298,7 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 print stop dnode1 and sleep 10000
 sleep 10000
 
-sql drop dnode 192.168.0.1
+sql drop dnode $hostname1
 print drop dnode1 and sleep 9000
 sleep 9000
 
@@ -339,7 +339,7 @@ print dnode4 ==> $dnode4Role
 
 print ============================== step7
 print ========= start dnode1
-sql create dnode 192.168.0.1
+sql create dnode $hostname1
 
 sql show mnodes
 $dnode1Role = $data3_192.168.0.1
@@ -410,7 +410,7 @@ sql insert into c_b2_t4 values(1520000022043, 43)
 sql insert into c_b2_t4 values(1520000023042, 42)
 sql insert into c_b2_t4 values(1520000024041, 41)
 
-sql create dnode 192.168.0.4
+sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
 sleep 9000
 
@@ -456,8 +456,8 @@ endi
 
 print ============================== step9
 print ========= drop dnode1.4
-sql drop dnode 192.168.0.1
-sql drop dnode 192.168.0.4
+sql drop dnode $hostname1
+sql drop dnode $hostname4
 sleep 10000
 
 sql show mnodes
@@ -505,8 +505,8 @@ system sh/exec.sh -n dnode4 -s stop  -x SIGINT
 
 print ============================== step10
 print ========= start dnode1.4
-sql create dnode 192.168.0.1
-sql create dnode 192.168.0.4
+sql create dnode $hostname1
+sql create dnode $hostname4
 
 sleep 3000
 system sh/deploy.sh -n dnode1 -i 1

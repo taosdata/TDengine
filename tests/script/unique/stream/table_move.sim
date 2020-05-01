@@ -173,7 +173,7 @@ if $dnode2Vnodes != null then
 endi
 
 print =============== step4 start dnode2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sleep 8000
 
@@ -202,7 +202,7 @@ system sh/exec.sh -n dnode1 -s stop
 print stop dnode1 and sleep 10000
 sleep 10000
 
-sql drop dnode 192.168.0.1
+sql drop dnode $hostname1
 print drop dnode1 and sleep 9000
 sleep 9000
 

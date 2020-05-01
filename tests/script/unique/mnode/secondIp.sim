@@ -7,7 +7,7 @@ system sh/exec_up.sh -n dnode2 -s start
 sql connect
 
 print ========== step2 connect to dnode2
-sql create dnode 192.168.0.1
+sql create dnode $hostname1
 system sh/exec_up.sh -n dnode1 -s start
 sleep 3000
 

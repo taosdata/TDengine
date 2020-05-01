@@ -43,7 +43,7 @@ endw
 
 sleep 3000
 system sh/exec.sh -n dnode2 -s start
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 
 sleep 20000
 sql select * from log.dn_192_168_0_1

@@ -38,11 +38,11 @@ system sh/cfg.sh -n dnode6 -c sessionsPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-sql create dnode 192.168.0.2
-sql create dnode 192.168.0.3
-sql create dnode 192.168.0.4
-sql create dnode 192.168.0.5
-sql create dnode 192.168.0.6
+sql create dnode $hostname2
+sql create dnode $hostname3
+sql create dnode $hostname4
+sql create dnode $hostname5
+sql create dnode $hostname6
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start

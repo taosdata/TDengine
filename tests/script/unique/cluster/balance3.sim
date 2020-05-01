@@ -60,8 +60,8 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 sleep 2001
 
-sql create dnode 192.168.0.2
-sql create dnode 192.168.0.3
+sql create dnode $hostname2
+sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sleep 3001
@@ -125,7 +125,7 @@ endi
 
 print ============================== step2
 print ========= start dnode4
-sql create dnode 192.168.0.4
+sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
 sleep 9000
 
@@ -152,7 +152,7 @@ endi
 
 print ============================== step3
 print ========= drop dnode2
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 sleep 9000
 
 $x = 0
@@ -196,7 +196,7 @@ system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 sleep 3000
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sleep 10000
 
@@ -223,7 +223,7 @@ endi
 
 print ============================== step5
 print ========= drop dnode3
-sql drop dnode 192.168.0.3
+sql drop dnode $hostname3
 sleep 9000
 
 $x = 0
@@ -268,7 +268,7 @@ system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c clog -v 1
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
 sleep 3000
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 sleep 9000
 
@@ -295,7 +295,7 @@ endi
 
 print ============================== step7
 print ========= drop dnode4
-sql drop dnode 192.168.0.4
+sql drop dnode $hostname4
 sleep 9000
 
 $x = 0
@@ -339,7 +339,7 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c clog -v 1
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
 sleep 3000
-sql create dnode 192.168.0.4
+sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
 sleep 9000
 
@@ -370,7 +370,7 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 print stop dnode1 and sleep 10000
 sleep 10000
 
-sql drop dnode 192.168.0.1
+sql drop dnode $hostname1
 print drop dnode1 and sleep 9000
 sleep 9000
 
@@ -413,7 +413,7 @@ system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 sleep 3000
-sql create dnode 192.168.0.1
+sql create dnode $hostname1
 system sh/exec.sh -n dnode1 -s start
 sleep 9000
 
@@ -490,7 +490,7 @@ endi
 
 print ============================== step12
 print ========= drop dnode1
-sql drop dnode 192.168.0.1
+sql drop dnode $hostname1
 sleep 10000
 
 $x = 0

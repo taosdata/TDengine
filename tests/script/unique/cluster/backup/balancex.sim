@@ -85,9 +85,9 @@ connectTbase:
 	endi
 sql connect -x connectTbase
 
-sql create dnode 192.168.0.2
-sql create dnode 192.168.0.3
-sql create dnode 192.168.0.4
+sql create dnode $hostname2
+sql create dnode $hostname3
+sql create dnode $hostname4
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
@@ -184,7 +184,7 @@ sql insert into c_bx_t3 values(now+3s, 33)
 sql insert into c_bx_t3 values(now+4s, 32)
 sql insert into c_bx_t3 values(now+5s, 31)
 
-sql create dnode 192.168.0.5
+sql create dnode $hostname5
 system sh/exec.sh -n dnode5 -s start
 sleep 9000
 
@@ -218,7 +218,7 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 print stop dnode1 and sleep 10000
 sleep 10000
 
-sql drop dnode 192.168.0.1
+sql drop dnode $hostname1
 print drop dnode1 and sleep 9000
 sleep 9000
 
