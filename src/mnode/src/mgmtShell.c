@@ -375,7 +375,7 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
 
   if (!sdbIsMaster()) {
     *secret = 0;
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_NOT_READY;
   }
 
   SUserObj *pUser = mgmtGetUser(user);
