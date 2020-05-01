@@ -570,24 +570,14 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32
     pDataCol->len = (*(tDataTypeDesc[pDataCol->type].decompFunc))(
         content, len - sizeof(TSCKSUM), numOfPoints, pDataCol->pData, pDataCol->spaceSize, comp, buffer, bufferSize);
     if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
-      pDataCol->len += (sizeof(int32_t) * maxPoints);
       dataColSetOffset(pDataCol, numOfPoints);
     }
   } else {
     // No need to decompress, just memcpy it
-    switch (pDataCol->type) {
-      case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR:
-        pDataCol->len = sizeof(int32_t) * maxPoints;
-        memcpy((char *)pDataCol->pData + pDataCol->len, content, len - sizeof(TSCKSUM));
-        pDataCol->len += (len - sizeof(TSCKSUM));
-        dataColSetOffset(pDataCol, numOfPoints);
-        break;
-
-      default:
-        pDataCol->len = len - sizeof(TSCKSUM);
-        memcpy(pDataCol->pData, content, pDataCol->len);
-        break;
+    pDataCol->len = len - sizeof(TSCKSUM);
+    memcpy(pDataCol->pData, content, pDataCol->len);
+    if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
+      dataColSetOffset(pDataCol, numOfPoints);
     }
   }
   return 0;
