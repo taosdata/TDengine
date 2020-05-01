@@ -86,8 +86,11 @@ void tscSetMgmtIpListFromEdge() {
 }
 
 void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
-  tscTrace("mgmt IP list is changed for ufp is called");
   tscMgmtIpSet = *pIpSet;
+  tscTrace("mgmt IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
+  for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
+    tscTrace("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
+  }
 }
 
 void tscSetMgmtIpList(SRpcIpSet *pIpList) {
@@ -138,7 +141,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
     }
   } else {
-    tscTrace("heart beat failed, code:%d", code);
+    tscTrace("heart beat failed, code:%s", tstrerror(code));
   }
 
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
