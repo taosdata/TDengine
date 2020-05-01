@@ -93,10 +93,10 @@ show3:
 	endi
 	
 sql show dnodes
-print dnode192.168.0.1 ==> openVnodes: $data3_1
-print dnode192.168.0.2 ==> openVnodes: $data3_2
-print dnode192.168.0.3 ==> openVnodes: $data3_3
-print dnode192.168.0.4 ==> openVnodes: $data3_4
+print dnode1 ==> openVnodes: $data3_1
+print dnode2 ==> openVnodes: $data3_2
+print dnode3 ==> openVnodes: $data3_3
+print dnode4 ==> openVnodes: $data3_4
 
 if $data3_1 != 0 then
    return -1
