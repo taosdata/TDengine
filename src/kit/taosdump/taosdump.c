@@ -240,7 +240,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->port = atoi(arg);
       break;
     case 'q':
-      arguments->sqlCmdFlag = atoi(arg);
+      arguments->mysqlFlag = atoi(arg);
       break;
     case 'v':
       if (wordexp(arg, &full_path, 0) != 0) {
