@@ -1320,16 +1320,17 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     SColIndex* pColIndex = &pTableGroupSupp->pCols[i];
     int32_t colIndex = pColIndex->colIndex;
     
-    assert(colIndex >= 0 && colIndex < schemaNCols(pTableGroupSupp->pTagSchema));
+    assert((colIndex >= 0 && colIndex < schemaNCols(pTableGroupSupp->pTagSchema)) ||
+           (colIndex == TSDB_TBNAME_COLUMN_INDEX));
     
     char *  f1 = NULL;
     char *  f2 = NULL;
     int32_t type = 0;
     int32_t bytes = 0;
     
-    if (colIndex == -1) { // todo fix me, table name
-//      f1 = s1->tags;
-//      f2 = s2->tags;
+    if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      f1 = pTable1->name;
+      f2 = pTable2->name;
       type = TSDB_DATA_TYPE_BINARY;
       bytes = TSDB_TABLE_NAME_LEN;
     } else {
