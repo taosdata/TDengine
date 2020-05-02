@@ -283,7 +283,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->superUid = TSDB_INVALID_SUPER_TABLE_ID;
       super->schema = tdDupSchema(pCfg->schema);
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
-      super->tagVal = tdDataRowDup(pCfg->tagValues);
+      super->tagVal = NULL;
       super->name = strdup(pCfg->sname);
 
       // index the first tag column
