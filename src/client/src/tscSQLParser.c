@@ -206,7 +206,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case TSDB_SQL_DROP_ACCT:
     case TSDB_SQL_DROP_DNODE:
     case TSDB_SQL_DROP_DB: {
-      const char* msg1 = "invalid ip address";
       const char* msg2 = "invalid name";
       const char* msg3 = "param name too long";
 
@@ -230,10 +229,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
-        if (!validateIpAddress(pzName->z, pzName->n)) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-        }
-
         strncpy(pTableMetaInfo->name, pzName->z, pzName->n);
       } else {  // drop user
         if (pzName->n > TSDB_USER_LEN) {
@@ -364,14 +359,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_CFG_DNODE: {
-      const char* msg1 = "invalid ip address";
       const char* msg2 = "invalid configure options or values";
 
       /* validate the ip address */
       tDCLSQL* pDCL = pInfo->pDCLInfo;
-      if (!validateIpAddress(pDCL->a[0].z, pDCL->a[0].n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-      }
 
       /* validate the parameter names and options */
       if (validateDNodeConfig(pDCL) != TSDB_CODE_SUCCESS) {

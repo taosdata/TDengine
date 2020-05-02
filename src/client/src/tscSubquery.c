@@ -1967,7 +1967,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
     SFieldSupInfo* pSup = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, i);
     if (pSup->pSqlExpr != NULL) {
-      pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i) +  pSup->pSqlExpr->resBytes * pRes->row;
+      pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i, pSup->pSqlExpr->resBytes);
     }
     
     // primary key column cannot be null in interval query, no need to check

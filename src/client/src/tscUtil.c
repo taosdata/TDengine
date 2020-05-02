@@ -2122,17 +2122,22 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   }
 }
 
-char* tscGetResultColumnChr(SSqlRes* pRes, SQueryInfo* pQueryInfo, int32_t column) {
+char* tscGetResultColumnChr(SSqlRes* pRes, SQueryInfo* pQueryInfo, int32_t column, int16_t bytes) {
   SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, column);
   
   int32_t type = pInfo->pSqlExpr->resType;
-  char* pData = ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows;
+  char* pData = ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
   
-  if (type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_BINARY) {
-    return pData;
-  } else {
+  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+    int32_t realLen = *(int16_t*) pData;
+    if (realLen < pInfo->pSqlExpr->resBytes - sizeof(int16_t)) { // todo refactor
+      *(char*) (pData + realLen + sizeof(int16_t)) = 0;
+    }
+    
     return pData + sizeof(int16_t); // head is the length of binary/nchar data
+  } else {
+    return pData;
   }
 }
 

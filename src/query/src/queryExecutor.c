@@ -6315,16 +6315,27 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
     
       char* data = NULL;
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
-        // todo check the return value
+        // todo check the return value, refactor codes
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           tsdbGetTableName(pQInfo->tsdb, &item->id, &data);
-          strncpy(pQuery->sdata[j]->data + i * TSDB_TABLE_NAME_LEN, data, TSDB_TABLE_NAME_LEN);
+          
+          char* dst = pQuery->sdata[j]->data + i * (TSDB_TABLE_NAME_LEN + sizeof(int16_t));
+          *(int16_t*) dst = strnlen(data, TSDB_TABLE_NAME_LEN);
+          dst += sizeof(int16_t);
+          
+          strncpy(dst, data, TSDB_TABLE_NAME_LEN);
           tfree(data);
         
-        } else {
+        } else {// todo refactor, return the true length of binary|nchar data
           tsdbGetTableTagVal(pQInfo->tsdb, &item->id, pExprInfo[j].base.colInfo.colId, &type, &bytes, &data);
           assert(bytes == pExprInfo[j].bytes && type == pExprInfo[j].type);
-          memcpy(pQuery->sdata[j]->data + i * bytes, data, bytes);
+          
+          char* dst = pQuery->sdata[j]->data + i * bytes;
+          if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+            memcpy(dst, data, varDataTLen(data));
+          } else {
+            memcpy(dst, data, bytes);
+          }
         }
       
       }

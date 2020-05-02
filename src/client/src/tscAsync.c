@@ -317,7 +317,7 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
     SFieldSupInfo* pSup = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
 
     if (pSup->pSqlExpr != NULL) {
-      pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i);
+      pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i, pSup->pSqlExpr->resBytes);
     } else {
 //      todo add
     }

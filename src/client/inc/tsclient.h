@@ -423,7 +423,7 @@ int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *s
 
 void    tscQueueAsyncFreeResult(SSqlObj *pSql);
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
-char *  tscGetResultColumnChr(SSqlRes *pRes, SQueryInfo *pQueryInfo, int32_t column);
+char *  tscGetResultColumnChr(SSqlRes *pRes, SQueryInfo *pQueryInfo, int32_t column, int16_t bytes);
 
 extern void *    pVnodeConn;
 extern void *    tscCacheHandle;

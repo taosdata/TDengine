@@ -422,8 +422,9 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   if (pQueryInfo == NULL)
     return 0;
 
+  assert(0);
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i);
+    pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i, 0);
   }
 
   *rows = pRes->tsrow;

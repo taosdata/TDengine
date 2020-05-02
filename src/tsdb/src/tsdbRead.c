@@ -1052,8 +1052,16 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
         pData = pColInfo->pData + (maxRowsToRead - numOfRows - 1) * pColInfo->info.bytes;
       }
       
-      memcpy(pData, dataRowTuple(row) + offset, pColInfo->info.bytes);
-      offset += pColInfo->info.bytes;
+      if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+        void *value = tdGetRowDataOfCol(row, pColInfo->info.type, TD_DATA_ROW_HEAD_SIZE + offset);
+        memcpy(pData, value, varDataTLen(value));
+  
+        offset += sizeof(int16_t);
+      } else {
+        memcpy(pData, dataRowTuple(row) + offset, pColInfo->info.bytes);
+        offset += pColInfo->info.bytes;
+      }
+      
     }
 
     numOfRows++;

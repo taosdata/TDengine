@@ -120,7 +120,7 @@ cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
 }
 
 cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDBTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y); }
-cmd ::= DROP DNODE IPTOKEN(X).        { setDCLSQLElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
+cmd ::= DROP DNODE ids(X).       { setDCLSQLElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
 cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &X);  }
 
@@ -136,8 +136,8 @@ cmd ::= DESCRIBE ids(X) cpxName(Y). {
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSQL(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSQL(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
-cmd ::= ALTER DNODE IPTOKEN(X) ids(Y).               { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
-cmd ::= ALTER DNODE IPTOKEN(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
+cmd ::= ALTER DNODE ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
+cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
 cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SSQLToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}

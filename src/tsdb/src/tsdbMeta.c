@@ -232,10 +232,18 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   
   STColumn* pCol = NULL;
+  int32_t offset = 0;
   for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
     STColumn* p = schemaColAt(pSchema, col);
     if (p->colId == colId) {
       pCol = p;
+      break;
+    }
+  
+    if (p->type == TSDB_DATA_TYPE_BINARY || p->type == TSDB_DATA_TYPE_NCHAR) {
+      offset += sizeof(int16_t);
+    } else {
+      offset += p->bytes;
     }
   }
   
@@ -246,7 +254,7 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   assert(pCol != NULL);
   
   SDataRow row = (SDataRow)pTable->tagVal;
-  char* d = dataRowTuple(row);
+  char* d = tdGetRowDataOfCol(row, pCol->type, TD_DATA_ROW_HEAD_SIZE + offset);
   
   *val = d;
   *type  = pCol->type;
