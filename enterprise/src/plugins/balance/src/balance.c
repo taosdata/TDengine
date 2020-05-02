@@ -550,6 +550,14 @@ static void balanceStartTimer(int64_t mseconds) {
 }
 
 void balanceNotify() {
+  if (sdbIsMaster()) {
+    balanceLock();
+    balanceAccquireDnodeList();
+    balanceMonitorDnodeModule();
+    balanceReleaseDnodeList();
+    balanceUnLock();
+  }
+
   balanceStartTimer(500); 
 }
 
