@@ -32,8 +32,8 @@ struct SMnodeObj;
 typedef struct SDnodeObj {
   int32_t    dnodeId;
   uint16_t   dnodePort;
-  char       dnodeFqdn[TSDB_FQDN_LEN];
-  char       dnodeEp[TSDB_FQDN_LEN];
+  char       dnodeFqdn[TSDB_FQDN_LEN + 1];
+  char       dnodeEp[TSDB_FQDN_LEN + 1];
   int64_t    createdTime;
   uint32_t   lastAccess;
   int32_t    openVnodes;
@@ -96,7 +96,7 @@ typedef struct {
   int32_t    numOfColumns; //used by normal table
   int32_t    sid;
   int32_t    vgId;
-  char       superTableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t   suid;
   int32_t    sqlLen;
   int8_t     reserved[1]; 
   int8_t     updateEnd[1];
