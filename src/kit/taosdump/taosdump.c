@@ -383,14 +383,13 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo) {
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
-  while ((row = taos_fetch_row(result)) != NULL) {
+  if ((row = taos_fetch_row(result)) != NULL) {
     isSet = true;
     pTableRecordInfo->isMetric = false;
     strncpy(pTableRecordInfo->tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
             fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     strncpy(pTableRecordInfo->tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
             fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
-    break;
   }
 
   taos_free_result(result);
@@ -410,11 +409,10 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo) {
     return -1;
   }
 
-  while ((row = taos_fetch_row(result)) != NULL) {
+  if ((row = taos_fetch_row(result)) != NULL) {
     isSet = true;
     pTableRecordInfo->isMetric = true;
     strcpy(pTableRecordInfo->tableRecord.metric, table);
-    break;
   }
 
   taos_free_result(result);

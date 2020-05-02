@@ -636,12 +636,16 @@ void tsBufResetPos(STSBuf* pTSBuf) {
 
 STSElem tsBufGetElem(STSBuf* pTSBuf) {
   STSElem    elem1 = {.vnode = -1};
-  STSCursor* pCur = &pTSBuf->cur;
   
-  if (pTSBuf == NULL || pCur->vnodeIndex < 0) {
+  if (pTSBuf == NULL) {
     return elem1;
   }
   
+  STSCursor* pCur = &pTSBuf->cur;
+  if (pCur != NULL && pCur->vnodeIndex < 0) {
+    return elem1;
+  }
+
   STSBlock* pBlock = &pTSBuf->block;
   
   elem1.vnode = pTSBuf->pData[pCur->vnodeIndex].info.vnode;

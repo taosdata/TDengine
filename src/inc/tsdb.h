@@ -38,9 +38,9 @@ extern "C" {
 typedef struct {
   // WAL handle
   void *appH;
+  void *cqH;
   int (*walCallBack)(void *);
   int (*eventCallBack)(void *);
-  int (*cqueryCallBack)(void *);
 } STsdbAppH;
 
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION

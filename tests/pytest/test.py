@@ -83,36 +83,35 @@ if __name__ == "__main__":
 
         tdLog.exit('stop All dnodes')
 
-    if masterIp == "":
-        tdDnodes.init(deployPath)
-        tdDnodes.setTestCluster(testCluster)
-        tdDnodes.setValgrind(valgrind)
+    tdDnodes.init(deployPath)
+    tdDnodes.setTestCluster(testCluster)
+    tdDnodes.setValgrind(valgrind)
 
-        if testCluster:
-            tdLog.notice("Procedures for testing cluster")
-            if fileName == "all":
-                tdCases.runAllCluster()
-            else:
-                tdCases.runOneCluster(fileName)
-        else:
-            tdLog.notice("Procedures for testing self-deployment")
-            tdDnodes.stopAll()
-            tdDnodes.deploy(1)
-            tdDnodes.start(1)
-            conn = taos.connect(
-                host='127.0.0.1',
-                config=tdDnodes.getSimCfgPath())
-            if fileName == "all":
-                tdCases.runAllLinux(conn)
-            else:
-                tdCases.runOneLinux(conn, fileName)
-            conn.close()
+    tdDnodes.stopAll()
+    tdDnodes.deploy(1)
+    tdDnodes.start(1)
+
+    if masterIp == "":
+        host='127.0.0.1'
     else:
-        tdLog.notice("Procedures for tdengine deployed in %s" % (masterIp))
-        cfgPath = "../../build/test/cfg"   # was: tdDnodes.getSimCfgPath()
-        conn = taos.connect(host=masterIp, config=cfgPath)
+        host=masterIp
+
+    tdLog.notice("Procedures for tdengine deployed in %s" % (host))
+
+    if testCluster:
+        tdLog.notice("Procedures for testing cluster")
         if fileName == "all":
-            tdCases.runAllWindows(conn)
+            tdCases.runAllCluster()
         else:
-            tdCases.runOneWindows(conn, fileName)
-        conn.close()
+            tdCases.runOneCluster(fileName)
+    else:
+        tdLog.notice("Procedures for testing self-deployment")
+        conn = taos.connect(
+                host,
+                config=tdDnodes.getSimCfgPath())
+        if fileName == "all":
+            tdCases.runAllLinux(conn)
+        else:
+            tdCases.runOneLinux(conn, fileName)
+
+    conn.close()

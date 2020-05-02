@@ -158,7 +158,11 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
   }
 
   mgmtDecVgroupRef(pVgroup);
-  mTrace("vgId:%d, is updated, tables:%d numOfVnode:%d", pVgroup->vgId, pDb->cfg.maxTables, pVgroup->numOfVnodes);
+
+  mTrace("vgId:%d, is updated, numOfVnode:%d", pVgroup->vgId, pVgroup->numOfVnodes);
+  if (pDb) {
+    mTrace("tables:%d", pDb->cfg.maxTables);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -545,7 +549,7 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   pCfg->cfgVersion          = htonl(pDb->cfgVersion);
   pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
   pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
-  pCfg->maxTables           = htonl(pDb->cfg.maxTables);
+  pCfg->maxTables           = htonl(pDb->cfg.maxTables + 1);
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
   pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
   pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
@@ -769,7 +773,7 @@ void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
   }
 }
 
-void mgmtDropAllDbVgroups(SDbObj *pDropDb) {
+void mgmtDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
   void *pNode = NULL;
   void *pLastNode = NULL;
   int32_t numOfVgroups = 0;
@@ -790,7 +794,10 @@ void mgmtDropAllDbVgroups(SDbObj *pDropDb) {
       sdbDeleteRow(&oper);
       pNode = pLastNode;
       numOfVgroups++;
-      mgmtSendDropVgroupMsg(pVgroup, NULL);
+
+      if (sendMsg) {
+        mgmtSendDropVgroupMsg(pVgroup, NULL);
+      }
     }
 
     mgmtDecVgroupRef(pVgroup);

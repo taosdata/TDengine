@@ -229,6 +229,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
+        pzName->n = strdequote(pzName->z);
         strncpy(pTableMetaInfo->name, pzName->z, pzName->n);
       } else {  // drop user
         if (pzName->n > TSDB_USER_LEN) {

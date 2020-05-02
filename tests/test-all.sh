@@ -10,7 +10,7 @@ NC='\033[0m'
 cd script
 ./test.sh -f basicSuite.sim 2>&1 | grep 'success\|failed\|fault' | tee out.txt
 
-totalSuccess=`grep success out.txt | wc -l`
+totalSuccess=`grep -w 'success' out.txt | wc -l`
 totalBasic=`grep success out.txt | grep Suite | wc -l`
 
 if [ "$totalSuccess" -gt "0" ]; then
@@ -18,7 +18,7 @@ if [ "$totalSuccess" -gt "0" ]; then
   echo -e "${GREEN} ### Total $totalSuccess TSIM case(s) succeed! ### ${NC}"
 fi
 
-totalFailed=`grep 'failed\|fault' out.txt | wc -l`
+totalFailed=`grep -w 'failed\|fault' out.txt | wc -l`
 if [ "$totalFailed" -ne "0" ]; then
   echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
   exit $totalFailed

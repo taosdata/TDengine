@@ -62,7 +62,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       if (arg) arguments->password = arg;
       break;
     case 'P':
-      tsMnodeShellPort = atoi(arg);
+      if (arg) {
+        tsMnodeShellPort = atoi(arg);
+      } else {
+        fprintf(stderr, "Invalid port\n");
+        return -1;
+      }
+
       break;
     case 't':
       arguments->timezone = arg;
@@ -101,7 +107,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       wordfree(&full_path);
       break;
     case 'T':
-      arguments->threadNum = atoi(arg);
+      if (arg) {
+        arguments->threadNum = atoi(arg);
+      } else {
+        fprintf(stderr, "Invalid number of threads\n");
+        return -1;
+      }
       break;
     case 'd':
       arguments->database = arg;

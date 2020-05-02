@@ -82,7 +82,7 @@ static int32_t mgmtDbActionDelete(SSdbOper *pOper) {
   mgmtDropDbFromAcct(pAcct, pDb);
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
-  mgmtDropAllDbVgroups(pDb);
+  mgmtDropAllDbVgroups(pDb, false);
   mgmtDecAcctRef(pAcct);
   
   return TSDB_CODE_SUCCESS;
@@ -936,7 +936,9 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-#if 0
+#if 1
+  mgmtDropAllDbVgroups(pMsg->pDb, true);
+#else
   SVgObj *pVgroup = pMsg->pDb->pHead;
   if (pVgroup != NULL) {
     mPrint("vgId:%d, will be dropped", pVgroup->vgId);

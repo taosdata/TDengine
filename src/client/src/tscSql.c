@@ -220,8 +220,9 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
 void taos_close(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
 
-  if (pObj == NULL) return;
-  if (pObj->signature != pObj) return;
+  if (pObj == NULL || pObj->signature != pObj)  {
+    return;
+  }
 
   if (pObj->pHb != NULL) {
     tscSetFreeHeatBeat(pObj);

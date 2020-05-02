@@ -8,7 +8,7 @@ system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
 
 print ============== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start -t
 sql connect
 
 sql show mnodes
@@ -26,7 +26,7 @@ if $data3_3 != null then
 endi
 
 print ============== step2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start -t
 sql create dnode $hostname2
 sleep 8000
 
@@ -49,7 +49,7 @@ if $dnode3Role != null then
 endi
 
 print ============== step3
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start -t
 sql create dnode $hostname3
 sleep 8000
 
@@ -98,7 +98,7 @@ sleep 3000
 
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start -t
 
 print ============== step5
 sql create dnode $hostname2
@@ -106,7 +106,7 @@ sleep 8000
 
 sql show mnodes
 $dnode1Role = $data2_1
-$dnode2Role = $data3_4
+$dnode2Role = $data2_4
 $dnode3Role = $data2_3
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
@@ -128,7 +128,7 @@ sleep 10000
 
 sql show mnodes
 $dnode1Role = $data2_1
-$dnode2Role = $data3_4
+$dnode2Role = $data2_4
 $dnode3Role = $data2_3
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role

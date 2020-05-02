@@ -74,7 +74,9 @@ static int32_t mgmtDnodeActionInsert(SSdbOper *pOper) {
 static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
  
+#ifndef _SYNC 
   mgmtDropAllDnodeVgroups(pDnode);
+#endif  
   mgmtDropMnodeLocal(pDnode->dnodeId);
   balanceNotify();
 
@@ -113,7 +115,7 @@ static int32_t mgmtDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mgmtCreateDnode(tsLocalEp);
-    SDnodeObj *pDnode = mgmtGetDnodeByIp(tsLocalEp);
+    SDnodeObj *pDnode = mgmtGetDnodeByEp(tsLocalEp);
     mgmtAddMnode(pDnode->dnodeId);
     mgmtDecDnodeRef(pDnode);
   }
@@ -181,7 +183,7 @@ void *mgmtGetDnode(int32_t dnodeId) {
   return sdbGetRow(tsDnodeSdb, &dnodeId);
 }
 
-void *mgmtGetDnodeByIp(char *ep) {
+void *mgmtGetDnodeByEp(char *ep) {
   SDnodeObj *pDnode = NULL;
   void *     pNode = NULL;
 
@@ -271,7 +273,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
 
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
-    pDnode = mgmtGetDnodeByIp(pStatus->dnodeEp);
+    pDnode = mgmtGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode == NULL) {
       mTrace("dnode %s not created", pStatus->dnodeEp);
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
@@ -358,7 +360,7 @@ static int32_t mgmtCreateDnode(char *ep) {
     return grantCode;
   }
 
-  SDnodeObj *pDnode = mgmtGetDnodeByIp(ep);
+  SDnodeObj *pDnode = mgmtGetDnodeByEp(ep);
   if (pDnode != NULL) {
     mgmtDecDnodeRef(pDnode);
     mError("dnode:%d is alredy exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
@@ -391,6 +393,7 @@ static int32_t mgmtCreateDnode(char *ep) {
   return code;
 }
 
+//TODO drop others tables
 int32_t mgmtDropDnode(SDnodeObj *pDnode) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -407,8 +410,9 @@ int32_t mgmtDropDnode(SDnodeObj *pDnode) {
   return code;
 }
 
-static int32_t mgmtDropDnodeByIp(char *ep) {
-  SDnodeObj *pDnode = mgmtGetDnodeByIp(ep);
+static int32_t mgmtDropDnodeByEp(char *ep) {
+  
+  SDnodeObj *pDnode = mgmtGetDnodeByEp(ep);
   if (pDnode == NULL) {
     mError("dnode:%s, is not exist", ep);
     return TSDB_CODE_DNODE_NOT_EXIST;
@@ -437,7 +441,7 @@ static void mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
   } else {
     rpcRsp.code = mgmtCreateDnode(pCreate->ep);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      SDnodeObj *pDnode = mgmtGetDnodeByIp(pCreate->ep);
+      SDnodeObj *pDnode = mgmtGetDnodeByEp(pCreate->ep);
       mLPrint("dnode:%d, %s is created by %s", pDnode->dnodeId, pCreate->ep, pMsg->pUser->user);
       mgmtDecDnodeRef(pDnode);
     } else {
@@ -456,7 +460,7 @@ static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
-    rpcRsp.code = mgmtDropDnodeByIp(pDrop->ep);
+    rpcRsp.code = mgmtDropDnodeByEp(pDrop->ep);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
       mLPrint("dnode:%s is dropped by %s", pDrop->ep, pMsg->pUser->user);
     } else {
@@ -812,7 +816,7 @@ static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 
   SDnodeObj *pDnode = NULL;
   if (pShow->payloadLen > 0 ) {
-    pDnode = mgmtGetDnodeByIp(pShow->payload);
+    pDnode = mgmtGetDnodeByEp(pShow->payload);
   } else {
     mgmtGetNextDnode(NULL, (SDnodeObj **)&pDnode);
   }

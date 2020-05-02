@@ -710,18 +710,20 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
 }
 
 void tscCloseTscObj(STscObj* pObj) {
+  assert(pObj != NULL);
+  
   pObj->signature = NULL;
   SSqlObj* pSql = pObj->pSql;
+  
   if (pSql) {
     terrno = pSql->res.code;
+    sem_destroy(&pSql->rspSem);
   }
   
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 
-  sem_destroy(&pSql->rspSem);
   rpcClose(pObj->pMgmtConn);
-  
   pthread_mutex_destroy(&pObj->mutex);
   
   tscTrace("%p DB connection is closed", pObj);
