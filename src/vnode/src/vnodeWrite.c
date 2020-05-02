@@ -141,7 +141,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
 
     for (int i = 0; i < numOfTags; i++) {
-      STColumn *pTCol = schemaColAt(pDestSchema, i);
+      STColumn *pTCol = schemaColAt(pDestTagSchema, i);
       tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
       accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }
