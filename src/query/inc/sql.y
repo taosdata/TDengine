@@ -264,7 +264,7 @@ signed(A) ::= MINUS INTEGER(X).   { A = -strtol(X.z, NULL, 10);}
 ////////////////////////////////// The CREATE TABLE statement ///////////////////////////////
 cmd ::= CREATE TABLE ifnotexists(Y) ids(X) cpxName(Z) create_table_args.  {
     X.n += Z.n;
-    setCreatedMeterName(pInfo, &X, &Y);
+    setCreatedTableName(pInfo, &X, &Y);
 }
 
 %type create_table_args{SCreateTableSQL*}

@@ -731,7 +731,7 @@ SSubclauseInfo* appendSelectClause(SSubclauseInfo *pQueryInfo, void *pSubclause)
   return pQueryInfo;
 }
 
-void setCreatedMeterName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists) {
+void setCreatedTableName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists) {
   pInfo->pCreateTableInfo->name = *pMeterName;
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }
