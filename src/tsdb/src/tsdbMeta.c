@@ -241,7 +241,7 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
     }
   
     if (p->type == TSDB_DATA_TYPE_BINARY || p->type == TSDB_DATA_TYPE_NCHAR) {
-      offset += sizeof(int16_t);
+      offset += sizeof(int32_t);
     } else {
       offset += p->bytes;
     }
