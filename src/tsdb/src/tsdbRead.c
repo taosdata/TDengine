@@ -1063,7 +1063,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, STable* pTable, TSKEY
         void *value = tdGetRowDataOfCol(row, pColInfo->info.type, TD_DATA_ROW_HEAD_SIZE + offset);
         memcpy(pData, value, varDataTLen(value));
   
-        offset += sizeof(int16_t);
+        offset += sizeof(int32_t);
       } else {
         memcpy(pData, dataRowTuple(row) + offset, pColInfo->info.bytes);
         offset += pColInfo->info.bytes;
