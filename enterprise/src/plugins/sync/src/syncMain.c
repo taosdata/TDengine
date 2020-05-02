@@ -451,7 +451,8 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
     sTrace("vgId:%d peer:%s, start to check peer connection", pNode->vgId, pPeer->fqdn);
     taosTmrReset(syncCheckPeerConnection, 10, pPeer, syncTmrCtrl, &pPeer->timer);
   }
-
+  
+  syncAddNodeRef(pNode);
   return pPeer;
 }
 
