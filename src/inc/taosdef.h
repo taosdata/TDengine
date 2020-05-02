@@ -335,6 +335,11 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_PORT_MNODEDNODE 15 
 #define TSDB_PORT_SYNC 20
 
+#define TAOS_QTYPE_RPC      0
+#define TAOS_QTYPE_FWD      1
+#define TAOS_QTYPE_WAL      2 
+#define TAOS_QTYPE_CQ       3
+
 typedef enum {
   TSDB_PRECISION_MILLI,
   TSDB_PRECISION_MICRO,

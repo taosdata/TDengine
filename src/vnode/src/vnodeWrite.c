@@ -26,6 +26,7 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "vnodeLog.h"
+#include "tcq.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
 static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
@@ -113,6 +114,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   int16_t numOfColumns  = htons(pTable->numOfColumns);
   int16_t numOfTags     = htons(pTable->numOfTags);
   int32_t sid           = htonl(pTable->sid);
+  int32_t sqlDataLen    = htonl(pTable->sqlDataLen);
   uint64_t uid           = htobe64(pTable->uid);
   SSchema *pSchema = (SSchema *) pTable->data;
 
@@ -150,6 +152,13 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
 
   code = tsdbCreateTable(pVnode->tsdb, &tCfg);
 
+  if (code == 0 && sqlDataLen >0) {
+    char *sqlStr = NULL;
+    // to do: get the sqlStr
+
+    cqCreate(pVnode->cq, sid, sqlStr, pSchema, numOfColumns);
+  } 
+
   tfree(pDestSchema);
 
   dTrace("pVnode:%p vgId:%d, table:%s is created, result:%x", pVnode, pVnode->vgId, pTable->tableId, code);
@@ -167,6 +176,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
   };
 
   code = tsdbDropTable(pVnode->tsdb, tableId);
+  cqDrop(pVnode->cq, tableId.tid);
 
   return code;
 }
