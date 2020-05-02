@@ -773,7 +773,7 @@ void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
   }
 }
 
-void mgmtDropAllDbVgroups(SDbObj *pDropDb) {
+void mgmtDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
   void *pNode = NULL;
   void *pLastNode = NULL;
   int32_t numOfVgroups = 0;
@@ -794,7 +794,10 @@ void mgmtDropAllDbVgroups(SDbObj *pDropDb) {
       sdbDeleteRow(&oper);
       pNode = pLastNode;
       numOfVgroups++;
-      mgmtSendDropVgroupMsg(pVgroup, NULL);
+
+      if (sendMsg) {
+        mgmtSendDropVgroupMsg(pVgroup, NULL);
+      }
     }
 
     mgmtDecVgroupRef(pVgroup);
