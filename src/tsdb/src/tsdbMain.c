@@ -611,10 +611,6 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
     if (pCfg->maxTables < TSDB_MIN_TABLES || pCfg->maxTables > TSDB_MAX_TABLES) return -1;
   }
 
-  // Since tableId starts from 1, we increase maxTables by 1
-  // TODO: take a fancier way to do this
-  pCfg->maxTables++;
-
   // Check daysPerFile
   if (pCfg->daysPerFile == -1) {
     pCfg->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;

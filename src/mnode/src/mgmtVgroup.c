@@ -549,7 +549,7 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   pCfg->cfgVersion          = htonl(pDb->cfgVersion);
   pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
   pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
-  pCfg->maxTables           = htonl(pDb->cfg.maxTables);
+  pCfg->maxTables           = htonl(pDb->cfg.maxTables + 1);
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
   pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
   pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
