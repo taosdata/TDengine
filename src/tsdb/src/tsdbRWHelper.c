@@ -619,7 +619,11 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
 
     if (pCompCol->colId == pDataCol->colId) {
       if (pCompBlock->algorithm == TWO_STAGE_COMP) {
-        pHelper->compBuffer = trealloc(pHelper->compBuffer, pCompCol->len + COMP_OVERFLOW_BYTES);
+        int zsize = pDataCol->bytes * pCompBlock->numOfPoints + COMP_OVERFLOW_BYTES;
+        if (pCompCol->type == TSDB_DATA_TYPE_BINARY || pCompCol->type == TSDB_DATA_TYPE_NCHAR) {
+          zsize += (sizeof(VarDataLenT) * pCompBlock->numOfPoints);
+        }
+        pHelper->compBuffer = trealloc(pHelper->compBuffer, zsize);
         if (pHelper->compBuffer == NULL) goto _err;
       }
       if (tsdbCheckAndDecodeColumnData(pDataCol, (char *)pCompData + tsize + pCompCol->offset, pCompCol->len,
