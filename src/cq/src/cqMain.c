@@ -20,6 +20,7 @@
 #include <pthread.h>
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "tglobal.h"
 #include "tlog.h"
 #include "twal.h"
 #include "tcq.h"
@@ -32,7 +33,6 @@
 
 typedef struct {
   int      vgId;
-  char     path[TSDB_FILENAME_LEN];
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
   FCqWrite cqWrite;
@@ -44,12 +44,13 @@ typedef struct {
 } SCqContext;
 
 typedef struct SCqObj {
-  int      sid;      // table ID
+  int      tid;      // table ID
   int      rowSize;  // bytes of a row 
   char    *sqlStr;   // SQL string
   int      columns;  // number of columns
   SSchema *pSchema;  // pointer to schema array
   void    *pStream;
+  struct SCqObj *prev; 
   struct SCqObj *next; 
   SCqContext *pContext;
 } SCqObj;
@@ -65,29 +66,9 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 
   strcpy(pContext->user, pCfg->user);
   strcpy(pContext->pass, pCfg->pass);
-  strcpy(pContext->path, pCfg->path);
   pContext->vgId = pCfg->vgId;
   pContext->cqWrite = pCfg->cqWrite;
   pContext->ahandle = ahandle;
-
-  // open meta data file
-  
-  // loop each record
-  while (1) {
-    SCqObj *pObj = calloc(sizeof(SCqObj), 1);
-    if (pObj == NULL) { 
-      cError("vgId:%d, no memory", pContext->vgId);
-      continue;
-    }
-
-    pObj->next = pContext->pHead;
-    pContext->pHead = pObj;
-
-    // assigne each field in SCqObj 
-    // pObj->sid = 
-    // strcpy(pObj->sqlStr, ?? );
-    // schema, columns
-  }
 
   pthread_mutex_init(&pContext->mutex, NULL);
 
@@ -101,8 +82,6 @@ void cqClose(void *handle) {
 
   // stop all CQs
   cqStop(pContext);
-
-  // save the meta data 
 
   // free all resources
   SCqObj *pObj = pContext->pHead;
@@ -125,13 +104,13 @@ void cqStart(void *handle) {
 
   pthread_mutex_lock(&pContext->mutex);
 
+  tscEmbedded = 1;
   pContext->dbConn = taos_connect("localhost", pContext->user, pContext->pass, NULL, 0);
-  if (pContext->dbConn) {
+  if (pContext->dbConn == NULL) {
     cError("vgId:%d, failed to connect to TDengine(%s)", pContext->vgId, tstrerror(terrno));
     pthread_mutex_unlock(&pContext->mutex);
     return;
   }
-
 
   SCqObj *pObj = pContext->pHead;
   while (pObj) {
@@ -139,9 +118,9 @@ void cqStart(void *handle) {
     pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, lastKey, pObj, NULL);
     if (pObj->pStream) {
       pContext->num++;
-      cTrace("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->sid, pObj->sqlStr);
+      cTrace("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
     } else {
-      cError("vgId:%d, id:%d CQ:%s, failed to open", pContext->vgId, pObj->sqlStr);
+      cError("vgId:%d, id:%d CQ:%s, failed to open", pContext->vgId, pObj->tid, pObj->sqlStr);
     }
     pObj = pObj->next;
   }
@@ -158,9 +137,11 @@ void cqStop(void *handle) {
 
   SCqObj *pObj = pContext->pHead;
   while (pObj) {
-    if (pObj->pStream) taos_close_stream(pObj->pStream);
-    pObj->pStream = NULL;
-    cTrace("vgId:%d, id:%d CQ:%s is closed", pContext->vgId, pObj->sid, pObj->sqlStr);
+    if (pObj->pStream) {
+      taos_close_stream(pObj->pStream);
+      pObj->pStream = NULL;
+      cTrace("vgId:%d, id:%d CQ:%s is closed", pContext->vgId, pObj->tid, pObj->sqlStr);
+    }
 
     pObj = pObj->next;
   }
@@ -171,13 +152,13 @@ void cqStop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
-void cqCreate(void *handle, int sid, char *sqlStr, SSchema *pSchema, int columns) {
+void *cqCreate(void *handle, int tid, char *sqlStr, SSchema *pSchema, int columns) {
   SCqContext *pContext = handle;
 
   SCqObj *pObj = calloc(sizeof(SCqObj), 1);
-  if (pObj == NULL) return;
+  if (pObj == NULL) return NULL;
 
-  pObj->sid = sid;
+  pObj->tid = tid;
   pObj->sqlStr = malloc(strlen(sqlStr)+1);
   strcpy(pObj->sqlStr, sqlStr);
 
@@ -187,11 +168,12 @@ void cqCreate(void *handle, int sid, char *sqlStr, SSchema *pSchema, int columns
   pObj->pSchema = malloc(size);
   memcpy(pObj->pSchema, pSchema, size);
 
-  cTrace("vgId:%d, id:%d CQ:%s is created", pContext->vgId, pObj->sid, pObj->sqlStr);
+  cTrace("vgId:%d, id:%d CQ:%s is created", pContext->vgId, pObj->tid, pObj->sqlStr);
 
   pthread_mutex_lock(&pContext->mutex);
 
   pObj->next = pContext->pHead;
+  if (pContext->pHead) pContext->pHead->prev = pObj;
   pContext->pHead = pObj;
 
   if (pContext->dbConn) {
@@ -199,50 +181,39 @@ void cqCreate(void *handle, int sid, char *sqlStr, SSchema *pSchema, int columns
     pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, lastKey, pObj, NULL);
     if (pObj->pStream) {
       pContext->num++;
-      cTrace("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->sid, pObj->sqlStr);
+      cTrace("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
     } else {
-      cError("vgId:%d, id:%d CQ:%s, failed to launch", pContext->vgId, pObj->sid, pObj->sqlStr);
+      cError("vgId:%d, id:%d CQ:%s, failed to launch", pContext->vgId, pObj->tid, pObj->sqlStr);
     }
   }
 
   pthread_mutex_unlock(&pContext->mutex);
+
+  return pObj;
 }
 
-void cqDrop(void *handle, int sid) {
-  SCqContext *pContext = handle;
+void cqDrop(void *handle) {
+  SCqObj *pObj = handle;
+  SCqContext *pContext = pObj->pContext;
 
   pthread_mutex_lock(&pContext->mutex);
 
-  // locate the pObj;
-  SCqObj *prev = NULL;
-  SCqObj *pObj = pContext->pHead;
-  while (pObj) {
-    if (pObj->sid != sid) {
-      prev = pObj;
-      pObj = pObj->next;
-      continue;
-    }
-
-    // remove from the linked list
-    if (prev) {
-      prev->next = pObj->next;
-    } else {
-      pContext->pHead = pObj->next;
-    } 
-
-    break;
+  if (pObj->prev) {
+    pObj->prev->next = pObj->next;
+  } else {
+    pContext->pHead = pObj->next;
   }
 
-  if (pObj) {
-    // update the meta data 
-
-    // free the resources associated
-    if (pObj->pStream) taos_close_stream(pObj->pStream);
-    pObj->pStream = NULL;
-
-    cTrace("vgId:%d, id:%d CQ:%s is dropped", pContext->vgId, pObj->sid, pObj->sqlStr); 
-    free(pObj);
+  if (pObj->next) {
+    pObj->next->prev = pObj->prev;
   }
+
+  // free the resources associated
+  if (pObj->pStream) taos_close_stream(pObj->pStream);
+  pObj->pStream = NULL;
+
+  cTrace("vgId:%d, id:%d CQ:%s is dropped", pContext->vgId, pObj->tid, pObj->sqlStr); 
+  free(pObj);
 
   pthread_mutex_lock(&pContext->mutex);
 }
@@ -252,7 +223,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SCqContext *pContext = pObj->pContext;
   if (pObj->pStream == NULL) return;
 
-  cTrace("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->sid, pObj->sqlStr);
+  cTrace("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
   // construct data
   int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + pObj->rowSize;
@@ -269,11 +240,10 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
   // to do: fill in the SSubmitBlk strucuture
-  pBlk->tid = pObj->sid;
+  pBlk->tid = pObj->tid;
 
 
   // write into vnode write queue
   pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ);
-
 }
 

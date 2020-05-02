@@ -24,18 +24,26 @@ typedef int (*FCqWrite)(void *ahandle, void *pHead, int type);
 
 typedef struct {
   int      vgId;
-  char     path[TSDB_FILENAME_LEN];
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
   FCqWrite cqWrite;
 } SCqCfg;
 
+// the following API shall be called by vnode
 void *cqOpen(void *ahandle, const SCqCfg *pCfg);
 void  cqClose(void *handle);
+
+// if vnode is master, vnode call this API to start CQ
 void  cqStart(void *handle);
+
+// if vnode is slave/unsynced, vnode shall call this API to stop CQ
 void  cqStop(void *handle);
-void  cqCreate(void *handle, int sid, char *sqlStr, SSchema *pSchema, int columns);
-void  cqDrop(void *handle, int sid);
+
+// cqCreate is called by TSDB to start an instance of CQ 
+void *cqCreate(void *handle, int sid, char *sqlStr, SSchema *pSchema, int columns);
+
+// cqDrop is called by TSDB to stop an instance of CQ, handle is the return value of cqCreate
+void  cqDrop(void *handle);
 
 extern int cqDebugFlag;
 

@@ -29,16 +29,16 @@ int writeToQueue(void *pVnode, void *data, int type) {
 }
 
 int main(int argc, char *argv[]) {
-  char path[128] = "~/cq";
+  int num = 3;
 
   for (int i=1; i<argc; ++i) {
-    if (strcmp(argv[i], "-p")==0 && i < argc-1) {
-      strcpy(path, argv[++i]);
-    } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
+    if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       ddebugFlag = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-n") == 0 && i <argc-1) {
+      num = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-p path]: wal file path default is:%s\n", path);
+      printf("  [-n num]: number of streams, default:%d\n", num);
       printf("  [-d debugFlag]: debug flag, default:%d\n", ddebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
@@ -50,7 +50,6 @@ int main(int argc, char *argv[]) {
   SCqCfg cqCfg;
   strcpy(cqCfg.user, "root");
   strcpy(cqCfg.pass, "taosdata");
-  strcpy(cqCfg.path, path);
   cqCfg.vgId = 2;
   cqCfg.cqWrite = writeToQueue;
 
@@ -60,9 +59,19 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
 
-  SSchema *pSchema = NULL;
+  SSchema schema[2];
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(schema[0].name, "ts");
+  schema[0].colId = 0;
+  schema[0].bytes = 8;
+
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  strcpy(schema[1].name, "avgspeed");
+  schema[1].colId = 1;
+  schema[1].bytes = 4;
+
   for (int sid =1; sid<10; ++sid) {
-    cqCreate(pCq, 1, "select avg(speed) from t1 sliding(1s) interval(5s)", pSchema, 2);
+    cqCreate(pCq, sid, "select avg(speed) from demo.t1 sliding(1s) interval(5s)", schema, 2);
   }
 
   while (1) {
@@ -83,12 +92,16 @@ int main(int argc, char *argv[]) {
         break;
       case 'q':
         break;
+      default:
+        printf("invalid command:%c", c);
     }
 
     if (c=='q') break;
   }
 
   cqClose(pCq);
+
+  taosCloseLog();
 
   return 0;
 }

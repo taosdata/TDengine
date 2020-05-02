@@ -194,9 +194,16 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->wqueue = dnodeAllocateWqueue(pVnode);
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
+  SCqCfg cqCfg;
+  sprintf(cqCfg.user, "root");
+  strcpy(cqCfg.pass, tsInternalPass);
+  cqCfg.cqWrite = vnodeWriteToQueue;
+  pVnode->cq = cqOpen(pVnode, &cqCfg);
+
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
   appH.walCallBack = vnodeWalCallback;
+  appH.cqH = pVnode->cq;
 
   sprintf(temp, "%s/tsdb", rootDir);
   pVnode->tsdb = tsdbOpenRepo(temp, &appH);
@@ -209,12 +216,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   sprintf(temp, "%s/wal", rootDir);
   pVnode->wal = walOpen(temp, &pVnode->walCfg);
   walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
-
-  SCqCfg cqCfg;
-  sprintf(cqCfg.path, "%s/cq", rootDir);
-  strcpy(cqCfg.pass, tsInternalPass);
-  cqCfg.cqWrite = vnodeWriteToQueue;
-  pVnode->cq = cqOpen(pVnode, &cqCfg);
 
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
