@@ -589,7 +589,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
       totalFreeVnodes += (pTempDnode->totalVnodes - pTempDnode->openVnodes);
     }
 
-    mgmtDecDnodeRef(pDnode);
+    mgmtDecDnodeRef(pTempDnode);
   }
 
   if (pDnode->openVnodes > totalFreeVnodes) {
