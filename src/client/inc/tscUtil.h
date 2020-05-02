@@ -136,7 +136,7 @@ void addRequiredTagColumn(STableMetaInfo* pTableMetaInfo, SColumnIndex* index);
 int32_t tscSetTableId(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
-bool tscIsInsertOrImportData(char* sqlstr);
+bool tscIsInsertData(char* sqlstr);
 
 /* use for keep current db info temporarily, for handle table with db prefix */
 // todo remove it

@@ -1307,7 +1307,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
     tscTrace("continue parse sql: %s", pSql->cmd.curSql);
   }
   
-  if (tscIsInsertOrImportData(pSql->sqlstr)) {
+  if (tscIsInsertData(pSql->sqlstr)) {
     /*
      * Set the fp before parse the sql string, in case of getTableMeta failed, in which
      * the error handle callback function can rightfully restore the user-defined callback function (fp).

@@ -730,7 +730,7 @@ void tscCloseTscObj(STscObj* pObj) {
   tfree(pObj);
 }
 
-bool tscIsInsertOrImportData(char* sqlstr) {
+bool tscIsInsertData(char* sqlstr) {
   int32_t index = 0;
 
   do {

@@ -510,7 +510,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   strtolower(sqlstr, sqlstr);
 
   pStmt->pSql->sqlstr = sqlstr;
-  if (tscIsInsertOrImportData(sqlstr)) {
+  if (tscIsInsertData(sqlstr)) {
     pStmt->isInsert = true;
     return insertStmtPrepare(pStmt);
   }
