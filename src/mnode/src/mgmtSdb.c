@@ -184,6 +184,7 @@ void sdbUpdateMnodeRoles() {
     if (pMnode != NULL) {
       pMnode->role = roles.role[i];
       sdbPrint("mnode:%d, role:%s", pMnode->mnodeId, mgmtGetMnodeRoleStr(pMnode->role));
+      if (pMnode->mnodeId == dnodeGetDnodeId()) tsSdbObj.role = pMnode->role;
       mgmtDecMnodeRef(pMnode);
     }
   }
@@ -221,7 +222,7 @@ static int32_t sdbForwardToPeer(SWalHead *pHead) {
 
   int32_t code = syncForwardToPeer(tsSdbObj.sync, pHead, (void*)pHead->version);
   if (code > 0) {
-    sdbTrace("forward request is sent, version:%" PRIu64 ", result:%s", pHead->version, tstrerror(code));
+    sdbTrace("forward request is sent, version:%" PRIu64 ", code:%d", pHead->version, code);
     sem_wait(&tsSdbObj.sem);
     return tsSdbObj.code;
   } 
@@ -288,12 +289,13 @@ void sdbUpdateSync() {
   syncInfo.confirmForward = sdbConfirmForward; 
   syncInfo.notifyRole = sdbNotifyRole;
   tsSdbObj.cfg = syncCfg;
-
+  
   if (tsSdbObj.sync) {
     syncReconfig(tsSdbObj.sync, &syncCfg);
   } else {
     tsSdbObj.sync = syncStart(&syncInfo);
   }
+  sdbUpdateMnodeRoles();
 }
 
 int32_t sdbInit() {

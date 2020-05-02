@@ -261,6 +261,13 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_INVALID_OPTION;
   }
 
+#ifndef _SYNC
+  if (pCfg->replications != 1) {
+    mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
+    return TSDB_CODE_INVALID_OPTION;
+  }
+#endif
+
   return TSDB_CODE_SUCCESS;
 }
 
