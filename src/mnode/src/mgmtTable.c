@@ -1119,7 +1119,12 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, stableName, TSDB_TABLE_NAME_LEN);
+  
+    int16_t len = strnlen(stableName, TSDB_DB_NAME_LEN);
+    *(int16_t*) pWrite = len;
+    pWrite += sizeof(int16_t); // todo refactor
+  
+    strncpy(pWrite, stableName, len);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -2075,7 +2080,12 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     int32_t cols = 0;
 
     char *pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, tableName, TSDB_TABLE_NAME_LEN);
+
+    int16_t len = strnlen(tableName, TSDB_DB_NAME_LEN);
+    *(int16_t*) pWrite = len;
+    pWrite += sizeof(int16_t); // todo refactor
+    
+    strncpy(pWrite, tableName, len);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

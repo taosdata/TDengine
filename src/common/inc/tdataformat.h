@@ -26,6 +26,17 @@
 extern "C" {
 #endif
 
+#define VARSTR_HEADER_SIZE sizeof(int16_t)
+#define STR_TO_VARSTR(x, str) do {int16_t __len = strlen(str); \
+  *(int16_t*)(x) = __len; \
+  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), __len);} while(0);
+  
+#define STR_TO_VARSTR_WITH_SIZE(x, str, _size) do {\
+  int16_t __len = strnlen((str), (_size)); \
+  *(int16_t*)(x) = __len; \
+  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), __len);\
+} while(0);
+
 // ----------------- TSDB COLUMN DEFINITION
 typedef struct {
   int8_t  type;    // Column type

@@ -131,17 +131,23 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
-    strncpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i, pSchema[i].name,
-            TSDB_COL_NAME_LEN);
+    char* dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i;
+    STR_TO_VARSTR(dst, pSchema[i].name);
 
     char *type = tDataTypeDesc[pSchema[i].type].aName;
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
-    strncpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i, type, pField->bytes);
-
+    dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i;
+    
+    STR_TO_VARSTR(dst, type);
+    
     int32_t bytes = pSchema[i].bytes;
-    if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
-      bytes = bytes / TSDB_NCHAR_SIZE;
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+      bytes -= VARSTR_HEADER_SIZE;
+      
+      if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+        bytes = bytes / TSDB_NCHAR_SIZE;
+      }
     }
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 2);
@@ -233,7 +239,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   return 0;
 }
 
-static int32_t tscBuildMeterSchemaResultFields(SSqlObj *pSql, int32_t numOfCols, int32_t typeColLength,
+static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols, int32_t typeColLength,
                                                int32_t noteColLength) {
   int32_t  rowLen = 0;
   SColumnIndex index = {0};
@@ -243,14 +249,14 @@ static int32_t tscBuildMeterSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   pQueryInfo->order.order = TSDB_ORDER_ASC;
 
-  TAOS_FIELD f = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_COL_NAME_LEN};
+  TAOS_FIELD f = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE};
   strncpy(f.name, "Field", TSDB_COL_NAME_LEN);
   
   SFieldSupInfo* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, TSDB_COL_NAME_LEN,
-      TSDB_COL_NAME_LEN, false);
+  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY,
+      TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE, TSDB_COL_NAME_LEN, false);
   
-  rowLen += TSDB_COL_NAME_LEN;
+  rowLen += (TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE);
 
   f.bytes = typeColLength;
   f.type = TSDB_DATA_TYPE_BINARY;
@@ -289,17 +295,16 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   
   assert(tscGetMetaInfo(pQueryInfo, 0)->pTableMeta != NULL);
 
-  const int32_t NUM_OF_DESCRIBE_TABLE_COLUMNS = 4;
+  const int32_t NUM_OF_DESC_TABLE_COLUMNS = 4;
   const int32_t TYPE_COLUMN_LENGTH = 16;
   const int32_t NOTE_COLUMN_MIN_LENGTH = 8;
 
-  int32_t note_field_length = tscMaxLengthOfTagsFields(pSql);
-  if (note_field_length == 0) {
-    note_field_length = NOTE_COLUMN_MIN_LENGTH;
+  int32_t noteFieldLen = tscMaxLengthOfTagsFields(pSql);
+  if (noteFieldLen == 0) {
+    noteFieldLen = NOTE_COLUMN_MIN_LENGTH;
   }
 
-  int32_t rowLen =
-      tscBuildMeterSchemaResultFields(pSql, NUM_OF_DESCRIBE_TABLE_COLUMNS, TYPE_COLUMN_LENGTH, note_field_length);
+  int32_t rowLen = tscBuildTableSchemaResultFields(pSql, NUM_OF_DESC_TABLE_COLUMNS, TYPE_COLUMN_LENGTH, noteFieldLen);
   tscFieldInfoUpdateOffset(pQueryInfo);
   return tscSetValueToResObj(pSql, rowLen);
 }

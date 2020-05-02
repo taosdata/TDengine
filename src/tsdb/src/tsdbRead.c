@@ -415,15 +415,10 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
 
   if (pCheckInfo->pDataCols == NULL) {
-    pCheckInfo->pDataCols = tdNewDataCols(1000, 2, 4096);
+    pCheckInfo->pDataCols = tdNewDataCols(1000, 100, 4096);  //todo fix me
   }
 
   tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(tsdbGetMeta(pQueryHandle->pTsdb), pCheckInfo->pTableObj));
-
-  // SFile* pFile = &pQueryHandle->pFileGroup->files[TSDB_FILE_TYPE_DATA];
-  // if (pFile->fd == FD_INITIALIZER) {
-  //   pFile->fd = open(pFile->fname, O_RDONLY);
-  // }
 
   if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, NULL) == 0) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
@@ -601,27 +596,27 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
 //  }
 
   // move the data block in the front to data block if needed
-  int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
-
-  for (int32_t i = 0; i < taosArrayGetSize(sa); ++i) {
-    int16_t colId = *(int16_t*)taosArrayGet(sa, i);
+  int32_t numOfCols = pQueryHandle->rhelper.pDataCols[0]->numOfCols;
+  int32_t reqCols = taosArrayGetSize(pQueryHandle->pColumns);
+  
+  for (int32_t i = 0; i < reqCols; ++i) {
+//    int16_t colId = *(int16_t*)taosArrayGet(sa, i);
+    SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
+    int32_t bytes = pCol->info.bytes;
 
     for (int32_t j = 0; j < numOfCols; ++j) {
-      SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, j);
-      int32_t bytes = pCol->info.bytes;
+      SDataCol* src = &pQueryHandle->rhelper.pDataCols[0]->cols[j];
 
-      if (pCol->info.colId == colId) {
+      if (pCol->info.colId == src->colId) {
         if (pCol->info.type != TSDB_DATA_TYPE_BINARY && pCol->info.type != TSDB_DATA_TYPE_NCHAR) {
-          memmove(pCol->pData, pQueryHandle->rhelper.pDataCols[0]->cols[i].pData + bytes * start,
-                       bytes * pQueryHandle->realNumOfRows);
-        } else {
-          SDataCol* src = &pQueryHandle->rhelper.pDataCols[0]->cols[i];
-          
+          memmove(pCol->pData, src->pData + bytes * start, bytes * pQueryHandle->realNumOfRows);
+        } else { // handle the var-string
           for(int32_t k = start; k < pQueryHandle->realNumOfRows + start; ++k) {
             char* p = tdGetColDataOfRow(src, k);
-            memcpy(pCol->pData + k * bytes, p, *(int16_t*) p + sizeof(int16_t));  // todo refactor
+            memcpy(pCol->pData + k * bytes, p, varDataTLen(p));  // todo refactor
           }
         }
+        
         break;
       }
     }
@@ -1010,7 +1005,7 @@ void changeQueryHandleForQuery(TsdbQueryHandleT pqHandle) {
   pQueryHandle->window = (STimeWindow) {key, key};
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, TSKEY* skey, TSKEY* ekey,
+static int tsdbReadRowsFromCache(SSkipListIterator* pIter, STable* pTable, TSKEY maxKey, int maxRowsToRead, TSKEY* skey, TSKEY* ekey,
                                  STsdbQueryHandle* pQueryHandle) {
   int     numOfRows = 0;
   int32_t numOfCols = taosArrayGetSize(pQueryHandle->pColumns);
@@ -1040,8 +1035,11 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
 
     *ekey = dataRowKey(row);
 
-    int32_t offset = 0;
+    int32_t offset = -1;
     char* pData = NULL;
+  
+    STSchema* pSchema = tsdbGetTableSchema(tsdbGetMeta(pQueryHandle->pTsdb), pTable);
+    int32_t numOfTableCols = schemaNCols(pSchema);
     
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
@@ -1051,6 +1049,15 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, TSKEY maxKey, int max
       } else {
         pData = pColInfo->pData + (maxRowsToRead - numOfRows - 1) * pColInfo->info.bytes;
       }
+      
+      for(int32_t j = 0; j < numOfTableCols; ++j) {
+        if (pColInfo->info.colId == pSchema->columns[j].colId) {
+          offset = pSchema->columns[j].offset;
+          break;
+        }
+      }
+      
+      assert(offset != -1); // todo handle error
       
       if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
         void *value = tdGetRowDataOfCol(row, pColInfo->info.type, TD_DATA_ROW_HEAD_SIZE + offset);
@@ -1127,7 +1134,7 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(TsdbQueryHandleT* pQueryHandle) {
     if (pTable->mem != NULL) {
       // create mem table iterator if it is not created yet
       assert(pCheckInfo->iter != NULL);
-      rows = tsdbReadRowsFromCache(pCheckInfo->iter, pHandle->window.ekey, 4000, &skey, &ekey, pHandle);
+      rows = tsdbReadRowsFromCache(pCheckInfo->iter, pCheckInfo->pTableObj, pHandle->window.ekey, 4000, &skey, &ekey, pHandle);
 
       // update the last key value
       pCheckInfo->lastKey = ekey + step;

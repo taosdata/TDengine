@@ -579,7 +579,11 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mgmtGetDbStr(pDb->name));
+    char* name = mgmtGetDbStr(pDb->name);
+    *(int16_t*) pWrite = strnlen(name, TSDB_DB_NAME_LEN);
+    pWrite += sizeof(int16_t); // todo refactor
+    
+    strncpy(pWrite, mgmtGetDbStr(pDb->name), TSDB_DB_NAME_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
