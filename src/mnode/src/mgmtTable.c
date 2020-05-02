@@ -47,6 +47,7 @@ static int32_t tsChildTableUpdateSize;
 static int32_t tsSuperTableUpdateSize;
 static void *  mgmtGetChildTable(char *tableId);
 static void *  mgmtGetSuperTable(char *tableId);
+static void *  mgmtGetSuperTableByUid(uint64_t uid);
 static void    mgmtDropAllChildTablesInStable(SSuperTableObj *pStable);
 static void    mgmtAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable);
 static void    mgmtRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *pCtable);
@@ -118,7 +119,7 @@ static int32_t mgmtChildTableActionInsert(SSdbOper *pOper) {
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     // add ref
-    pTable->superTable = mgmtGetSuperTable(pTable->superTableId);
+    pTable->superTable = mgmtGetSuperTableByUid(pTable->suid);
     mgmtAddTableIntoStable(pTable->superTable, pTable);
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
     pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
@@ -308,9 +309,9 @@ static int32_t mgmtChildTableActionRestored() {
     }
 
     if (pTable->info.type == TSDB_CHILD_TABLE) {
-      SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTable->superTableId);
+      SSuperTableObj *pSuperTable = mgmtGetSuperTableByUid(pTable->suid);
       if (pSuperTable == NULL) {
-        mError("ctable:%s, stable:%s not exist", pTable->info.tableId, pTable->superTableId);
+        mError("ctable:%s, stable:%" PRIu64 " not exist", pTable->info.tableId, pTable->suid);
         pTable->vgId = 0;
         SSdbOper desc = {0};
         desc.type = SDB_OPER_LOCAL;
@@ -558,6 +559,22 @@ static void *mgmtGetChildTable(char *tableId) {
 
 static void *mgmtGetSuperTable(char *tableId) {
   return sdbGetRow(tsSuperTableSdb, tableId);
+}
+
+static void *mgmtGetSuperTableByUid(uint64_t uid) {
+  SSuperTableObj *pStable = NULL;
+  void *          pNode = NULL;
+
+  while (1) {
+    pNode = mgmtGetNextSuperTable(pNode, &pStable);
+    if (pStable == NULL) break;
+    if (pStable->uid == uid) {
+      return pStable;
+    }
+    mgmtDecTableRef(pStable);
+  }
+
+  return NULL;
 }
 
 void *mgmtGetTable(char *tableId) {
@@ -1358,10 +1375,10 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
     }
     mgmtDecTableRef(pSuperTable);
 
-    strcpy(pTable->superTableId, pSuperTable->info.tableId);
-    pTable->uid         = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
-                          (sdbGetVersion() & ((1ul << 16) - 1ul));
-    pTable->superTable  = pSuperTable;
+    pTable->suid = pSuperTable->uid;
+    pTable->uid  = (((uint64_t)pTable->vgId) << 40) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
+                  (sdbGetVersion() & ((1ul << 16) - 1ul));
+    pTable->superTable = pSuperTable;
   } else {
     pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
     pTable->sversion     = 0;
@@ -2073,7 +2090,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pTable->info.type == TSDB_CHILD_TABLE) {
-      mgmtExtractTableName(pTable->superTableId, pWrite);
+      mgmtExtractTableName(pTable->superTable->info.tableId, pWrite);
     }
     cols++;
 
