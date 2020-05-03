@@ -70,28 +70,14 @@ if [ "$CLEAR_OPTION" = "clear" ]; then
   rm -rf $MGMT_DIR
 fi
 
-if [ "$SHELL_OPTION" = "true" ]; then 
-  if [ "$EXEC_OPTON" = "start" ]; then 
-    echo "ExcuteCmd:" $EXE_DIR/taos -c $CFG_DIR -u $USERS -p
-    $EXE_DIR/taos -c $CFG_DIR -u $USERS -p
-  else
-    #relative path
-    RCFG_DIR=sim/$NODE_NAME/cfg
-    PID=`ps -ef|grep -v taosd | grep taos | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
-    if [ -n "$PID" ]; then 
-      sudo kill -9 $PID
-    fi 
-  fi
-  return
-fi
-
 if [ "$EXEC_OPTON" = "start" ]; then 
   echo "ExcuteCmd:" $EXE_DIR/taosd -c $CFG_DIR
-  nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 & 
-  #TT=`date +%s`
-  #mkdir ${LOG_DIR}/${TT}
-  #echo valgrind --log-file=${LOG_DIR}/${TT}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR
-  #nohup valgrind --log-file=${LOG_DIR}/${TT}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 & 
+  
+  if [ "$SHELL_OPTION" = "true" ]; then 
+    nohup valgrind --log-file=${LOG_DIR}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
+  else
+    nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 & 
+  fi
   
 else
   #relative path
