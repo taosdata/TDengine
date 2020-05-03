@@ -217,7 +217,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
   pRpc->localPort = pInit->localPort;
   pRpc->afp = pInit->afp;
-  pRpc->sessions = pInit->sessions;
+  pRpc->sessions = pInit->sessions+1;
   if (pInit->user) strcpy(pRpc->user, pInit->user);
   if (pInit->secret) strcpy(pRpc->secret, pInit->secret);
   if (pInit->ckey) strcpy(pRpc->ckey, pInit->ckey);
@@ -245,7 +245,7 @@ void *rpcOpen(const SRpcInit *pInit) {
     return NULL;
   }
 
-  pRpc->idPool = taosInitIdPool(pRpc->sessions);
+  pRpc->idPool = taosInitIdPool(pRpc->sessions-1);
   if (pRpc->idPool == NULL) {
     tError("%s failed to init ID pool", pRpc->label);
     rpcClose(pRpc);

@@ -29,6 +29,7 @@
 int32_t balanceInit() { return TSDB_CODE_SUCCESS; }
 void    balanceCleanUp() {}
 void    balanceNotify() {}
+void    balanceUpdateMgmt() {}
 void    balanceReset() {}
 
 int32_t balanceAllocVnodes(SVgObj *pVgroup) {
