@@ -194,9 +194,10 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->wqueue = dnodeAllocateWqueue(pVnode);
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
-  SCqCfg cqCfg;
+  SCqCfg cqCfg = {0};
   sprintf(cqCfg.user, "root");
   strcpy(cqCfg.pass, tsInternalPass);
+  cqCfg.vgId = vnode;
   cqCfg.cqWrite = vnodeWriteToQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
 
