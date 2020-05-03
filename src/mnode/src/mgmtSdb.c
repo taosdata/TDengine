@@ -184,6 +184,7 @@ void sdbUpdateMnodeRoles() {
     if (pMnode != NULL) {
       pMnode->role = roles.role[i];
       sdbPrint("mnode:%d, role:%s", pMnode->mnodeId, mgmtGetMnodeRoleStr(pMnode->role));
+      if (pMnode->mnodeId == dnodeGetDnodeId()) tsSdbObj.role = pMnode->role;
       mgmtDecMnodeRef(pMnode);
     }
   }
@@ -212,15 +213,16 @@ static void sdbNotifyRole(void *ahandle, int8_t role) {
 
 static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   tsSdbObj.code = code;
-  sdbTrace("sdb forward request confirmed, result:%s", tstrerror(code));
   sem_post(&tsSdbObj.sem);
+  sdbTrace("forward request confirmed, version:%" PRIu64 ", result:%s", (int64_t)param, tstrerror(code));
 }
 
-static int32_t sdbForwardToPeer(void *pHead) {
+static int32_t sdbForwardToPeer(SWalHead *pHead) {
   if (tsSdbObj.sync == NULL) return TSDB_CODE_SUCCESS;
 
-  int32_t code = syncForwardToPeer(tsSdbObj.sync, pHead, NULL);
+  int32_t code = syncForwardToPeer(tsSdbObj.sync, pHead, (void*)pHead->version);
   if (code > 0) {
+    sdbTrace("forward request is sent, version:%" PRIu64 ", code:%d", pHead->version, code);
     sem_wait(&tsSdbObj.sem);
     return tsSdbObj.code;
   } 
@@ -287,12 +289,13 @@ void sdbUpdateSync() {
   syncInfo.confirmForward = sdbConfirmForward; 
   syncInfo.notifyRole = sdbNotifyRole;
   tsSdbObj.cfg = syncCfg;
-
+  
   if (tsSdbObj.sync) {
     syncReconfig(tsSdbObj.sync, &syncCfg);
   } else {
     tsSdbObj.sync = syncStart(&syncInfo);
   }
+  sdbUpdateMnodeRoles();
 }
 
 int32_t sdbInit() {
@@ -332,7 +335,7 @@ void sdbIncRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     atomic_add_fetch_32(pRefCount, 1);
-    if (0 && pTable->tableId == SDB_TABLE_CTABLE) {
+    if (0 && (pTable->tableId == SDB_TABLE_MNODE || pTable->tableId == SDB_TABLE_DNODE)) {
       sdbTrace("table:%s, add ref to record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -344,7 +347,7 @@ void sdbDecRef(void *handle, void *pRow) {
     SSdbTable *pTable = handle;
     int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
     int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
-    if (0 && pTable->tableId == SDB_TABLE_CTABLE) {
+    if (0 && (pTable->tableId == SDB_TABLE_MNODE || pTable->tableId == SDB_TABLE_DNODE)) {
       sdbTrace("table:%s, def ref of record:%s:%s:%d", pTable->tableName, pTable->tableName, sdbGetkeyStr(pTable, pRow),
                *pRefCount);
     }
@@ -474,14 +477,18 @@ static int sdbWrite(void *param, void *data, int type) {
   }
   walFsync(tsSdbObj.wal);
 
-  sdbForwardToPeer(pHead);
+  code = sdbForwardToPeer(pHead);
   pthread_mutex_unlock(&tsSdbObj.mutex);
 
   // from app, oper is created
-  if (param != NULL) return code;
-
-  // from wal or forward msg, should create oper
+  if (param != NULL) {
+    //sdbTrace("request from app is disposed, version:%" PRIu64 " code:%s", pHead->version, tstrerror(code));
+    return code;
+  }
+  
+  // from wal or forward msg, oper not created, should add into hash
   if (tsSdbObj.sync != NULL) {
+    sdbTrace("forward request is received, version:%" PRIu64 " result:%s, confirm it", pHead->version, tstrerror(code));
     syncConfirmForward(tsSdbObj.sync, pHead->version, code);
   }
 

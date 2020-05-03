@@ -140,7 +140,13 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   // offset of cmd in SSqlObj structure
   char *pSqlObjAddr = (char *)pCmd - offsetof(SSqlObj, cmd);
 
-  if (pMemBuffer == NULL || pDesc->pColumnModel == NULL) {
+  if (pMemBuffer == NULL) {
+    tscError("%p pMemBuffer", pMemBuffer);
+    pRes->code = TSDB_CODE_APP_ERROR;
+    return;
+  }
+ 
+  if (pDesc->pColumnModel == NULL) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
 
     tscError("%p no local buffer or intermediate result format model", pSqlObjAddr);

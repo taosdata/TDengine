@@ -32,6 +32,8 @@ int taosGetFqdn(char *fqdn) {
     uError("failed to get host name");
     return -1;
   }
+
+  free(h);
 }
 
 uint32_t taosGetIpFromFqdn(const char *fqdn) {

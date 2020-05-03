@@ -149,7 +149,9 @@ void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
-  if (rpcMsg == NULL || rpcMsg->pCont == NULL) {
+  assert(rpcMsg);
+
+  if (rpcMsg->pCont == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
     return;
   }
@@ -375,7 +377,7 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
 
   if (!sdbIsMaster()) {
     *secret = 0;
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_NOT_READY;
   }
 
   SUserObj *pUser = mgmtGetUser(user);

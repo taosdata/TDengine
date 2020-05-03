@@ -1,9 +1,5 @@
 system sh/stop_dnodes.sh
 
-
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
@@ -32,11 +28,11 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
 sql connect
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
-sql create dnode 192.168.0.4
+sql create dnode $hostname4
 system sh/exec_up.sh -n dnode4 -s start
 sleep 3000
 
@@ -93,24 +89,24 @@ show3:
 	endi
 	
 sql show dnodes
-print dnode192.168.0.1 ==> openVnodes: $data3_1
-print dnode192.168.0.2 ==> openVnodes: $data3_2
-print dnode192.168.0.3 ==> openVnodes: $data3_3
-print dnode192.168.0.4 ==> openVnodes: $data3_4
+print dnode1 ==> openVnodes: $data2_1
+print dnode2 ==> openVnodes: $data2_2
+print dnode3 ==> openVnodes: $data2_3
+print dnode4 ==> openVnodes: $data2_4
 
-if $data3_1 != 0 then
+if $data2_1 != 0 then
    return -1
 endi
 
-if $data3_2 != 4 then
+if $data2_2 != 4 then
    return -1
 endi
 
-if $data3_3 != 4 then
+if $data2_3 != 4 then
    return -1
 endi
 
-if $data3_3 != 4 then
+if $data2_3 != 4 then
    return -1
 endi
 

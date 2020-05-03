@@ -570,24 +570,14 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32
     pDataCol->len = (*(tDataTypeDesc[pDataCol->type].decompFunc))(
         content, len - sizeof(TSCKSUM), numOfPoints, pDataCol->pData, pDataCol->spaceSize, comp, buffer, bufferSize);
     if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
-      pDataCol->len += (sizeof(int32_t) * maxPoints);
       dataColSetOffset(pDataCol, numOfPoints);
     }
   } else {
     // No need to decompress, just memcpy it
-    switch (pDataCol->type) {
-      case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR:
-        pDataCol->len = sizeof(int32_t) * maxPoints;
-        memcpy((char *)pDataCol->pData + pDataCol->len, content, len - sizeof(TSCKSUM));
-        pDataCol->len += (len - sizeof(TSCKSUM));
-        dataColSetOffset(pDataCol, numOfPoints);
-        break;
-
-      default:
-        pDataCol->len = len - sizeof(TSCKSUM);
-        memcpy(pDataCol->pData, content, pDataCol->len);
-        break;
+    pDataCol->len = len - sizeof(TSCKSUM);
+    memcpy(pDataCol->pData, content, pDataCol->len);
+    if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
+      dataColSetOffset(pDataCol, numOfPoints);
     }
   }
   return 0;
@@ -629,7 +619,11 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
 
     if (pCompCol->colId == pDataCol->colId) {
       if (pCompBlock->algorithm == TWO_STAGE_COMP) {
-        pHelper->compBuffer = trealloc(pHelper->compBuffer, pCompCol->len + COMP_OVERFLOW_BYTES);
+        int zsize = pDataCol->bytes * pCompBlock->numOfPoints + COMP_OVERFLOW_BYTES;
+        if (pCompCol->type == TSDB_DATA_TYPE_BINARY || pCompCol->type == TSDB_DATA_TYPE_NCHAR) {
+          zsize += (sizeof(VarDataLenT) * pCompBlock->numOfPoints);
+        }
+        pHelper->compBuffer = trealloc(pHelper->compBuffer, zsize);
         if (pHelper->compBuffer == NULL) goto _err;
       }
       if (tsdbCheckAndDecodeColumnData(pDataCol, (char *)pCompData + tsize + pCompCol->offset, pCompCol->len,

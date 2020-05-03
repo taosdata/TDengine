@@ -22,8 +22,8 @@ system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
 system sh/exec.sh -n dnode1 -s start
 
 sql connect
-sql create dnode 192.168.0.2
-sql create dnode 192.168.0.3
+sql create dnode $hostname2
+sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sleep 3000

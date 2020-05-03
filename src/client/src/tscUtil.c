@@ -757,7 +757,9 @@ void tscCloseTscObj(STscObj* pObj) {
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 
-  sem_destroy(&pSql->rspSem);
+  if (pSql) {
+    sem_destroy(&pSql->rspSem);
+  }
   rpcClose(pObj->pMgmtConn);
   
   pthread_mutex_destroy(&pObj->mutex);

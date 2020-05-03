@@ -33,7 +33,7 @@ if $data01 != 192.168.0.1 then
 endi
 
 print =============== create dnodes
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 sql show dnodes;
 if $rows != 2 then 
   return -1

@@ -277,7 +277,7 @@ SSubclauseInfo *setSubclause(SSubclauseInfo *pClause, void *pSqlExprInfo);
 
 SSubclauseInfo *appendSelectClause(SSubclauseInfo *pInfo, void *pSubclause);
 
-void setCreatedMeterName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists);
+void setCreatedTableName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists);
 
 void SQLInfoDestroy(SSqlInfo *pInfo);
 

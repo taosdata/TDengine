@@ -213,6 +213,7 @@ static void dnodeCheckDataDirOpenned(char *dir) {
   int32_t ret = flock(fd, LOCK_EX | LOCK_NB);
   if (ret != 0) {
     dError("failed to lock file:%s ret:%d, database may be running, quit", filepath, ret);
+    close(fd);
     exit(0);
   }
 }

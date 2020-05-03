@@ -30,6 +30,8 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "vnodeLog.h"
+#include "tcq.h"
+//#include "tsync.h"
 
 static int32_t  tsOpennedVnodes;
 static void    *tsDnodeVnodesHash;
@@ -192,8 +194,29 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->wqueue = dnodeAllocateWqueue(pVnode);
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
+  SCqCfg cqCfg = {0};
+  sprintf(cqCfg.user, "root");
+  strcpy(cqCfg.pass, tsInternalPass);
+  cqCfg.vgId = vnode;
+  cqCfg.cqWrite = vnodeWriteToQueue;
+  pVnode->cq = cqOpen(pVnode, &cqCfg);
+
+  STsdbAppH appH = {0};
+  appH.appH = (void *)pVnode;
+  appH.walCallBack = vnodeWalCallback;
+  appH.cqH = pVnode->cq;
+
+  sprintf(temp, "%s/tsdb", rootDir);
+  pVnode->tsdb = tsdbOpenRepo(temp, &appH);
+  if (pVnode->tsdb == NULL) {
+    dError("pVnode:%p vgId:%d, failed to open tsdb at %s(%s)", pVnode, pVnode->vgId, temp, tstrerror(terrno));
+    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
+    return terrno;
+  }
+
   sprintf(temp, "%s/wal", rootDir);
   pVnode->wal = walOpen(temp, &pVnode->walCfg);
+  walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
 
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
@@ -208,24 +231,11 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.notifyRole = vnodeNotifyRole;
   pVnode->sync = syncStart(&syncInfo);
 
+  // start continuous query
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
+    cqStart(pVnode->cq);
+
   pVnode->events = NULL;
-  pVnode->cq     = NULL;
-
-  STsdbAppH appH = {0};
-  appH.appH = (void *)pVnode;
-  appH.walCallBack = vnodeWalCallback;
-
-  sprintf(temp, "%s/tsdb", rootDir);
-  void *pTsdb = tsdbOpenRepo(temp, &appH);
-  if (pTsdb == NULL) {
-    dError("pVnode:%p vgId:%d, failed to open tsdb at %s(%s)", pVnode, pVnode->vgId, temp, tstrerror(terrno));
-    taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
-    return terrno;
-  }
-
-  pVnode->tsdb = pTsdb;
-
-  walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
 
   pVnode->status = TAOS_VN_STATUS_READY;
   dTrace("pVnode:%p vgId:%d, vnode is opened in %s", pVnode, pVnode->vgId, rootDir);
@@ -350,10 +360,16 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     pVnode->sync = NULL;
   }
 
-  tsdbCloseRepo(pVnode->tsdb);
-  walClose(pVnode->wal);
-  vnodeSaveVersion(pVnode);
+  cqClose(pVnode->cq);
+  pVnode->cq = NULL;
 
+  tsdbCloseRepo(pVnode->tsdb);
+  pVnode->tsdb = NULL;
+
+  walClose(pVnode->wal);
+  pVnode->wal = NULL;
+
+  vnodeSaveVersion(pVnode);
   vnodeRelease(pVnode);
 }
 
@@ -377,6 +393,11 @@ static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
   pVnode->role = role;
+
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
+    cqStart(pVnode->cq);
+  else 
+    cqStop(pVnode->cq);
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {

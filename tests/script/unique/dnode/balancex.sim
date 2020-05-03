@@ -58,7 +58,7 @@ if $data3_1 != 2 then
 endi
 
 print ========== step2
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
@@ -106,7 +106,7 @@ if $data3_2 != 1 then
 endi
 
 print ========== step3
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
 
 $x = 0
@@ -131,7 +131,7 @@ if $data3_3 != 2 then
 endi
 
 print ========== step5
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 
 $x = 0
 show5: 

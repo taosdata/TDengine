@@ -26,6 +26,7 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "vnodeLog.h"
+#include "tcq.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
 static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
@@ -141,7 +142,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
 
     for (int i = 0; i < numOfTags; i++) {
-      STColumn *pTCol = schemaColAt(pDestSchema, i);
+      STColumn *pTCol = schemaColAt(pDestTagSchema, i);
       tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
       accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }
@@ -149,7 +150,6 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   }
 
   code = tsdbCreateTable(pVnode->tsdb, &tCfg);
-
   tfree(pDestSchema);
 
   dTrace("pVnode:%p vgId:%d, table:%s is created, result:%x", pVnode, pVnode->vgId, pTable->tableId, code);

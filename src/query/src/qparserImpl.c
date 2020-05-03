@@ -675,7 +675,7 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
       free(pInfo->pDCLInfo->a);
     }
 
-    if (pInfo->type == TSDB_SQL_CREATE_DB) {
+    if (pInfo->pDCLInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
       tVariantListDestroy(pInfo->pDCLInfo->dbOpt.keep);
     }
 
@@ -731,7 +731,7 @@ SSubclauseInfo* appendSelectClause(SSubclauseInfo *pQueryInfo, void *pSubclause)
   return pQueryInfo;
 }
 
-void setCreatedMeterName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists) {
+void setCreatedTableName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists) {
   pInfo->pCreateTableInfo->name = *pMeterName;
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }

@@ -38,7 +38,7 @@ void *  mgmtGetNextDnode(void *pNode, SDnodeObj **pDnode);
 void    mgmtIncDnodeRef(SDnodeObj *pDnode);
 void    mgmtDecDnodeRef(SDnodeObj *pDnode);
 void *  mgmtGetDnode(int32_t dnodeId);
-void *  mgmtGetDnodeByIp(char *ep);
+void *  mgmtGetDnodeByEp(char *ep);
 void    mgmtUpdateDnode(SDnodeObj *pDnode);
 int32_t mgmtDropDnode(SDnodeObj *pDnode);
 

@@ -312,8 +312,6 @@ typedef struct SSqlObj {
   void (*fp)();
   void (*fetchFp)();
   void *           param;
-  uint32_t         ip;
-  short            vnode;
   int64_t          stime;
   uint32_t         queryId;
   void *           pStream;

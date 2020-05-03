@@ -82,7 +82,7 @@ static int32_t mgmtDbActionDelete(SSdbOper *pOper) {
   mgmtDropDbFromAcct(pAcct, pDb);
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
-  mgmtDropAllDbVgroups(pDb);
+  mgmtDropAllDbVgroups(pDb, false);
   mgmtDecAcctRef(pAcct);
   
   return TSDB_CODE_SUCCESS;
@@ -260,6 +260,13 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
            TSDB_MAX_REPLICA_NUM);
     return TSDB_CODE_INVALID_OPTION;
   }
+
+#ifndef _SYNC
+  if (pCfg->replications != 1) {
+    mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
+    return TSDB_CODE_INVALID_OPTION;
+  }
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -932,7 +939,9 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-#if 0
+#if 1
+  mgmtDropAllDbVgroups(pMsg->pDb, true);
+#else
   SVgObj *pVgroup = pMsg->pDb->pHead;
   if (pVgroup != NULL) {
     mPrint("vgId:%d, will be dropped", pVgroup->vgId);

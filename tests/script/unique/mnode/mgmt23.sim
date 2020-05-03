@@ -20,7 +20,7 @@ endi
 
 print ============== step2
 system sh/exec_up.sh -n dnode2 -s start
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 
 $x = 0
 show2:
@@ -42,13 +42,13 @@ endi
 
 print ============== step3
 system sh/exec_up.sh -n dnode3 -s start
-sql create dnode 192.168.0.3
+sql create dnode $hostname3
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -64,13 +64,13 @@ if $dnode3Role != null then
 endi
 
 print ============== step4
-sql drop dnode 192.168.0.2
+sql drop dnode $hostname2
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -89,16 +89,16 @@ system sh/exec_up.sh -n dnode2 -s stop
 
 print ============== step5
 sleep 2000
-sql create dnode 192.168.0.2
+sql create dnode $hostname2
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
 system sh/exec_up.sh -n dnode2 -s start
 sleep 8000
 
 sql show mnodes
-$dnode1Role = $data3_1
-$dnode2Role = $data3_2
-$dnode3Role = $data3_3
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -120,7 +120,7 @@ sleep 10000
 sql_error show mnodes
 
 print ============== step7
-sql_error drop dnode 192.168.0.1
+sql_error drop dnode $hostname1
 
 system sh/exec_up.sh -n dnode1 -s stop
 system sh/exec_up.sh -n dnode2 -s stop
