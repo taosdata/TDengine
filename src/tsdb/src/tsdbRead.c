@@ -122,7 +122,7 @@ typedef struct STsdbQueryHandle {
   SRWHelper      rhelper;
 } STsdbQueryHandle;
 
-static void changeQueryHandleForQuery(TsdbQueryHandleT pqHandle);
+static void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle);
 
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
@@ -207,7 +207,7 @@ TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STable
   pQueryHandle->type = TSDB_QUERY_TYPE_LAST_ROW;
   pQueryHandle->order = TSDB_ORDER_DESC;
   
-  changeQueryHandleForQuery(pQueryHandle);
+  changeQueryHandleForLastrowQuery(pQueryHandle);
   return pQueryHandle;
 }
 
@@ -957,7 +957,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pqHandle) {
   }
 }
 
-void changeQueryHandleForQuery(TsdbQueryHandleT pqHandle) {
+void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pqHandle;
   assert(!ASCENDING_ORDER_TRAVERSE(pQueryHandle->order));
   

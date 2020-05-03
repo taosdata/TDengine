@@ -1422,7 +1422,7 @@ static void doProcessResultInNextWindow(SSqlObj *pSql, int32_t numOfRes) {
   doExecuteSecondaryMerge(pCmd, pLocalReducer, true);
 }
 
-int32_t tscDoLocalreduce(SSqlObj *pSql) {
+int32_t tscDoLocalMerge(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 

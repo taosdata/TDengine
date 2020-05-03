@@ -2981,11 +2981,28 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
  */
 static void tag_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType);
+  
+  char* output = pCtx->aOutputBuf;
+  
+  // todo refactor to dump length presented string(var string)
+  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    *(int16_t*) output = pCtx->tag.nLen;
+    output += VARSTR_HEADER_SIZE;
+  }
+  
+  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
 }
 
 static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
+  
+  char* output = pCtx->aOutputBuf;
+  
+  // todo refactor to dump length presented string(var string)
+  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    *(int16_t*) output = pCtx->tag.nLen;
+    output += VARSTR_HEADER_SIZE;
+  }
   tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType);
 }
 
