@@ -549,7 +549,7 @@ static void balanceStartTimer(int64_t mseconds) {
   taosTmrReset(balanceProcessBalanceTimer, mseconds, (void *)mseconds, tsMgmtTmr, &tsBalanceTimer);
 }
 
-void balanceNotify() {
+void balanceUpdateMgmt() {
   if (sdbIsMaster()) {
     balanceLock();
     balanceAccquireDnodeList();
@@ -557,7 +557,9 @@ void balanceNotify() {
     balanceReleaseDnodeList();
     balanceUnLock();
   }
+}
 
+void balanceNotify() {
   balanceStartTimer(500); 
 }
 
