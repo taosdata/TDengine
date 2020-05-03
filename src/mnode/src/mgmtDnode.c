@@ -322,6 +322,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
+    balanceUpdateMgmt();
     balanceNotify();
   }
 
