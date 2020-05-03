@@ -147,6 +147,8 @@ void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, in
 
   pCache->total++;
 
+  printf("--------put back, %s, %d\n", fqdn, hash);
+  
   tTrace("%p %s:%hu:%d:%d:%p added into cache, connections:%d", data, fqdn, port, connType, hash, pNode, pCache->count[hash]);
 
   return;
@@ -202,6 +204,8 @@ void *rpcGetConnFromCache(void *handle, char *fqdn, uint16_t port, int8_t connTy
 
   if (pData) {
     tTrace("%p %s:%hu:%d:%d:%p retrieved from cache, connections:%d", pData, fqdn, port, connType, hash, pNode, pCache->count[hash]);
+  } else {
+    tTrace("%p %s:%hu:%d:%d:%p failed to retrieve conn from cache, connections:%d", pData, fqdn, port, connType, hash, pNode, pCache->count[hash]);
   }
 
   return pData;
