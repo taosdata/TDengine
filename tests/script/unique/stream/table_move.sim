@@ -20,15 +20,10 @@ system sh/cfg.sh -n dnode2 -c statusInterval -v 1
 system sh/cfg.sh -n dnode3 -c statusInterval -v 1
 system sh/cfg.sh -n dnode4 -c statusInterval -v 1
 
-system sh/cfg.sh -n dnode1 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode2 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode3 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode4 -c balanceMonitorInterval -v 1
-
-system sh/cfg.sh -n dnode1 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode2 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode3 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode4 -c balanceStartInterval -v 10
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
 
 system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c clog -v 1

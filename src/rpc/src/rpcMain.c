@@ -648,7 +648,13 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv) {
     if (pConn->user[0] == 0) pConn = NULL;
   } 
 
-  if (pConn == NULL) pConn = rpcAllocateServerConn(pRpc, pRecv);
+  if (pConn == NULL) { 
+    if (pRpc->connType == TAOS_CONN_SERVER) {
+      pConn = rpcAllocateServerConn(pRpc, pRecv);
+    } else {
+      terrno = TSDB_CODE_UNEXPECTED_RESPONSE;
+    }
+  }
 
   if (pConn) {
     if (pConn->linkUid != pHead->linkUid) {
@@ -1140,7 +1146,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
     pConn->retry++;
 
     if (pConn->retry < 4) {
-      tTrace("%s %p, re-send msg:%s to %s:%hud", pRpc->label, pConn, 
+      tTrace("%s %p, re-send msg:%s to %s:%hu", pRpc->label, pConn, 
              taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
       rpcSendMsgToPeer(pConn, pConn->pReqMsg, pConn->reqMsgLen);      
       taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
