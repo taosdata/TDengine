@@ -324,7 +324,7 @@ static bool balanceMonitorBalance() {
       if (balanceCheckDnodeInVgroup(pSrcDnode, pVgroup)) {
         for (int32_t dest = 0; dest < src; dest++) {
           SDnodeObj *pDestDnode = tsBalanceDnodeList[dest];
-          if (balanceCheckDnodeInVgroup(pDestDnode, pVgroup)) break;
+          if (balanceCheckDnodeInVgroup(pDestDnode, pVgroup)) continue;
 
           float destScore = balanceTryCalcDnodeScore(pDestDnode, 1);
           if (srcScore + 0.0001 < destScore) continue;
