@@ -432,8 +432,12 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
 }
 
 static bool balanceMontiorDropping() {
-  for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
-    SDnodeObj *pDnode = tsBalanceDnodeList[i];
+  void *pNode = NULL;
+  SDnodeObj *pDnode = NULL;
+
+  while (1) {
+    mgmtDecDnodeRef(pDnode);
+    pNode = mgmtGetNextDnode(pNode, &pDnode);
     if (pDnode == NULL) break;
 
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
@@ -446,11 +450,14 @@ static bool balanceMontiorDropping() {
 
       pDnode->status = TAOS_DN_STATUS_DROPPING;
       mgmtUpdateDnode(pDnode);
+      mgmtDecDnodeRef(pDnode);
       return true;
     }
 
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
-      return balanceMonitorDnodeDropping(pDnode);
+      bool ret = balanceMonitorDnodeDropping(pDnode);
+      mgmtDecDnodeRef(pDnode);
+      return ret;
     }
   }
 
@@ -511,7 +518,6 @@ static void balanceCheckDnodeAccess() {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         mPrint("dnode:%d, set to offline state", pDnode->dnodeId);
         balanceSetVgroupOffline(pDnode);
-        mPrint("dnode:%d, set to offline over", pDnode->dnodeId);
       }
     }
     mgmtDecDnodeRef(pDnode);
@@ -528,7 +534,7 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   bool updateSoon = false;
 
   if (handle == NULL) {
-    if (tsAccessSquence % tsBalanceStartInterval == 0) {
+    if (tsAccessSquence % tsBalanceInterval == 0) {
       mTrace("balance function is scheduled by timer");
       updateSoon = balanceStart();
     }
@@ -541,7 +547,7 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   if (updateSoon) {
     balanceStartTimer(1000);
   } else {
-    taosTmrReset(balanceProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, tsMgmtTmr, &tsBalanceTimer);
+    taosTmrReset(balanceProcessBalanceTimer, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsBalanceTimer);
   }
 }
 
