@@ -26,6 +26,8 @@ void    mgmtCleanUpSystem();
 void    mgmtStopSystem();
 void    sdbUpdateSync();
 
+void    mgmtProcessMsgFromShell(SRpcMsg *rpcMsg);
+
 #ifdef __cplusplus
 }
 #endif

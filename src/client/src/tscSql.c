@@ -66,8 +66,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     return NULL;
   }
 
-  void* pMgmtConn = NULL;
-  if (tscInitRpc(user, pass, &pMgmtConn) != 0) {
+  if (tscInitRpc(user, pass) != 0) {
     terrno = TSDB_CODE_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -119,7 +118,6 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     strtolower(pObj->db, tmp);
   }
 
-  pObj->pMgmtConn = pMgmtConn;
   pthread_mutex_init(&pObj->mutex, NULL);
 
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));

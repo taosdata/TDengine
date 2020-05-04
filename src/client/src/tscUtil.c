@@ -760,7 +760,6 @@ void tscCloseTscObj(STscObj* pObj) {
   if (pSql) {
     sem_destroy(&pSql->rspSem);
   }
-  rpcClose(pObj->pMgmtConn);
   
   pthread_mutex_destroy(&pObj->mutex);
   

@@ -34,6 +34,8 @@ static void  * tsDnodeShellRpc = NULL;
 static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
+void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg);
+
 int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeWrite;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]  = dnodeRead;
@@ -47,8 +49,8 @@ int32_t dnodeInitShell() {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort    = tsDnodeShellPort;
-  rpcInit.label        = "DND-shell";
+  rpcInit.localPort    = tsMnodeShellPort;
+  rpcInit.label        = "SHELL";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp          = dnodeProcessMsgFromShell;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
@@ -96,12 +98,10 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
   if ( dnodeProcessShellMsgFp[pMsg->msgType] ) {
     (*dnodeProcessShellMsgFp[pMsg->msgType])(pMsg);
   } else {
-    dError("RPC %p, msg:%s from shell is not handled", pMsg->handle, taosMsg[pMsg->msgType]);
-    rpcMsg.code = TSDB_CODE_MSG_NOT_PROCESSED;
-    rpcSendResponse(&rpcMsg);
-    rpcFreeCont(pMsg->pCont);
+    mgmtProcessMsgFromShell(pMsg);
   }
 }
+
 
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   return TSDB_CODE_SUCCESS;

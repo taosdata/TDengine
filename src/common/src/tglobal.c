@@ -1244,7 +1244,6 @@ bool taosCheckGlobalCfg() {
   
   tsVersion = 10 * tsVersion;
 
-  tsMnodeShellPort = tsServerPort + TSDB_PORT_MNODESHELL;   // udp[6030-6034] tcp[6030]
   tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
   tsMnodeDnodePort = tsServerPort + TSDB_PORT_MNODEDNODE;   // udp/tcp
   tsDnodeMnodePort = tsServerPort + TSDB_PORT_DNODEMNODE;   // udp/tcp

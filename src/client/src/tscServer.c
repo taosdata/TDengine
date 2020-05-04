@@ -191,7 +191,6 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
-  STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
   
   char *pMsg = rpcMallocCont(pCmd->payloadLen);
@@ -201,30 +200,22 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   }
 
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
-    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
     memcpy(pMsg, pSql->cmd.payload + tsRpcHeadSize, pSql->cmd.payloadLen);
+  } else {
+    pSql->ipList = tscMgmtIpSet;
+    memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
+  }
 
-    SRpcMsg rpcMsg = {
+  tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList.port);
+
+  SRpcMsg rpcMsg = {
       .msgType = pSql->cmd.msgType,
       .pCont   = pMsg,
       .contLen = pSql->cmd.payloadLen,
       .handle  = pSql,
       .code    = 0
-    };
-    rpcSendRequest(pVnodeConn, &pSql->ipList, &rpcMsg);
-  } else {
-    pSql->ipList = tscMgmtIpSet;
-    memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
-    SRpcMsg rpcMsg = {
-        .msgType = pSql->cmd.msgType,
-        .pCont   = pMsg,
-        .contLen = pSql->cmd.payloadLen,
-        .handle  = pSql,
-        .code   = 0
-    };
-    tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
-    rpcSendRequest(pObj->pMgmtConn, &pSql->ipList, &rpcMsg);
-  }
+  };
+  rpcSendRequest(pDnodeConn, &pSql->ipList, &rpcMsg);
 
   return TSDB_CODE_SUCCESS;
 }
