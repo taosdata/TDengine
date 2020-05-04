@@ -300,7 +300,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
       break;
     
     case TSDB_DATA_TYPE_NCHAR:
-      if (!taosMbsToUcs4(bind->buffer, *bind->length, data + param->offset, param->bytes)) {
+      if (!taosMbsToUcs4(bind->buffer, *bind->length, data + param->offset, param->bytes, NULL)) {
         return TSDB_CODE_INVALID_VALUE;
       }
       return TSDB_CODE_SUCCESS;

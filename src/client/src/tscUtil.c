@@ -2132,12 +2132,12 @@ char* tscGetResultColumnChr(SSqlRes* pRes, SQueryInfo* pQueryInfo, int32_t colum
   char* pData = ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
   
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-    int32_t realLen = *(int16_t*) pData;
-    if (realLen < pInfo->pSqlExpr->resBytes - sizeof(int16_t)) { // todo refactor
+    int32_t realLen = varDataLen(pData);
+    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
       *(char*) (pData + realLen + sizeof(int16_t)) = 0;
     }
     
-    return pData + sizeof(int16_t); // head is the length of binary/nchar data
+    return pData + VARSTR_HEADER_SIZE; // head is the length of binary/nchar data
   } else {
     return pData;
   }

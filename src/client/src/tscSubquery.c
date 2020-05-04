@@ -1934,7 +1934,7 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
     /* string terminated char for binary data*/
     memset(pRes->buffer[columnIndex], 0, pField->bytes + TSDB_NCHAR_SIZE);
     
-    if (taosUcs4ToMbs(pRes->tsrow[columnIndex], pField->bytes, pRes->buffer[columnIndex])) {
+    if (taosUcs4ToMbs(pRes->tsrow[columnIndex], pField->bytes - VARSTR_HEADER_SIZE, pRes->buffer[columnIndex])) {
       pRes->tsrow[columnIndex] = pRes->buffer[columnIndex];
     } else {
       tscError("%p charset:%s to %s. val:%ls convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, pRes->tsrow);
