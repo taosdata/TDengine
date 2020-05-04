@@ -28,12 +28,12 @@
 #include "vnodeLog.h"
 #include "tcq.h"
 
-static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
-static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t  vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t  vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t  vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t  vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
+static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *);
+static int32_t  vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg);
+static int32_t  vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pMsg);
+static int32_t  vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pMsg);
+static int32_t  vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pMsg);
+static int32_t  vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pMsg);
 
 void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -48,14 +48,14 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   SVnodeObj *pVnode = (SVnodeObj *)param1;
   SWalHead  *pHead = param2;
 
-  if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
-    return TSDB_CODE_MSG_NOT_PROCESSED; 
+  if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL)
+    return TSDB_CODE_MSG_NOT_PROCESSED;
 
-  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
-    return TSDB_CODE_NOT_ACTIVE_VNODE; 
+  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING)
+    return TSDB_CODE_NOT_ACTIVE_VNODE;
 
-  if (pHead->version == 0) { // from client 
-    if (pVnode->status != TAOS_VN_STATUS_READY) 
+  if (pHead->version == 0) { // from client
+    if (pVnode->status != TAOS_VN_STATUS_READY)
       return TSDB_CODE_NOT_ACTIVE_VNODE;
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
@@ -64,11 +64,11 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     // assign version
     pVnode->version++;
     pHead->version = pVnode->version;
-  } else {  
+  } else {
     // for data from WAL or forward, version may be smaller
     if (pHead->version <= pVnode->version) return 0;
   }
-   
+
   // more status and role checking here
 
   pVnode->version = pHead->version;
@@ -77,36 +77,25 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   code = walWrite(pVnode->wal, pHead);
   if (code < 0) return code;
 
-  int32_t syncCode = syncForwardToPeer(pVnode->sync, pHead, item);
-  if (syncCode < 0) return syncCode;
-
-  code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
+  code = syncForwardToPeer(pVnode->sync, pHead, item);
   if (code < 0) return code;
 
-  return syncCode;
-}
-
-static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  int32_t code = 0;
-
-  // save insert result into item
-
-  dTrace("pVnode:%p vgId:%d, submit msg is processed", pVnode, pVnode->vgId);
-  code = tsdbInsertData(pVnode->tsdb, pCont);
-
-  pRet->len = sizeof(SShellSubmitRspMsg);
-  pRet->rsp = rpcMallocCont(pRet->len);
-  SShellSubmitRspMsg *pRsp = pRet->rsp;
-
-  pRsp->code              = 0;
-  pRsp->numOfRows         = htonl(1);
-  pRsp->affectedRows      = htonl(1);
-  pRsp->numOfFailedBlocks = 0;
+  code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont);
+  if (code < 0) return code;
 
   return code;
 }
 
-static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
+static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont) {
+  int32_t code = 0;
+
+  dTrace("pVnode:%p vgId:%d, submit msg is processed", pVnode, pVnode->vgId);
+  code = tsdbInsertData(pVnode->tsdb, pCont);
+
+  return code;
+}
+
+static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont) {
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
 
@@ -118,7 +107,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   SSchema *pSchema = (SSchema *) pTable->data;
 
   int32_t totalCols = numOfColumns + numOfTags;
-  
+
   STableCfg tCfg;
   tsdbInitTableCfg(&tCfg, pTable->tableType, uid, sid);
 
@@ -153,10 +142,10 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   tfree(pDestSchema);
 
   dTrace("pVnode:%p vgId:%d, table:%s is created, result:%x", pVnode, pVnode->vgId, pTable->tableId, code);
-  return code; 
+  return code;
 }
 
-static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
+static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont) {
   SMDDropTableMsg *pTable = pCont;
   int32_t code = 0;
 
@@ -171,7 +160,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
   return code;
 }
 
-static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
+static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont) {
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
 
@@ -183,7 +172,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   SSchema *pSchema = (SSchema *) pTable->data;
 
   int32_t totalCols = numOfColumns + numOfTags;
-  
+
   STableCfg tCfg;
   tsdbInitTableCfg(&tCfg, pTable->tableType, uid, sid);
 
@@ -221,7 +210,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   return code;
 }
 
-static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
+static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont) {
   SMDDropSTableMsg *pTable = pCont;
   int32_t code = 0;
 
@@ -233,7 +222,7 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 
   code = TSDB_CODE_SUCCESS;
   dTrace("pVnode:%p vgId:%d, stable:%s, drop stable result:%x", pVnode, pTable->tableId, code);
- 
+
   return code;
 }
 
