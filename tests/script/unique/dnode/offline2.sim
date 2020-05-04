@@ -1,24 +1,16 @@
 system sh/stop_dnodes.sh
 
-
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 
-system sh/cfg.sh -n dnode1 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode2 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode3 -c balanceMonitorInterval -v 1
-
-system sh/cfg.sh -n dnode1 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode2 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode3 -c balanceStartInterval -v 10
-
 system sh/cfg.sh -n dnode1 -c offlineThreshold -v 10
 system sh/cfg.sh -n dnode2 -c offlineThreshold -v 10
 system sh/cfg.sh -n dnode3 -c offlineThreshold -v 10
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 5
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 5
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 5
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
@@ -40,39 +32,49 @@ sql create table d1.t1(ts timestamp, i int)
 sql insert into d1.t1 values(now, 1)
 
 sql show dnodes
-if $data4_192.168.0.1 != ready then
+print dnode1 $data4_1
+print dnode1 $data4_2
+
+if $data4_1 != ready then
   return -1
 endi
-if $data4_192.168.0.2 != ready then
+if $data4_2 != ready then
   return -1
 endi
 
 print ========== step2
 system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
+sleep 8000
 
 sql show dnodes
-if $data4_192.168.0.1 != ready then
+print dnode1 $data4_1
+print dnode1 $data4_2
+
+if $data4_1 != ready then
   return -1
 endi
-if $data4_192.168.0.2 != offline then
+if $data4_2 != offline then
   return -1
 endi
 
 print ========== step3
-sleep 18000
+sleep 10000
 
 sql show dnodes
-if $data4_192.168.0.1 != ready then
+print dnode1 $data4_1
+print dnode1 $data4_2
+
+if $data4_1 != ready then
   return -1
 endi
-if $data4_192.168.0.2 != offline then
+if $data4_2 != dropping then
   return -1
 endi
 
 print ========== step4
 sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sql drop dnode $hostname2
 
 sleep 5000
@@ -80,23 +82,25 @@ $x = 0
 show4: 
 	$x = $x + 1
 	sleep 5000
-	if $x == 20 then 
+	if $x == 50 then 
 	  return -1
 	endi
 
 sql show dnodes
-if $data4_192.168.0.1 != ready then
-  return -1
+if $data4_1 != ready then
+  goto show4
 endi
-if $data4_192.168.0.2 != null then
-  return -1
+if $data4_2 != null then
+  goto show4
 endi
-if $data4_192.168.0.3 != ready then
-  return -1
+if $data4_3 != ready then
+  goto show4
 endi
 
 print ======================== step5
-sleep 10000
+sql reset query cache
+sleep 1000
+
 sql select * from d1.t1
 if $rows != 1 then
   return -1

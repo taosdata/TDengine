@@ -102,8 +102,7 @@ extern int32_t tsMaxMeterConnections;
 extern int32_t tsMaxVnodeConnections;
 extern int32_t tsMaxMgmtConnections;
 
-extern int32_t tsBalanceMonitorInterval;
-extern int32_t tsBalanceStartInterval;
+extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
 extern int32_t tsMgmtEqualVnodeNum;
 

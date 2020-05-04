@@ -119,9 +119,8 @@ int32_t tsMaxMeterConnections = 10000;
 int32_t tsMaxMgmtConnections = 2000;
 int32_t tsMaxVnodeConnections = 10000;
 
-int32_t tsBalanceMonitorInterval = 2;  // seconds
-int32_t tsBalanceStartInterval = 300;  // seconds
-int32_t tsOfflineThreshold = 864000;   // seconds 10days
+int32_t tsBalanceInterval = 300;  // seconds
+int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
 int32_t tsMgmtEqualVnodeNum = 4;
 
 int32_t tsEnableHttpModule = 1;
@@ -406,7 +405,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "balanceInterval";
-  cfg.ptr = &tsBalanceStartInterval;
+  cfg.ptr = &tsBalanceInterval;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;

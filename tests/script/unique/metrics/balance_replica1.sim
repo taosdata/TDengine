@@ -8,10 +8,8 @@ system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode1 -c statusInterval -v 1
 system sh/cfg.sh -n dnode2 -c statusInterval -v 1
-system sh/cfg.sh -n dnode1 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode2 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode1 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode2 -c balanceStartInterval -v 10
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/cfg.sh -n dnode2 -c commitLog -v 0
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
