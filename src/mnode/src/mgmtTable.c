@@ -40,6 +40,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 #include "tcompare.h"
+#include "tdataformat.h"
 
 static void *  tsChildTableSdb;
 static void *  tsSuperTableSdb;
@@ -624,6 +625,7 @@ void mgmtCleanUpTables() {
   mgmtCleanUpSuperTables();
 }
 
+// todo move to name.h, add length of table name
 static void mgmtExtractTableName(char* tableId, char* name) {
   int pos = -1;
   int num = 0;
@@ -1056,7 +1058,7 @@ static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -1064,7 +1066,7 @@ static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, 
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
+  strcpy(pSchema[cols].name, "created_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -2014,15 +2016,15 @@ static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "table name");
+  strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
+  strcpy(pSchema[cols].name, "created_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -2032,9 +2034,9 @@ static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "stable name");
+  strcpy(pSchema[cols].name, "stable_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -2098,11 +2100,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
 
     char *pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 
-    int16_t len = strnlen(tableName, TSDB_DB_NAME_LEN);
-    *(int16_t*) pWrite = len;
-    pWrite += sizeof(int16_t); // todo refactor
-    
-    strncpy(pWrite, tableName, len);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -2119,9 +2117,13 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    
+    memset(tableName, 0, tListLen(tableName));
     if (pTable->info.type == TSDB_CHILD_TABLE) {
-      mgmtExtractTableName(pTable->superTable->info.tableId, pWrite);
+      mgmtExtractTableName(pTable->superTable->info.tableId, tableName);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
     }
+    
     cols++;
 
     numOfRows++;

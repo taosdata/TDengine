@@ -1427,7 +1427,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
     }
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_TABLE_NAME_LEN};
+      SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE};
       strcpy(colSchema.name, TSQL_TBNAME_L);
 
       pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;

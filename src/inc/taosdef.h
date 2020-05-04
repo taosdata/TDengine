@@ -43,6 +43,7 @@ typedef int16_t VarDataLenT;
 
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
+#define VARSTR_HEADER_SIZE         sizeof(VarDataLenT)
 
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[11];

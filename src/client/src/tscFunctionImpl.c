@@ -1844,6 +1844,7 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
   assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->hasResult = DATA_SET_FLAG;
   
   SLastrowInfo *pInfo = (SLastrowInfo *)pResInfo->interResultBuf;
   pInfo->ts = pCtx->param[0].i64Key;
@@ -1863,14 +1864,17 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
 
 static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   // do nothing at the first stage
+  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
     if (pResInfo->hasResult != DATA_SET_FLAG) {
       setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
       return;
     }
   } else {
-    // do nothing
+    if (pResInfo->hasResult != DATA_SET_FLAG) {
+      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+      return;
+    }
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;

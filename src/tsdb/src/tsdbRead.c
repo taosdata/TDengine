@@ -35,8 +35,9 @@ enum {
 };
 
 enum {
-  TSDB_QUERY_TYPE_ALL_ROWS = 1,
-  TSDB_QUERY_TYPE_LAST_ROW = 2,
+  TSDB_QUERY_TYPE_ALL      = 1,
+  TSDB_QUERY_TYPE_LAST     = 2,
+  TSDB_QUERY_TYPE_EXTERNAL = 3,
 };
 
 typedef struct SField {
@@ -58,7 +59,7 @@ typedef struct SDataBlockLoadInfo {
 } SDataBlockLoadInfo;
 
 typedef struct SLoadCompBlockInfo {
-  int32_t sid; /* meter sid */
+  int32_t sid; /* table sid */
   int32_t fileId;
   int32_t fileListIndex;
 } SLoadCompBlockInfo;
@@ -92,7 +93,7 @@ typedef struct SBlockOrderSupporter {
   int32_t             numOfTables;
   STableBlockInfo** pDataBlockInfo;
   int32_t*            blockIndexArray;
-  int32_t*            numOfBlocksPerMeter;
+  int32_t*            numOfBlocksPerTable;
 } SBlockOrderSupporter;
 
 typedef struct STsdbQueryHandle {
@@ -144,6 +145,7 @@ TsdbQueryHandleT* tsdbQueryTables(TsdbRepoT* tsdb, STsdbQueryCond* pCond, STable
   pQueryHandle->order  = pCond->order;
   pQueryHandle->window = pCond->twindow;
   pQueryHandle->pTsdb  = tsdb;
+  pQueryHandle->type   = TSDB_QUERY_TYPE_ALL;
   tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb);
 
   pQueryHandle->cur.fid = -1;
@@ -204,10 +206,20 @@ TsdbQueryHandleT* tsdbQueryTables(TsdbRepoT* tsdb, STsdbQueryCond* pCond, STable
 TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList);
   
-  pQueryHandle->type = TSDB_QUERY_TYPE_LAST_ROW;
+  pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
   pQueryHandle->order = TSDB_ORDER_DESC;
   
   changeQueryHandleForLastrowQuery(pQueryHandle);
+  return pQueryHandle;
+}
+
+TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TsdbRepoT *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList) {
+  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList);
+  
+  pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
+  pQueryHandle->order = TSDB_ORDER_ASC;
+  
+//  changeQueryHandleForLastrowQuery(pQueryHandle);
   return pQueryHandle;
 }
 
@@ -689,7 +701,7 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
 }
 
 static void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t numOfTables) {
-  tfree(pSupporter->numOfBlocksPerMeter);
+  tfree(pSupporter->numOfBlocksPerTable);
   tfree(pSupporter->blockIndexArray);
 
   for (int32_t i = 0; i < numOfTables; ++i) {
@@ -708,10 +720,10 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   int32_t leftTableBlockIndex = pSupporter->blockIndexArray[leftTableIndex];
   int32_t rightTableBlockIndex = pSupporter->blockIndexArray[rightTableIndex];
 
-  if (leftTableBlockIndex > pSupporter->numOfBlocksPerMeter[leftTableIndex]) {
+  if (leftTableBlockIndex > pSupporter->numOfBlocksPerTable[leftTableIndex]) {
     /* left block is empty */
     return 1;
-  } else if (rightTableBlockIndex > pSupporter->numOfBlocksPerMeter[rightTableIndex]) {
+  } else if (rightTableBlockIndex > pSupporter->numOfBlocksPerTable[rightTableIndex]) {
     /* right block is empty */
     return -1;
   }
@@ -743,11 +755,11 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 
   SBlockOrderSupporter sup = {0};
   sup.numOfTables = numOfTables;
-  sup.numOfBlocksPerMeter = calloc(1, sizeof(int32_t) * numOfTables);
+  sup.numOfBlocksPerTable = calloc(1, sizeof(int32_t) * numOfTables);
   sup.blockIndexArray = calloc(1, sizeof(int32_t) * numOfTables);
   sup.pDataBlockInfo = calloc(1, POINTER_BYTES * numOfTables);
 
-  if (sup.numOfBlocksPerMeter == NULL || sup.blockIndexArray == NULL || sup.pDataBlockInfo == NULL) {
+  if (sup.numOfBlocksPerTable == NULL || sup.blockIndexArray == NULL || sup.pDataBlockInfo == NULL) {
     cleanBlockOrderSupporter(&sup, 0);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
@@ -761,7 +773,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     }
     
     SCompBlock* pBlock = pTableCheck->pCompInfo->blocks;
-    sup.numOfBlocksPerMeter[numOfQualTables] = pTableCheck->numOfBlocks;
+    sup.numOfBlocksPerTable[numOfQualTables] = pTableCheck->numOfBlocks;
 
     char* buf = calloc(1, sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
     if (buf == NULL) {
@@ -779,7 +791,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 
       pBlockInfoEx->pTableCheckInfo = pTableCheck;
       //      pBlockInfoEx->groupIdx = pTableCheckInfo[j]->groupIdx;     // set the group index
-      //      pBlockInfoEx->blockIndex = pTableCheckInfo[j]->start + k;    // set the block index in original meter
+      //      pBlockInfoEx->blockIndex = pTableCheckInfo[j]->start + k;    // set the block index in original table
       cnt++;
     }
 
@@ -788,7 +800,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 
   uTrace("%p create data blocks info struct completed, %d blocks in %d tables", pQueryHandle, cnt, numOfQualTables);
 
-  assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pMeterDataInfo[j]->numOfBlocks may be 0
+  assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pTableQueryInfo[j]->numOfBlocks may be 0
   sup.numOfTables = numOfQualTables;
   SLoserTreeInfo* pTree = NULL;
 
@@ -808,8 +820,8 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     pQueryHandle->pDataBlockInfo[numOfTotal++] = pBlocksInfoEx[index];
 
     // set data block index overflow, in order to disable the offset comparator
-    if (sup.blockIndexArray[pos] >= sup.numOfBlocksPerMeter[pos]) {
-      sup.blockIndexArray[pos] = sup.numOfBlocksPerMeter[pos] + 1;
+    if (sup.blockIndexArray[pos] >= sup.numOfBlocksPerTable[pos]) {
+      sup.blockIndexArray[pos] = sup.numOfBlocksPerTable[pos] + 1;
     }
 
     tLoserTreeAdjust(pTree, pos + sup.numOfTables);
@@ -843,9 +855,13 @@ static bool getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle) {
       break;
     }
     
-    assert(numOfBlocks >= 0);
     uTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks,
            numOfTables, pQueryHandle->pFileGroup->fileId);
+    
+    assert(numOfBlocks >= 0);
+    if (numOfBlocks == 0) {
+      continue;
+    }
     
     // todo return error code to query engine
     if (createDataBlocksInfo(pQueryHandle, numOfBlocks, &pQueryHandle->numOfBlocks) != TSDB_CODE_SUCCESS) {
@@ -966,15 +982,20 @@ void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle) {
   // todo consider the query time window, current last_row does not apply the query time window
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   
-  TSKEY key = INT64_MIN;
+  TSKEY key = 0;
   int32_t index = -1;
   
   for(int32_t i = 0; i < numOfTables; ++i) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
-    if (pCheckInfo->pTableObj->lastKey > key) {
+    if (pCheckInfo->pTableObj->lastKey > key) {  //todo lastKey should not be 0 by default
       key = pCheckInfo->pTableObj->lastKey;
       index = i;
     }
+  }
+  
+  // todo, there are no data in all the tables. opt performance
+  if (index == -1) {
+    return;
   }
   
   // erase all other elements in array list, todo refactor

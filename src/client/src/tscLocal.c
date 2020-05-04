@@ -132,7 +132,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   for (int32_t i = 0; i < numOfRows; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
     char* dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i;
-    STR_TO_VARSTR(dst, pSchema[i].name);
+    STR_WITH_MAXSIZE_TO_VARSTR(dst, pSchema[i].name, TSDB_COL_NAME_LEN);
 
     char *type = tDataTypeDesc[pSchema[i].type].aName;
 
@@ -155,8 +155,8 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 3);
     if (i >= tscGetNumOfColumns(pMeta) && tscGetNumOfTags(pMeta) != 0) {
-      strncpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i, "tag",
-              strlen("tag") + 1);
+      char* output = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i;
+      STR_WITH_SIZE_TO_VARSTR(output, "TAG", 3);
     }
   }
 
@@ -169,13 +169,15 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   for (int32_t i = numOfRows; i < totalNumOfRows; ++i) {
     // field name
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
-    strncpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i, pSchema[i].name,
-            TSDB_COL_NAME_LEN);
+    char* output = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i;
+    STR_WITH_MAXSIZE_TO_VARSTR(output, pSchema[i].name, TSDB_COL_NAME_LEN);
 
     // type name
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
     char *type = tDataTypeDesc[pSchema[i].type].aName;
-    strncpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i, type, pField->bytes);
+    
+    output = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i;
+    STR_WITH_MAXSIZE_TO_VARSTR(output, type, pField->bytes);
 
     // type length
     int32_t bytes = pSchema[i].bytes;
@@ -189,49 +191,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     // tag value
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 3);
     char *target = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i;
-
-    if (isNull(pTagValue, pSchema[i].type)) {
-      sprintf(target, "%s", TSDB_DATA_NULL_STR);
-    } else {
-      switch (pSchema[i].type) {
-        case TSDB_DATA_TYPE_BINARY:
-          /* binary are not null-terminated string */
-          strncpy(target, pTagValue, pSchema[i].bytes);
-          break;
-        case TSDB_DATA_TYPE_NCHAR:
-          taosUcs4ToMbs(pTagValue, pSchema[i].bytes, target);
-          break;
-        case TSDB_DATA_TYPE_FLOAT: {
-          float fv = 0;
-          fv = GET_FLOAT_VAL(pTagValue);
-          sprintf(target, "%f", fv);
-        } break;
-        case TSDB_DATA_TYPE_DOUBLE: {
-          double dv = 0;
-          dv = GET_DOUBLE_VAL(pTagValue);
-          sprintf(target, "%lf", dv);
-        } break;
-        case TSDB_DATA_TYPE_TINYINT:
-          sprintf(target, "%d", *(int8_t *)pTagValue);
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          sprintf(target, "%d", *(int16_t *)pTagValue);
-          break;
-        case TSDB_DATA_TYPE_INT:
-          sprintf(target, "%d", *(int32_t *)pTagValue);
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          sprintf(target, "%" PRId64 "", *(int64_t *)pTagValue);
-          break;
-        case TSDB_DATA_TYPE_BOOL: {
-          char *val = (*((int8_t *)pTagValue) == 0) ? "false" : "true";
-          sprintf(target, "%s", val);
-          break;
-        }
-        default:
-          break;
-      }
-    }
+    STR_WITH_SIZE_TO_VARSTR(target, "TAG", 3);
 
     pTagValue += pSchema[i].bytes;
   }

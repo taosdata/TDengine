@@ -27,6 +27,7 @@
 #include "tscompression.h"
 #include "ttime.h"
 #include "tscUtil.h"   // todo move the function to common module
+#include "tdataformat.h"
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 
@@ -3517,7 +3518,7 @@ STableQueryInfo *createTableQueryInfoImpl(SQueryRuntimeEnv *pRuntimeEnv, STableI
   pTableQueryInfo->lastKey = win.skey;
 
   pTableQueryInfo->id = tableId;
-  pTableQueryInfo->cur.vnodeIndex = -1;
+  pTableQueryInfo->cur.vgroupIndex = -1;
 
   initWindowResInfo(&pTableQueryInfo->windowResInfo, pRuntimeEnv, 100, 100, TSDB_DATA_TYPE_INT);
   return pTableQueryInfo;
@@ -3551,7 +3552,7 @@ void changeMeterQueryInfoForSuppleQuery(SQuery *pQuery, STableQueryInfo *pTableQ
   pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
 
   pTableQueryInfo->cur.order = pTableQueryInfo->cur.order ^ 1u;
-  pTableQueryInfo->cur.vnodeIndex = -1;
+  pTableQueryInfo->cur.vgroupIndex = -1;
 }
 
 void restoreIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, STableQueryInfo *pTableQueryInfo) {
@@ -3630,7 +3631,7 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, STableId* pTableId, STableQueryInfo *p
 
   // both the master and supplement scan needs to set the correct ts comp start position
   if (pRuntimeEnv->pTSBuf != NULL) {
-    if (pTableQueryInfo->cur.vnodeIndex == -1) {
+    if (pTableQueryInfo->cur.vgroupIndex == -1) {
       pTableQueryInfo->tag = pRuntimeEnv->pCtx[0].tag.i64Key;
 
       tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, pTableQueryInfo->tag);
@@ -4243,7 +4244,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
 
   pRuntimeEnv->pQuery = pQuery;
   pRuntimeEnv->pTSBuf = param;
-  pRuntimeEnv->cur.vnodeIndex = -1;
+  pRuntimeEnv->cur.vgroupIndex = -1;
   pRuntimeEnv->stableQuery = isSTableQuery;
 
   if (param != NULL) {
@@ -4461,7 +4462,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
   taosArrayDestroy(g1);
   
   if (pRuntimeEnv->pTSBuf != NULL) {
-    if (pRuntimeEnv->cur.vnodeIndex == -1) {
+    if (pRuntimeEnv->cur.vgroupIndex == -1) {
       int64_t tag = pRuntimeEnv->pCtx[0].tag.i64Key;
       STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, tag);
 
@@ -6302,11 +6303,8 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           tsdbGetTableName(pQInfo->tsdb, &item->id, &data);
           
-          char* dst = pQuery->sdata[j]->data + i * (TSDB_TABLE_NAME_LEN + sizeof(int16_t));
-          *(int16_t*) dst = strnlen(data, TSDB_TABLE_NAME_LEN);
-          dst += sizeof(int16_t);
-          
-          strncpy(dst, data, TSDB_TABLE_NAME_LEN);
+          char* dst = pQuery->sdata[j]->data + i * (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
+          STR_WITH_MAXSIZE_TO_VARSTR(dst, data, TSDB_TABLE_NAME_LEN);
           tfree(data);
         
         } else {// todo refactor, return the true length of binary|nchar data
