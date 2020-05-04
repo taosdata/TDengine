@@ -127,7 +127,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     unsigned int       addrlen = sizeof(sin);
     if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && sin.sin_family == AF_INET &&
         addrlen == sizeof(sin)) {
-      pConn->localPort = (int16_t)ntohs(sin.sin_port);
+      pConn->localPort = (uint16_t)ntohs(sin.sin_port);
     }
 
     strcpy(pConn->label, label);
@@ -198,8 +198,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t 
   SUdpConn *pConn = pSet->udpConn + pSet->index;
   pConn->port = port;
 
-  tTrace("%s UDP connection is setup, ip:%x:%hu, local:%x:%d", pConn->label, ip, port, pSet->ip,
-         ntohs((uint16_t)pConn->localPort));
+  tTrace("%s UDP connection is setup, ip:%x:%hu, local:%x:%d", pConn->label, ip, port, pSet->ip, pConn->localPort);
 
   return pConn;
 }
@@ -219,15 +218,13 @@ static void *taosRecvUdpData(void *param) {
 
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
-    tTrace("%s msg is recv from 0x%x:%hu len:%d", pConn->label, sourceAdd.sin_addr.s_addr, ntohs(sourceAdd.sin_port),
-           dataLen);
+    port = ntohs(sourceAdd.sin_port);
+    tTrace("%s msg is recv from 0x%x:%hu len:%d", pConn->label, sourceAdd.sin_addr.s_addr, port, dataLen);
 
     if (dataLen < sizeof(SRpcHead)) {
       tError("%s recvfrom failed, reason:%s\n", pConn->label, strerror(errno));
       continue;
     }
-
-    port = ntohs(sourceAdd.sin_port);
 
     int   processedLen = 0, leftLen = 0;
     int   msgLen = 0;
