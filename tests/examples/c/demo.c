@@ -75,7 +75,15 @@ int main(int argc, char *argv[]) {
   
   doQuery(taos, "create database if not exists test");
   doQuery(taos, "use test");
-  doQuery(taos, "select count(*),k,sum(k) from m1 group by k");
+  doQuery(taos, "select * from t1 order by ts desc");
+  
+//  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
+//  for(int32_t i = 0; i< 100000; ++i) {
+//    doQuery(taos, "select m1.ts,m1.a from m1, m2 where m1.ts=m2.ts and m1.a=m2.b;");
+//    usleep(500000);
+//  }
+
+//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 'abc')");
 //  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
 //  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
 //  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");

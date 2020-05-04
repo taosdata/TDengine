@@ -22,6 +22,7 @@
 #include "tutil.h"
 #include "ttime.h"
 #include "tsocket.h"
+#include "tdataformat.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtMnode.h"
@@ -288,13 +289,13 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 40;
+  pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "end point");
+  strcpy(pSchema[cols].name, "end_point");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 12;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "role");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -302,7 +303,7 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
+  strcpy(pSchema[cols].name, "create_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -339,11 +340,12 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, pMnode->pDnode->dnodeEp, pShow->bytes[cols]-1);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pMnode->pDnode->dnodeEp, pShow->bytes[cols] - VARSTR_HEADER_SIZE);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mgmtGetMnodeRoleStr(pMnode->role));
+    char* roles = mgmtGetMnodeRoleStr(pMnode->role);
+    STR_TO_VARSTR(pWrite, roles);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

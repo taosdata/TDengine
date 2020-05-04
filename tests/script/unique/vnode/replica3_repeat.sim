@@ -1,16 +1,13 @@
 system sh/stop_dnodes.sh
 
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode2 -c commitLog -v 0
-system sh/cfg.sh -n dnode3 -c commitLog -v 0
-system sh/cfg.sh -n dnode4 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 2
+system sh/cfg.sh -n dnode2 -c clog -v 2
+system sh/cfg.sh -n dnode3 -c clog -v 2
+system sh/cfg.sh -n dnode4 -c clog -v 2
 system sh/cfg.sh -n dnode1 -c numofMpeers -v 1
 system sh/cfg.sh -n dnode2 -c numofMpeers -v 1
 system sh/cfg.sh -n dnode3 -c numofMpeers -v 1
@@ -20,15 +17,15 @@ system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
 
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 
 sql connect
 sql create dnode $hostname2
 sql create dnode $hostname3
 sql create dnode $hostname4
-system sh/exec.sh -n dnode2 -s start
-system sh/exec.sh -n dnode3 -s start
-system sh/exec.sh -n dnode4 -s start
+system sh/exec_up.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode4 -s start
 sleep 3000
 
 print ========= step1
@@ -43,28 +40,28 @@ run_back cluster/vnode/back_insert.sim
 sleep 3000
 
 print ======== step3
-system sh/exec.sh -n dnode2 -s stop
+system sh/exec_up.sh -n dnode2 -s stop
 sleep 5000
 
 $x = 0
 loop:
 
 print ======== step4
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 5000
-system sh/exec.sh -n dnode3 -s stop
+system sh/exec_up.sh -n dnode3 -s stop
 sleep 5000
 
 print ======== step5
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 5000
-system sh/exec.sh -n dnode4 -s stop
+system sh/exec_up.sh -n dnode4 -s stop
 sleep 5000
 
 print ======== step6
-system sh/exec.sh -n dnode4 -s start
+system sh/exec_up.sh -n dnode4 -s start
 sleep 5000
-system sh/exec.sh -n dnode2 -s stop
+system sh/exec_up.sh -n dnode2 -s stop
 sleep 5000
 
 print ======== step7

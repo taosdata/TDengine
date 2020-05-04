@@ -23,12 +23,12 @@ typedef void* qinfo_t;
 
 /**
  * create the qinfo object according to QueryTableMsg
- * @param pVnode
+ * @param tsdb
  * @param pQueryTableMsg
  * @param qinfo
  * @return
  */
-int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo);
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo);
 
 /**
  * Destroy QInfo object
