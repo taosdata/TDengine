@@ -1,24 +1,9 @@
 system sh/stop_dnodes.sh
 
-
-
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
-
-system sh/cfg.sh -n dnode1 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode2 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode3 -c balanceMonitorInterval -v 1
-system sh/cfg.sh -n dnode4 -c balanceMonitorInterval -v 1
-
-system sh/cfg.sh -n dnode1 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode2 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode3 -c balanceStartInterval -v 10
-system sh/cfg.sh -n dnode4 -c balanceStartInterval -v 10
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
@@ -52,8 +37,8 @@ sql insert into d2.t2 values(now+4s, 22)
 sql insert into d2.t2 values(now+5s, 21)
 
 sql show dnodes
-print dnode1 openVnodes $data3_1
-if $data3_1 != 2 then
+print dnode1 openVnodes $data2_1
+if $data2_1 != 2 then
 	return -1
 endi
 
@@ -79,12 +64,12 @@ show2:
 	endi
 	
 sql show dnodes
-print dnode1 openVnodes $data3_1
-print dnode2 openVnodes $data3_2
-if $data3_1 != 3 then
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+if $data2_1 != 3 then
 	goto show2
 endi
-if $data3_2 != 1 then
+if $data2_2 != 1 then
 	goto show2
 endi
 
@@ -102,8 +87,8 @@ show3:
 	endi
 	
 sql show dnodes
-print dnode1 openVnodes $data3_1
-print dnode2 openVnodes $data3_2 $data5_192.168.0.2
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2 $data5_192.168.0.2
 
 print ========== step4
 sql create dnode $hostname3
@@ -118,16 +103,16 @@ show4:
 	endi
 
 sql show dnodes
-print dnode1 openVnodes $data3_1
-print dnode2 openVnodes $data3_2
-print dnode3 openVnodes $data3_3
-if $data3_2 != null then
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+if $data2_2 != null then
 	goto show4
 endi
-if $data3_1 != 3 then
+if $data2_1 != 3 then
 	goto show4
 endi
-if $data3_3 != 1 then
+if $data2_3 != 1 then
 	goto show4
 endi
 

@@ -176,20 +176,21 @@ if $data2_5 != 3 then
 endi
 
 print ========== step5
-sql create dnode $hostname2
-system sh/exec_up.sh -n dnode2 -s start
+sql create dnode $hostname6
+system sh/deploy.sh -n dnode6 -i 6
+system sh/exec_up.sh -n dnode6 -s start
 
 $x = 0
 show5: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 10 then 
 	  return -1
 	endi
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
+print dnode6 openVnodes $data2_6
 print dnode3 openVnodes $data2_3
 print dnode4 openVnodes $data2_4
 print dnode5 openVnodes $data2_5
@@ -197,7 +198,7 @@ print dnode5 openVnodes $data2_5
 if $data2_1 != 0 then
 	goto show5
 endi
-if $data2_2 != 2 then
+if $data2_6 != 2 then
 	goto show5
 endi
 
@@ -216,7 +217,7 @@ show6:
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
+print dnode6 openVnodes $data2_6
 print dnode3 openVnodes $data2_3
 print dnode4 openVnodes $data2_4
 print dnode5 openVnodes $data2_5
@@ -224,7 +225,7 @@ print dnode5 openVnodes $data2_5
 if $data2_1 != 0 then
 	goto show6
 endi
-if $data2_2 != 3 then
+if $data2_6 != 3 then
 	goto show6
 endi
 if $data2_3 != null then

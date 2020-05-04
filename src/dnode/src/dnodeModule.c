@@ -44,13 +44,13 @@ static void dnodeUnSetModuleStatus(int32_t module) {
 }
 
 static void dnodeAllocModules() {
-  tsModule[TSDB_MOD_MGMT].name         = false;
+  tsModule[TSDB_MOD_MGMT].enable       = false;
   tsModule[TSDB_MOD_MGMT].name         = "mgmt";
   tsModule[TSDB_MOD_MGMT].initFp       = mgmtInitSystem;
   tsModule[TSDB_MOD_MGMT].cleanUpFp    = mgmtCleanUpSystem;
   tsModule[TSDB_MOD_MGMT].startFp      = mgmtStartSystem;
   tsModule[TSDB_MOD_MGMT].stopFp       = mgmtStopSystem;
- 
+
   tsModule[TSDB_MOD_HTTP].enable       = (tsEnableHttpModule == 1);
   tsModule[TSDB_MOD_HTTP].name         = "http";
   tsModule[TSDB_MOD_HTTP].initFp       = httpInitSystem;
@@ -60,7 +60,7 @@ static void dnodeAllocModules() {
   if (tsEnableHttpModule) {
     dnodeSetModuleStatus(TSDB_MOD_HTTP);
   }
-  
+
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
   tsModule[TSDB_MOD_MONITOR].name      = "monitor";
   tsModule[TSDB_MOD_MONITOR].initFp    = monitorInitSystem;
