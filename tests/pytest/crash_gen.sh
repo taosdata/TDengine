@@ -9,6 +9,7 @@
 # 3. Adjust the configuration file if needed under build/test/cfg/taos.cfg
 # 4. Run the TDengine server instance: cd build; ./build/bin/taosd -c test/cfg
 # 5. Make sure you have a working Python3 environment: run /usr/bin/python3 --version, and you should get 3.6 or above
+# 6. Make sure you have the proper Python packages: # sudo apt install python3-setuptools python3-pip python3-distutils
 #
 # RUNNING THIS SCRIPT
 # 
@@ -36,5 +37,5 @@ export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
 # Then let us set up the library path so that our compiled SO file can be loaded by Python
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../build/build/lib
 
-# Now we are all let, and let's see if we can find a crash.
-./crash_gen.py
+# Now we are all let, and let's see if we can find a crash. Note we pass all params
+./crash_gen.py $@
