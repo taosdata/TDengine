@@ -174,7 +174,7 @@ typedef struct {
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
 #define dataColsKeyAt(pCols, idx) ((TSKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyFirst(pCols) dataColsKeyAt(pCols, 0)
-#define dataColsKeyLast(pCols) dataColsKeyAt(pCols, (pCols)->numOfPoints - 1)
+#define dataColsKeyLast(pCols) ((pCols->numOfPoints == 0) ? 0 : dataColsKeyAt(pCols, (pCols)->numOfPoints - 1))
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
