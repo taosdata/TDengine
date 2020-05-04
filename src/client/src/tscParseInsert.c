@@ -305,32 +305,37 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
     case TSDB_DATA_TYPE_BINARY:
       // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
       if (pToken->type == TK_NULL) {
+        *(int16_t*) payload = sizeof(int8_t);
+        payload += VARSTR_HEADER_SIZE;
+        
         *payload = TSDB_DATA_BINARY_NULL;
       } else { // too long values will return invalid sql, not be truncated automatically
         if (pToken->n > pSchema->bytes) {
           return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
         }
         
-        strncpy(payload, pToken->z, pToken->n);
-        
-        if (pToken->n < pSchema->bytes) {
-          payload[pToken->n] = 0;   // add the null-terminated char if the length of the string is shorter than the available space
-        }
+        STR_WITH_SIZE_TO_VARSTR(payload, pToken->z, pToken->n);
       }
 
       break;
 
     case TSDB_DATA_TYPE_NCHAR:
       if (pToken->type == TK_NULL) {
-        *(uint32_t *)payload = TSDB_DATA_NCHAR_NULL;
+        *(int16_t*) payload = sizeof(int32_t);
+        payload += VARSTR_HEADER_SIZE;
+  
+        *(uint32_t*) payload = TSDB_DATA_NCHAR_NULL;
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
-        if (!taosMbsToUcs4(pToken->z, pToken->n, payload, pSchema->bytes)) {
+        int32_t resLen = -1;
+        if (!taosMbsToUcs4(pToken->z, pToken->n, payload + VARSTR_HEADER_SIZE, pSchema->bytes, &resLen)) {
           char buf[512] = {0};
           snprintf(buf, 512, "%s", strerror(errno));
           
           return tscInvalidSQLErrMsg(msg, buf, pToken->z);
         }
+        
+        *(uint16_t*)payload = (uint16_t) (resLen * TSDB_NCHAR_SIZE);
       }
       break;
 
@@ -1301,13 +1306,13 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
     char* p = pSql->sqlstr;
     pSql->sqlstr = NULL;
     
-    tscFreeSqlObjPartial(pSql);
+    tscPartiallyFreeSqlObj(pSql);
     pSql->sqlstr = p;
   } else {
     tscTrace("continue parse sql: %s", pSql->cmd.curSql);
   }
   
-  if (tscIsInsertOrImportData(pSql->sqlstr)) {
+  if (tscIsInsertData(pSql->sqlstr)) {
     /*
      * Set the fp before parse the sql string, in case of getTableMeta failed, in which
      * the error handle callback function can rightfully restore the user-defined callback function (fp).

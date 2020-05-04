@@ -225,35 +225,47 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
+int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
-  STable* pTable = tsdbGetTableByUid(pMeta, id.uid);
+  STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   
   STColumn* pCol = NULL;
+  int32_t offset = 0;
   for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
     STColumn* p = schemaColAt(pSchema, col);
     if (p->colId == colId) {
       pCol = p;
+      break;
     }
+  
+    if (p->type == TSDB_DATA_TYPE_BINARY || p->type == TSDB_DATA_TYPE_NCHAR) {
+      offset += sizeof(int32_t);
+    } else {
+      offset += p->bytes;
+    }
+  }
+  
+  if (pCol == NULL) {
+    return -1;  // No matched tags. Maybe the modification of tags has not been done yet.
   }
   
   assert(pCol != NULL);
   
   SDataRow row = (SDataRow)pTable->tagVal;
-  char* d = dataRowTuple(row);
+  char* d = tdGetRowDataOfCol(row, pCol->type, TD_DATA_ROW_HEAD_SIZE + offset);
   
   *val = d;
   *type  = pCol->type;
   *bytes = pCol->bytes;
   
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbTableGetName(TsdbRepoT *repo, STableId id, char** name) {
+int32_t tsdbGetTableName(TsdbRepoT *repo, STableId* id, char** name) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
-  STable* pTable = tsdbGetTableByUid(pMeta, id.uid);
+  STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
   *name = strndup(pTable->name, TSDB_TABLE_NAME_LEN);
   if (*name == NULL) {

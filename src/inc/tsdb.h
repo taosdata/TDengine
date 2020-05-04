@@ -101,8 +101,8 @@ int  tsdbTableSetName(STableCfg *config, char *name, bool dup);
 int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
-int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId id, int32_t col, int16_t *type, int16_t *bytes, char **val);
-int32_t tsdbTableGetName(TsdbRepoT *repo, STableId id, char** name);
+int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId* id, int32_t colId, int16_t *type, int16_t *bytes, char **val);
+int32_t tsdbGetTableName(TsdbRepoT *repo, STableId* id, char** name);
 
 int   tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
 int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
@@ -142,34 +142,20 @@ int32_t tsdbInsertData(TsdbRepoT *pRepo, SSubmitMsg *pMsg);
 
 typedef void *TsdbQueryHandleT;  // Use void to hide implementation details
 
-typedef struct STableGroupList {  // qualified table object list in group
-  SArray *pGroupList;
-  int32_t numOfTables;
-} STableGroupList;
-
 // query condition to build vnode iterator
 typedef struct STsdbQueryCond {
   STimeWindow      twindow;
-  int32_t          order;  // desc/asc order to iterate the data block
+  int32_t          order;  // desc|asc order to iterate the data block
   int32_t          numOfCols;
   SColumnInfo     *colList;
 } STsdbQueryCond;
-
-typedef struct SBlockInfo {
-  STimeWindow window;
-
-  int32_t numOfRows;
-  int32_t numOfCols;
-
-  STableId tableId;
-} SBlockInfo;
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rows;
   int32_t     numOfCols;
   int64_t     uid;
-  int32_t     sid;
+  int32_t     tid;
 } SDataBlockInfo;
 
 typedef struct {
@@ -192,14 +178,29 @@ typedef void *TsdbPosT;
 
 /**
  * Get the data block iterator, starting from position according to the query condition
- * @param pCond  query condition, only includes the filter on primary time stamp
- * @param pTableList    table sid list
+ *
+ * @param tsdb       tsdb handle
+ * @param pCond      query condition, including time window, result set order, and basic required columns for each block
+ * @param groupInfo  tableId list in the form of set, seperated into different groups according to group by condition
  * @return
  */
 TsdbQueryHandleT *tsdbQueryTables(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo);
 
 /**
- * move to next block
+ * Get the last row of the given query time window for all the tables in STableGroupInfo object.
+ * Note that only one data block with only row will be returned while invoking retrieve data block function for
+ * all tables in this group.
+ *
+ * @param tsdb        tsdb handle
+ * @param pCond       query condition, including time window, result set order, and basic required columns for each block
+ * @param groupInfo   tableId list.
+ * @return
+ */
+TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo);
+
+/**
+ * move to next block if exists
+ *
  * @param pQueryHandle
  * @return
  */
@@ -226,26 +227,16 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(TsdbQueryHandleT *pQueryHandle);
 int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT *pQueryHandle, SDataStatis **pBlockStatis);
 
 /**
+ *
  * The query condition with primary timestamp is passed to iterator during its constructor function,
  * the returned data block must be satisfied with the time window condition in any cases,
  * which means the SData data block is not actually the completed disk data blocks.
  *
- * @param pQueryHandle
+ * @param pQueryHandle      query handle
+ * @param pColumnIdList     required data columns id list
  * @return
  */
-SArray *tsdbRetrieveDataBlock(TsdbQueryHandleT *pQueryHandle, SArray *pIdList);
-
-/**
- *  todo remove the parameter of position, and order type
- *
- *  Reset to the start(end) position of current query, from which the iterator starts.
- *
- * @param pQueryHandle
- * @param position  set the iterator traverses position
- * @param order ascending order or descending order
- * @return
- */
-int32_t tsdbResetQuery(TsdbQueryHandleT *pQueryHandle, STimeWindow *window, TsdbPosT position, int16_t order);
+SArray *tsdbRetrieveDataBlock(TsdbQueryHandleT *pQueryHandle, SArray *pColumnIdList);
 
 /**
  * todo remove this function later
@@ -282,20 +273,19 @@ SArray *tsdbGetTableList(TsdbQueryHandleT *pQueryHandle);
  * Get the qualified table id for a super table according to the tag query expression.
  * @param stableid. super table sid
  * @param pTagCond. tag query condition
- *
  */
-int32_t tsdbQueryByTagsCond(
-  TsdbRepoT *tsdb,
-  int64_t uid,
-  const char *pTagCond,
-  size_t len,
-  int16_t tagNameRelType,
-  const char* tbnameCond,
-  STableGroupInfo *pGroupList,
-  SColIndex *pColIndex,
-  int32_t numOfCols
-  );
+int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagCond, size_t len,
+  int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo *pGroupList, SColIndex *pColIndex, int32_t numOfCols);
 
+
+/**
+ * create the table group result including only one table, used to handle the normal table query
+ *
+ * @param tsdb        tsdbHandle
+ * @param uid         table uid
+ * @param pGroupInfo  the generated result
+ * @return
+ */
 int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, int64_t uid, STableGroupInfo *pGroupInfo);
 
 /**

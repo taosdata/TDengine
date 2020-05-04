@@ -25,13 +25,10 @@ __attribute__((unused)) static FORCE_INLINE size_t copy(char* dst, const char* s
 }
 
 void extractTableName(const char* tableId, char* name) {
-  size_t offset = strcspn(tableId, &TS_PATH_DELIMITER[0]);
-  offset = strcspn(&tableId[offset], &TS_PATH_DELIMITER[0]);
+  size_t s1 = strcspn(tableId, &TS_PATH_DELIMITER[0]);
+  size_t s2 = strcspn(&tableId[s1 + 1], &TS_PATH_DELIMITER[0]);
   
-  strncpy(name, &tableId[offset], TSDB_TABLE_NAME_LEN);
-  
-//  char* r = skipSegments(tableId, TS_PATH_DELIMITER[0], 2);
-//  return copy(name, r, TS_PATH_DELIMITER[0]);
+  strncpy(name, &tableId[s1 + s2 + 2], TSDB_TABLE_NAME_LEN);
 }
 
 char* extractDBName(const char* tableId, char* name) {

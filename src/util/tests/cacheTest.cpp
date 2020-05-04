@@ -25,7 +25,7 @@ TEST(testCase, client_cache_test) {
   const char* key1 = "test1";
   char data1[] = "test11";
 
-  char* cachedObj = (char*) taosCachePut(tscCacheHandle, key1, data1, strlen(data1), 1);
+  char* cachedObj = (char*) taosCachePut(tscCacheHandle, key1, data1, strlen(data1)+1, 1);
   sleep(REFRESH_TIME_IN_SEC+1);
 
   printf("obj is still valid: %s\n", cachedObj);
@@ -34,19 +34,17 @@ TEST(testCase, client_cache_test) {
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj, false);
 
   /* the object is cleared by cache clean operation */
-  cachedObj = (char*) taosCachePut(tscCacheHandle, key1, data2, strlen(data2), 20);
+  cachedObj = (char*) taosCachePut(tscCacheHandle, key1, data2, strlen(data2)+1, 20);
   printf("after updated: %s\n", cachedObj);
 
   printf("start to remove data from cache\n");
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj, false);
   printf("end of removing data from cache\n");
 
-  getchar();
-
   const char* key3 = "test2";
   const char* data3 = "kkkkkkk";
 
-  char* cachedObj2 = (char*) taosCachePut(tscCacheHandle, key3, data3, strlen(data3), 1);
+  char* cachedObj2 = (char*) taosCachePut(tscCacheHandle, key3, data3, strlen(data3) + 1, 1);
   printf("%s\n", cachedObj2);
 
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj2, false);
@@ -57,18 +55,18 @@ TEST(testCase, client_cache_test) {
 
   char key5[] = "test5";
   char data5[] = "data5kkkkk";
-  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data5, strlen(data5), 20);
+  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data5, strlen(data5) + 1, 20);
 
   const char* data6= "new Data after updated";
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj2, false);
 
-  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data6, strlen(data6), 20);
+  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data6, strlen(data6) + 1, 20);
   printf("%s\n", cachedObj2);
 
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj2, true);
 
   const char* data7 = "add call update procedure";
-  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data7, strlen(data7), 20);
+  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data7, strlen(data7) + 1, 20);
   printf("%s\n=======================================\n\n", cachedObj2);
 
   char* cc = (char*) taosCacheAcquireByName(tscCacheHandle, key5);
@@ -137,6 +135,4 @@ TEST(testCase, cache_resize_test) {
   printf("retrieve %d object cost:%" PRIu64 " us,avg:%f\n", num, endTime - startTime, (endTime - startTime)/(double)num);
 
   taosCacheCleanup(pCache);
-  taosMsleep(20000);
-  getchar();
 }

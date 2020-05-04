@@ -40,6 +40,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 #include "tcompare.h"
+#include "tdataformat.h"
 
 static void *  tsChildTableSdb;
 static void *  tsSuperTableSdb;
@@ -592,11 +593,11 @@ void *mgmtGetTable(char *tableId) {
 }
 
 void *mgmtGetNextChildTable(void *pNode, SChildTableObj **pTable) {
-  return sdbFetchRow(tsChildTableSdb, pNode, (void **)pTable); 
+  return sdbFetchRow(tsChildTableSdb, pNode, (void **)pTable);
 }
 
 void *mgmtGetNextSuperTable(void *pNode, SSuperTableObj **pTable) {
-  return sdbFetchRow(tsSuperTableSdb, pNode, (void **)pTable); 
+  return sdbFetchRow(tsSuperTableSdb, pNode, (void **)pTable);
 }
 
 void mgmtIncTableRef(void *p1) {
@@ -624,6 +625,7 @@ void mgmtCleanUpTables() {
   mgmtCleanUpSuperTables();
 }
 
+// todo move to name.h, add length of table name
 static void mgmtExtractTableName(char* tableId, char* name) {
   int pos = -1;
   int num = 0;
@@ -1056,7 +1058,7 @@ static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -1064,7 +1066,7 @@ static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, 
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
+  strcpy(pSchema[cols].name, "created_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -1136,7 +1138,12 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, stableName, TSDB_TABLE_NAME_LEN);
+  
+    int16_t len = strnlen(stableName, TSDB_DB_NAME_LEN);
+    *(int16_t*) pWrite = len;
+    pWrite += sizeof(int16_t); // todo refactor
+  
+    strncpy(pWrite, stableName, len);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -1233,46 +1240,66 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
 
 static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   SCMSTableVgroupMsg *pInfo = pMsg->pCont;
-  if (pMsg->pTable == NULL) pMsg->pTable = mgmtGetSuperTable(pInfo->tableId);
-  if (pMsg->pTable == NULL) {
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
-    return;
-  }
-
-  SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
-  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + sizeof(SCMVgroupInfo) * pTable->vgLen;
-  SCMSTableVgroupRspMsg *pRsp = rpcMallocCont(contLen);
+  int32_t numOfTable = htonl(pInfo->numOfTables);
+  
+  char* name = (char*) pInfo + sizeof(struct SCMSTableVgroupMsg);
+  SCMSTableVgroupRspMsg *pRsp = NULL;
+  
+  // todo set the initial size to be 10, fix me
+  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + (sizeof(SCMVgroupInfo) * 10 + sizeof(SVgroupsInfo))*numOfTable;
+  
+  pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return;
   }
   
-  int32_t vg = 0;
-  for (; vg < pTable->vgLen; ++vg) {
-    int32_t vgId = pTable->vgList[vg];
-    if (vgId == 0) break;
-
-    SVgObj *pVgroup = mgmtGetVgroup(vgId);
-    if (pVgroup == NULL) break;
-
-    pRsp->vgroups[vg].vgId = htonl(vgId);
-    for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
-      SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
-      if (pDnode == NULL) break;
-
-      strcpy(pRsp->vgroups[vg].ipAddr[vn].fqdn, pDnode->dnodeFqdn);
-      pRsp->vgroups[vg].ipAddr[vn].port = htons(pDnode->dnodePort + TSDB_PORT_DNODESHELL);
-      pRsp->vgroups[vg].numOfIps++;
+  pRsp->numOfTables = htonl(numOfTable);
+  char* msg = (char*) pRsp + sizeof(SCMSTableVgroupRspMsg);
+  
+  for(int32_t i = 0; i < numOfTable; ++i) {
+    SSuperTableObj *pTable = mgmtGetSuperTable(name);
+  
+    pMsg->pTable = (STableObj *)pTable;
+    if (pMsg->pTable == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
+      return;
     }
-
-    mgmtDecVgroupRef(pVgroup);
+    
+    SVgroupsInfo* pVgroup = (SVgroupsInfo*) msg;
+    
+    int32_t vg = 0;
+    for (; vg < pTable->vgLen; ++vg) {
+      int32_t vgId = pTable->vgList[vg];
+      if (vgId == 0) break;
+    
+      SVgObj *vgItem = mgmtGetVgroup(vgId);
+      if (vgItem == NULL) break;
+  
+      pVgroup->vgroups[vg].vgId = htonl(vgId);
+      for (int32_t vn = 0; vn < vgItem->numOfVnodes; ++vn) {
+        SDnodeObj *pDnode = vgItem->vnodeGid[vn].pDnode;
+        if (pDnode == NULL) break;
+  
+        strncpy(pVgroup->vgroups[vg].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
+        pVgroup->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
+        
+        pVgroup->vgroups[vg].numOfIps++;
+      }
+    
+      mgmtDecVgroupRef(vgItem);
+    }
+  
+    pVgroup->numOfVgroups = htonl(vg);
+    
+    // one table is done, try the next table
+    msg += sizeof(SVgroupsInfo) + vg * sizeof(SCMVgroupInfo);
   }
-  pRsp->numOfVgroups = htonl(vg);
 
   SRpcMsg rpcRsp = {0};
   rpcRsp.handle = pMsg->thandle;
   rpcRsp.pCont = pRsp;
-  rpcRsp.contLen = sizeof(SCMSTableVgroupRspMsg) + sizeof(SCMVgroupInfo) * vg;
+  rpcRsp.contLen = msg - (char*) pRsp;
   rpcSendResponse(&rpcRsp);
 }
 
@@ -1705,7 +1732,7 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
   mgmtAddToShellQueue(newMsg);
 }
 
-static void mgmtGetChildTableMeta(SQueuedMsg *pMsg) { 
+static void mgmtGetChildTableMeta(SQueuedMsg *pMsg) {
   STableMetaMsg *pMeta = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
   if (pMeta == NULL) {
     mError("table:%s, failed to get table meta, no enough memory", pMsg->pTable->tableId);
@@ -1989,15 +2016,15 @@ static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "table name");
+  strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
+  strcpy(pSchema[cols].name, "created_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -2007,9 +2034,9 @@ static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "stable name");
+  strcpy(pSchema[cols].name, "stable_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -2072,7 +2099,8 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     int32_t cols = 0;
 
     char *pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, tableName, TSDB_TABLE_NAME_LEN);
+
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -2089,9 +2117,13 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    
+    memset(tableName, 0, tListLen(tableName));
     if (pTable->info.type == TSDB_CHILD_TABLE) {
-      mgmtExtractTableName(pTable->superTable->info.tableId, pWrite);
+      mgmtExtractTableName(pTable->superTable->info.tableId, tableName);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
     }
+    
     cols++;
 
     numOfRows++;
