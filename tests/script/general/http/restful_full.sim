@@ -1,10 +1,8 @@
 system sh/stop_dnodes.sh
-
-#sleep 5000
-
-
+sleep 5000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/exec.sh -n dnode1 -s start
 
 #sleep 3000
@@ -14,57 +12,57 @@ print ============================ dnode1 start
 
 print ===============  step1 - login
 
-system_content curl 192.168.0.1:6020/rest/
+system_content curl 127.0.0.1:6020/rest/
 print 1-> $system_content
 if $system_content != @{"status":"error","code":1011,"desc":"no auth info input"}@ then
   return -1
 endi
 
-system_content curl 192.168.0.1:6020/rest/xx
+system_content curl 127.0.0.1:6020/rest/xx
 print 2-> $system_content
 if $system_content != @{"status":"error","code":1011,"desc":"no auth info input"}@ then
   return -1
 endi
 
-system_content curl 192.168.0.1:6020/rest/login
+system_content curl 127.0.0.1:6020/rest/login
 print 3-> $system_content
 if $system_content != @{"status":"error","code":1011,"desc":"no auth info input"}@ then
   return -1
 endi
 
 #4
-system_content curl 192.168.0.1:6020/rest/login/root
+system_content curl 127.0.0.1:6020/rest/login/root
 print 4-> $system_content
 if $system_content != @{"status":"error","code":1011,"desc":"no auth info input"}@ then
   return -1
 endi
 
-system_content curl 192.168.0.1:6020/rest/login/root/123
+system_content curl 127.0.0.1:6020/rest/login/root/123
 print 5-> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
   return -1
 endi
 
-system_content curl 192.168.0.1:6020/rest/login/root/123/1/1/3
+system_content curl 127.0.0.1:6020/rest/login/root/123/1/1/3
 print 6-> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 192.168.0.1:6020/rest/login/root/1
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:6020/rest/login/root/1
 print 7-> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
   return -1
 endi
 
 #8
-system_content curl -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi'  -d 'show databases' 192.168.0.1:6020/rest/login/root/1
+system_content curl -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi'  -d 'show databases' 127.0.0.1:6020/rest/login/root/1
 print 8-> $system_content
 if $system_content != @{"status":"error","code":1010,"desc":"invalid type of Authorization"}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi'  -d 'show databases' 192.168.0.1:6020/rest/login/root/1
+system_content curl -H 'Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi'  -d 'show databases' 127.0.0.1:6020/rest/login/root/1
 print 9-> $system_content
 if $system_content != @{"status":"error","code":1010,"desc":"invalid type of Authorization"}@ then
   return -1
@@ -72,7 +70,7 @@ endi
 
 sleep 3000
 
-system_content curl 192.168.0.1:6020/rest/login/root/taosdata/
+system_content curl 127.0.0.1:6020/rest/login/root/taosdata/
 print 10-> $system_content
 if $system_content != @{"status":"succ","code":0,"desc":"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"}@ then
   return -1
@@ -81,52 +79,52 @@ endi
 print ===============  step2 - no db
 
 #11
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:6020/rest/sql
 print 11-> $system_content
 if $system_content != @{"status":"succ","head":["name","create time","ntables","vgroups","replica","days","keep1,keep2,keep(D)","tables","cache(MB)","blocks","minrows","maxrows","ctime(s)","clog","comp","precision","status"],"data":[],"rows":0}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 127.0.0.1:6020/rest/sql
 print 12-> $system_content
 if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 127.0.0.1:6020/rest/sql
 print 13-> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"DB already there"}@ then
   return -1
 endi
 
 #14
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '' 127.0.0.1:6020/rest/sql
 print 14-> $system_content
 if $system_content != @{"status":"error","code":1012,"desc":"no sql input"}@ then
   return -1
 endi
 
-#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'use d1' 192.168.0.1:6020/rest/sql
+#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'use d1' 127.0.0.1:6020/rest/sql
 #print 15-> $system_content
 #if $system_content != @{"status":"error","code":1017,"desc":"no need to execute use db cmd"}@ then
 #if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[1]],"rows":1}@ then
 #  return -1
 #endi
 
-#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '  use d1' 192.168.0.1:6020/rest/sql
+#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '  use d1' 127.0.0.1:6020/rest/sql
 #print 16-> $system_content
 #if $system_content != @{"status":"error","code":1017,"desc":"no need to execute use db cmd"}@ then
 #  return -1
 #endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '  used1' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '  used1' 127.0.0.1:6020/rest/sql
 print 17-> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"invalid SQL: invalid SQL: syntax error near 'used1'"}@ then
   return -1
 endi
 
 #18
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 127.0.0.1:6020/rest/sql
 print 18-> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"db not selected"}@ then
   return -1
@@ -135,44 +133,44 @@ endi
 print ===============  step3 - db
 
 #19
-#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 192.168.0.1:6020/rest/sql/d4
+#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 127.0.0.1:6020/rest/sql/d4
 #print 19-> $system_content
 #if $system_content != @{"status":"error","code":1000,"desc":"invalid DB"}@ then
 #  return -1
 #endi
 
-#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 192.168.0.1:6020/rest/sql/d1
+#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 127.0.0.1:6020/rest/sql/d1
 #print 20-> $system_content
 #if $system_content != @{"status":"succ","head":["name","created time","columns","metric"],"data":[],"rows":0}@ then
 #  return -1
 #endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1;' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1;' 127.0.0.1:6020/rest/sql
 print 21-> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"invalid table name"}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d1.t1 (ts timestamp, speed int)' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d1.t1 (ts timestamp, speed int)' 127.0.0.1:6020/rest/sql
 print 22-> $system_content
 if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 127.0.0.1:6020/rest/sql
 print 23-> $system_content
 if $system_content != @{"status":"succ","head":["ts","speed"],"data":[],"rows":0}@ then
   return -1
 endi
 
 #24
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:41.022', 1)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:41.022', 1)" 127.0.0.1:6020/rest/sql
 print 24-> $system_content
 if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[1]],"rows":1}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 127.0.0.1:6020/rest/sql
 print 25-> $system_content
 if $system_content != @{"status":"succ","head":["ts","speed"],"data":[["2017-12-25 21:28:41.022",1]],"rows":1}@ then
   return -1
@@ -180,53 +178,53 @@ endi
 
 #26
 print 25-> no print
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:42.022', 2)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:42.022', 2)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:43.022', 3)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:43.022', 3)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:44.022', 4)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:44.022', 4)" 127.0.0.1:6020/rest/sql
 
-system_content  curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:45.022', 5)" 192.168.0.1:6020/rest/sql
+system_content  curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:45.022', 5)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:46.022', 6)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:46.022', 6)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:47.022', 7)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:47.022', 7)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:48.022', 8)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:48.022', 8)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:49.022', 9)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:49.022', 9)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:50.022', 10)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:50.022', 10)" 127.0.0.1:6020/rest/sql
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:51.022', 11)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:51.022', 11)" 127.0.0.1:6020/rest/sql
 
 #27
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 127.0.0.1:6020/rest/sql
 print 27-> $system_content
 if $system_content != @{"status":"succ","head":["ts","speed"],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d2' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d2' 127.0.0.1:6020/rest/sql
 print 28-> $system_content
 if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d2.t1 (ts timestamp, speed int)' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d2.t1 (ts timestamp, speed int)' 127.0.0.1:6020/rest/sql
 print 29-> $system_content
 if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
   return -1
 endi
 
 #30
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d2.t1 values('2017-12-25 21:28:41.022', 1)" 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d2.t1 values('2017-12-25 21:28:41.022', 1)" 127.0.0.1:6020/rest/sql
 print 30-> $system_content
 if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[1]],"rows":1}@ then
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d2.t1 ' 192.168.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d2.t1 ' 127.0.0.1:6020/rest/sql
 print 31-> $system_content
 if $system_content != @{"status":"succ","head":["ts","speed"],"data":[["2017-12-25 21:28:41.022",1]],"rows":1}@ then
   return -1
