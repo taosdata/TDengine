@@ -23,10 +23,10 @@
 #include "dnodeWrite.h"
 
 static void (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
-static void   dnodeProcessMsgFromMnode(SRpcMsg *pMsg);
-static void  *tsDnodeMnodeRpc = NULL;
+static void   dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg);
+static void  *tsDnodeServerRpc = NULL;
 
-int32_t dnodeInitMnode() {
+int32_t dnodeInitServer() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeWrite;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeWrite;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeWrite;
@@ -38,33 +38,35 @@ int32_t dnodeInitMnode() {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort    = tsDnodeMnodePort;
-  rpcInit.label        = "DND-MS";
+  rpcInit.localPort    = tsDnodeDnodePort;
+  rpcInit.label        = "DND-S";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp          = dnodeProcessMsgFromMnode;
+  rpcInit.cfp          = dnodeProcessReqMsgFromDnode;
   rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 2000;
 
-  tsDnodeMnodeRpc = rpcOpen(&rpcInit);
-  if (tsDnodeMnodeRpc == NULL) {
-    dError("failed to init mnode rpc server");
+  tsDnodeServerRpc = rpcOpen(&rpcInit);
+  if (tsDnodeServerRpc == NULL) {
+    dError("failed to init inter-dnodes RPC server");
     return -1;
   }
 
-  dPrint("mnode rpc server is opened");
+  dPrint("inter-dnodes RPC server is opened");
   return 0;
 }
 
-void dnodeCleanupMnode() {
-  if (tsDnodeMnodeRpc) {
-    rpcClose(tsDnodeMnodeRpc);
-    tsDnodeMnodeRpc = NULL;
-    dPrint("mnode rpc server is closed");
+void dnodeCleanupServer() {
+  if (tsDnodeServerRpc) {
+    rpcClose(tsDnodeServerRpc);
+    tsDnodeServerRpc = NULL;
+    dPrint("inter-dnodes RPC server is closed");
   }
 }
 
-static void dnodeProcessMsgFromMnode(SRpcMsg *pMsg) {
+void mgmtProcessReqMsgFromDnode(SRpcMsg *rpcMsg);
+
+static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg) {
   SRpcMsg rspMsg;
   rspMsg.handle  = pMsg->handle;
   rspMsg.pCont   = NULL;
@@ -74,7 +76,7 @@ static void dnodeProcessMsgFromMnode(SRpcMsg *pMsg) {
     rspMsg.code = TSDB_CODE_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
-    dTrace("thandle:%p, query msg is ignored since dnode not running", pMsg->handle);
+    dTrace("thandle:%p, query msg is ignored since dnode not running", pMsg->handle); 
     return;
   }
 
@@ -83,15 +85,11 @@ static void dnodeProcessMsgFromMnode(SRpcMsg *pMsg) {
     rpcSendResponse(&rspMsg);
     return;
   }
-
+ 
   if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
     (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
   } else {
-    dError("%s is not processed in dnode mserver", taosMsg[pMsg->msgType]);
-    rspMsg.code = TSDB_CODE_MSG_NOT_PROCESSED;
-    rpcSendResponse(&rspMsg);
-    rpcFreeCont(pMsg->pCont);
+    mgmtProcessReqMsgFromDnode(pMsg);  
   }
 }
-
 

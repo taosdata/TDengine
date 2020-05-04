@@ -13,15 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MNODE_H
-#define TDENGINE_DNODE_MNODE_H
+#ifndef TDENGINE_DNODE_DNODE_H
+#define TDENGINE_DNODE_DNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dnodeInitMnode();
-void    dnodeCleanupMnode();
+int32_t dnodeInitServer();
+void    dnodeCleanupServer();
+int32_t dnodeInitClient();
+void    dnodeCleanupClient();
 
 #ifdef __cplusplus
 }

@@ -49,7 +49,7 @@ int32_t dnodeInitShell() {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort    = tsMnodeShellPort;
+  rpcInit.localPort    = tsDnodeShellPort;
   rpcInit.label        = "SHELL";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp          = dnodeProcessMsgFromShell;

@@ -56,7 +56,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
   if (pDnodeConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
-    rpcInit.label = "TSC-vnode";
+    rpcInit.label = "TSC";
     rpcInit.numOfThreads = tscNumOfThreads;
     rpcInit.cfp = tscProcessMsgFromServer;
     rpcInit.sessions = tsMaxVnodeConnections;

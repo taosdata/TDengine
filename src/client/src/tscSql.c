@@ -77,7 +77,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     tscMgmtIpSet.inUse = 0;
     tscMgmtIpSet.numOfIps = 1;
     strcpy(tscMgmtIpSet.fqdn[0], ip);
-    tscMgmtIpSet.port[0] = port? port: tsMnodeShellPort;
+    tscMgmtIpSet.port[0] = port? port: tsDnodeShellPort;
   } else {
     if (tsFirst[0] != 0) {
       taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
@@ -100,7 +100,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
-  pObj->mgmtPort = port ? port : tsMnodeShellPort;
+  pObj->mgmtPort = port ? port : tsDnodeShellPort;
 
   if (db) {
     int32_t len = strlen(db);

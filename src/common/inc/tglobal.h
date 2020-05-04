@@ -55,10 +55,8 @@ extern char  tsFirst[];
 extern char  tsSecond[];
 extern char  tsLocalEp[];
 extern uint16_t tsServerPort;
-extern uint16_t tsMnodeDnodePort;
-extern uint16_t tsMnodeShellPort;
 extern uint16_t tsDnodeShellPort;
-extern uint16_t tsDnodeMnodePort;
+extern uint16_t tsDnodeDnodePort;
 extern uint16_t tsSyncPort;
 
 extern int32_t tsStatusInterval;

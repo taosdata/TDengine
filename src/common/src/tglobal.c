@@ -66,11 +66,9 @@ char  tsSecond[TSDB_FQDN_LEN] = {0};
 char  tsArbitrator[TSDB_FQDN_LEN] = {0};
 char  tsLocalEp[TSDB_FQDN_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
-uint16_t tsMnodeShellPort = 6030;   // udp[6030-6034] tcp[6030]
-uint16_t tsDnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
-uint16_t tsMnodeDnodePort = 6040;   // udp/tcp
-uint16_t tsDnodeMnodePort = 6045;   // udp/tcp
-uint16_t tsSyncPort = 6050;
+uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
+uint16_t tsDnodeDnodePort = 6035;   // udp/tcp
+uint16_t tsSyncPort = 6040;
 
 int32_t tsStatusInterval = 1;         // second
 int32_t tsShellActivityTimer = 3;     // second
@@ -1245,8 +1243,7 @@ bool taosCheckGlobalCfg() {
   tsVersion = 10 * tsVersion;
 
   tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
-  tsMnodeDnodePort = tsServerPort + TSDB_PORT_MNODEDNODE;   // udp/tcp
-  tsDnodeMnodePort = tsServerPort + TSDB_PORT_DNODEMNODE;   // udp/tcp
+  tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
 
   return true;

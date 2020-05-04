@@ -27,8 +27,6 @@
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
-#include "mgmtDClient.h"
-#include "mgmtDServer.h"
 #include "mgmtDnode.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
@@ -152,7 +150,7 @@ int32_t mgmtInitDnodes() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DNODE, mgmtProcessCreateDnodeMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DNODE, mgmtProcessDropDnodeMsg); 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
   mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
@@ -241,7 +239,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
         .pCont = pMdCfgDnode,
         .contLen = sizeof(SMDCfgDnodeMsg)
     };
-    mgmtSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
+    dnodeSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
     rpcRsp.code = TSDB_CODE_SUCCESS;
   }
 
