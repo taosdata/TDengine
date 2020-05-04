@@ -43,7 +43,6 @@ typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, vo
 
 //static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg);
-//static void mgmtProcessMsgFromShell(SRpcMsg *pMsg);
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
 static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
@@ -52,7 +51,6 @@ static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessUseMsg(SQueuedMsg *queuedMsg);
 
 void *tsMgmtTmr;
-//static void *tsMgmtShellRpc = NULL;
 static void *tsMgmtTranQhandle = NULL;
 static void (*tsMgmtProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SQueuedMsg *) = {0};
 static void *tsQhandleCache = NULL;
@@ -121,7 +119,6 @@ void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
-  assert(rpcMsg);
 
   if (rpcMsg->pCont == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);

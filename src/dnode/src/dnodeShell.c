@@ -41,6 +41,37 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]  = dnodeRead;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]  = dnodeRead;
 
+  // the following message shall be treated as mnode write
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONNECT]     = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_ACCT]  = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_ACCT]   = mgmtProcessMsgFromShell; 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_USER] = mgmtProcessMsgFromShell; 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_USER]  = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_USER]   = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE]= mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE]  = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB]   = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DB]     = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB]    = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE]= mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_TABLE]  = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TABLE] = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_STREAM]= mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_QUERY]  = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_STREAM] = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_CONN]   = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_HEARTBEAT]   = mgmtProcessMsgFromShell;
+
+  // the following message shall be treated as mnode query 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_USE_DB]      = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLE_META]  = mgmtProcessMsgFromShell; 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP]= mgmtProcessMsgFromShell;   
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SHOW]        = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]    = mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONFIG_DNODE]= mgmtProcessMsgFromShell;
+
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
   numOfThreads = (int32_t) ((1.0 - tsRatioOfQueryThreads) * numOfThreads / 2.0);
   if (numOfThreads < 1) {
@@ -82,7 +113,7 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
   rpcMsg.contLen = 0;
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
-    dError("RPC %p, shell msg is ignored since dnode not running", pMsg->handle);
+    dError("RPC %p, shell msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
     rpcMsg.code = TSDB_CODE_NOT_READY;
     rpcSendResponse(&rpcMsg);
     rpcFreeCont(pMsg->pCont);
@@ -98,7 +129,11 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
   if ( dnodeProcessShellMsgFp[pMsg->msgType] ) {
     (*dnodeProcessShellMsgFp[pMsg->msgType])(pMsg);
   } else {
-    mgmtProcessMsgFromShell(pMsg);
+    dError("RPC %p, shell msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
+    rpcMsg.code = TSDB_CODE_MSG_NOT_PROCESSED;
+    rpcSendResponse(&rpcMsg);
+    rpcFreeCont(pMsg->pCont);
+    return;
   }
 }
 

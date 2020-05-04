@@ -22,7 +22,6 @@ extern "C" {
 
 int32_t mgmtInitServer();
 void    mgmtCleanupServer();
-void    mgmtAddDServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 
 #ifdef __cplusplus
 }

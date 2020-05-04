@@ -50,7 +50,7 @@ void *   dnodeGetMnodeInfos();
 int32_t  dnodeGetDnodeId();
 
 void     dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
-void     mgmtAddDServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
+void     dnodeAddServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void     dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus

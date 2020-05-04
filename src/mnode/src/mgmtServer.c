@@ -52,7 +52,7 @@ void mgmtCleanupServer() {
   }
 }
 
-void mgmtAddDServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
+void dnodeAddServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
   mgmtProcessDnodeMsgFp[msgType] = fp;
 }
 
