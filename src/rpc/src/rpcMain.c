@@ -793,14 +793,6 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   sid = pConn->sid;
 
   pConn->chandle = pRecv->chandle;
-  if (pConn->peerIp != pRecv->ip) {
-    pConn->peerIp = pRecv->ip;
-    char ipstr[20] = {0};
-    tinet_ntoa(ipstr, pRecv->ip);
-    strcpy(pConn->peerFqdn, ipstr);
-  }
-  
-  if (pRecv->port) pConn->peerPort = pRecv->port;
   if (pHead->port) pConn->peerPort = htons(pHead->port); 
 
   terrno = rpcCheckAuthentication(pConn, (char *)pHead, pRecv->msgLen);
