@@ -261,11 +261,12 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter);
 typedef struct {
   int32_t len;
   int32_t offset;
+  int32_t padding; // For padding purpose
   int32_t hasLast : 1;
   int32_t numOfBlocks : 31;
-  int32_t checksum;
+  int64_t uid;
   TSKEY   maxKey;
-} SCompIdx; /* sizeof(SCompIdx) = 24 */
+} SCompIdx; /* sizeof(SCompIdx) = 28 */
 
 /**
  * if numOfSubBlocks == 0, then the SCompBlock is a sub-block
