@@ -1427,7 +1427,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     int32_t index = pSqlFuncMsg->colInfo.colIndex;
     if (TSDB_COL_IS_TAG(pIndex->flag)) {
       if (pIndex->colId == TSDB_TBNAME_COLUMN_INDEX) {
-        pCtx->inputBytes = TSDB_TABLE_NAME_LEN;
+        pCtx->inputBytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
         pCtx->inputType = TSDB_DATA_TYPE_BINARY;
       } else {
         pCtx->inputBytes = pQuery->tagColList[index].bytes;
@@ -5528,7 +5528,7 @@ static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo
       bytes = tDataTypeDesc[type].nSize;
     } else if (pExprs[i].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {  // parse the normal column
       type  = TSDB_DATA_TYPE_BINARY;
-      bytes = TSDB_TABLE_NAME_LEN;
+      bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
     } else{
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
       assert(j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags);
