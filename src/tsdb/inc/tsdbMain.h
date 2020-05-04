@@ -20,10 +20,28 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern int tsdbDebugFlag;
+
+#define tsdbError(...)                                       \
+  if (tsdbDebugFlag & DEBUG_ERROR) {                         \
+    taosPrintLog("ERROR TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+  }
+#define tsdbWarn(...)                                       \
+  if (tsdbDebugFlag & DEBUG_WARN) {                         \
+    taosPrintLog("WARN TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+  }
+#define tsdbTrace(...)                                 \
+  if (tsdbDebugFlag & DEBUG_TRACE) {                   \
+    taosPrintLog("TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+  }
+#define tsdbPrint(...) \
+  { taosPrintLog("TSDB ", 255, __VA_ARGS__); }
 
 // ------------------------------ TSDB META FILE INTERFACES ------------------------------
 #define TSDB_META_FILE_NAME "META"

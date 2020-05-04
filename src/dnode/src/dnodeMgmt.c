@@ -71,13 +71,13 @@ void dnodeMgmt(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-static int32_t dnodeGetVnodeList(int32_t vnodeList[]) {
+static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
   DIR *dir = opendir(tsVnodeDir);
   if (dir == NULL) {
     return TSDB_CODE_NO_WRITE_ACCESS;
   }
 
-  int32_t numOfVnodes = 0;
+  *numOfVnodes = 0;
   struct dirent *de = NULL;
   while ((de = readdir(dir)) != NULL) {
     if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
@@ -86,21 +86,28 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[]) {
       int32_t vnode = atoi(de->d_name + 5);
       if (vnode == 0) continue;
 
-      vnodeList[numOfVnodes] = vnode;
-      numOfVnodes++;
+      vnodeList[*numOfVnodes] = vnode;
+      (*numOfVnodes)++;
     }
   }
   closedir(dir);
 
-  return numOfVnodes;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t dnodeOpenVnodes() {
   char vnodeDir[TSDB_FILENAME_LEN * 3];
   int32_t failed = 0;
-
   int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
-  int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
+  int32_t numOfVnodes;
+  int32_t status;
+
+  status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+
+  if (status != TSDB_CODE_SUCCESS) {
+    dPrint("Get dnode list failed");
+    return status;
+  }
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/vnode%d", tsVnodeDir, vnodeList[i]);
@@ -115,7 +122,15 @@ static int32_t dnodeOpenVnodes() {
 
 static void dnodeCloseVnodes() {
   int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
-  int32_t  numOfVnodes = dnodeGetVnodeList(vnodeList);
+  int32_t numOfVnodes;
+  int32_t status;
+
+  status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+
+  if (status != TSDB_CODE_SUCCESS) {
+    dPrint("Get dnode list failed");
+    return;
+  }
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     vnodeClose(vnodeList[i]);
@@ -143,7 +158,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
   }
-  
+
   void *pVnode = vnodeAccquireVnode(pCreate->cfg.vgId);
   if (pVnode != NULL) {
     int32_t code = vnodeAlter(pVnode, pCreate);
