@@ -106,6 +106,7 @@ echo "httpDebugFlag       135"            >> $TAOS_CFG
 echo "monitorDebugFlag    131"            >> $TAOS_CFG
 echo "udebugFlag          131"            >> $TAOS_CFG
 echo "jnidebugFlag        131"            >> $TAOS_CFG
+echo "sdebugFlag          135"            >> $TAOS_CFG
 echo "monitor             0"              >> $TAOS_CFG
 echo "http                0"              >> $TAOS_CFG
 echo "numOfThreadsPerCore 2.0"            >> $TAOS_CFG
