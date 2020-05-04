@@ -95,7 +95,7 @@ void dnodeRead(SRpcMsg *pMsg) {
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
-    if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
+    if (pMsg->msgType == TSDB_MSG_TYPE_FETCH) {
       pVnode = vnodeGetVnode(pHead->vgId);
     } else {
       pVnode = vnodeAccquireVnode(pHead->vgId);

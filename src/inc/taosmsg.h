@@ -28,14 +28,12 @@ extern "C" {
 #include "trpc.h"
 
 // message type
-#define TSDB_MSG_TYPE_REG               1
-#define TSDB_MSG_TYPE_REG_RSP           2
 #define TSDB_MSG_TYPE_SUBMIT            3
 #define TSDB_MSG_TYPE_SUBMIT_RSP        4
 #define TSDB_MSG_TYPE_QUERY             5
 #define TSDB_MSG_TYPE_QUERY_RSP         6
-#define TSDB_MSG_TYPE_RETRIEVE          7
-#define TSDB_MSG_TYPE_RETRIEVE_RSP      8
+#define TSDB_MSG_TYPE_FETCH             7
+#define TSDB_MSG_TYPE_FETCH_RSP         8
 
 // message from mnode to dnode
 #define TSDB_MSG_TYPE_MD_CREATE_TABLE     9
@@ -74,8 +72,6 @@ extern "C" {
 #define TSDB_MSG_TYPE_CM_CREATE_DNODE_RSP 46
 #define TSDB_MSG_TYPE_CM_DROP_DNODE       47
 #define TSDB_MSG_TYPE_CM_DROP_DNODE_RSP   48
-#define TSDB_MSG_TYPE_CM_CONFIG_DNODE     TSDB_MSG_TYPE_MD_CONFIG_DNODE
-#define TSDB_MSG_TYPE_CM_CONFIG_DNODE_RSP TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP
 #define TSDB_MSG_TYPE_CM_CREATE_DB        49
 #define TSDB_MSG_TYPE_CM_CREATE_DB_RSP    50
 #define TSDB_MSG_TYPE_CM_DROP_DB          51
@@ -103,11 +99,15 @@ extern "C" {
 #define TSDB_MSG_TYPE_CM_KILL_QUERY       73
 #define TSDB_MSG_TYPE_CM_KILL_QUERY_RSP   74
 #define TSDB_MSG_TYPE_CM_KILL_STREAM      75
-#define TSDB_MSG_TYPE_CM_KILL_STREAM_RSP 76
-#define TSDB_MSG_TYPE_CM_KILL_CONN 77
-#define TSDB_MSG_TYPE_CM_KILL_CONN_RSP 78
-#define TSDB_MSG_TYPE_CM_HEARTBEAT 79
-#define TSDB_MSG_TYPE_CM_HEARTBEAT_RSP 80
+#define TSDB_MSG_TYPE_CM_KILL_STREAM_RSP  76
+#define TSDB_MSG_TYPE_CM_KILL_CONN        77
+#define TSDB_MSG_TYPE_CM_KILL_CONN_RSP    78
+#define TSDB_MSG_TYPE_CM_CONFIG_DNODE     79 
+#define TSDB_MSG_TYPE_CM_CONFIG_DNODE_RSP 80
+#define TSDB_MSG_TYPE_CM_RETRIEVE         81
+#define TSDB_MSG_TYPE_CM_RETRIEVE_RSP     82
+#define TSDB_MSG_TYPE_CM_HEARTBEAT        83
+#define TSDB_MSG_TYPE_CM_HEARTBEAT_RSP    84
 
 // message from dnode to mnode
 #define TSDB_MSG_TYPE_DM_CONFIG_TABLE 91

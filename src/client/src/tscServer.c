@@ -512,7 +512,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
   tscTrace("%p metric query is cancelled", pSql);
 }
 
-int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *pMsg, *pStart;
 
   pStart = pSql->cmd.payload + tsRpcHeadSize;
@@ -541,7 +541,7 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   pRetrieveMsg->header.contLen = htonl(pSql->cmd.payloadLen);
   
-  pSql->cmd.msgType = TSDB_MSG_TYPE_RETRIEVE;
+  pSql->cmd.msgType = TSDB_MSG_TYPE_FETCH;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1365,7 +1365,7 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->msgType = TSDB_MSG_TYPE_RETRIEVE;
+  pCmd->msgType = TSDB_MSG_TYPE_CM_RETRIEVE;
   pCmd->payloadLen = sizeof(SRetrieveTableMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
@@ -2595,7 +2595,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
 void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
   tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;
-  tscBuildMsg[TSDB_SQL_FETCH] = tscBuildRetrieveMsg;
+  tscBuildMsg[TSDB_SQL_FETCH] = tscBuildFetchMsg;
 
   tscBuildMsg[TSDB_SQL_CREATE_DB] = tscBuildCreateDbMsg;
   tscBuildMsg[TSDB_SQL_CREATE_USER] = tscBuildUserMsg;

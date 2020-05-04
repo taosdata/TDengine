@@ -23,9 +23,9 @@ char *taosMsg[] = {
     "query-rsp",
     "retrieve",
     "retrieve-rsp",
+
     "create-table",
     "create-table-rsp",        //10
-
     "drop-table",
     "drop-table-rsp",
     "alter-table",
@@ -100,13 +100,13 @@ char *taosMsg[] = {
     "kill-stream-rsp",
     "kill-connection",
     "kill-connectoin-rsp",
+    "config-dnode",
+    "config-dnode-rsp",
+    "retrieve",
+    "retrieve-rsp",
     "heart-beat",
-    "heart-beat-rsp",      //80
+    "heart-beat-rsp",      //84
 
-    "",
-    "",
-    "",
-    "",
     "",
     "",
     "",
