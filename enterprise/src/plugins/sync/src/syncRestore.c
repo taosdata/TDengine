@@ -39,7 +39,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
 
     // if no more file, break;
     if (minfo.name[0] == 0 || minfo.magic == 0) {
-      sTrace("vgId:%d peer:%s, no more files to restore", pNode->vgId, pPeer->fqdn);
+      sTrace("vgId:%d peer:%s, no more files to restore", pNode->vgId, pPeer->ep);
       code = 0; 
       break;
     }
@@ -48,7 +48,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     //minfo.index = htonl(minfo.index);
     //minfo.size = htonl(minfo.size);
 
-    sTrace("vgId:%d peer:%s, get file info:%s", pNode->vgId, pPeer->fqdn, minfo.name);
+    sTrace("vgId:%d peer:%s, get file info:%s", pNode->vgId, pPeer->ep, minfo.name);
 
     // check the file info
     strcpy(sinfo.name, minfo.name);
@@ -63,7 +63,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
  
     // if sync is not required, continue
     if (fileAck.sync == 0) {
-      sTrace("vgId:%d peer:%s, %s is the same", pNode->vgId, pPeer->fqdn, minfo.name);
+      sTrace("vgId:%d peer:%s, %s is the same", pNode->vgId, pPeer->ep, minfo.name);
       continue;
     }
 
@@ -73,7 +73,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
 
     int dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if ( dfd < 0 ) {
-      sError("vgId:%d peer:%s, failed to open file:%s", pNode->vgId, pPeer->fqdn, name);
+      sError("vgId:%d peer:%s, failed to open file:%s", pNode->vgId, pPeer->ep, name);
       break;
     }
 
@@ -81,11 +81,11 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     close(dfd);
     if (ret<0) break;
 
-    sTrace("vgId:%d peer:%s, %s is received, size:%d", pNode->vgId, pPeer->fqdn, minfo.name, minfo.size);
+    sTrace("vgId:%d peer:%s, %s is received, size:%d", pNode->vgId, pPeer->ep, minfo.name, minfo.size);
   }
 
   if (code < 0) {
-    sError("vgId:%d peer:%s, failed to restore %s(%s)", pNode->vgId, pPeer->fqdn, name, strerror(errno));
+    sError("vgId:%d peer:%s, failed to restore %s(%s)", pNode->vgId, pPeer->ep, name, strerror(errno));
   }
 
   return code;
@@ -110,12 +110,12 @@ static int syncRestoreWal(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret <0)  break;
 
-    sTrace("vgId:%d peer:%s, restore a record, ver:%d", pNode->vgId, pPeer->fqdn, pHead->version);
+    sTrace("vgId:%d peer:%s, restore a record, ver:%d", pNode->vgId, pPeer->ep, pHead->version);
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
   }
 
   if (code<0) {
-    sError("vgId:%d peer:%s, failed to restore wal(%s)", pNode->vgId, pPeer->fqdn, strerror(errno));
+    sError("vgId:%d peer:%s, failed to restore wal(%s)", pNode->vgId, pPeer->ep, strerror(errno));
   }
 
   free(buffer);
@@ -139,7 +139,7 @@ static int syncProcessBufferedFwd(SSyncPeer *pPeer)
   SRecvBuffer *pRecv = pNode->pRecv;
   int          forwards = 0;
 
-  sTrace("vgId:%d peer:%s, number of buffered forwards:%d", pNode->vgId, pPeer->fqdn, pRecv->forwards);
+  sTrace("vgId:%d peer:%s, number of buffered forwards:%d", pNode->vgId, pPeer->ep, pRecv->forwards);
 
   char *offset = pRecv->buffer;
   while (forwards < pRecv->forwards) {
@@ -155,7 +155,7 @@ static int syncProcessBufferedFwd(SSyncPeer *pPeer)
   }
 
   nodeRole = TAOS_SYNC_ROLE_SLAVE;
-  sTrace("vgId:%d peer:%s, finish processing buffered fwds:%d", pNode->vgId, pPeer->fqdn, forwards);
+  sTrace("vgId:%d peer:%s, finish processing buffered fwds:%d", pNode->vgId, pPeer->ep, forwards);
 
   pthread_mutex_unlock(&pNode->mutex);
 
@@ -174,7 +174,7 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
     pRecv->offset += len;
     pRecv->forwards++;
     sTrace("vgId:%d peer:%s, fwd is saved into queue, ver:%d fwds:%d", 
-           pNode->vgId, pPeer->fqdn, pHead->version, pRecv->forwards);
+           pNode->vgId, pPeer->ep, pHead->version, pRecv->forwards);
   } else {
     sError("vgId:%d peer:%s, buffer size:%d is too small", pRecv->bufferSize); 
     pRecv->code = -1;  // set error code
@@ -214,22 +214,22 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
   SSyncNode *pNode = pPeer->pSyncNode;
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
 
-  sTrace("vgId:%d peer:%s, start to restore file", pNode->vgId, pPeer->fqdn);
+  sTrace("vgId:%d peer:%s, start to restore file", pNode->vgId, pPeer->ep);
   if (syncRestoreFile(pPeer) < 0) {
-    sError("vgId:%d peer:%s, failed to restore file", pNode->vgId, pPeer->fqdn);
+    sError("vgId:%d peer:%s, failed to restore file", pNode->vgId, pPeer->ep);
     return -1;
   }
 
-  sTrace("vgId:%d peer:%s, start to restore wal", pNode->vgId, pPeer->fqdn);
+  sTrace("vgId:%d peer:%s, start to restore wal", pNode->vgId, pPeer->ep);
   if (syncRestoreWal(pPeer) < 0) {
-    sError("vgId:%d peer:%s, failed to restore wal", pNode->vgId, pPeer->fqdn);
+    sError("vgId:%d peer:%s, failed to restore wal", pNode->vgId, pPeer->ep);
     return -1;
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_CACHE;
-  sTrace("vgId:%d peer:%s, start to insert buffered points", pNode->vgId, pPeer->fqdn);
+  sTrace("vgId:%d peer:%s, start to insert buffered points", pNode->vgId, pPeer->ep);
   if (syncProcessBufferedFwd(pPeer) < 0) {
-    sError("vgId:%d peer:%s, failed to insert buffered points", pNode->vgId, pPeer->fqdn);
+    sError("vgId:%d peer:%s, failed to insert buffered points", pNode->vgId, pPeer->ep);
     return -1;
   }
 
@@ -242,7 +242,7 @@ void *syncRestoreData(void *param)
   SSyncNode  *pNode = pPeer->pSyncNode;
 
   if (syncOpenRecvBuffer(pNode) < 0) {
-    sError("vgId:%d peer:%s, failed to allocate recv buffer", pNode->vgId, pPeer->fqdn);
+    sError("vgId:%d peer:%s, failed to allocate recv buffer", pNode->vgId, pPeer->ep);
     tclose(pPeer->syncFd)
     return NULL;
   } 
@@ -251,12 +251,12 @@ void *syncRestoreData(void *param)
   __sync_fetch_and_add(&tsSyncNum, 1);
 
   if ( syncRestoreDataStepByStep(pPeer) == 0) {
-    sPrint("vgId:%d peer:%s, it is synced successfully", pNode->vgId, pPeer->fqdn);
+    sPrint("vgId:%d peer:%s, it is synced successfully", pNode->vgId, pPeer->ep);
     nodeRole = TAOS_SYNC_ROLE_SLAVE;
     syncBroadcastStatus(pNode);
     (*pNode->notifyRole)(pNode->ahandle, nodeRole);
   } else {
-    sError("vgId:%d peer:%s, failed to restore data, restart connection", pNode->vgId, pPeer->fqdn);
+    sError("vgId:%d peer:%s, failed to restore data, restart connection", pNode->vgId, pPeer->ep);
     nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
     syncRestartConnection(pPeer);
   }

@@ -114,6 +114,7 @@ typedef struct SsyncPeer {
   uint32_t    ip;
   uint16_t    port;
   char        fqdn[TSDB_FQDN_LEN];  // peer ip string
+  char        ep[TSDB_FQDN_LEN];    // peer end point, fqdn:port
   int8_t      role;
   int8_t      sstatus;    // sync status
   uint64_t    version;
