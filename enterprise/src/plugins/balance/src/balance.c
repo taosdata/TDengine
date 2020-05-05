@@ -20,6 +20,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
+#include "tdataformat.h"
 #include "dnode.h"
 #include "mnode.h"
 #include "mgmtDef.h"
@@ -813,7 +814,7 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 18;
+  pShow->bytes[cols] = 18 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "balance state");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -886,7 +887,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
+    STR_TO_VARSTR(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
     cols++;
 
     numOfRows++;

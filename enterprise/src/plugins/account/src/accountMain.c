@@ -23,6 +23,7 @@
 #include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
+#include "tdataformat.h"
 #include "monitor.h"
 #include "mnode.h"
 #include "mgmtDef.h"
@@ -290,7 +291,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_USER_LEN;
+  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -302,31 +303,31 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 14;
+  pShow->bytes[cols] = 14 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "Users/TUsers");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "Dbs/TDbs");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 18;
+  pShow->bytes[cols] = 18 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "Series/TSeries");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 18;
+  pShow->bytes[cols] = 18 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "Streams/TStreams");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 22;
+  pShow->bytes[cols] = 22 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "Storage(G)/TStorage(G)");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -356,6 +357,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
   SAcctObj *pAcct = NULL;
   char *    pWrite;
   int32_t   cols = 0;
+  char      tmp[24];
 
   while (numOfRows < rows) {
     pShow->pNode = mgmtGetNextAcct(pShow->pNode, &pAcct);
@@ -364,7 +366,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pAcct->user);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAcct->user, TSDB_USER_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -372,28 +374,33 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(pWrite, "%d/%d", pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
+    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 14);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(pWrite, "%d/%d", pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
+    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(pWrite, "%d/%d", pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
+    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 18);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(pWrite, "%d/%d", pAcct->acctInfo.numOfStreams, pAcct->cfg.maxStreams);
+    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfStreams, pAcct->cfg.maxStreams);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 18);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pAcct->cfg.maxStorage == INT64_MAX) {
-      sprintf(pWrite, "%.3f/unlimited", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024.));
+      sprintf(tmp, "%.3f/unlimited", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024.));
     } else {
-      sprintf(pWrite, "%.3f/%.3f", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024),
+      sprintf(tmp, "%.3f/%.3f", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024),
               pAcct->cfg.maxStorage / (1024. * 1024. * 1024));
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 22);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

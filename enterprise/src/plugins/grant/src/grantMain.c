@@ -22,6 +22,7 @@
 #include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
+#include "tdataformat.h"
 #include "machine.h"
 #include "mnode.h"
 #include "mgmtDef.h"
@@ -611,85 +612,85 @@ static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = 8;
+  pShow->bytes[cols] = 8 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "version");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 19;
+  pShow->bytes[cols] = 19 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "expire time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 5;
+  pShow->bytes[cols] = 5 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "expired");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 21;
+  pShow->bytes[cols] = 21 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "storage(GB)");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 21;
+  pShow->bytes[cols] = 21 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "timeseries");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "databases");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "users");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "accounts");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 10;
+  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "dnodes");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 11;
+  pShow->bytes[cols] = 11 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "connections");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 9;
+  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "streams");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 9;
+  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "cpu cores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 9;
+  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "speed(PPS)");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 9;
+  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "querytime");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -712,86 +713,96 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
   int32_t numOfRows = 0;
   char *  pWrite;
   int32_t cols = 0;
+  char    tmp[32];
 
   if (pShow->numOfReads < 1) {
     cols = 0;
 
-    char       expire[20] = {0};
+    char       expire[22] = {0};
     time_t     tt = grantStatus.expireTimeSec;
     struct tm *ptm = localtime(&tt);
     strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.officialVersion) {
-      strcpy(pWrite, "official");
+      strcpy(tmp, "official");
     } else {
-      strcpy(pWrite, "trial");
+      strcpy(tmp, "trial");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 8);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.expireTimeSec != GRANT_EXPIRE_TIME) {  // 2100-01-01
-      strncpy(pWrite, expire, 21);
+      strncpy(tmp, expire, 21);
     } else {
-      strcpy(pWrite, "unlimited");
+      strcpy(tmp, "unlimited");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 21);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.expired) {  // 2100-01-01
-      strcpy(pWrite, "true");
+      strcpy(tmp, "true");
     } else {
-      strcpy(pWrite, "false");
+      strcpy(tmp, "false");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 5);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if ((uint32_t)(grantStatus.limitStorage / (int64_t)1073741824) != GRANT_STORAGE_LIMITS) {
-      sprintf(pWrite, "%u/%u", (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
+      sprintf(tmp, "%u/%u", (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
               (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
     } else {
-      strcpy(pWrite, "unlimited");
+      strcpy(tmp, "unlimited");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 21);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.limitTimeSeries != GRANT_TIME_SERIES_LIMITS) {
-      sprintf(pWrite, "%u/%u", grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
+      sprintf(tmp, "%u/%u", grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
     } else {
-      strcpy(pWrite, "unlimited");
+      strcpy(tmp, "unlimited");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 21);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.limitDbs != GRANT_DATABASE_LIMITS) {
-      sprintf(pWrite, "%u/%u", grantGetCulsterCurDbs(), grantStatus.limitDbs);
+      sprintf(tmp, "%u/%u", grantGetCulsterCurDbs(), grantStatus.limitDbs);
     } else {
-      strcpy(pWrite, "unlimited");
+      strcpy(tmp, "unlimited");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.limitUsers != GRANT_USER_LIMITS) {
-      sprintf(pWrite, "%u/%u", grantGetCulsterCurUsers(), grantStatus.limitUsers);
+      sprintf(tmp, "%u/%u", grantGetCulsterCurUsers(), grantStatus.limitUsers);
     } else {
-      strcpy(pWrite, "unlimited");
+      strcpy(tmp, "unlimited");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.limitAccts != GRANT_ACCT_LIMITS) {
-      sprintf(pWrite, "%u/%u", grantGetCulsterCurAccts(), grantStatus.limitAccts);
+      sprintf(tmp, "%u/%u", grantGetCulsterCurAccts(), grantStatus.limitAccts);
     } else {
-      strcpy(pWrite, "unlimited");
+      strcpy(tmp, "unlimited");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (grantStatus.limitDnodes != GRANT_DNODE_LIMITS) {
-      sprintf(pWrite, "%u/%u", grantGetCulsterCurDnodes(), grantStatus.limitDnodes);
+      sprintf(tmp, "%u/%u", grantGetCulsterCurDnodes(), grantStatus.limitDnodes);
     } else {
-      strcpy(pWrite, "unlimited");
+      strcpy(tmp, "unlimited");
     }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -799,8 +810,9 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     //  sprintf(pWrite, "%u/%u", grantGetCulsterCurConns(), grantStatus.limitConns);
     //}
     // else {
-    strcpy(pWrite, "unlimited");
+    strcpy(tmp, "unlimited");
     //}
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 11);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -808,8 +820,9 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     //  sprintf(pWrite, "%u/%u", grantGetCulsterCurStreams(), grantStatus.limitStreams);
     //}
     // else {
-    strcpy(pWrite, "unlimited");
+    strcpy(tmp, "unlimited");
     //}
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -817,8 +830,9 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     //  sprintf(pWrite, "%u/%u", grantGetCulsterCurCpuCores(), grantStatus.limitCpuCores);
     //}
     // else {
-    strcpy(pWrite, "unlimited");
+    strcpy(tmp, "unlimited");
     //}
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -826,8 +840,9 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     //  sprintf(pWrite, "%u/%u", grantStatus.curSpeed, grantStatus.limitSpeed);
     //}
     // else {
-    strcpy(pWrite, "unlimited");
+    strcpy(tmp, "unlimited");
     //}
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -835,8 +850,9 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     //  sprintf(pWrite, "%u/%u", grantStatus.curQueryTime, grantStatus.limitQueryTime);
     //}
     // else {
-    strcpy(pWrite, "unlimited");
+    strcpy(tmp, "unlimited");
     //}
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
     cols++;
 
     numOfRows++;
