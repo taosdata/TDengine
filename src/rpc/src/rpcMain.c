@@ -32,8 +32,6 @@
 #include "rpcCache.h"
 #include "rpcTcp.h"
 #include "rpcHead.h"
-#include "shash.h"
-
 
 #define RPC_MSG_OVERHEAD (sizeof(SRpcReqContext) + sizeof(SRpcHead) + sizeof(SRpcDigest)) 
 #define rpcHeadFromCont(cont) ((SRpcHead *) (cont - sizeof(SRpcHead)))
@@ -262,9 +260,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   }
 
   if (pRpc->connType == TAOS_CONN_SERVER) {
-        pRpc->hash = taosInitStrHash(pRpc->sessions, sizeof(pRpc), taosHashString);
-  
-//    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true);
+    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true);
     if (pRpc->hash == NULL) {
       tError("%s failed to init string hash", pRpc->label);
       rpcClose(pRpc);
@@ -298,8 +294,7 @@ void rpcClose(void *param) {
   (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
   (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
-//  taosHashCleanup(pRpc->hash);
-  taosCleanUpStrHash(pRpc->hash);
+  taosHashCleanup(pRpc->hash);
   taosTmrCleanUp(pRpc->tmrCtrl);
   taosIdPoolCleanUp(pRpc->idPool);
   rpcCloseConnCache(pRpc->pCache);
@@ -548,9 +543,8 @@ static void rpcCloseConn(void *thandle) {
 
   if ( pRpc->connType == TAOS_CONN_SERVER) {
     char hashstr[40] = {0};
-    /*size_t size = */sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
-//    taosHashRemove(pRpc->hash, hashstr, size);
-    taosDeleteStrHash(pRpc->hash, hashstr);
+    size_t size = sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
+    taosHashRemove(pRpc->hash, hashstr, size);
   
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
     pConn->pRspMsg = NULL;
@@ -599,12 +593,10 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   char      hashstr[40] = {0};
   SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
-  /*size_t size = */sprintf(hashstr, "%x:%x:%x:%d", pRecv->ip, pHead->linkUid, pHead->sourceId, pRecv->connType);
+  size_t size = sprintf(hashstr, "%x:%x:%x:%d", pRecv->ip, pHead->linkUid, pHead->sourceId, pRecv->connType);
  
   // check if it is already allocated
-  SRpcConn **ppConn = (SRpcConn **)(taosGetStrHashData(pRpc->hash, hashstr));
-  
-//  SRpcConn **ppConn = (SRpcConn **)(taosHashGet(pRpc->hash, hashstr, size));
+  SRpcConn **ppConn = (SRpcConn **)(taosHashGet(pRpc->hash, hashstr, size));
   if (ppConn) pConn = *ppConn;
   if (pConn) return pConn;
 
@@ -638,10 +630,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
       pConn->localPort = (pRpc->localPort + pRpc->index);
     }
   
-    taosAddStrHash(pRpc->hash, hashstr, (char *)&pConn);
-  
-//    taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
-    
+    taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
     tTrace("%s %p, rpc connection is allocated, sid:%d id:%s port:%u", 
            pRpc->label, pConn, sid, pConn->user, pConn->localPort);
   }
@@ -803,6 +792,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   sid = pConn->sid;
 
   pConn->chandle = pRecv->chandle;
+  pConn->peerIp = pRecv->ip; 
   if (pConn->peerPort == 0) pConn->peerPort = pRecv->port;
   if (pHead->port) pConn->peerPort = htons(pHead->port); 
 
