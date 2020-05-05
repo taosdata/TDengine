@@ -22,22 +22,37 @@ extern "C" {
 
 #include <stdint.h>
 #include <time.h>
+#include "tutil.h"
 
 //@return timestamp in second
 int32_t taosGetTimestampSec();
 
 //@return timestamp in millisecond
-int64_t taosGetTimestampMs();
+static FORCE_INLINE int64_t taosGetTimestampMs() {
+  struct timeval systemTime;
+  gettimeofday(&systemTime, NULL);
+  return (int64_t)systemTime.tv_sec * 1000L + (uint64_t)systemTime.tv_usec / 1000;
+}
 
 //@return timestamp in microsecond
-int64_t taosGetTimestampUs();
+static FORCE_INLINE int64_t taosGetTimestampUs() {
+  struct timeval systemTime;
+  gettimeofday(&systemTime, NULL);
+  return (int64_t)systemTime.tv_sec * 1000000L + (uint64_t)systemTime.tv_usec;
+}
 
 /*
  * @return timestamp decided by global conf variable, tsTimePrecision
  * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.
  *    precision == TSDB_TIME_PRECISION_MILLI, it returns timestamp in millisecond.
  */
-int64_t taosGetTimestamp(int32_t precision);
+static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    return taosGetTimestampUs();
+  } else {
+    return taosGetTimestampMs();
+  }
+}
 
 int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts);
 
