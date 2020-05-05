@@ -197,12 +197,9 @@ static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, int32
   return 0;
 }
 
-#if 0
 static int sdbGetWalInfo(void *ahandle, char *name, uint32_t *index) {
-  strcpy(name, "wal0");
-  return 0;
+  return walGetWalFile(tsSdbObj.wal, name, index);
 }
-#endif
 
 static void sdbNotifyRole(void *ahandle, int8_t role) {
   sdbPrint("mnode role changed from %s to %s", mgmtGetMnodeRoleStr(tsSdbObj.role), mgmtGetMnodeRoleStr(role));
@@ -286,8 +283,8 @@ void sdbUpdateSync() {
   syncInfo.version = sdbGetVersion();
   syncInfo.syncCfg = syncCfg;
   sprintf(syncInfo.path, "%s", tsMnodeDir);
-  syncInfo.ahandle = tsSdbObj.wal;
-  syncInfo.getWalInfo = walGetWalFile;
+  syncInfo.ahandle = NULL;
+  syncInfo.getWalInfo = sdbGetWalInfo;
   syncInfo.getFileInfo = sdbGetFileInfo;
   syncInfo.writeToCache = sdbWrite;
   syncInfo.confirmForward = sdbConfirmForward; 
