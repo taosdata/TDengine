@@ -310,7 +310,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         
         *payload = TSDB_DATA_BINARY_NULL;
       } else { // too long values will return invalid sql, not be truncated automatically
-        if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) { //todo refactor
           return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
         }
         
