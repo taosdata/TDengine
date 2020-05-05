@@ -2138,6 +2138,8 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
   
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
     int32_t realLen = varDataLen(pData);
+    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
+    
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
       *(char*) (pData + realLen + VARSTR_HEADER_SIZE) = 0;
     }
