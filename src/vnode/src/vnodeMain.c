@@ -108,7 +108,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
   tsdbCfg.compression         = pVnodeCfg->cfg.compression;;
-  
+
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
   code = tsdbCreateRepo(tsdbDir, &tsdbCfg, NULL);
@@ -134,7 +134,7 @@ int32_t vnodeDrop(int32_t vgId) {
   dTrace("pVnode:%p vgId:%d, vnode will be dropped", pVnode, pVnode->vgId);
   pVnode->status = TAOS_VN_STATUS_DELETING;
   vnodeCleanUp(pVnode);
- 
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -176,10 +176,13 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
+  if (pVnode == NULL) {
+    return TSDB_CODE_NO_RESOURCE;
+  }
   pVnode->vgId     = vnode;
   pVnode->status   = TAOS_VN_STATUS_INIT;
   pVnode->refCount = 1;
-  pVnode->version  = 0;  
+  pVnode->version  = 0;
   taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
 
   int32_t code = vnodeReadCfg(pVnode);
@@ -190,7 +193,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   vnodeReadVersion(pVnode);
-  
+
   pVnode->wqueue = dnodeAllocateWqueue(pVnode);
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
 
@@ -227,12 +230,12 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
   syncInfo.writeToCache = vnodeWriteToQueue;
-  syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
+  syncInfo.confirmForward = dnodeSendRpcWriteRsp;
   syncInfo.notifyRole = vnodeNotifyRole;
   pVnode->sync = syncStart(&syncInfo);
 
   // start continuous query
-  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
     cqStart(pVnode->cq);
 
   pVnode->events = NULL;
@@ -316,7 +319,7 @@ void *vnodeAccquireVnode(int32_t vgId) {
 }
 
 void *vnodeGetRqueue(void *pVnode) {
-  return ((SVnodeObj *)pVnode)->rqueue; 
+  return ((SVnodeObj *)pVnode)->rqueue;
 }
 
 void *vnodeGetWqueue(int32_t vgId) {
@@ -326,7 +329,7 @@ void *vnodeGetWqueue(int32_t vgId) {
 }
 
 void *vnodeGetWal(void *pVnode) {
-  return ((SVnodeObj *)pVnode)->wal; 
+  return ((SVnodeObj *)pVnode)->wal;
 }
 
 void vnodeBuildStatusMsg(void *param) {
@@ -394,9 +397,9 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
   pVnode->role = role;
 
-  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
     cqStart(pVnode->cq);
-  else 
+  else
     cqStop(pVnode->cq);
 }
 
@@ -426,14 +429,14 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"daysToKeep2\": %d,\n", pVnodeCfg->cfg.daysToKeep2);
   len += snprintf(content + len, maxLen - len, "  \"minRowsPerFileBlock\": %d,\n", pVnodeCfg->cfg.minRowsPerFileBlock);
   len += snprintf(content + len, maxLen - len, "  \"maxRowsPerFileBlock\": %d,\n", pVnodeCfg->cfg.maxRowsPerFileBlock);
-  len += snprintf(content + len, maxLen - len, "  \"commitTime\": %d,\n", pVnodeCfg->cfg.commitTime);  
+  len += snprintf(content + len, maxLen - len, "  \"commitTime\": %d,\n", pVnodeCfg->cfg.commitTime);
   len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnodeCfg->cfg.precision);
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnodeCfg->cfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"commitLog\": %d,\n", pVnodeCfg->cfg.commitLog);
   len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pVnodeCfg->cfg.replications);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pVnodeCfg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
-  
+
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pVnodeCfg->cfg.replications; i++) {
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", pVnodeCfg->nodes[i].nodeId);

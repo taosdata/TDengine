@@ -31,9 +31,9 @@
 typedef struct {
   taos_qall  qall;
   taos_qset  qset;      // queue set
-  pthread_t  thread;    // thread 
+  pthread_t  thread;    // thread
   int32_t    workerId;  // worker ID
-} SWriteWorker;  
+} SWriteWorker;
 
 typedef struct {
   SRspRet  rspRet;
@@ -67,7 +67,7 @@ int32_t dnodeInitWrite() {
 }
 
 void dnodeCleanupWrite() {
-  
+
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
@@ -120,10 +120,18 @@ void *dnodeAllocateWqueue(void *pVnode) {
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
-    if (pWorker->qset == NULL) return NULL;
+    if (pWorker->qset == NULL) {
+      taosCloseQueue(queue);
+      return NULL;
+    }
 
     taosAddIntoQset(pWorker->qset, queue, pVnode);
     pWorker->qall = taosAllocateQall();
+    if (pWorker->qall == NULL) {
+      taosCloseQset(pWorker->qset);
+      taosCloseQueue(queue);
+      return NULL;
+    }
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
 
     pthread_attr_t thAttr;
@@ -132,7 +140,10 @@ void *dnodeAllocateWqueue(void *pVnode) {
 
     if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessWriteQueue, pWorker) != 0) {
       dError("failed to create thread to process read queue, reason:%s", strerror(errno));
+      taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
+      taosCloseQueue(queue);
+      queue = NULL;
     } else {
       dTrace("write worker:%d is launched", pWorker->workerId);
     }
@@ -183,7 +194,7 @@ static void *dnodeProcessWriteQueue(void *param) {
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
-    if (numOfMsgs <=0) { 
+    if (numOfMsgs <=0) {
       dnodeHandleIdleWorker(pWorker);  // thread exit if no queues anymore
       continue;
     }
@@ -213,7 +224,7 @@ static void *dnodeProcessWriteQueue(void *param) {
       taosGetQitem(pWorker->qall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
-        dnodeSendRpcWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
+        dnodeSendRpcWriteRsp(pVnode, item, pWrite->rpcMsg.code);
       } else {
         taosFreeQitem(item);
         vnodeRelease(pVnode);
@@ -229,7 +240,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
 
   if (num > 0) {
      usleep(30000);
-     sched_yield(); 
+     sched_yield();
   } else {
      taosFreeQall(pWorker->qall);
      taosCloseQset(pWorker->qset);
