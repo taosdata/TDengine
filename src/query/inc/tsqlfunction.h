@@ -68,16 +68,18 @@ extern "C" {
 #define TSDB_FUNC_AVG_RATE     32
 #define TSDB_FUNC_AVG_IRATE    33
 
-#define TSDB_FUNCSTATE_SO           0x1U    // single output
-#define TSDB_FUNCSTATE_MO           0x2U    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
-#define TSDB_FUNCSTATE_STREAM       0x4U    // function avail for stream
-#define TSDB_FUNCSTATE_METRIC       0x8U    // function avail for metric
-#define TSDB_FUNCSTATE_OF           0x10U   // outer forward
-#define TSDB_FUNCSTATE_NEED_TS      0x20U   // timestamp is required during query processing
-#define TSDB_FUNCSTATE_SELECTIVITY  0x40U   // selectivity functions, can exists along with tag columns
+#define TSDB_FUNC_TID_TAG      34
 
-#define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF
-#define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF
+#define TSDB_FUNCSTATE_SO           0x1u    // single output
+#define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
+#define TSDB_FUNCSTATE_STREAM       0x4u    // function avail for stream
+#define TSDB_FUNCSTATE_STABLE       0x8u    // function avail for metric
+#define TSDB_FUNCSTATE_OF           0x10u   // outer forward
+#define TSDB_FUNCSTATE_NEED_TS      0x20u   // timestamp is required during query processing
+#define TSDB_FUNCSTATE_SELECTIVITY  0x40u   // selectivity functions, can exists along with tag columns
+
+#define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
+#define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 
 
 #define TSDB_FUNCTIONS_NAME_MAX_LENGTH 16
@@ -108,17 +110,17 @@ enum {
   SECONDARY_STAGE_MERGE = 0x20u,
 };
 
-#define QUERY_IS_STABLE_QUERY(type) (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
-#define QUERY_IS_JOIN_QUERY(type) (((type)&TSDB_QUERY_TYPE_JOIN_QUERY) != 0)
+#define QUERY_IS_STABLE_QUERY(type)      (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
+#define QUERY_IS_JOIN_QUERY(type)        (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_JOIN_QUERY))
 #define QUERY_IS_PROJECTION_QUERY(type) (((type)&TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0)
-#define QUERY_IS_FREE_RESOURCE(type) (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
+#define QUERY_IS_FREE_RESOURCE(type)     (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
 
 typedef struct SArithmeticSupport {
-  SArithExprInfo   *pArithExpr;
-  int32_t           numOfCols;
-  SColumnInfo*      colList;
-  int32_t           offset;
-  char**            data;
+  SExprInfo   *pArithExpr;
+  int32_t      numOfCols;
+  SColumnInfo *colList;
+  int32_t      offset;
+  char**       data;
 } SArithmeticSupport;
 
 typedef struct SQLPreAggVal {

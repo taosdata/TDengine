@@ -482,7 +482,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur->vnodeIndex == vnodeIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
+  if (pCur->vgroupIndex == vnodeIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
       (pCur->blockIndex >= blockIndex && pCur->order == TSDB_ORDER_DESC))) {
     int32_t i = 0;
     bool    decomp = false;
@@ -517,7 +517,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   
   assert((pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem) && (pTSBuf->tsData.allocSize >= pTSBuf->tsData.len));
   
-  pCur->vnodeIndex = vnodeIndex;
+  pCur->vgroupIndex = vnodeIndex;
   pCur->blockIndex = blockIndex;
   
   pCur->tsIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : pBlock->numOfElem - 1;
@@ -554,7 +554,7 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   STSCursor* pCur = &pTSBuf->cur;
   
   // get the first/last position according to traverse order
-  if (pCur->vnodeIndex == -1) {
+  if (pCur->vgroupIndex == -1) {
     if (pCur->order == TSDB_ORDER_ASC) {
       tsBufGetBlock(pTSBuf, 0, 0);
       
@@ -569,9 +569,9 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
       assert(pTSBuf->numOfVnodes > 0);
       
       int32_t vnodeIndex = pTSBuf->numOfVnodes - 1;
-      pCur->vnodeIndex = vnodeIndex;
+      pCur->vgroupIndex = vnodeIndex;
       
-      int32_t            vnodeId = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
+      int32_t            vnodeId = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
       STSVnodeBlockInfo* pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
       int32_t            blockIndex = pBlockInfo->numOfBlocks - 1;
       
@@ -594,14 +594,14 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
     
     if ((pCur->order == TSDB_ORDER_ASC && pCur->tsIndex >= pTSBuf->block.numOfElem - 1) ||
         (pCur->order == TSDB_ORDER_DESC && pCur->tsIndex <= 0)) {
-      int32_t vnodeId = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
+      int32_t vnodeId = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
       
       STSVnodeBlockInfo* pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
       if (pBlockInfo == NULL || (pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSDB_ORDER_ASC) ||
           (pCur->blockIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
-        if ((pCur->vnodeIndex >= pTSBuf->numOfVnodes - 1 && pCur->order == TSDB_ORDER_ASC) ||
-            (pCur->vnodeIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
-          pCur->vnodeIndex = -1;
+        if ((pCur->vgroupIndex >= pTSBuf->numOfVnodes - 1 && pCur->order == TSDB_ORDER_ASC) ||
+            (pCur->vgroupIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
+          pCur->vgroupIndex = -1;
           return false;
         }
         
@@ -610,11 +610,11 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
         }
         
         int32_t blockIndex = pCur->order == TSDB_ORDER_ASC ? 0 : pBlockInfo->numOfBlocks - 1;
-        tsBufGetBlock(pTSBuf, pCur->vnodeIndex + step, blockIndex);
+        tsBufGetBlock(pTSBuf, pCur->vgroupIndex + step, blockIndex);
         break;
         
       } else {
-        tsBufGetBlock(pTSBuf, pCur->vnodeIndex, pCur->blockIndex + step);
+        tsBufGetBlock(pTSBuf, pCur->vgroupIndex, pCur->blockIndex + step);
         break;
       }
     } else {
@@ -631,7 +631,7 @@ void tsBufResetPos(STSBuf* pTSBuf) {
     return;
   }
   
-  pTSBuf->cur = (STSCursor){.tsIndex = -1, .blockIndex = -1, .vnodeIndex = -1, .order = pTSBuf->cur.order};
+  pTSBuf->cur = (STSCursor){.tsIndex = -1, .blockIndex = -1, .vgroupIndex = -1, .order = pTSBuf->cur.order};
 }
 
 STSElem tsBufGetElem(STSBuf* pTSBuf) {
@@ -642,13 +642,13 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur != NULL && pCur->vnodeIndex < 0) {
+  if (pCur != NULL && pCur->vgroupIndex < 0) {
     return elem1;
   }
 
   STSBlock* pBlock = &pTSBuf->block;
   
-  elem1.vnode = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
+  elem1.vnode = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
   elem1.ts = *(TSKEY*)(pTSBuf->tsData.rawBuf + pCur->tsIndex * TSDB_KEYSIZE);
   elem1.tag = pBlock->tag;
   
@@ -804,7 +804,7 @@ STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag) {
     return elem;
   }
   
-  pCur->vnodeIndex = j;
+  pCur->vgroupIndex = j;
   pCur->blockIndex = blockIndex;
   tsBufGetBlock(pTSBuf, j, blockIndex);
   
@@ -812,7 +812,7 @@ STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag) {
 }
 
 STSCursor tsBufGetCursor(STSBuf* pTSBuf) {
-  STSCursor c = {.vnodeIndex = -1};
+  STSCursor c = {.vgroupIndex = -1};
   if (pTSBuf == NULL) {
     return c;
   }
@@ -825,9 +825,9 @@ void tsBufSetCursor(STSBuf* pTSBuf, STSCursor* pCur) {
     return;
   }
   
-  //  assert(pCur->vnodeIndex != -1 && pCur->tsIndex >= 0 && pCur->blockIndex >= 0);
-  if (pCur->vnodeIndex != -1) {
-    tsBufGetBlock(pTSBuf, pCur->vnodeIndex, pCur->blockIndex);
+  //  assert(pCur->vgroupIndex != -1 && pCur->tsIndex >= 0 && pCur->blockIndex >= 0);
+  if (pCur->vgroupIndex != -1) {
+    tsBufGetBlock(pTSBuf, pCur->vgroupIndex, pCur->blockIndex);
   }
   
   pTSBuf->cur = *pCur;

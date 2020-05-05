@@ -463,7 +463,8 @@ int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t *result) {
 
 void tSQLSetColumnInfo(TAOS_FIELD *pField, SSQLToken *pName, TAOS_FIELD *pType) {
   int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
-  /* truncate the column name */
+  
+  // truncate the column name
   if (pName->n >= maxLen) {
     pName->n = maxLen - 1;
   }
@@ -478,7 +479,9 @@ void tSQLSetColumnInfo(TAOS_FIELD *pField, SSQLToken *pName, TAOS_FIELD *pType) 
 void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
   pField->type = -1;
 
-  for (int8_t i = 0; i < sizeof(tDataTypeDesc) / sizeof(tDataTypeDesc[0]); ++i) {
+  int32_t LENGTH_SIZE_OF_STR = 2;  // in case of nchar and binary, there two bytes to keep the length of binary|nchar.
+  
+  for (int8_t i = 0; i < tListLen(tDataTypeDesc); ++i) {
     if ((strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0) &&
         (type->n == tDataTypeDesc[i].nameLen)) {
       pField->type = i;
@@ -490,10 +493,10 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
          * number of bytes in UCS-4 format, which is 4 times larger than the
          * number of characters
          */
-        pField->bytes = -(int32_t)type->type * TSDB_NCHAR_SIZE;
+        pField->bytes = -(int32_t)type->type * TSDB_NCHAR_SIZE + LENGTH_SIZE_OF_STR;
       } else if (i == TSDB_DATA_TYPE_BINARY) {
         /* for binary, the TOKENTYPE is the length of binary */
-        pField->bytes = -(int32_t)type->type;
+        pField->bytes = -(int32_t) type->type + LENGTH_SIZE_OF_STR;
       }
       break;
     }

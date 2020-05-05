@@ -23,6 +23,7 @@
 #include "ttime.h"
 #include "tname.h"
 #include "tbalance.h"
+#include "tdataformat.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
@@ -431,7 +432,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  pShow->bytes[cols] = TSDB_DB_NAME_LEN;
+  pShow->bytes[cols] = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -439,7 +440,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
+  strcpy(pSchema[cols].name, "created_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -586,7 +587,9 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, mgmtGetDbStr(pDb->name));
+    
+    char* name = mgmtGetDbStr(pDb->name);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, TSDB_DB_NAME_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -622,7 +625,10 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
 #endif
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(pWrite, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep);
+    
+    char tmp[128] = {0};
+    size_t n = sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep);
+    STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, n);
     cols++;
 
 #ifndef __CLOUD_VERSION__
@@ -670,7 +676,11 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pDb->status != TSDB_DB_STATUS_READY ? "dropping" : "ready");
+    if (pDb->status == TSDB_DB_STATUS_READY) {
+      STR_WITH_SIZE_TO_VARSTR(pWrite, "ready", 5);
+    } else {
+      STR_WITH_SIZE_TO_VARSTR(pWrite, "dropping", 8);
+    }
     cols++;
 
     numOfRows++;

@@ -300,7 +300,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
       break;
     
     case TSDB_DATA_TYPE_NCHAR:
-      if (!taosMbsToUcs4(bind->buffer, *bind->length, data + param->offset, param->bytes)) {
+      if (!taosMbsToUcs4(bind->buffer, *bind->length, data + param->offset, param->bytes, NULL)) {
         return TSDB_CODE_INVALID_VALUE;
       }
       return TSDB_CODE_SUCCESS;
@@ -455,7 +455,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   // tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
   if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObjPartial(pSql);
+    tscPartiallyFreeSqlObj(pSql);
   }
 
   return pRes->code;
@@ -510,7 +510,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   strtolower(sqlstr, sqlstr);
 
   pStmt->pSql->sqlstr = sqlstr;
-  if (tscIsInsertOrImportData(sqlstr)) {
+  if (tscIsInsertData(sqlstr)) {
     pStmt->isInsert = true;
     return insertStmtPrepare(pStmt);
   }

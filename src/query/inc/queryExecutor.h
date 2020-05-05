@@ -96,23 +96,19 @@ typedef struct SSingleColumnFilterInfo {
   void*              pData;
 } SSingleColumnFilterInfo;
 
-typedef struct STableQueryInfo {
-  int64_t     lastKey;
-  STimeWindow win;
+typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
+  int32_t     tableIndex;
+  int32_t     groupIdx;       // group id in table list
+  TSKEY       lastKey;
   int32_t     numOfRes;
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
   int64_t     tag;
+  STimeWindow win;
   STSCursor   cur;
-  int32_t     tid;  // for retrieve the page id list
-
+  STableId    id;             // for retrieve the page id list
+  
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
-
-typedef struct STableDataInfo {  // todo merge with the STableQueryInfo struct
-  int32_t          tableIndex;
-  int32_t          groupIdx;  // group id in table list
-  STableQueryInfo* pTableQInfo;
-} STableDataInfo;
 
 typedef struct SQuery {
   int16_t           numOfCols;
@@ -130,7 +126,7 @@ typedef struct SQuery {
   SLimitVal         limit;
   int32_t           rowSize;
   SSqlGroupbyExpr*  pGroupbyExpr;
-  SArithExprInfo*   pSelectExpr;
+  SExprInfo*        pSelectExpr;
   SColumnInfo*      colList;
   SColumnInfo*      tagColList;
   int32_t           numOfFilterCols;
@@ -170,14 +166,16 @@ typedef struct SQInfo {
   TSKEY            startTime;
   TSKEY            elapsedTime;
   int32_t          pointsInterpo;
-  int32_t          code;          // error code to returned to client
+  int32_t          code;              // error code to returned to client
   sem_t            dataReady;
   void*            tsdb;
+  int32_t          vgId;
   
-  STableGroupInfo  groupInfo;     // table id list
+  STableGroupInfo  tableIdGroupInfo;  // table id list < only includes the STableId list>
+  STableGroupInfo  groupInfo;         //
   SQueryRuntimeEnv runtimeEnv;
   int32_t          groupIndex;
-  int32_t          offset; /* offset in group result set of subgroup */
+  int32_t          offset;            // offset in group result set of subgroup, todo refactor
   
   T_REF_DECLARE()
   /*
@@ -188,7 +186,6 @@ typedef struct SQInfo {
    */
   int32_t         tableIndex;
   int32_t         numOfGroupResultPages;
-  TSKEY*          tsList;
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

@@ -380,13 +380,13 @@ typedef struct SSqlFuncMsg {
   } arg[3];
 } SSqlFuncMsg;
 
-typedef struct SArithExprInfo {
+typedef struct SExprInfo {
   SSqlFuncMsg base;
   struct tExprNode* pExpr;
   int16_t     bytes;
   int16_t     type;
   int16_t     interResBytes;
-} SArithExprInfo;
+} SExprInfo;
 
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;
@@ -422,8 +422,8 @@ typedef struct SColumnInfo {
 } SColumnInfo;
 
 typedef struct STableIdInfo {
-  int32_t sid;
   int64_t uid;
+  int32_t tid;
   TSKEY   key;  // last accessed ts, for subscription
 } STableIdInfo;
 
@@ -459,9 +459,6 @@ typedef struct {
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     interpoType;      // interpolate type
   uint64_t    defaultVal;       // default value array list
-
-//  int32_t     colNameLen;
-//  int64_t     colNameList;
   int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;          // total length of ts comp block
   int32_t     tsNumOfBlocks;  // ts comp block numbers
@@ -624,8 +621,8 @@ typedef struct {
 } SCMMultiTableInfoMsg;
 
 typedef struct SCMSTableVgroupMsg {
-  char tableId[TSDB_TABLE_ID_LEN];
-} SCMSTableVgroupMsg;
+  int32_t numOfTables;
+} SCMSTableVgroupMsg, SCMSTableVgroupRspMsg;
 
 typedef struct {
   int32_t   vgId;
@@ -634,59 +631,16 @@ typedef struct {
 } SCMVgroupInfo;
 
 typedef struct {
-  int32_t  numOfVgroups;
+  int32_t numOfVgroups;
   SCMVgroupInfo vgroups[];
-} SCMSTableVgroupRspMsg;
+} SVgroupsInfo;
 
-typedef struct {
-  int16_t elemLen;
-
-  char    tableId[TSDB_TABLE_ID_LEN + 1];
-  int16_t orderIndex;
-  int16_t orderType;  // used in group by xx order by xxx
-
-  int16_t rel;  // denotes the relation between condition and table list
-
-  int32_t tableCond;  // offset value of table name condition
-  int32_t tableCondLen;
-
-  int32_t cond;  // offset of column query condition
-  int32_t condLen;
-
-  int16_t tagCols[TSDB_MAX_TAGS + 1];  // required tag columns, plus one is for table name
-  int16_t numOfTags;                   // required number of tags
-
-  int16_t numOfGroupCols;  // num of group by columns
-  int32_t groupbyTagColumnList;
-} SSuperTableMetaElemMsg;
-
-typedef struct {
-  int32_t numOfTables;
-  int32_t join;
-  int32_t joinCondLen;  // for join condition
-  int32_t metaElem[TSDB_MAX_JOIN_TABLE_NUM];
-} SSuperTableMetaMsg;
-
-typedef struct {
-  int32_t  nodeId;
-  uint32_t nodeIp;
-  uint16_t nodePort;
-} SVnodeDesc;
-
-typedef struct {
-  SVnodeDesc vpeerDesc[TSDB_MAX_REPLICA_NUM];
-  int16_t    index;  // used locally
-  int32_t    vgId;
-  int32_t    numOfSids;
-  int32_t    pSidExtInfoList[];  // offset value of STableIdInfo
-} SVnodeSidList;
-
-typedef struct {
-  int32_t  numOfTables;
-  int32_t  numOfVnodes;
-  uint16_t tagLen; /* tag value length */
-  int32_t  list[]; /* offset of SVnodeSidList, compared to the SSuperTableMeta struct */
-} SSuperTableMeta;
+//typedef struct {
+//  int32_t numOfTables;
+//  int32_t join;
+//  int32_t joinCondLen;  // for join condition
+//  int32_t metaElem[TSDB_MAX_JOIN_TABLE_NUM];
+//} SSuperTableMetaMsg;
 
 typedef struct STableMetaMsg {
   int32_t       contLen;

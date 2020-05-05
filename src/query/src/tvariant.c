@@ -408,7 +408,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   
   if (*pDest == pVariant->pz) {
     wchar_t *pWStr = calloc(1, (nLen + 1) * TSDB_NCHAR_SIZE);
-    taosMbsToUcs4(pDst, nLen, (char *)pWStr, (nLen + 1) * TSDB_NCHAR_SIZE);
+    taosMbsToUcs4(pDst, nLen, (char *)pWStr, (nLen + 1) * TSDB_NCHAR_SIZE, NULL);
     
     // free the binary buffer in the first place
     if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
@@ -424,7 +424,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     
     pVariant->wpz = (wchar_t *)tmp;
   } else {
-    taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE);
+    taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE, NULL);
   }
   
   return 0;

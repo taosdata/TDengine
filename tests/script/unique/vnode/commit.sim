@@ -1,17 +1,16 @@
 system sh/stop_dnodes.sh
 
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 2
+system sh/cfg.sh -n dnode2 -c clog -v 2
 system sh/cfg.sh -n dnode1 -c numofMpeers -v 3
 system sh/cfg.sh -n dnode2 -c numofMpeers -v 3
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 
 sql connect
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 3000
 
 print =================== step 1 create db
@@ -22,7 +21,7 @@ sql insert into tb values(now, 0)
 
 print =================== step2 sleep 2000 and kill dnode2(SIGINT)
 sleep 2000
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 sleep 1000
 
 print =================== step3 insert into dnode1
@@ -99,13 +98,13 @@ if $rows != 936 then
 endi
 
 print =================== step5 sleep kill dnode1(SIGINT) then start dnode1
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode1 -s stop -x SIGINT
 sleep 5000
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 
 sleep 3000
 print =================== step6 start dnode2 and sleep 10000 (wait sync complete)
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 12000
 
 print =================== step7
@@ -128,7 +127,7 @@ if $rows != $remainRows then
 endi
 
 print =================== step8 kill dnode1(SIGINT) and query
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode1 -s stop -x SIGINT
 sleep 2000
 
 print =================== step9
@@ -149,4 +148,4 @@ if $rows != $remainRows then
   return -1
 endi
 
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start

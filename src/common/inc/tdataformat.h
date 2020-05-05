@@ -26,6 +26,20 @@
 extern "C" {
 #endif
 
+#define STR_TO_VARSTR(x, str) do {VarDataLenT __len = strlen(str); \
+  *(VarDataLenT*)(x) = __len; \
+  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), __len);} while(0);
+
+#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs) do {\
+  char* _e = stpncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), (_maxs));\
+  *(VarDataLenT*)(x) = _e - (x);\
+} while(0)
+
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) do {\
+  *(VarDataLenT*)(x) = (_size); \
+  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), (_size));\
+} while(0);
+
 // ----------------- TSDB COLUMN DEFINITION
 typedef struct {
   int8_t  type;    // Column type
@@ -182,7 +196,7 @@ void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
-void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);
+void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop); //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);
 

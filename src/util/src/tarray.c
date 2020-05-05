@@ -143,7 +143,7 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   pArray->size -= 1;
 }
 
-void taosArrayCopy(SArray* pDst, SArray* pSrc) {
+void taosArrayCopy(SArray* pDst, const SArray* pSrc) {
   assert(pSrc != NULL && pDst != NULL);
   
   if (pDst->capacity < pSrc->size) {
@@ -162,7 +162,7 @@ void taosArrayCopy(SArray* pDst, SArray* pSrc) {
   pDst->size = pSrc->size;
 }
 
-SArray* taosArrayClone(SArray* pSrc) {
+SArray* taosArrayClone(const SArray* pSrc) {
   assert(pSrc != NULL);
   
   if (pSrc->size == 0) { // empty array list
@@ -175,7 +175,6 @@ SArray* taosArrayClone(SArray* pSrc) {
   dst->size = pSrc->size;
   return dst;
 }
-
 
 void taosArrayDestroy(SArray* pArray) {
   if (pArray == NULL) {
