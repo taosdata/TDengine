@@ -38,7 +38,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdLog.info('==> $data00')
         tdLog.info("tdSql.checkData(0, 0, '23456')")
-#        tdSql.checkData(0, 0, '23456')
+        tdSql.checkData(0, 0, '23456')
         tdLog.info('=============== step4')
         tdLog.info("insert into tb values (now+3a, '345678')")
         tdSql.error("insert into tb values (now+3a, '345678')")
