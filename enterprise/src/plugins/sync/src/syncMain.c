@@ -765,11 +765,11 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer)
 
   pthread_mutex_lock(&pNode->mutex);
 
+  // node role shall be checked again, since it maybe changed when acquiring mutex
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     nodeVersion = pHead->version;
     pNode->pMaster = pPeer;
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
-    return;
   } else { 
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
       syncSaveIntoBuffer(pPeer, pHead);

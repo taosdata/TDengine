@@ -1,0 +1,45 @@
+05/04 12:54:47.638819 0x140207522371328 SYN vgId:1 peer:447d4f241063, it is configured, port:7120
+05/04 12:54:47.639126 0x140207522371328 SYN vgId:1 peer:447d4f241063, it is configured, port:7220
+05/04 12:54:47.639535 0x140207522371328 SYN vgId:1, 2 replicas are configured, role:unsynced
+05/04 12:54:48.086043 0x140207273830144 SYN peer TCP connection from ip:172.17.0.2
+05/04 12:54:48.086508 0x140207273830144 SYN vgId:1 peer:447d4f241063, ready to exchange data
+05/04 12:54:48.087005 0x140207273830144 SYN vgId:1 peer:447d4f241063, status msg is sent
+05/04 12:54:48.088658 0x140207059891968 SYN vgId:1 peer:447d4f241063, status msg received, self:unsynced ver:0 peer:master ver:14
+05/04 12:54:48.088992 0x140207059891968 SYN vgId:1 peer:447d4f241063, own role:unsynced, new peer role:master
+05/04 12:54:48.089287 0x140207059891968 SYN vgId:1 peer:447d4f241063, try to sync
+05/04 12:54:48.089608 0x140207059891968 SYN vgId:1 peer:447d4f241063, sync-req is sent
+05/04 12:54:48.089872 0x140207059891968 SYN vgId:1 peer:447d4f241063, status msg is sent
+05/04 12:54:48.092538 0x140207273830144 SYN peer TCP connection from ip:172.17.0.2
+05/04 12:54:48.093846 0x140207273830144 SYN vgId:1 peer:447d4f241063, sync connection is up
+05/04 12:54:48.094155 0x140207051499264 SYN vgId:1 peer:447d4f241063, start to restore file
+05/04 12:54:48.095073 0x140207059891968 SYN vgId:1 peer:447d4f241063, status msg received, self:unsynced ver:0 peer:master ver:14
+05/04 12:54:48.095305 0x140207059891968 SYN vgId:1 peer:447d4f241063, own role:unsynced, new peer role:master
+05/04 12:54:48.095657 0x140207059891968 SYN vgId:1 peer:447d4f241063, sync is already started, status:2
+05/04 12:54:48.098342 0x140207051499264 SYN vgId:1 peer:447d4f241063, no more files to restore
+05/04 12:54:48.098548 0x140207051499264 SYN vgId:1 peer:447d4f241063, start to restore wal
+05/04 12:54:48.104503 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:1
+05/04 12:54:48.106459 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:2
+05/04 12:54:48.108127 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:3
+05/04 12:54:48.109065 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:4
+05/04 12:54:48.110061 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:5
+05/04 12:54:48.111664 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:6
+05/04 12:54:48.112649 0x140207059891968 SYN vgId:1 peer:447d4f241063, forward is received, ver:15 
+05/04 12:54:48.112961 0x140207059891968 SYN vgId:1 peer:447d4f241063, fwd is saved into queue, ver:15 fwds:1
+05/04 12:54:48.113436 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:7
+05/04 12:54:48.114380 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:8
+05/04 12:54:48.115667 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:9
+05/04 12:54:48.116812 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:10
+05/04 12:54:48.117806 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:11
+05/04 12:54:48.118834 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:12
+05/04 12:54:48.119828 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:13
+05/04 12:54:48.120740 0x140207051499264 SYN vgId:1 peer:447d4f241063, restore a record, ver:14
+05/04 12:54:48.121977 0x140207051499264 SYN vgId:1 peer:447d4f241063, start to insert buffered points
+05/04 12:54:48.122269 0x140207051499264 SYN vgId:1 peer:447d4f241063, number of buffered forwards:1
+05/04 12:54:48.123773 0x140207051499264 SYN vgId:1 peer:447d4f241063, finish processing buffered fwds:1
+05/04 12:54:48.123964 0x140207051499264 SYN vgId:1 peer:447d4f241063, it is synced successfully
+05/04 12:54:48.124268 0x140207051499264 SYN vgId:1 peer:447d4f241063, status msg is sent
+05/04 12:54:48.124802 0x140207059891968 SYN vgId:1 peer:447d4f241063, status msg received, self:slave ver:0 peer:master ver:15
+05/04 12:54:48.125027 0x140207059891968 SYN vgId:1 peer:447d4f241063, own role:slave, new peer role:master
+05/04 12:54:48.125413 0x140207059891968 SYN vgId:1 peer:447d4f241063, status msg is sent
+05/04 12:54:48.126010 0x140207059891968 SYN vgId:1 peer:447d4f241063, status msg received, self:slave ver:15 peer:master ver:15
+05/04 12:54:48.126307 0x140207059891968 SYN vgId:1 peer:447d4f241063, own role:slave, new peer role:master

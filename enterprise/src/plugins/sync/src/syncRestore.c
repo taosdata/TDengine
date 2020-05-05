@@ -127,7 +127,7 @@ static char *syncProcessOneBufferedFwd(SSyncPeer *pPeer, char *offset)
   SSyncNode *pNode = pPeer->pSyncNode;
   SWalHead  *pHead = (SWalHead *) offset;
 
-  (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
+  (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
   offset += pHead->len + sizeof(SWalHead);
 
   return offset;
