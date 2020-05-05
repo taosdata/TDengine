@@ -7,23 +7,28 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
+echo "### run TSIM script ###"
 cd script
-./test.sh -f basicSuite.sim 2>&1 | grep 'success\|failed\|fault' | tee out.txt
+./test.sh -f basicSuite.sim 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee out.txt
 
-totalSuccess=`grep -w 'success' out.txt | wc -l`
+totalSuccess=`grep 'success' out.txt | wc -l`
 totalBasic=`grep success out.txt | grep Suite | wc -l`
 
 if [ "$totalSuccess" -gt "0" ]; then
   totalSuccess=`expr $totalSuccess - $totalBasic`
-  echo -e "${GREEN} ### Total $totalSuccess TSIM case(s) succeed! ### ${NC}"
 fi
 
-totalFailed=`grep -w 'failed\|fault' out.txt | wc -l`
+echo -e "${GREEN} ### Total $totalSuccess TSIM case(s) succeed! ### ${NC}"
+
+totalFailed=`grep 'failed\|fault' out.txt | wc -l`
+echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
+
 if [ "$totalFailed" -ne "0" ]; then
-  echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
+#  echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
   exit $totalFailed
 fi
 
+echo "### run Python script ###"
 cd ../pytest
 
 if [ "$1" == "cron" ]; then

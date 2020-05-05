@@ -438,22 +438,25 @@ sleep 1000
 print ============================== step17
 print ========= check data
 
+sql reset query cache
+sleep 1000
+
 sql use c_b1_d1
 sql select * from c_b1_t1
-if $rows != 0 then
+if $rows != 5 then
   return -1
 endi
 
 sql use c_b1_d2
 sql select * from c_b1_t2
-if $rows == 0 then
+if $rows == 6 then
   return -1
 endi
 
 sql use c_b1_d3
 sql select * from c_b1_t3 order by t desc
 print $data01 $data11 $data21 $data31 $data41
-if $rows != 1 then
+if $rows != 6 then
   return -1
 endi
 if $data01 != 36 then
@@ -540,30 +543,11 @@ if $data41 != 85 then
   return -1
 endi
 
-sql use c_b1_d9
-sql select * from c_b1_t9 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 91 then
-  return -1
-endi
-if $data11 != 92 then
-  return -1
-endi
-if $data21 != 93 then
-  return -1
-endi
-if $data31 != 94 then
-  return -1
-endi
-if $data41 != 95 then
-  return -1
-endi
-
 print ============================================ over
-#system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
-#system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
-#system sh/exec_up.sh -n dnode4 -s stop -x SIGINT
-#system sh/exec_up.sh -n dnode5 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop -x SIGINT
 
 
 
