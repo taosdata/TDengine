@@ -579,6 +579,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
 
   if ( pMaster ) {
     // master is there
+    pNode->pMaster = pPeer;
     if ( nodeRole == TAOS_SYNC_ROLE_UNSYNCED ) {
       if ( nodeVersion < pMaster->version) {
         syncRequired = 1;
@@ -758,18 +759,16 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer)
 
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     nodeVersion = pHead->version;
-    pNode->pMaster = pPeer;
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
     return;
   }
 
   pthread_mutex_lock(&pNode->mutex);
 
+  // node role shall be checked again, since it maybe changed when acquiring mutex
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     nodeVersion = pHead->version;
-    pNode->pMaster = pPeer;
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
-    return;
   } else { 
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
       syncSaveIntoBuffer(pPeer, pHead);

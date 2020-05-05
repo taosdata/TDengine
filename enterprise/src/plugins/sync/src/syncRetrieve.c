@@ -242,7 +242,7 @@ static uint32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent)
   return 0;
 }
 
-static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, int fversion, int32_t offset, uint32_t *pEvent) 
+static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, int64_t offset, uint32_t *pEvent) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
   SWalHead  *pHead = (SWalHead *) malloc(640000);
@@ -253,7 +253,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, int fversion, int32
   sfd = open(name, O_RDONLY);
   if (sfd < 0) return -1;
   lseek(sfd, offset, SEEK_SET);
-  sTrace("vgId:%d peer:%s, retrieve last wal, offset:%d", pNode->vgId, pPeer->fqdn, offset);
+  sTrace("vgId:%d peer:%s, retrieve last wal, offset:%d fversion:%ld", pNode->vgId, pPeer->fqdn, offset, fversion);
 
   while (1) {
     int wsize = syncReadOneWalRecord(sfd, pHead, pEvent); 
@@ -291,7 +291,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
 
   while (1) {
     int32_t  once = 0; // last WAL has once ever been processed 
-    int32_t  offset = 0;
+    int64_t  offset = 0;
     uint64_t fversion = 0;
     uint32_t event = 0;
 
@@ -318,12 +318,20 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
       }
 
       // if all data up to fversion is read out, it is over
-      if (pPeer->version >= fversion) {code = 0; break;}  
+      if (pPeer->version == fversion) {
+        code = 0; 
+        sTrace("vgId:%d peer:%s, data up to fversion:%ld has been read out, bytes:%d", pNode->vgId, pPeer->fqdn, fversion, bytes);
+        break;
+      }  
 
       // if all data are read out, and no update
       if ((bytes == 0) && ((event & IN_MODIFY) == 0)) {
         // wal file is closed, break
-        if (event & IN_CLOSE_WRITE) { code = 0; break;}
+        if (event & IN_CLOSE_WRITE) { 
+          code = 0; 
+          sTrace("vgId:%d peer:%s, current wal is closed", pNode->vgId, pPeer->fqdn);
+          break;
+        }
  
         // wal not closed, it means some data not flushed to disk, wait for a while
         usleep(10000);
