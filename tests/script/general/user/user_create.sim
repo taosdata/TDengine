@@ -49,19 +49,22 @@ sleep 2000
 
 sql alter user read privilege read
 sql show users
-if $data1_read != read then 
+print $data1_read
+if $data1_read != readable then 
   return -1
 endi
 
 sql_error alter user read privilege super
 sql show users
-if $data1_read != read then
+print $data1_read
+if $data1_read != readable then
   return -1
 endi
 
 sql alter user read privilege write
 sql show users
-if $data1_read != write then 
+print $data1_read
+if $data1_read != writable then 
   return -1
 endi
 

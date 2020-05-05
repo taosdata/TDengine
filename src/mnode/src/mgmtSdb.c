@@ -458,6 +458,10 @@ static int sdbWrite(void *param, void *data, int type) {
     // for data from WAL or forward, version may be smaller
     if (pHead->version <= tsSdbObj.version) {
       pthread_mutex_unlock(&tsSdbObj.mutex);
+      if (type == TAOS_QTYPE_FWD && tsSdbObj.sync != NULL) {
+        sdbTrace("forward request is received, version:%" PRIu64 " confirm it", pHead->version);
+        syncConfirmForward(tsSdbObj.sync, pHead->version, TSDB_CODE_SUCCESS);
+      }
       return TSDB_CODE_SUCCESS;
     } else if (pHead->version != tsSdbObj.version + 1) {
       pthread_mutex_unlock(&tsSdbObj.mutex);

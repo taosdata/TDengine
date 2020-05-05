@@ -66,6 +66,7 @@ typedef struct SMnodeObj {
   SDnodeObj *pDnode;
 } SMnodeObj;
 
+// todo use dynamic length string
 typedef struct {
   char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t type;

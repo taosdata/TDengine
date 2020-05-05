@@ -31,11 +31,11 @@ system sh/cfg.sh -n dnode5 -c mgmtEqualVnodeNum -v 4
 
 print ============== step1
 print ========= start dnode1
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sleep 3000
 sql connect
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
 show1: 
@@ -45,9 +45,9 @@ show1:
 	  return -1
 	endi
 sql show dnodes -x show1
-$dnode1Vnodes = $data3_192.168.0.1
+$dnode1Vnodes = $data2_1
 print dnode1 $dnode2Vnodes
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode3Vnodes
 
 if $dnode1Vnodes != 4 then
@@ -78,9 +78,9 @@ sql insert into c_b1_t2 values(now+4s, 22)
 sql insert into c_b1_t2 values(now+5s, 21)
 
 sql show dnodes
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 2 then
@@ -94,7 +94,7 @@ print ============================== step2
 print ========= start dnode3
 sleep 3000
 sql create dnode $hostname3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 8000
 
 $x = 0
@@ -105,9 +105,9 @@ show2:
 	  return -1
 	endi
 sql show dnodes -x show2
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 3 then
@@ -118,10 +118,10 @@ if $dnode3Vnodes != 3 then
 endi
 
 sql show mnodes
-$dnode1Role = $data3_192.168.0.1
-$dnode2Role = $data3_192.168.0.2
-$dnode3Role = $data3_192.168.0.3
-$dnode4Role = $data3_192.168.0.4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -152,9 +152,9 @@ show4:
 	  return -1
 	endi
 sql show dnodes -x show4
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 1 then
@@ -165,10 +165,10 @@ if $dnode3Vnodes != null then
 endi
 
 sql show mnodes
-$dnode1Role = $data3_192.168.0.1
-$dnode2Role = $data3_192.168.0.2
-$dnode3Role = $data3_192.168.0.3
-$dnode4Role = $data3_192.168.0.4
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
@@ -176,9 +176,9 @@ print dnode4 ==> $dnode4Role
 
 print ============================== step5
 print ========= add dnode3
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 sleep 5000
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sql create dnode $hostname3
 sleep 9000
 
@@ -190,9 +190,9 @@ show5:
 	  return -1
 	endi
 sql show dnodes -x show5
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 2 then
@@ -204,7 +204,7 @@ endi
 
 print ============================== step6
 print ========= drop dnode2
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 print stop dnode2 and sleep 10000
 sleep 10000
 
@@ -220,9 +220,9 @@ show6:
 	  return -1
 	endi
 sql show dnodes -x show6
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != null then
@@ -237,7 +237,7 @@ endi
 print ============================== step7
 print ========= add dnode2
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 9000
 
 $x = 0
@@ -248,9 +248,9 @@ show7:
 	  return -1
 	endi
 sql show dnodes -x show7
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 3 then
@@ -262,7 +262,7 @@ endi
 
 print ============================== step8
 print ========= drop dnode3
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 print stop dnode3 and sleep 10000
 sleep 10000
 sql drop dnode $hostname3
@@ -277,9 +277,9 @@ show8:
 	  return -1
 	endi
 sql show dnodes -x show8
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 1 then
@@ -292,7 +292,7 @@ endi
 print ============================== step9
 print ========= add dnode3
 sql create dnode $hostname3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 9000
 
 $x = 0
@@ -303,9 +303,9 @@ show9:
 	  return -1
 	endi
 sql show dnodes -x show9
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 2 then
@@ -334,9 +334,9 @@ show10:
 	  return -1
 	endi
 sql show dnodes -x show10
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 2 then
@@ -365,9 +365,9 @@ show11:
 	  return -1
 	endi
 sql show dnodes -x show11
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode2Vnodes != 0 then
@@ -377,7 +377,7 @@ if $dnode3Vnodes != null then
    goto show11
 endi
 
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 
 print ============================== step12
 print ========= add db5
@@ -387,7 +387,7 @@ sql use c_b1_d5
 print ============================== step13
 print ========= add dnode3
 sql create dnode $hostname3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 9000
 
 sql use c_b1_d5;
@@ -422,9 +422,9 @@ sql insert into c_b1_t6 values(now+4s, 62)
 sql insert into c_b1_t6 values(now+5s, 61)
 
 sql show dnodes
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 #if $dnode2Vnodes != 1 then
@@ -437,7 +437,7 @@ print dnode3 $dnode3Vnodes
 print ============================== step14
 print ========= add dnode4
 sql create dnode $hostname4
-system sh/exec.sh -n dnode4 -s start
+system sh/exec_up.sh -n dnode4 -s start
 sleep 10000
 
 $x = 0
@@ -448,11 +448,11 @@ show14:
 	  return -1
 	endi
 sql show dnodes -x show14
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
-$dnode4Vnodes = $data3_192.168.0.4
+$dnode4Vnodes = $data2_4
 print dnode4 $dnode4Vnodes
 
 if $dnode2Vnodes != 2 then
@@ -490,7 +490,7 @@ sql insert into c_b1_t8 values(now+5s, 81)
 print ========== add dnode5
 sql create dnode $hostname5
 print sql create dnode $hostname5 over
-system sh/exec.sh -n dnode5 -s start
+system sh/exec_up.sh -n dnode5 -s start
 print sleep 12000
 sleep 12000
 print sleep 12000 over
@@ -503,13 +503,13 @@ show15:
 	  return -1
 	endi
 sql show dnodes -x show15
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
-$dnode4Vnodes = $data3_192.168.0.4
+$dnode4Vnodes = $data2_4
 print dnode4 $dnode4Vnodes
-$dnode5Vnodes = $data3_192.168.0.5
+$dnode5Vnodes = $data2_5
 print dnode5 $dnode5Vnodes
 
 if $dnode2Vnodes != 2 then
@@ -539,7 +539,7 @@ sql insert into c_b1_t9 values(now+3s, 93)
 sql insert into c_b1_t9 values(now+4s, 92)
 sql insert into c_b1_t9 values(now+5s, 91)
 
-system sh/exec.sh -n dnode5 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop -x SIGINT
 
 $x = 0
 show16: 
@@ -549,11 +549,11 @@ show16:
 	  return -1
 	endi
 sql show dnodes -x show16
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
-$dnode4Vnodes = $data3_192.168.0.4
+$dnode4Vnodes = $data2_4
 print dnode4 $dnode4Vnodes
 
 if $dnode2Vnodes != 1 then
@@ -707,10 +707,10 @@ endi
 
 
 print ============================================ over
-#system sh/exec.sh -n dnode2 -s stop -x SIGINT
-#system sh/exec.sh -n dnode3 -s stop -x SIGINT
-#system sh/exec.sh -n dnode4 -s stop -x SIGINT
-#system sh/exec.sh -n dnode5 -s stop -x SIGINT
+#system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+#system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+#system sh/exec_up.sh -n dnode4 -s stop -x SIGINT
+#system sh/exec_up.sh -n dnode5 -s stop -x SIGINT
 
 
 

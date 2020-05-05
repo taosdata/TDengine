@@ -198,7 +198,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       break;
     };
     case TSDB_DATA_TYPE_BINARY: {
-      strncpy(val, src, len);
+      varDataCopy(val, src);
       break;
     };
     case TSDB_DATA_TYPE_NCHAR: {

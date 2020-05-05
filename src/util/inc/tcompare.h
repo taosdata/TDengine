@@ -38,9 +38,11 @@ int patternMatch(const char *zPattern, const char *zString, size_t size, const S
 
 int WCSPatternMatch(const wchar_t *zPattern, const wchar_t *zString, size_t size, const SPatternCompareInfo *pInfo);
 
+int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size);
+
 __compar_fn_t getKeyComparFunc(int32_t keyType);
 
-__compar_fn_t getComparFunc(int32_t type, int32_t filterDataType, int32_t optr);
+__compar_fn_t getComparFunc(int32_t type, int32_t optr);
 
 #ifdef __cplusplus
 }

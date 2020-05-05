@@ -120,7 +120,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
 void tscDestroyLocalReducer(SSqlObj *pSql);
 
-int32_t tscDoLocalreduce(SSqlObj *pSql);
+int32_t tscDoLocalMerge(SSqlObj *pSql);
 
 #ifdef __cplusplus
 }

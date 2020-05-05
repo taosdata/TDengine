@@ -48,7 +48,7 @@ typedef struct STSElem {
 } STSElem;
 
 typedef struct STSCursor {
-  int32_t  vnodeIndex;
+  int32_t  vgroupIndex;
   int32_t  blockIndex;
   int32_t  tsIndex;
   uint32_t order;

@@ -60,17 +60,16 @@ enum _sql_type {
 
   TSDB_SQL_LOCAL,  // SQL below for client local
   TSDB_SQL_DESCRIBE_TABLE,
-  TSDB_SQL_RETRIEVE_METRIC,
+  TSDB_SQL_RETRIEVE_LOCALMERGE,
   TSDB_SQL_METRIC_JOIN_RETRIEVE,
-  TSDB_SQL_RETRIEVE_TAGS,
 
   /*
    * build empty result instead of accessing dnode to fetch result
    * reset the client cache
    */
-  TSDB_SQL_RETRIEVE_EMPTY_RESULT,  // 40
+  TSDB_SQL_RETRIEVE_EMPTY_RESULT,
 
-  TSDB_SQL_RESET_CACHE,
+  TSDB_SQL_RESET_CACHE,    // 40
   TSDB_SQL_SERV_STATUS,
   TSDB_SQL_CURRENT_DB,
   TSDB_SQL_SERV_VERSION,
@@ -78,7 +77,7 @@ enum _sql_type {
   TSDB_SQL_CURRENT_USER,
   TSDB_SQL_CFG_LOCAL,
 
-  TSDB_SQL_MAX  // 48
+  TSDB_SQL_MAX  // 47
 };
 
 

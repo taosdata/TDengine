@@ -56,7 +56,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   
   qinfo_t pQInfo = NULL;
   if (contLen != 0) {
-    pRet->code = qCreateQueryInfo(pVnode->tsdb, pQueryTableMsg, &pQInfo);
+    pRet->code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo);
   
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->qhandle = htobe64((uint64_t) (pQInfo));
@@ -97,7 +97,7 @@ static int32_t vnodeProcessRetrieveMsg(SVnodeObj *pVnode, void *pCont, int32_t c
     if (qHasMoreResultsToRetrieve(pQInfo)) {
       pRet->qhandle = pQInfo;
       code = TSDB_CODE_ACTION_NEED_REPROCESSED;
-    } else {  
+    } else {
       // no further execution invoked, release the ref to vnode
       qDestroyQueryInfo(pQInfo);
       vnodeRelease(pVnode);

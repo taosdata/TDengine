@@ -140,6 +140,8 @@ int32_t vnodeDrop(int32_t vgId) {
 
 int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = param;
+  pVnode->status = TAOS_VN_STATUS_UPDATING;
+
   int32_t code = vnodeSaveCfg(pVnodeCfg);
   if (code != TSDB_CODE_SUCCESS) {
     dError("vgId:%d, failed to save vnode cfg, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
@@ -167,6 +169,8 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
     return code;
   }
 
+  pVnode->status = TAOS_VN_STATUS_READY;
+
   dTrace("pVnode:%p vgId:%d, vnode is altered", pVnode, pVnode->vgId);
   return TSDB_CODE_SUCCESS;
 }
@@ -181,7 +185,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->refCount = 1;
   pVnode->version  = 0;  
   taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
-
+  
   int32_t code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
     dError("pVnode:%p vgId:%d, failed to read cfg file", pVnode, pVnode->vgId);
