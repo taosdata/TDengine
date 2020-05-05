@@ -122,13 +122,8 @@ char *taosMsg[] = {
     "status-rsp",
     "grant",
     "grant-rsp",
-    "",
-    "",                   //100
+    "",                   //99
 
-    "sdb-sync",
-    "sdb-sync-rsp",
-    "sdb-forward",
-    "sdb-forward-rsp",
     "max"
 };
 
