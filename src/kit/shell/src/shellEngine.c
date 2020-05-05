@@ -613,7 +613,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
                 memset(t_str, 0, TSDB_MAX_BYTES_PER_ROW);
-                memcpy(t_str, row[i], fields[i].bytes);
+                memcpy(t_str, row[i], length[i]);
                 fprintf(fp, "\'%s\'", t_str);
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
