@@ -172,28 +172,9 @@ int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      // set offset
       *(VarDataOffsetT *)POINTER_DRIFT(row, toffset) = dataRowLen(row);
-
-      // set length
-      VarDataLenT slen = 0;
-      if (isNull(value, type)) {
-        slen = (type == TSDB_DATA_TYPE_BINARY) ? sizeof(int8_t) : sizeof(int32_t);
-      } else {
-        if (type == TSDB_DATA_TYPE_BINARY) {
-          slen = strnlen((char *)value, bytes);
-        } else {
-          slen = wcsnlen((wchar_t *)value, (bytes) / TSDB_NCHAR_SIZE) * TSDB_NCHAR_SIZE;
-        }
-      }
-
-      ASSERT(slen <= bytes);
-      *(VarDataLenT *)ptr = slen;
-      ptr = POINTER_DRIFT(ptr, sizeof(VarDataLenT));
-
-      memcpy((void *)ptr, value, slen);
-      dataRowLen(row) += (sizeof(int16_t) + slen);
-
+      memcpy(ptr, value, varDataTLen(value));
+      dataRowLen(row) += varDataTLen(value);
       break;
     default:
       memcpy(POINTER_DRIFT(row, toffset), value, TYPE_BYTES[type]);
@@ -443,8 +424,8 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
         dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i), target->numOfPoints,
                          target->maxPoints);
       }
+      target->numOfPoints++;
     }
-    target->numOfPoints++;
   } else {
     pTarget = tdDupDataCols(target, true);
     if (pTarget == NULL) goto _err;

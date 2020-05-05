@@ -288,7 +288,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->nResultBufSize = pMemBuffer[0]->pageSize * 16;
   pReducer->pResultBuf = (tFilePage *)calloc(1, pReducer->nResultBufSize + sizeof(tFilePage));
 
-  int32_t finalRowLength = tscGetResRowLength(pQueryInfo->exprsInfo);
+  int32_t finalRowLength = tscGetResRowLength(pQueryInfo->exprList);
   pReducer->resColModel = finalmodel;
   pReducer->resColModel->capacity = pReducer->nResultBufSize / finalRowLength;
   assert(finalRowLength <= pReducer->rowSize);
@@ -810,7 +810,7 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo 
 // todo merge with following function
 // static void reversedCopyResultToDstBuf(SQueryInfo* pQueryInfo, SSqlRes *pRes, tFilePage *pFinalDataPage) {
 //
-//  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
+//  for (int32_t i = 0; i < pQueryInfo->exprList.numOfExprs; ++i) {
 //    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 //
 //    int32_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
@@ -907,7 +907,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
       savePrevRecordAndSetupInterpoInfo(pLocalReducer, pQueryInfo, &pLocalReducer->interpolationInfo);
     }
 
-    int32_t rowSize = tscGetResRowLength(pQueryInfo->exprsInfo);
+    int32_t rowSize = tscGetResRowLength(pQueryInfo->exprList);
     memcpy(pRes->data, pFinalDataPage->data, pRes->numOfRows * rowSize);
 
     pFinalDataPage->numOfElems = 0;
@@ -1422,15 +1422,14 @@ static void doProcessResultInNextWindow(SSqlObj *pSql, int32_t numOfRes) {
   doExecuteSecondaryMerge(pCmd, pLocalReducer, true);
 }
 
-int32_t tscDoLocalreduce(SSqlObj *pSql) {
+int32_t tscDoLocalMerge(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
   tscResetForNextRetrieve(pRes);
 
   if (pSql->signature != pSql || pRes == NULL || pRes->pLocalReducer == NULL) {  // all data has been processed
-    tscTrace("%s call the drop local reducer", __FUNCTION__);
-
+    tscTrace("%p %s call the drop local reducer", pSql, __FUNCTION__);
     tscDestroyLocalReducer(pSql);
     return 0;
   }
@@ -1441,7 +1440,7 @@ int32_t tscDoLocalreduce(SSqlObj *pSql) {
   // set the data merge in progress
   int32_t prevStatus =
       atomic_val_compare_exchange_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY, TSC_LOCALREDUCE_IN_PROGRESS);
-  if (prevStatus != TSC_LOCALREDUCE_READY || pLocalReducer == NULL) {
+  if (prevStatus != TSC_LOCALREDUCE_READY) {
     assert(prevStatus == TSC_LOCALREDUCE_TOBE_FREED);  // it is in tscDestroyLocalReducer function already
     return TSDB_CODE_SUCCESS;
   }

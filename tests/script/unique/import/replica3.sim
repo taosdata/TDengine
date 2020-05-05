@@ -1,10 +1,5 @@
 system sh/stop_dnodes.sh
 
-
-
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
@@ -31,14 +26,14 @@ system sh/cfg.sh -n dnode3 -c commitlog -v 0
 system sh/cfg.sh -n dnode4 -c commitlog -v 0
 
 print ========= start dnode1
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sleep 5000
 sql connect
 
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sql create dnode $hostname3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 
 
 sql create database ir3db replica 3 days 7
@@ -97,9 +92,9 @@ if $rows != 11 then
 endi
 
 #print ================== dnode restart
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#system sh/exec_up.sh -n dnode1 -s stop -x SIGINT
 #sleep 5000
-#system sh/exec.sh -n dnode1 -s start
+#system sh/exec_up.sh -n dnode1 -s start
 #sleep 5000
 #sql select * from tb;
 #if $rows != 11 then 
@@ -146,9 +141,9 @@ if $rows != 29 then
 endi
 
 print ================= step10
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode1 -s stop -x SIGINT
 sleep 5000
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sleep 5000
 sql select * from tb;
 if $rows != 29 then 
@@ -170,7 +165,7 @@ if $rows != 43 then
 endi
 
 print ================= step13
-system sh/exec.sh -n dnode2 -s stop 
+system sh/exec_up.sh -n dnode2 -s stop 
 sleep 5000
 
 print ================= step14
@@ -183,9 +178,9 @@ if $rows != 46 then
 endi
 
 print ================= step15
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 sleep 8000
-system sh/exec.sh -n dnode3 -s stop
+system sh/exec_up.sh -n dnode3 -s stop
 sleep 3000
 
 if $rows != 46 then 

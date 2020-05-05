@@ -10,7 +10,7 @@ namespace {
 // simple test
 void simpleTest() {
   SDiskbasedResultBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1000, 64);
+  int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1000, 64, NULL);
   
   int32_t pageId = 0;
   int32_t groupId = 0;
@@ -26,7 +26,7 @@ void simpleTest() {
   
   ASSERT_EQ(getNumOfResultBufGroupId(pResultBuf), 1);
   
-  destroyResultBuf(pResultBuf);
+  destroyResultBuf(pResultBuf, NULL);
 }
 } // namespace
 

@@ -48,7 +48,8 @@ typedef struct tQueryInfo {
   int32_t       colIndex; // index of column in schema
   uint8_t       optr;     // expression operator
   SSchema       sch;      // schema of tags
-  tVariant      q;        // query condition value on the specific schema, filter expression
+//  tVariant      q;      // query condition value on the specific schema, filter expression
+  char*         q;
   __compar_fn_t compare;  // filter function
 } tQueryInfo;
 

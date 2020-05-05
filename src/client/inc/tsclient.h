@@ -45,8 +45,6 @@ enum {
   DATA_FROM_DATA_FILE = 2,
 };
 
-typedef SCMSTableVgroupRspMsg SVgroupsInfo;
-
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
@@ -69,12 +67,13 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct STableMetaInfo {
-  STableMeta *  pTableMeta;  // table meta, cached in client side and acquried by name
+  STableMeta *  pTableMeta;      // table meta, cached in client side and acquired by name
   SVgroupsInfo *vgroupList;
-
+  SArray       *pVgroupTables;   // SArray<SVgroupTableInfo>
+  
   /*
-   * 1. keep the vnode index during the multi-vnode super table projection query
-   * 2. keep the vnode index for multi-vnode insertion
+   * 1. keep the vgroup index during the multi-vnode super table projection query
+   * 2. keep the vgroup index for multi-vnode insertion
    */
   int32_t vgroupIndex;
   char    name[TSDB_TABLE_ID_LEN];        // (super) table name
@@ -102,7 +101,7 @@ typedef struct SColumnIndex {
 
 typedef struct SFieldSupInfo {
   bool            visible;
-  SArithExprInfo *pArithExprInfo;
+  SExprInfo      *pArithExprInfo;
   SSqlExpr *      pSqlExpr;
 } SFieldSupInfo;
 
@@ -206,7 +205,7 @@ typedef struct SQueryInfo {
 
   SArray *         colList;      // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SArray *         exprsInfo;    // SArray<SSqlExpr*>
+  SArray *         exprList;    // SArray<SSqlExpr*>
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;
@@ -382,7 +381,6 @@ int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscResetSqlCmdObj(SSqlCmd *pCmd);
-void tscFreeResData(SSqlObj *pSql);
 
 /**
  * free query result of the sql object
@@ -395,7 +393,7 @@ void tscFreeSqlResult(SSqlObj *pSql);
  * Note: this function is multi-thread safe.
  * @param pObj
  */
-void tscFreeSqlObjPartial(SSqlObj *pObj);
+void tscPartiallyFreeSqlObj(SSqlObj *pObj);
 
 /**
  * free sql object, release allocated resource
@@ -423,7 +421,7 @@ int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *s
 
 void    tscQueueAsyncFreeResult(SSqlObj *pSql);
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
-char *  tscGetResultColumnChr(SSqlRes *pRes, SQueryInfo *pQueryInfo, int32_t column);
+char *  tscGetResultColumnChr(SSqlRes *pRes, SQueryInfo *pQueryInfo, int32_t column, int16_t bytes);
 
 extern void *    pVnodeConn;
 extern void *    tscCacheHandle;

@@ -490,7 +490,7 @@ bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
 #endif
 }
 
-bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len) {
+bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len, int32_t* len) {
   memset(ucs4, 0, ucs4_max_len);
 #ifdef USE_LIBICONV
   iconv_t cd = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
@@ -501,6 +501,10 @@ bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len)
     return false;
   }
   iconv_close(cd);
+  if (len != NULL) {
+    *len = outLen;
+  }
+  
   return true;
 #else
   mbstate_t state = {0};

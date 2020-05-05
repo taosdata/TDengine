@@ -325,7 +325,7 @@ SArray* tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey, int16_t keyType) {
   pSkipList->state.queryCount++;
 #endif
 
-  __compar_fn_t filterComparFn = getComparFunc(pSkipList->keyInfo.type, keyType, 0);
+  __compar_fn_t filterComparFn = getComparFunc(pSkipList->keyInfo.type, 0);
   int32_t ret = -1;
   for (int32_t i = sLevel; i >= 0; --i) {
     SSkipListNode *p = SL_GET_FORWARD_POINTER(pNode, i);
@@ -389,7 +389,7 @@ SSkipListIterator *tSkipListCreateIterFromVal(SSkipList* pSkipList, const char* 
     SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
   
     int32_t ret = -1;
-    __compar_fn_t filterComparFn = getComparFunc(pSkipList->keyInfo.type, type, 0);
+    __compar_fn_t filterComparFn = getKeyComparFunc(pSkipList->keyInfo.type);
     SSkipListNode* pNode = pSkipList->pHead;
     
     for (int32_t i = pSkipList->level - 1; i >= 0; --i) {

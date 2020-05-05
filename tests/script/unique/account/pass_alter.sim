@@ -43,6 +43,7 @@ step3:
 
 print ============= step4
 sql close 
+sleep 1000
 sql connect
 sleep 2000
 sql create account oroot pass 'taosdata'
