@@ -41,6 +41,25 @@ static void dnodeSetRunStatus(SDnodeRunStatus status);
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static void dnodeCheckDataDirOpenned(char *dir);
 static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
+static int32_t dnodeInitSteps();
+static void dnodeCleanupSteps(int32_t stepId);
+
+typedef struct {
+  const char *const name;
+  int               (*init)();
+  void              (*cleanup)();
+} DnodeStep;
+
+static const DnodeStep DnodeSteps[] = {
+  {"storage",       dnodeInitStorage,       dnodeCleanupStorage},
+  {"read",          dnodeInitRead,          dnodeCleanupRead},
+  {"write",         dnodeInitWrite,         dnodeCleanupWrite},
+  {"mclient",       dnodeInitMClient,       dnodeCleanupMClient},
+  {"modules",       dnodeInitModules,       dnodeCleanupModules},
+  {"mnode",         dnodeInitMnode,         dnodeCleanupMnode},
+  {"mgmt",          dnodeInitMgmt,          dnodeCleanupMgmt},
+  {"shell",         dnodeInitShell,         dnodeCleanupShell},
+};
 
 int32_t main(int32_t argc, char *argv[]) {
   // Set global configuration file
@@ -53,11 +72,11 @@ int32_t main(int32_t argc, char *argv[]) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-V") == 0) {
-#ifdef _SYNC      
+#ifdef _SYNC
       char *versionStr = "enterprise";
-#else      
+#else
       char *versionStr = "community";
-#endif      
+#endif
       printf("%s version: %s compatible_version: %s\n", versionStr, version, compatible_version);
       printf("gitinfo: %s\n", gitinfo);
       printf("gitinfoI: %s\n", gitinfoOfInternal);
@@ -102,8 +121,6 @@ int32_t main(int32_t argc, char *argv[]) {
   if (dnodeInitSystem() < 0) {
     syslog(LOG_ERR, "Error initialize TDengine system");
     closelog();
-
-    dnodeCleanUpSystem();
     exit(EXIT_FAILURE);
   }
 
@@ -135,6 +152,24 @@ static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   exit(EXIT_SUCCESS);
 }
 
+static void dnodeCleanupSteps(int32_t stepId) {
+  for (int32_t i = stepId; i >= 0; i--) {
+    DnodeSteps[i].cleanup();
+  }
+}
+
+static int32_t dnodeInitSteps() {
+  int32_t code = 0;
+  for (int32_t i = 0; i < sizeof(DnodeSteps) / sizeof(DnodeSteps[0]); i++) {
+    if (DnodeSteps[i].init() != 0) {
+      dnodeCleanupSteps(i);
+      code = -1;
+      break;
+    }
+  }
+  return code;
+}
+
 static int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
@@ -164,14 +199,9 @@ static int32_t dnodeInitSystem() {
 
   dPrint("start to initialize TDengine on %s", tsLocalEp);
 
-  if (dnodeInitStorage() != 0) return -1;
-  if (dnodeInitRead() != 0) return -1;
-  if (dnodeInitWrite() != 0) return -1;
-  if (dnodeInitMClient() != 0) return -1;
-  if (dnodeInitModules() != 0) return -1;
-  if (dnodeInitMnode() != 0) return -1;
-  if (dnodeInitMgmt() != 0) return -1;
-  if (dnodeInitShell() != 0) return -1;
+  if (dnodeInitSteps() != 0) {
+    return -1;
+  }
 
   dnodeStartModules();
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_RUNING);
@@ -184,16 +214,8 @@ static int32_t dnodeInitSystem() {
 static void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
-    dnodeCleanupShell();
-    dnodeCleanupMnode();
-    dnodeCleanupMgmt();
-    dnodeCleanupMClient();
-    dnodeCleanupWrite();
-    dnodeCleanupRead();
-    dnodeCleanUpModules();
+    dnodeCleanupSteps(sizeof(DnodeSteps) / sizeof(DnodeSteps[0]) - 1);
     taos_cleanup();
-    dnodeCleanupStorage();
-    taosCloseLog();
   }
 }
 
