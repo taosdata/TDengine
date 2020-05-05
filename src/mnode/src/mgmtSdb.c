@@ -143,7 +143,9 @@ static void *sdbGetTableFromId(int32_t tableId) {
 
 static int32_t sdbInitWal() {
   SWalCfg walCfg = {.commitLog = 2, .wals = 2, .keep = 1};
-  tsSdbObj.wal = walOpen(tsMnodeDir, &walCfg);
+  char temp[TSDB_FILENAME_LEN];
+  sprintf(temp, "%s/wal", tsMnodeDir);
+  tsSdbObj.wal = walOpen(temp, &walCfg);
   if (tsSdbObj.wal == NULL) {
     sdbError("failed to open sdb wal in %s", tsMnodeDir);
     return -1;
@@ -195,10 +197,12 @@ static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, int32
   return 0;
 }
 
+#if 0
 static int sdbGetWalInfo(void *ahandle, char *name, uint32_t *index) {
   strcpy(name, "wal0");
   return 0;
 }
+#endif
 
 static void sdbNotifyRole(void *ahandle, int8_t role) {
   sdbPrint("mnode role changed from %s to %s", mgmtGetMnodeRoleStr(tsSdbObj.role), mgmtGetMnodeRoleStr(role));
@@ -281,9 +285,9 @@ void sdbUpdateSync() {
   syncInfo.vgId = 1;
   syncInfo.version = sdbGetVersion();
   syncInfo.syncCfg = syncCfg;
-  sprintf(syncInfo.path, "%s/", tsMnodeDir);
-  syncInfo.ahandle = NULL;
-  syncInfo.getWalInfo = sdbGetWalInfo;
+  sprintf(syncInfo.path, "%s", tsMnodeDir);
+  syncInfo.ahandle = tsSdbObj.wal;
+  syncInfo.getWalInfo = walGetWalFile;
   syncInfo.getFileInfo = sdbGetFileInfo;
   syncInfo.writeToCache = sdbWrite;
   syncInfo.confirmForward = sdbConfirmForward; 
