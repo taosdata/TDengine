@@ -2965,14 +2965,28 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputBytes == pCtx->outputBytes);
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
-    tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType);
+    char* output = pCtx->aOutputBuf;
+  
+    if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+      *(int16_t*) output = pCtx->tag.nLen;
+      output += VARSTR_HEADER_SIZE;
+    }
+    
+    tVariantDump(&pCtx->tag, output, pCtx->outputType);
     pCtx->aOutputBuf += pCtx->outputBytes;
   }
 }
 
 static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   INC_INIT_VAL(pCtx, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType);
+  
+  char* output = pCtx->aOutputBuf;
+  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    *(int16_t*) output = pCtx->tag.nLen;
+    output += VARSTR_HEADER_SIZE;
+  }
+  
+  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
   pCtx->aOutputBuf += pCtx->outputBytes;
 }
 
@@ -3007,7 +3021,8 @@ static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     *(int16_t*) output = pCtx->tag.nLen;
     output += VARSTR_HEADER_SIZE;
   }
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType);
+  
+  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
 }
 
 static void copy_function(SQLFunctionCtx *pCtx) {

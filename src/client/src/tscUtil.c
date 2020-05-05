@@ -2134,7 +2134,7 @@ char* tscGetResultColumnChr(SSqlRes* pRes, SQueryInfo* pQueryInfo, int32_t colum
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
     int32_t realLen = varDataLen(pData);
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-      *(char*) (pData + realLen + sizeof(int16_t)) = 0;
+      *(char*) (pData + realLen + VARSTR_HEADER_SIZE) = 0;
     }
     
     return pData + VARSTR_HEADER_SIZE; // head is the length of binary/nchar data

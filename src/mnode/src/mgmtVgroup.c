@@ -23,6 +23,7 @@
 #include "ttime.h"
 #include "tbalance.h"
 #include "tglobal.h"
+#include "tdataformat.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtDb.h"
@@ -374,9 +375,9 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 9;
+  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "vgroup status");
+  strcpy(pSchema[cols].name, "vgroup_status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -409,13 +410,13 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
-    pShow->bytes[cols] = 40;
+    pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "end point");
+    strcpy(pSchema[cols].name, "end_point");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
-    pShow->bytes[cols] = 9;
+    pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
     strcpy(pSchema[cols].name, "vstatus");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -475,7 +476,8 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pVgroup->status ? "updating" : "ready");
+    char* status = pVgroup->status? "updating" : "ready";
+    STR_TO_VARSTR(pWrite, status);
     cols++;
 
     for (int32_t i = 0; i < maxReplica; ++i) {
@@ -487,18 +489,20 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
 
       if (pDnode != NULL) {
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        strncpy(pWrite, pDnode->dnodeEp, pShow->bytes[cols]-1);
+        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols] - VARSTR_HEADER_SIZE);
         cols++;
 
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        strcpy(pWrite, mgmtGetMnodeRoleStr(pVgroup->vnodeGid[i].role));
+        status = mgmtGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
+        STR_TO_VARSTR(pWrite, status);
         cols++;
       } else {
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        strcpy(pWrite, "null");
+        STR_WITH_SIZE_TO_VARSTR(pWrite, "NULL", 4);
         cols++;
+        
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        strcpy(pWrite, "null");
+        STR_WITH_SIZE_TO_VARSTR(pWrite, "NULL", 4);
         cols++;
       }
     }
