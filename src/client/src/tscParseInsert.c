@@ -310,7 +310,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         
         *payload = TSDB_DATA_BINARY_NULL;
       } else { // too long values will return invalid sql, not be truncated automatically
-        if (pToken->n > pSchema->bytes) {
+        if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
           return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
         }
         
@@ -328,7 +328,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         int32_t resLen = -1;
-        if (!taosMbsToUcs4(pToken->z, pToken->n, payload + VARSTR_HEADER_SIZE, pSchema->bytes, &resLen)) {
+        if (!taosMbsToUcs4(pToken->z, pToken->n, payload + VARSTR_HEADER_SIZE, pSchema->bytes - VARSTR_HEADER_SIZE, &resLen)) {
           char buf[512] = {0};
           snprintf(buf, 512, "%s", strerror(errno));
           
