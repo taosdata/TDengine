@@ -672,7 +672,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     char *prec = (pDb->cfg.precision == TSDB_TIME_PRECISION_MILLI) ? TSDB_TIME_PRECISION_MILLI_STR
                                                                    : TSDB_TIME_PRECISION_MICRO_STR;
-    strcpy(pWrite, prec);
+    STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

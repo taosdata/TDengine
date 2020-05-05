@@ -210,7 +210,7 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableI
     return false;
   }
   
-  // order by column exists, not a non-ordered projection query
+  // order by columnIndex exists, not a non-ordered projection query
   return pQueryInfo->order.orderColId < 0;
 }
 
@@ -219,7 +219,7 @@ bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableInde
     return false;
   }
   
-  // order by column exists, a non-ordered projection query
+  // order by columnIndex exists, a non-ordered projection query
   return pQueryInfo->order.orderColId >= 0;
 }
 
@@ -286,13 +286,15 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     int32_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
     pRes->numOfCols = numOfOutput;
   
-    pRes->tsrow = calloc(POINTER_BYTES, numOfOutput);
-    pRes->buffer = calloc(POINTER_BYTES, numOfOutput);
+    pRes->tsrow  = calloc(numOfOutput, POINTER_BYTES);
+    pRes->length = calloc(numOfOutput, sizeof(int32_t));  // todo refactor
+    pRes->buffer = calloc(numOfOutput, POINTER_BYTES);
   
     // not enough memory
     if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
       tfree(pRes->tsrow);
       tfree(pRes->buffer);
+      tfree(pRes->length);
     
       pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       return pRes->code;
@@ -312,6 +314,7 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
   
   tfree(pRes->pRsp);
   tfree(pRes->tsrow);
+  tfree(pRes->length);
   
   tfree(pRes->pGroupRec);
   tfree(pRes->pColumnIndex);
@@ -592,7 +595,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
 }
 
 static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
-  // TODO: optimize this function
+  // TODO: optimize this function, handle the case while binary is not presented
   int len = 0;
 
   STableMeta*   pTableMeta = pTableDataBlock->pTableMeta;
@@ -924,7 +927,7 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
   pExpr->functionId = functionId;
   
-  // set the correct column index
+  // set the correct columnIndex index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
   } else {
@@ -1063,7 +1066,7 @@ void tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy)
 }
 
 SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
-  // ignore the tbname column to be inserted into source list
+  // ignore the tbname columnIndex to be inserted into source list
   if (pColIndex->columnIndex < 0) {
     return NULL;
   }
@@ -2124,22 +2127,30 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   }
 }
 
-char* tscGetResultColumnChr(SSqlRes* pRes, SQueryInfo* pQueryInfo, int32_t column, int16_t bytes) {
-  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-  SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, column);
-  
+void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
+  SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, columnIndex);
+  assert(pInfo->pSqlExpr != NULL);
+
   int32_t type = pInfo->pSqlExpr->resType;
+  int32_t bytes = pInfo->pSqlExpr->resBytes;
+  
   char* pData = ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
   
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
     int32_t realLen = varDataLen(pData);
+    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
+    
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
       *(char*) (pData + realLen + VARSTR_HEADER_SIZE) = 0;
     }
     
-    return pData + VARSTR_HEADER_SIZE; // head is the length of binary/nchar data
+    pRes->tsrow[columnIndex] = pData + VARSTR_HEADER_SIZE;
+    pRes->length[columnIndex] = realLen;
   } else {
-    return pData;
+    assert(bytes == tDataTypeDesc[type].nSize);
+    
+    pRes->tsrow[columnIndex] = pData;
+    pRes->length[columnIndex] = bytes;
   }
 }
 

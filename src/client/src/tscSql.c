@@ -425,7 +425,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
   assert(0);
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i, 0);
+    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
   }
 
   *rows = pRes->tsrow;
@@ -725,6 +725,15 @@ char *taos_get_server_info(TAOS *taos) {
   return pObj->sversion;
 }
 
+int* taos_fetch_lengths(TAOS_RES *res) {
+  SSqlObj* pSql = (SSqlObj* ) res;
+  if (pSql == NULL || pSql->signature != pSql) {
+    return NULL;
+  }
+  
+  return pSql->res.length;
+}
+
 char *taos_get_client_info() { return version; }
 
 void taos_stop_query(TAOS_RES *res) {
@@ -796,7 +805,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR: {
         size_t xlen = 0;
-        for (xlen = 0; xlen <= fields[i].bytes; xlen++) {
+        for (xlen = 0; xlen < fields[i].bytes - VARSTR_HEADER_SIZE; xlen++) {
           char c = ((char *)row[i])[xlen];
           if (c == 0) break;
           str[len++] = c;

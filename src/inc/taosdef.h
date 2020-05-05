@@ -36,14 +36,17 @@ extern "C" {
 typedef int32_t VarDataOffsetT;
 typedef int16_t VarDataLenT;
 
+#define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
+
 #define varDataLen(v)       ((VarDataLenT *)(v))[0]
 #define varDataTLen(v)      (sizeof(VarDataLenT) + varDataLen(v))
 #define varDataVal(v)       ((void *)((char *)v + sizeof(VarDataLenT)))
 #define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
+#define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
 
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
-#define VARSTR_HEADER_SIZE         sizeof(VarDataLenT)
+
 
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[11];
