@@ -267,7 +267,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
 
     bytes += wsize;
  
-    if (pHead->version >= fversion) {
+    if (pHead->version == fversion) {
       code = 0; 
       bytes = 0; 
       break;
@@ -318,12 +318,20 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
       }
 
       // if all data up to fversion is read out, it is over
-      if (pPeer->version >= fversion) {code = 0; break;}  
+      if (pPeer->version == fversion) {
+        code = 0; 
+        sTrace("vgId:%d peer:%s, data up to fversion:%ld has been read out, bytes:%d", pNode->vgId, pPeer->fqdn, fversion, bytes);
+        break;
+      }  
 
       // if all data are read out, and no update
       if ((bytes == 0) && ((event & IN_MODIFY) == 0)) {
         // wal file is closed, break
-        if (event & IN_CLOSE_WRITE) { code = 0; break;}
+        if (event & IN_CLOSE_WRITE) { 
+          code = 0; 
+          sTrace("vgId:%d peer:%s, current wal is closed", pNode->vgId, pPeer->fqdn);
+          break;
+        }
  
         // wal not closed, it means some data not flushed to disk, wait for a while
         usleep(10000);
