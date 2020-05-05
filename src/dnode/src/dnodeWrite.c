@@ -132,8 +132,6 @@ void *dnodeAllocateWqueue(void *pVnode) {
       taosCloseQueue(queue);
       return NULL;
     }
-    wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
-
     pthread_attr_t thAttr;
     pthread_attr_init(&thAttr);
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
@@ -146,6 +144,7 @@ void *dnodeAllocateWqueue(void *pVnode) {
       queue = NULL;
     } else {
       dTrace("write worker:%d is launched", pWorker->workerId);
+      wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
     }
 
     pthread_attr_destroy(&thAttr);
