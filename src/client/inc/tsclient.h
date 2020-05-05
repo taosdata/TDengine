@@ -280,6 +280,7 @@ typedef struct {
   SResRec *             pGroupRec;
   char *                data;
   void **               tsrow;
+  int32_t*              length;  // length for each field for current row
   char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex *        pColumnIndex;
   struct SLocalReducer *pLocalReducer;
@@ -421,7 +422,7 @@ int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *s
 
 void    tscQueueAsyncFreeResult(SSqlObj *pSql);
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
-char *  tscGetResultColumnChr(SSqlRes *pRes, SQueryInfo *pQueryInfo, int32_t column, int16_t bytes);
+void    tscGetResultColumnChr(SSqlRes *pRes, SFieldInfo* pFieldInfo, int32_t column);
 
 extern void *    pVnodeConn;
 extern void *    tscCacheHandle;
