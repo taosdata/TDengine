@@ -424,8 +424,8 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
         dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i), target->numOfPoints,
                          target->maxPoints);
       }
+      target->numOfPoints++;
     }
-    target->numOfPoints++;
   } else {
     pTarget = tdDupDataCols(target, true);
     if (pTarget == NULL) goto _err;
