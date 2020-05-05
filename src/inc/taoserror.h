@@ -173,6 +173,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VALUE,              0, 462, "invalid value")
 // others
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_FILE_FORMAT,        0, 500, "invalid file format")
 
+// TSDB
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CONFIG,             0, 550, "invalid TSDB configuration")
+
 
 #ifdef TAOS_ERROR_C
 };

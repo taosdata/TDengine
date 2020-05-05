@@ -36,8 +36,9 @@ static int     tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **i
                                 SDataCols *pDataCols);
 static TSKEY   tsdbNextIterKey(SSkipListIterator *pIter);
 static int     tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey);
-// static int tsdbWriteBlockToFileImpl(SFile *pFile, SDataCols *pCols, int pointsToWrite, int64_t *offset, int32_t *len,
-//                                     int64_t uid);
+static void    tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
+static void    tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
+static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -298,10 +299,23 @@ int32_t tsdbCloseRepo(TsdbRepoT *repo) {
  */
 int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbCfg * pRCfg = &pRepo->config;
 
-  pRepo->config = *pCfg;
-  // TODO
-  return 0;
+  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return TSDB_CODE_INVALID_CONFIG;
+
+  ASSERT(pRCfg->tsdbId == pCfg->tsdbId);
+  ASSERT(pRCfg->cacheBlockSize == pCfg->cacheBlockSize);
+  ASSERT(pRCfg->daysPerFile == pCfg->daysPerFile);
+  ASSERT(pRCfg->minRowsPerFileBlock == pCfg->minRowsPerFileBlock);
+  ASSERT(pRCfg->maxRowsPerFileBlock == pCfg->maxRowsPerFileBlock);
+  ASSERT(pRCfg->precision == pCfg->precision);
+
+  if (pRCfg->compression != pCfg->compression) tsdbAlterCompression(pRepo, pCfg->compression);
+  if (pRCfg->keep != pCfg->keep) tsdbAlterKeep(pRepo, pCfg->keep);
+  if (pRCfg->totalBlocks != pCfg->totalBlocks) tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
+  if (pRCfg->maxTables != pCfg->maxTables) tsdbAlterMaxTables(pRepo, pCfg->maxTables);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
@@ -927,6 +941,7 @@ _exit:
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
+  tsdbAdjustCacheBlocks(pCache);
   tdListFree(pCache->imem->list);
   free(pCache->imem);
   pCache->imem = NULL;
@@ -1045,4 +1060,27 @@ static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minK
     if (nextKey > 0 && (nextKey >= minKey && nextKey <= maxKey)) return 1;
   }
   return 0;
+}
+
+static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
+  pRepo->config.compression = compression;
+}
+
+static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
+  STsdbCfg *pCfg = &pRepo->config;
+
+  int maxFiles = keep / pCfg->maxTables + 3;
+  if (pRepo->config.keep > keep) {
+    pRepo->tsdbFileH->maxFGroups = maxFiles;
+  } else {
+    pRepo->tsdbFileH->fGroup = realloc(pRepo->tsdbFileH->fGroup, sizeof(SFileGroup));
+    if (pRepo->tsdbFileH->fGroup == NULL) {
+      // TODO: deal with the error
+    }
+    pRepo->tsdbFileH->maxFGroups = maxFiles;
+  }
+}
+
+static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
+  // TODO
 }

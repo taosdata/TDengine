@@ -160,6 +160,7 @@ typedef struct {
 
 typedef struct {
   int64_t index;
+  int     numOfCacheBlocks;
   SList * memPool;
 } STsdbCachePool;
 
@@ -488,6 +489,8 @@ int tsdbWriteCompIdx(SRWHelper *pHelper);
 
 // --------- Other functions need to further organize
 void tsdbFitRetention(STsdbRepo *pRepo);
+int  tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
+void tsdbAdjustCacheBlocks(STsdbCache *pCache);
 
 #ifdef __cplusplus
 }

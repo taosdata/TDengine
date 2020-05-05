@@ -20,6 +20,7 @@
 static int  tsdbAllocBlockFromPool(STsdbCache *pCache);
 static void tsdbFreeBlockList(SList *list);
 static void tsdbFreeCacheMem(SCacheMem *mem);
+static int  tsdbAddCacheBlockToPool(STsdbCache *pCache);
 
 STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo) {
   STsdbCache *pCache = (STsdbCache *)calloc(1, sizeof(STsdbCache));
@@ -40,13 +41,7 @@ STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo)
   if (pPool->memPool == NULL) goto _err;
 
   for (int i = 0; i < totalBlocks; i++) {
-    STsdbCacheBlock *pBlock = (STsdbCacheBlock *)malloc(sizeof(STsdbCacheBlock) + cacheBlockSize);
-    if (pBlock == NULL) {
-      goto _err;
-    }
-    pBlock->offset = 0;
-    pBlock->remain = cacheBlockSize;
-    tdListAppend(pPool->memPool, (void *)(&pBlock));
+    if (tsdbAddCacheBlockToPool(pCache) < 0) goto _err;
   }
 
   pCache->mem = NULL;
@@ -142,4 +137,70 @@ static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
   tsdbUnLockRepo(pCache->pRepo);
 
   return 0;
+}
+
+int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
+  STsdbCache *pCache = pRepo->tsdbCache;
+  int         oldNumOfBlocks = pCache->totalCacheBlocks;
+
+  tsdbLockRepo((TsdbRepoT *)pRepo);
+
+  ASSERT(pCache->totalCacheBlocks != totalBlocks);
+
+  if (pCache->totalCacheBlocks < totalBlocks) {
+    ASSERT(pCache->totalCacheBlocks == pCache->pool.numOfCacheBlocks);
+    int blocksToAdd = pCache->totalCacheBlocks - totalBlocks;
+    pCache->totalCacheBlocks = totalBlocks;
+    for (int i = 0; i < blocksToAdd; i++) {
+      if (tsdbAddCacheBlockToPool(pCache) < 0) {
+        tsdbUnLockRepo((TsdbRepoT *)pRepo);
+        tsdbError("tsdbId %d: failed to add cache block to cache pool", pRepo->config.tsdbId);
+        return -1;
+      }
+    }
+  } else {
+    pCache->totalCacheBlocks = totalBlocks;
+    tsdbAdjustCacheBlocks(pCache);
+  }
+
+  tsdbUnLockRepo((TsdbRepoT *)pRepo);
+  tsdbTrace("tsdbId %d: tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks, totalBlocks);
+  return 0;
+}
+
+static int tsdbAddCacheBlockToPool(STsdbCache *pCache) {
+  STsdbCachePool *pPool = &pCache->pool;
+
+  STsdbCacheBlock *pBlock = malloc(sizeof(STsdbCacheBlock) + pCache->cacheBlockSize);
+  if (pBlock == NULL) return -1;
+
+  pBlock->offset = 0;
+  pBlock->remain = pCache->cacheBlockSize;
+  tdListAppend(pPool->memPool, (void *)(&pBlock));
+  pPool->numOfCacheBlocks++;
+
+  return 0;
+}
+
+static int tsdbRemoveCacheBlockFromPool(STsdbCache *pCache) {
+  STsdbCachePool *pPool = &pCache->pool;
+  STsdbCacheBlock *pBlock = NULL;
+
+  ASSERT(pCache->totalCacheBlocks >= 0);
+
+  SListNode *node = tdListPopHead(pPool->memPool);
+  if (node == NULL) return -1;
+
+  tdListNodeGetData(pPool->memPool, node, &pBlock);
+  free(pBlock);
+  listNodeFree(node);
+  pPool->numOfCacheBlocks--;
+
+  return 0;
+}
+
+void tsdbAdjustCacheBlocks(STsdbCache *pCache) {
+  while (pCache->totalCacheBlocks < pCache->pool.numOfCacheBlocks) {
+    if (tsdbRemoveCacheBlockFromPool(pCache) < 0) break;
+  }
 }

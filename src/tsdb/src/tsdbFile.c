@@ -47,7 +47,7 @@ STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg) {
     return NULL;
   }
 
-  pFileH->maxFGroups = pCfg->keep / pCfg->daysPerFile + 2;
+  pFileH->maxFGroups = pCfg->keep / pCfg->daysPerFile + 3;
 
   pFileH->fGroup = (SFileGroup *)calloc(pFileH->maxFGroups, sizeof(SFileGroup));
   if (pFileH->fGroup == NULL) {
