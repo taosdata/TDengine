@@ -735,6 +735,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
+              memset(value, 0, MAX_QUERY_VALUE_LEN);
               memcpy(value, row[i], length[i]);
               value[length[i]] = 0;
               // snprintf(value, fields[i].bytes, "%s", (char *)row[i]);

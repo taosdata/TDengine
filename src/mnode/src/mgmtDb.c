@@ -480,7 +480,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   }
 #endif
 
-  pShow->bytes[cols] = 24;
+  pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "keep1,keep2,keep(D)");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
