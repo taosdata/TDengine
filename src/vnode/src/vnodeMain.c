@@ -184,6 +184,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status   = TAOS_VN_STATUS_INIT;
   pVnode->refCount = 1;
   pVnode->version  = 0;  
+  pVnode->tsdbCfg.tsdbId = pVnode->vgId;
   taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
   
   int32_t code = vnodeReadCfg(pVnode);
