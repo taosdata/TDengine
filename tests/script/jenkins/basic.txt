@@ -1,0 +1,63 @@
+cd ../../debug; cmake ..
+#cd ../../debug; make clean
+cd ../../debug; make
+
+cd ../../../debug; cmake ..
+#cd ../../../debug; make clean
+cd ../../../debug; make
+
+./test.sh -u -f unique/account/account_create.sim
+./test.sh -u -f unique/account/account_delete.sim
+./test.sh -u -f unique/account/account_len.sim
+./test.sh -u -f unique/account/authority.sim
+./test.sh -u -f unique/account/basic.sim
+./test.sh -u -f unique/account/paras.sim
+./test.sh -u -f unique/account/pass_alter.sim
+./test.sh -u -f unique/account/pass_len.sim
+./test.sh -u -f unique/account/usage.sim
+./test.sh -u -f unique/account/user_create.sim
+./test.sh -u -f unique/account/user_len.sim
+
+#big
+
+./test.sh -u -f unique/cluster/balance1.sim
+./test.sh -u -f unique/cluster/balance2.sim
+./test.sh -u -f unique/cluster/balance3.sim
+
+./test.sh -u -f unique/column/replica3.sim
+
+./test.sh -u -f unique/db/replica_add12.sim
+./test.sh -u -f unique/db/replica_add13.sim
+./test.sh -u -f unique/db/replica_add23.sim
+./test.sh -u -f unique/db/replica_reduce21.sim
+./test.sh -u -f unique/db/replica_reduce32.sim
+./test.sh -u -f unique/db/replica_reduce31.sim
+./test.sh -u -f unique/db/replica_part.sim
+
+./test.sh -u -f unique/dnode/balance1.sim
+./test.sh -u -f unique/dnode/balance2.sim
+./test.sh -u -f unique/dnode/balance3.sim
+./test.sh -u -f unique/dnode/balancex.sim
+./test.sh -u -f unique/dnode/offline1.sim
+./test.sh -u -f unique/dnode/offline2.sim
+
+./test.sh -u -f unique/http/admin.sim
+
+#import
+
+#metrics
+
+./test.sh -u -f unique/mnode/mgmt22.sim
+./test.sh -u -f unique/mnode/mgmt23.sim
+./test.sh -u -f unique/mnode/mgmt24.sim
+./test.sh -u -f unique/mnode/mgmt25.sim
+./test.sh -u -f unique/mnode/mgmt26.sim
+./test.sh -u -f unique/mnode/mgmt33.sim
+./test.sh -u -f unique/mnode/mgmt34.sim
+
+#stream
+
+#table
+
+./test.sh -u -f unique/vnode/replica2_basic2.sim
+./test.sh -u -f unique/vnode/replica3_basic.sim
