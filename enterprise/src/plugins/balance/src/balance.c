@@ -667,8 +667,8 @@ static float balanceCalcModuleScore(SDnodeObj *pDnode) {
 }
 
 static float balanceCalcVnodeScore(SDnodeObj *pDnode, int32_t extra) {
+  if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) return 1000;
   if (pDnode->totalVnodes <= 1) return 0;
-  if (pDnode->status == TAOS_DN_STATUS_DROPPING) return 1000;
   return (float)(pDnode->openVnodes + extra) / pDnode->totalVnodes * 100;
 }
 
