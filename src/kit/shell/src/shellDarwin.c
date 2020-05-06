@@ -81,7 +81,7 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
       // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
-        tsMnodeShellPort = atoi(argv[++i]);
+        arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
         exit(EXIT_FAILURE);
