@@ -439,9 +439,15 @@ typedef struct SSqlFuncExprMsg {
 } SSqlFuncExprMsg;
 
 typedef struct SSqlBinaryExprInfo {
-  struct tSQLBinaryExpr *pBinExpr;    /*  for binary expression */
+  union {
+    struct tSQLBinaryExpr *pBinExpr;    /*  for binary expression */
+    int64_t resvSpace0;
+  };  
   int32_t                numOfCols;   /*  binary expression involves the readed number of columns*/
-  SColIndexEx *          pReqColumns; /*  source column list */
+  union {
+    SColIndexEx *          pReqColumns; /*  source column list */
+    int64_t resvSpace1;
+  };
 } SSqlBinaryExprInfo;
 
 typedef struct SSqlFunctionExpr {
@@ -481,8 +487,12 @@ typedef struct SColumnInfo {
   int16_t            colId;
   int16_t            type;
   int16_t            bytes;
-  int16_t            numOfFilters;
-  SColumnFilterInfo *filters;
+  int16_t            numOfFilters;  
+  union {
+    SColumnFilterInfo *filters;
+    int64_t resvSpace;
+  };
+  
 } SColumnInfo;
 
 /*
