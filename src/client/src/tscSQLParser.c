@@ -1198,48 +1198,26 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
         columnList.num = 0;
         columnList.ids[0] = (SColumnIndex) {0, 0};
         
-        insertResultField(pQueryInfo, i, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, "abc", NULL);
+        insertResultField(pQueryInfo, i, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, "dummy_column", NULL);
         
         int32_t slot = tscNumOfFields(pQueryInfo) - 1;
         SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, slot);
         
         if (pInfo->pSqlExpr == NULL) {
-          SExprInfo* pFuncExpr = calloc(1, sizeof(SExprInfo));
-          pInfo->pArithExprInfo = pFuncExpr;
+          SExprInfo* pArithExprInfo = calloc(1, sizeof(SExprInfo));
           
           // arithmetic expression always return result in the format of double float
-          pFuncExpr->bytes = sizeof(double);
-          pFuncExpr->interResBytes = sizeof(double);
-          pFuncExpr->type = TSDB_DATA_TYPE_DOUBLE;
+          pArithExprInfo->bytes = sizeof(double);
+          pArithExprInfo->interBytes = sizeof(double);
+          pArithExprInfo->type = TSDB_DATA_TYPE_DOUBLE;
 
-          tExprNode* pNode = NULL;
-//          SArray* colList = taosArrayInit(10, sizeof(SColIndex));
-  
-          int32_t ret = exprTreeFromSqlExpr(&pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, NULL);
+          int32_t ret = exprTreeFromSqlExpr(&pArithExprInfo->pExpr, pItem->pNode, pQueryInfo->exprList, pQueryInfo, NULL);
           if (ret != TSDB_CODE_SUCCESS) {
-            tExprTreeDestroy(&pNode, NULL);
+            tExprTreeDestroy(&pArithExprInfo->pExpr, NULL);
             return invalidSqlErrMsg(pQueryInfo->msg, "invalid expression in select clause");
           }
   
-          pFuncExpr->pExpr = pNode;
-          assert(0);
-//          pExprInfo->pReqColumns = pColIndex;
-          
-//          for(int32_t k = 0; k < pFuncExpr->numOfCols; ++k) {
-//            SColIndex* pCol = &pFuncExpr->colList[k];
-//            size_t size = tscSqlExprNumOfExprs(pQueryInfo);
-//
-//            for(int32_t f = 0; f < size; ++f) {
-//              SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, f);
-//              if (strcmp(pExpr->aliasName, pCol->name) == 0) {
-//                pCol->colIndex = f;
-//                break;
-//              }
-//            }
-//
-//            assert(pCol->colIndex >= 0 && pCol->colIndex < size);
-//            tfree(pNode);
-//          }
+          pInfo->pArithExprInfo = pArithExprInfo;
         }
       }
     } else {
@@ -2278,7 +2256,7 @@ int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 
       tscSqlExprUpdate(pQueryInfo, k, functionId, pExpr->colInfo.colIndex, TSDB_DATA_TYPE_BINARY, bytes);
       // todo refactor
-      pExpr->interResBytes = intermediateBytes;
+      pExpr->interBytes = intermediateBytes;
     }
   }
 
@@ -4937,7 +4915,7 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
     if (pExpr->functionId != TSDB_FUNC_TAG_DUMMY && pExpr->functionId != TSDB_FUNC_TS_DUMMY) {
       SSchema* pColSchema = &pSchema[pExpr->colInfo.colIndex];
       getResultDataInfo(pColSchema->type, pColSchema->bytes, pExpr->functionId, pExpr->param[0].i64Key, &pExpr->resType,
-                        &pExpr->resBytes, &pExpr->interResBytes, tagLength, true);
+                        &pExpr->resBytes, &pExpr->interBytes, tagLength, true);
     }
   }
 }

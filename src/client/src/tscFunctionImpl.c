@@ -153,7 +153,7 @@ typedef struct SRateInfo {
 
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *bytes, int16_t *interResBytes, int16_t extLength, bool isSuperTable) {
+                          int16_t *bytes, int16_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType, dataBytes)) {
     tscError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_INVALID_SQL;
@@ -164,35 +164,35 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interResBytes = *bytes + sizeof(SResultInfo);
+    *interBytes = *bytes + sizeof(SResultInfo);
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_TID_TAG) { // todo use struct
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = dataBytes + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t); // (uid, tid) + VGID + TAGSIZE
-    *interResBytes = *bytes;
+    *interBytes = *bytes;
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_COUNT) {
     *type = TSDB_DATA_TYPE_BIGINT;
     *bytes = sizeof(int64_t);
-    *interResBytes = *bytes;
+    *interBytes = *bytes;
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_ARITHM) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interResBytes = *bytes;
+    *interBytes = *bytes;
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_TS_COMP) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = sizeof(int32_t);  // this results is compressed ts data
-    *interResBytes = POINTER_BYTES;
+    *interBytes = POINTER_BYTES;
     return TSDB_CODE_SUCCESS;
   }
   
@@ -200,54 +200,54 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = dataBytes + DATA_SET_FLAG_SIZE;
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SUM) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SSumInfo);
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_AVG) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SAvgInfo);
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       return TSDB_CODE_SUCCESS;
       
     } else if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE) {
       *type = TSDB_DATA_TYPE_DOUBLE;
       *bytes = sizeof(SRateInfo);
-      *interResBytes = sizeof(SRateInfo);
+      *interBytes = sizeof(SRateInfo);
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param;
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SPREAD) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SSpreadInfo);
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_APERCT) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1) + sizeof(SHistogramInfo) + sizeof(SAPercentileInfo);
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_LAST_ROW) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SLastrowInfo) + dataBytes;
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_TWA) {
       *type = TSDB_DATA_TYPE_DOUBLE;
       *bytes = sizeof(STwaInfo);
-      *interResBytes = *bytes;
+      *interBytes = *bytes;
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -260,57 +260,57 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     }
     
     *bytes = sizeof(int64_t);
-    *interResBytes = sizeof(SSumInfo);
+    *interBytes = sizeof(SSumInfo);
     return TSDB_CODE_SUCCESS;
   } else if (functionId == TSDB_FUNC_APERCT) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interResBytes =
+    *interBytes =
         sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1);
     return TSDB_CODE_SUCCESS;
   } else if (functionId == TSDB_FUNC_TWA) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interResBytes = sizeof(STwaInfo);
+    *interBytes = sizeof(STwaInfo);
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_AVG) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interResBytes = sizeof(SAvgInfo);
+    *interBytes = sizeof(SAvgInfo);
   } else if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interResBytes = sizeof(SRateInfo);
+    *interBytes = sizeof(SRateInfo);
   } else if (functionId == TSDB_FUNC_STDDEV) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interResBytes = sizeof(SStddevInfo);
+    *interBytes = sizeof(SStddevInfo);
   } else if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interResBytes = dataBytes + DATA_SET_FLAG_SIZE;
+    *interBytes = dataBytes + DATA_SET_FLAG_SIZE;
   } else if (functionId == TSDB_FUNC_FIRST || functionId == TSDB_FUNC_LAST) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interResBytes = dataBytes + sizeof(SResultInfo);
+    *interBytes = dataBytes + sizeof(SResultInfo);
   } else if (functionId == TSDB_FUNC_SPREAD) {
     *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interResBytes = sizeof(SSpreadInfo);
+    *interBytes = sizeof(SSpreadInfo);
   } else if (functionId == TSDB_FUNC_PERCT) {
     *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
     *bytes = (int16_t)sizeof(double);
-    *interResBytes = (int16_t)sizeof(double);
+    *interBytes = (int16_t)sizeof(double);
   } else if (functionId == TSDB_FUNC_LEASTSQR) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE;  // string
-    *interResBytes = *bytes + sizeof(SResultInfo);
+    *interBytes = *bytes + sizeof(SResultInfo);
   } else if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = dataBytes + sizeof(SFirstLastInfo);
-    *interResBytes = *bytes;
+    *interBytes = *bytes;
   } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
@@ -318,11 +318,11 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     size_t size = sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param;
     
     // the output column may be larger than sizeof(STopBotInfo)
-    *interResBytes = size;
+    *interBytes = size;
   } else if (functionId == TSDB_FUNC_LAST_ROW) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interResBytes = dataBytes + sizeof(SLastrowInfo);
+    *interBytes = dataBytes + sizeof(SLastrowInfo);
   } else {
     return TSDB_CODE_INVALID_SQL;
   }

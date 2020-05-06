@@ -2363,8 +2363,10 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   pRes->data      = pRetrieve->data;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  tscSetResultPointer(pQueryInfo, pRes);
-
+  if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
+    return pRes->code;
+  }
+  
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
     

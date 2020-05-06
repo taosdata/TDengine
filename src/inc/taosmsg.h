@@ -385,7 +385,7 @@ typedef struct SExprInfo {
   struct tExprNode* pExpr;
   int16_t     bytes;
   int16_t     type;
-  int16_t     interResBytes;
+  int16_t     interBytes;
 } SExprInfo;
 
 typedef struct SColumnFilterInfo {
