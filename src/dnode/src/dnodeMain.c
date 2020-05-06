@@ -41,16 +41,16 @@ static void dnodeSetRunStatus(SDnodeRunStatus status);
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static void dnodeCheckDataDirOpenned(char *dir);
 static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
-static int32_t dnodeInitSteps();
-static void dnodeCleanupSteps(int32_t stepId);
+static int32_t dnodeInitComponents();
+static void dnodeCleanupComponents(int32_t stepId);
 
 typedef struct {
   const char *const name;
   int               (*init)();
   void              (*cleanup)();
-} DnodeStep;
+} SDnodeComponent;
 
-static const DnodeStep DnodeSteps[] = {
+static const SDnodeComponent SDnodeComponents[] = {
   {"storage",       dnodeInitStorage,       dnodeCleanupStorage},
   {"read",          dnodeInitRead,          dnodeCleanupRead},
   {"write",         dnodeInitWrite,         dnodeCleanupWrite},
@@ -152,17 +152,17 @@ static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   exit(EXIT_SUCCESS);
 }
 
-static void dnodeCleanupSteps(int32_t stepId) {
+static void dnodeCleanupComponents(int32_t stepId) {
   for (int32_t i = stepId; i >= 0; i--) {
-    DnodeSteps[i].cleanup();
+    SDnodeComponents[i].cleanup();
   }
 }
 
-static int32_t dnodeInitSteps() {
+static int32_t dnodeInitComponents() {
   int32_t code = 0;
-  for (int32_t i = 0; i < sizeof(DnodeSteps) / sizeof(DnodeSteps[0]); i++) {
-    if (DnodeSteps[i].init() != 0) {
-      dnodeCleanupSteps(i);
+  for (int32_t i = 0; i < sizeof(SDnodeComponents) / sizeof(SDnodeComponents[0]); i++) {
+    if (SDnodeComponents[i].init() != 0) {
+      dnodeCleanupComponents(i);
       code = -1;
       break;
     }
@@ -199,7 +199,7 @@ static int32_t dnodeInitSystem() {
 
   dPrint("start to initialize TDengine on %s", tsLocalEp);
 
-  if (dnodeInitSteps() != 0) {
+  if (dnodeInitComponents() != 0) {
     return -1;
   }
 
@@ -214,7 +214,7 @@ static int32_t dnodeInitSystem() {
 static void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
-    dnodeCleanupSteps(sizeof(DnodeSteps) / sizeof(DnodeSteps[0]) - 1);
+    dnodeCleanupComponents(sizeof(SDnodeComponents) / sizeof(SDnodeComponents[0]) - 1);
     taos_cleanup();
   }
 }
