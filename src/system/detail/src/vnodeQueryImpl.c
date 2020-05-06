@@ -35,6 +35,8 @@
 #include "vnodeQueryImpl.h"
 #include "vnodeStatus.h"
 
+#include <dirent.h>
+
 enum {
   TS_JOIN_TS_EQUAL = 0,
   TS_JOIN_TS_NOT_EQUALS = 1,

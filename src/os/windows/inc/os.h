@@ -142,8 +142,11 @@ extern "C" {
 #define atomic_exchange_16(ptr, val) _InterlockedExchange16((short volatile*)(ptr), (short)(val))
 #define atomic_exchange_32(ptr, val) _InterlockedExchange((long volatile*)(ptr), (long)(val))
 #define atomic_exchange_64(ptr, val) _InterlockedExchange64((__int64 volatile*)(ptr), (__int64)(val))
-#define atomic_exchange_ptr(ptr, val) _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
-
+#if (_MSC_VER == 1800)
+	#define atomic_exchange_ptr(ptr, val) InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
+#else
+	#define atomic_exchange_ptr(ptr, val) _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
+#endif
 #ifdef _TD_GO_DLL_
   #define atomic_val_compare_exchange_8 __sync_val_compare_and_swap
 #else
