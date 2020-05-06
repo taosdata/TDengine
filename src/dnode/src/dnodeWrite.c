@@ -71,7 +71,10 @@ void dnodeCleanupWrite() {
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
+      pthread_cancel(pWorker->thread);
       pthread_join(pWorker->thread, NULL);
+      taosFreeQall(pWorker->qall);
+      taosCloseQset(pWorker->qset);
     }
   }
 
