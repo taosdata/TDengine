@@ -23,13 +23,6 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifndef _ALPINE
-  #include <error.h>
-  #include <sys/sysctl.h>
-#else
-  #include <linux/sysctl.h>  
-#endif
-
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
@@ -82,6 +75,7 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
+#include <error.h>
 
 #define taosCloseSocket(x) \
   {                        \

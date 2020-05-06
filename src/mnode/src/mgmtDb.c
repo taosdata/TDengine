@@ -677,9 +677,11 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pDb->status == TSDB_DB_STATUS_READY) {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "ready", 5);
+      const char *src = "ready";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     } else {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "dropping", 8);
+      const char *src = "dropping";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     }
     cols++;
 
