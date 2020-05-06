@@ -111,11 +111,13 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   int32_t code = 0;
 
   dTrace("pVnode:%p vgId:%d, table:%s, start to create", pVnode, pVnode->vgId, pTable->tableId);
-  int16_t numOfColumns  = htons(pTable->numOfColumns);
-  int16_t numOfTags     = htons(pTable->numOfTags);
-  int32_t sid           = htonl(pTable->sid);
-  uint64_t uid           = htobe64(pTable->uid);
-  SSchema *pSchema = (SSchema *) pTable->data;
+  int16_t   numOfColumns = htons(pTable->numOfColumns);
+  int16_t   numOfTags = htons(pTable->numOfTags);
+  int32_t   sid = htonl(pTable->sid);
+  uint64_t  uid = htobe64(pTable->uid);
+  SSchema * pSchema = (SSchema *)pTable->data;
+  STSchema *pDestTagSchema = NULL;
+  SDataRow  dataRow = NULL;
 
   int32_t totalCols = numOfColumns + numOfTags;
   
@@ -130,7 +132,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   tsdbTableSetName(&tCfg, pTable->tableId, false);
 
   if (numOfTags != 0) {
-    STSchema *pDestTagSchema = tdNewSchema(numOfTags);
+    pDestTagSchema = tdNewSchema(numOfTags);
     for (int i = numOfColumns; i < totalCols; i++) {
       tdSchemaAddCol(pDestTagSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
     }
@@ -140,7 +142,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
-    SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+    dataRow = tdNewDataRowFromSchema(pDestTagSchema);
 
     for (int i = 0; i < numOfTags; i++) {
       STColumn *pTCol = schemaColAt(pDestTagSchema, i);
@@ -151,6 +153,8 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   }
 
   code = tsdbCreateTable(pVnode->tsdb, &tCfg);
+  tdFreeDataRow(dataRow);
+  tfree(pDestTagSchema);
   tfree(pDestSchema);
 
   dTrace("pVnode:%p vgId:%d, table:%s is created, result:%x", pVnode, pVnode->vgId, pTable->tableId, code);

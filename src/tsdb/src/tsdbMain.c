@@ -6,6 +6,7 @@
 #include "tsdbMain.h"
 #include "tscompression.h"
 #include "tchecksum.h"
+#include "ttime.h"
 
 int tsdbDebugFlag = 135;
 
@@ -27,7 +28,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 // static int     tsdbOpenMetaFile(char *tsdbDir);
-static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock);
+static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
 static void *  tsdbCommitData(void *arg);
@@ -35,8 +36,9 @@ static int     tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **i
                                 SDataCols *pDataCols);
 static TSKEY   tsdbNextIterKey(SSkipListIterator *pIter);
 static int     tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey);
-// static int tsdbWriteBlockToFileImpl(SFile *pFile, SDataCols *pCols, int pointsToWrite, int64_t *offset, int32_t *len,
-//                                     int64_t uid);
+static void    tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
+static void    tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
+static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -214,7 +216,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
   }
 
   tsdbGetDataDirName(pRepo, dataDir);
-  pRepo->tsdbFileH = tsdbInitFileH(dataDir, pRepo->config.maxTables);
+  pRepo->tsdbFileH = tsdbInitFileH(dataDir, &(pRepo->config));
   if (pRepo->tsdbFileH == NULL) {
     tsdbFreeCache(pRepo->tsdbCache);
     tsdbFreeMeta(pRepo->tsdbMeta);
@@ -297,10 +299,23 @@ int32_t tsdbCloseRepo(TsdbRepoT *repo) {
  */
 int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbCfg * pRCfg = &pRepo->config;
 
-  pRepo->config = *pCfg;
-  // TODO
-  return 0;
+  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return TSDB_CODE_INVALID_CONFIG;
+
+  ASSERT(pRCfg->tsdbId == pCfg->tsdbId);
+  ASSERT(pRCfg->cacheBlockSize == pCfg->cacheBlockSize);
+  ASSERT(pRCfg->daysPerFile == pCfg->daysPerFile);
+  ASSERT(pRCfg->minRowsPerFileBlock == pCfg->minRowsPerFileBlock);
+  ASSERT(pRCfg->maxRowsPerFileBlock == pCfg->maxRowsPerFileBlock);
+  ASSERT(pRCfg->precision == pCfg->precision);
+
+  if (pRCfg->compression != pCfg->compression) tsdbAlterCompression(pRepo, pCfg->compression);
+  if (pRCfg->keep != pCfg->keep) tsdbAlterKeep(pRepo, pCfg->keep);
+  if (pRCfg->totalBlocks != pCfg->totalBlocks) tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
+  if (pRCfg->maxTables != pCfg->maxTables) tsdbAlterMaxTables(pRepo, pCfg->maxTables);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
@@ -394,13 +409,16 @@ STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tableId) {
 // TODO: need to return the number of data inserted
 int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg) {
   SSubmitMsgIter msgIter;
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   tsdbInitSubmitMsgIter(pMsg, &msgIter);
   SSubmitBlk *pBlock = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
+  TSKEY now = taosGetTimestamp(pRepo->config.precision);
+
   while ((pBlock = tsdbGetSubmitMsgNext(&msgIter)) != NULL) {
-    if ((code = tsdbInsertDataToTable(repo, pBlock)) != TSDB_CODE_SUCCESS) {
+    if ((code = tsdbInsertDataToTable(repo, pBlock, now)) != TSDB_CODE_SUCCESS) {
       return code;
     }
   }
@@ -787,21 +805,31 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   return 0;
 }
 
-static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock) {
+static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
   if (pTable == NULL) {
-    uError("failed to get table for insert, uid:%" PRIu64 ", tid:%d", tableId.uid, tableId.tid);
+    tsdbError("failed to get table for insert, uid:%" PRIu64 ", tid:%d", tableId.uid, tableId.tid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
 
-  SSubmitBlkIter blkIter;
-  SDataRow row;
+  SSubmitBlkIter blkIter = {0};
+  SDataRow row = NULL;
+
+  TSKEY minKey = now - tsMsPerDay[pRepo->config.precision] * pRepo->config.keep;
+  TSKEY maxKey = now + tsMsPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
 
   tsdbInitSubmitBlkIter(pBlock, &blkIter);
   while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
+    if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
+      tsdbError(
+          "tsdbId: %d, table tid: %d, talbe uid: %ld timestamp is out of range. now: %ld maxKey: %ld, minKey: %ld",
+          pRepo->config.tsdbId, pTable->tableId.tid, pTable->tableId.uid, now, minKey, maxKey);
+      return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
+    }
+
     if (tdInsertRowToTable(pRepo, row, pTable) < 0) {
       return -1;
     }
@@ -903,6 +931,9 @@ static void *tsdbCommitData(void *arg) {
     }
   }
 
+  // Do retention actions
+  tsdbFitRetention(pRepo);
+
 _exit:
   tdFreeDataCols(pDataCols);
   tsdbDestroyTableIters(iters, pCfg->maxTables);
@@ -910,6 +941,7 @@ _exit:
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
+  tsdbAdjustCacheBlocks(pCache);
   tdListFree(pCache->imem->list);
   free(pCache->imem);
   pCache->imem = NULL;
@@ -1028,4 +1060,27 @@ static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minK
     if (nextKey > 0 && (nextKey >= minKey && nextKey <= maxKey)) return 1;
   }
   return 0;
+}
+
+static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
+  pRepo->config.compression = compression;
+}
+
+static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
+  STsdbCfg *pCfg = &pRepo->config;
+
+  int maxFiles = keep / pCfg->maxTables + 3;
+  if (pRepo->config.keep > keep) {
+    pRepo->tsdbFileH->maxFGroups = maxFiles;
+  } else {
+    pRepo->tsdbFileH->fGroup = realloc(pRepo->tsdbFileH->fGroup, sizeof(SFileGroup));
+    if (pRepo->tsdbFileH->fGroup == NULL) {
+      // TODO: deal with the error
+    }
+    pRepo->tsdbFileH->maxFGroups = maxFiles;
+  }
+}
+
+static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
+  // TODO
 }

@@ -160,6 +160,7 @@ typedef struct {
 
 typedef struct {
   int64_t index;
+  int     numOfCacheBlocks;
   SList * memPool;
 } STsdbCachePool;
 
@@ -227,13 +228,13 @@ typedef struct {
   int maxFGroups;
   int numOfFGroups;
 
-  SFileGroup fGroup[];
+  SFileGroup *fGroup;
 } STsdbFileH;
 
 #define TSDB_MIN_FILE_ID(fh) (fh)->fGroup[0].fileId
 #define TSDB_MAX_FILE_ID(fh) (fh)->fGroup[(fh)->numOfFGroups - 1].fileId
 
-STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
+STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
 int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader,
                            int toClose);
@@ -261,11 +262,12 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter);
 typedef struct {
   int32_t len;
   int32_t offset;
+  int32_t padding; // For padding purpose
   int32_t hasLast : 1;
   int32_t numOfBlocks : 31;
-  int32_t checksum;
+  int64_t uid;
   TSKEY   maxKey;
-} SCompIdx; /* sizeof(SCompIdx) = 24 */
+} SCompIdx; /* sizeof(SCompIdx) = 28 */
 
 /**
  * if numOfSubBlocks == 0, then the SCompBlock is a sub-block
@@ -484,6 +486,11 @@ int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols);
 int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper);
 int tsdbWriteCompInfo(SRWHelper *pHelper);
 int tsdbWriteCompIdx(SRWHelper *pHelper);
+
+// --------- Other functions need to further organize
+void tsdbFitRetention(STsdbRepo *pRepo);
+int  tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
+void tsdbAdjustCacheBlocks(STsdbCache *pCache);
 
 #ifdef __cplusplus
 }

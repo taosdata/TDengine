@@ -414,6 +414,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
     ASSERT((pIdx->len - sizeof(SCompInfo) - sizeof(TSCKSUM)) % sizeof(SCompBlock) == 0);
     taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompInfo, pIdx->len);
     pIdx->offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
+    pIdx->uid = pHelper->tableInfo.uid;
     if (pIdx->offset < 0) return -1;
     ASSERT(pIdx->offset >= tsizeof(pHelper->pCompIdx));
 
