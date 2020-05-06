@@ -128,13 +128,13 @@ print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
-if $dnode1Vnodes != 1 then
+if $dnode1Vnodes != 3 then
   goto show2
 endi
 if $dnode2Vnodes != null then
   goto show2
 endi
-if $dnode3Vnodes != 1 then
+if $dnode3Vnodes != 3 then
   goto show2
 endi
 
@@ -151,18 +151,9 @@ print dnode4 ==> $dnode4Role
 system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
 
 print ============================== step3
-print ========= start dnode2
-sql create dnode $hostname2
-
-sleep 3000
-system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c clog -v 1
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
-sleep 3000
-
-system sh/exec_up.sh -n dnode2 -s start
+print ========= start dnode4
+sql create dnode $hostname4
+system sh/exec_up.sh -n dnode4 -s start
 sleep 10000
 
 $x = 0
@@ -175,15 +166,15 @@ show3:
 sql show dnodes -x show3
 $dnode1Vnodes = $data2_1
 print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
 $dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode1Vnodes != 2 then
   goto show3
 endi
-if $dnode2Vnodes != 2 then
+if $dnode4Vnodes != 2 then
   goto show3
 endi
 if $dnode3Vnodes != 2 then
@@ -199,6 +190,20 @@ print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode2Role != null then
+  return -1
+endi
+if $dnode3Role != slave then
+  return -1
+endi
+
+if $dnode4Role != slave then
+  return -1
+endi
 
 print ============================== step4
 print ========= drop dnode3
@@ -215,15 +220,15 @@ show4:
 sql show dnodes -x show4
 $dnode1Vnodes = $data2_1
 print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
 $dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
-if $dnode1Vnodes != 1 then
+if $dnode1Vnodes != 3 then
   goto show4
 endi
-if $dnode2Vnodes != 1 then
+if $dnode4Vnodes != 3 then
   goto show4
 endi
 if $dnode3Vnodes != null then
@@ -240,21 +245,26 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
 
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode2Role != null then
+  return -1
+endi
+if $dnode3Role != null then
+  return -1
+endi
+
+if $dnode4Role != slave then
+  return -1
+endi
+
 system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
 
 print ============================== step5
 print ========= start dnode3
-sql create dnode $hostname3
-
-sleep 3000
-system sh/deploy.sh -n dnode3 -i 3
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c clog -v 1
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
-sleep 3000
-
-system sh/exec_up.sh -n dnode3 -s start
+sql create dnode $hostname5
+system sh/exec_up.sh -n dnode5 -s start
 sleep 9000
 
 $x = 0
@@ -267,33 +277,30 @@ show5:
 sql show dnodes -x show5
 $dnode1Vnodes = $data2_1
 print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data2_3
-print dnode3 $dnode3Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
+$dnode5Vnodes = $data2_5
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != 2 then
   goto show5
 endi
-if $dnode2Vnodes != 2 then
+if $dnode4Vnodes != 2 then
   goto show5
 endi
-if $dnode3Vnodes != 2 then
+if $dnode5Vnodes != 2 then
   goto show5
 endi
 
 sql show mnodes
 $dnode1Role = $data2_1
-$dnode2Role = $data2_2
-$dnode3Role = $data2_3
 $dnode4Role = $data2_4
+$dnode5Role = $data2_5
 print dnode1 ==> $dnode1Role
-print dnode2 ==> $dnode2Role
-print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
+print dnode5 ==> $dnode5Role
 
 print ============================== step6
-print ========= drop dnode1
 system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
 print stop dnode1 and sleep 10000
 sleep 10000
@@ -301,6 +308,21 @@ sleep 10000
 sql drop dnode $hostname1
 print drop dnode1 and sleep 9000
 sleep 9000
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode4Role = $data2_4
+$dnode5Role = $data2_5
+print dnode1 ==> $dnode1Role
+print dnode4 ==> $dnode4Role
+print dnode5 ==> $dnode5Role
+
+if $dnode1Role != offline then
+  return -1
+endi
+
+print ============================== step6.1
+system sh/exec_up.sh -n dnode1 -s start
 
 $x = 0
 show6: 
@@ -312,68 +334,56 @@ show6:
 sql show dnodes -x show6
 $dnode1Vnodes = $data2_1
 print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data2_3
-print dnode3 $dnode3Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
+$dnode5Vnodes = $data2_5
+print dnode5 $dnode5Vnodes
 
 if $dnode1Vnodes != null then
   goto show6
 endi
-if $dnode2Vnodes != 1 then
+if $dnode4Vnodes != 3 then
   goto show6
 endi
-if $dnode3Vnodes != 1 then
+if $dnode5Vnodes != 3 then
   goto show6
 endi
 
 sql show mnodes
 $dnode1Role = $data2_1
-$dnode2Role = $data2_2
-$dnode3Role = $data2_3
 $dnode4Role = $data2_4
+$dnode5Role = $data2_5
 print dnode1 ==> $dnode1Role
-print dnode2 ==> $dnode2Role
-print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
+print dnode5 ==> $dnode5Role
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
 
 print ============================== step7
-print ========= start dnode1
-sql create dnode $hostname1
+print ========= start dnode6
+sql create dnode $hostname6
+system sh/exec_up.sh -n dnode6 -s start
+sleep 9000
 
 sql show mnodes
 $dnode1Role = $data2_1
-$dnode2Role = $data2_2
-$dnode3Role = $data2_3
 $dnode4Role = $data2_4
+$dnode5Role = $data2_5
+$dnode6Role = $data2_6
 print dnode1 ==> $dnode1Role
-print dnode2 ==> $dnode2Role
-print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
-
-sleep 3000
-system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
-sleep 3000
-
-system sh/exec_up.sh -n dnode1 -s start
-sleep 9000
+print dnode5 ==> $dnode5Role
+print dnode6 ==> $dnode6Role
 
 $x = 0
-
 show7: 
 	sql show mnodes
-	$dnode1Role = $data2_1
-	$dnode2Role = $data2_2
-	$dnode3Role = $data2_3
 	$dnode4Role = $data2_4
-	print dnode1 ==> $dnode1Role
-	print dnode2 ==> $dnode2Role
-	print dnode3 ==> $dnode3Role
+	$dnode5Role = $data2_5
+	$dnode6Role = $data2_6
 	print dnode4 ==> $dnode4Role
+	print dnode5 ==> $dnode5Role
+	print dnode6 ==> $dnode6Role
 
 	$x = $x + 1
 	sleep 2000
@@ -381,20 +391,21 @@ show7:
 	  return -1
 	endi
 sql show dnodes -x show7
-$dnode1Vnodes = $data2_1
-print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data2_3
-print dnode3 $dnode3Vnodes
 
-if $dnode1Vnodes != 2 then
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
+$dnode5Vnodes = $data2_5
+print dnode5 $dnode5Vnodes
+$dnode6Vnodes = $data2_6
+print dnode6 $dnode6Vnodes
+
+if $dnode4Vnodes != 2 then
   goto show7
 endi
-if $dnode2Vnodes != 2 then
+if $dnode5Vnodes != 2 then
   goto show7
 endi
-if $dnode3Vnodes != 2 then
+if $dnode6Vnodes != 2 then
   goto show7
 endi
 
@@ -410,19 +421,19 @@ sql insert into c_b2_t4 values(1520000022043, 43)
 sql insert into c_b2_t4 values(1520000023042, 42)
 sql insert into c_b2_t4 values(1520000024041, 41)
 
-sql create dnode $hostname4
-system sh/exec_up.sh -n dnode4 -s start
+sql create dnode $hostname7
+system sh/exec_up.sh -n dnode7 -s start
 sleep 9000
 
 sql show mnodes
-$dnode1Role = $data2_1
-$dnode2Role = $data2_2
-$dnode3Role = $data2_3
 $dnode4Role = $data2_4
-print dnode1 ==> $dnode1Role
-print dnode2 ==> $dnode2Role
-print dnode3 ==> $dnode3Role
+$dnode5Role = $data2_5
+$dnode6Role = $data2_6
+$dnode7Role = $data2_7
 print dnode4 ==> $dnode4Role
+print dnode5 ==> $dnode5Role
+print dnode6 ==> $dnode6Role
+print dnode7 ==> $dnode7Role
 
 $x = 0
 show8: 
@@ -432,153 +443,29 @@ show8:
 	  return -1
 	endi
 sql show dnodes -x show8
-$dnode1Vnodes = $data2_1
-print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data2_3
-print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data2_4
 print dnode4 $dnode4Vnodes
+$dnode5Vnodes = $data2_5
+print dnode5 $dnode5Vnodes
+$dnode6Vnodes = $data2_6
+print dnode6 $dnode6Vnodes
+$dnode7Vnodes = $data2_7
+print dnode7 $dnode7Vnodes
 
-if $dnode1Vnodes != 2 then
-  goto show8
-endi
-if $dnode2Vnodes != 2 then
-  goto show8
-endi
-if $dnode3Vnodes != 2 then
-  goto show8
-endi
 if $dnode4Vnodes != 2 then
   goto show8
 endi
-
-print ============================== step9
-print ========= drop dnode1.4
-sql drop dnode $hostname1
-sql drop dnode $hostname4
-sleep 10000
-
-sql show mnodes
-$dnode1Role = $data2_1
-$dnode2Role = $data2_2
-$dnode3Role = $data2_3
-$dnode4Role = $data2_4
-print dnode1 ==> $dnode1Role
-print dnode2 ==> $dnode2Role
-print dnode3 ==> $dnode3Role
-print dnode4 ==> $dnode4Role
-
-$x = 0
-show9: 
-	$x = $x + 1
-	sleep 2000
-	if $x == 30 then
-	  return -1
-	endi
-sql show dnodes -x show9
-$dnode1Vnodes = $data2_1
-print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data2_3
-print dnode3 $dnode3Vnodes
-$dnode4Vnodes = $data2_4
-print dnode4 $dnode4Vnodes
-
-if $dnode1Vnodes != null then
-  goto show9
+if $dnode5Vnodes != 2 then
+  goto show8
 endi
-if $dnode2Vnodes != 0 then
-  goto show9
+if $dnode6Vnodes != 2 then
+  goto show8
 endi
-if $dnode3Vnodes != 0 then
-  goto show9
-endi
-if $dnode4Vnodes != null then
-  goto show9
-endi
-
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-
-print ============================== step10
-print ========= start dnode1.4
-sql create dnode $hostname1
-sql create dnode $hostname4
-
-sleep 3000
-system sh/deploy.sh -n dnode1 -i 1
-ssystem sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
-sleep 3000
-
-sleep 3000
-system sh/deploy.sh -n dnode4 -i 4
-system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode4 -c clog -v 1
-system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
-sleep 3000
-
-system sh/exec_up.sh -n dnode1 -s start
-system sh/exec_up.sh -n dnode4 -s start
-sleep 10000
-
-$x = 0
-show10: 
-	sql show mnodes
-	$dnode1Role = $data2_1
-	$dnode2Role = $data2_2
-	$dnode3Role = $data2_3
-	$dnode4Role = $data2_4
-	print dnode1 ==> $dnode1Role
-	print dnode2 ==> $dnode2Role
-	print dnode3 ==> $dnode3Role
-	print dnode4 ==> $dnode4Role
-	
-	$x = $x + 1
-	sleep 2000
-	if $x == 30 then
-	  return -1
-	endi
-sql show dnodes -x show10
-$dnode1Vnodes = $data2_1
-print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data2_3
-print dnode3 $dnode3Vnodes
-$dnode4Vnodes = $data2_4
-print dnode4 $dnode4Vnodes
-
-if $dnode1Vnodes != 2 then
-  goto show10
-endi
-if $dnode2Vnodes != 2 then
-  goto show10
-endi
-if $dnode3Vnodes != 2 then
-  goto show10
-endi
-if $dnode4Vnodes != 2 then
-  goto show10
+if $dnode7Vnodes != 2 then
+  goto show8
 endi
 
 print ============================== step11
-
-sql show mnodes
-$dnode1Role = $data2_1
-$dnode2Role = $data2_2
-$dnode3Role = $data2_3
-$dnode4Role = $data2_4
-print dnode1 ==> $dnode1Role
-print dnode2 ==> $dnode2Role
-print dnode3 ==> $dnode3Role
-print dnode4 ==> $dnode4Role
 
 sql create database c_b2_d5 replica 2 tables 4
 sql use c_b2_d5;
@@ -606,43 +493,34 @@ show11:
 	  return -1
 	endi
 sql show dnodes -x show11
-$dnode1Vnodes = $data2_1
-print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data2_2
-print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data2_3
-print dnode3 $dnode3Vnodes
 $dnode4Vnodes = $data2_4
 print dnode4 $dnode4Vnodes
+$dnode5Vnodes = $data2_5
+print dnode5 $dnode5Vnodes
+$dnode6Vnodes = $data2_6
+print dnode6 $dnode6Vnodes
+$dnode7Vnodes = $data2_7
+print dnode7 $dnode7Vnodes
 
-if $dnode1Vnodes != 1 then
-  goto show11
-endi
-if $dnode2Vnodes != 1 then
-  goto show11
-endi
-if $dnode3Vnodes != 1 then
-  goto show11
-endi
 if $dnode4Vnodes != 1 then
   goto show11
 endi
-
-sql show mnodes
-$dnode1Role = $data2_1
-$dnode2Role = $data2_2
-$dnode3Role = $data2_3
-$dnode4Role = $data2_4
-print dnode1 ==> $dnode1Role
-print dnode2 ==> $dnode2Role
-print dnode3 ==> $dnode3Role
-print dnode4 ==> $dnode4Role
+if $dnode5Vnodes != 1 then
+  goto show11
+endi
+if $dnode6Vnodes != 1 then
+  goto show11
+endi
+if $dnode7Vnodes != 1 then
+  goto show11
+endi
 
 print ============================== step12
 print ========= check data
 
-sql use c_b2_d1
-sql select * from c_b2_t1 order by t desc
+sql reset query cache
+
+sql select * from c_b2_d1.c_b2_t1 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 11 then
   return -1
@@ -660,8 +538,7 @@ if $data41 != 15 then
   return -1
 endi
 
-sql use c_b2_d2
-sql select * from c_b2_t2 order by t desc
+sql select * from c_b2_d2.c_b2_t2 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 
 #if $data01 != 21 then
@@ -680,8 +557,7 @@ print $data01 $data11 $data21 $data31 $data41
 #  return -1
 #endi
 
-sql use c_b2_d3
-sql select * from c_b2_t3 order by t desc
+sql select * from c_b2_d3.c_b2_t3 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 31 then
   return -1
@@ -699,8 +575,7 @@ if $data41 != 35 then
   return -1
 endi
 
-sql use c_b2_d4
-sql select * from c_b2_t4 order by t desc
+sql select * from c_b2_d4.c_b2_t4 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 41 then
   return -1
@@ -718,8 +593,7 @@ if $data41 != 45 then
   return -1
 endi
 
-sql use c_b2_d5
-sql select * from c_b2_t5 order by t desc
+sql select * from c_b2_d5.c_b2_t5 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 51 then
   return -1
@@ -737,8 +611,7 @@ if $data41 != 55 then
   return -1
 endi
 
-sql use c_b2_d6
-sql select * from c_b2_t6 order by t desc
+sql select * from c_b2_d6.c_b2_t6 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 61 then
   return -1
@@ -756,7 +629,6 @@ if $data41 != 65 then
   return -1
 endi
 
-
 print ============================================ over
 system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
@@ -766,5 +638,3 @@ system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
-
-
