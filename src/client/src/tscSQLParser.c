@@ -5520,16 +5520,24 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   SSchema* pTagSchema = tscGetTableTagSchema(pStableMeterMetaInfo->pTableMeta);
 
   char* tagVal = pCreateTable->usingInfo.tagdata.data;
+  int32_t ret = TSDB_CODE_SUCCESS;
+  
   for (int32_t i = 0; i < pList->nExpr; ++i) {
-    int32_t ret = tVariantDump(&(pList->a[i].pVar), tagVal, pTagSchema[i].type);
+    
+    if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+      // validate the length of binary
+      if (pList->a[i].pVar.nLen + VARSTR_HEADER_SIZE > pTagSchema[i].bytes) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+      
+      *(VarDataLenT*)tagVal = pList->a[i].pVar.nLen;
+      ret = tVariantDump(&(pList->a[i].pVar), tagVal + VARSTR_HEADER_SIZE, pTagSchema[i].type);
+    } else {
+      ret = tVariantDump(&(pList->a[i].pVar), tagVal, pTagSchema[i].type);
+    }
+    
     if (ret != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
-    }
-
-    // validate the length of binary
-    if ((pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) &&
-        pList->a[i].pVar.nLen > pTagSchema[i].bytes) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
     tagVal += pTagSchema[i].bytes;
@@ -5541,7 +5549,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   STableMetaInfo* pTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-  int32_t         ret = tscSetTableId(pTableMeterMetaInfo, &pInfo->pCreateTableInfo->name, pSql);
+  ret = tscSetTableId(pTableMeterMetaInfo, &pInfo->pCreateTableInfo->name, pSql);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
