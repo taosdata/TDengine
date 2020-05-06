@@ -217,7 +217,7 @@ int32_t tVariantCompare(const tVariant *pDst, const tVariant *pSrc) {
     case TSDB_DATA_TYPE_NCHAR:
       return strncasecmp(pSrc->pz,pDst->pz,pSrc->nLen);
     default:
-      return 1;
+      return 0;
   }
 }
 

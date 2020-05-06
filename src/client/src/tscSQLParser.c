@@ -1135,6 +1135,10 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   const char* msg5 = "invalid function name";
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
+  
+  if (isSTable) {
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_QUERY);
+  }
 
   for (int32_t i = 0; i < pSelection->nExpr; ++i) {
     int32_t       outputIndex = pQueryInfo->exprsInfo.numOfExprs;
@@ -3653,7 +3657,9 @@ static int32_t validateJoinExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
   }
 
   if (!pCondExpr->tsJoin) {
-    return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY);
+  } else {
+    TSDB_QUERY_UNSET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -5625,9 +5631,14 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
            pQuerySql->pSortOrder == NULL);
     return doLocalQueryProcess(pQueryInfo, pQuerySql);
   }
-
-  if (pQuerySql->from->nExpr > TSDB_MAX_JOIN_TABLE_NUM) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  
+  if (pQuerySql->from->nExpr > 1) {
+    if (pQuerySql->from->nExpr > 2) {   // not support more than 2 tables join query
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }
+    
+    // set the timestamp not matched join query
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY);
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;

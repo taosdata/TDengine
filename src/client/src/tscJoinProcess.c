@@ -219,6 +219,97 @@ bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+int32_t tscLaunchSecondPhaseDirectly(SSqlObj* pSql, SSubqueryState* pState) {
+  /*
+   * If the columns are not involved in the final select clause, the secondary query will not be launched
+   * for the subquery.
+   */
+  pSql->res.qhandle = 0x1;
+  pSql->res.numOfRows = 0;
+  
+  tscTrace("%p start to launch secondary subqueries", pSql);
+  bool success = true;
+  for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+  
+    SJoinSubquerySupporter *pSupporter = tscCreateJoinSupporter(pSql, pState, i);
+    assert(pSupporter != NULL);
+    
+    SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, NULL);
+    if (pNew == NULL) {
+      tscDestroyJoinSupporter(pSupporter);
+      success = false;
+      break;
+    }
+    
+    pSql->pSubs[i] = pNew;
+    
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
+    pQueryInfo->tsBuf = NULL;  // transfer the ownership of timestamp comp-z data to the new created object
+    
+    // set the second stage sub query for join process
+    pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
+    
+    /*
+     * if the first column of the secondary query is not ts function, add this function.
+     * Because this column is required to filter with timestamp after intersecting.
+     */
+    assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
+    /*
+     * if the first column of the secondary query is not ts function, add this function.
+     * Because this column is required to filter with timestamp after intersecting.
+     */
+    if (tscSqlExprGet(pQueryInfo, 0)->functionId != TSDB_FUNC_TS) {
+      tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
+    }
+    
+    tscFieldInfoCalOffset(pQueryInfo);
+    
+    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    
+    /*
+     * When handling the projection query, the offset value will be modified for table-table join, which is changed
+     * during the timestamp intersection.
+     */
+    // fetch the join tag column
+    if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+      SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, 0);
+      assert(pQueryInfo->tagCond.joinInfo.hasJoin);
+      
+      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pQueryInfo->tagCond, pMeterMetaInfo->pMeterMeta->uid);
+      pExpr->param[0].i64Key = tagColIndex;
+      pExpr->numOfParams = 1;
+    }
+    
+    tscPrintSelectClause(pNew, 0);
+    
+    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+             pSql, pNew, 0, pMeterMetaInfo->vnodeIndex, pQueryInfo->type,
+             pQueryInfo->exprsInfo.numOfExprs, pQueryInfo->colList.numOfCols,
+             pQueryInfo->fieldsInfo.numOfOutputCols, pQueryInfo->pMeterInfo[0]->name);
+  }
+  
+  //prepare the subqueries object failed, abort
+  if (!success) {
+    pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    tscError("%p failed to prepare subqueries objs for secondary phase query, numOfSub:%d, code:%d", pSql,
+             pSql->numOfSubs, pSql->res.code);
+    freeSubqueryObj(pSql);
+    
+    return pSql->res.code;
+  }
+  
+  for(int32_t i = 0; i < pSql->numOfSubs; ++i) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    if (pSub == NULL) {
+      continue;
+    }
+    
+    tscProcessSql(pSub);
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 /*
  * launch secondary stage query to fetch the result that contains timestamp in set
  */
