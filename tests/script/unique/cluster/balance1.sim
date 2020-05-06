@@ -92,7 +92,7 @@ $x = 0
 show2: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 20 then
 	  return -1
 	endi
 sql show dnodes -x show2
@@ -134,7 +134,7 @@ $x = 0
 show4: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 20 then
 	  return -1
 	endi
 sql show dnodes -x show4
