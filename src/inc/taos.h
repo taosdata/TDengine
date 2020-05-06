@@ -53,9 +53,9 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef struct taosField {
-  char  name[64];
-  short bytes;
-  char  type;
+  char     name[64];
+  short    bytes;
+  uint8_t  type;
 } TAOS_FIELD;
 
 #ifdef _TD_GO_DLL_
@@ -103,6 +103,8 @@ DLL_EXPORT void taos_stop_query(TAOS_RES *res);
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
 int taos_validate_sql(TAOS *taos, const char *sql);
+
+int* taos_fetch_lengths(TAOS_RES *res);
 
 // TAOS_RES   *taos_list_tables(TAOS *mysql, const char *wild);
 // TAOS_RES   *taos_list_dbs(TAOS *mysql, const char *wild);

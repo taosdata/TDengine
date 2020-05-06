@@ -1849,6 +1849,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     
     if (pRes->tsrow == NULL) {
       pRes->tsrow = calloc(numOfExprs, POINTER_BYTES);
+      pRes->length = calloc(numOfExprs, sizeof(int32_t));
     }
     
     bool success = false;
@@ -1967,7 +1968,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
     SFieldSupInfo* pSup = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, i);
     if (pSup->pSqlExpr != NULL) {
-      pRes->tsrow[i] = tscGetResultColumnChr(pRes, pQueryInfo, i, pSup->pSqlExpr->resBytes);
+      tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
     }
     
     // primary key column cannot be null in interval query, no need to check

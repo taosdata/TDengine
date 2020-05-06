@@ -32,7 +32,7 @@ extern "C" {
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs) do {\
   char* _e = stpncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), (_maxs));\
-  *(VarDataLenT*)(x) = _e - (x);\
+  *(VarDataLenT*)(x) = (_e - (x) - VARSTR_HEADER_SIZE);\
 } while(0)
 
 #define STR_WITH_SIZE_TO_VARSTR(x, str, _size) do {\

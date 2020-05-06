@@ -20,6 +20,7 @@
 #include "tutil.h"
 #include "tglobal.h"
 #include "tgrant.h"
+#include "tdataformat.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
@@ -256,13 +257,13 @@ static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_USER_LEN;
+  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 6;
+  pShow->bytes[cols] = 8 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "privilege");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -270,7 +271,7 @@ static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
+  strcpy(pSchema[cols].name, "create_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -303,16 +304,16 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pUser->user);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->user, TSDB_USER_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pUser->superAuth) {
-      strcpy(pWrite, "super");
+      STR_WITH_SIZE_TO_VARSTR(pWrite, "super", 5);
     } else if (pUser->writeAuth) {
-      strcpy(pWrite, "write");
+      STR_WITH_SIZE_TO_VARSTR(pWrite, "writable", 8);
     } else {
-      strcpy(pWrite, "read");
+      STR_WITH_SIZE_TO_VARSTR(pWrite, "readable", 8);
     }
     cols++;
 

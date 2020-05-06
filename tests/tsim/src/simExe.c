@@ -676,6 +676,8 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
     while ((row = taos_fetch_row(result))) {
       if (numOfRows < MAX_QUERY_ROW_NUM) {
         TAOS_FIELD *fields = taos_fetch_fields(result);
+        int* length = taos_fetch_lengths(result);
+        
         for (int i = 0; i < num_fields; i++) {
           char *value = NULL;
           if (i < MAX_QUERY_COL_NUM) {
@@ -733,8 +735,9 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
-              memcpy(value, row[i], fields[i].bytes);
-              value[fields[i].bytes] = 0;
+              memset(value, 0, MAX_QUERY_VALUE_LEN);
+              memcpy(value, row[i], length[i]);
+              value[length[i]] = 0;
               // snprintf(value, fields[i].bytes, "%s", (char *)row[i]);
               break;
             case TSDB_DATA_TYPE_TIMESTAMP:
