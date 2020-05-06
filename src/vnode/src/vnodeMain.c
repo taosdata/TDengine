@@ -192,7 +192,12 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status   = TAOS_VN_STATUS_INIT;
   pVnode->refCount = 1;
   pVnode->version  = 0;
-  taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
+  void *pData = taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
+  if (pData == NULL) {
+    dError("pVnode:%p vgId:%d, failed to add to hash", pVnode, pVnode->vgId);
+    code = TSDB_CODE_VG_INIT_FAILED;
+    goto vnodeOpenError;
+  }
 
   code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -278,6 +283,7 @@ vnodeOpenError:
   }
   if (pVnode != NULL) {
     taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
+    free(pVnode);
   }
   return code;
 }
