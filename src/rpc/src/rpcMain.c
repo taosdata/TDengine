@@ -1364,7 +1364,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
       }
     }
   } else {
-    tTrace("%s %p, auth spi not matched, msg discarded", pRpc->label, pConn);
+    tTrace("%s %p, auth spi:%d not matched with received:%d", pRpc->label, pConn, pConn->spi, pHead->spi);
     code = TSDB_CODE_AUTH_FAILURE;
   }
 
