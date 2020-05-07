@@ -10,89 +10,89 @@ print ========== smallint
 sql create table mt_smallint (ts timestamp, c smallint) tags (tagname smallint)
 
 ## case 00: static create table for test tag values
-sql create table st_smallint_0  using mt_smallint tags (null)
-sql describe st_smallint_0
-if $data23 != NULL then
+sql create table st_smallint_0  using mt_smallint tags (NULL)
+sql select tagname from st_smallint_0
+if $data00 != NULL then
   return -1
 endi
 sql create table st_smallint_1  using mt_smallint tags (NULL)
-sql describe st_smallint_1
-if $data23 != NULL then
+sql select tagname from st_smallint_1
+if $data00 != NULL then
   return -1
 endi
-sql create table st_smallint_2  using mt_smallint tags ('null')
-sql describe st_smallint_2
-if $data23 != NULL then
+sql create table st_smallint_2  using mt_smallint tags ('NULL')
+sql select tagname from st_smallint_2
+if $data00 != NULL then
   return -1
 endi
 sql create table st_smallint_3  using mt_smallint tags ('NULL')
-sql describe st_smallint_3
-if $data23 != NULL then
+sql select tagname from st_smallint_3
+if $data00 != NULL then
   return -1
 endi
-sql create table st_smallint_4  using mt_smallint tags ("null")
-sql describe st_smallint_4
-if $data23 != NULL then
+sql create table st_smallint_4  using mt_smallint tags ("NULL")
+sql select tagname from st_smallint_4
+if $data00 != NULL then
   return -1
 endi
 sql create table st_smallint_5  using mt_smallint tags ("NULL")
-sql describe st_smallint_5
-if $data23 != NULL then
+sql select tagname from st_smallint_5
+if $data00 != NULL then
   return -1
 endi
 sql create table st_smallint_6  using mt_smallint tags (-32767)
-sql describe st_smallint_6
-if $data23 != -32767 then
+sql select tagname from st_smallint_6
+if $data00 != -32767 then
   return -1
 endi
 sql create table st_smallint_7  using mt_smallint tags (32767)
-sql describe st_smallint_7
-if $data23 != 32767 then
+sql select tagname from st_smallint_7
+if $data00 != 32767 then
   return -1
 endi
 sql create table st_smallint_8  using mt_smallint tags (37)
-sql describe st_smallint_8
-if $data23 != 37 then
+sql select tagname from st_smallint_8
+if $data00 != 37 then
   return -1
 endi
 sql create table st_smallint_9  using mt_smallint tags (-100)
-sql describe st_smallint_9
-if $data23 != -100 then
+sql select tagname from st_smallint_9
+if $data00 != -100 then
   return -1
 endi
 sql create table st_smallint_10 using mt_smallint tags (+113)
-sql describe st_smallint_10
-if $data23 != 113 then
+sql select tagname from st_smallint_10
+if $data00 != 113 then
   return -1
 endi
 sql create table st_smallint_11 using mt_smallint tags ('-100')
-sql describe st_smallint_11
-if $data23 != -100 then
+sql select tagname from st_smallint_11
+if $data00 != -100 then
   return -1
 endi
 sql create table st_smallint_12 using mt_smallint tags ("+78")
-sql describe st_smallint_12
-if $data23 != 78 then
+sql select tagname from st_smallint_12
+if $data00 != 78 then
   return -1
 endi
 sql create table st_smallint_13 using mt_smallint tags (+0078)
-sql describe st_smallint_13
-if $data23 != 78 then
+sql select tagname from st_smallint_13
+if $data00 != 78 then
   return -1
 endi
 sql create table st_smallint_14 using mt_smallint tags (-00078)
-sql describe st_smallint_14
-if $data23 != -78 then
+sql select tagname from st_smallint_14
+if $data00 != -78 then
   return -1
 endi
 
 ## case 01: insert values  for test column values
-sql insert into st_smallint_0  values (now, null)
+sql insert into st_smallint_0  values (now, NULL)
 sql select * from st_smallint_0
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi 
 sql insert into st_smallint_1  values (now, NULL)
@@ -100,15 +100,15 @@ sql select * from st_smallint_1
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi  
-sql insert into st_smallint_2  values (now, 'null')
+sql insert into st_smallint_2  values (now, 'NULL')
 sql select * from st_smallint_2
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 sql insert into st_smallint_3  values (now, 'NULL')
@@ -116,15 +116,15 @@ sql select * from st_smallint_3
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
-sql insert into st_smallint_4  values (now, "null")
+sql insert into st_smallint_4  values (now, "NULL")
 sql select * from st_smallint_4
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 sql insert into st_smallint_5  values (now, "NULL")
@@ -132,7 +132,7 @@ sql select * from st_smallint_5
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 sql insert into st_smallint_6  values (now, 32767)
@@ -211,64 +211,64 @@ if $data01 != -56 then
 endi 
 
 ## case 02: dynamic create table for test tag values
-sql insert into st_smallint_16 using mt_smallint tags (null)   values (now, null)
-sql describe st_smallint_16
-if $data23 != NULL then
+sql insert into st_smallint_16 using mt_smallint tags (NULL)   values (now, NULL)
+sql select tagname from st_smallint_16
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_smallint_16
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
     
 sql insert into st_smallint_17 using mt_smallint tags (NULL)   values (now, NULL)
-sql describe st_smallint_17
-if $data23 != NULL then
+sql select tagname from st_smallint_17
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_smallint_17
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi  
-sql insert into st_smallint_18 using mt_smallint tags ('null') values (now, 'null')
-sql describe st_smallint_18
-if $data23 != NULL then
+sql insert into st_smallint_18 using mt_smallint tags ('NULL') values (now, 'NULL')
+sql select tagname from st_smallint_18
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_smallint_18
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 sql insert into st_smallint_19 using mt_smallint tags ('NULL') values (now, 'NULL')
-sql describe st_smallint_19
-if $data23 != NULL then
+sql select tagname from st_smallint_19
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_smallint_19
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
-sql insert into st_smallint_20 using mt_smallint tags ("null") values (now, "null")
-sql describe st_smallint_20
-if $data23 != NULL then
+sql insert into st_smallint_20 using mt_smallint tags ("NULL") values (now, "NULL")
+sql select tagname from st_smallint_20
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_smallint_20
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 sql insert into st_smallint_21 using mt_smallint tags ("NULL") values (now, "NULL")
-sql describe st_smallint_21
-if $data23 != NULL then
+sql select tagname from st_smallint_21
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_smallint_21
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 sql insert into st_smallint_22 using mt_smallint tags (32767)  values (now, 32767)
-sql describe st_smallint_22
-if $data23 != 32767 then
+sql select tagname from st_smallint_22
+if $data00 != 32767 then
   return -1
 endi
 sql select * from st_smallint_22
@@ -276,8 +276,8 @@ if $data01 != 32767 then
   return -1
 endi 
 sql insert into st_smallint_23 using mt_smallint tags (-32767)  values (now, -32767)
-sql describe st_smallint_23
-if $data23 != -32767 then
+sql select tagname from st_smallint_23
+if $data00 != -32767 then
   return -1
 endi
 sql select * from st_smallint_23
@@ -285,8 +285,8 @@ if $data01 != -32767 then
   return -1
 endi  
 sql insert into st_smallint_24 using mt_smallint tags (10)    values (now, 10)
-sql describe st_smallint_24
-if $data23 != 10 then
+sql select tagname from st_smallint_24
+if $data00 != 10 then
   return -1
 endi
 sql select * from st_smallint_24
@@ -294,8 +294,8 @@ if $data01 != 10 then
   return -1
 endi    
 sql insert into st_smallint_25 using mt_smallint tags ("-0") values (now, "-0")
-sql describe st_smallint_25
-if $data23 != 0 then
+sql select tagname from st_smallint_25
+if $data00 != 0 then
   return -1
 endi
 sql select * from st_smallint_25
@@ -303,8 +303,8 @@ if $data01 != 0 then
   return -1
 endi 
 sql insert into st_smallint_26 using mt_smallint tags ('123') values (now, '123')
-sql describe st_smallint_26
-if $data23 != 123 then
+sql select tagname from st_smallint_26
+if $data00 != 123 then
   return -1
 endi
 sql select * from st_smallint_26
@@ -312,8 +312,8 @@ if $data01 != 123 then
   return -1
 endi 
 sql insert into st_smallint_27 using mt_smallint tags (+056) values (now, +00056)
-sql describe st_smallint_27
-if $data23 != 56 then
+sql select tagname from st_smallint_27
+if $data00 != 56 then
   return -1
 endi
 sql select * from st_smallint_27
@@ -321,8 +321,8 @@ if $data01 != 56 then
   return -1
 endi 
 sql insert into st_smallint_28 using mt_smallint tags (-056) values (now, -0056)
-sql describe st_smallint_28
-if $data23 != -56 then
+sql select tagname from st_smallint_28
+if $data00 != -56 then
   return -1
 endi
 sql select * from st_smallint_28
@@ -331,46 +331,46 @@ if $data01 != -56 then
 endi 
 
 ## case 03: alter tag values
-sql alter table st_smallint_0 set tag tagname=32767
-sql describe st_smallint_0
-if $data23 != 32767 then
-  return -1
-endi 
-sql alter table st_smallint_0 set tag tagname=-32767
-sql describe st_smallint_0
-if $data23 != -32767 then
-  return -1
-endi 
-sql alter table st_smallint_0 set tag tagname=+100
-sql describe st_smallint_0
-if $data23 != 100 then
-  return -1
-endi
-sql alter table st_smallint_0 set tag tagname=-33
-sql describe st_smallint_0
-if $data23 != -33 then
-  return -1
-endi
-sql alter table st_smallint_0 set tag tagname='+98'
-sql describe st_smallint_0
-if $data23 != 98 then
-  return -1
-endi
-sql alter table st_smallint_0 set tag tagname='-076'
-sql describe st_smallint_0
-if $data23 != -76 then
-  return -1
-endi
-sql alter table st_smallint_0 set tag tagname=+0012
-sql describe st_smallint_0
-if $data23 != 12 then
-  return -1
-endi
-sql alter table st_smallint_0 set tag tagname=-00063
-sql describe st_smallint_0
-if $data23 != -63 then
-  return -1
-endi
+#sql alter table st_smallint_0 set tag tagname=32767
+#sql select tagname from st_smallint_0
+#if $data00 != 32767 then
+#  return -1
+#endi
+#sql alter table st_smallint_0 set tag tagname=-32767
+#sql select tagname from st_smallint_0
+#if $data00 != -32767 then
+#  return -1
+#endi
+#sql alter table st_smallint_0 set tag tagname=+100
+#sql select tagname from st_smallint_0
+#if $data00 != 100 then
+#  return -1
+#endi
+#sql alter table st_smallint_0 set tag tagname=-33
+#sql select tagname from st_smallint_0
+#if $data00 != -33 then
+#  return -1
+#endi
+#sql alter table st_smallint_0 set tag tagname='+98'
+#sql select tagname from st_smallint_0
+#if $data00 != 98 then
+#  return -1
+#endi
+#sql alter table st_smallint_0 set tag tagname='-076'
+#sql select tagname from st_smallint_0
+#if $data00 != -76 then
+#  return -1
+#endi
+#sql alter table st_smallint_0 set tag tagname=+0012
+#sql select tagname from st_smallint_0
+#if $data00 != 12 then
+#  return -1
+#endi
+#sql alter table st_smallint_0 set tag tagname=-00063
+#sql select tagname from st_smallint_0
+#if $data00 != -63 then
+#  return -1
+#endi
 
 ## case 04: illegal input
 sql_error create table st_smallint_e0 using mt_smallint tags (32768)

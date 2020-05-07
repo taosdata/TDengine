@@ -78,7 +78,6 @@ void mgmtCleanUpShell() {
   }
 
   if (tsQhandleCache) {
-    taosCacheEmpty(tsQhandleCache);
     taosCacheCleanup(tsQhandleCache);
     tsQhandleCache = NULL;
   }

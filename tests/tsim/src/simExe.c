@@ -688,7 +688,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
           }
 
           if (row[i] == 0) {
-            strcpy(value, "null");
+            strcpy(value, TSDB_DATA_NULL_STR);
             continue;
           }
 
