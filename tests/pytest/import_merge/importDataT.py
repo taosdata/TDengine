@@ -38,7 +38,7 @@ class TDTestCase:
         tdLog.info("create 1 table")
         tdSql.execute('create table tb1 (ts timestamp, speed int)')
         tdLog.info(
-            "More than 10 rows less than %d maxrows will go to data file" %
+            "More than 10 rows less than %d rows will go to data file" %
             self.maxrows)
 
         tdLog.info("================= step2")
