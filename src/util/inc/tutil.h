@@ -141,10 +141,7 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
  */
 void getTmpfilePath(const char *fileNamePattern, char *dstPath);
 
-int32_t taosInitTimer(void (*callback)(int), int32_t ms);
-void taosUninitTimer();
-
-bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len, int32_t* len);
+bool taosMbsToUcs4(char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, size_t* len);
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes);
 

@@ -3,8 +3,7 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 10
-system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 10
+system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 10
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -37,8 +36,7 @@ print =============== step2
 system sh/exec.sh -n dnode1 -s stop
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 10
-system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 10
+system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 10
 system sh/exec.sh -n dnode1 -s start
 
 print =============== step3
