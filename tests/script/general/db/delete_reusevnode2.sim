@@ -5,26 +5,19 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode2 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode3 -c cacheBlockSize -v 200
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-
-sleep 3000
+sql connect
 
 print ======== step1
-
 
 sql create database db maxTables 4;
 sql use db
 
-
 $tbPrefix = t
 $i = 0
-while $i < 1000
-
+while $i < 10
 
   sql create table st (ts timestamp, i int) tags(j int);
   $tb = $tbPrefix . $i

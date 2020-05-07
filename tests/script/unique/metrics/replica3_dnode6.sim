@@ -28,12 +28,12 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode6 -c numOfTotalVnodes -v 4
 
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode3 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode4 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode5 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode6 -c sessionsPerVnode -v 4
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode6 -c maxtablesPerVnode -v 4
 
 system sh/exec.sh -n dnode1 -s start
 sql connect

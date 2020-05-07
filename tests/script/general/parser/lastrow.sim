@@ -57,7 +57,7 @@ endw
 
 print ====== test data created
 
-run lite/parser/lastrow_query.sim
+run general/parser/lastrow_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -67,4 +67,4 @@ print ================== server restart completed
 sql connect
 sleep 3000
 
-run lite/parser/lastrow_query.sim
+run general/parser/lastrow_query.sim

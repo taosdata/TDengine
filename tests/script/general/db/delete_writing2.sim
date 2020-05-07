@@ -1,13 +1,11 @@
 system sh/stop_dnodes.sh
 
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 sql create database db 
@@ -27,7 +25,7 @@ sql create table db4.tb4 (ts timestamp, i int)
 sql insert into db4.tb4 values(now, 1)
 
 print ======== start back
-run_back lite/db/back_insert.sim
+run_back general/db/back_insert.sim
 sleep 1000
 
 print ======== step1 

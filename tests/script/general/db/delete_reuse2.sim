@@ -1,9 +1,5 @@
 system sh/stop_dnodes.sh
 
-
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
@@ -31,7 +27,6 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 print ======== step1 
@@ -79,6 +74,8 @@ step2:
 
 print ========= step3
 sql create database db1 replica 1
+sql reset query cache
+sleep 1000  
 sql create table db1.tb1 (ts timestamp, i int)
 sql insert into db1.tb1 values(now, 2)
 sql select * from db1.tb1
@@ -103,6 +100,9 @@ while $x < 20
   $x = $x + 1  
   $db = db . $x 
   $tb = tb . $x
+  
+  sql reset query cache
+  sleep 1000
   
   sql create database $db replica 1
   sql use $db
