@@ -28,98 +28,72 @@ extern "C" {
 #include "trpc.h"
 
 // message type
-#define TSDB_MSG_TYPE_SUBMIT            3
-#define TSDB_MSG_TYPE_SUBMIT_RSP        4
-#define TSDB_MSG_TYPE_QUERY             5
-#define TSDB_MSG_TYPE_QUERY_RSP         6
-#define TSDB_MSG_TYPE_FETCH             7
-#define TSDB_MSG_TYPE_FETCH_RSP         8
+
+#ifdef TAOS_MESSAGE_C
+#define TAOS_DEFINE_MESSAGE_TYPE( name, msg ) msg, msg "-rsp",
+char *taosMsg[] = {
+  "null",
+#else
+#define TAOS_DEFINE_MESSAGE_TYPE( name, msg ) name, name##_RSP,
+enum {
+  TSDB_MESSAGE_NULL = 0,
+#endif
+
+// message from client to dnode
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SUBMIT, "submit" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_QUERY, "query" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_FETCH, "fetch" )
 
 // message from mnode to dnode
-#define TSDB_MSG_TYPE_MD_CREATE_TABLE     9
-#define TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP 10
-#define TSDB_MSG_TYPE_MD_DROP_TABLE       11
-#define TSDB_MSG_TYPE_MD_DROP_TABLE_RSP   12
-#define TSDB_MSG_TYPE_MD_ALTER_TABLE      13
-#define TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP  14
-#define TSDB_MSG_TYPE_MD_CREATE_VNODE     15
-#define TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP 16
-#define TSDB_MSG_TYPE_MD_DROP_VNODE       17
-#define TSDB_MSG_TYPE_MD_DROP_VNODE_RSP   18
-#define TSDB_MSG_TYPE_MD_DROP_STABLE      19
-#define TSDB_MSG_TYPE_MD_DROP_STABLE_RSP  20
-#define TSDB_MSG_TYPE_MD_ALTER_STREAM     21
-#define TSDB_MSG_TYPE_MD_ALTER_STREAM_RSP 22
-#define TSDB_MSG_TYPE_MD_CONFIG_DNODE     23
-#define TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP 24
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_TABLE, "create-table" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_TABLE, "drop-table" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_TABLE, "alter-table" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_VNODE, "create-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_VNODE, "drop-vnode" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_STABLE, "drop-stable" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_STREAM, "alter-stream" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CONFIG_DNODE, "config-dnode" )
 
 // message from client to mnode
-#define TSDB_MSG_TYPE_CM_CONNECT          31
-#define TSDB_MSG_TYPE_CM_CONNECT_RSP      32
-#define TSDB_MSG_TYPE_CM_CREATE_ACCT      33
-#define TSDB_MSG_TYPE_CM_CREATE_ACCT_RSP  34
-#define TSDB_MSG_TYPE_CM_ALTER_ACCT       35
-#define TSDB_MSG_TYPE_CM_ALTER_ACCT_RSP   36
-#define TSDB_MSG_TYPE_CM_DROP_ACCT        37
-#define TSDB_MSG_TYPE_CM_DROP_ACCT_RSP    38
-#define TSDB_MSG_TYPE_CM_CREATE_USER      39
-#define TSDB_MSG_TYPE_CM_CREATE_USER_RSP  40
-#define TSDB_MSG_TYPE_CM_ALTER_USER       41
-#define TSDB_MSG_TYPE_CM_ALTER_USER_RSP   42
-#define TSDB_MSG_TYPE_CM_DROP_USER        43
-#define TSDB_MSG_TYPE_CM_DROP_USER_RSP    44
-#define TSDB_MSG_TYPE_CM_CREATE_DNODE     45
-#define TSDB_MSG_TYPE_CM_CREATE_DNODE_RSP 46
-#define TSDB_MSG_TYPE_CM_DROP_DNODE       47
-#define TSDB_MSG_TYPE_CM_DROP_DNODE_RSP   48
-#define TSDB_MSG_TYPE_CM_CREATE_DB        49
-#define TSDB_MSG_TYPE_CM_CREATE_DB_RSP    50
-#define TSDB_MSG_TYPE_CM_DROP_DB          51
-#define TSDB_MSG_TYPE_CM_DROP_DB_RSP      52
-#define TSDB_MSG_TYPE_CM_USE_DB           53
-#define TSDB_MSG_TYPE_CM_USE_DB_RSP       54
-#define TSDB_MSG_TYPE_CM_ALTER_DB         55
-#define TSDB_MSG_TYPE_CM_ALTER_DB_RSP     56
-#define TSDB_MSG_TYPE_CM_CREATE_TABLE     57
-#define TSDB_MSG_TYPE_CM_CREATE_TABLE_RSP 58
-#define TSDB_MSG_TYPE_CM_DROP_TABLE       59
-#define TSDB_MSG_TYPE_CM_DROP_TABLE_RSP   60
-#define TSDB_MSG_TYPE_CM_ALTER_TABLE      61
-#define TSDB_MSG_TYPE_CM_ALTER_TABLE_RSP  62
-#define TSDB_MSG_TYPE_CM_TABLE_META       63
-#define TSDB_MSG_TYPE_CM_TABLE_META_RSP   64
-#define TSDB_MSG_TYPE_CM_STABLE_VGROUP    65
-#define TSDB_MSG_TYPE_CM_STABLE_VGROUP_RSP 66
-#define TSDB_MSG_TYPE_CM_TABLES_META      67
-#define TSDB_MSG_TYPE_CM_TABLES_META_RSP  68
-#define TSDB_MSG_TYPE_CM_ALTER_STREAM     69
-#define TSDB_MSG_TYPE_CM_ALTER_STREAM_RSP 70
-#define TSDB_MSG_TYPE_CM_SHOW             71
-#define TSDB_MSG_TYPE_CM_SHOW_RSP         72
-#define TSDB_MSG_TYPE_CM_KILL_QUERY       73
-#define TSDB_MSG_TYPE_CM_KILL_QUERY_RSP   74
-#define TSDB_MSG_TYPE_CM_KILL_STREAM      75
-#define TSDB_MSG_TYPE_CM_KILL_STREAM_RSP  76
-#define TSDB_MSG_TYPE_CM_KILL_CONN        77
-#define TSDB_MSG_TYPE_CM_KILL_CONN_RSP    78
-#define TSDB_MSG_TYPE_CM_CONFIG_DNODE     79 
-#define TSDB_MSG_TYPE_CM_CONFIG_DNODE_RSP 80
-#define TSDB_MSG_TYPE_CM_RETRIEVE         81
-#define TSDB_MSG_TYPE_CM_RETRIEVE_RSP     82
-#define TSDB_MSG_TYPE_CM_HEARTBEAT        83
-#define TSDB_MSG_TYPE_CM_HEARTBEAT_RSP    84
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CONNECT, "connect" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_ACCT, "create-acct" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_ACCT, "alter-acct" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_ACCT, "drop-acct" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_USER, "create-user" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_USER, "alter-user" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_USER, "drop-user" ) 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DNODE, "create-dnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DNODE, "drop-dnode" )   
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DB, "create-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_DB, "alter-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TABLE, "create-table" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TABLE, "drop-table" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TABLE, "alter-table" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLE_META, "table-meta" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_STABLE_VGROUP, "stable-vgroup" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLES_META, "tables-meta" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_STREAM, "alter-stream" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SHOW, "show" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_QUERY, "kill-query" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_STREAM, "kill-stream" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_CONN, "kill-conn" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CONFIG_DNODE, "cm-config-dnode" ) 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_RETRIEVE, "retrieve" )     
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_HEARTBEAT, "heartbeat" )
 
 // message from dnode to mnode
-#define TSDB_MSG_TYPE_DM_CONFIG_TABLE 91
-#define TSDB_MSG_TYPE_DM_CONFIG_TABLE_RSP 92
-#define TSDB_MSG_TYPE_DM_CONFIG_VNODE 93
-#define TSDB_MSG_TYPE_DM_CONFIG_VNODE_RSP 94
-#define TSDB_MSG_TYPE_DM_STATUS 95
-#define TSDB_MSG_TYPE_DM_STATUS_RSP 96
-#define TSDB_MSG_TYPE_DM_GRANT 97
-#define TSDB_MSG_TYPE_DM_GRANT_RSP 98
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_CONFIG_TABLE, "config-table" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_CONFIG_VNODE, "config-vnode" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_STATUS, "status" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_GRANT, "grant" )
 
-#define TSDB_MSG_TYPE_MAX 100
+#ifndef TAOS_MESSAGE_C
+  TSDB_MSG_TYPE_MAX  // 105
+#endif
+
+};
 
 // IE type
 #define TSDB_IE_TYPE_SEC 1
@@ -380,7 +354,7 @@ typedef struct SExprInfo {
   struct tExprNode* pExpr;
   int16_t     bytes;
   int16_t     type;
-  int16_t     interResBytes;
+  int16_t     interBytes;
 } SExprInfo;
 
 typedef struct SColumnFilterInfo {
@@ -497,9 +471,9 @@ typedef struct {
 typedef struct {
   char     acct[TSDB_USER_LEN + 1];
   char     db[TSDB_DB_NAME_LEN + 1];
-  int32_t  maxSessions;
+  int32_t  maxTables;
   int32_t  cacheBlockSize; //MB
-  int32_t  totalBlocks;
+  int32_t  numOfBlocks;
   int32_t  daysPerFile;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
@@ -508,7 +482,7 @@ typedef struct {
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
   int8_t   compression;
-  int8_t   commitLog;
+  int8_t   walLevel;
   int8_t   replications;
   uint8_t  precision;   // time resolution
   int8_t   ignoreExist;
@@ -587,7 +561,7 @@ typedef struct {
   int32_t  commitTime;
   int8_t   precision;
   int8_t   compression;
-  int8_t   commitLog;
+  int8_t   walLevel;
   int8_t   replications;
   int8_t   wals;
   int8_t   quorum;

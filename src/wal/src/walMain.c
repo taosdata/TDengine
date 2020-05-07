@@ -62,7 +62,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
   pWal->max = pCfg->wals;
   pWal->id = 0;
   pWal->num = 0;
-  pWal->level = pCfg->commitLog;
+  pWal->level = pCfg->walLevel;
   pWal->keep = pCfg->keep;
   strcpy(pWal->path, path);
   pthread_mutex_init(&pWal->mutex, NULL);

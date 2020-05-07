@@ -4,8 +4,8 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode2 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
@@ -48,7 +48,7 @@ $i = 0
 $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 
-sql create database $db tables 4
+sql create database $db maxTables 4
 sql use $db
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
 

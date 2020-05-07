@@ -34,7 +34,7 @@ typedef struct {
 } SWalHead;
 
 typedef struct {
-  int8_t    commitLog; // commitLog
+  int8_t    walLevel;  // wal level
   int8_t    wals;      // number of WAL files;
   int8_t    keep;      // keep the wal file when closed
 } SWalCfg;

@@ -59,17 +59,30 @@ matrix:
           GREEN_UNDERLINE='\033[4;32m'
           NC='\033[0m'
 
-          tail -10 mem-error-out.txt
-          defiMemError=`grep -m 1 'definitely lost' mem-error-out.txt | awk '{print $7}'`
-          memError=`grep -m 1 'ERROR SUMMARY' mem-error-out.txt | awk '{print $4}'`
+          grep 'ERROR SUMMARY' mem-error-out.txt | uniq | tee uniq-mem-error-out.txt
 
-          if [ -n "$memError" ]; then
-            if [ "$memError" -gt 16 ] || [ "$defiMemError" -gt 0 ]; then
-              echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
-                       Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
-              travis_terminate $memError
+          for memError in `cat uniq-mem-error-out.txt | awk '{print $4}'` 
+          do
+            if [ -n "$memError" ]; then
+              if [ "$memError" -gt 16 ]; then
+                echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
+                         More than our threshold! ## ${NC}"
+                travis_terminate $memError
+              fi
             fi
-          fi
+          done
+
+          grep 'definitely lost' mem-error-out.txt | uniq | tee uniq-definitely-lost-out.txt
+          for defiMemError in `cat uniq-definitely-lost-out.txt | awk '{print $7}'` 
+          do
+            if [ -n "$defiMemError" ]; then
+              if [ "$defiMemError" -gt 16 ]; then
+                echo -e "${RED} ## Memory errors number valgrind reports \
+                         Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
+                travis_terminate $defiMemError
+              fi
+            fi
+          done
 
           ;;
         esac

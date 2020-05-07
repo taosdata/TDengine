@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -89,5 +89,4 @@ endi
 
 #### illegal operations
 sql_error select max(c2*2) from $tb
-sql_error select 2*min(c1) from $tb
 sql_error select max(c1-c2) from $tb

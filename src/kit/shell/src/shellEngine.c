@@ -60,15 +60,13 @@ TAOS *shellInit(struct arguments *args) {
 
   taos_init();
   /*
-   * set tsMetricMetaKeepTimer = 3000ms
-   * set tsMeterMetaKeepTimer = 3000ms
+   * set tsTableMetaKeepTimer = 3000ms
    * means not save cache in shell
    */
-  tsMetricMetaKeepTimer = 3;
-  tsMeterMetaKeepTimer = 3000;
+  tsTableMetaKeepTimer = 3000;
 
   // Connect to the database.
-  TAOS *con = taos_connect(args->host, args->user, args->password, args->database, tsDnodeShellPort);
+  TAOS *con = taos_connect(args->host, args->user, args->password, args->database, args->port);
   if (con == NULL) {
     return con;
   }

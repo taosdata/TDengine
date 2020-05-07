@@ -159,10 +159,7 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
 
   mgmtDecVgroupRef(pVgroup);
 
-  mTrace("vgId:%d, is updated, numOfVnode:%d", pVgroup->vgId, pVgroup->numOfVnodes);
-  if (pDb) {
-    mTrace("tables:%d", pDb->cfg.maxTables);
-  }
+  mTrace("vgId:%d, is updated, numOfVnode:%d tables:%d", pVgroup->vgId, pVgroup->numOfVnodes, pDb == NULL ? 0 : pDb->cfg.maxTables);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -562,7 +559,7 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   pCfg->commitTime          = htonl(pDb->cfg.commitTime);
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;
-  pCfg->commitLog           = pDb->cfg.commitLog;
+  pCfg->walLevel            = pDb->cfg.walLevel;
   pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
   pCfg->wals                = 3;
   pCfg->quorum              = 1;

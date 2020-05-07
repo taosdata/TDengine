@@ -24,7 +24,7 @@
 #include "dnode.h"
 #include "dnodeLog.h"
 #include "dnodeMgmt.h"
-#include "dnodeDnode.h"
+#include "dnodePeer.h"
 #include "dnodeModule.h"
 #include "dnodeRead.h"
 #include "dnodeShell.h"

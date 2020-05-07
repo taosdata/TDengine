@@ -63,8 +63,7 @@ extern int32_t tsStatusInterval;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsVnodePeerHBTimer;
 extern int32_t tsMgmtPeerHBTimer;
-extern int32_t tsMeterMetaKeepTimer;
-extern int32_t tsMetricMetaKeepTimer;
+extern int32_t tsTableMetaKeepTimer;
 
 extern float    tsNumOfThreadsPerCore;
 extern float    tsRatioOfQueryThreads;
@@ -75,8 +74,8 @@ extern int16_t  tsNumOfTotalVnodes;
 extern uint32_t tsPublicIpInt;
 
 extern int32_t tsCacheBlockSize;
-extern int32_t tsTotalBlocks;
-extern int32_t tsTablesPerVnode;
+extern int32_t tsBlocksPerVnode;
+extern int32_t tsMaxTablePerVnode;
 extern int16_t tsDaysPerFile;
 extern int32_t tsDaysToKeep;
 extern int32_t tsMinRowsInFileBlock;
@@ -84,7 +83,7 @@ extern int32_t tsMaxRowsInFileBlock;
 extern int16_t tsCommitTime;  // seconds
 extern int32_t tsTimePrecision;
 extern int16_t tsCompression;
-extern int16_t tsCommitLog;
+extern int16_t tsWAL;
 extern int32_t tsReplications;
 
 extern int16_t tsAffectedRowsMod;
@@ -92,7 +91,6 @@ extern int32_t tsNumOfMPeers;
 extern int32_t tsMaxShellConns;
 extern int32_t tsMaxTables;
 
-extern char tsLocalIp[];
 extern char tsDefaultDB[];
 extern char tsDefaultUser[];
 extern char tsDefaultPass[];
@@ -134,7 +132,6 @@ extern int32_t  tsHttpEnableRecordSql;
 extern int32_t  tsTelegrafUseFieldNum;
 
 extern int32_t  tsTscEnableRecordSql;
-extern int32_t  tsAnyIp;
 
 extern char     tsMonitorDbName[];
 extern char     tsInternalPass[];

@@ -74,8 +74,10 @@ void dnodeCleanupRead() {
 
   for (int i=0; i < readPool.max; ++i) {
     SReadWorker *pWorker = readPool.readWorker + i;
-    if (pWorker->thread) 
+    if (pWorker->thread) {
+      pthread_cancel(pWorker->thread);
       pthread_join(pWorker->thread, NULL);
+    }
   }
 
   taosCloseQset(readQset);
@@ -114,12 +116,12 @@ void dnodeRead(SRpcMsg *pMsg) {
     pRead->pCont       = pCont;
     pRead->contLen     = pHead->contLen;
 
-    taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
-
     // next vnode
     leftLen -= pHead->contLen;
     pCont -= pHead->contLen;
     queuedMsgNum++;
+
+    taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
   }
 
   if (queuedMsgNum == 0) {
