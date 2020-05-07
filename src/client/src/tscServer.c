@@ -580,14 +580,14 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
   if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
     
     SCMVgroupInfo* pVgroupInfo = NULL;
-    if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
-      pVgroupInfo = &pTableMeta->vgroupInfo;
-    } else {
+    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
       int32_t index = pTableMetaInfo->vgroupIndex;
       assert(index >= 0);
-      
+  
       pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
       tscTrace("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
+    } else {
+      pVgroupInfo = &pTableMeta->vgroupInfo;
     }
     
     tscSetDnodeIpList(pSql, pVgroupInfo);
