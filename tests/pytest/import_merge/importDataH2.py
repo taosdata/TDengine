@@ -27,7 +27,7 @@ class TDTestCase:
     def run(self):
         self.ntables = 1
         self.startTime = 1520000010000
-        self.rows = 200
+        self.maxrows = 200
 
         tdDnodes.stop(1)
         tdDnodes.deploy(1)
@@ -35,7 +35,7 @@ class TDTestCase:
 
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db rows %d' % self.rows)
+        tdSql.execute('create database db maxrows %d' % self.maxrows)
         tdSql.execute('use db')
 
         tdLog.info("================= step1")
@@ -43,19 +43,19 @@ class TDTestCase:
         tdSql.execute('create table tb1 (ts timestamp, speed int)')
         tdLog.info(
             "More than 10 rows less than %d rows will go to data file" %
-            self.rows)
+            self.maxrows)
 
         tdLog.info("================= step2")
-        tdLog.info("import %d sequential data" % (self.rows / 2))
+        tdLog.info("import %d sequential data" % (self.maxrows / 2))
         startTime = self.startTime
         sqlcmd = ['import into tb1 values']
-        for rid in range(1, self.rows / 2 + 1):
+        for rid in range(1, self.maxrows / 2 + 1):
             sqlcmd.append('(%ld, %d)' % (startTime + rid, rid))
         tdSql.execute(" ".join(sqlcmd))
 
         tdLog.info("================= step3")
         tdSql.query('select * from tb1')
-        tdSql.checkRows(self.rows / 2)
+        tdSql.checkRows(self.maxrows / 2)
 
         tdLog.info("================= step4")
         tdDnodes.stop(1)
@@ -70,7 +70,7 @@ class TDTestCase:
         tdLog.info("================= step7")
         tdSql.execute('reset query cache')
         tdSql.query('select * from tb1 order by ts desc')
-        tdSql.checkRows(self.rows / 2 + 1)
+        tdSql.checkRows(self.maxrows / 2 + 1)
 
         tdLog.info("================= step8")
         tdLog.info("import 10 data in batch before")
@@ -83,7 +83,7 @@ class TDTestCase:
         tdLog.info("================= step9")
         tdSql.execute('reset query cache')
         tdSql.query('select * from tb1 order by ts desc')
-        tdSql.checkRows(self.rows / 2 + 11)
+        tdSql.checkRows(self.maxrows / 2 + 11)
 
     def stop(self):
         tdSql.close()
