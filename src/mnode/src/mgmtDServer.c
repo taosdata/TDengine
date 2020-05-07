@@ -52,13 +52,13 @@ int32_t mgmtInitDServer() {
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.afp          = mgmtDServerRetrieveAuth;
 
+  tsMgmtDServerQhandle = taosInitScheduler(tsMaxShellConns, 1, "MS");
+
   tsMgmtDServerRpc = rpcOpen(&rpcInit);
   if (tsMgmtDServerRpc == NULL) {
     mError("failed to init server connection to dnode");
     return -1;
   }
-
-  tsMgmtDServerQhandle = taosInitScheduler(tsMaxShellConns, 1, "MS");
 
   mPrint("server connection to dnode is opened");
   return 0;
