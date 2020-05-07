@@ -27,6 +27,7 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
+sleep 3000
 sql connect
 
 print ======== step1 
@@ -107,3 +108,5 @@ while $x < 20
   
   print ===> loop times: $x
 endw 
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
