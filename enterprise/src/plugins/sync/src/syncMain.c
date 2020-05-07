@@ -168,10 +168,10 @@ void syncStop(void *param)
   if (pPeer) syncRemovePeer(pPeer);
 
   taosDeleteIntHash(vgIdHash, pNode->vgId);
+  taosTmrStop(pNode->pFwdTimer);
   syncDecNodeRef(pNode);
   atomic_sub_fetch_32(&tsNodeNum, 1);
-  taosTmrStop(pNode->pFwdTimer);
-
+  
   if (tsNodeNum <=0) {
     taosCloseTcpThreadPool(tsTcpPool);
     taosCleanUpIntHash(vgIdHash);
