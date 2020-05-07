@@ -97,7 +97,7 @@ typedef void *SDataRow;
 #define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
 
 #define dataRowLen(r) (*(int32_t *)(r))
-#define dataRowTuple(r) POINTER_DRIFT(r, TD_DATA_ROW_HEAD_SIZE)
+#define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))

@@ -24,8 +24,9 @@ extern "C" {
 
 #include "tutil.h"
 
-const int32_t TNUMBER = 1;
-const uint8_t ENCODE_LIMIT = (1 << 7);
+// TODO: move this to a platform file
+#define ENCODE_LIMIT (((uint8_t)1) << 7)
+static const int32_t TNUMBER = 1;
 #define IS_LITTLE_ENDIAN() (*(uint8_t *)(&TNUMBER) != 0)
 
 static FORCE_INLINE void *taosEncodeFixed16(void *buf, uint16_t value) {
@@ -154,17 +155,57 @@ static FORCE_INLINE void *taosEncodeVariant64(void *buf, uint64_t value) {
 
 static FORCE_INLINE void *taosDecodeVariant16(void *buf, uint16_t *value) {
   int i = 0;
+  uint16_t tval = 0;
   *value = 0;
-  while (i < 3 && ) {
-    (*value) |= (((uint8_t *)buf)[i] << (7 * i));
-    i++;
+  while (i < 3) {
+    tval = (uint16_t)(((uint8_t *)buf)[i]);
+    if (tval < ENCODE_LIMIT) {
+      (*value) |= (tval << (7 * i));
+      return POINTER_SHIFT(buf, i + 1);
+    } else {
+      (*value) |= ((tval & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
   }
 
-  return NULL; // error happened
+  return NULL;  // error happened
 }
 
-static FORCE_INLINE void *taosDecodeVariant32(void *buf, uint32_t *value) {}
-static FORCE_INLINE void *taosDecodeVariant64(void *buf, uint64_t *value) {}
+static FORCE_INLINE void *taosDecodeVariant32(void *buf, uint32_t *value) {
+  int i = 0;
+  uint32_t tval = 0;
+  *value = 0;
+  while (i < 5) {
+    tval = (uint32_t)(((uint8_t *)buf)[i]);
+    if (tval < ENCODE_LIMIT) {
+      (*value) |= (tval << (7 * i));
+      return POINTER_SHIFT(buf, i + 1);
+    } else {
+      (*value) |= ((tval & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  return NULL;  // error happened
+}
+
+static FORCE_INLINE void *taosDecodeVariant64(void *buf, uint64_t *value) {
+  int i = 0;
+  uint64_t tval = 0;
+  *value = 0;
+  while (i < 10) {
+    tval = (uint64_t)(((uint8_t *)buf)[i]);
+    if (tval < ENCODE_LIMIT) {
+      (*value) |= (tval << (7 * i));
+      return POINTER_SHIFT(buf, i + 1);
+    } else {
+      (*value) |= ((tval & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  return NULL;  // error happened
+}
 
 #ifdef __cplusplus
 }
