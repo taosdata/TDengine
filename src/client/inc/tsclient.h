@@ -195,7 +195,7 @@ typedef struct SDataBlockList {  // todo remove
 
 typedef struct SQueryInfo {
   int16_t  command;  // the command may be different for each subclause, so keep it seperately.
-  uint16_t type;     // query/insert/import type
+  uint32_t type;     // query/insert/import type
   char     slidingTimeUnit;
 
   STimeWindow     window;

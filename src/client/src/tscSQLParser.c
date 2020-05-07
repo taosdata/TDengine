@@ -1117,7 +1117,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
 
       // if the name of column is quoted, remove it and set the right information for later process
       extractColumnNameFromString(pItem);
-      pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
+      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY);
 
       // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
       if (addProjectionExprAndResultField(pQueryInfo, pItem) != TSDB_CODE_SUCCESS) {
@@ -1238,7 +1238,6 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   }
 
   if (isSTable) {
-    pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_QUERY;
     /*
      * transfer sql functions that need secondary merge into another format
      * in dealing with metric queries such as: count/first/last
@@ -1289,10 +1288,8 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
     index.columnIndex = colIndex - tscGetNumOfColumns(pTableMeta);
   
     tscColumnListInsert(pTableMetaInfo->tagColList, &index);
-    pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;
   } else {
     index.columnIndex = colIndex;
-    pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
   }
   
   return tscSqlExprAppend(pQueryInfo, functionId, &index, pSchema->type, pSchema->bytes,
@@ -1377,7 +1374,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
 
 int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pItem) {
   const char* msg0 = "invalid column name";
-  const char* msg1 = "tag for table query is not allowed";
+  const char* msg1 = "tag for normal table query is not allowed";
   
   int32_t startPos = tscSqlExprNumOfExprs(pQueryInfo);
 
@@ -1414,7 +1411,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
-      if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+      if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && !UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
       }
 
@@ -5716,12 +5713,16 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr);
+  bool isSTable = false;
   
   if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-   code = tscGetSTableVgroupInfo(pSql, index);
-   if (code != TSDB_CODE_SUCCESS) {
-     return code;
-   }
+    isSTable = true;
+    code = tscGetSTableVgroupInfo(pSql, index);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_QUERY);
   } else {
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
   }
@@ -5731,7 +5732,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  bool isSTable = UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
   if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }

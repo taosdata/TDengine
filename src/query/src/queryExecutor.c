@@ -4233,10 +4233,12 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
   
   
   // normal query setup the queryhandle here
-  if (isFirstLastRowQuery(pQuery) && !isSTableQuery) {  // in case of last_row query, invoke a different API.
-    pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
-  } else if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
-    pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
+  if (!onlyQueryTags(pQuery)) {
+    if (!isSTableQuery && isFirstLastRowQuery(pQuery)) {  // in case of last_row query, invoke a different API.
+      pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
+    } else if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
+      pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
+    }
   }
   
   pQInfo->tsdb = tsdb;

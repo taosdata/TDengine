@@ -439,25 +439,6 @@ int tscProcessSql(SSqlObj *pSql) {
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
-
-//  if (QUERY_IS_JOIN_QUERY(type)) {
-//    if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0) {
-//      return tscHandleMasterJoinQuery(pSql);
-//    } else {
-//      // for first stage sub query, iterate all vnodes to get all timestamp
-//      if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) != TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
-//        return doProcessSql(pSql);
-//      }
-//    }
-//  }
-//
-//  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) { // super table query
-//    tscHandleMasterSTableQuery(pSql);
-//    return pRes->code;
-//  } else if (pSql->fp == (void(*)())tscHandleMultivnodeInsert) {  // multi-vnodes insertion
-//    tscHandleMultivnodeInsert(pSql);
-//    return pRes->code;
-//  }
   
   return doProcessSql(pSql);
 }
