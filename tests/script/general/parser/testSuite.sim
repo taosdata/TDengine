@@ -7,6 +7,7 @@
 #run general/parser/auto_create_tb.sim
 #sleep 2000
 #run general/parser/auto_create_tb_drop_tb.sim
+
 sleep 2000
 run general/parser/col_arithmetic_operation.sim
 sleep 2000
