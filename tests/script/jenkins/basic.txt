@@ -9,9 +9,14 @@ cd ../../../debug; make
 
 #########  general   #########  
 
-#agg
 #alter
+
 #cache
+#./test.sh -f general/cache/restart_table.sim
+#./test.sh -f general/cache/restart_metrics.sim
+#./test.sh -f general/cache/new_metrics.sim
+
+
 #column
 #compress
 #compute
@@ -68,6 +73,7 @@ cd ../../../debug; make
 #./test.sh -f general/table/delete_writing.sim
 #./test.sh -f general/table/describe.sim
 ./test.sh -f general/table/double.sim
+#./test.sh -f general/table/fill.sim
 ./test.sh -f general/table/float.sim
 ./test.sh -f general/table/int.sim
 ./test.sh -f general/table/limit.sim
@@ -108,6 +114,7 @@ cd ../../../debug; make
 ./test.sh -u -f unique/cluster/balance1.sim
 ./test.sh -u -f unique/cluster/balance2.sim
 ./test.sh -u -f unique/cluster/balance3.sim
+#./test.sh -u -f unique/cluster/cache.sim
 
 ./test.sh -u -f unique/column/replica3.sim
 

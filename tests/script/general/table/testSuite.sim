@@ -16,6 +16,7 @@ run general/table/db.table.sim
 #run general/table/delete_writing.sim
 #run general/table/describe.sim
 run general/table/double.sim
+#run general/table/fill.sim
 run general/table/float.sim
 run general/table/int.sim
 run general/table/limit.sim
