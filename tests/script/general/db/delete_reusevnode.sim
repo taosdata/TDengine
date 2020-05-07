@@ -65,7 +65,7 @@ $tbPrefix = t
 $i = 0
 while $i < 1000
   $db = db . $i
-  sql create database $db tables 4
+  sql create database $db maxTables 4
   sql use $db
 
   sql create table st (ts timesetamp, i int) tags(j int);
