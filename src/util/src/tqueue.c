@@ -41,6 +41,7 @@ typedef struct _taos_qset {
   pthread_mutex_t    mutex;
   int32_t            numOfQueues;
   int32_t            numOfItems;
+  tsem_t             sem;
 } STaosQset;
 
 typedef struct _taos_qall {
@@ -59,6 +60,7 @@ taos_queue taosOpenQueue() {
   }
 
   pthread_mutex_init(&queue->mutex, NULL);
+
   return queue;
 }
 
@@ -79,7 +81,7 @@ void taosCloseQueue(taos_queue param) {
   }
 
   pthread_mutex_unlock(&queue->mutex);
-
+  pthread_mutex_destroy(&queue->mutex);
   free(queue);
 }
 
@@ -116,10 +118,11 @@ int taosWriteQitem(taos_queue param, int type, void *item) {
 
   queue->numOfItems++;
   if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
-
   uTrace("item:%p is put into queue:%p, type:%d items:%d", item, queue, type, queue->numOfItems);
 
   pthread_mutex_unlock(&queue->mutex);
+
+  if (queue->qset) tsem_post(&queue->qset->sem);
 
   return 0;
 }
@@ -217,12 +220,15 @@ taos_qset taosOpenQset() {
   }
 
   pthread_mutex_init(&qset->mutex, NULL);
+  tsem_init(&qset->sem, 0, 0);
 
   return qset;
 }
 
 void taosCloseQset(taos_qset param) {
   STaosQset *qset = (STaosQset *)param;
+  pthread_mutex_destroy(&qset->mutex);
+  tsem_destroy(&qset->sem);
   free(qset);
 }
 
@@ -298,6 +304,8 @@ int taosReadQitemFromQset(taos_qset param, int *type, void **pitem, void **phand
   STaosQnode *pNode = NULL;
   int         code = 0;
    
+  tsem_wait(&qset->sem);
+
   pthread_mutex_lock(&qset->mutex);
 
   for(int i=0; i<qset->numOfQueues; ++i) {
@@ -339,6 +347,7 @@ int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **phandle) {
   STaosQall  *qall = (STaosQall *)p2;
   int         code = 0;
 
+  tsem_wait(&qset->sem);
   pthread_mutex_lock(&qset->mutex);
 
   for(int i=0; i<qset->numOfQueues; ++i) {
@@ -364,6 +373,7 @@ int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **phandle) {
       queue->tail = NULL;
       queue->numOfItems = 0;
       atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
+      for (int j=1; j<qall->numOfItems; ++j) tsem_wait(&qset->sem);
     } 
 
     pthread_mutex_unlock(&queue->mutex);

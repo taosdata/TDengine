@@ -115,6 +115,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_QUERY_ID,           0, 255, "invalid query i
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_STREAM_ID,          0, 256, "invalid stream id")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CONNECTION,         0, 257, "invalid connection")
 TAOS_DEFINE_ERROR(TSDB_CODE_SDB_ERROR,                  0, 258, "sdb error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TIMESTAMP_OUT_OF_RANGE,     0, 259, "timestamp is out of range")
 
 // acct
 TAOS_DEFINE_ERROR(TSDB_CODE_ACCT_ALREADY_EXIST,         0, 300, "accounts already exist")
@@ -171,6 +172,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VALUE,              0, 462, "invalid value")
 
 // others
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_FILE_FORMAT,        0, 500, "invalid file format")
+
+// TSDB
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CONFIG,             0, 550, "invalid TSDB configuration")
 
 
 #ifdef TAOS_ERROR_C

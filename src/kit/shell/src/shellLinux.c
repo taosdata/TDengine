@@ -63,7 +63,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'P':
       if (arg) {
-        tsMnodeShellPort = atoi(arg);
+        arguments->port = atoi(arg);
       } else {
         fprintf(stderr, "Invalid port\n");
         return -1;

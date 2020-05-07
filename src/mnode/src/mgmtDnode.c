@@ -426,6 +426,7 @@ static int32_t mgmtDropDnodeByEp(char *ep) {
     return TSDB_CODE_NO_REMOVE_MASTER;
   }
 
+  mPrint("dnode:%d, start to drop it", pDnode->dnodeId);
 #ifndef _SYNC
   return mgmtDropDnode(pDnode);
 #else

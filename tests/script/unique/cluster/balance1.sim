@@ -92,7 +92,7 @@ $x = 0
 show2: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 20 then
 	  return -1
 	endi
 sql show dnodes -x show2
@@ -134,7 +134,7 @@ $x = 0
 show4: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 20 then
 	  return -1
 	endi
 sql show dnodes -x show4
@@ -442,19 +442,24 @@ sql reset query cache
 sleep 1000
 
 sql use c_b1_d1
-sql select * from c_b1_t1
+sql select * from c_b1_d1.c_b1_t1
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
 if $rows != 5 then
   return -1
 endi
 
 sql use c_b1_d2
-sql select * from c_b1_t2
-if $rows == 6 then
+sql select * from c_b1_d2.c_b1_t2
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $rows != 6 then
   return -1
 endi
 
 sql use c_b1_d3
-sql select * from c_b1_t3 order by t desc
+sql select * from c_b1_d3.c_b1_t3 order by t desc
+print $rows 
 print $data01 $data11 $data21 $data31 $data41
 if $rows != 6 then
   return -1
@@ -464,11 +469,13 @@ if $data01 != 36 then
 endi
 
 sql use c_b1_d4
-sql select * from c_b1_t4 order by t desc
+sql select * from c_b1_d4.c_b1_t4 order by t desc
+print $rows 
 print $data01 $data11 $data21 $data31 $data41
 
 sql use c_b1_d5
-sql select * from c_b1_t5 order by t desc
+sql select * from c_b1_d5.c_b1_t5 order by t desc
+print $rows 
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 51 then
   return -1
@@ -487,7 +494,8 @@ if $data41 != 55 then
 endi
 
 sql use c_b1_d6
-sql select * from c_b1_t6 order by t desc
+sql select * from c_b1_d6.c_b1_t6 order by t desc
+print $rows 
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 61 then
   return -1
@@ -506,7 +514,8 @@ if $data41 != 65 then
 endi
 
 sql use c_b1_d7
-sql select * from c_b1_t7 order by t desc
+sql select * from c_b1_d7.c_b1_t7 order by t desc
+print $rows 
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 71 then
   return -1
@@ -525,7 +534,8 @@ if $data41 != 75 then
 endi
 
 sql use c_b1_d8
-sql select * from c_b1_t8 order by t desc
+sql select * from c_b1_d8.c_b1_t8 order by t desc
+print $rows 
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 81 then
   return -1
