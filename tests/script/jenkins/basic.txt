@@ -33,7 +33,17 @@ cd ../../../debug; make
 ./test.sh -f general/db/tables.sim
 
 #field
-#http
+
+./test.sh -f general/http/restful.sim
+./test.sh -f general/http/restful_insert.sim
+./test.sh -f general/http/restful_limit.sim
+./test.sh -f general/http/restful_full.sim
+./test.sh -f general/http/prepare.sim
+./test.sh -f general/http/telegraf.sim
+#./test.sh -f general/http/grafana_bug.sim
+#./test.sh -f general/http/grafana.sim
+
+
 #import
 #insert
 #metrics

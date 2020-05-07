@@ -1,6 +1,5 @@
 system sh/stop_dnodes.sh
-
-
+sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
@@ -43,3 +42,5 @@ print curl 127.0.0.1:6020/rest/sql -----> $system_content
 
 #system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d "select * from db0.st0 where tbname in ('tb0', 'tb1') limit 1000" 127.0.0.1:6020/rest/sql
 #print curl 127.0.0.1:6020/rest/sql -----> $system_content
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
