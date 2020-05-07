@@ -168,6 +168,13 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscTrace("try to create a connection to %s", ip);
+  if (port != 0) {
+    tsServerPort = port;
+    tsMnodeShellPort = tsServerPort + TSDB_PORT_MNODESHELL;
+    tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;
+    tsMnodeDnodePort = tsServerPort + TSDB_PORT_MNODEDNODE;
+    tsDnodeMnodePort = tsServerPort + TSDB_PORT_DNODEMNODE;
+  }
 
   STscObj *pObj = taosConnectImpl(ip, user, pass, db, port, NULL, NULL, NULL);
   if (pObj != NULL) {

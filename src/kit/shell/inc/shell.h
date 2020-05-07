@@ -61,6 +61,7 @@ struct arguments {
   int   threadNum;
   char* commands;
   int   abort;
+  int   port;
 };
 
 /**************** Function declarations ****************/

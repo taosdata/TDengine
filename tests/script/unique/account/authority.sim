@@ -227,7 +227,8 @@ print ============= step6
 sql close
 sql connect owrite
 sleep 2000
-
+sql reset query cache
+sleep 1000
 sql create database d1
 sql create database d3
 sql create table d1.t1 (ts timestamp, i int)
