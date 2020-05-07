@@ -44,7 +44,7 @@
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    80
-#define IP_LEN_STR     15
+#define IP_LEN_STR     18
 #define CHECK_INTERVAL 1000
 
 typedef enum {
@@ -115,6 +115,13 @@ static void monitorInitConn(void *para, void *unused) {
   if (tsMonitorConn.ep[0] == 0) 
     strcpy(tsMonitorConn.ep, tsLocalEp);
 
+  int len = strlen(tsMonitorConn.ep);
+  for (int i = 0; i < len; ++i) {
+    if (tsMonitorConn.ep[i] == ':' || tsMonitorConn.ep[i] == '-') {
+      tsMonitorConn.ep[i] = '_';
+    }
+  }
+
   if (tsMonitorConn.conn == NULL) {
     taos_connect_a(NULL, "monitor", tsInternalPass, "", 0, monitorInitConnCb, &tsMonitorConn, &(tsMonitorConn.conn));
   } else {
@@ -141,8 +148,8 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
 
   if (cmd == MONITOR_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
-             "create database if not exists %s replica 1 days 10 keep 30 rows 1024 cache 2048 "
-             "ablocks 2 tblocks 32 tables 32 precision 'us'",
+             "create database if not exists %s replica 1 days 10 keep 30 cache 2 "
+             "blocks 2 maxtables 32 precision 'us'",
              tsMonitorDbName);
   } else if (cmd == MONITOR_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
@@ -154,7 +161,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ", io_read float, io_write float"
              ", req_http int, req_select int, req_insert int"
              ") tags (ipaddr binary(%d))",
-             tsMonitorDbName, IP_LEN_STR + 1);
+             tsMonitorDbName, TSDB_FQDN_LEN + 1);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn_%s using %s.dn tags('%s')", tsMonitorDbName,
              tsMonitorConn.ep, tsMonitorDbName, tsLocalEp);
