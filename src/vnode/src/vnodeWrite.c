@@ -51,7 +51,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
     return TSDB_CODE_MSG_NOT_PROCESSED; 
 
-  if (pVnode->status != TAOS_VN_STATUS_READY) 
+  if (pVnode->status != TAOS_VN_STATUS_READY && qtype == TAOS_QTYPE_RPC) 
     return TSDB_CODE_NOT_ACTIVE_VNODE; 
 
   if (pHead->version == 0) { // from client 
