@@ -21,6 +21,7 @@
 #include "tskiplist.h"
 #include "tutil.h"
 #include "tlog.h"
+#include "tcoding.h"
 
 #ifdef __cplusplus
 extern "C" {
