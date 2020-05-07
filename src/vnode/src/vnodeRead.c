@@ -39,11 +39,11 @@ void vnodeInitReadFp(void) {
 int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen, SRspRet *ret) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
 
-  if (vnodeProcessReadMsgFp[msgType] == NULL) 
-    return TSDB_CODE_MSG_NOT_PROCESSED; 
+  if (vnodeProcessReadMsgFp[msgType] == NULL)
+    return TSDB_CODE_MSG_NOT_PROCESSED;
 
-  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
-    return TSDB_CODE_NOT_ACTIVE_VNODE; 
+  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING)
+    return TSDB_CODE_NOT_ACTIVE_VNODE;
 
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pCont, contLen, ret);
 }
@@ -53,26 +53,29 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   memset(pRet, 0, sizeof(SRspRet));
 
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   qinfo_t pQInfo = NULL;
   if (contLen != 0) {
     pRet->code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo);
-  
+
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->qhandle = htobe64((uint64_t) (pQInfo));
     pRsp->code = pRet->code;
-     
+
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
-    
+
     dTrace("pVnode:%p vgId:%d QInfo:%p, dnode query msg disposed", pVnode, pVnode->vgId, pQInfo);
   } else {
+    assert(pCont != NULL);
     pQInfo = pCont;
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  qTableQuery(pQInfo); // do execute query
-  
+  if (pQInfo != NULL) {
+    qTableQuery(pQInfo); // do execute query
+  }
+
   return code;
 }
 
@@ -84,7 +87,7 @@ static int32_t vnodeProcessRetrieveMsg(SVnodeObj *pVnode, void *pCont, int32_t c
   int32_t code = TSDB_CODE_SUCCESS;
 
   dTrace("pVnode:%p vgId:%d QInfo:%p, retrieve msg is received", pVnode, pVnode->vgId, pQInfo);
-  
+
   pRet->code = qRetrieveQueryResultInfo(pQInfo);
   if (pRet->code != TSDB_CODE_SUCCESS) {
     //TODO
@@ -103,7 +106,7 @@ static int32_t vnodeProcessRetrieveMsg(SVnodeObj *pVnode, void *pCont, int32_t c
       vnodeRelease(pVnode);
     }
   }
-  
+
   dTrace("pVnode:%p vgId:%d QInfo:%p, retrieve msg is disposed", pVnode, pVnode->vgId, pQInfo);
   return code;
 }
