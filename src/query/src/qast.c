@@ -598,7 +598,7 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         SSkipListNode* pNode = tSkipListIterGet(iter);
       
         if (comp) {
-          ret = func(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
+          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
           assert(ret <= 0);
         }
         
