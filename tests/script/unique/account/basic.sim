@@ -42,4 +42,4 @@ endi
 print $data00 $data01 $data02
 print $data10 $data11 $data22
 
-  
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT

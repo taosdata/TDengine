@@ -343,3 +343,5 @@ sql drop database d1
 sql drop database d2
 sql drop database d3
 sql drop database d4
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT

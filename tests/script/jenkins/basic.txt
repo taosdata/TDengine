@@ -6,6 +6,39 @@ cd ../../../debug; cmake ..
 #cd ../../../debug; make clean
 cd ../../../debug; make
 
+
+#general
+
+./test.sh -f general/db/basic1.sim
+./test.sh -f general/db/basic2.sim
+./test.sh -f general/db/basic3.sim
+./test.sh -f general/db/basic4.sim
+./test.sh -f general/db/basic5.sim
+
+./test.sh -f general/table/autocreate.sim
+./test.sh -f general/table/basic1.sim
+./test.sh -f general/table/basic2.sim
+./test.sh -f general/table/basic3.sim
+./test.sh -f general/table/bigint.sim
+./test.sh -f general/table/bool.sim
+./test.sh -f general/table/column_name.sim
+./test.sh -f general/table/column_num.sim
+./test.sh -f general/table/db.table.sim
+./test.sh -f general/table/double.sim
+./test.sh -f general/table/float.sim
+./test.sh -f general/table/int.sim
+./test.sh -f general/table/smallint.sim
+./test.sh -f general/table/tinyint.sim
+
+./test.sh -f general/user/basic1.sim
+./test.sh -f general/user/pass_alter.sim
+./test.sh -f general/user/pass_len.sim
+./test.sh -f general/user/user_create.sim
+./test.sh -f general/user/user_len.sim
+
+
+# unique
+
 ./test.sh -u -f unique/account/account_create.sim
 ./test.sh -u -f unique/account/account_delete.sim
 ./test.sh -u -f unique/account/account_len.sim

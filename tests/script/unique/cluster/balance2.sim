@@ -386,21 +386,21 @@ endi
 sql select * from c_b2_d2.c_b2_t2 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 
-#if $data01 != 21 then
-#  return -1
-#endi
-#if $data11 != 22 then
-#  return -1
-#endi
-#if $data21 != 23 then
-#  return -1
-#endi
-#if $data31 != 24 then
-#  return -1
-#endi
-#if $data41 != 25 then
-#  return -1
-#endi
+if $data01 != 21 then
+  return -1
+endi
+if $data11 != 22 then
+  return -1
+endi
+if $data21 != 23 then
+  return -1
+endi
+if $data31 != 24 then
+  return -1
+endi
+if $data41 != 25 then
+  return -1
+endi
 
 sql select * from c_b2_d3.c_b2_t3 order by t desc
 print $data01 $data11 $data21 $data31 $data41
@@ -417,60 +417,6 @@ if $data31 != 34 then
   return -1
 endi
 if $data41 != 35 then
-  return -1
-endi
-
-sql select * from c_b2_d4.c_b2_t4 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 41 then
-  return -1
-endi
-if $data11 != 42 then
-  return -1
-endi
-if $data21 != 43 then
-  return -1
-endi
-if $data31 != 44 then
-  return -1
-endi
-if $data41 != 45 then
-  return -1
-endi
-
-sql select * from c_b2_d5.c_b2_t5 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 51 then
-  return -1
-endi
-if $data11 != 52 then
-  return -1
-endi
-if $data21 != 53 then
-  return -1
-endi
-if $data31 != 54 then
-  return -1
-endi
-if $data41 != 55 then
-  return -1
-endi
-
-sql select * from c_b2_d6.c_b2_t6 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 61 then
-  return -1
-endi
-if $data11 != 62 then
-  return -1
-endi
-if $data21 != 63 then
-  return -1
-endi
-if $data31 != 64 then
-  return -1
-endi
-if $data41 != 65 then
   return -1
 endi
 

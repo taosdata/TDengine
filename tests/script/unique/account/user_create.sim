@@ -81,7 +81,4 @@ step42:
 
 sql drop user read
 
-  
-
-  
-  
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
