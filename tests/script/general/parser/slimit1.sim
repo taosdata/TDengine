@@ -53,7 +53,7 @@ endw
 
 print ================== tables and data created
   
-run lite/parser/slimit1_query.sim
+run general/parser/slimit1_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -63,4 +63,4 @@ print ================== server restart completed
 sql connect
 sleep 3000
 
-run lite/parser/slimit1_query.sim
+run general/parser/slimit1_query.sim

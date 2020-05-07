@@ -54,7 +54,7 @@ while $i < $tbNum
 endw
 print ====== $db tables created
   
-run lite/parser/timestamp_query.sim
+run general/parser/timestamp_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -64,4 +64,4 @@ print ================== server restart completed
 sql connect
 sleep 3000
 
-run lite/parser/timestamp_query.sim
+run general/parser/timestamp_query.sim

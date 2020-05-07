@@ -109,9 +109,6 @@ print =============== step7
 system sh/exec.sh -n dnode1 -s stop
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c numOfBlocksPerMeter -v 4
-system sh/cfg.sh -n dnode1 -c pointsPerCompBlock -v 100
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 1024
 system sh/exec.sh -n dnode1 -s start
 
 sleep 4000

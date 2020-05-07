@@ -15,9 +15,6 @@ system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode2 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode3 -c cacheBlockSize -v 200
 
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
