@@ -502,9 +502,9 @@ typedef struct {
 typedef struct {
   char     acct[TSDB_USER_LEN + 1];
   char     db[TSDB_DB_NAME_LEN + 1];
-  int32_t  maxSessions;
+  int32_t  maxTables;
   int32_t  cacheBlockSize; //MB
-  int32_t  totalBlocks;
+  int32_t  numOfBlocks;
   int32_t  daysPerFile;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
@@ -513,7 +513,7 @@ typedef struct {
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
   int8_t   compression;
-  int8_t   commitLog;
+  int8_t   walLevel;
   int8_t   replications;
   uint8_t  precision;   // time resolution
   int8_t   ignoreExist;
@@ -592,7 +592,7 @@ typedef struct {
   int32_t  commitTime;
   int8_t   precision;
   int8_t   compression;
-  int8_t   commitLog;
+  int8_t   walLevel;
   int8_t   replications;
   int8_t   wals;
   int8_t   quorum;

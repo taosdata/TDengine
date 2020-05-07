@@ -142,7 +142,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.commitLog = 2, .wals = 2, .keep = 1};
+  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1};
   tsSdbObj.wal = walOpen(tsMnodeDir, &walCfg);
   if (tsSdbObj.wal == NULL) {
     sdbError("failed to open sdb wal in %s", tsMnodeDir);

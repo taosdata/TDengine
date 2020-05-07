@@ -1907,7 +1907,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   assert(pTableMetaInfo->pTableMeta == NULL);
 
   pTableMetaInfo->pTableMeta =
-      (STableMeta *) taosCachePut(tscCacheHandle, pTableMetaInfo->name, pTableMeta, size, tsMeterMetaKeepTimer);
+      (STableMeta *) taosCachePut(tscCacheHandle, pTableMetaInfo->name, pTableMeta, size, tsTableMetaKeepTimer);
   
   // todo handle out of memory case
   if (pTableMetaInfo->pTableMeta == NULL) {
@@ -2016,7 +2016,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     //    int32_t size = (int32_t)(rsp - ((char *)pMeta));  // Consistent with STableMeta in cache
     //
     //    pMeta->index = 0;
-    //    (void)taosCachePut(tscCacheHandle, pMeta->tableId, (char *)pMeta, size, tsMeterMetaKeepTimer);
+    //    (void)taosCachePut(tscCacheHandle, pMeta->tableId, (char *)pMeta, size, tsTableMetaKeepTimer);
     //  }
   }
   
@@ -2215,7 +2215,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   size_t size = 0;
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
   
-  pTableMetaInfo->pTableMeta = taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsMeterMetaKeepTimer);
+  pTableMetaInfo->pTableMeta = taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsTableMetaKeepTimer);
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   if (pQueryInfo->colList == NULL) {

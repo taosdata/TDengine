@@ -4743,7 +4743,7 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBInfo*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTimePrecisionOption(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDbInfo) {
+static int32_t setTimePrecision(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDbInfo) {
   const char* msg = "invalid time precision";
 
   pMsg->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond by default
@@ -4768,15 +4768,15 @@ static int32_t setTimePrecisionOption(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCrea
 }
 
 static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
-  pMsg->maxSessions = htonl(pCreateDb->tablesPerVnode);
-  pMsg->cacheBlockSize = htonl(-1);
-  pMsg->totalBlocks = htonl(-1);
+  pMsg->maxTables = htonl(pCreateDb->maxTablesPerVnode);
+  pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
+  pMsg->numOfBlocks = htonl(pCreateDb->numOfBlocks);
   pMsg->daysPerFile = htonl(pCreateDb->daysPerFile);
   pMsg->commitTime = htonl(pCreateDb->commitTime);
-  pMsg->minRowsPerFileBlock = htonl(-1);
-  pMsg->maxRowsPerFileBlock = htonl(-1);
+  pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
+  pMsg->maxRowsPerFileBlock = htonl(pCreateDb->maxRowsPerBlock);
   pMsg->compression = pCreateDb->compressionLevel;
-  pMsg->commitLog = (char)pCreateDb->commitLog;
+  pMsg->walLevel = (char)pCreateDb->walLevel;
   pMsg->replications = pCreateDb->replica;
   pMsg->ignoreExist = pCreateDb->ignoreExists;
 }
@@ -4789,7 +4789,7 @@ int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  if (setTimePrecisionOption(pCmd, pMsg, pCreateDbSql) != TSDB_CODE_SUCCESS) {
+  if (setTimePrecision(pCmd, pMsg, pCreateDbSql) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }
 
@@ -5309,8 +5309,8 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   char msg[512] = {0};
 
-  if (pCreate->commitLog != -1 && (pCreate->commitLog < TSDB_MIN_CLOG_LEVEL || pCreate->commitLog > TSDB_MAX_CLOG_LEVEL)) {
-    snprintf(msg, tListLen(msg), "invalid db option commitLog: %d, only 0-2 allowed", pCreate->commitLog);
+  if (pCreate->walLevel != -1 && (pCreate->walLevel < TSDB_MIN_WAL_LEVEL || pCreate->walLevel > TSDB_MAX_WAL_LEVEL)) {
+    snprintf(msg, tListLen(msg), "invalid db option walLevel: %d, only 0-2 allowed", pCreate->walLevel);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
@@ -5335,7 +5335,7 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
-  val = htonl(pCreate->maxSessions);
+  val = htonl(pCreate->maxTables);
   if (val != -1 && (val < TSDB_MIN_TABLES || val > TSDB_MAX_TABLES)) {
     snprintf(msg, tListLen(msg), "invalid db option maxSessions: %d valid range: [%d, %d]", val,
              TSDB_MIN_TABLES, TSDB_MAX_TABLES);

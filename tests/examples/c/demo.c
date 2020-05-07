@@ -74,8 +74,9 @@ int main(int argc, char *argv[]) {
   printf("success to connect to server\n");
   
   doQuery(taos, "create database if not exists test");
-  doQuery(taos, "use test");
-  doQuery(taos, "select * from t1 order by ts desc");
+  doQuery(taos, "create database if not exists test");
+//  doQuery(taos, "use test");
+//  doQuery(taos, "select sum(k)*max(k), sum(k), max(k) from tm99");
   
 //  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
 //  for(int32_t i = 0; i< 100000; ++i) {

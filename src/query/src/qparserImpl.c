@@ -886,16 +886,16 @@ void setKillSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *ip) {
 }
 
 void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
-  pDBInfo->numOfBlocksPerTable = 50;
   pDBInfo->compressionLevel = -1;
 
-  pDBInfo->commitLog = -1;
+  pDBInfo->walLevel = -1;
   pDBInfo->commitTime = -1;
-  pDBInfo->tablesPerVnode = -1;
-  pDBInfo->numOfAvgCacheBlocks = -1;
+  pDBInfo->maxTablesPerVnode = -1;
 
   pDBInfo->cacheBlockSize = -1;
-  pDBInfo->rowPerFileBlock = -1;
+  pDBInfo->numOfBlocks = -1;
+  pDBInfo->maxRowsPerBlock = -1;
+  pDBInfo->minRowsPerBlock = -1;
   pDBInfo->daysPerFile = -1;
 
   pDBInfo->replica = -1;
