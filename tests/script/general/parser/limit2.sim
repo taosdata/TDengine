@@ -65,7 +65,7 @@ while $i < $halfNum
 endw 
 print ====== tables created
 
-#run lite/parser/limit2_query.sim
+#run general/parser/limit2_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -73,4 +73,4 @@ sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
-run lite/parser/limit2_query.sim
+run general/parser/limit2_query.sim

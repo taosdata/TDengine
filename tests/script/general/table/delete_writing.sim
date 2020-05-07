@@ -40,7 +40,7 @@ sql create table db.tb (ts timestamp, i int)
 sql insert into db.tb values(now, 1)
 
 print ======== start back
-run_back lite/table/back_insert.sim
+run_back general/table/back_insert.sim
 sleep 1000
 
 print ======== step1 

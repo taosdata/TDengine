@@ -12,11 +12,11 @@ system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode5 -c mgmtEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode2 -c clog -v 1
-system sh/cfg.sh -n dnode3 -c clog -v 1
-system sh/cfg.sh -n dnode4 -c clog -v 1
-system sh/cfg.sh -n dnode5 -c clog -v 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
+system sh/cfg.sh -n dnode4 -c wallevel -v 1
+system sh/cfg.sh -n dnode5 -c wallevel -v 1
 
 print ========== step1
 system sh/exec_up.sh -n dnode1 -s start
@@ -28,7 +28,7 @@ system sh/exec_up.sh -n dnode2 -s start
 system sh/exec_up.sh -n dnode3 -s start
 sleep 3000
 
-sql create database d1 replica 2  tables 4
+sql create database d1 replica 2  maxTables 4
 sql create table d1.t1 (t timestamp, i int)
 sql insert into d1.t1 values(now+1s, 15)
 sql insert into d1.t1 values(now+2s, 14)
@@ -36,7 +36,7 @@ sql insert into d1.t1 values(now+3s, 13)
 sql insert into d1.t1 values(now+4s, 12)
 sql insert into d1.t1 values(now+5s, 11)
 
-sql create database d2 replica 2  tables 4
+sql create database d2 replica 2  maxTables 4
 sql create table d2.t2 (t timestamp, i int) 
 sql insert into d2.t2 values(now+1s, 25)
 sql insert into d2.t2 values(now+2s, 24)
@@ -116,7 +116,7 @@ if $data2_4 != 2 then
 endi
 
 print ========== step4
-sql create database d3 replica 2 tables 4
+sql create database d3 replica 2 maxTables 4
 sql create table d3.t3 (t timestamp, i int)
 sql insert into d3.t3 values(now+1s, 35)
 sql insert into d3.t3 values(now+2s, 34)
@@ -268,3 +268,12 @@ endi
 if $data41 != 35 then
   return -1
 endi
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

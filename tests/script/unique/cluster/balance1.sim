@@ -35,21 +35,21 @@ system sh/cfg.sh -n dnode6 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode7 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode8 -c mgmtEqualVnodeNum -v 0
 
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode2 -c clog -v 1
-system sh/cfg.sh -n dnode3 -c clog -v 1
-system sh/cfg.sh -n dnode4 -c clog -v 1
-system sh/cfg.sh -n dnode5 -c clog -v 1
-system sh/cfg.sh -n dnode6 -c clog -v 1
-system sh/cfg.sh -n dnode7 -c clog -v 1
-system sh/cfg.sh -n dnode8 -c clog -v 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
+system sh/cfg.sh -n dnode4 -c wallevel -v 1
+system sh/cfg.sh -n dnode5 -c wallevel -v 1
+system sh/cfg.sh -n dnode6 -c wallevel -v 1
+system sh/cfg.sh -n dnode7 -c wallevel -v 1
+system sh/cfg.sh -n dnode8 -c wallevel -v 1
 
 print ============== step1
 print ========= start dnode1
 system sh/exec_up.sh -n dnode1 -s start
 sql connect
 
-sql create database c_b1_d1 tables 4
+sql create database c_b1_d1 maxTables 4
 sql use c_b1_d1
 
 sql create table c_b1_t1 (t timestamp, i int)
@@ -59,7 +59,7 @@ sql insert into c_b1_t1 values(1520000022013, 13)
 sql insert into c_b1_t1 values(1520000023012, 12)
 sql insert into c_b1_t1 values(1520000024011, 11)
 
-sql create database c_b1_d2 tables 4
+sql create database c_b1_d2 maxTables 4
 sql use c_b1_d2
 sql create table c_b1_t2 (t timestamp, i int)
 sql insert into c_b1_t2 values(1520000020025, 25)
@@ -116,7 +116,7 @@ print dnode2 ==> $dnode2Role
 
 print ============================== step3
 print ========= add db3
-sql create database c_b1_d3 tables 4
+sql create database c_b1_d3 maxTables 4
 sql use c_b1_d3
 sql create table c_b1_t3 (t timestamp, i int)
 sql insert into c_b1_t3 values(1520000020035, 35)
@@ -289,7 +289,7 @@ if $dnode4Role != slave then
 endi
 
 print ============================== step10
-sql create database c_b1_d4 tables 4
+sql create database c_b1_d4 maxTables 4
 sql use c_b1_d4
 sql create table c_b1_t4 (t timestamp, i int)
 sql insert into c_b1_t4 values(1520000020045, 45)
@@ -327,7 +327,7 @@ sql use c_b1_d2
 sql insert into c_b1_t2 values(1520000025026, 26)
 
 print ============================== step12
-sql create database c_b1_d5 tables 4
+sql create database c_b1_d5 maxTables 4
 sql use c_b1_d5
 sql_error create table c_b1_t5 (t timestamp, i int) -x error3
 
@@ -352,7 +352,7 @@ sql insert into c_b1_t5 values(1520000022053, 53)
 sql insert into c_b1_t5 values(1520000023052, 52)
 sql insert into c_b1_t5 values(1520000024051, 51)
 
-sql create database c_b1_d6 tables 4
+sql create database c_b1_d6 maxTables 4
 sql use c_b1_d6
 sql create table c_b1_t6 (t timestamp, i int)
 sql insert into c_b1_t6 values(1520000020065, 65)
@@ -384,7 +384,7 @@ sql create dnode $hostname6
 system sh/exec_up.sh -n dnode6 -s start
 sleep 15000
 
-sql create database c_b1_d7 tables 4
+sql create database c_b1_d7 maxTables 4
 sql use c_b1_d7
 sql create table c_b1_t7 (t timestamp, i int)
 sql insert into c_b1_t7 values(1520000020075, 75)
@@ -393,7 +393,7 @@ sql insert into c_b1_t7 values(1520000022073, 73)
 sql insert into c_b1_t7 values(1520000023072, 72)
 sql insert into c_b1_t7 values(1520000024071, 71)
 
-sql create database c_b1_d8 tables 4
+sql create database c_b1_d8 maxTables 4
 sql use c_b1_d8
 sql create table c_b1_t8 (t timestamp, i int)
 sql insert into c_b1_t8 values(1520000020085, 85)
@@ -553,11 +553,12 @@ if $data41 != 85 then
   return -1
 endi
 
-print ============================================ over
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop -x SIGINT
-
-
-
+print ============================================ over=
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

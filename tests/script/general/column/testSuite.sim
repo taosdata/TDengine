@@ -1,4 +1,4 @@
-run lite/column/table.sim
-run lite/column/metrics.sim
-run lite/column/stream.sim
-run lite/column/commit.sim
+run general/column/table.sim
+run general/column/metrics.sim
+run general/column/stream.sim
+run general/column/commit.sim

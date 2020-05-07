@@ -167,17 +167,17 @@ void tdFreeDataRow(SDataRow row) {
 int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
-  char *  ptr = POINTER_DRIFT(row, dataRowLen(row));
+  char *  ptr = POINTER_SHIFT(row, dataRowLen(row));
 
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      *(VarDataOffsetT *)POINTER_DRIFT(row, toffset) = dataRowLen(row);
+      *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
       memcpy(ptr, value, varDataTLen(value));
       dataRowLen(row) += varDataTLen(value);
       break;
     default:
-      memcpy(POINTER_DRIFT(row, toffset), value, TYPE_BYTES[type]);
+      memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
       break;
   }
 
@@ -202,13 +202,13 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
   if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
     pDataCol->spaceSize = (sizeof(VarDataLenT) + pDataCol->bytes) * maxPoints;
     pDataCol->dataOff = (VarDataOffsetT *)(*pBuf);
-    pDataCol->pData = POINTER_DRIFT(*pBuf, TYPE_BYTES[pDataCol->type] * maxPoints);
-    *pBuf = POINTER_DRIFT(*pBuf, pDataCol->spaceSize + TYPE_BYTES[pDataCol->type] * maxPoints);
+    pDataCol->pData = POINTER_SHIFT(*pBuf, TYPE_BYTES[pDataCol->type] * maxPoints);
+    *pBuf = POINTER_SHIFT(*pBuf, pDataCol->spaceSize + TYPE_BYTES[pDataCol->type] * maxPoints);
   } else {
     pDataCol->spaceSize = pDataCol->bytes * maxPoints;
     pDataCol->dataOff = NULL;
     pDataCol->pData = *pBuf;
-    *pBuf = POINTER_DRIFT(*pBuf, pDataCol->spaceSize);
+    *pBuf = POINTER_SHIFT(*pBuf, pDataCol->spaceSize);
   }
 
 }
@@ -222,13 +222,13 @@ void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoint
       // set offset
       pCol->dataOff[numOfPoints] = pCol->len;
       // Copy data
-      memcpy(POINTER_DRIFT(pCol->pData, pCol->len), value, varDataTLen(value));
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
       // Update the length
       pCol->len += varDataTLen(value);
       break;
     default:
       ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfPoints);
-      memcpy(POINTER_DRIFT(pCol->pData, pCol->len), value, pCol->bytes);
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
       pCol->len += pCol->bytes;
       break;
   }
@@ -244,12 +244,12 @@ void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfPoints) {
     VarDataOffsetT toffset = pCol->dataOff[pointsToPop];
     pCol->len = pCol->len - toffset;
     ASSERT(pCol->len > 0);
-    memmove(pCol->pData, POINTER_DRIFT(pCol->pData, toffset), pCol->len);
+    memmove(pCol->pData, POINTER_SHIFT(pCol->pData, toffset), pCol->len);
     dataColSetOffset(pCol, pointsLeft);
   } else {
     ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfPoints);
     pCol->len = TYPE_BYTES[pCol->type] * pointsLeft;
-    memmove(pCol->pData, POINTER_DRIFT(pCol->pData, TYPE_BYTES[pCol->type] * pointsToPop), pCol->len);
+    memmove(pCol->pData, POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * pointsToPop), pCol->len);
   }
 }
 
@@ -301,7 +301,7 @@ void dataColSetOffset(SDataCol *pCol, int nEle) {
   for (int i = 0; i < nEle; i++) {
     pCol->dataOff[i] = offset;
     offset += varDataTLen(tptr);
-    tptr = POINTER_DRIFT(tptr, varDataTLen(tptr));
+    tptr = POINTER_SHIFT(tptr, varDataTLen(tptr));
   }
 }
 

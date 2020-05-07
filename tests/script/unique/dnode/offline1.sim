@@ -16,9 +16,9 @@ system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode2 -c clog -v 1
-system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
 
 print ========== step1
 system sh/exec_up.sh -n dnode1 -s start
@@ -67,3 +67,11 @@ if $data4_2 != null then
   return -1
 endi
 
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

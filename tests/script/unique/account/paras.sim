@@ -109,3 +109,5 @@ endi
 if $data16 != 0.000/10.000 then 
   return -1
 endi  
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT

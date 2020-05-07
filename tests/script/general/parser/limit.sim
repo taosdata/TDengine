@@ -56,8 +56,8 @@ while $i < $halfNum
 endw 
 print ====== tables created
 
-run lite/parser/limit_tb.sim
-run lite/parser/limit_stb.sim
+run general/parser/limit_tb.sim
+run general/parser/limit_stb.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -67,5 +67,5 @@ print ================== server restart completed
 sql connect
 sleep 3000
 
-run lite/parser/limit_tb.sim
-run lite/parser/limit_stb.sim
+run general/parser/limit_tb.sim
+run general/parser/limit_stb.sim

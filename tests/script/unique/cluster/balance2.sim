@@ -26,14 +26,14 @@ system sh/cfg.sh -n dnode6 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode7 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode8 -c numOfMPeers -v 3
 
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode2 -c clog -v 1
-system sh/cfg.sh -n dnode3 -c clog -v 1
-system sh/cfg.sh -n dnode4 -c clog -v 1
-system sh/cfg.sh -n dnode5 -c clog -v 1
-system sh/cfg.sh -n dnode6 -c clog -v 1
-system sh/cfg.sh -n dnode7 -c clog -v 1
-system sh/cfg.sh -n dnode8 -c clog -v 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
+system sh/cfg.sh -n dnode4 -c wallevel -v 1
+system sh/cfg.sh -n dnode5 -c wallevel -v 1
+system sh/cfg.sh -n dnode6 -c wallevel -v 1
+system sh/cfg.sh -n dnode7 -c wallevel -v 1
+system sh/cfg.sh -n dnode8 -c wallevel -v 1
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
@@ -56,7 +56,7 @@ system sh/exec_up.sh -n dnode2 -s start
 system sh/exec_up.sh -n dnode3 -s start
 sleep 4001
 
-sql create database c_b2_d1 replica 2 tables 4
+sql create database c_b2_d1 replica 2 maxTables 4
 sql use c_b2_d1
 sql create table c_b2_t1 (t timestamp, i int)
 sql insert into c_b2_t1 values(1520000020015, 15)
@@ -65,7 +65,7 @@ sql insert into c_b2_t1 values(1520000022013, 13)
 sql insert into c_b2_t1 values(1520000023012, 12)
 sql insert into c_b2_t1 values(1520000024011, 11)
 
-sql create database c_b2_d2 replica 2 tables 4
+sql create database c_b2_d2 replica 2 maxTables 4
 sql use c_b2_d2
 sql create table c_b2_t2 (t timestamp, i int)
 sql insert into c_b2_t2 values(1520000020025, 25)
@@ -74,7 +74,7 @@ sql insert into c_b2_t2 values(1520000022023, 23)
 sql insert into c_b2_t2 values(1520000023022, 22)
 sql insert into c_b2_t2 values(1520000024021, 21)
 
-sql create database c_b2_d3 replica 2 tables 4
+sql create database c_b2_d3 replica 2 maxTables 4
 sql use c_b2_d3
 sql create table c_b2_t3 (t timestamp, i int)
 sql insert into c_b2_t3 values(1520000020035, 35)
@@ -386,21 +386,21 @@ endi
 sql select * from c_b2_d2.c_b2_t2 order by t desc
 print $data01 $data11 $data21 $data31 $data41
 
-#if $data01 != 21 then
-#  return -1
-#endi
-#if $data11 != 22 then
-#  return -1
-#endi
-#if $data21 != 23 then
-#  return -1
-#endi
-#if $data31 != 24 then
-#  return -1
-#endi
-#if $data41 != 25 then
-#  return -1
-#endi
+if $data01 != 21 then
+  return -1
+endi
+if $data11 != 22 then
+  return -1
+endi
+if $data21 != 23 then
+  return -1
+endi
+if $data31 != 24 then
+  return -1
+endi
+if $data41 != 25 then
+  return -1
+endi
 
 sql select * from c_b2_d3.c_b2_t3 order by t desc
 print $data01 $data11 $data21 $data31 $data41
@@ -417,60 +417,6 @@ if $data31 != 34 then
   return -1
 endi
 if $data41 != 35 then
-  return -1
-endi
-
-sql select * from c_b2_d4.c_b2_t4 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 41 then
-  return -1
-endi
-if $data11 != 42 then
-  return -1
-endi
-if $data21 != 43 then
-  return -1
-endi
-if $data31 != 44 then
-  return -1
-endi
-if $data41 != 45 then
-  return -1
-endi
-
-sql select * from c_b2_d5.c_b2_t5 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 51 then
-  return -1
-endi
-if $data11 != 52 then
-  return -1
-endi
-if $data21 != 53 then
-  return -1
-endi
-if $data31 != 54 then
-  return -1
-endi
-if $data41 != 55 then
-  return -1
-endi
-
-sql select * from c_b2_d6.c_b2_t6 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 61 then
-  return -1
-endi
-if $data11 != 62 then
-  return -1
-endi
-if $data21 != 63 then
-  return -1
-endi
-if $data31 != 64 then
-  return -1
-endi
-if $data41 != 65 then
   return -1
 endi
 
