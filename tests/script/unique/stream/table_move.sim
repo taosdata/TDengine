@@ -35,10 +35,10 @@ system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
 
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode3 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode4 -c sessionsPerVnode -v 4
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
 
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3

@@ -29,7 +29,7 @@ system sh/exec_up.sh -n dnode3 -s start
 sleep 3000
 
 print ======== step1 
-sql create database db replica 3 ablocks 2 tblocks 5 tables 10000
+sql create database db replica 3 ablocks 2 tblocks 5 maxtables 10000
 sql create table db.mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
 $tbPrefix = db.t
