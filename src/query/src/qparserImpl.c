@@ -52,6 +52,8 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
         Parse(pParser, 0, t0, pSQLInfo);
         goto abort_parse;
       }
+      
+      case TK_QUESTION:
       case TK_ILLEGAL: {
         snprintf(pSQLInfo->pzErrMsg, tListLen(pSQLInfo->pzErrMsg), "unrecognized token: \"%s\"", t0.z);
         pSQLInfo->valid = false;
