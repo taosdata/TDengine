@@ -52,6 +52,8 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
         Parse(pParser, 0, t0, pSQLInfo);
         goto abort_parse;
       }
+      
+      case TK_QUESTION:
       case TK_ILLEGAL: {
         snprintf(pSQLInfo->pzErrMsg, tListLen(pSQLInfo->pzErrMsg), "unrecognized token: \"%s\"", t0.z);
         pSQLInfo->valid = false;
@@ -818,7 +820,7 @@ void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBI
 
   pInfo->pDCLInfo->dbOpt = *pDB;
   pInfo->pDCLInfo->dbOpt.dbname = *pToken;
-  pInfo->pDCLInfo->dbOpt.ignoreExists = (pIgExists != NULL);
+  pInfo->pDCLInfo->dbOpt.ignoreExists = (pIgExists->z != NULL);
 }
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo) {
@@ -886,16 +888,16 @@ void setKillSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *ip) {
 }
 
 void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
-  pDBInfo->numOfBlocksPerTable = 50;
   pDBInfo->compressionLevel = -1;
 
-  pDBInfo->commitLog = -1;
+  pDBInfo->walLevel = -1;
   pDBInfo->commitTime = -1;
-  pDBInfo->tablesPerVnode = -1;
-  pDBInfo->numOfAvgCacheBlocks = -1;
+  pDBInfo->maxTablesPerVnode = -1;
 
   pDBInfo->cacheBlockSize = -1;
-  pDBInfo->rowPerFileBlock = -1;
+  pDBInfo->numOfBlocks = -1;
+  pDBInfo->maxRowsPerBlock = -1;
+  pDBInfo->minRowsPerBlock = -1;
   pDBInfo->daysPerFile = -1;
 
   pDBInfo->replica = -1;

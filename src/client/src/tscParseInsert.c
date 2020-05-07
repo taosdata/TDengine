@@ -960,6 +960,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     *sqlstr = sql;
   }
 
+  if (*sqlstr == NULL) {
+    code = TSDB_CODE_INVALID_SQL;
+  }
+  
   return code;
 }
 

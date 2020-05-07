@@ -117,7 +117,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_VG_INIT_FAILED;
   }
 
-  dPrint("vgId:%d, vnode is created, clog:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.commitLog);
+  dPrint("vgId:%d, vnode is created, clog:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.walLevel);
   code = vnodeOpen(pVnodeCfg->cfg.vgId, rootDir);
 
   return code;
@@ -434,7 +434,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"commitTime\": %d,\n", pVnodeCfg->cfg.commitTime);  
   len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnodeCfg->cfg.precision);
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnodeCfg->cfg.compression);
-  len += snprintf(content + len, maxLen - len, "  \"commitLog\": %d,\n", pVnodeCfg->cfg.commitLog);
+  len += snprintf(content + len, maxLen - len, "  \"walLevel\": %d,\n", pVnodeCfg->cfg.walLevel);
   len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pVnodeCfg->cfg.replications);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pVnodeCfg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
@@ -579,12 +579,12 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->tsdbCfg.compression = (int8_t)compression->valueint;
 
-  cJSON *commitLog = cJSON_GetObjectItem(root, "commitLog");
-  if (!commitLog || commitLog->type != cJSON_Number) {
-    dError("pVnode:%p vgId:%d, failed to read vnode cfg, commitLog not found", pVnode, pVnode->vgId);
+  cJSON *walLevel = cJSON_GetObjectItem(root, "walLevel");
+  if (!walLevel || walLevel->type != cJSON_Number) {
+    dError("pVnode:%p vgId:%d, failed to read vnode cfg, walLevel not found", pVnode, pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->walCfg.commitLog = (int8_t)commitLog->valueint;
+  pVnode->walCfg.walLevel = (int8_t) walLevel->valueint;
 
   cJSON *wals = cJSON_GetObjectItem(root, "wals");
   if (!wals || wals->type != cJSON_Number) {

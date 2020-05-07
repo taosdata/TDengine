@@ -374,7 +374,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     } else {
       SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
       
-      uint16_t type = pQueryInfo->type;
+      uint32_t type = pQueryInfo->type;
       taos_free_result_imp(pSql, 1);
       pRes->numOfRows = 1;
       pRes->numOfTotal = 0;

@@ -111,13 +111,13 @@ typedef struct SCreateDBInfo {
   SSQLToken dbname;
   int32_t   replica;
   int32_t   cacheBlockSize;
-  int32_t   tablesPerVnode;
+  int32_t   maxTablesPerVnode;
+  int32_t   numOfBlocks;
   int32_t   daysPerFile;
-  int32_t   rowPerFileBlock;
-  float     numOfAvgCacheBlocks;
-  int32_t   numOfBlocksPerTable;
+  int32_t   minRowsPerBlock;
+  int32_t   maxRowsPerBlock;
   int64_t   commitTime;
-  int32_t   commitLog;
+  int32_t   walLevel;
   int32_t   compressionLevel;
   SSQLToken precision;
   bool      ignoreExists;

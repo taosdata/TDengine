@@ -88,7 +88,7 @@ typedef struct SSqlExpr {
   int16_t   functionId;     // function id in aAgg array
   int16_t   resType;        // return value type
   int16_t   resBytes;       // length of return value
-  int16_t   interResBytes;  // inter result buffer size
+  int16_t   interBytes;  // inter result buffer size
   int16_t   numOfParams;    // argument value of each function
   tVariant  param[3];       // parameters are not more than 3
   int32_t   offset;         // sub result column value of arithmetic expression.
@@ -195,7 +195,7 @@ typedef struct SDataBlockList {  // todo remove
 
 typedef struct SQueryInfo {
   int16_t  command;  // the command may be different for each subclause, so keep it seperately.
-  uint16_t type;     // query/insert/import type
+  uint32_t type;     // query/insert/import type
   char     slidingTimeUnit;
 
   STimeWindow     window;
@@ -283,6 +283,8 @@ typedef struct {
   int32_t*              length;  // length for each field for current row
   char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex *        pColumnIndex;
+  SArithmeticSupport*   pArithSup;   // support the arithmetic expression calculation on agg functions
+  
   struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
