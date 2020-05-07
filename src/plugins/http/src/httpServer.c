@@ -269,11 +269,12 @@ void httpCleanUpConnect(HttpServer *pServer) {
 
   for (i = 0; i < pServer->numOfThreads; ++i) {
     pThread = pServer->pThreads + i;
+    if (pThread == NULL) continue;
     //taosCloseSocket(pThread->pollFd);
 
-    while (pThread->pHead) {
-      httpCleanUpContext(pThread->pHead, 0);
-    }
+    //while (pThread->pHead) {
+    //  httpCleanUpContext(pThread->pHead, 0);
+    //}
 
     pthread_cancel(pThread->thread);
     pthread_join(pThread->thread, NULL);
