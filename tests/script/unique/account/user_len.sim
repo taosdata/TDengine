@@ -89,3 +89,5 @@ sql show accounts
 if $rows != 1 then 
   return -1
 endi
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT

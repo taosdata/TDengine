@@ -71,7 +71,10 @@ void dnodeCleanupWrite() {
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
+      pthread_cancel(pWorker->thread);
       pthread_join(pWorker->thread, NULL);
+      taosFreeQall(pWorker->qall);
+      taosCloseQset(pWorker->qset);
     }
   }
 
@@ -228,7 +231,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   int32_t num = taosGetQueueNumber(pWorker->qset);
 
   if (num > 0) {
-     usleep(30);
+     usleep(30000);
      sched_yield(); 
   } else {
      taosFreeQall(pWorker->qall);

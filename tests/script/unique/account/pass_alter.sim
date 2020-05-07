@@ -112,3 +112,5 @@ sql alter user oroot pass 'taosdata'
 sql drop account oroot
 sql drop user read
 sql drop user write
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT

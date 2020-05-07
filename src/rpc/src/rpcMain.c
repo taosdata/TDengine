@@ -1083,6 +1083,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
              pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerFqdn,
              pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
+    if (pHead->code == 0) pConn->secured = 1; // for success response, set link as secured
     if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace( "%s %p, %s is sent to %s:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
           pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
@@ -1364,7 +1365,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
       }
     }
   } else {
-    tTrace("%s %p, auth spi not matched, msg discarded", pRpc->label, pConn);
+    tTrace("%s %p, auth spi:%d not matched with received:%d", pRpc->label, pConn, pConn->spi, pHead->spi);
     code = TSDB_CODE_AUTH_FAILURE;
   }
 

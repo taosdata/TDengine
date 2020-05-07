@@ -1,5 +1,3 @@
 run unique/cluster/balance1.sim
 run unique/cluster/balance2.sim
 run unique/cluster/balance3.sim
-run unique/cluster/balance1_bug.sim
-run unique/cluster/balance1_single.sim

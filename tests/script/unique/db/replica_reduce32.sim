@@ -155,3 +155,12 @@ print d3.t3 $rows
 
 sql select * from d4.t4
 print d4.t4 $rows
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

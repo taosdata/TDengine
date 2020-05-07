@@ -93,6 +93,9 @@ class TDSql:
         if data is None:
             tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))
+        elif isinstance(data, str):
+            tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
+                       (self.sql, row, col, self.queryResult[row][col], data))
         elif isinstance(data, datetime.date):
             tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))

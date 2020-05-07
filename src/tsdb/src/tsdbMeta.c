@@ -535,5 +535,5 @@ static int tsdbEstimateTableEncodeSize(STable *pTable) {
 char *getTupleKey(const void * data) {
   SDataRow row = (SDataRow)data;
 
-  return POINTER_DRIFT(row, TD_DATA_ROW_HEAD_SIZE);
+  return POINTER_SHIFT(row, TD_DATA_ROW_HEAD_SIZE);
 }
