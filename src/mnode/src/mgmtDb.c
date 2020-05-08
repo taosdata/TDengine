@@ -803,7 +803,7 @@ static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     newCfg.daysToKeep2 = daysToKeep2;
   }
 
-  if (compression > 0 && compression != pDb->cfg.compression) {
+  if (compression >= 0 && compression != pDb->cfg.compression) {
     mTrace("db:%s, compression:%d change to %d", pDb->name, pDb->cfg.compression, compression);
     newCfg.compression = compression;
   }
@@ -823,7 +823,7 @@ static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     }
   }
 
-  if (walLevel > 0 && (walLevel < TSDB_MIN_WAL_LEVEL || walLevel > TSDB_MAX_WAL_LEVEL)) {
+  if (walLevel >= 0 && (walLevel < TSDB_MIN_WAL_LEVEL || walLevel > TSDB_MAX_WAL_LEVEL)) {
     mError("db:%s, wal level %d should be between 0-2, origin:%d", pDb->name, walLevel, pDb->cfg.walLevel);
     terrno = TSDB_CODE_INVALID_OPTION;
   }

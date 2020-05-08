@@ -41,53 +41,59 @@ sql use ir3db
 sql create table tb(ts timestamp, i int)
 
 print ================= step1
-sql import into tb values(now+10000a, 10000)
+sql import into tb values(1520000010000, 10000)
 sql select * from tb;
+print $rows
 if $rows != 1 then 
   return -1
 endi
 
 print ================= step2
-sql insert into tb values(now+8000a, 8000)
-sql select * from tb;
-if $rows != 1 then 
-  return -1
-endi
-
-print ================= step3
-sql insert into tb values(now+20000a, 20000)
+sql insert into tb values(1520000008000, 8000)
+print $rows
 sql select * from tb;
 if $rows != 2 then 
   return -1
 endi
 
-print ================= step4
-sql import into tb values(now+8000a, 9000)
-sql import into tb values(now+15000a, 15000)
-sql import into tb values(now+30000a, 30000)
+print ================= step3
+sql insert into tb values(1520000020000, 20000)
 sql select * from tb;
-if $rows != 5 then 
+print $rows
+if $rows != 3 then 
   return -1
 endi
 
-print ================= step5
-sql insert into tb values(now+8000a, 8000)
-sql insert into tb values(now+14000a, 14000)
-sql insert into tb values(now+25000a, 25000)
-sql insert into tb values(now+40000a, 40000)
+print ================= step4
+sql import into tb values(1520000009000, 9000)
+sql import into tb values(1520000015000, 15000)
+sql import into tb values(1520000030000, 30000)
 sql select * from tb;
+print $rows
 if $rows != 6 then 
   return -1
 endi
 
-print ================= step6
-sql import into tb values(now+7000a, 7000)
-sql import into tb values(now+12000a, 12000)
-sql import into tb values(now+23000a, 23000)
-sql import into tb values(now+34000a, 34000)
-sql import into tb values(now+50000a, 50000)
+print ================= step5
+sql insert into tb values(1520000008000, 8000)
+sql insert into tb values(1520000014000, 14000)
+sql insert into tb values(1520000025000, 25000)
+sql insert into tb values(1520000040000, 40000)
 sql select * from tb;
-if $rows != 11 then 
+print $rows
+if $rows != 9 then 
+  return -1
+endi
+
+print ================= step6
+sql import into tb values(1520000007000, 7000)
+sql import into tb values(1520000012000, 12000)
+sql import into tb values(1520000023000, 23000)
+sql import into tb values(1520000034000, 34000)
+sql import into tb values(1520000050000, 50000)
+sql select * from tb;
+print $rows
+if $rows != 14 then 
   return -1
 endi
 
@@ -97,46 +103,63 @@ endi
 #system sh/exec_up.sh -n dnode1 -s start
 #sleep 5000
 #sql select * from tb;
-#if $rows != 11 then 
+#if $rows != 14 then 
 #  return -1
 #endi
 
 print ================= step7
-sql import into tb values(now+7001a, 7001)
-sql import into tb values(now+12001a, 12001)
-sql import into tb values(now+23001a, 23001)
-sql import into tb values(now+34001a, 34001)
-sql import into tb values(now+50001a, 50001)
+sql import into tb values(1520000007001, 7001)
+sql import into tb values(1520000012001, 12001)
+sql import into tb values(1520000023001, 23001)
+sql import into tb values(1520000034001, 34001)
+sql import into tb values(1520000050001, 50001)
 sql select * from tb;
-if $rows != 16 then 
+print $rows
+if $rows != 19 then 
   return -1
 endi
 
 print ================= step8
-sql insert into tb values(now+8002a, 8002)
-sql insert into tb values(now+14002a, 14002)
-sql insert into tb values(now+25002a, 25002)
-sql insert into tb values(now+200000a, 60000)
+sql insert into tb values(1520000008002, 8002)
+sql insert into tb values(1520000014002, 14002)
+sql insert into tb values(1520000025002, 25002)
+sql insert into tb values(1520000060000, 60000)
 sql select * from tb;
-if $rows != 17 then 
+print $rows
+if $rows != 24 then 
   return -1
 endi
 
 print ================= step9
-sql import into tb values(now-30d, 7003)
-sql import into tb values(now-20d, 34003)
-sql import into tb values(now-10d, 34003)
-sql import into tb values(now-5d, 34003)
-sql import into tb values(now+1m, 50001)
-sql import into tb values(now+2m, 50001)
-sql import into tb values(now+6m, 50001)
-sql import into tb values(now+8m, 50002)
-sql import into tb values(now+10m, 50003)
-sql import into tb values(now+12m, 50004)
-sql import into tb values(now+14m, 50001)
-sql import into tb values(now+16m, 500051)
+#1520000000000
+#sql import into tb values(now-30d, 7003)
+#sql import into tb values(now-20d, 34003)
+#sql import into tb values(now-10d, 34003)
+#sql import into tb values(now-5d, 34003)
+#sql import into tb values(now+1d, 50001)
+#sql import into tb values(now+2d, 50001)
+#sql import into tb values(now+6d, 50001)
+#sql import into tb values(now+8d, 50002)
+#sql import into tb values(now+10d, 50003)
+#sql import into tb values(now+12d, 50004)
+#sql import into tb values(now+14d, 50001)
+#sql import into tb values(now+16d, 500051)
+
+sql import into tb values(1517408000000, 7003)
+sql import into tb values(1518272000000, 34003)
+sql import into tb values(1519136000000, 34003)
+sql import into tb values(1519568000000, 34003)
+sql import into tb values(1519654400000, 50001)
+sql import into tb values(1519827200000, 50001)
+sql import into tb values(1520345600000, 50001)
+sql import into tb values(1520691200000, 50002)
+sql import into tb values(1520864000000, 50003)
+sql import into tb values(1521900800000, 50004)
+sql import into tb values(1523110400000, 50001)
+sql import into tb values(1521382400000, 500051)
 sql select * from tb;
-if $rows != 29 then 
+print $rows
+if $rows != 36 then 
   return -1
 endi
 
@@ -146,21 +169,27 @@ sleep 5000
 system sh/exec_up.sh -n dnode1 -s start
 sleep 5000
 sql select * from tb;
-if $rows != 29 then 
+print $rows
+if $rows != 36 then 
   return -1
 endi
 
 print ================= step11
-sql import into tb values(now-50d, 7003) (now-48d, 7003) (now-46d, 7003) (now-44d, 7003) (now-42d, 7003)
+
+#sql import into tb values(now-50d, 7003) (now-48d, 7003) (now-46d, 7003) (now-44d, 7003) (now-42d, 7003)
+sql import into tb values(1515680000000, 7003) (1515852800000, 7003) (1516025600000, 7003) (1516198400000, 7003) (1516371200000, 7003)
 sql select * from tb;
-if $rows != 34 then 
+if $rows != 41 then 
   return -1
 endi
 
 print ================= step12
-sql import into tb values(now-19d, 7003) (now-18d, 7003) (now-17d, 7003) (now-16d, 7003) (now-15d, 7003) (now-14d, 7003) (now-13d, 7003) (now-12d, 7003) (now-11d, 7003)
+#1520000000000
+#sql import into tb values(now-19d, 7003) (now-18d, 7003) (now-17d, 7003) (now-16d, 7003) (now-15d, 7003) (now-14d, 7003) (now-13d, 7003) (now-12d, 7003) (now-11d, 7003)
+sql import into tb values(1518358400000, 7003) (1518444800000, 7003) (1518531200000, 7003) (1518617600000, 7003) (1518704000000, 7003) (1518790400000, 7003) (1518876800000, 7003) (1518963200000, 7003) (1519049600000, 7003)
 sql select * from tb;
-if $rows != 43 then 
+print $rows
+if $rows != 50 then 
   return -1
 endi
 
@@ -169,11 +198,17 @@ system sh/exec_up.sh -n dnode2 -s stop
 sleep 5000
 
 print ================= step14
-sql import into tb values(now-48d, 34003)
-sql import into tb values(now-38d, 50001)
-sql import into tb values(now-28d, 50001)
+#1520000000000
+#sql import into tb values(now-48d, 34003)
+#sql import into tb values(now-38d, 50001)
+#sql import into tb values(now-28d, 50001)
+
+sql import into tb values(1515852800001, 34003)
+sql import into tb values(1516716800000, 50001)
+sql import into tb values(1517580800000, 50001)
+
 sql select * from tb;
-if $rows != 46 then 
+if $rows != 50 then 
   return -1
 endi
 
@@ -183,6 +218,15 @@ sleep 8000
 system sh/exec_up.sh -n dnode3 -s stop
 sleep 3000
 
-if $rows != 46 then 
+if $rows != 50 then 
   return -1
 endi
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

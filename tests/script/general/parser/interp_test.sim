@@ -87,7 +87,7 @@ $tb = $tbPrefix . 0
   ### illegal queries on a table
   sql_error select interp(ts), c1 from $tb where ts = $ts0
   sql_error select interp(ts) from $tb where ts >= $ts0
-  sql_error select interp(ts), max(c1), min(c2), count(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $t fill(null)
+  sql_error select interp(ts), max(c1), min(c2), count(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $t fill(NULL)
 
   ### interp from tb + fill
   $t = $ts0 + 1000
@@ -107,7 +107,7 @@ $tb = $tbPrefix . 0
     return -1
   endi
 
-  ## fill(null)
+  ## fill(NULL)
   $t = $tsu - 1000
   sql select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $t fill(value, NULL) order by ts asc
   if $rows != 1 then
@@ -116,31 +116,31 @@ $tb = $tbPrefix . 0
   if $data00 != @18-11-25 19:29:59.000@ then
     return -1
   endi
-  if $data01 != null then
+  if $data01 != NULL then
     return -1
   endi
-  if $data02 != null then
+  if $data02 != NULL then
     return -1
   endi
-  if $data03 != null then
+  if $data03 != NULL then
     return -1
   endi
-  if $data04 != null then
+  if $data04 != NULL then
     return -1
   endi
-  if $data05 != null then
+  if $data05 != NULL then
     return -1
   endi
-  if $data06 != null then
+  if $data06 != NULL then
     return -1
   endi
-  if $data07 != null then
+  if $data07 != NULL then
     return -1
   endi
-  if $data08 != null then
+  if $data08 != NULL then
     return -1
   endi
-  if $data09 != null then
+  if $data09 != NULL then
     return -1
   endi
 
@@ -209,7 +209,7 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != null then
+  if $data02 != NULL then
     return -1
   endi
   if $data03 != 0.00000 then
@@ -254,13 +254,13 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != null then
+  if $data07 != NULL then
     return -1
   endi
-  if $data08 != null then
+  if $data08 != NULL then
     return -1
   endi
-  if $data09 != null then
+  if $data09 != NULL then
     return -1
   endi
   # columns contain NULL values
@@ -276,13 +276,13 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != null then
+  if $data02 != NULL then
     return -1
   endi
   if $data03 != 0.00167 then
     return -1
   endi
-  if $data04 != null then
+  if $data04 != NULL then
     return -1
   endi
   if $data05 != 0 then
@@ -291,13 +291,13 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != null then
+  if $data07 != NULL then
     return -1
   endi
-  if $data08 != null then
+  if $data08 != NULL then
     return -1
   endi
-  if $data09 != null then
+  if $data09 != NULL then
     return -1
   endi
 
@@ -346,13 +346,13 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != null then
+  if $data02 != NULL then
     return -1
   endi
   if $data03 != 0.00000 then
     return -1
   endi
-  if $data04 != null then
+  if $data04 != NULL then
     return -1
   endi
   if $data05 != 0 then
@@ -413,10 +413,10 @@ $tb = $tbPrefix . 0
   if $data07 != 1 then
     return -1
   endi
-  if $data08 != null then
+  if $data08 != NULL then
     return -1
   endi
-  if $data09 != null then
+  if $data09 != NULL then
     return -1
   endi
 
@@ -454,7 +454,7 @@ $tb = $tbPrefix . 0
   if $data09 != nchar0 then
     return -1
   endi
-  # table has null columns
+  # table has NULL columns
   sql select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from intp_tb3 where ts = $ts0 fill(value, -1, -2, -3)
   if $rows != 1 then
     return -1
@@ -465,13 +465,13 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != null then
+  if $data02 != NULL then
     return -1
   endi
   if $data03 != 0.00000 then
     return -1
   endi
-  if $data04 != null then
+  if $data04 != NULL then
     return -1
   endi
 
@@ -521,10 +521,10 @@ $tb = $tbPrefix . 0
   if $data08 != intp_tb0 then
     return -1 
   endi
-  if $data22 != null then
+  if $data22 != NULL then
     return -1
   endi
-  if $data24 != null then
+  if $data24 != NULL then
     return -1
   endi
   if $data28 != intp_tb2 then
@@ -558,51 +558,51 @@ $tb = $tbPrefix . 0
   if $data21 != 0 then
     return -1
   endi
-  if $data22 != null then
+  if $data22 != NULL then
     return -1
   endi
-  if $data24 != null then
+  if $data24 != NULL then
     return -1
   endi
 
   ## interp(*) from stb + group by + fill(none)
   $t = $ts0 + 1000
-  sql select interp(*) from $stb where ts = $t fill(null) group by tbname
+  sql select interp(*) from $stb where ts = $t fill(NULL) group by tbname
 if $rows != $tbNum then
   return -1
 endi
 if $data00 != @18-09-17 09:00:01.000@ then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
-if $data23 != null then
+if $data23 != NULL then
   return -1
 endi
-if $data34 != null then
+if $data34 != NULL then
   return -1
 endi
-if $data05 != null then
+if $data05 != NULL then
   return -1
 endi
-if $data16 != null then
+if $data16 != NULL then
   return -1
 endi
-if $data27 != null then
+if $data27 != NULL then
   return -1
 endi
-if $data38 != null then
+if $data38 != NULL then
   return -1
 endi
-if $data09 != null then
+if $data09 != NULL then
   return -1
 endi
 
-sql select interp(*) from $stb where ts = $ts0 fill(null) group by tbname
+sql select interp(*) from $stb where ts = $ts0 fill(NULL) group by tbname
 print $rows
 
 if $rows != 4 then
@@ -619,10 +619,10 @@ endi
 if $data21 != 0 then
   return -1
 endi
-if $data22 != null then
+if $data22 != NULL then
   return -1
 endi
-if $data24 != null then
+if $data24 != NULL then
   return -1
 endi
 
@@ -670,13 +670,13 @@ endi
   if $data21 != 0 then
     return -1
   endi
-  if $data22 != null then
+  if $data22 != NULL then
     return -1
   endi
   if $data23 != 0.00000 then
     return -1
   endi
-  if $data24 != null then
+  if $data24 != NULL then
     return -1
   endi
   if $data25 != 0 then
@@ -724,13 +724,13 @@ endi
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != null then
+  if $data07 != NULL then
     return -1
   endi
-  if $data08 != null then
+  if $data08 != NULL then
     return -1
   endi
-  if $data09 != null then
+  if $data09 != NULL then
     return -1
   endi
   if $data20 != @18-09-17 09:00:01.000@ then
@@ -739,13 +739,13 @@ endi
   if $data21 != 0 then
     return -1
   endi
-  if $data22 != null then
+  if $data22 != NULL then
     return -1
   endi
   if $data23 != 0.00167 then
     return -1
   endi
-  if $data24 != null then
+  if $data24 != NULL then
     return -1
   endi
   if $data25 != 0 then
@@ -754,13 +754,13 @@ endi
   if $data26 != 0 then
      return -1
   endi
-  if $data27 != null then
+  if $data27 != NULL then
     return -1
   endi
-  if $data28 != null then
+  if $data28 != NULL then
     return -1
   endi
-  if $data29 != null then
+  if $data29 != NULL then
     return -1
   endi
 
@@ -796,10 +796,10 @@ endi
   if $data07 != 1 then
     return -1
   endi
-  if $data08 != null then
+  if $data08 != NULL then
     return -1
   endi
-  if $data09 != null then
+  if $data09 != NULL then
     return -1
   endi
   if $data20 != @18-09-17 09:00:01.000@ then
@@ -826,9 +826,9 @@ endi
   if $data27 != 1 then
     return -1
   endi
-  if $data28 != null then
+  if $data28 != NULL then
     return -1
   endi
-  if $data29 != null then
+  if $data29 != NULL then
     return -1
   endi

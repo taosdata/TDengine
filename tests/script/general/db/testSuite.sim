@@ -7,7 +7,7 @@ run general/db/basic5.sim
 run general/db/delete_reuse1.sim
 run general/db/delete_reuse2.sim
 run general/db/delete_reusevnode.sim
-#run general/db/delete_reusevnode2.sim
+run general/db/delete_reusevnode2.sim
 run general/db/delete_writing1.sim
 run general/db/delete_writing2.sim
 run general/db/len.sim

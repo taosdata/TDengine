@@ -1,10 +1,4 @@
 system sh/stop_dnodes.sh
-
-
-
-
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
@@ -25,10 +19,10 @@ system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 2000
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 2000
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 2000
 
-system sh/cfg.sh -n dnode1 -c commitlog -v 0
-system sh/cfg.sh -n dnode2 -c commitlog -v 0
-system sh/cfg.sh -n dnode3 -c commitlog -v 0
-system sh/cfg.sh -n dnode4 -c commitlog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode2 -c walLevel -v 0
+system sh/cfg.sh -n dnode3 -c walLevel -v 0
+system sh/cfg.sh -n dnode4 -c walLevel -v 0
 
 print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
@@ -50,14 +44,14 @@ endi
 print ================= step2
 sql insert into tb values(1564641708000, 8000)
 sql select * from tb;
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
 print ================= step3
 sql insert into tb values(1564641720000, 20000)
 sql select * from tb;
-if $rows != 2 then 
+if $rows != 3 then 
   return -1
 endi
 
@@ -76,7 +70,7 @@ sql insert into tb values(1564641714000, 14000)
 sql insert into tb values(1564641725000, 25000)
 sql insert into tb values(1564641740000, 40000)
 sql select * from tb;
-if $rows != 6 then 
+if $rows != 8 then 
   return -1
 endi
 
@@ -87,7 +81,7 @@ sql import into tb values(1564641723000, 23000)
 sql import into tb values(1564641734000, 34000)
 sql import into tb values(1564641750000, 50000)
 sql select * from tb;
-if $rows != 11 then 
+if $rows != 13 then 
   return -1
 endi
 
@@ -98,7 +92,7 @@ sql import into tb values(1564641723001, 23001)
 sql import into tb values(1564641734001, 34001)
 sql import into tb values(1564641750001, 50001)
 sql select * from tb;
-if $rows != 16 then 
+if $rows != 18 then 
   return -1
 endi
 
@@ -108,28 +102,28 @@ sql insert into tb values(1564641714002, 14002)
 sql insert into tb values(1564641725002, 25002)
 sql insert into tb values(1564641900000, 200000)
 sql select * from tb;
-if $rows != 17 then 
+if $rows != 22 then 
   return -1
 endi
 
 print ================= step9 only insert last one
 sql import into tb values(1564641705000, 5000)(1564641718000, 18000)(1564642400000, 700000)
 sql select * from tb;
-if $rows != 20 then
+if $rows != 25 then
   return -1
 endi
 
 print ================= step10
 sql import into tb values(1564641705000, 5000)(1564641718000, 18000)(1564642400000, 70000)
 sql select * from tb;
-if $rows != 20 then
+if $rows != 25 then
   return -1
 endi
 
 print ================= step11
 sql import into tb values(1564642400000, 700000)
 sql select * from tb;
-if $rows != 20 then
+if $rows != 25 then
   return -1
 endi
 
@@ -137,7 +131,7 @@ print ================= step12
 sql import into tb values(1564641709527, 9527)(1564641709527, 9528)
 sql select * from tb;
 print rows=> $rows
-if $rows != 21 then
+if $rows != 26 then
   return -1
 endi
 
@@ -145,7 +139,8 @@ print ================= step13
 sql import into tb values(1564641709898, 9898)(1564641709897, 9897)
 sql select * from tb;
 print rows=> $rows
-if $rows != 23 then
+if $rows != 28 then
   return -1
 endi
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

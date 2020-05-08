@@ -77,7 +77,7 @@ print dnode2 $dnode2Vnodes
 if $dnode1Vnodes != 2 then
   return -1
 endi
-if $dnode2Vnodes != null then
+if $dnode2Vnodes != NULL then
   return -1
 endi
 
@@ -146,7 +146,7 @@ print dnode2 $dnode2Vnodes
 if $dnode1Vnodes != 3 then
   goto show4
 endi
-if $dnode2Vnodes != null then
+if $dnode2Vnodes != NULL then
   goto show4
 endi
 
@@ -229,7 +229,7 @@ print dnode3 $dnode3Vnodes
 if $dnode1Vnodes != 3 then
   goto show8
 endi
-if $dnode3Vnodes != null then
+if $dnode3Vnodes != NULL then
   goto show8
 endi
 
@@ -245,7 +245,7 @@ if $dnode1Role != master then
   return -1
 endi
 
-if $dnode3Role != null then
+if $dnode3Role != NULL then
   return -1
 endi
 
