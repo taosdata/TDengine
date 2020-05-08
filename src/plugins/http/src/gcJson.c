@@ -125,7 +125,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
     // for group by
     if (groupFields != -1) {
-      char target[HTTP_GC_TARGET_SIZE];
+      char target[HTTP_GC_TARGET_SIZE] = {0};
       int len;
       len = snprintf(target,HTTP_GC_TARGET_SIZE,"%s{",aliasBuffer);
       for (int i = dataFields + 1; i<num_fields; i++){
