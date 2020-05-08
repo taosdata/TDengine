@@ -828,10 +828,10 @@ static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
 }
 
 static int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {
-  for (int32_t i = 0; i < pStable->numOfTags; i++) {
-    SSchema *schema = (SSchema *)(pStable->schema + (pStable->numOfColumns + i) * sizeof(SSchema));
-    if (strcasecmp(tagName, schema->name) == 0) {
-      return i;
+  SSchema *schema = (SSchema *) pStable->schema;
+  for (int32_t tag = 0; tag < pStable->numOfTags; tag++) {
+    if (strcasecmp(schema[pStable->numOfColumns + tag].name, tagName) == 0) {
+      return tag;
     }
   }
 
