@@ -158,6 +158,7 @@ void syncStop(void *param)
   SSyncNode  *pNode = param;
   SSyncPeer  *pPeer;
 
+  if (pNode == NULL) return;
   sPrint("vgId:%d, cleanup sync", pNode->vgId);
 
   for (int i = 0; i < pNode->replica; ++i) {
