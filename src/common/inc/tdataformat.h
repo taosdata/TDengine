@@ -28,16 +28,16 @@ extern "C" {
 
 #define STR_TO_VARSTR(x, str) do {VarDataLenT __len = strlen(str); \
   *(VarDataLenT*)(x) = __len; \
-  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), __len);} while(0);
+  strncpy(varDataVal(x), (str), __len);} while(0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs) do {\
-  char* _e = stpncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), (_maxs));\
-  *(VarDataLenT*)(x) = (_e - (x) - VARSTR_HEADER_SIZE);\
+  char* _e = stpncpy(varDataVal(x), (str), (_maxs));\
+  varDataSetLen(x, (_e - (x) - VARSTR_HEADER_SIZE));\
 } while(0)
 
 #define STR_WITH_SIZE_TO_VARSTR(x, str, _size) do {\
   *(VarDataLenT*)(x) = (_size); \
-  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), (_size));\
+  strncpy(varDataVal(x), (str), (_size));\
 } while(0);
 
 // ----------------- TSDB COLUMN DEFINITION

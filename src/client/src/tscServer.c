@@ -2419,7 +2419,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
 
   strncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, tListLen(pNewMeterMetaInfo->name));
   memcpy(pNew->cmd.payload, pSql->cmd.payload, TSDB_DEFAULT_PAYLOAD_SIZE);  // tag information if table does not exists.
-  tscTrace("%p new pSqlObj:%p to get tableMeta", pSql, pNew);
+  tscTrace("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);
 
   pNew->fp = tscTableMetaCallBack;
   pNew->param = pSql;

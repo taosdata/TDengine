@@ -357,6 +357,7 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd) {
   pCmd->curSql    = NULL;
   pCmd->msgType   = 0;
   pCmd->parseFinished = 0;
+  pCmd->autoCreated = 0;
   
   taosHashCleanup(pCmd->pTableList);
   pCmd->pTableList = NULL;

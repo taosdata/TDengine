@@ -172,7 +172,7 @@ print ========== create_tb.sim case7: table_name_length_exceeds_limit
 $tbname32 = _32_aaaabbbbccccddddaaaabbbbcccc
 $tbname64 = _64_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbcccc
 $tbname63 = _63_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbccc
-$tbname65 = _65_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbcccca
+$tbname65 = _65_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbcccca1111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 sql create table $tbname32 (ts timestamp, col int)
 sql insert into $tbname32 values (now, 1)
 sql create table $tbname64 (ts timestamp, col int)
