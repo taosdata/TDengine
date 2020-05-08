@@ -13,10 +13,10 @@
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
 static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx);
-static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbEstimateTableEncodeSize(STable *pTable);
+static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable);
 
 /**
  * Encode a TSDB table object as a binary content
@@ -375,21 +375,9 @@ int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
   STable *pTable = tsdbGetTableByUid(pMeta, tableId.uid);
   if (pTable == NULL) return -1;
 
-  if (pTable->type == TSDB_SUPER_TABLE) {
-    // TODO: implement drop super table
-    return -1;
-  } else {
-    pMeta->tables[pTable->tableId.tid] = NULL;
-    pMeta->nTables--;
-    assert(pMeta->nTables >= 0);
-    if (pTable->type == TSDB_CHILD_TABLE) {
-      tsdbRemoveTableFromIndex(pMeta, pTable);
-    }
-
-    tsdbFreeTable(pTable);
-  }
-
+  if (tsdbRemoveTableFromMeta(pMeta, pTable) < 0) return -1;
   return 0;
+
 }
 
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
@@ -445,10 +433,12 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
     if (pMeta->superList == NULL) {
       pMeta->superList = pTable;
       pTable->next = NULL;
+      pTable->prev = NULL;
     } else {
-      STable *pTemp = pMeta->superList;
+      pTable->next = pMeta->superList;
+      pTable->prev = NULL;
+      pTable->next->prev = pTable;
       pMeta->superList = pTable;
-      pTable->next = pTemp;
     }
   } else {
     // add non-super table to the array
@@ -467,22 +457,50 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
     if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
   }
 
-  return tsdbAddTableIntoMap(pMeta, pTable);
-}
-
-// static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
-//   // TODO
-//   return 0;
-// }
-
-static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
-  // TODO: add the table to the map
-  int64_t uid = pTable->tableId.uid;
-  if (taosHashPut(pMeta->map, (char *)(&uid), sizeof(uid), (void *)(&pTable), sizeof(pTable)) < 0) {
+  if (taosHashPut(pMeta->map, (char *)(&pTable->tableId.uid), sizeof(pTable->tableId.uid), (void *)(&pTable), sizeof(pTable)) < 0) {
     return -1;
   }
   return 0;
 }
+
+static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    SSkipListIterator  *pIter = tSkipListCreateIter(pTable->pIndex);
+    while (tSkipListIterNext(pIter)) {
+      STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
+
+      pMeta->tables[tTable->tableId.tid] = NULL;
+      taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
+      pMeta->nTables--;
+      tsdbFreeTable(tTable);
+    }
+
+    tSkipListDestroyIter(pIter);
+
+    // TODO: Remove the table from the list
+    if (pTable->prev != NULL) {
+      pTable->prev->next = pTable->next;
+      if (pTable->next != NULL) {
+        pTable->next->prev = pTable->prev;
+      }
+    } else {
+      pMeta->superList = pTable->next;
+    }
+  } else {
+    pMeta->tables[pTable->tableId.tid] = NULL;
+    if (pTable->type == TSDB_CHILD_TABLE) {
+      tsdbRemoveTableFromIndex(pMeta, pTable);
+    }
+
+    pMeta->nTables--;
+  }
+
+  tsdbFreeTable(pTable);
+  taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
+  return 0;
+}
+
 static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
   STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
