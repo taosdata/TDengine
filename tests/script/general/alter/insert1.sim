@@ -1148,3 +1148,5 @@ endi
 if $data78 != 11 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

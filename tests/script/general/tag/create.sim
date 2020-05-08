@@ -598,3 +598,5 @@ print $data00 $data01 $data02
 if $data02 != 12345 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
