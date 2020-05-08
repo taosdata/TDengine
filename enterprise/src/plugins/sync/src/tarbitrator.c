@@ -27,11 +27,11 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       tsServerPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
-      ddebugFlag = atoi(argv[++i]);
+      dDebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
-      printf("  [-d debugFlag]: debug flag, default:%d\n", ddebugFlag);
+      printf("  [-d debugFlag]: debug flag, default:%d\n", dDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }

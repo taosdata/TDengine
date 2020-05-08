@@ -413,7 +413,7 @@ int main(int argc, char *argv[]) {
   }
  
   uDebugFlag = rpcDebugFlag;
-  ddebugFlag = rpcDebugFlag; 
+  dDebugFlag = rpcDebugFlag; 
   //tmrDebugFlag = rpcDebugFlag; 
   tsAsyncLog = 0;
   taosInitLog("server.log", 1000000, 10);
