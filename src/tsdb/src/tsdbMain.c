@@ -90,6 +90,7 @@ void tsdbFreeCfg(STsdbCfg *pCfg) {
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) {
 
   if (mkdir(rootDir, 0755) != 0) {
+    tsdbError("id %d: failed to create rootDir! rootDir %s, reason %s", pCfg->tsdbId, rootDir, strerror(errno));
     if (errno == EACCES) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
@@ -611,14 +612,20 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->precision == -1) {
     pCfg->precision = TSDB_DEFAULT_PRECISION;
   } else {
-    if (!IS_VALID_PRECISION(pCfg->precision)) return -1;
+    if (!IS_VALID_PRECISION(pCfg->precision)) {
+      tsdbError("id %d: invalid precision configuration! precision %d", pCfg->tsdbId, pCfg->precision);
+      return -1;
+    }
   }
 
   // Check compression
   if (pCfg->compression == -1) {
     pCfg->compression = TSDB_DEFAULT_COMPRESSION;
   } else {
-    if (!IS_VALID_COMPRESSION(pCfg->compression)) return -1;
+    if (!IS_VALID_COMPRESSION(pCfg->compression)) {
+      tsdbError("id %d: invalid compression configuration! compression %d", pCfg->tsdbId, pCfg->precision);
+      return -1;
+    }
   }
 
   // Check tsdbId
@@ -628,29 +635,49 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->maxTables == -1) {
     pCfg->maxTables = TSDB_DEFAULT_TABLES;
   } else {
-    if (pCfg->maxTables < TSDB_MIN_TABLES || pCfg->maxTables > TSDB_MAX_TABLES) return -1;
+    if (pCfg->maxTables < TSDB_MIN_TABLES || pCfg->maxTables > TSDB_MAX_TABLES) {
+      tsdbError("id %d: invalid maxTables configuration! maxTables %d TSDB_MIN_TABLES %d TSDB_MAX_TABLES %d",
+                pCfg->tsdbId, pCfg->maxTables, TSDB_MIN_TABLES, TSDB_MAX_TABLES);
+      return -1;
+    }
   }
 
   // Check daysPerFile
   if (pCfg->daysPerFile == -1) {
     pCfg->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
   } else {
-    if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
+    if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) {
+      tsdbError(
+          "id %d: invalid daysPerFile configuration! daysPerFile %d TSDB_MIN_DAYS_PER_FILE %d TSDB_MAX_DAYS_PER_FILE "
+          "%d",
+          pCfg->tsdbId, pCfg->daysPerFile, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
+      return -1;
+    }
   }
 
   // Check minRowsPerFileBlock and maxRowsPerFileBlock
   if (pCfg->minRowsPerFileBlock == -1) {
     pCfg->minRowsPerFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
   } else {
-    if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK)
+    if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
+      tsdbError(
+          "id %d: invalid minRowsPerFileBlock configuration! minRowsPerFileBlock %d TSDB_MIN_MIN_ROW_FBLOCK %d "
+          "TSDB_MAX_MIN_ROW_FBLOCK %d",
+          pCfg->tsdbId, pCfg->minRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
       return -1;
+    }
   }
 
   if (pCfg->maxRowsPerFileBlock == -1) {
     pCfg->maxRowsPerFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
   } else {
-    if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK)
+    if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
+      tsdbError(
+          "id %d: invalid maxRowsPerFileBlock configuration! maxRowsPerFileBlock %d TSDB_MIN_MAX_ROW_FBLOCK %d "
+          "TSDB_MAX_MAX_ROW_FBLOCK %d",
+          pCfg->tsdbId, pCfg->maxRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
       return -1;
+    }
   }
 
   if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) return -1;
@@ -659,7 +686,13 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->keep == -1) {
     pCfg->keep = TSDB_DEFAULT_KEEP;
   } else {
-    if (pCfg->keep < TSDB_MIN_KEEP || pCfg->keep > TSDB_MAX_KEEP) return -1;
+    if (pCfg->keep < TSDB_MIN_KEEP || pCfg->keep > TSDB_MAX_KEEP) {
+      tsdbError(
+          "id %d: invalid keep configuration! keep %d TSDB_MIN_KEEP %d "
+          "TSDB_MAX_KEEP %d",
+          pCfg->tsdbId, pCfg->keep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+      return -1;
+    }
   }
 
   return 0;
@@ -716,15 +749,22 @@ static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname) {
 }
 
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
+  STsdbCfg *pCfg = &pRepo->config;
   if (tsdbSaveConfig(pRepo) < 0) return -1;
 
   char dirName[128] = "\0";
   if (tsdbGetDataDirName(pRepo, dirName) < 0) return -1;
 
   if (mkdir(dirName, 0755) < 0) {
+    tsdbError("id %d: failed to create repository directory! reason %s", pRepo->config.tsdbId, strerror(errno));
     return -1;
   }
 
+  tsdbError(
+      "id %d: set up tsdb environment succeed! cacheBlockSize %d, totalBlocks %d, maxTables %d, daysPerFile %d, keep "
+      "%d, minRowsPerFileBlock %d, maxRowsPerFileBlock %d, precision %d, compression%d",
+      pRepo->config.tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->maxTables, pCfg->daysPerFile, pCfg->keep,
+      pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression);
   return 0;
 }
 
@@ -811,7 +851,8 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
   if (pTable == NULL) {
-    tsdbError("failed to get table for insert, uid:%" PRIu64 ", tid:%d", tableId.uid, tableId.tid);
+    tsdbError("id %d: failed to get table for insert, uid:%" PRIu64 ", tid:%d", pRepo->config.tsdbId, pBlock->uid,
+              pBlock->tid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
 
