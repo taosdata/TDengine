@@ -934,8 +934,15 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
     rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->ipSet.port[pContext->ipSet.inUse], pConn->connType);    
 
+    if (pHead->code == TSDB_CODE_REDIRECT) { 
+      pContext->redirect++;
+      if (pContext->redirect > TSDB_MAX_REPLICA) {
+        pHead->code = TSDB_CODE_NETWORK_UNAVAIL; 
+        tWarn("%s %p, too many redirects, quit", pRpc->label, pConn);
+      }
+    }
+
     if (pHead->code == TSDB_CODE_REDIRECT) {
-      pContext->redirect = 1;
       pContext->numOfTry = 0;
       memcpy(&pContext->ipSet, pHead->content, sizeof(pContext->ipSet));
       tTrace("%s %p, redirect is received, numOfIps:%d", pRpc->label, pConn, pContext->ipSet.numOfIps);
