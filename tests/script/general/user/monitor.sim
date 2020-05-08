@@ -1,6 +1,4 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
 
 print ========== step1
@@ -16,7 +14,7 @@ print ========== step2
 sql drop database log -x step21
   return -1
 step21:
-sql drop table log.cpu -x step22
+sql drop table log.dn -x step22
   return -1
 step22:
 sql drop user log -x step23
@@ -31,6 +29,4 @@ if $rows == 0 then
   return -1
 endi
 
-
-
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

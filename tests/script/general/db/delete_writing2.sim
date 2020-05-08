@@ -6,6 +6,7 @@ system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
+sleep 3000
 sql connect
 
 sql create database db 
@@ -43,3 +44,5 @@ while $x < 10
 	
 	$x = $x + 1
 endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
