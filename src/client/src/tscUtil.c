@@ -762,6 +762,10 @@ void tscCloseTscObj(STscObj* pObj) {
   
   pthread_mutex_destroy(&pObj->mutex);
   
+  if (pObj->pDnodeConn != NULL) {
+    rpcClose(pObj->pDnodeConn);
+  }
+  
   tscTrace("%p DB connection is closed", pObj);
   tfree(pObj);
 }

@@ -65,8 +65,9 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     terrno = TSDB_CODE_INVALID_PASS;
     return NULL;
   }
-
-  if (tscInitRpc(user, pass) != 0) {
+  
+  void *pDnodeConn = NULL;
+  if (tscInitRpc(user, pass, &pDnodeConn) != 0) {
     terrno = TSDB_CODE_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -93,6 +94,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    rpcClose(pDnodeConn);
     return NULL;
   }
 
@@ -106,8 +108,9 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     int32_t len = strlen(db);
     /* db name is too long */
     if (len > TSDB_DB_NAME_LEN) {
-      free(pObj);
       terrno = TSDB_CODE_INVALID_DB;
+      rpcClose(pDnodeConn);
+      free(pObj);
       return NULL;
     }
 
@@ -123,6 +126,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (NULL == pSql) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    rpcClose(pDnodeConn);
     free(pObj);
     return NULL;
   }
@@ -134,6 +138,8 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   tsem_init(&pSql->rspSem, 0, 0);
   
   pObj->pSql = pSql;
+  pObj->pDnodeConn = pDnodeConn;
+  
   pSql->fp = fp;
   pSql->param = param;
   if (taos != NULL) {
@@ -143,6 +149,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   pSql->cmd.command = TSDB_SQL_CONNECT;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    rpcClose(pDnodeConn);
     free(pSql);
     free(pObj);
     return NULL;

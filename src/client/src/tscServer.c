@@ -191,6 +191,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
+  STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
   
   char *pMsg = rpcMallocCont(pCmd->payloadLen);
@@ -215,7 +216,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = pSql,
       .code    = 0
   };
-  rpcSendRequest(pDnodeConn, &pSql->ipList, &rpcMsg);
+  rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
 
   return TSDB_CODE_SUCCESS;
 }
