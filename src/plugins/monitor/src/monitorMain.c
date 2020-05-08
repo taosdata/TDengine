@@ -43,7 +43,7 @@
   { taosPrintLog("MON ", 255, __VA_ARGS__); }
 
 #define SQL_LENGTH     1024
-#define LOG_LEN_STR    80
+#define LOG_LEN_STR    100
 #define IP_LEN_STR     18
 #define CHECK_INTERVAL 1000
 
@@ -148,8 +148,8 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
 
   if (cmd == MONITOR_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
-             "create database if not exists %s replica 1 days 10 keep 30 cache 2 "
-             "blocks 2 maxtables 32 precision 'us'",
+             "create database if not exists %s replica 1 days 10 keep 30 cache 1 "
+             "blocks 2 maxtables 16 precision 'us'",
              tsMonitorDbName);
   } else if (cmd == MONITOR_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
@@ -407,7 +407,7 @@ void monitorSaveLog(int32_t level, const char *const format, ...) {
 
   if (tsMonitorConn.state != MONITOR_STATE_INITIALIZED) return;
 
-  int32_t len = snprintf(sql, (size_t)max_length, "import into %s.log values(%" PRId64 ", %d,'", tsMonitorDbName,
+  int32_t len = snprintf(sql, (size_t)max_length, "insert into %s.log values(%" PRId64 ", %d,'", tsMonitorDbName,
                          taosGetTimestampUs(), level);
 
   va_start(argpointer, format);

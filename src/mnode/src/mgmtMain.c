@@ -23,7 +23,7 @@
 #include "tglobal.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtServer.h"
 #include "mgmtAcct.h"
 #include "mgmtDnode.h"

@@ -25,7 +25,7 @@
 #include "tbalance.h"
 #include "tdataformat.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"

@@ -25,7 +25,7 @@
 #include "tglobal.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtDb.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"

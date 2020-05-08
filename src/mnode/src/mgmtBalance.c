@@ -19,7 +19,7 @@
 #include "tbalance.h"
 #include "tglobal.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtMnode.h"
 #include "mgmtDnode.h"
 #include "mgmtVgroup.h"

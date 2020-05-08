@@ -24,7 +24,7 @@
 #include "tsocket.h"
 #include "tdataformat.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtMnode.h"
 #include "mgmtDnode.h"
 #include "mgmtSdb.h"

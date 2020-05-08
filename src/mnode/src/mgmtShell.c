@@ -26,7 +26,7 @@
 #include "tcache.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"

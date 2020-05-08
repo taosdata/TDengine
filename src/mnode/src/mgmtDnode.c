@@ -27,7 +27,7 @@
 #include "tdataformat.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtDnode.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
