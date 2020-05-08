@@ -133,7 +133,7 @@ int32_t dnodeInitClient() {
     return -1;
   }
 
-  dPrint("inter-dndoes rpc client is opened");
+  dPrint("inter-dnodes rpc client is opened");
   return 0;
 }
 

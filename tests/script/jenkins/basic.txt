@@ -50,7 +50,18 @@ cd ../../../debug; make
 
 
 #import
-#insert
+
+./test.sh -f general/insert/basic.sim
+#./test.sh -f general/insert/insert_drop.sim
+./test.sh -f general/insert/query_block1_memory.sim
+./test.sh -f general/insert/query_block2_memory.sim
+./test.sh -f general/insert/query_block1_file.sim
+./test.sh -f general/insert/query_block2_file.sim
+./test.sh -f general/insert/query_file_memory.sim
+./test.sh -f general/insert/query_multi_file.sim
+./test.sh -f general/insert/tcp.sim
+
+
 #metrics
 #parser
 #stream

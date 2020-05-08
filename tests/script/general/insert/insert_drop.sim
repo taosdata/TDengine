@@ -75,9 +75,11 @@ sql connect
 sleep 3000
 
 sql use $db
+
 sql create table tb5 using $stb tags(5)
 sql select * from tb5
 if $rows != 0 then
   return -1
 endi
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
