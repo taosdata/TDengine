@@ -131,7 +131,11 @@ void httpCleanUpSystem() {
     httpServer->timerHandle = NULL;
   }
 
-  httpCleanUpConnect(httpServer);
+  if (httpServer->pThreads != NULL) {
+    httpCleanUpConnect(httpServer);
+    httpServer->pThreads = NULL;
+  }
+  
 
 #if 0
   httpRemoveAllSessions(httpServer);

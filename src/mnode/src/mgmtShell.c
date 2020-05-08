@@ -41,9 +41,8 @@
 typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+//static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg);
-static void mgmtProcessMsgFromShell(SRpcMsg *pMsg);
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
 static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
@@ -52,7 +51,6 @@ static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessUseMsg(SQueuedMsg *queuedMsg);
 
 void *tsMgmtTmr;
-static void *tsMgmtShellRpc = NULL;
 static void *tsMgmtTranQhandle = NULL;
 static void (*tsMgmtProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SQueuedMsg *) = {0};
 static void *tsQhandleCache = NULL;
@@ -61,7 +59,7 @@ static SShowRetrieveFp tsMgmtShowRetrieveFp[TSDB_MGMT_TABLE_MAX] = {0};
 
 int32_t mgmtInitShell() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_SHOW, mgmtProcessShowMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_RETRIEVE, mgmtProcessRetrieveMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_RETRIEVE, mgmtProcessRetrieveMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mgmtProcessHeartBeatMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mgmtProcessConnectMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mgmtProcessUseMsg);
@@ -70,28 +68,6 @@ int32_t mgmtInitShell() {
   tsMgmtTranQhandle = taosInitScheduler(tsMaxShellConns, 1, "mnodeT");
   tsQhandleCache = taosCacheInit(tsMgmtTmr, 2);
 
-  int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
-  if (numOfThreads < 1) {
-    numOfThreads = 1;
-  }
-
-  SRpcInit rpcInit = {0};
-  rpcInit.localPort    = tsMnodeShellPort;
-  rpcInit.label        = "MND-shell";
-  rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp          = mgmtProcessMsgFromShell;
-  rpcInit.sessions     = tsMaxShellConns;
-  rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
-  rpcInit.afp          = mgmtShellRetriveAuth;
-
-  tsMgmtShellRpc = rpcOpen(&rpcInit);
-  if (tsMgmtShellRpc == NULL) {
-    mError("failed to init server connection to shell");
-    return -1;
-  }
-
-  mPrint("server connection to shell is opened");
   return 0;
 }
 
@@ -99,12 +75,6 @@ void mgmtCleanUpShell() {
   if (tsMgmtTranQhandle) {
     taosCleanUpScheduler(tsMgmtTranQhandle);
     tsMgmtTranQhandle = NULL;
-  }
-
-  if (tsMgmtShellRpc) {
-    rpcClose(tsMgmtShellRpc);
-    tsMgmtShellRpc = NULL;
-    mPrint("server connection to shell is closed");
   }
 
   if (tsQhandleCache) {
@@ -147,8 +117,7 @@ void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
   taosTmrReset(mgmtDoDealyedAddToShellQueue, 1000, queuedMsg, tsMgmtTmr, &unUsed);
 }
 
-static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
-  assert(rpcMsg);
+void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
 
   if (rpcMsg->pCont == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
@@ -369,6 +338,7 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
+/*
 static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   *spi = 1;
   *encrypt = 0;
@@ -389,6 +359,7 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
     return TSDB_CODE_SUCCESS;
   }
 }
+*/
 
 static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
@@ -489,7 +460,7 @@ static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg) {
     return mgmtCheckTableMetaMsgReadOnly(pMsg);
   }
 
-  if (pMsg->msgType == TSDB_MSG_TYPE_CM_STABLE_VGROUP || pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE       ||
+  if (pMsg->msgType == TSDB_MSG_TYPE_CM_STABLE_VGROUP || pMsg->msgType == TSDB_MSG_TYPE_CM_RETRIEVE    ||
       pMsg->msgType == TSDB_MSG_TYPE_CM_SHOW          || pMsg->msgType == TSDB_MSG_TYPE_CM_TABLES_META ||
       pMsg->msgType == TSDB_MSG_TYPE_CM_CONNECT) {
     return true;

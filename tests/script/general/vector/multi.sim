@@ -206,10 +206,11 @@ sql select a + f from $tb where g = 2 and ts > now + 4m order by ts asc  -x step
   return -1
 step74:
 
-
 print =============== clear
 sql drop database $db
 sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

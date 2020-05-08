@@ -544,7 +544,7 @@ endi
 if $data04 != 0 then
   return -1
 endi
-if $data05 != null then 
+if $data05 != NULL then 
   return -1
 endi
 
@@ -1054,7 +1054,7 @@ endi
 if $data04 != 0 then
   return -1
 endi
-if $data05 != null then 
+if $data05 != NULL then 
   return -1
 endi
 
@@ -1181,3 +1181,5 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

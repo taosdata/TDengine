@@ -166,13 +166,13 @@ endi
 if $data47 != 1 then
   return -1
 endi
-if $data57 != null then
+if $data57 != NULL then
   return -1
 endi
 if $data68 != binary3 then
   return -1
 endi
-if $data79 != null then
+if $data79 != NULL then
   return -1
 endi
 
@@ -216,10 +216,10 @@ endi
 if $data09 != nchar5 then
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
-if $data19 != null then
+if $data19 != NULL then
   return -1
 endi
 if $data16 != -2.000000000 then
@@ -269,10 +269,10 @@ endi
 if $data27 != 1 then
   return -1
 endi
-if $data38 != null then
+if $data38 != NULL then
   return -1
 endi
-if $data49 != null then
+if $data49 != NULL then
   return -1
 endi
 

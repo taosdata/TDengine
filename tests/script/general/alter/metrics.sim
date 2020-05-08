@@ -770,7 +770,7 @@ endi
 if $data21 != INT then
   return -1
 endi
-if $data30 != null then
+if $data30 != NULL then
   return -1
 endi
 
@@ -781,3 +781,4 @@ if $rows != 0 then
   return -1
 endi
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

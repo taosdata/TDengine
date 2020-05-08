@@ -24,8 +24,8 @@
 #include "tglobal.h"
 #include "vnode.h"
 #include "tdataformat.h"
-#include "dnodeLog.h"
-#include "dnodeWrite.h"
+#include "dnodeInt.h"
+#include "dnodeVWrite.h"
 #include "dnodeMgmt.h"
 
 typedef struct {
@@ -82,7 +82,7 @@ void dnodeCleanupWrite() {
   dPrint("dnode write is closed");
 }
 
-void dnodeWrite(SRpcMsg *pMsg) {
+void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   char *pCont = (char *)pMsg->pCont;
 
   if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT || pMsg->msgType == TSDB_MSG_TYPE_MD_DROP_STABLE) {

@@ -29,6 +29,7 @@ endi
 print =============== step2
 sql drop user a -x step2
 step2:
+sleep 1000
 sql create user a PASS '123'
 sql show users
 if $rows != 4 then 

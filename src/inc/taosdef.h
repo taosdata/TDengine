@@ -338,11 +338,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_NORMAL_TABLES 1000
 #define TSDB_MAX_CHILD_TABLES  100000
 
-#define TSDB_PORT_MNODESHELL 0
-#define TSDB_PORT_DNODESHELL 5
-#define TSDB_PORT_DNODEMNODE 10
-#define TSDB_PORT_MNODEDNODE 15 
-#define TSDB_PORT_SYNC 20
+#define TSDB_PORT_DNODESHELL 0 
+#define TSDB_PORT_DNODEDNODE 5 
+#define TSDB_PORT_SYNC       10 
 
 #define TAOS_QTYPE_RPC      0
 #define TAOS_QTYPE_FWD      1

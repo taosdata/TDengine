@@ -300,7 +300,6 @@ typedef struct STscObj {
   char               sversion[TSDB_VERSION_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
-  void*              pMgmtConn;
   struct SSqlObj *   pSql;
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
@@ -360,7 +359,7 @@ typedef struct SSqlStream {
   struct SSqlStream *prev, *next;
 } SSqlStream;
 
-int32_t tscInitRpc(const char *user, const char *secret, void** pMgmtConn);
+int32_t tscInitRpc(const char *user, const char *secret);
 void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
@@ -426,7 +425,7 @@ void    tscQueueAsyncFreeResult(SSqlObj *pSql);
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 void    tscGetResultColumnChr(SSqlRes *pRes, SFieldInfo* pFieldInfo, int32_t column);
 
-extern void *    pVnodeConn;
+extern void *    pDnodeConn;
 extern void *    tscCacheHandle;
 extern void *    tscTmr;
 extern void *    tscQhandle;

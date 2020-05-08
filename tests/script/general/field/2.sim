@@ -1,6 +1,4 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
@@ -9,9 +7,9 @@ sleep 3000
 sql connect
 print ======================== dnode1 start
 
-$dbPrefix = fi_bt_db
-$tbPrefix = fi_bt_tb
-$mtPrefix = fi_bt_mt
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = st
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -233,6 +231,8 @@ if $data00 != 100 then
   return -1
 endi
 
+print sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol2 = 1
+
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol2 = 1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
@@ -293,3 +293,5 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

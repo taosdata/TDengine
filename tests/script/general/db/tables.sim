@@ -139,3 +139,5 @@ sql select * from t4
 if $data01 != 4 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

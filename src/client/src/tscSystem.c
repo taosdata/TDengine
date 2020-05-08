@@ -30,7 +30,7 @@
 #include "tlocale.h"
 
 // global, not configurable
-void *  pVnodeConn;
+void *  pDnodeConn;
 void *  tscCacheHandle;
 void *  tscTmr;
 void *  tscQhandle;
@@ -48,15 +48,15 @@ void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
-int32_t tscInitRpc(const char *user, const char *secret, void** pMgmtConn) {
+int32_t tscInitRpc(const char *user, const char *secret) {
   SRpcInit rpcInit;
   char secretEncrypt[32] = {0};
   taosEncryptPass((uint8_t *)secret, strlen(secret), secretEncrypt);
 
-  if (pVnodeConn == NULL) {
+  if (pDnodeConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
-    rpcInit.label = "TSC-vnode";
+    rpcInit.label = "TSC";
     rpcInit.numOfThreads = tscNumOfThreads;
     rpcInit.cfp = tscProcessMsgFromServer;
     rpcInit.sessions = tsMaxVnodeConnections;
@@ -66,31 +66,9 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pMgmtConn) {
     rpcInit.ckey = "key";
     rpcInit.secret = secretEncrypt;
 
-    pVnodeConn = rpcOpen(&rpcInit);
-    if (pVnodeConn == NULL) {
+    pDnodeConn = rpcOpen(&rpcInit);
+    if (pDnodeConn == NULL) {
       tscError("failed to init connection to vnode");
-      return -1;
-    }
-  }
-
-  if (*pMgmtConn == NULL) {
-    memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localPort = 0;
-    rpcInit.label = "TSC-mgmt";
-    rpcInit.numOfThreads = 1;
-    rpcInit.cfp = tscProcessMsgFromServer;
-    rpcInit.ufp = tscUpdateIpSet;
-    rpcInit.sessions = tsMaxMgmtConnections;
-    rpcInit.connType = TAOS_CONN_CLIENT;
-    rpcInit.idleTime = 2000;
-    rpcInit.user = (char*)user;
-    rpcInit.ckey = "key";
-    rpcInit.spi = 1;
-    rpcInit.secret = secretEncrypt;
-
-    *pMgmtConn = rpcOpen(&rpcInit);
-    if (*pMgmtConn == NULL) {
-      tscError("failed to init connection to mgmt");
       return -1;
     }
   }
@@ -190,9 +168,9 @@ void taos_cleanup() {
   
   taosCloseLog();
   
-  if (pVnodeConn != NULL) {
-    rpcClose(pVnodeConn);
-    pVnodeConn = NULL;
+  if (pDnodeConn != NULL) {
+    rpcClose(pDnodeConn);
+    pDnodeConn = NULL;
   }
   
   taosTmrCleanUp(tscTmr);
