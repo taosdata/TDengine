@@ -335,11 +335,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
         pCheckInfo->compSize = compIndex->len;
       }
       
-      // tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pCompInfo);
-      STable* pTable = tsdbGetTableByUid(tsdbGetMeta(pQueryHandle->pTsdb), pCheckInfo->tableId.uid);
-      assert(pTable != NULL);
-      
-      tsdbSetHelperTable(&pQueryHandle->rhelper, pTable, pQueryHandle->pTsdb);
+      tsdbSetHelperTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj, pQueryHandle->pTsdb);
 
       tsdbLoadCompInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
       SCompInfo* pCompInfo = pCheckInfo->pCompInfo;
@@ -472,6 +468,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       filterDataInDataBlock(pQueryHandle, pCheckInfo, pBlock, sa);
     } else {  // the whole block is loaded in to buffer
       pQueryHandle->realNumOfRows = pBlock->numOfPoints;
+      cur->pos = 0;
     }
   } else {
     // query ended in current block
@@ -491,6 +488,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       filterDataInDataBlock(pQueryHandle, pCheckInfo, pBlock, sa);
     } else {
       pQueryHandle->realNumOfRows = pBlock->numOfPoints;
+      cur->pos = pBlock->numOfPoints - 1;
     }
   }
 
@@ -568,7 +566,7 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
   SDataBlockInfo blockInfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
   
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
-
+  
   int32_t endPos = cur->pos;
   if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
     endPos = blockInfo.rows - 1;
@@ -612,7 +610,6 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
   int32_t reqCols = taosArrayGetSize(pQueryHandle->pColumns);
   
   for (int32_t i = 0; i < reqCols; ++i) {
-//    int16_t colId = *(int16_t*)taosArrayGet(sa, i);
     SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
     int32_t bytes = pCol->info.bytes;
 

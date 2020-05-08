@@ -22,7 +22,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db cache 2048 
+sql create database $db cache 16
 print ====== create tables
 sql use $db
 
