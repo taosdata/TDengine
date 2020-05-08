@@ -405,6 +405,9 @@ class DbState():
             tIndex = self.tableNumQueue.push()
         return tIndex
 
+    def getFixedTableName(self):
+        return "fixed_table"
+
     def releaseTable(self, i): # return the table back, so others can use it
         self.tableNumQueue.release(i)
 
@@ -433,9 +436,13 @@ class DbState():
 
     def getTasksAtState(self):
         if ( self._state == self.STATE_EMPTY ):
-            return [CreateDbTask(self), CreateTableTask(self)]
+            return [CreateDbTask(self), CreateFixedTableTask(self)]
         elif ( self._state == self.STATE_DB_ONLY ):
-            return [DeleteDbTask(self), CreateTableTask(self), AddDataTask(self)]
+            return [DropDbTask(self), CreateFixedTableTask(self), AddFixedDataTask(self)]
+        elif ( self._state == self.STATE_TABLE_ONLY ):
+            return [DropFixedTableTask(self), AddFixedDataTask(self)]
+        elif ( self._state == self.STATE_HAS_DATA ) : # same as above. TODO: adjust
+            return [DropFixedTableTask(self), AddFixedDataTask(self)]
         else:
             raise RuntimeError("Unexpected DbState state: {}".format(self._state))
 
@@ -443,13 +450,58 @@ class DbState():
         if ( len(tasks) == 0 ): # before 1st step, or otherwise empty
             return # do nothing
         if ( self._state == self.STATE_EMPTY ):
-            self.assertAtMostOneSuccess(tasks, CreateDbTask) # param is class
-            self.assertIfExistThenSuccess(tasks, CreateDbTask)
-            self.assertAtMostOneSuccess(tasks, CreateTableTask)
             if ( self.hasSuccess(tasks, CreateDbTask) ):
+                self.assertAtMostOneSuccess(tasks, CreateDbTask) # param is class
                 self._state = self.STATE_DB_ONLY
-            if ( self.hasSuccess(tasks, CreateTableTask) ):
-                self._state = self.STATE_TABLE_ONLY
+                if ( self.hasSuccess(tasks, CreateFixedTableTask )):
+                    self._state = self.STATE_TABLE_ONLY
+                # else: # no successful table creation, not much we can say, as it is step 2
+            else: # did not create db
+                self.assertNoTask(tasks, CreateDbTask) # because we did not have such task
+                # self.assertNoSuccess(tasks, CreateDbTask) # not necessary, since we just verified no such task
+                self.assertNoSuccess(tasks, CreateFixedTableTask)
+                
+        elif ( self._state == self.STATE_DB_ONLY ): 
+            self.assertAtMostOneSuccess(tasks, DropDbTask)
+            self.assertIfExistThenSuccess(tasks, DropDbTask)
+            self.assertAtMostOneSuccess(tasks, CreateFixedTableTask)
+            # Nothing to be said about adding data task
+            if ( self.hasSuccess(tasks, DropDbTask) ): # dropped the DB
+                # self.assertHasTask(tasks, DropDbTask) # implied by hasSuccess
+                self.assertAtMostOneSuccess(tasks, DropDbTask)
+                self._state = self.STATE_EMPTY
+            elif ( self.hasSuccess(tasks, CreateFixedTableTask) ): # did not drop db, create table success
+                # self.assertHasTask(tasks, CreateFixedTableTask) # tried to create table
+                self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # at most 1 attempt is successful
+                self.assertNoTask(tasks, DropDbTask) # should have have tried
+                if ( not self.hasSuccess(tasks, AddFixedDataTask) ): # just created table, no data yet
+                    # can't say there's add-data attempts, since they may all fail
+                    self._state = self.STATE_TABLE_ONLY
+                else:                    
+                    self._state = self.STATE_HAS_DATA
+            else: # no success in dropping db tasks, no success in create fixed table, not acceptable
+                raise RuntimeError("Unexpected no-success scenario")
+
+        elif ( self._state == self.STATE_TABLE_ONLY ):            
+            if ( self.hasSuccess(tasks, DropFixedTableTask) ):
+                self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
+                self._state = self.STATE_DB_ONLY
+            elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table
+                self.assertNoTask(tasks, DropFixedTableTask)
+                self._state = self.STATE_HAS_DATA
+            else: # did not drop table, did not insert data, that is impossible
+                raise RuntimeError("Unexpected no-success scenarios")
+
+        elif ( self._state == self.STATE_TABLE_ONLY ): # Same as above, TODO: adjust
+            if ( self.hasSuccess(tasks, DropFixedTableTask) ):
+                self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
+                self._state = self.STATE_DB_ONLY
+            elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table
+                self.assertNoTask(tasks, DropFixedTableTask)
+                self._state = self.STATE_HAS_DATA
+            else: # did not drop table, did not insert data, that is impossible
+                raise RuntimeError("Unexpected no-success scenarios")
+
         else:
             raise RuntimeError("Unexpected DbState state: {}".format(self._state))
         logger.debug("New DB state is: {}".format(self._state))
@@ -466,13 +518,26 @@ class DbState():
 
     def assertIfExistThenSuccess(self, tasks, cls):
         sCnt = 0
+        exists = False
         for task in tasks :
             if not isinstance(task, cls):
                 continue
+            exists = True # we have a valid instance
             if task.isSuccess():
                 sCnt += 1
-        if ( sCnt <= 0 ):
+        if ( exists and sCnt <= 0 ):
             raise RuntimeError("Unexpected zero success for task: {}".format(cls))
+
+    def assertNoTask(self, tasks, cls):
+        for task in tasks :
+            if isinstance(task, cls):
+                raise RuntimeError("Unexpected task: {}".format(cls))
+
+    def assertNoSuccess(self, tasks, cls):
+        for task in tasks :
+            if isinstance(task, cls):
+                if task.isSuccess():
+                    raise RuntimeError("Unexpected successful task: {}".format(cls))
 
     def hasSuccess(self, tasks, cls):
         for task in tasks :
@@ -496,15 +561,15 @@ class TaskExecutor():
         logger.debug("    T[{}.x]: ".format(self._curStep) + msg)
 
 class Task():
-    def __init__(self, dbState):
-        self.dbState = dbState
+    def __init__(self, dbState: DbState):
+        self._dbState = dbState
         self._err = None
 
     def isSuccess(self):
         return self._err == None
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        raise RuntimeError("To be implemeted by child classes")
+        raise RuntimeError("To be implemeted by child classes, class name: {}".format(self.__class__.__name__))
 
     def execute(self, wt: WorkerThread):
         wt.verifyThreadSelf()
@@ -522,39 +587,49 @@ class Task():
             te.logDebug("[=]Unexpected exception")
             raise
         
-        te.logDebug("[X] task execution completed")
+        te.logDebug("[X] task execution completed, status: {}".format(self.isSuccess()))
 
     def execSql(self, sql):
-        return self.dbState.execute(sql)
+        return self._dbState.execute(sql)
 
 class CreateDbTask(Task):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         wt.execSql("create database db")
 
-class DeleteDbTask(Task):
+class DropDbTask(Task):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         wt.execSql("drop database db")
 
 class CreateTableTask(Task):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tIndex = self.dbState.addTable()
+        tIndex = self._dbState.addTable()
         te.logDebug("Creating a table {} ...".format(tIndex))
         wt.execSql("create table db.table_{} (ts timestamp, speed int)".format(tIndex))
         te.logDebug("Table {} created.".format(tIndex))
-        self.dbState.releaseTable(tIndex)
+        self._dbState.releaseTable(tIndex)
+
+class CreateFixedTableTask(Task):
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        tblName = self._dbState.getFixedTableName()        
+        wt.execSql("create table db.{} (ts timestamp, speed int)".format(tblName))
 
 class DropTableTask(Task):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tableName = self.dbState.getTableNameToDelete()
+        tableName = self._dbState.getTableNameToDelete()
         if ( not tableName ): # May be "False"
             te.logInfo("Cannot generate a table to delete, skipping...")
             return
         te.logInfo("Dropping a table db.{} ...".format(tableName))
         wt.execSql("drop table db.{}".format(tableName))
+        
+class DropFixedTableTask(Task):
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        tblName = self._dbState.getFixedTableName()        
+        wt.execSql("drop table db.{}".format(tblName))
 
 class AddDataTask(Task):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        ds = self.dbState
+        ds = self._dbState
         te.logInfo("Adding some data... numQueue={}".format(ds.tableNumQueue.toText()))
         tIndex = ds.pickAndAllocateTable()
         if ( tIndex == None ):
@@ -565,6 +640,12 @@ class AddDataTask(Task):
         wt.execSql(sql) 
         ds.releaseTable(tIndex)
         te.logDebug("Finished adding data")
+
+class AddFixedDataTask(Task):
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        ds = self._dbState
+        sql = "insert into db.table_{} values ('{}', {});".format(ds.getFixedTableName(), ds.getNextTick(), ds.getNextInt())
+        wt.execSql(sql) 
 
 # Deterministic random number generator
 class Dice():
