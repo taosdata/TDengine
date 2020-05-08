@@ -624,7 +624,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
       STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
       pTableIdInfo->tid = htonl(pItem->tid);
       pTableIdInfo->uid = htobe64(pItem->uid);
-//      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
+      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
       pMsg += sizeof(STableIdInfo);
     }
   }
@@ -2354,6 +2354,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     for (int i = 0; i < numOfTables; i++) {
       int64_t uid = htobe64(*(int64_t*)p);
       p += sizeof(int64_t);
+      p += sizeof(int32_t); // skip tid
       TSKEY key = htobe64(*(TSKEY*)p);
       p += sizeof(TSKEY);
       tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);

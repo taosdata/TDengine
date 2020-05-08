@@ -44,8 +44,7 @@ typedef struct SSub {
   int                     interval;
   TAOS_SUBSCRIBE_CALLBACK fp;
   void *                  param;
-  int                     numOfTables;
-  SSubscriptionProgress * progress;
+  SArray* progress;
 } SSub;
 
 
@@ -58,41 +57,36 @@ static int tscCompareSubscriptionProgress(const void* a, const void* b) {
 }
 
 TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid) {
-  if (sub == NULL)
+  if (sub == NULL) {
     return 0;
-
+  }
   SSub* pSub = (SSub*)sub;
-  for (int s = 0, e = pSub->numOfTables; s < e;) {
-    int m = (s + e) / 2;
-    SSubscriptionProgress* p = pSub->progress + m;
-    if (p->uid > uid)
-      e = m;
-    else if (p->uid < uid)
-      s = m + 1;
-    else
-      return p->key;
+  if (pSub->progress == NULL) {
+    return 0;
   }
 
-  return 0;
+  SSubscriptionProgress target = {.uid = uid, .key = 0};
+  SSubscriptionProgress* p = taosArraySearch(pSub->progress, tscCompareSubscriptionProgress, &target);
+  if (p == NULL) {
+    return 0;
+  }
+  return p->key;
 }
 
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
   if( sub == NULL)
     return;
-
   SSub* pSub = (SSub*)sub;
-  for (int s = 0, e = pSub->numOfTables; s < e;) {
-    int m = (s + e) / 2;
-    SSubscriptionProgress* p = pSub->progress + m;
-    if (p->uid > uid)
-      e = m;
-    else if (p->uid < uid)
-      s = m + 1;
-    else {
-      if (ts >= p->key) p->key = ts;
-      break;
-    }
+
+  SSubscriptionProgress target = {.uid = uid, .key = ts};
+  SSubscriptionProgress* p = taosArraySearch(pSub->progress, tscCompareSubscriptionProgress, &target);
+  if (p != NULL) {
+    p->key = ts;
+    return;
   }
+
+  taosArrayPush(pSub->progress, &target);
+  taosArraySort(pSub->progress, tscCompareSubscriptionProgress);
 }
 
 
@@ -158,60 +152,40 @@ static void tscProcessSubscriptionTimer(void *handle, void *tmrId) {
   taosTmrReset(tscProcessSubscriptionTimer, pSub->interval, pSub, tscTmr, &pSub->pTimer);
 }
 
+static void waitParseComplete(void *param, TAOS_RES *tres, int code) {
+  assert(param != NULL);
+  SSqlObj *pSql = ((SSqlObj *)param);
+  
+  pSql->res.code = code;
+  sem_post(&pSql->rspSem);
+}
 
 int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
-  int code = (uint8_t)tsParseSql(pSub->pSql, false);
+  SSqlObj* pSql = pSub->pSql;
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  tscAllocPayload( pCmd, TSDB_DEFAULT_PAYLOAD_SIZE );
+
+  pSql->fp = waitParseComplete;
+  pSql->param = pSql;
+  int code = tsParseSql(pSql, false);
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+    // wait for the callback function to post the semaphore
+    sem_wait(&pSql->rspSem);
+    code = pSql->res.code;
+  }
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("failed to parse sql statement: %s", pSub->topic);
+    tscError("failed to parse sql statement: %s, error: %s", pSub->topic, tstrerror(code));
     return 0;
   }
 
-  SSqlCmd* pCmd = &pSub->pSql->cmd;
   if (pCmd->command != TSDB_SQL_SELECT) {
     tscError("only 'select' statement is allowed in subscription: %s", pSub->topic);
     return 0;
   }
 
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
-  int numOfTables = 0;
-  if (!UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
-//    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
-//    for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
-//      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
-//      numOfTables += pVnodeSidList->numOfSids;
-//    }
-  }
-
-  SSubscriptionProgress* progress = (SSubscriptionProgress*)calloc(numOfTables, sizeof(SSubscriptionProgress));
-  if (progress == NULL) {
-    tscError("failed to allocate memory for progress: %s", pSub->topic);
-    return 0;
-  }
-
-  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
-    numOfTables = 1;
-    int64_t uid = pTableMetaInfo->pTableMeta->uid;
-    progress[0].uid = uid;
-    progress[0].key = tscGetSubscriptionProgress(pSub, uid);
-  } else {
-//    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
-//    numOfTables = 0;
-//    for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
-//      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
-//      for (int32_t j = 0; j < pVnodeSidList->numOfSids; j++) {
-//        STableIdInfo *pTableMetaInfo = tscGetMeterSidInfo(pVnodeSidList, j);
-//        int64_t uid = pTableMetaInfo->uid;
-//        progress[numOfTables].uid = uid;
-//        progress[numOfTables++].key = tscGetSubscriptionProgress(pSub, uid);
-//      }
-//    }
-    qsort(progress, numOfTables, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
-  }
-
-  free(pSub->progress);
-  pSub->numOfTables = numOfTables;
-  pSub->progress = progress;
-
+  taosArrayDestroy(pSub->progress);
+  pSub->progress = taosArrayInit(32, sizeof(SSubscriptionProgress));
   pSub->lastSyncTime = taosGetTimestampMs();
 
   return 1;
@@ -255,23 +229,22 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   }
 
   int numOfTables = atoi(buf);
-  SSubscriptionProgress* progress = calloc(numOfTables, sizeof(SSubscriptionProgress));
+  SArray* progress = taosArrayInit(numOfTables, sizeof(SSubscriptionProgress));
   for (int i = 0; i < numOfTables; i++) {
     if (fgets(buf, sizeof(buf), fp) == NULL) {
       fclose(fp);
       free(progress);
       return 0;
     }
-    int64_t uid, key;
-    sscanf(buf, "%" SCNd64 ":%" SCNd64, &uid, &key);
-    progress[i].uid = uid;
-    progress[i].key = key;
+    SSubscriptionProgress p;
+    sscanf(buf, "%" SCNd64 ":%" SCNd64, &p.uid, &p.key);
+    taosArrayPush(progress, &p);
   }
 
   fclose(fp);
 
-  qsort(progress, numOfTables, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
-  pSub->numOfTables = numOfTables;
+  taosArraySort(progress, tscCompareSubscriptionProgress);
+  taosArrayDestroy(pSub->progress);
   pSub->progress = progress;
   tscTrace("subscription progress loaded, %d tables: %s", numOfTables, pSub->topic);
   return 1;
@@ -294,11 +267,9 @@ void tscSaveSubscriptionProgress(void* sub) {
   }
 
   fputs(pSub->pSql->sqlstr, fp);
-  fprintf(fp, "\n%d\n", pSub->numOfTables);
-  for (int i = 0; i < pSub->numOfTables; i++) {
-    int64_t uid = pSub->progress[i].uid;
-    TSKEY key = pSub->progress[i].key;
-    fprintf(fp, "%" PRId64 ":%" PRId64 "\n", uid, key);
+  for(size_t i = 0; i < taosArrayGetSize(pSub->progress); i++) {
+    SSubscriptionProgress* p = taosArrayGet(pSub->progress, i);
+    fprintf(fp, "%" PRId64 ":%" PRId64 "\n", p->uid, p->key);
   }
 
   fclose(fp);
@@ -362,36 +333,20 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   for (int retry = 0; retry < 3; retry++) {
     tscRemoveFromSqlList(pSql);
 
-    if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 60 * 1000) {
-      tscTrace("begin meter synchronization");
-      char* sqlstr = pSql->sqlstr;
-      pSql->sqlstr = NULL;
-      taos_free_result_imp(pSql, 0);
-      pSql->sqlstr = sqlstr;
-      taosCacheEmpty(tscCacheHandle);
-      if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
-      tscTrace("meter synchronization completed");
-    } else {
-      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-      
-      uint32_t type = pQueryInfo->type;
-      taos_free_result_imp(pSql, 1);
-      pRes->numOfRows = 1;
-      pRes->numOfTotal = 0;
-      pRes->qhandle = 0;
-      pSql->cmd.command = TSDB_SQL_SELECT;
-      pQueryInfo->type = type;
-
-      tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->vgroupIndex = 0;
+    pSql->fp = waitParseComplete;
+    pSql->param = pSql;
+    tscDoQuery(pSql);
+    if (pRes->code == TSDB_CODE_ACTION_IN_PROGRESS) {
+      sem_wait(&pSql->rspSem);
     }
 
-    tscDoQuery(pSql);
-    if (pRes->code != TSDB_CODE_NOT_ACTIVE_TABLE) {
-      break;
+    if (pRes->code != TSDB_CODE_SUCCESS) {
+      continue;
     }
     // meter was removed, make sync time zero, so that next retry will
     // do synchronization first
     pSub->lastSyncTime = 0;
+    break;
   }
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
@@ -421,7 +376,7 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
   }
 
   tscFreeSqlObj(pSub->pSql);
-  free(pSub->progress);
+  taosArrayDestroy(pSub->progress);
   memset(pSub, 0, sizeof(*pSub));
   free(pSub);
 }
