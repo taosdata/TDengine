@@ -43,4 +43,7 @@ run general/compute/null.sim
 # run general/compute/diff2.sim
 
 run general/parse/testSuite.sim
+run general/field/testSuite.sim
+
+
 ################################## 

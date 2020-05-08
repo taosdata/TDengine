@@ -172,8 +172,8 @@ sql create table $tb using $mt tags (-1)
 # -x ng_tag_v
 #  return -1
 #ng_tag_v:
-sql describe $tb
-if $data23 != -1 then 
+sql select tg from $tb
+if $data00 != -1 then
   return -1
 endi
 sql drop table $tb
@@ -182,9 +182,9 @@ sql drop table $tb
 print create_mt.sim unmatched_tag_types
 sql reset query cache
 sql create table $tb using $mt tags ('123')
-sql describe $tb
-#print data23 = $data23
-if $data23 != 123 then
+sql select tg from  $tb
+print data00 = $data00
+if $data00 != 123 then
   return -1
 endi
 sql drop table $tb
@@ -194,14 +194,14 @@ sql_error create table $tb using $mt tags ('abc')
 sql drop table if exists $tb
 sql reset query cache
 sql create table $tb using $mt tags (1e1)
-sql describe $tb
-if $data23 != 10 then
+sql select tg from  $tb
+if $data00 != 10 then
   return -1
 endi
 sql drop table $tb
 sql create table $tb using $mt tags ('1e1')
-sql describe $tb
-if $data23 != 10 then
+sql select tg from  $tb
+if $data00 != 10 then
   return -1
 endi
 sql_error create table $tb using $mt tags (2147483649)
@@ -234,13 +234,13 @@ $mt2 = mt2
 #if $data20 != $mt2 then
 #  return -1
 #endi
-#sql describe $mt1
+#sql select tg from  $mt1
 ##print expected $CN_char
 ##print returned $data10
 #if $data10 != $CN_char then
 #  return -1
 #endi
-#sql describe $mt2
+#sql select tg from  $mt2
 ##print expected: $CN_char
 ##print returned: $data20
 #if $data20 != $CN_char then

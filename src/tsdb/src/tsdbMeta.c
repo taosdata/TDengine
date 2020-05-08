@@ -502,13 +502,19 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   memcpy(SL_GET_NODE_DATA(pNode), &pTable, POINTER_BYTES);
   
   tSkipListPut(list, pNode);
-
   return 0;
 }
 
 static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
-  assert(pTable->type == TSDB_CHILD_TABLE);
-  // TODO
+  assert(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
+  
+  STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
+  assert(pSTable != NULL);
+  
+  char* key = dataRowTuple(pTable->tagVal); // key
+  bool ret = tSkipListRemove(pSTable->pIndex, key);
+  
+  assert(ret);
   return 0;
 }
 

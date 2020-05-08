@@ -266,11 +266,15 @@ static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
 int tSQLKeywordCode(const char* z, int n) {
   pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
-
-  char key[128] = {0};
+  
+  char key[512] = {0};
+  if (n > tListLen(key)) { // too long token, can not be any other token type
+    return TK_ID;
+  }
+  
   for (int32_t j = 0; j < n; ++j) {
     if (z[j] >= 'a' && z[j] <= 'z') {
-      key[j] = (char)(z[j] & 0xDF);  // touppercase and set the null-terminated
+      key[j] = (char)(z[j] & 0xDF);  // to uppercase and set the null-terminated
     } else {
       key[j] = z[j];
     }

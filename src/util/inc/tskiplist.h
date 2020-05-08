@@ -178,10 +178,9 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode);
  *
  * @param pSkipList
  * @param pKey
- * @param keyType
  * @return
  */
-SArray *tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey, int16_t keyType);
+SArray *tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey);
 
 /**
  * get the size of skip list
@@ -242,7 +241,7 @@ void *tSkipListDestroyIter(SSkipListIterator *iter);
  * true: one node has been removed
  * false: no node has been removed
  */
-bool tSkipListRemove(SSkipList *pSkipList, SSkipListKey *pKey);
+bool tSkipListRemove(SSkipList *pSkipList, SSkipListKey key);
 
 /*
  * remove the specified node in parameters

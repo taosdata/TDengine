@@ -592,42 +592,18 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
     tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
 
-    void *fp = pSql->fp;
-    if (fp != NULL) {
-      pSql->freed = 1;
-    }
-
+    pSql->freed = 1;
     tscProcessSql(pSql);
 
     /*
      *  If release connection msg is sent to vnode, the corresponding SqlObj for async query can not be freed instantly,
      *  since its free operation is delegated to callback function, which is tscProcessMsgFromServer.
      */
-    if (fp == NULL) {
-      /*
-       * fp may be released here, so we cannot use the pSql->fp
-       *
-       * In case of handle sync model query, the main SqlObj cannot be freed.
-       * So, we only free part attributes, including allocated resources and references on metermeta/metricmeta
-       * data in cache.
-       *
-       * Then this object will be reused and no free operation is required.
-       */
-      if (keepCmd) {
-        tscFreeSqlResult(pSql);
-        tscTrace("%p sql result is freed by app while sql command is kept", pSql);
-      } else {
-        tscPartiallyFreeSqlObj(pSql);
-        tscTrace("%p sql result is freed by app", pSql);
-      }
-    } else {  // for async release, remove its link
-      STscObj* pObj = pSql->pTscObj;
-      if (pObj->pSql == pSql) {
-        pObj->pSql = NULL;
-      }
+    STscObj* pObj = pSql->pTscObj;
+    if (pObj->pSql == pSql) {
+      pObj->pSql = NULL;
     }
-  } else {
-    // if no free resource msg is sent to vnode, we free this object immediately.
+  } else { // if no free resource msg is sent to vnode, we free this object immediately.
     STscObj* pTscObj = pSql->pTscObj;
     
     if (pTscObj->pSql != pSql) {

@@ -40,9 +40,10 @@ typedef int16_t VarDataLenT;
 
 #define varDataLen(v)       ((VarDataLenT *)(v))[0]
 #define varDataTLen(v)      (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataVal(v)       ((void *)((char *)v + sizeof(VarDataLenT)))
+#define varDataVal(v)       ((void *)((char *)v + VARSTR_HEADER_SIZE))
 #define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
 #define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
+#define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))
 
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
@@ -240,7 +241,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
 
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
-#define TSDB_MAX_CACHE_BLOCK_SIZE       1000000
+#define TSDB_MAX_CACHE_BLOCK_SIZE       10240   // 10GB for each vnode
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16
 
 #define TSDB_MIN_TOTAL_BLOCKS           2

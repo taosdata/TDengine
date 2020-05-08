@@ -56,8 +56,8 @@ endi
 if $data07 != 1 then
   return -1
 endi
-#if $data08 != NULL then
 if $data08 != BINARY then
+  print expect BINARY, actual: $data08
   return -1
 endi
 #if $data09 != NULL then
