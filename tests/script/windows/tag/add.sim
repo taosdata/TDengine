@@ -537,7 +537,7 @@ endi
 if $data04 != false then 
   return -1
 endi
-if $data05 != null then 
+if $data05 != NULL then 
   return -1
 endi
 

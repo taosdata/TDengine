@@ -100,7 +100,7 @@ endi
 if $data2_2 != slave then
 	goto show7
 endi
-if $data3_3 != null then
+if $data3_3 != NULL then
 	goto show7
 endi
 

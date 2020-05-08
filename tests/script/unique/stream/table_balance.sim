@@ -129,7 +129,7 @@ print dnode2 $dnode2Vnodes
 if $dnode1Vnodes != 0 then
   goto show1
 endi
-if $dnode2Vnodes != null then
+if $dnode2Vnodes != NULL then
   goto show1
 endi
 

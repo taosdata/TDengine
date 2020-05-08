@@ -33,13 +33,13 @@ int main(int argc, char *argv[]) {
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-d")==0 && i < argc-1) {
-      ddebugFlag = atoi(argv[++i]);
+      dDebugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0 && i <argc-1) {
       num = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-n num]: number of streams, default:%d\n", num);
-      printf("  [-d debugFlag]: debug flag, default:%d\n", ddebugFlag);
+      printf("  [-d debugFlag]: debug flag, default:%d\n", dDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }

@@ -22,14 +22,13 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "dnode.h"
-#include "dnodeLog.h"
-#include "dnodeMClient.h"
+#include "dnodeInt.h"
 #include "dnodeMgmt.h"
-#include "dnodeMnode.h"
+#include "dnodePeer.h"
 #include "dnodeModule.h"
-#include "dnodeRead.h"
+#include "dnodeVRead.h"
 #include "dnodeShell.h"
-#include "dnodeWrite.h"
+#include "dnodeVWrite.h"
 #include "tgrant.h"
 
 static int32_t dnodeInitSystem();
@@ -167,9 +166,9 @@ static int32_t dnodeInitSystem() {
   if (dnodeInitStorage() != 0) return -1;
   if (dnodeInitRead() != 0) return -1;
   if (dnodeInitWrite() != 0) return -1;
-  if (dnodeInitMClient() != 0) return -1;
+  if (dnodeInitClient() != 0) return -1;
   if (dnodeInitModules() != 0) return -1;
-  if (dnodeInitMnode() != 0) return -1;
+  if (dnodeInitServer() != 0) return -1;
   if (dnodeInitMgmt() != 0) return -1;
   if (dnodeInitShell() != 0) return -1;
 
@@ -185,9 +184,9 @@ static void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
     dnodeCleanupShell();
-    dnodeCleanupMnode();
+    dnodeCleanupServer();
     dnodeCleanupMgmt();
-    dnodeCleanupMClient();
+    dnodeCleanupClient();
     dnodeCleanupWrite();
     dnodeCleanupRead();
     dnodeCleanUpModules();

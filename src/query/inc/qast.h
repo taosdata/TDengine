@@ -48,16 +48,16 @@ typedef struct tQueryInfo {
   int32_t       colIndex; // index of column in schema
   uint8_t       optr;     // expression operator
   SSchema       sch;      // schema of tags
-//  tVariant      q;      // query condition value on the specific schema, filter expression
   char*         q;
   __compar_fn_t compare;  // filter function
+  void*         param;    // STSchema,
 } tQueryInfo;
 
-typedef struct SBinaryFilterSupp {
+typedef struct SExprTraverseSupp {
   __result_filter_fn_t   fp;
   __do_filter_suppl_fn_t setupInfoFn;
   void *                 pExtInfo;
-} SBinaryFilterSupp;
+} SExprTraverseSupp;
 
 typedef struct tExprNode {
   uint8_t nodeType;
@@ -81,7 +81,7 @@ void tSQLBinaryExprToString(tExprNode *pExpr, char *dst, int32_t *len);
 
 void tExprTreeDestroy(tExprNode **pExprs, void (*fp)(void*));
 
-void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
+void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param);
 
 void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*cb)(void *, const char*, int32_t));

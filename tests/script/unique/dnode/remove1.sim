@@ -105,7 +105,7 @@ sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
 print dnode3 openVnodes $data2_3
-if $data2_2 != null then
+if $data2_2 != NULL then
 	goto show4
 endi
 
@@ -130,7 +130,7 @@ print dnode4 openVnodes $data2_4
 if $data2_1 != 4 then
 	goto show5
 endi
-if $data2_2 != null then
+if $data2_2 != NULL then
 	goto show5
 endi
 if $data2_3 != 2 then
@@ -194,3 +194,12 @@ endi
 if $data41 != 35 then
   return -1
 endi
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
