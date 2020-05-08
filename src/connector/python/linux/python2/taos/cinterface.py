@@ -96,7 +96,7 @@ def _crow_nchar_to_python(data, num_of_rows, nbytes=None, micro=False):
     for i in range(abs(num_of_rows)):
         try:
             if num_of_rows >= 0:
-                res.append( (ctypes.cast(data+nbytes*(abs(num_of_rows - i -1)),  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[0].value )
+                res.append( (ctypes.cast(data+nbytes*(abs(num_of_rows - i -1)),  ctypes.POINTER(ctypes.c_char * (nbytes//4))))[0].value )
             else:
                 res.append( (ctypes.cast(data+nbytes*i,  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[0].value )
         except ValueError:
