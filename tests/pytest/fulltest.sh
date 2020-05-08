@@ -9,6 +9,7 @@ python3 ./test.py $1 -f insert/smallint.py
 python3 ./test.py $1 -f insert/tinyint.py
 python3 ./test.py $1 -f insert/date.py
 python3 ./test.py $1 -f insert/binary.py
+python3 ./test.py $1 -f insert/nchar.py
 
 python3 ./test.py $1 -f table/column_name.py
 python3 ./test.py $1 -f table/column_num.py
