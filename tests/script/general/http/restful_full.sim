@@ -1,5 +1,5 @@
 system sh/stop_dnodes.sh
-sleep 5000
+sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c http -v 1
@@ -81,7 +81,7 @@ print ===============  step2 - no db
 #11
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:6020/rest/sql
 print 11-> $system_content
-if $system_content != @{"status":"succ","head":["name","create time","ntables","vgroups","replica","days","keep1,keep2,keep(D)","tables","cache(MB)","blocks","minrows","maxrows","ctime(s)","clog","comp","precision","status"],"data":[],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","days","keep1,keep2,keep(D)","maxtables","cache(MB)","blocks","minrows","maxrows","ctime(Sec.)","wallevel","comp","precision","status"],"data":[],"rows":0}@ then
   return -1
 endi
 
@@ -93,7 +93,7 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 127.0.0.1:6020/rest/sql
 print 13-> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"DB already there"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"database aleady exist"}@ then
   return -1
 endi
 
@@ -230,3 +230,4 @@ if $system_content != @{"status":"succ","head":["ts","speed"],"data":[["2017-12-
   return -1
 endi
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

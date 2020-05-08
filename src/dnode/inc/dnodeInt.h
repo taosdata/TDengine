@@ -13,15 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MNODE_H
-#define TDENGINE_DNODE_MNODE_H
+#ifndef TDENGINE_DNODE_LOG_H
+#define TDENGINE_DNODE_LOG_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dnodeInitMnode();
-void    dnodeCleanupMnode();
+#include "tlog.h"
+
+extern int32_t dDebugFlag;
+
+#define dError(...) if (dDebugFlag & DEBUG_ERROR) {taosPrintLog("ERROR DND ", 255, __VA_ARGS__); }
+#define dWarn(...) if (dDebugFlag & DEBUG_WARN) {taosPrintLog("WARN  DND ", dDebugFlag, __VA_ARGS__); }
+#define dTrace(...) if (dDebugFlag & DEBUG_TRACE) {taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }
+#define dPrint(...) {taosPrintLog("DND ", 255, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }

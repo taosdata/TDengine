@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
       commit = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
-      ddebugFlag = rpcDebugFlag;
+      dDebugFlag = rpcDebugFlag;
       uDebugFlag = rpcDebugFlag;
     } else {
       printf("\nusage: %s [options] \n", argv[0]);

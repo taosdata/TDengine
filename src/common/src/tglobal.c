@@ -66,11 +66,9 @@ char  tsSecond[TSDB_FQDN_LEN] = {0};
 char  tsArbitrator[TSDB_FQDN_LEN] = {0};
 char  tsLocalEp[TSDB_FQDN_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
-uint16_t tsMnodeShellPort = 6030;   // udp[6030-6034] tcp[6030]
-uint16_t tsDnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
-uint16_t tsMnodeDnodePort = 6040;   // udp/tcp
-uint16_t tsDnodeMnodePort = 6045;   // udp/tcp
-uint16_t tsSyncPort = 6050;
+uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
+uint16_t tsDnodeDnodePort = 6035;   // udp/tcp
+uint16_t tsSyncPort = 6040;
 
 int32_t tsStatusInterval = 1;         // second
 int32_t tsShellActivityTimer = 3;     // second
@@ -131,17 +129,18 @@ int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 int32_t tsNumOfLogLines = 10000000;
 int32_t mdebugFlag = 135;
 int32_t sdbDebugFlag = 135;
-int32_t ddebugFlag = 131;
-int32_t cdebugFlag = 131;
+int32_t dDebugFlag = 135;
+int32_t vDebugFlag = 135;
+int32_t cdebugFlag = 135;
 int32_t jnidebugFlag = 131;
 int32_t odbcdebugFlag = 131;
 int32_t httpDebugFlag = 131;
 int32_t monitorDebugFlag = 131;
 int32_t qdebugFlag = 131;
-int32_t rpcDebugFlag = 131;
+int32_t rpcDebugFlag = 135;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
-int32_t sDebugFlag = 131;
+int32_t sDebugFlag = 135;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -1004,7 +1003,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "dDebugFlag";
-  cfg.ptr = &ddebugFlag;
+  cfg.ptr = &dDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
@@ -1233,10 +1232,8 @@ bool taosCheckGlobalCfg() {
   
   tsVersion = 10 * tsVersion;
 
-  tsMnodeShellPort = tsServerPort + TSDB_PORT_MNODESHELL;   // udp[6030-6034] tcp[6030]
   tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
-  tsMnodeDnodePort = tsServerPort + TSDB_PORT_MNODEDNODE;   // udp/tcp
-  tsDnodeMnodePort = tsServerPort + TSDB_PORT_DNODEMNODE;   // udp/tcp
+  tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
 
   return true;

@@ -47,3 +47,5 @@ sql select count(b) from tb
 if $data00 != 5 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

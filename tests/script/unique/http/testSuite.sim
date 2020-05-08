@@ -1,2 +1,2 @@
 run unique/http/admin.sim
-#run general/http/opentsdb.sim
+run general/http/opentsdb.sim

@@ -1,6 +1,4 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
@@ -69,3 +67,5 @@ sql drop database d9
 sql drop database d10
 sql drop database d11
 sql drop database d12
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
