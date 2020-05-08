@@ -1,0 +1,129 @@
+2018-05-08  Toni Rönkkö
+
+	* Version 1.23.2: fixes bad scandir prototype.
+
+2017-08-27  Toni Rönkkö
+
+	* Version 1.23: support readdir_r and scandir functions.
+
+2017-07-18  Toni Rönkkö
+
+	* Created release branches v1.22 and v1.21 to Git.  Published version
+	1.22 at softagalleria.net.
+
+2016-09-11  Toni Rönkkö
+
+	* Version 1.22: added support for CMake.  Thanks to Paul Fultz II.
+
+2014-09-25  Toni Rönkkö
+
+	* Version 1.21: compiles correctly under Open Watcom.  Thanks to
+	Virgil Banowetz for a patch!
+
+2014-04-07  Toni Rönkkö
+
+	* Version 1.20.1: the zip file from the previous version did not open
+	correctly with Microsoft's compressed folders.  Thanks to Alexandre
+	for info!
+
+2014-03-17  Toni Ronkko
+
+	* Version 1.20: dirent.h compiles correctly in 64-bit architecture.
+	Thanks to Aaron Simmons!
+
+2014-03-03  Toni Ronkko
+
+	* Version 1.13.2: define DT_LNK for compatibility with Unix
+	programs.  Thanks to Joel Bruick for suggestion!
+
+2013-01-27  Toni Ronkko
+
+	* Version 1.13.1: patch from Edward Berner fixes set_errno() on
+	Windows NT 4.0.
+
+	* Revised wcstombs() and mbstowcs() wrappers to make sure that they do
+	not write past their target string.
+
+	* PATH_MAX from windows.h includes zero terminator so there is no
+	need to add one extra byte to variables and structures.
+
+2012-12-12  Toni Ronkko
+
+	* Version 1.13: use the traditional 8+3 file naming scheme if a file
+	name cannot be represented in the default ANSI code page.  Now
+	compiles again with MSVC 6.0.  Thanks to Konstantin Khomoutov for
+	testing.
+
+2012-10-01  Toni Ronkko
+
+	* Version 1.12.1: renamed wide-character DIR structure _wDIR to
+	_WDIR (with capital W) in order to maintain compatibility with MingW.
+
+2012-09-30  Toni Ronkko
+
+	* Version 1.12: define PATH_MAX and NAME_MAX.  Added wide-character
+	variants _wDIR, _wdirent, _wopendir(), _wreaddir(), _wclosedir() and
+	_wrewinddir().  Thanks to Edgar Buerkle and Jan Nijtmans for ideas
+	and code.
+
+	* Now avoiding windows.h.  This allows dirent.h to be integrated
+	more easily into programs using winsock.  Thanks to Fernando
+	Azaldegui.
+
+2011-03-15  Toni Ronkko
+
+	* Version 1.11: defined FILE_ATTRIBUTE_DEVICE for MSVC 6.0.
+
+2010-08-11  Toni Ronkko
+
+	* Version 1.10: added d_type and d_namlen fields to dirent structure.
+	The former is especially useful for determining whether directory
+	entry represents a file or a directory.  For more information, see
+	http://www.delorie.com/gnu/docs/glibc/libc_270.html
+
+	* Improved conformance to the standards.  For example, errno is now
+	set properly on failure and assert() is never used.  Thanks to Peter
+	Brockam for suggestions.
+
+	* Fixed a bug in rewinddir(): when using relative directory names,
+	change of working directory no longer causes rewinddir() to fail.
+
+2009-12-15  John Cunningham
+
+	* Version 1.9: added rewinddir member function
+
+2008-01-18  Toni Ronkko
+
+	* Version 1.8: Using FindFirstFileA and WIN32_FIND_DATAA to avoid
+	converting string between multi-byte and unicode representations.
+	This makes the code simpler and also allows the code to be compiled
+	under MingW.  Thanks to Azriel Fasten for the suggestion.
+
+2007-03-04  Toni Ronkko
+
+	* Bug fix: due to the strncpy_s() function this file only compiled in
+	Visual Studio 2005.  Using the new string functions only when the
+	compiler version allows.
+
+2006-11-02  Toni Ronkko
+
+	* Major update: removed support for Watcom C, MS-DOS and Turbo C to
+	simplify the file, updated the code to compile cleanly on Visual
+	Studio 2005 with both unicode and multi-byte character strings,
+	removed rewinddir() as it had a bug.
+
+2006-08-20  Toni Ronkko
+
+	* Removed all remarks about MSVC 1.0, which is antiqued now.
+	Simplified comments by removing SGML tags.
+
+2002-05-14  Toni Ronkko
+
+	* Embedded the function definitions directly to the header so that no
+	source modules need to be included in the Visual Studio project.
+	Removed all the dependencies to other projects so that this header
+	file can be used independently.
+
+1998-05-28  Toni Ronkko
+
+	* First version.
