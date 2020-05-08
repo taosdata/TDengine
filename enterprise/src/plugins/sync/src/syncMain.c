@@ -114,6 +114,7 @@ void *syncStart(const SSyncInfo *pInfo)
   pNode->writeToCache = pInfo->writeToCache;
   pNode->notifyRole = pInfo->notifyRole;
   pNode->confirmForward = pInfo->confirmForward;
+  pNode->notifyFileSynced = pInfo->notifyFileSynced;
  
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;
