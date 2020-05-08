@@ -24,7 +24,7 @@
 #include "dnode.h"
 #include "mnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtDnode.h"
 #include "mgmtDb.h"
 #include "mgmtMnode.h"
