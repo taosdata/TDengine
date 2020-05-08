@@ -2024,7 +2024,6 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
       tExprTreeCalcTraverse(pRes->pArithSup->pArithExpr->pExpr, 1, pRes->buffer[i], pRes->pArithSup,
           TSDB_ORDER_ASC, getArithemicInputSrc);
       pRes->tsrow[i] = pRes->buffer[i];
-//      free(sas); //todo optimization
     }
   }
   

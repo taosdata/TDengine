@@ -335,11 +335,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
         pCheckInfo->compSize = compIndex->len;
       }
       
-      // tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pCompInfo);
-      STable* pTable = tsdbGetTableByUid(tsdbGetMeta(pQueryHandle->pTsdb), pCheckInfo->tableId.uid);
-      assert(pTable != NULL);
-      
-      tsdbSetHelperTable(&pQueryHandle->rhelper, pTable, pQueryHandle->pTsdb);
+      tsdbSetHelperTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj, pQueryHandle->pTsdb);
 
       tsdbLoadCompInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
       SCompInfo* pCompInfo = pCheckInfo->pCompInfo;
@@ -472,6 +468,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       filterDataInDataBlock(pQueryHandle, pCheckInfo, pBlock, sa);
     } else {  // the whole block is loaded in to buffer
       pQueryHandle->realNumOfRows = pBlock->numOfPoints;
+      cur->pos = 0;
     }
   } else {
     // query ended in current block
@@ -491,6 +488,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       filterDataInDataBlock(pQueryHandle, pCheckInfo, pBlock, sa);
     } else {
       pQueryHandle->realNumOfRows = pBlock->numOfPoints;
+      cur->pos = pBlock->numOfPoints - 1;
     }
   }
 
@@ -568,7 +566,7 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
   SDataBlockInfo blockInfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
   
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
-
+  
   int32_t endPos = cur->pos;
   if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
     endPos = blockInfo.rows - 1;
@@ -612,7 +610,6 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
   int32_t reqCols = taosArrayGetSize(pQueryHandle->pColumns);
   
   for (int32_t i = 0; i < reqCols; ++i) {
-//    int16_t colId = *(int16_t*)taosArrayGet(sa, i);
     SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
     int32_t bytes = pCol->info.bytes;
 
@@ -1236,12 +1233,6 @@ static int32_t getAllTableIdList(STable* pSuperTable, SArray* list) {
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SExprTreeSupporter {
-  SSchema* pTagSchema;
-  int32_t  numOfTags;
-  int32_t  optr;
-} SExprTreeSupporter;
-
 /**
  * convert the result pointer to table id instead of table object pointer
  * @param pRes
@@ -1252,7 +1243,7 @@ static void convertQueryResult(SArray* pRes, SArray* pTableList) {
   }
 
   size_t size = taosArrayGetSize(pTableList);
-  for (int32_t i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < size; ++i) {  // todo speedup  by using reserve space.
     STable* pTable = taosArrayGetP(pTableList, i);
     taosArrayPush(pRes, &pTable->tableId);
   }
@@ -1273,16 +1264,15 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
-static int32_t getTagColumnInfo(SExprTreeSupporter* pSupporter, SSchema* pSchema) {
+static int32_t getTagColumnIndex(STSchema* pTSchema, SSchema* pSchema) {
   // filter on table name(TBNAME)
   if (strcasecmp(pSchema->name, TSQL_TBNAME_L) == 0) {
     return TSDB_TBNAME_COLUMN_INDEX;
   }
-
-  for(int32_t i = 0; i < pSupporter->numOfTags; ++i) {
-    if (pSupporter->pTagSchema[i].bytes == pSchema->bytes &&
-        pSupporter->pTagSchema[i].type  == pSchema->type  &&
-        pSupporter->pTagSchema[i].colId == pSchema->colId) {
+  
+  for(int32_t i = 0; i < schemaNCols(pTSchema); ++i) {
+    STColumn* pColumn = &pTSchema->columns[i];
+    if (pColumn->bytes == pSchema->bytes && pColumn->type  == pSchema->type  && pColumn->colId == pSchema->colId) {
       return i;
     }
   }
@@ -1298,21 +1288,22 @@ void filterPrepare(void* expr, void* param) {
 
   int32_t i = 0;
   pExpr->_node.info = calloc(1, sizeof(tQueryInfo));
-
-  SExprTreeSupporter* pSupporter = (SExprTreeSupporter*)param;
+  
+  STSchema* pTSSchema = (STSchema*) param;
 
   tQueryInfo* pInfo = pExpr->_node.info;
   tVariant*   pCond = pExpr->_node.pRight->pVal;
   SSchema*    pSchema = pExpr->_node.pLeft->pSchema;
 
   // todo : if current super table does not change schema yet, this function may failed, add test case
-  int32_t index = getTagColumnInfo(pSupporter, pSchema);
+  int32_t index = getTagColumnIndex(pTSSchema, pSchema);
   assert((index >= 0 && i < TSDB_MAX_TAGS) || (index == TSDB_TBNAME_COLUMN_INDEX));
 
   pInfo->sch      = *pSchema;
   pInfo->colIndex = index;
   pInfo->optr     = pExpr->_node.optr;
   pInfo->compare  = getComparFunc(pSchema->type, pInfo->optr);
+  pInfo->param    = pTSSchema;
   
   if (pInfo->optr == TSDB_RELATION_IN) {
     pInfo->q = (char*) pCond->arr;
@@ -1436,7 +1427,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 }
 
 bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
-  tQueryInfo* pInfo = (tQueryInfo*)param;
+  tQueryInfo* pInfo = (tQueryInfo*) param;
 
   STable* pTable = *(STable**)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
 
@@ -1447,7 +1438,14 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
     val = pTable->name;
     type = TSDB_DATA_TYPE_BINARY;
   } else {
-    val = dataRowTuple(pTable->tagVal);  // todo not only the first column
+    STSchema* pTSchema = (STSchema*) pInfo->param; // todo table schema is identical to stable schema??
+    
+    int32_t offset = pTSchema->columns[pInfo->colIndex].offset;
+    if (pInfo->sch.type == TSDB_DATA_TYPE_BINARY || pInfo->sch.type == TSDB_DATA_TYPE_NCHAR) {
+      val = tdGetRowDataOfCol(pTable->tagVal, pInfo->sch.type, TD_DATA_ROW_HEAD_SIZE + offset);
+    } else {
+      val = dataRowTuple(pTable->tagVal) + offset;
+    }
   }
 
   int32_t ret = 0;
@@ -1497,19 +1495,11 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
 }
 
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr) {
-  // query according to the binary expression
-  STSchema* pSchema = pSTable->tagSchema;
-  SSchema*  schema = calloc(schemaNCols(pSchema), sizeof(SSchema));
-  for (int32_t i = 0; i < schemaNCols(pSchema); ++i) {
-    schema[i].colId = schemaColAt(pSchema, i)->colId;
-    schema[i].type  = schemaColAt(pSchema, i)->type;
-    schema[i].bytes = schemaColAt(pSchema, i)->bytes;
-  }
-
-  SExprTreeSupporter s = {.pTagSchema = schema, .numOfTags = schemaNCols(pSTable->tagSchema)};
-
-  SBinaryFilterSupp supp = {
-      .fp = (__result_filter_fn_t)tSkipListNodeFilterCallback, .setupInfoFn = filterPrepare, .pExtInfo = &s,
+  // query according to the expression tree
+  SExprTraverseSupp supp = {
+      .fp = (__result_filter_fn_t) tSkipListNodeFilterCallback,
+      .setupInfoFn = filterPrepare,
+      .pExtInfo = pSTable->tagSchema,
       };
 
   SArray* pTableList = taosArrayInit(8, POINTER_BYTES);
@@ -1519,7 +1509,6 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr)
 
   convertQueryResult(pRes, pTableList);
   taosArrayDestroy(pTableList);
-  free(schema);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1527,8 +1516,15 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagC
   const char* tbnameCond, STableGroupInfo *pGroupInfo, SColIndex *pColIndex, int32_t numOfCols) {
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pTable == NULL) {
-    uError("failed to get stable, uid:%, %p" PRIu64, uid);
+    uError("%p failed to get stable, uid:%" PRIu64, tsdb, uid);
     return TSDB_CODE_INVALID_TABLE_ID;
+  }
+  
+  if (pTable->type != TSDB_SUPER_TABLE) {
+    uError("%p query normal tag not allowed, uid:%, tid:%d, name:%s" PRIu64,
+           tsdb, uid, pTable->tableId.tid, pTable->name);
+    
+    return TSDB_CODE_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
   }
   
   SArray* res = taosArrayInit(8, sizeof(STableId));
