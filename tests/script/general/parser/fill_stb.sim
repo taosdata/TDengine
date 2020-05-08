@@ -68,7 +68,7 @@ $tsu = $tsu + $ts0
 
 #### fill test cases for stables
 
-# null values in each group
+# NULL values in each group
 #sql select count(*) from $stb where ts >= '2018-09-16 00:00:00.000' and ts <= $tsu interval(1d) fill(prev) group by t1
 #$val = $tbNum * 2
 #if rows != $val then
@@ -227,7 +227,7 @@ sql select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= 
 sql select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1, 1e1, 1e1)
 sql select first(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1')
 # fill quoted values into bool column will throw error unless the value is 'true' or 'false' Note:2018-10-24
-# fill values into binary or nchar columns will be set to null automatically Note:2018-10-24
+# fill values into binary or nchar columns will be set to NULL automatically Note:2018-10-24
 sql_error select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1','1e1')
 sql select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, true, true, true)
 sql select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true', 'true','true')
@@ -283,13 +283,13 @@ endi
 if $data08 != 0 then
   return -1
 endi
-if $data15 != null then
+if $data15 != NULL then
   return -1
 endi
-if $data16 != null then
+if $data16 != NULL then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
 if $data18 != 0 then
@@ -313,16 +313,16 @@ endi
 if $data07 != nchar0 then
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
-if $data14 != null then
+if $data14 != NULL then
   return -1
 endi
-if $data16 != null then
+if $data16 != NULL then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
 if $data08 != 5 then
@@ -341,7 +341,7 @@ endi
 if $data07 != nchar0 then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
 
@@ -359,16 +359,16 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
-if $data04 != null then
+if $data04 != NULL then
   return -1
 endi
 if $data09 != 5 then 
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
 if $data19 != 5 then 
@@ -386,17 +386,17 @@ endi
 
 ## NULL fill
 print fill(NULL)
-sql select max(c1), min(c2), avg(c3), sum(c4), count(c5), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 4 interval(5m) fill(value, null) group by t1 limit 5
+sql select max(c1), min(c2), avg(c3), sum(c4), count(c5), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 4 interval(5m) fill(value, NULL) group by t1 limit 5
 if $rows != 25 then 
   return -1
 endi
 if $data01 != 0 then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
-if $data04 != null then
+if $data04 != NULL then
   return -1
 endi
 if $data06 != 1 then
@@ -405,16 +405,16 @@ endi
 if $data09 != 5 then 
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
 if $data19 != 5 then 
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
 if $data59 != 6 then 

@@ -84,12 +84,12 @@ $st = $stPrefix . c3
 sql select * from $st
 print ===> select * from $st
 print ===> $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-if $data01 != null then 
+if $data01 != NULL then 
   return -1
 endi
-if $data02 != null then 
+if $data02 != NULL then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi

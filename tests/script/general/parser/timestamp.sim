@@ -49,7 +49,7 @@ while $i < $tbNum
     $x = $x + 1
   endw 
   $ts = $ts + $delta
-  sql insert into $tb values ( $ts , null, null )
+  sql insert into $tb values ( $ts , NULL, NULL )
   $i = $i + 1
 endw
 print ====== $db tables created

@@ -219,10 +219,10 @@ endi
 if $data13 != -2.000000000 then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
 if $data19 != slm_tb6 then
@@ -293,10 +293,10 @@ endi
 if $data13 != -2.000000000 then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
 if $data19 != slm_tb5 then

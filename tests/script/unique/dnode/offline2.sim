@@ -90,7 +90,7 @@ sql show dnodes
 if $data4_1 != ready then
   goto show4
 endi
-if $data4_2 != null then
+if $data4_2 != NULL then
   goto show4
 endi
 if $data4_3 != ready then

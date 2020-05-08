@@ -12,7 +12,7 @@ print ============================ dnode1 start
 print ===============  step1 - parse
 system_content curl -u root:taosdata -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/
 print $system_content
-if $system_content != @{"status":"error","code":1057,"desc":"database name can not be null"}@ then
+if $system_content != @{"status":"error","code":1057,"desc":"database name can not be NULL"}@ then
   return -1
 endi
 
@@ -24,7 +24,7 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/
 print $system_content
-if $system_content != @{"status":"error","code":1057,"desc":"database name can not be null"}@ then
+if $system_content != @{"status":"error","code":1057,"desc":"database name can not be NULL"}@ then
   return -1
 endi
 
@@ -129,7 +129,7 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"": "web01"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1073,"desc":"tag name is null"}@ then
+if $system_content != @{"status":"error","code":1073,"desc":"tag name is NULL"}@ then
   return -1
 endi
 
@@ -147,7 +147,7 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": ""}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1076,"desc":"tag value is null"}@ then
+if $system_content != @{"status":"error","code":1076,"desc":"tag value is NULL"}@ then
   return -1
 endi
 

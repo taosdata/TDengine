@@ -673,7 +673,7 @@ endi
 if $data11 != INT then
   return -1
 endi
-if $data20 != null then
+if $data20 != NULL then
   return -1
 endi
 
