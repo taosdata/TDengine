@@ -151,7 +151,7 @@ typedef struct {
   int32_t commitTime;
   int8_t  precision;
   int8_t  compression;
-  int8_t  commitLog;
+  int8_t  walLevel;
   int8_t  replications;
   int8_t  reserved[16];
 } SDbCfg;

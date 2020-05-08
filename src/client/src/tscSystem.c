@@ -165,7 +165,7 @@ void taos_init_imp() {
     taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
   
-  int64_t refreshTime = tsMetricMetaKeepTimer < tsMeterMetaKeepTimer ? tsMetricMetaKeepTimer : tsMeterMetaKeepTimer;
+  int64_t refreshTime = tsTableMetaKeepTimer;
   refreshTime = refreshTime > 2 ? 2 : refreshTime;
   refreshTime = refreshTime < 1 ? 1 : refreshTime;
 

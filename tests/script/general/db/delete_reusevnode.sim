@@ -5,19 +5,17 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode2 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode3 -c cacheBlockSize -v 200
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
+sql connect
 
 print ======== step1 
 
 $tbPrefix = t
 $i = 0
-while $i < 1000
+while $i < 30
   $db = db . $i
   sql create database $db
   sql use $db
@@ -37,38 +35,32 @@ endw
 
 print ======== step2
 sleep 1000
-sql drop database $db
 sql show databases
 if $rows != 0 then 
   return -1
 endi 
 
-
 system sh/stop_dnodes.sh
+sleep 3000
 
 system sh/deploy.sh -n dnode1 -i 1
-
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode2 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode3 -c cacheBlockSize -v 200
-
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sql connect
 
 print ======== step1
 
 $tbPrefix = t
 $i = 0
-while $i < 1000
+while $i < 10
   $db = db . $i
-  sql create database $db tables 4
+  sql create database $db maxTables 4
   sql use $db
 
-  sql create table st (ts timesetamp, i int) tags(j int);
+  sql create table st (ts timestamp, i int) tags(j int);
   $tb = $tbPrefix . $i
   $tb = $tb . a
 
@@ -114,8 +106,9 @@ endw
 
 print ======== step2
 sleep 1000
-sql drop database $db
 sql show databases
 if $rows != 0 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

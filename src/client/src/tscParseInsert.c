@@ -327,15 +327,16 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *(uint32_t*) payload = TSDB_DATA_NCHAR_NULL;
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
-        int32_t resLen = -1;
-        if (!taosMbsToUcs4(pToken->z, pToken->n, payload + VARSTR_HEADER_SIZE, pSchema->bytes - VARSTR_HEADER_SIZE, &resLen)) {
-          char buf[512] = {0};
-          snprintf(buf, 512, "%s", strerror(errno));
+        size_t wcharLength = 0;
+        if (!taosMbsToUcs4(pToken->z, pToken->n, payload + VARSTR_HEADER_SIZE, pSchema->bytes - VARSTR_HEADER_SIZE,
+            &wcharLength)) {
           
+          char buf[512] = {0};
+          snprintf(buf, tListLen(buf), "%s", strerror(errno));
           return tscInvalidSQLErrMsg(msg, buf, pToken->z);
         }
         
-        *(uint16_t*)payload = (uint16_t) (resLen * TSDB_NCHAR_SIZE);
+        *(uint16_t*) payload = (uint16_t) (wcharLength);
       }
       break;
 
@@ -960,6 +961,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     *sqlstr = sql;
   }
 
+  if (*sqlstr == NULL) {
+    code = TSDB_CODE_INVALID_SQL;
+  }
+  
   return code;
 }
 

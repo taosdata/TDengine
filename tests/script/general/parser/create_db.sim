@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -163,7 +163,7 @@ sql_error create database $db rows 199
 sql_error create database $db cache 99
 #sql_error create database $db cache 10485761
 
-# ablocks [overwriten by 4*sessionsPerVnode, 409600]
+# ablocks [overwriten by 4*maxtablesPerVnode, 409600]
 sql_error create database $db ablocks -1
 #sql_error create database $db ablocks 409601
 

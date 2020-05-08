@@ -24,98 +24,188 @@ extern "C" {
 
 #include "tutil.h"
 
-const int TNUMBER = 1;
-#define IS_LITTLE_ENDIAN() (*(char *)(&TNUMBER) != 0)
+// TODO: move this to a platform file
+#define ENCODE_LIMIT (((uint8_t)1) << 7)
+static const int32_t TNUMBER = 1;
+#define IS_LITTLE_ENDIAN() (*(uint8_t *)(&TNUMBER) != 0)
 
 static FORCE_INLINE void *taosEncodeFixed16(void *buf, uint16_t value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(buf, &value, sizeof(value));
   } else {
-    ((char *)buf)[0] = value & 0xff;
-    ((char *)buf)[1] = (value >> 8) & 0xff;
+    ((uint8_t *)buf)[0] = value & 0xff;
+    ((uint8_t *)buf)[1] = (value >> 8) & 0xff;
   }
 
-  return POINTER_DRIFT(buf, sizeof(value));
+  return POINTER_SHIFT(buf, sizeof(value));
 }
 
 static FORCE_INLINE void *taosEncodeFixed32(void *buf, uint32_t value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(buf, &value, sizeof(value));
   } else {
-    ((char *)buf)[0] = value & 0xff;
-    ((char *)buf)[1] = (value >> 8) & 0xff;
-    ((char *)buf)[2] = (value >> 16) & 0xff;
-    ((char *)buf)[3] = (value >> 24) & 0xff;
+    ((uint8_t *)buf)[0] = value & 0xff;
+    ((uint8_t *)buf)[1] = (value >> 8) & 0xff;
+    ((uint8_t *)buf)[2] = (value >> 16) & 0xff;
+    ((uint8_t *)buf)[3] = (value >> 24) & 0xff;
   }
 
-  return POINTER_DRIFT(buf, sizeof(value));
+  return POINTER_SHIFT(buf, sizeof(value));
 }
 
 static FORCE_INLINE void *taosEncodeFixed64(void *buf, uint64_t value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(buf, &value, sizeof(value));
   } else {
-    ((char *)buf)[0] = value & 0xff;
-    ((char *)buf)[1] = (value >> 8) & 0xff;
-    ((char *)buf)[2] = (value >> 16) & 0xff;
-    ((char *)buf)[3] = (value >> 24) & 0xff;
-    ((char *)buf)[4] = (value >> 32) & 0xff;
-    ((char *)buf)[5] = (value >> 40) & 0xff;
-    ((char *)buf)[6] = (value >> 48) & 0xff;
-    ((char *)buf)[7] = (value >> 56) & 0xff;
+    ((uint8_t *)buf)[0] = value & 0xff;
+    ((uint8_t *)buf)[1] = (value >> 8) & 0xff;
+    ((uint8_t *)buf)[2] = (value >> 16) & 0xff;
+    ((uint8_t *)buf)[3] = (value >> 24) & 0xff;
+    ((uint8_t *)buf)[4] = (value >> 32) & 0xff;
+    ((uint8_t *)buf)[5] = (value >> 40) & 0xff;
+    ((uint8_t *)buf)[6] = (value >> 48) & 0xff;
+    ((uint8_t *)buf)[7] = (value >> 56) & 0xff;
   }
 
-  return POINTER_DRIFT(buf, sizeof(value));
+  return POINTER_SHIFT(buf, sizeof(value));
 }
 
 static FORCE_INLINE void *taosDecodeFixed16(void *buf, uint16_t *value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(value, buf, sizeof(*value));
   } else {
-    ((char *)value)[1] = ((char *)buf)[0];
-    ((char *)value)[0] = ((char *)buf)[1];
+    ((uint8_t *)value)[1] = ((uint8_t *)buf)[0];
+    ((uint8_t *)value)[0] = ((uint8_t *)buf)[1];
   }
 
-  return POINTER_DRIFT(buf, sizeof(*value));
+  return POINTER_SHIFT(buf, sizeof(*value));
 }
 
 static FORCE_INLINE void *taosDecodeFixed32(void *buf, uint32_t *value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(value, buf, sizeof(*value));
   } else {
-    ((char *)value)[3] = ((char *)buf)[0];
-    ((char *)value)[2] = ((char *)buf)[1];
-    ((char *)value)[1] = ((char *)buf)[2];
-    ((char *)value)[0] = ((char *)buf)[3];
+    ((uint8_t *)value)[3] = ((uint8_t *)buf)[0];
+    ((uint8_t *)value)[2] = ((uint8_t *)buf)[1];
+    ((uint8_t *)value)[1] = ((uint8_t *)buf)[2];
+    ((uint8_t *)value)[0] = ((uint8_t *)buf)[3];
   }
 
-  return POINTER_DRIFT(buf, sizeof(*value));
+  return POINTER_SHIFT(buf, sizeof(*value));
 }
 
 static FORCE_INLINE void *taosDecodeFixed64(void *buf, uint64_t *value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(value, buf, sizeof(*value));
   } else {
-    ((char *)value)[7] = ((char *)buf)[0];
-    ((char *)value)[6] = ((char *)buf)[1];
-    ((char *)value)[5] = ((char *)buf)[2];
-    ((char *)value)[4] = ((char *)buf)[3];
-    ((char *)value)[3] = ((char *)buf)[4];
-    ((char *)value)[2] = ((char *)buf)[5];
-    ((char *)value)[1] = ((char *)buf)[6];
-    ((char *)value)[0] = ((char *)buf)[7];
+    ((uint8_t *)value)[7] = ((uint8_t *)buf)[0];
+    ((uint8_t *)value)[6] = ((uint8_t *)buf)[1];
+    ((uint8_t *)value)[5] = ((uint8_t *)buf)[2];
+    ((uint8_t *)value)[4] = ((uint8_t *)buf)[3];
+    ((uint8_t *)value)[3] = ((uint8_t *)buf)[4];
+    ((uint8_t *)value)[2] = ((uint8_t *)buf)[5];
+    ((uint8_t *)value)[1] = ((uint8_t *)buf)[6];
+    ((uint8_t *)value)[0] = ((uint8_t *)buf)[7];
   }
 
-  return POINTER_DRIFT(buf, sizeof(*value));
+  return POINTER_SHIFT(buf, sizeof(*value));
 }
 
-// TODO
-static FORCE_INLINE void *taosEncodeVariant16(void *buf, uint16_t value) {}
-static FORCE_INLINE void *taosEncodeVariant32(void *buf, uint32_t value) {}
-static FORCE_INLINE void *taosEncodeVariant64(void *buf, uint64_t value) {}
-static FORCE_INLINE void *taosDecodeVariant16(void *buf, uint16_t *value) {}
-static FORCE_INLINE void *taosDecodeVariant32(void *buf, uint32_t *value) {}
-static FORCE_INLINE void *taosDecodeVariant64(void *buf, uint64_t *value) {}
+static FORCE_INLINE void *taosEncodeVariant16(void *buf, uint16_t value) {
+  int i = 0;
+  while (value >= ENCODE_LIMIT) {
+    ((uint8_t *)buf)[i] = (value | ENCODE_LIMIT);
+    value >>= 7;
+    i++;
+    ASSERT(i < 3);
+  }
+
+  ((uint8_t *)buf)[i] = value;
+
+  return POINTER_SHIFT(buf, i+1);
+}
+
+static FORCE_INLINE void *taosEncodeVariant32(void *buf, uint32_t value) {
+  int i = 0;
+  while (value >= ENCODE_LIMIT) {
+    ((uint8_t *)buf)[i] = (value | ENCODE_LIMIT);
+    value >>= 7;
+    i++;
+    ASSERT(i < 5);
+  }
+
+  ((uint8_t *)buf)[i] = value;
+
+  return POINTER_SHIFT(buf, i + 1);
+}
+
+static FORCE_INLINE void *taosEncodeVariant64(void *buf, uint64_t value) {
+  int i = 0;
+  while (value >= ENCODE_LIMIT) {
+    ((uint8_t *)buf)[i] = (value | ENCODE_LIMIT);
+    value >>= 7;
+    i++;
+    ASSERT(i < 10);
+  }
+
+  ((uint8_t *)buf)[i] = value;
+
+  return POINTER_SHIFT(buf, i + 1);
+}
+
+static FORCE_INLINE void *taosDecodeVariant16(void *buf, uint16_t *value) {
+  int i = 0;
+  uint16_t tval = 0;
+  *value = 0;
+  while (i < 3) {
+    tval = (uint16_t)(((uint8_t *)buf)[i]);
+    if (tval < ENCODE_LIMIT) {
+      (*value) |= (tval << (7 * i));
+      return POINTER_SHIFT(buf, i + 1);
+    } else {
+      (*value) |= ((tval & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  return NULL;  // error happened
+}
+
+static FORCE_INLINE void *taosDecodeVariant32(void *buf, uint32_t *value) {
+  int i = 0;
+  uint32_t tval = 0;
+  *value = 0;
+  while (i < 5) {
+    tval = (uint32_t)(((uint8_t *)buf)[i]);
+    if (tval < ENCODE_LIMIT) {
+      (*value) |= (tval << (7 * i));
+      return POINTER_SHIFT(buf, i + 1);
+    } else {
+      (*value) |= ((tval & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  return NULL;  // error happened
+}
+
+static FORCE_INLINE void *taosDecodeVariant64(void *buf, uint64_t *value) {
+  int i = 0;
+  uint64_t tval = 0;
+  *value = 0;
+  while (i < 10) {
+    tval = (uint64_t)(((uint8_t *)buf)[i]);
+    if (tval < ENCODE_LIMIT) {
+      (*value) |= (tval << (7 * i));
+      return POINTER_SHIFT(buf, i + 1);
+    } else {
+      (*value) |= ((tval & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  return NULL;  // error happened
+}
 
 #ifdef __cplusplus
 }

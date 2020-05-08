@@ -74,8 +74,7 @@ uint16_t tsSyncPort = 6050;
 
 int32_t tsStatusInterval = 1;         // second
 int32_t tsShellActivityTimer = 3;     // second
-int32_t tsMeterMetaKeepTimer = 7200;  // second
-int32_t tsMetricMetaKeepTimer = 600;  // second
+int32_t tsTableMetaKeepTimer = 7200;  // second
 int32_t tsRpcTimer = 300;
 int32_t tsRpcMaxTime = 600;      // seconds;
 
@@ -85,22 +84,22 @@ int16_t tsNumOfVnodesPerCore = 8;
 int16_t tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 
 #ifdef _TD_ARM_32_
-int32_t tsTablesPerVnode = 100;
+int32_t tsMaxTablePerVnode = 100;
 #else
-int32_t tsTablesPerVnode = TSDB_DEFAULT_TABLES;
+int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
 #endif
 
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
-int32_t tsTotalBlocks = TSDB_DEFAULT_TOTAL_BLOCKS;
-int16_t tsDaysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
-int32_t tsDaysToKeep = TSDB_DEFAULT_KEEP;
+int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
+int16_t tsDaysPerFile    = TSDB_DEFAULT_DAYS_PER_FILE;
+int32_t tsDaysToKeep     = TSDB_DEFAULT_KEEP;
 int32_t tsMinRowsInFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
 int32_t tsMaxRowsInFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
-int16_t tsCommitTime = TSDB_DEFAULT_COMMIT_TIME;  // seconds
+int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
 int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
-int16_t tsCompression = TSDB_DEFAULT_COMP_LEVEL;
-int16_t tsCommitLog = TSDB_DEFAULT_CLOG_LEVEL;
-int32_t tsReplications = TSDB_DEFAULT_REPLICA_NUM;
+int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
+int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
+int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
 
 /**
  * Change the meaning of affected rows:
@@ -506,18 +505,8 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
   taosInitConfigOption(cfg);
 
-  cfg.option = "meterMetaKeepTimer";
-  cfg.ptr = &tsMeterMetaKeepTimer;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 1;
-  cfg.maxValue = 8640000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "metricMetaKeepTimer";
-  cfg.ptr = &tsMetricMetaKeepTimer;
+  cfg.option = "tableMetaKeepTimer";
+  cfg.ptr = &tsTableMetaKeepTimer;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
@@ -587,8 +576,8 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   // database configs
-  cfg.option = "tables";
-  cfg.ptr = &tsTablesPerVnode;
+  cfg.option = "maxtablesPerVnode";
+  cfg.ptr = &tsMaxTablePerVnode;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_TABLES;
@@ -608,7 +597,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "blocks";
-  cfg.ptr = &tsTotalBlocks;
+  cfg.ptr = &tsBlocksPerVnode;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_TOTAL_BLOCKS;
@@ -677,12 +666,12 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "clog";
-  cfg.ptr = &tsCommitLog;
+  cfg.option = "wallevel";
+  cfg.ptr = &tsWAL;
   cfg.valType = TAOS_CFG_VTYPE_INT16;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_CLOG_LEVEL;
-  cfg.maxValue = TSDB_MAX_CLOG_LEVEL;
+  cfg.minValue = TSDB_MIN_WAL_LEVEL;
+  cfg.maxValue = TSDB_MAX_WAL_LEVEL;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

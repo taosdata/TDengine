@@ -1,10 +1,8 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 8
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 129
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 129
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -19,7 +17,7 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
 print =================== step 0
-sql create database $db tables 129
+sql create database $db maxtables 129
 sql use $db
 sql show vgroups
 if $rows != 0 then 
@@ -92,3 +90,5 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

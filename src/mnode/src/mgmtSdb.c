@@ -142,7 +142,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.commitLog = 2, .wals = 2, .keep = 1};
+  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1};
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbObj.wal = walOpen(temp, &walCfg);
@@ -324,7 +324,6 @@ void sdbCleanUp() {
 
   tsSdbObj.status = SDB_STATUS_CLOSING;
   syncStop(tsSdbObj.sync);
-  free(tsSdbObj.sync);
   walClose(tsSdbObj.wal);
   sem_destroy(&tsSdbObj.sem);
   pthread_mutex_destroy(&tsSdbObj.mutex);

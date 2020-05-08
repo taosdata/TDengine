@@ -10,12 +10,12 @@ system sh/cfg.sh -n dnode1 -c statusInterval -v 1
 system sh/cfg.sh -n dnode2 -c statusInterval -v 1
 system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode2 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 4
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
 
@@ -38,7 +38,7 @@ $db = $dbPrefix
 $mt = $mtPrefix
 $st = $stPrefix . $i
 
-sql create database $db tables 4
+sql create database $db maxTables 4
 sql use $db
 sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
 

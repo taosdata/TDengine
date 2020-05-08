@@ -15,10 +15,10 @@ system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 10
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 10
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 10
 
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 2000
-system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 2000
-system sh/cfg.sh -n dnode3 -c sessionsPerVnode -v 2000
-system sh/cfg.sh -n dnode4 -c sessionsPerVnode -v 2000
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2000
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 2000
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 2000
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 2000
 
 system sh/cfg.sh -n dnode1 -c commitlog -v 0
 system sh/cfg.sh -n dnode2 -c commitlog -v 0

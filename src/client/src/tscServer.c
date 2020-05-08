@@ -439,25 +439,6 @@ int tscProcessSql(SSqlObj *pSql) {
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
-
-//  if (QUERY_IS_JOIN_QUERY(type)) {
-//    if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0) {
-//      return tscHandleMasterJoinQuery(pSql);
-//    } else {
-//      // for first stage sub query, iterate all vnodes to get all timestamp
-//      if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) != TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
-//        return doProcessSql(pSql);
-//      }
-//    }
-//  }
-//
-//  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) { // super table query
-//    tscHandleMasterSTableQuery(pSql);
-//    return pRes->code;
-//  } else if (pSql->fp == (void(*)())tscHandleMultivnodeInsert) {  // multi-vnodes insertion
-//    tscHandleMultivnodeInsert(pSql);
-//    return pRes->code;
-//  }
   
   return doProcessSql(pSql);
 }
@@ -1907,7 +1888,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   assert(pTableMetaInfo->pTableMeta == NULL);
 
   pTableMetaInfo->pTableMeta =
-      (STableMeta *) taosCachePut(tscCacheHandle, pTableMetaInfo->name, pTableMeta, size, tsMeterMetaKeepTimer);
+      (STableMeta *) taosCachePut(tscCacheHandle, pTableMetaInfo->name, pTableMeta, size, tsTableMetaKeepTimer);
   
   // todo handle out of memory case
   if (pTableMetaInfo->pTableMeta == NULL) {
@@ -2016,7 +1997,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     //    int32_t size = (int32_t)(rsp - ((char *)pMeta));  // Consistent with STableMeta in cache
     //
     //    pMeta->index = 0;
-    //    (void)taosCachePut(tscCacheHandle, pMeta->tableId, (char *)pMeta, size, tsMeterMetaKeepTimer);
+    //    (void)taosCachePut(tscCacheHandle, pMeta->tableId, (char *)pMeta, size, tsTableMetaKeepTimer);
     //  }
   }
   
@@ -2215,7 +2196,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   size_t size = 0;
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
   
-  pTableMetaInfo->pTableMeta = taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsMeterMetaKeepTimer);
+  pTableMetaInfo->pTableMeta = taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsTableMetaKeepTimer);
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   if (pQueryInfo->colList == NULL) {
@@ -2363,8 +2344,10 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   pRes->data      = pRetrieve->data;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  tscSetResultPointer(pQueryInfo, pRes);
-
+  if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
+    return pRes->code;
+  }
+  
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
     

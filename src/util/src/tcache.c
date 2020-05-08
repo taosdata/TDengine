@@ -304,9 +304,9 @@ static FORCE_INLINE SCacheDataNode *taosAddToCacheImpl(SCacheObj *pCacheObj, con
 static void doCleanupDataCache(SCacheObj *pCacheObj) {
   __cache_wr_lock(pCacheObj);
   
-  if (taosHashGetSize(pCacheObj->pHashTable) > 0) {
-    taosHashCleanup(pCacheObj->pHashTable);
-  }
+  //if (taosHashGetSize(pCacheObj->pHashTable) > 0) {
+  taosHashCleanup(pCacheObj->pHashTable);
+  //}
   
   __cache_unlock(pCacheObj);
   

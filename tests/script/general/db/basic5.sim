@@ -1,6 +1,7 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
+sleep 3000
 sql connect
 
 print =============== create database d1
@@ -55,3 +56,5 @@ if $rows != 0 then
 endi
 
 sql_error show d1.vgroups
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
