@@ -30,7 +30,6 @@
 #include "tlocale.h"
 
 // global, not configurable
-void *  pDnodeConn;
 void *  tscCacheHandle;
 void *  tscTmr;
 void *  tscQhandle;
@@ -48,12 +47,12 @@ void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
-int32_t tscInitRpc(const char *user, const char *secret) {
+int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
   SRpcInit rpcInit;
   char secretEncrypt[32] = {0};
   taosEncryptPass((uint8_t *)secret, strlen(secret), secretEncrypt);
 
-  if (pDnodeConn == NULL) {
+  if (*pDnodeConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
     rpcInit.label = "TSC";
@@ -66,9 +65,9 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.ckey = "key";
     rpcInit.secret = secretEncrypt;
 
-    pDnodeConn = rpcOpen(&rpcInit);
-    if (pDnodeConn == NULL) {
-      tscError("failed to init connection to vnode");
+    *pDnodeConn = rpcOpen(&rpcInit);
+    if (*pDnodeConn == NULL) {
+      tscError("failed to init connection to TDengine");
       return -1;
     }
   }
@@ -167,11 +166,6 @@ void taos_cleanup() {
   }
   
   taosCloseLog();
-  
-  if (pDnodeConn != NULL) {
-    rpcClose(pDnodeConn);
-    pDnodeConn = NULL;
-  }
   
   taosTmrCleanUp(tscTmr);
 }

@@ -304,6 +304,7 @@ typedef struct STscObj {
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
+  void*              pDnodeConn;
   pthread_mutex_t    mutex;
 } STscObj;
 
@@ -359,7 +360,7 @@ typedef struct SSqlStream {
   struct SSqlStream *prev, *next;
 } SSqlStream;
 
-int32_t tscInitRpc(const char *user, const char *secret);
+int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn);
 void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
@@ -425,7 +426,6 @@ void    tscQueueAsyncFreeResult(SSqlObj *pSql);
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 void    tscGetResultColumnChr(SSqlRes *pRes, SFieldInfo* pFieldInfo, int32_t column);
 
-extern void *    pDnodeConn;
 extern void *    tscCacheHandle;
 extern void *    tscTmr;
 extern void *    tscQhandle;
