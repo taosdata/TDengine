@@ -81,6 +81,8 @@ void dnodeCleanupRead() {
   }
 
   taosCloseQset(readQset);
+  free(readPool.readWorker);
+
   dPrint("dnode read is closed");
 }
 
