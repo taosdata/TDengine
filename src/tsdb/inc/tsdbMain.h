@@ -95,6 +95,7 @@ typedef struct STable {
   void *         streamHandler;  // TODO
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
+  struct STable *prev;
 } STable;
 
 #define TSDB_GET_TABLE_LAST_KEY(pTable) ((pTable)->lastKey)
