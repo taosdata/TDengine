@@ -24,13 +24,12 @@
 #include "tname.h"
 #include "tidpool.h"
 #include "tglobal.h"
+#include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtAcct.h"
-#include "mgmtDClient.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDServer.h"
 #include "tgrant.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
@@ -539,12 +538,12 @@ int32_t mgmtInitTables() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_TABLE_META, mgmtProcessTableMetaMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_STABLE_VGROUP, mgmtProcessSuperTableVgroupMsg);
   
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP, mgmtProcessCreateChildTableRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, mgmtProcessDropChildTableRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, mgmtProcessDropSuperTableRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, mgmtProcessAlterTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP, mgmtProcessCreateChildTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, mgmtProcessDropChildTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, mgmtProcessDropSuperTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, mgmtProcessAlterTableRsp);
 
-  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_TABLE, mgmtProcessTableCfgMsg);
+  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_TABLE, mgmtProcessTableCfgMsg);
 
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
@@ -812,7 +811,7 @@ static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
       if (pVgroup != NULL) {
         SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
         SRpcMsg rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
-        mgmtSendMsgToDnode(&ipSet, &rpcMsg);
+        dnodeSendMsgToDnode(&ipSet, &rpcMsg);
         mgmtDecVgroupRef(pVgroup);
       }
     }
@@ -1514,7 +1513,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
       .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
   };
 
-  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
 static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
@@ -1552,7 +1551,7 @@ static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
     .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
 
-  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
 static int32_t mgmtModifyChildTableTagValue(SChildTableObj *pTable, char *tagName, char *nContent) {
@@ -1854,7 +1853,7 @@ static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg) {
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
   };
-  mgmtSendMsgToDnode(&ipSet, &rpcRsp);
+  dnodeSendMsgToDnode(&ipSet, &rpcRsp);
 
   mgmtDecTableRef(pTable);
   mgmtDecDnodeRef(pDnode);

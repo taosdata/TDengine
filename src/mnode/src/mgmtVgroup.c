@@ -23,12 +23,11 @@
 #include "ttime.h"
 #include "tbalance.h"
 #include "tglobal.h"
+#include "dnode.h"
 #include "tdataformat.h"
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtDb.h"
-#include "mgmtDClient.h"
-#include "mgmtDServer.h"
 #include "mgmtDnode.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
@@ -218,9 +217,9 @@ int32_t mgmtInitVgroups() {
 
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mgmtGetVgroupMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mgmtRetrieveVgroups);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mgmtProcessCreateVnodeRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mgmtProcessDropVnodeRsp);
-  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mgmtProcessVnodeCfgMsg);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mgmtProcessCreateVnodeRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mgmtProcessDropVnodeRsp);
+  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mgmtProcessVnodeCfgMsg);
 
   mTrace("table:vgroups is created");
   
@@ -584,7 +583,7 @@ SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
   };
   for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
     strcpy(ipSet.fqdn[i], pVgroup->vnodeGid[i].pDnode->dnodeFqdn);
-    ipSet.port[i] = pVgroup->vnodeGid[i].pDnode->dnodePort + TSDB_PORT_DNODEMNODE;
+    ipSet.port[i] = pVgroup->vnodeGid[i].pDnode->dnodePort + TSDB_PORT_DNODEDNODE;
   }
   return ipSet;
 }
@@ -595,7 +594,7 @@ SRpcIpSet mgmtGetIpSetFromIp(char *ep) {
   ipSet.numOfIps = 1;
   ipSet.inUse = 0;
   taosGetFqdnPortFromEp(ep, ipSet.fqdn[0], &ipSet.port[0]);
-  ipSet.port[0] += TSDB_PORT_DNODEMNODE;
+  ipSet.port[0] += TSDB_PORT_DNODEDNODE;
   return ipSet;
 }
 
@@ -609,7 +608,7 @@ void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_CREATE_VNODE
   };
-  mgmtSendMsgToDnode(ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(ipSet, &rpcMsg);
 }
 
 void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
@@ -675,7 +674,7 @@ void mgmtSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle) {
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_DROP_VNODE
   };
-  mgmtSendMsgToDnode(ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(ipSet, &rpcMsg);
 }
 
 static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {

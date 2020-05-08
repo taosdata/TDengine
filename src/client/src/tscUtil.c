@@ -755,7 +755,10 @@ void tscCloseTscObj(STscObj* pObj) {
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 
-  rpcClose(pObj->pMgmtConn);
+  if (pSql) {
+    sem_destroy(&pSql->rspSem);
+  }
+  
   pthread_mutex_destroy(&pObj->mutex);
   
   tscTrace("%p DB connection is closed", pObj);

@@ -29,11 +29,11 @@
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, int32_t contLen, SRspRet *pRet);
 static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet);
-static int32_t  vnodeProcessRetrieveMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet);
+static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet);
 
 void vnodeInitReadFp(void) {
-  vnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY]    = vnodeProcessQueryMsg;
-  vnodeProcessReadMsgFp[TSDB_MSG_TYPE_RETRIEVE] = vnodeProcessRetrieveMsg;
+  vnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessQueryMsg;
+  vnodeProcessReadMsgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessFetchMsg;
 }
 
 int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen, SRspRet *ret) {
@@ -65,7 +65,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
     
-    dTrace("pVnode:%p vgId:%d QInfo:%p, dnode query msg disposed", pVnode, pVnode->vgId, pQInfo);
+    vTrace("vgId:%d QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
   } else {
     pQInfo = pCont;
     code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -76,14 +76,14 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   return code;
 }
 
-static int32_t vnodeProcessRetrieveMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet) {
+static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet) {
   SRetrieveTableMsg *pRetrieve = pCont;
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
   memset(pRet, 0, sizeof(SRspRet));
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  dTrace("pVnode:%p vgId:%d QInfo:%p, retrieve msg is received", pVnode, pVnode->vgId, pQInfo);
+  vTrace("vgId:%d QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
   
   pRet->code = qRetrieveQueryResultInfo(pQInfo);
   if (pRet->code != TSDB_CODE_SUCCESS) {
@@ -104,6 +104,6 @@ static int32_t vnodeProcessRetrieveMsg(SVnodeObj *pVnode, void *pCont, int32_t c
     }
   }
   
-  dTrace("pVnode:%p vgId:%d QInfo:%p, retrieve msg is disposed", pVnode, pVnode->vgId, pQInfo);
+  vTrace("vgId:%d QInfo:%p, retrieve msg is disposed", pVnode->vgId, pQInfo);
   return code;
 }

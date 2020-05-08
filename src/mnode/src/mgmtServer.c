@@ -27,7 +27,6 @@
 #include "mgmtDef.h"
 #include "mgmtLog.h"
 #include "mgmtDb.h"
-#include "mgmtDServer.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
@@ -35,67 +34,49 @@
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
-static void   mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg);
-static int    mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static void (*mgmtProcessDnodeMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
-static void  *tsMgmtDServerRpc;
-static void  *tsMgmtDServerQhandle = NULL;
+static void  *tsMgmtServerQhandle = NULL;
 
-int32_t mgmtInitDServer() {
-  SRpcInit rpcInit = {0};
-  rpcInit.localPort    = tsMnodeDnodePort;
-  rpcInit.label        = "MND-DS";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp          = mgmtProcessMsgFromDnode;
-  rpcInit.sessions     = 100;
-  rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
-  rpcInit.afp          = mgmtDServerRetrieveAuth;
+int32_t mgmtInitServer() {
 
-  tsMgmtDServerQhandle = taosInitScheduler(tsMaxShellConns, 1, "MS");
-
-  tsMgmtDServerRpc = rpcOpen(&rpcInit);
-  if (tsMgmtDServerRpc == NULL) {
-    mError("failed to init server connection to dnode");
-    return -1;
-  }
+  tsMgmtServerQhandle = taosInitScheduler(tsMaxShellConns, 1, "MS");
 
   mPrint("server connection to dnode is opened");
   return 0;
 }
 
-void mgmtCleanupDServer() {
-  if (tsMgmtDServerQhandle) {
-    taosCleanUpScheduler(tsMgmtDServerQhandle);
-    tsMgmtDServerQhandle = NULL;
-  }
-
-  if (tsMgmtDServerRpc) {
-    rpcClose(tsMgmtDServerRpc);
-    tsMgmtDServerRpc = NULL;
-    mPrint("server connection to dnode is closed");
+void mgmtCleanupServer() {
+  if (tsMgmtServerQhandle) {
+    taosCleanUpScheduler(tsMgmtServerQhandle);
+    tsMgmtServerQhandle = NULL;
   }
 }
 
-void mgmtAddDServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
+void dnodeAddServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
   mgmtProcessDnodeMsgFp[msgType] = fp;
 }
 
-static void mgmtProcessDServerRequest(SSchedMsg *sched) {
+static void mgmtProcessRequestFromDnode(SSchedMsg *sched) {
   SRpcMsg *pMsg = sched->msg;
   (*mgmtProcessDnodeMsgFp[pMsg->msgType])(pMsg);
   rpcFreeCont(pMsg->pCont);
   free(pMsg);
 }
 
-static void mgmtAddToDServerQueue(SRpcMsg *pMsg) {
+static void mgmtAddToServerQueue(SRpcMsg *pMsg) {
   SSchedMsg schedMsg;
   schedMsg.msg = pMsg;
-  schedMsg.fp  = mgmtProcessDServerRequest;
-  taosScheduleTask(tsMgmtDServerQhandle, &schedMsg);
+  schedMsg.fp  = mgmtProcessRequestFromDnode;
+  taosScheduleTask(tsMgmtServerQhandle, &schedMsg);
 }
 
-static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
+void mgmtProcessReqMsgFromDnode(SRpcMsg *rpcMsg) {
+  if (mgmtProcessDnodeMsgFp[rpcMsg->msgType] == NULL) {
+    mError("%s is not processed in mnode", taosMsg[rpcMsg->msgType]);
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_MSG_NOT_PROCESSED);
+    rpcFreeCont(rpcMsg->pCont);
+  }
+
   if (rpcMsg->pCont == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
     return;
@@ -116,17 +97,8 @@ static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
     return;
   }
   
-  if (mgmtProcessDnodeMsgFp[rpcMsg->msgType]) {
-    SRpcMsg *pMsg = malloc(sizeof(SRpcMsg));
-    memcpy(pMsg, rpcMsg, sizeof(SRpcMsg));
-    mgmtAddToDServerQueue(pMsg);
-  } else {
-    mError("%s is not processed in mgmt dserver", taosMsg[rpcMsg->msgType]);
-    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_MSG_NOT_PROCESSED);
-    rpcFreeCont(rpcMsg->pCont);
-  }
+  SRpcMsg *pMsg = malloc(sizeof(SRpcMsg));
+  memcpy(pMsg, rpcMsg, sizeof(SRpcMsg));
+  mgmtAddToServerQueue(pMsg);
 }
 
-static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  return TSDB_CODE_SUCCESS;
-}
