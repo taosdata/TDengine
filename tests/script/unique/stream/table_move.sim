@@ -163,7 +163,7 @@ print dnode2 $dnode2Vnodes
 if $dnode1Vnodes != 6 then
   goto show1
 endi
-if $dnode2Vnodes != null then
+if $dnode2Vnodes != NULL then
   goto show1
 endi
 
@@ -214,7 +214,7 @@ print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
 print dnode2 $dnode2Vnodes
 
-if $dnode1Vnodes != null then
+if $dnode1Vnodes != NULL then
   goto show6
 endi
 if $dnode2Vnodes != 6 then

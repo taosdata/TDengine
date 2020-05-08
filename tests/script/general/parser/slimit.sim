@@ -57,7 +57,7 @@ while $i < $tbNum
     $x = $x + 1
   endw 
   $ts = $ts + $delta
-  sql insert into $tb values ( $ts , null, null, null, null, null, null, null, null, null )
+  sql insert into $tb values ( $ts , NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
   $i = $i + 1
 endw
 print ====== $db tables created
@@ -87,7 +87,7 @@ while $i < $tbNum
   while $x < $rowNum
     $xs = $x * $delta
     $ts = $ts0 + $xs
-    sql insert into $tb values ( $ts , null , null , null , null , null , null , null , null , null ) 
+    sql insert into $tb values ( $ts , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL ) 
     $x = $x + 1
   endw 
   $i = $i + 1

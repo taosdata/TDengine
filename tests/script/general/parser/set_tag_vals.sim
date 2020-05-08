@@ -87,7 +87,7 @@ if $rows != 0 then
   return -1
 endi
 
-print ================== set tag to null
+print ================== set tag to NULL
 sql create table stb1_tg (ts timestamp, c1 int) tags(t1 int,t2 bigint,t3 double,t4 float,t5 smallint,t6 tinyint)
 sql create table stb2_tg (ts timestamp, c1 int) tags(t1 bool,t2 binary(10), t3 nchar(10))
 sql create table tb1_tg1 using stb1_tg tags(1,2,3,4,5,6)
@@ -195,33 +195,33 @@ sql select * from stb1_tg
 if $rows != 1 then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
-if $data04 != null then
+if $data04 != NULL then
   return -1
 endi
-if $data05 != null then
+if $data05 != NULL then
   return -1
 endi
-if $data06 != null then
+if $data06 != NULL then
   return -1
 endi
-if $data07 != null then
+if $data07 != NULL then
   return -1
 endi
 sql select * from stb2_tg
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
 
 print $data03
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
-if $data04 != null then
+if $data04 != NULL then
   return -1
 endi

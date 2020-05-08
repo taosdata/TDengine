@@ -51,7 +51,7 @@ $tb = $tbPrefix . $i
 
 sql select * from $tb
 print $data00 $data01 $data02
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 if $data02 != 0 then
@@ -165,7 +165,7 @@ sql select * from t2
 if $rows != 1 then 
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 
@@ -173,7 +173,7 @@ sql select * from t3
 if $rows != 1 then 
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 
@@ -181,7 +181,7 @@ sql select * from t4
 if $rows != 1 then 
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 
@@ -189,7 +189,7 @@ sql select * from t5
 if $rows != 1 then 
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 
@@ -197,7 +197,7 @@ sql select * from t6
 if $rows != 1 then 
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 
@@ -205,7 +205,7 @@ sql select * from t7
 if $rows != 1 then 
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 
@@ -213,7 +213,7 @@ endi
 #if $rows != 1 then 
 #  return -1
 #endi
-#if $data01 != null then
+#if $data01 != NULL then
 #  return -1
 #endi
 

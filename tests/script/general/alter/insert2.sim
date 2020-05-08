@@ -74,7 +74,7 @@ endi
 if $data07 != 8 then
   return -1
 endi
-if $data08 != null then
+if $data08 != NULL then
   return -1
 endi
 if $data11 != 1 then
@@ -98,7 +98,7 @@ endi
 if $data17 != 8 then
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
 
@@ -129,10 +129,10 @@ endi
 if $data06 != 8 then
   return -1
 endi
-if $data07 != null then
+if $data07 != NULL then
   return -1
 endi
-if $data08 != null then
+if $data08 != NULL then
   return -1
 endi
 if $data11 != 2 then
@@ -153,10 +153,10 @@ endi
 if $data16 != 8 then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
 if $data21 != 1 then
@@ -177,10 +177,10 @@ endi
 if $data26 != 8 then
   return -1
 endi
-if $data27 != null then
+if $data27 != NULL then
   return -1
 endi
-if $data28 != null then
+if $data28 != NULL then
   return -1
 endi
 
@@ -206,16 +206,16 @@ endi
 if $data04 != 0 then
   return -1
 endi
-if $data05 != null then
+if $data05 != NULL then
   return -1
 endi
-if $data06 != null then
+if $data06 != NULL then
   return -1
 endi
-if $data07 != null then
+if $data07 != NULL then
   return -1
 endi
-if $data08 != null then
+if $data08 != NULL then
   return -1
 endi
 if $data11 != 3 then
@@ -230,16 +230,16 @@ endi
 if $data14 != 8 then
   return -1
 endi
-if $data15 != null then
+if $data15 != NULL then
   return -1
 endi
-if $data16 != null then
+if $data16 != NULL then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
 if $data21 != 2 then
@@ -254,16 +254,16 @@ endi
 if $data24 != 8 then
   return -1
 endi
-if $data25 != null then
+if $data25 != NULL then
   return -1
 endi
-if $data26 != null then
+if $data26 != NULL then
   return -1
 endi
-if $data27 != null then
+if $data27 != NULL then
   return -1
 endi
-if $data28 != null then
+if $data28 != NULL then
   return -1
 endi
 if $data31 != 1 then
@@ -278,16 +278,16 @@ endi
 if $data34 != 8 then
   return -1
 endi
-if $data35 != null then
+if $data35 != NULL then
   return -1
 endi
-if $data36 != null then
+if $data36 != NULL then
   return -1
 endi
-if $data37 != null then
+if $data37 != NULL then
   return -1
 endi
-if $data38 != null then
+if $data38 != NULL then
   return -1
 endi
 
@@ -313,19 +313,19 @@ endi
 if $data03 != 5 then
   return -1
 endi
-if $data04 != null then
+if $data04 != NULL then
   return -1
 endi
-if $data05 != null then
+if $data05 != NULL then
   return -1
 endi
-if $data06 != null then
+if $data06 != NULL then
   return -1
 endi
-if $data07 != null then
+if $data07 != NULL then
   return -1
 endi
-if $data08 != null then
+if $data08 != NULL then
   return -1
 endi
 if $data11 != -19 then
@@ -337,19 +337,19 @@ endi
 if $data13 != 0 then
   return -1
 endi
-if $data14 != null then
+if $data14 != NULL then
   return -1
 endi
-if $data15 != null then
+if $data15 != NULL then
   return -1
 endi
-if $data16 != null then
+if $data16 != NULL then
   return -1
 endi
-if $data17 != null then
+if $data17 != NULL then
   return -1
 endi
-if $data18 != null then
+if $data18 != NULL then
   return -1
 endi
 if $data21 != 3 then
@@ -361,19 +361,19 @@ endi
 if $data23 != 8 then
   return -1
 endi
-if $data24 != null then
+if $data24 != NULL then
   return -1
 endi
-if $data25 != null then
+if $data25 != NULL then
   return -1
 endi
-if $data26 != null then
+if $data26 != NULL then
   return -1
 endi
-if $data27 != null then
+if $data27 != NULL then
   return -1
 endi
-if $data28 != null then
+if $data28 != NULL then
   return -1
 endi
 if $data31 != 2 then
@@ -385,19 +385,19 @@ endi
 if $data33 != 8 then
   return -1
 endi
-if $data34 != null then
+if $data34 != NULL then
   return -1
 endi
-if $data35 != null then
+if $data35 != NULL then
   return -1
 endi
-if $data36 != null then
+if $data36 != NULL then
   return -1
 endi
-if $data37 != null then
+if $data37 != NULL then
   return -1
 endi
-if $data38 != null then
+if $data38 != NULL then
   return -1
 endi
 if $data41 != 1 then
@@ -409,19 +409,19 @@ endi
 if $data43 != 8 then
   return -1
 endi
-if $data44 != null then
+if $data44 != NULL then
   return -1
 endi
-if $data45 != null then
+if $data45 != NULL then
   return -1
 endi
-if $data46 != null then
+if $data46 != NULL then
   return -1
 endi
-if $data47 != null then
+if $data47 != NULL then
   return -1
 endi
-if $data48 != null then
+if $data48 != NULL then
   return -1
 endi
 
@@ -443,22 +443,22 @@ endi
 if $data12 != 5 then
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
-if $data04 != null then
+if $data04 != NULL then
   return -1
 endi
-if $data05 != null then
+if $data05 != NULL then
   return -1
 endi
-if $data06 != null then
+if $data06 != NULL then
   return -1
 endi
-if $data07 != null then
+if $data07 != NULL then
   return -1
 endi
-if $data08 != null then
+if $data08 != NULL then
   return -1
 endi
 if $data21 != -19 then
@@ -467,22 +467,22 @@ endi
 if $data22 != 0 then
   return -1
 endi
-if $data23 != null then
+if $data23 != NULL then
   return -1
 endi
-if $data24 != null then
+if $data24 != NULL then
   return -1
 endi
-if $data25 != null then
+if $data25 != NULL then
   return -1
 endi
-if $data26 != null then
+if $data26 != NULL then
   return -1
 endi
-if $data27 != null then
+if $data27 != NULL then
   return -1
 endi
-if $data28 != null then
+if $data28 != NULL then
   return -1
 endi
 if $data31 != 3 then
@@ -491,22 +491,22 @@ endi
 if $data32 != 8 then
   return -1
 endi
-if $data33 != null then
+if $data33 != NULL then
   return -1
 endi
-if $data34 != null then
+if $data34 != NULL then
   return -1
 endi
-if $data35 != null then
+if $data35 != NULL then
   return -1
 endi
-if $data36 != null then
+if $data36 != NULL then
   return -1
 endi
-if $data37 != null then
+if $data37 != NULL then
   return -1
 endi
-if $data38 != null then
+if $data38 != NULL then
   return -1
 endi
 if $data41 != 2 then
@@ -515,22 +515,22 @@ endi
 if $data42 != 8 then
   return -1
 endi
-if $data43 != null then
+if $data43 != NULL then
   return -1
 endi
-if $data44 != null then
+if $data44 != NULL then
   return -1
 endi
-if $data45 != null then
+if $data45 != NULL then
   return -1
 endi
-if $data46 != null then
+if $data46 != NULL then
   return -1
 endi
-if $data47 != null then
+if $data47 != NULL then
   return -1
 endi
-if $data48 != null then
+if $data48 != NULL then
   return -1
 endi
 if $data51 != 1 then
@@ -539,19 +539,19 @@ endi
 if $data52 != 8 then
   return -1
 endi
-if $data53 != null then
+if $data53 != NULL then
   return -1
 endi
-if $data54 != null then
+if $data54 != NULL then
   return -1
 endi
-if $data55 != null then
+if $data55 != NULL then
   return -1
 endi
-if $data57 != null then
+if $data57 != NULL then
   return -1
 endi
-if $data58 != null then
+if $data58 != NULL then
   return -1
 endi
 
@@ -568,52 +568,52 @@ print data01 = $data01
 if $data01 != -10 then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
 if $data11 != -13 then
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
 if $data21 != -16 then
   return -1
 endi
-if $data22 != null then
+if $data22 != NULL then
   return -1
 endi
 if $data31 != -19 then
   return -1
 endi
-if $data32 != null then
+if $data32 != NULL then
   return -1
 endi
-if $data33 != null then
+if $data33 != NULL then
   return -1
 endi
 if $data41 != 3 then
   return -1
 endi
-if $data42 != null then
+if $data42 != NULL then
   return -1
 endi
 if $data51 != 2 then
   return -1
 endi
-if $data52 != null then
+if $data52 != NULL then
   return -1
 endi
-if $data53 != null then
+if $data53 != NULL then
   return -1
 endi
 if $data61 != 1 then
   return -1
 endi
-if $data62 != null then
+if $data62 != NULL then
   return -1
 endi
 
@@ -632,52 +632,52 @@ endi
 if $data01 != -10 then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
 if $data11 != -13 then
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
 if $data21 != -16 then
   return -1
 endi
-if $data22 != null then
+if $data22 != NULL then
   return -1
 endi
 if $data31 != -19 then
   return -1
 endi
-if $data32 != null then
+if $data32 != NULL then
   return -1
 endi
-if $data33 != null then
+if $data33 != NULL then
   return -1
 endi
 if $data41 != 3 then
   return -1
 endi
-if $data42 != null then
+if $data42 != NULL then
   return -1
 endi
 if $data51 != 2 then
   return -1
 endi
-if $data52 != null then
+if $data52 != NULL then
   return -1
 endi
-if $data53 != null then
+if $data53 != NULL then
   return -1
 endi
 if $data61 != 1 then
   return -1
 endi
-if $data62 != null then
+if $data62 != NULL then
   return -1
 endi
 

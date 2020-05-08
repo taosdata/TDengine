@@ -45,7 +45,7 @@ if $rows != 0 then
   return -1
 endi
 print data00 = $data00
-if $data00 != null then
+if $data00 != NULL then
   return -1
 endi
 print case_insensitivity test passed

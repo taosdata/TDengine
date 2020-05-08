@@ -23,10 +23,10 @@ print dnode3 ==> $dnode3Role
 if $dnode1Role != master then
   return -1
 endi
-if $dnode2Role != null then
+if $dnode2Role != NULL then
   return -1
 endi
-if $dnode3Role != null then
+if $dnode3Role != NULL then
   return -1
 endi
 
@@ -71,7 +71,7 @@ endi
 if $rows != 2 then
   return -1
 endi
-if $dnode3Role != null then
+if $dnode3Role != NULL then
   return -1
 endi
 

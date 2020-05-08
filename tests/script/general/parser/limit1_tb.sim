@@ -111,16 +111,16 @@ endi
 if $data09 != nchar0 then
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
-if $data13 != null then
+if $data13 != NULL then
   return -1
 endi
-if $data14 != null then
+if $data14 != NULL then
   return -1
 endi
 
@@ -543,7 +543,7 @@ endi
 if $data14 != 8.000000000 then
   return -1
 endi
-if $data21 != null then
+if $data21 != NULL then
   return -1
 endi
 
@@ -613,7 +613,7 @@ endi
 if $data21 != 7.000000000 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 sql select avg(c1), avg(c2), avg(c3), avg(c4), avg(c5), avg(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
