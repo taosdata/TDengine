@@ -22,22 +22,12 @@ extern "C" {
 
 #include "tlog.h"
 
-extern int32_t ddebugFlag;
+extern int32_t dDebugFlag;
 
-#define dError(...)                          \
-  if (ddebugFlag & DEBUG_ERROR) {            \
-    taosPrintLog("ERROR DND ", 255, __VA_ARGS__); \
-  }
-#define dWarn(...)                                  \
-  if (ddebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  DND ", ddebugFlag, __VA_ARGS__); \
-  }
-#define dTrace(...)                           \
-  if (ddebugFlag & DEBUG_TRACE) {             \
-    taosPrintLog("DND ", ddebugFlag, __VA_ARGS__); \
-  }
-#define dPrint(...) \
-  { taosPrintLog("DND ", 255, __VA_ARGS__); }
+#define dError(...) if (dDebugFlag & DEBUG_ERROR) {taosPrintLog("ERROR DND ", 255, __VA_ARGS__); }
+#define dWarn(...) if (dDebugFlag & DEBUG_WARN) {taosPrintLog("WARN  DND ", dDebugFlag, __VA_ARGS__); }
+#define dTrace(...) if (dDebugFlag & DEBUG_TRACE) {taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }
+#define dPrint(...) {taosPrintLog("DND ", 255, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }

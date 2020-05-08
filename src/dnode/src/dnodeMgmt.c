@@ -32,10 +32,10 @@
 #include "dnode.h"
 #include "vnode.h"
 #include "mnode.h"
-#include "dnodeLog.h"
+#include "dnodeInt.h"
 #include "dnodeMgmt.h"
-#include "dnodeRead.h"
-#include "dnodeWrite.h"
+#include "dnodeVRead.h"
+#include "dnodeVWrite.h"
 #include "dnodeModule.h"
 
 #define MPEER_CONTENT_LEN 2000
@@ -127,7 +127,7 @@ void dnodeCleanupMgmt() {
   dnodeCloseVnodes();
 }
 
-void dnodeMgmt(SRpcMsg *pMsg) {
+void dnodeDispatchToDnodeMgmt(SRpcMsg *pMsg) {
   SRpcMsg rsp;
 
   if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {

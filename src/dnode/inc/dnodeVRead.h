@@ -22,7 +22,7 @@ extern "C" {
 
 int32_t dnodeInitRead();
 void    dnodeCleanupRead();
-void    dnodeRead(SRpcMsg *pMsg);
+void    dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

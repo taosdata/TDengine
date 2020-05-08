@@ -24,9 +24,9 @@
 #include "tglobal.h"
 #include "trpc.h"
 #include "dnode.h"
-#include "dnodeLog.h"
+#include "dnodeInt.h"
 #include "dnodeMgmt.h"
-#include "dnodeWrite.h"
+#include "dnodeVWrite.h"
 #include "mnode.h"
 
 extern void dnodeUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet);
@@ -38,15 +38,15 @@ static void *tsDnodeServerRpc = NULL;
 static void *tsDnodeClientRpc = NULL;
 
 int32_t dnodeInitServer() {
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeWrite;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeWrite;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeWrite;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeWrite;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeDispatchToVnodeWriteQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeDispatchToVnodeWriteQueue;
 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeMgmt;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeMgmt;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeMgmt;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeMgmt;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToDnodeMgmt; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeDispatchToDnodeMgmt;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToDnodeMgmt;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToDnodeMgmt;
 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = mgmtProcessReqMsgFromDnode;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = mgmtProcessReqMsgFromDnode;

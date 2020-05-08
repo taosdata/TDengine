@@ -22,13 +22,13 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "dnode.h"
-#include "dnodeLog.h"
+#include "dnodeInt.h"
 #include "dnodeMgmt.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
-#include "dnodeRead.h"
+#include "dnodeVRead.h"
 #include "dnodeShell.h"
-#include "dnodeWrite.h"
+#include "dnodeVWrite.h"
 #include "tgrant.h"
 
 static int32_t dnodeInitSystem();

@@ -139,7 +139,8 @@ extern int32_t  tsMonitorInterval;
 
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
-extern int32_t ddebugFlag;
+extern int32_t dDebugFlag;
+extern int32_t vDebugFlag;
 extern int32_t mdebugFlag;
 extern int32_t cdebugFlag;
 extern int32_t jnidebugFlag;

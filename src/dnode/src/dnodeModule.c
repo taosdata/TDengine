@@ -21,7 +21,7 @@
 #include "mnode.h"
 #include "http.h"
 #include "monitor.h"
-#include "dnodeLog.h"
+#include "dnodeInt.h"
 #include "dnodeModule.h"
 
 typedef struct {

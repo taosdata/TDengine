@@ -22,9 +22,9 @@
 #include "tglobal.h"
 #include "http.h"
 #include "dnode.h"
-#include "dnodeLog.h"
-#include "dnodeRead.h"
-#include "dnodeWrite.h"
+#include "dnodeInt.h"
+#include "dnodeVRead.h"
+#include "dnodeVWrite.h"
 #include "dnodeShell.h"
 
 static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
@@ -37,9 +37,9 @@ static int32_t tsDnodeSubmitReqNum = 0;
 void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg);
 
 int32_t dnodeInitShell() {
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeWrite;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]  = dnodeRead;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]  = dnodeRead;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]  = dnodeDispatchToVnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]  = dnodeDispatchToVnodeReadQueue;
 
   // the following message shall be treated as mnode write
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONNECT]     = mgmtProcessMsgFromShell;
