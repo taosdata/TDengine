@@ -456,3 +456,5 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
