@@ -13,8 +13,8 @@ do
 #   echo "$rootDir"
   mkdir -p ${rootDir}/cfg ${rootDir}/data ${rootDir}/log
 
-  echo "serverPort $(hostname):${PORT}" > ${rootDir}/cfg/taos.cfg
-  echo "first   $(hostname):${tport}" >> ${rootDir}/cfg/taos.cfg
+  echo "serverPort ${tport}" > ${rootDir}/cfg/taos.cfg
+  echo "first   $(hostname):${PORT}" >> ${rootDir}/cfg/taos.cfg
   echo "dataDir ${rootDir}/data" >> ${rootDir}/cfg/taos.cfg
   echo "logDir ${rootDir}/log" >> ${rootDir}/cfg/taos.cfg
   echo "numOfMPeers 1" >> ${rootDir}/cfg/taos.cfg
