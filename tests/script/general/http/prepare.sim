@@ -1,10 +1,8 @@
 system sh/stop_dnodes.sh
-
-sleep 5000
-
-
+sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -52,3 +50,5 @@ print curl 127.0.0.1:6020/rest/sql/d1 -----> $system_content
 if $system_content != @{"status":"succ","head":["ts","i","b"],"data":[["2017-12-25 21:28:54.022",14,"44\\\\\"\"44"],["2017-12-25 21:28:53.022",13,"33\\\\\"33"],["2017-12-25 21:28:52.022",12,"22\\\\11"],["2017-12-25 21:28:51.022",11,"11\\\\11"],["2017-12-25 21:28:49.022",9,"99\\99"],["2017-12-25 21:28:48.022",8,"88\"\"88"],["2017-12-25 21:28:47.022",7,"77\"7\""],["2017-12-25 21:28:46.022",6,"66'6'"],["2017-12-25 21:28:45.022",5,"55'"],["2017-12-25 21:28:44.022",4,"44\""],["2017-12-25 21:28:43.022",3,"33"],["2017-12-25 21:28:42.022",2,"22"],["2017-12-25 21:28:41.022",1,"11"]],"rows":13}@ then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

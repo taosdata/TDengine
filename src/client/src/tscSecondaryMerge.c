@@ -101,7 +101,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SSqlRes *pRes, SLocalReducer *pRedu
     }
 
     SResultInfo *pResInfo = &pReducer->pResInfo[i];
-    pResInfo->bufLen = pExpr->interResBytes;
+    pResInfo->bufLen = pExpr->interBytes;
     pResInfo->interResultBuf = calloc(1, (size_t)pResInfo->bufLen);
 
     pCtx->resultInfo = &pReducer->pResInfo[i];

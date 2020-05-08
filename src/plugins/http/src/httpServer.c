@@ -269,11 +269,12 @@ void httpCleanUpConnect(HttpServer *pServer) {
 
   for (i = 0; i < pServer->numOfThreads; ++i) {
     pThread = pServer->pThreads + i;
+    if (pThread == NULL) continue;
     //taosCloseSocket(pThread->pollFd);
 
-    while (pThread->pHead) {
-      httpCleanUpContext(pThread->pHead, 0);
-    }
+    //while (pThread->pHead) {
+    //  httpCleanUpContext(pThread->pHead, 0);
+    //}
 
     pthread_cancel(pThread->thread);
     pthread_join(pThread->thread, NULL);
@@ -504,8 +505,8 @@ void httpAcceptHttpConnection(void *arg) {
   sockFd = taosOpenTcpServerSocket(pServer->serverIp, pServer->serverPort);
 
   if (sockFd < 0) {
-    httpError("http server:%s, failed to open http socket, ip:%s:%u", pServer->label, pServer->serverIp,
-              pServer->serverPort);
+    httpError("http server:%s, failed to open http socket, ip:%s:%u error:%s", pServer->label, taosIpStr(pServer->serverIp),
+              pServer->serverPort, strerror(errno));
     return;
   } else {
     httpPrint("http service init success at %u", pServer->serverPort);
@@ -645,7 +646,7 @@ bool httpInitConnect(HttpServer *pServer) {
   }
   pthread_attr_destroy(&thattr);
 
-  httpTrace("http server:%s, initialized, ip:%s:%u, numOfThreads:%d", pServer->label, pServer->serverIp,
+  httpTrace("http server:%s, initialized, ip:%s:%u, numOfThreads:%d", pServer->label, taosIpStr(pServer->serverIp),
             pServer->serverPort, pServer->numOfThreads);
   return true;
 }

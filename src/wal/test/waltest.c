@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   taosInitLog("wal.log", 100000, 10);
 
   SWalCfg walCfg;
-  walCfg.commitLog = level;
+  walCfg.walLevel = level;
   walCfg.wals = max;
   walCfg.keep = keep;
 

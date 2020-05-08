@@ -440,23 +440,6 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   return (pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows;
 }
 
-static UNUSED_FUNC char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
-//  SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
-//  SExprInfo *  pExpr = pSupport->pArithExpr;
-
-//  int32_t index = -1;
-//  for (int32_t i = 0; i < pExpr->numOfCols; ++i) {
-//    if (strcmp(name, pExpr->colList[i].name) == 0) {
-//      index = i;
-//      break;
-//    }
-//  }
-//
-//  assert(index >= 0 && index < pExpr->numOfCols);
-//  return pSupport->data[index] + pSupport->offset * pSupport->elemSize[index];
-return 0;
-}
-
 static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
   
@@ -885,7 +868,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
 static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t tblListLen) {
   // must before clean the sqlcmd object
-  tscCleanSqlCmd(&pSql->cmd);
+  tscResetSqlCmdObj(&pSql->cmd);
 
   SSqlCmd *pCmd = &pSql->cmd;
 

@@ -1,10 +1,8 @@
 system sh/stop_dnodes.sh
-
-sleep 5000
-
-
+sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/cfg.sh -n dnode1 -c httpEnableRecordSql -v 1
 system sh/exec.sh -n dnode1 -s start
 
@@ -51,3 +49,5 @@ print ===============  step5 - query data
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_rest1' 127.0.0.1:6020/rest/sql
 print curl 127.0.0.1:6020/rest/sql -----> $system_content
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

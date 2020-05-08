@@ -979,7 +979,8 @@ void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, 
 
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // 12 + columnRight
       // column data specified on right-hand-side
-      char *            pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
+      char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
+      
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pVal->nType, pRight->pSchema->type, pExprs->_node.optr);
       fp(&pLeft->pVal->i64Key, pRightInputData, 1, numOfRows, pOutput, order);
 

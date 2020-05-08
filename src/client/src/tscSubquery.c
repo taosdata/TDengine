@@ -14,6 +14,7 @@
  */
 
 #include "tscSubquery.h"
+#include <qast.h>
 #include <tcompare.h>
 #include <tschemautil.h>
 #include "os.h"
@@ -1924,7 +1925,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
   SSqlRes *pRes = &pSql->res;
   
-  if (isNull(pRes->tsrow[columnIndex], pField->type)) {
+  if (pRes->tsrow[columnIndex] != NULL && isNull(pRes->tsrow[columnIndex], pField->type)) {
     pRes->tsrow[columnIndex] = NULL;
   } else if (pField->type == TSDB_DATA_TYPE_NCHAR) {
     // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
@@ -1942,6 +1943,24 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
       pRes->tsrow[columnIndex] = NULL;
     }
   }
+}
+
+static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
+  SArithmeticSupport *pSupport = (SArithmeticSupport *) param;
+
+  int32_t index = -1;
+  SSqlExpr* pExpr = NULL;
+  
+  for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
+    pExpr = taosArrayGetP(pSupport->exprList, i);
+    if (strncmp(name, pExpr->aliasName, TSDB_COL_NAME_LEN) == 0) {
+      index = i;
+      break;
+    }
+  }
+
+  assert(index >= 0 && index < pSupport->numOfCols);
+  return pSupport->data[index] + pSupport->offset * pExpr->resBytes;
 }
 
 void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
@@ -1981,27 +2000,30 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
     
     // calculate the result from several other columns
     if (pSup->pArithExprInfo != NULL) {
-//      SArithmeticSupport *sas = (SArithmeticSupport *)calloc(1, sizeof(SArithmeticSupport));
-//      sas->offset = 0;
-//      sas-> = pQueryInfo->fieldsInfo.pExpr[i];
-//
-//      sas->numOfCols = sas->pExpr->binExprInfo.numOfCols;
-//
-//      if (pRes->buffer[i] == NULL) {
-//        pRes->buffer[i] = malloc(tscFieldInfoGetField(pQueryInfo, i)->bytes);
-//      }
-//
-//      for(int32_t k = 0; k < sas->numOfCols; ++k) {
-//        int32_t columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIdxInBuf;
-//        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
-//
-//        sas->elemSize[k] = pExpr->resBytes;
-//        sas->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
-//      }
-//
-//      tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC, getArithemicInputSrc);
-//      pRes->tsrow[i] = pRes->buffer[i];
-//
+      if (pRes->pArithSup == NULL) {
+        SArithmeticSupport *sas = (SArithmeticSupport *) calloc(1, sizeof(SArithmeticSupport));
+        sas->offset     = 0;
+        sas->pArithExpr = pSup->pArithExprInfo;
+        sas->numOfCols  = tscSqlExprNumOfExprs(pQueryInfo);
+        sas->exprList   = pQueryInfo->exprList;
+        sas->data       = calloc(sas->numOfCols, POINTER_BYTES);
+        
+        pRes->pArithSup = sas;
+      }
+      
+      if (pRes->buffer[i] == NULL) {
+        TAOS_FIELD* field = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
+        pRes->buffer[i] = malloc(field->bytes);
+      }
+
+      for(int32_t k = 0; k < pRes->pArithSup->numOfCols; ++k) {
+        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
+        pRes->pArithSup->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
+      }
+  
+      tExprTreeCalcTraverse(pRes->pArithSup->pArithExpr->pExpr, 1, pRes->buffer[i], pRes->pArithSup,
+          TSDB_ORDER_ASC, getArithemicInputSrc);
+      pRes->tsrow[i] = pRes->buffer[i];
 //      free(sas); //todo optimization
     }
   }
@@ -2010,7 +2032,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   return pRes->tsrow;
 }
 
-static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
+static UNUSED_FUNC bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   bool     hasData = true;
   SSqlCmd *pCmd = &pSql->cmd;
   
