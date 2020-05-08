@@ -23,13 +23,12 @@
 #include "tglobal.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
+#include "mgmtServer.h"
 #include "mgmtAcct.h"
 #include "mgmtDnode.h"
 #include "mgmtMnode.h"
 #include "mgmtDb.h"
-#include "mgmtDClient.h"
-#include "mgmtDServer.h"
 #include "mgmtSdb.h"
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
@@ -100,11 +99,7 @@ int32_t mgmtStartSystem() {
     mError("failed to init balance")
   }
 
-  if (mgmtInitDClient() < 0) {
-    return -1;
-  }
-
-  if (mgmtInitDServer() < 0) {
+  if (mgmtInitServer() < 0) {
     return -1;
   }
 
@@ -141,8 +136,7 @@ void mgmtCleanUpSystem() {
   mgmtCleanupMnodes();
   balanceCleanUp();
   mgmtCleanUpShell();
-  mgmtCleanupDClient();
-  mgmtCleanupDServer();
+  mgmtCleanupServer();
   mgmtCleanUpAccts();
   mgmtCleanUpTables();
   mgmtCleanUpVgroups();

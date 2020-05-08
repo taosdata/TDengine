@@ -110,7 +110,7 @@ endi
 if $dnode3Vnodes != 3 then
   goto show1
 endi
-if $dnode4Vnodes != null then
+if $dnode4Vnodes != NULL then
   goto show1
 endi
 
@@ -166,7 +166,7 @@ print dnode4 $dnode4Vnodes
 if $dnode1Vnodes != 3 then
   goto show3
 endi
-if $dnode2Vnodes != null then
+if $dnode2Vnodes != NULL then
   goto show3
 endi
 if $dnode3Vnodes != 3 then
@@ -232,7 +232,7 @@ endi
 if $dnode5Vnodes != 3 then
   goto show5
 endi
-if $dnode3Vnodes != null then
+if $dnode3Vnodes != NULL then
   goto show5
 endi
 if $dnode4Vnodes != 3 then
@@ -298,7 +298,7 @@ endi
 if $dnode6Vnodes != 3 then
   goto show7
 endi
-if $dnode4Vnodes != null then
+if $dnode4Vnodes != NULL then
   goto show7
 endi
 

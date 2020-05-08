@@ -117,13 +117,13 @@ endi
 if $data01 != 9 then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
 if $data03 != 9.00000 then
   return -1
 endi
-if $data04 != null then
+if $data04 != NULL then
   return -1
 endi
 if $data05 != 9 then
@@ -185,13 +185,13 @@ endi
 if $data11 != 0 then
   return -1
 endi
-if $data12 != null then
+if $data12 != NULL then
   return -1
 endi
 if $data13 != 0.00000 then
   return -1
 endi
-if $data14 != null then
+if $data14 != NULL then
   return -1
 endi
 if $data15 != 0 then
@@ -405,7 +405,7 @@ endi
 if $data28 != 4 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 if $data47 != nchar0 then
@@ -427,7 +427,7 @@ endi
 if $data00 != 9 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
 if $data02 != 4.500000000 then
@@ -726,16 +726,16 @@ endi
 if $data00 != @18-09-17 09:10:00.000@ then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
 if $data09 != 5 then
   return -1
 endi
-if $data13 != null then
+if $data13 != NULL then
   return -1
 endi
 if $data19 != 5 then
@@ -747,13 +747,13 @@ endi
 if $data24 != 0 then
   return -1
 endi
-if $data25 != null then
+if $data25 != NULL then
   return -1
 endi
-if $data26 != null then
+if $data26 != NULL then
   return -1
 endi
-if $data27 != null then
+if $data27 != NULL then
   return -1
 endi
 if $data28 != 1 then

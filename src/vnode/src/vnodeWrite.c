@@ -51,7 +51,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
     return TSDB_CODE_MSG_NOT_PROCESSED; 
 
-  if (pVnode->status != TAOS_VN_STATUS_READY) 
+  if (pVnode->status != TAOS_VN_STATUS_READY && qtype == TAOS_QTYPE_RPC) 
     return TSDB_CODE_NOT_ACTIVE_VNODE; 
 
   if (pHead->version == 0) { // from client 
@@ -91,7 +91,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
   // save insert result into item
 
-  dTrace("pVnode:%p vgId:%d, submit msg is processed", pVnode, pVnode->vgId);
+  vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
   code = tsdbInsertData(pVnode->tsdb, pCont);
 
   pRet->len = sizeof(SShellSubmitRspMsg);
@@ -110,7 +110,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
 
-  dTrace("pVnode:%p vgId:%d, table:%s, start to create", pVnode, pVnode->vgId, pTable->tableId);
+  vTrace("vgId:%d, table:%s, start to create", pVnode->vgId, pTable->tableId);
   int16_t   numOfColumns = htons(pTable->numOfColumns);
   int16_t   numOfTags = htons(pTable->numOfTags);
   int32_t   sid = htonl(pTable->sid);
@@ -157,7 +157,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   tfree(pDestTagSchema);
   tfree(pDestSchema);
 
-  dTrace("pVnode:%p vgId:%d, table:%s is created, result:%x", pVnode, pVnode->vgId, pTable->tableId, code);
+  vTrace("vgId:%d, table:%s is created, result:%x", pVnode->vgId, pTable->tableId, code);
   return code; 
 }
 
@@ -165,7 +165,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
   SMDDropTableMsg *pTable = pCont;
   int32_t code = 0;
 
-  dTrace("pVnode:%p vgId:%d, table:%s, start to drop", pVnode, pVnode->vgId, pTable->tableId);
+  vTrace("vgId:%d, table:%s, start to drop", pVnode->vgId, pTable->tableId);
   STableId tableId = {
     .uid = htobe64(pTable->uid),
     .tid = htonl(pTable->sid)
@@ -180,7 +180,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
 
-  dTrace("pVnode:%p vgId:%d, table:%s, start to alter", pVnode, pVnode->vgId, pTable->tableId);
+  vTrace("vgId:%d, table:%s, start to alter", pVnode->vgId, pTable->tableId);
   int16_t numOfColumns  = htons(pTable->numOfColumns);
   int16_t numOfTags     = htons(pTable->numOfTags);
   int32_t sid           = htonl(pTable->sid);
@@ -221,7 +221,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 
   tfree(pDestSchema);
 
-  dTrace("pVnode:%p vgId:%d, table:%s, alter table result:%d", pVnode, pVnode->vgId, pTable->tableId, code);
+  vTrace("vgId:%d, table:%s, alter table result:%d", pVnode->vgId, pTable->tableId, code);
 
   return code;
 }
@@ -230,14 +230,14 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   SMDDropSTableMsg *pTable = pCont;
   int32_t code = 0;
 
-  dTrace("pVnode:%p vgId:%d, stable:%s, start to drop", pVnode, pVnode->vgId, pTable->tableId);
+  vTrace("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
   // TODO: drop stable in vvnode
   //int64_t uid = htobe64(pTable->uid);
   //void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
   //rpcRsp.code = tsdbDropTable(pTsdb, pTable->uid);
 
   code = TSDB_CODE_SUCCESS;
-  dTrace("pVnode:%p vgId:%d, stable:%s, drop stable result:%x", pVnode, pTable->tableId, code);
+  vTrace("vgId:%d, stable:%s, drop stable result:%x", pVnode, pTable->tableId, code);
  
   return code;
 }

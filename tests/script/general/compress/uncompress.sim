@@ -1,9 +1,7 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c compression -v 1
+system sh/cfg.sh -n dnode1 -c comp -v 1
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -83,9 +81,9 @@ endi
 
 print =============== step4
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 10000
+sleep 5000
 system sh/exec.sh -n dnode1 -s start
-sleep 10000
+sleep 3000
 
 print =============== step5
 
@@ -119,4 +117,4 @@ if $rows != $N then
   return -1
 endi  
  
-  
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

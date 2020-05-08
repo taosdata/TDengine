@@ -27,7 +27,7 @@
 #include "hashstr.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 
