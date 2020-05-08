@@ -13,17 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_WRITE_H
-#define TDENGINE_DNODE_WRITE_H
+#ifndef TDENGINE_MGMT_DSERVER_H
+#define TDENGINE_MGMT_DSERVER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dnodeInitWrite();
-void    dnodeCleanupWrite();
-void    dnodeWrite(SRpcMsg *pMsg);
-void    dnodeSendWriteResponse(void *pVnode, void *param, int32_t code);
+int32_t mgmtInitServer();
+void    mgmtCleanupServer();
 
 #ifdef __cplusplus
 }

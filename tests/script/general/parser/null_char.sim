@@ -9,57 +9,57 @@ system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
-print ========== null_char.sim
+print ========== NULL_char.sim
 
 $db = db
 sql drop database if exists $db
 sql create database $db
 sql use $db
 
-#### case 0: field null, or 'null'
+#### case 0: field NULL, or 'NULL'
 sql create table mt1 (ts timestamp, col1 int, col2 bigint, col3 float, col4 double, col5 binary(8), col6 bool, col7 smallint, col8 tinyint, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag4 bigint, tag5 bool, tag6 float)
-sql create table st1 using mt1 tags (null, 'null', 100, 1000, 'false', 9.123)
+sql create table st1 using mt1 tags (NULL, 'NULL', 100, 1000, 'false', 9.123)
 sql insert into st1 values ('2019-01-01 09:00:00.000', 123, -123, 3.0, 4.0, 'binary', true, 1000, 121, 'nchar')
 sql insert into st1 values ('2019-01-01 09:00:01.000', '456', '456', '3.33', '4.444', 'binary', 'true', '1001', '122', 'nchar')
-sql insert into st1 values ('2019-01-01 09:00:02.000', null, null, null, null, null, null, null, null, null)
-sql insert into st1 values ('2019-01-01 09:00:03.000', null, null, null, null, 'null', 'null', 2002, 127, 'null')
+sql insert into st1 values ('2019-01-01 09:00:02.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+sql insert into st1 values ('2019-01-01 09:00:03.000', NULL, NULL, NULL, NULL, 'NULL', 'NULL', 2002, 127, 'NULL')
 
 sql select * from mt1
 if $rows != 4 then
   return -1
 endi
-if $data21 != null then
+if $data21 != NULL then
   return -1
 endi
-if $data22 != null then
+if $data22 != NULL then
   return -1
 endi
-if $data23 != null then
+if $data23 != NULL then
   return -1
 endi
-if $data24 != null then
+if $data24 != NULL then
   return -1
 endi
-if $data25 != null then
+if $data25 != NULL then
   return -1
 endi
-if $data26 != null then
+if $data26 != NULL then
   return -1
 endi
-if $data27 != null then
+if $data27 != NULL then
   return -1
 endi
-if $data28 != null then
+if $data28 != NULL then
   return -1
 endi
-if $data29 != null then
+if $data29 != NULL then
   return -1
 endi
 
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
-if $data32 != null then
+if $data32 != NULL then
   return -1
 endi
 #if $data33 != 0.00000 then
@@ -70,20 +70,20 @@ endi
 #  print === expect 0.00000, actually $data34
 #  return -1
 #endi
-if $data35 != null then
+if $data35 != NULL then
   return -1
 endi
-if $data36 != null then
+if $data36 != NULL then
   return -1
 endi
-if $data39 != null then
+if $data39 != NULL then
   return -1
 endi
 
 
-#### case 1: tag null, or 'null'
+#### case 1: tag NULL, or 'NULL'
 sql create table mt2 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
-sql create table st2 using mt2 tags (null, 'null', 102, 'true')
+sql create table st2 using mt2 tags (NULL, 'NULL', 102, 'true')
 sql describe st2
 if $rows != 10 then
   return -1
@@ -92,7 +92,7 @@ if $data63 != NULL then
   print ==1== expect: NULL, actually: $data63
   return -1
 endi
-if $data73 != null then
+if $data73 != NULL then
   print ==2== expect: NULL, actually: $data73
   return -1
 endi
@@ -127,7 +127,7 @@ endi
 ### bool:
 sql_error create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
 sql_error create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
-sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'null')
+sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'NULL')
 sql describe st4
 if $rows != 10 then
   return -1
@@ -168,9 +168,9 @@ endi
 
 #### case 2: dynamic create table using super table when insert into
 sql create table mt3 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
-sql_error insert into st31 using mt3 tags (null, 'null', 102, 'true')     values (now+1s, 31, 31, 'bin_31', '123', 'nchar_31')
+sql_error insert into st31 using mt3 tags (NULL, 'NULL', 102, 'true')     values (now+1s, 31, 31, 'bin_31', '123', 'nchar_31')
 sql_error insert into st32 using mt3 tags (NULL, 'ABC', 103, 'FALSE')     values (now+2s, 32, 32.12345, 'bin_32', 'abc', 'nchar_32')
-sql_error insert into st33 using mt3 tags ('NULL', '123aBc', 104, 'null') values (now+3s, 33, 33, 'bin_33', 'false123', 'nchar_33')
+sql_error insert into st33 using mt3 tags ('NULL', '123aBc', 104, 'NULL') values (now+3s, 33, 33, 'bin_33', 'false123', 'nchar_33')
 sql_error insert into st34 using mt3 tags ('NULL', '123aBc', 105, NULL)   values (now+4s, 34, 34.12345, 'bin_34', 'true123', 'nchar_34')
 
 
@@ -214,9 +214,9 @@ sql alter table st41 set tag tag_binary = ""
 #if $data23 != $tagvalue then
 #  return -1
 #endi
-sql alter table st41 set tag tag_binary = "null"
+sql alter table st41 set tag tag_binary = "NULL"
 sql describe st41
-if $data23 != null then
+if $data23 != NULL then
   return -1
 endi
 sql alter table st41 set tag tag_binary = NULL
@@ -242,9 +242,9 @@ sql alter table st41 set tag tag_nchar = ''
 #if $data33 != $tagvalue then
 #  return -1
 #endi
-sql alter table st41 set tag tag_nchar = "null"
+sql alter table st41 set tag tag_nchar = "NULL"
 sql describe st41
-if $data33 != null then
+if $data33 != NULL then
   return -1
 endi
 sql alter table st41 set tag tag_nchar = NULL
@@ -279,13 +279,13 @@ sql describe st41
 if $data43 != -2000 then
   return -1
 endi
-sql alter table st41 set tag tag_int = null
+sql alter table st41 set tag tag_int = NULL
 sql describe st41
 if $data43 != NULL then
   print ==10== expect: NULL, actually: $data43
   return -1
 endi
-sql alter table st41 set tag tag_int = 'null'
+sql alter table st41 set tag tag_int = 'NULL'
 sql_error alter table st41 set tag tag_int = ''
 sql_error alter table st41 set tag tag_int = abc379
 
@@ -310,13 +310,13 @@ sql describe st41
 if $data53 != true then
   return -1
 endi
-sql alter table st41 set tag tag_bool = 'null'
+sql alter table st41 set tag tag_bool = 'NULL'
 sql describe st41
 if $data53 != NULL then
   print ==14== expect: NULL, actually: $data53
   return -1
 endi
-sql alter table st41 set tag tag_bool = null
+sql alter table st41 set tag tag_bool = NULL
 sql describe st41
 if $data53 != NULL then
   return -1
@@ -350,13 +350,13 @@ if $data63 != 54.123455 then
   print ==11== expect: 54.123455, actually : $data63
   return -1
 endi
-sql alter table st41 set tag tag_float = null
+sql alter table st41 set tag tag_float = NULL
 sql describe st41
 if $data63 != NULL then
   print ==12== expect: NULL, actually : $data63
   return -1
 endi
-sql alter table st41 set tag tag_float = 'null'
+sql alter table st41 set tag tag_float = 'NULL'
 sql describe st41
 if $data63 != NULL then
   print ==17== expect: NULL, actually : $data63
@@ -396,13 +396,13 @@ sql describe st41
 if $data73 != -2456.000000 then
   return -1
 endi
-sql alter table st41 set tag tag_double = null
+sql alter table st41 set tag tag_double = NULL
 sql describe st41
 if $data73 != NULL then
   print ==13== expect: NULL, actually : $data73
   return -1
 endi
-sql alter table st41 set tag tag_double = 'null'
+sql alter table st41 set tag tag_double = 'NULL'
 sql describe st41
 if $data73 != NULL then
   print ==20== expect: NULL, actually : $data73
@@ -420,7 +420,7 @@ sql create table mt5 (ts timestamp, c1 int) tags (tag_bigint bigint, tag_smallin
 sql create table st51 using mt5 tags (1, 2, 3)
 sql alter table st51 set tag tag_bigint = '-379'
 sql alter table st51 set tag tag_bigint = -2000
-sql alter table st51 set tag tag_bigint = null
+sql alter table st51 set tag tag_bigint = NULL
 sql alter table st51 set tag tag_bigint = 9223372036854775807
 sql describe st51
 if $data23 != 9223372036854775807 then
@@ -439,13 +439,13 @@ endi
 sql_error alter table st51 set tag tag_bigint = -9223372036854775808
 
 
-sql alter table st51 set tag tag_bigint = 'null'
+sql alter table st51 set tag tag_bigint = 'NULL'
 sql_error alter table st51 set tag tag_bigint = ''
 sql_error alter table st51 set tag tag_bigint = abc379
 
 ####
 sql alter table st51 set tag tag_smallint = -2000
-sql alter table st51 set tag tag_smallint = null
+sql alter table st51 set tag tag_smallint = NULL
 sql alter table st51 set tag tag_smallint = 32767
 sql describe st51
 if $data33 != 32767 then
@@ -460,13 +460,13 @@ if $data33 != -32767 then
 endi
 sql_error alter table st51 set tag tag_smallint = -32768
 
-sql alter table st51 set tag tag_smallint = 'null'
+sql alter table st51 set tag tag_smallint = 'NULL'
 sql_error alter table st51 set tag tag_smallint = ''
 sql_error alter table st51 set tag tag_smallint = abc379
 
 ####
 sql alter table st51 set tag tag_tinyint = -127
-sql alter table st51 set tag tag_tinyint = null
+sql alter table st51 set tag tag_tinyint = NULL
 sql alter table st51 set tag tag_tinyint = 127
 sql describe st51
 if $data43 != 127 then
@@ -479,7 +479,7 @@ if $data43 != -127 then
 endi
 sql_error alter table st51 set tag tag_tinyint = '-128'
 sql_error alter table st51 set tag tag_tinyint = 128
-sql alter table st51 set tag tag_tinyint = 'null'
+sql alter table st51 set tag tag_tinyint = 'NULL'
 sql_error alter table st51 set tag tag_tinyint = ''
 sql_error alter table st51 set tag tag_tinyint = abc379
 

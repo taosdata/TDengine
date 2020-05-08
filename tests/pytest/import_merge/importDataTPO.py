@@ -27,11 +27,11 @@ class TDTestCase:
     def run(self):
         self.ntables = 1
         self.startTime = 1520000010000
-        self.rows = 200
+        self.maxrows = 200
 
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db rows %d' % self.rows)
+        tdSql.execute('create database db maxrows %d' % self.maxrows)
         tdSql.execute('use db')
 
         tdLog.info("================= step1")
@@ -39,7 +39,7 @@ class TDTestCase:
         tdSql.execute('create table tb1 (ts timestamp, speed int)')
         tdLog.info(
             "More than 10 rows less than %d rows will go to data file" %
-            self.rows)
+            self.maxrows)
 
         tdLog.info("================= step2")
         tdLog.info("import 20 sequential data")

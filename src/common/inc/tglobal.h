@@ -55,10 +55,8 @@ extern char  tsFirst[];
 extern char  tsSecond[];
 extern char  tsLocalEp[];
 extern uint16_t tsServerPort;
-extern uint16_t tsMnodeDnodePort;
-extern uint16_t tsMnodeShellPort;
 extern uint16_t tsDnodeShellPort;
-extern uint16_t tsDnodeMnodePort;
+extern uint16_t tsDnodeDnodePort;
 extern uint16_t tsSyncPort;
 
 extern int32_t tsStatusInterval;
@@ -141,7 +139,8 @@ extern int32_t  tsMonitorInterval;
 
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
-extern int32_t ddebugFlag;
+extern int32_t dDebugFlag;
+extern int32_t vDebugFlag;
 extern int32_t mdebugFlag;
 extern int32_t cdebugFlag;
 extern int32_t jnidebugFlag;

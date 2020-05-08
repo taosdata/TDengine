@@ -1,5 +1,5 @@
 system sh/stop_dnodes.sh
-sleep 5000
+sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c http -v 1
@@ -80,3 +80,5 @@ print curl 127.0.0.1:6020/rest/login/u2/abcd_1234 -----> $system_content
 if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

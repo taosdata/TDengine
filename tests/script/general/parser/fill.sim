@@ -390,7 +390,7 @@ sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1, 1e1, 1e1)
 sql select first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1')
 # fill quoted values into bool column will throw error unless the value is 'true' or 'false' Note:2018-10-24
-# fill values into binary or nchar columns will be set to null automatically Note:2018-10-24
+# fill values into binary or nchar columns will be set to NULL automatically Note:2018-10-24
 sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1','1e1')
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, true, true, true)
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true', 'true','true')
@@ -649,25 +649,25 @@ endi
 if $data01 != 1 then
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
 if $data21 != 1 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 if $data41 != 1 then
   return -1
 endi
-if $data51 != null then
+if $data51 != NULL then
   return -1
 endi
 if $data61 != 1 then
   return -1
 endi
-if $data71 != null then
+if $data71 != NULL then
   return -1
 endi
 if $data81 != 1 then
@@ -686,25 +686,25 @@ endi
 if $data01 != 0.000000000 then
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
 if $data21 != 1.000000000 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 if $data41 != 2.000000000 then
   return -1
 endi
-if $data51 != null then
+if $data51 != NULL then
   return -1
 endi
 if $data61 != 3.000000000 then
   return -1
 endi
-if $data71 != null then
+if $data71 != NULL then
   return -1
 endi
 if $data81 != 4.000000000 then
@@ -719,25 +719,25 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
 if $data21 != 1 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 if $data41 != 2 then
   return -1
 endi
-if $data51 != null then
+if $data51 != NULL then
   return -1
 endi
 if $data61 != 3 then
   return -1
 endi
-if $data71 != null then
+if $data71 != NULL then
   return -1
 endi
 if $data81 != 4 then
@@ -752,25 +752,25 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
 if $data21 != 1 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 if $data41 != 2 then
   return -1
 endi
-if $data51 != null then
+if $data51 != NULL then
   return -1
 endi
 if $data61 != 3 then
   return -1
 endi
-if $data71 != null then
+if $data71 != NULL then
   return -1
 endi
 if $data81 != 4 then
@@ -785,25 +785,25 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
 if $data21 != 1 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 if $data41 != 2 then
   return -1
 endi
-if $data51 != null then
+if $data51 != NULL then
   return -1
 endi
 if $data61 != 3 then
   return -1
 endi
-if $data71 != null then
+if $data71 != NULL then
   return -1
 endi
 if $data81 != 4 then
@@ -818,25 +818,25 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data11 != null then
+if $data11 != NULL then
   return -1
 endi
 if $data21 != 1 then
   return -1
 endi
-if $data31 != null then
+if $data31 != NULL then
   return -1
 endi
 if $data41 != 2 then
   return -1
 endi
-if $data51 != null then
+if $data51 != NULL then
   return -1
 endi
 if $data61 != 3 then
   return -1
 endi
-if $data71 != null then
+if $data71 != NULL then
   return -1
 endi
 if $data81 != 4 then

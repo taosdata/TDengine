@@ -188,7 +188,7 @@ static void taosAcceptTcpConnection(void *arg) {
   sockFd = taosOpenTcpServerSocket(pServerObj->ip, pServerObj->port);
   if (sockFd < 0) return; 
 
-  tTrace("%s TCP server is ready, ip:%s:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
+  tTrace("%s TCP server is ready, ip:0x%x:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
 
   while (1) {
     socklen_t addrlen = sizeof(caddr);

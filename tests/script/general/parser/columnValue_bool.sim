@@ -10,7 +10,7 @@ print ========== bool
 sql create table mt_bool (ts timestamp, c bool) tags (tagname bool)
 
 ## case 00: static create table for test tag values
-sql create table st_bool_0  using mt_bool tags (null)
+sql create table st_bool_0  using mt_bool tags (NULL)
 sql select tagname from st_bool_0
 if $data00 != NULL then
   print ==1== expect: NULL, actually: $data00
@@ -22,7 +22,7 @@ if $data00 != NULL then
   print ==2== expect: NULL, actually: $data00
   return -1
 endi
-sql create table st_bool_2  using mt_bool tags ('null')
+sql create table st_bool_2  using mt_bool tags ('NULL')
 sql select tagname from st_bool_2
 if $data00 != NULL then
   print ==3== expect: NULL, actually: $data00
@@ -34,7 +34,7 @@ if $data00 != NULL then
   print ==4== expect: NULL, actually: $data00
   return -1
 endi
-sql create table st_bool_4  using mt_bool tags ("null")
+sql create table st_bool_4  using mt_bool tags ("NULL")
 sql select tagname from st_bool_4
 if $data00 != NULL then
   print ==5== expect: NULL, actually: $data00
@@ -120,7 +120,7 @@ if $data00 != 1 then
 endi
 
 ## case 01: insert values  for test column values
-sql insert into st_bool_0  values (now, null)
+sql insert into st_bool_0  values (now, NULL)
 sql select * from st_bool_0
 if $rows != 1 then
   return -1
@@ -138,7 +138,7 @@ if $data01 != NULL then
   print ==18== expect: NULL, actually: $data01
   return -1
 endi  
-sql insert into st_bool_2  values (now, 'null')
+sql insert into st_bool_2  values (now, 'NULL')
 sql select * from st_bool_2
 if $rows != 1 then
   return -1
@@ -156,7 +156,7 @@ if $data01 != NULL then
   print ==20== expect: NULL, actually: $data01
   return -1
 endi
-sql insert into st_bool_4  values (now, "null")
+sql insert into st_bool_4  values (now, "NULL")
 sql select * from st_bool_4
 if $rows != 1 then
   return -1
@@ -284,7 +284,7 @@ if $data01 != 1 then
 endi 
 
 ## case 02: dynamic create table for test tag values
-sql insert into st_bool_16 using mt_bool tags (null)   values (now, null)
+sql insert into st_bool_16 using mt_bool tags (NULL)   values (now, NULL)
 sql select tagname from st_bool_16
 if $data00 != NULL then
   print ==33== expect: NULL, actually: $data00
@@ -307,7 +307,7 @@ if $data01 != NULL then
   print ==36== expect: NULL, actually: $data01
   return -1
 endi  
-sql insert into st_bool_18 using mt_bool tags ('null') values (now, 'null')
+sql insert into st_bool_18 using mt_bool tags ('NULL') values (now, 'NULL')
 sql select tagname from st_bool_18
 if $data00 != NULL then
   print ==37== expect: NULL, actually: $data00
@@ -329,7 +329,7 @@ if $data01 != NULL then
   print ==40== expect: NULL, actually: $data01
   return -1
 endi
-sql insert into st_bool_20 using mt_bool tags ("null") values (now, "null")
+sql insert into st_bool_20 using mt_bool tags ("NULL") values (now, "NULL")
 sql select tagname from st_bool_20
 if $data00 != NULL then
   print ==41== expect: NULL, actually: $data00
@@ -505,7 +505,7 @@ endi
 #if $data00 != false then
 #  return -1
 #endi
-#sql alter table st_bool_0 set tag tagname=null
+#sql alter table st_bool_0 set tag tagname=NULL
 #sql select tagname from st_bool_0
 #if $data00 != NULL then
 #  return -1
@@ -515,7 +515,7 @@ endi
 #if $data00 != true then
 #  return -1
 #endi
-#sql alter table st_bool_0 set tag tagname='null'
+#sql alter table st_bool_0 set tag tagname='NULL'
 #sql select tagname from st_bool_0
 #if $data00 != NULL then
 #  return -1
@@ -535,7 +535,7 @@ endi
 #if $data00 != true then
 #  return -1
 #endi
-#sql alter table st_bool_0 set tag tagname="null"
+#sql alter table st_bool_0 set tag tagname="NULL"
 #sql select tagname from st_bool_0
 #if $data00 != NULL then
 #  return -1

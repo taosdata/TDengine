@@ -228,47 +228,47 @@ if $data11 != @19-01-01 09:10:00.000@ then
   return -1
 endi
 
-sql create table tb_where_null (ts timestamp, c1 float, c2 binary(10))
-sql insert into tb_where_null values ('2019-01-01 09:00:00.000', 1, 'val1')
-sql insert into tb_where_null values ('2019-01-01 09:00:01.000', NULL, NULL)
-sql insert into tb_where_null values ('2019-01-01 09:00:02.000', 2, 'val2')
-sql_error select * from tb_where_null where c1 = NULL
-sql_error select * from tb_where_null where c1 <> NULL
-sql_error select * from tb_where_null where c1 < NULL
-sql select * from tb_where_null where c1 = "NULL"
+sql create table tb_where_NULL (ts timestamp, c1 float, c2 binary(10))
+sql insert into tb_where_NULL values ('2019-01-01 09:00:00.000', 1, 'val1')
+sql insert into tb_where_NULL values ('2019-01-01 09:00:01.000', NULL, NULL)
+sql insert into tb_where_NULL values ('2019-01-01 09:00:02.000', 2, 'val2')
+sql_error select * from tb_where_NULL where c1 = NULL
+sql_error select * from tb_where_NULL where c1 <> NULL
+sql_error select * from tb_where_NULL where c1 < NULL
+sql select * from tb_where_NULL where c1 = "NULL"
 if $rows != 0 then
   return -1
 endi
 
-sql select * from tb_where_null where c1 <> "NULL"
+sql select * from tb_where_NULL where c1 <> "NULL"
 if $rows != 2 then
   return -1
 endi
-sql select * from tb_where_null where c1 <> "nulL"
+sql select * from tb_where_NULL where c1 <> "nulL"
 if $rows != 2 then
   return -1
 endi
 
-sql select * from tb_where_null where c1 > "NULL"
+sql select * from tb_where_NULL where c1 > "NULL"
 if $rows != 0 then
   return -1
 endi
 
-sql select * from tb_where_null where c1 >= "NULL"
+sql select * from tb_where_NULL where c1 >= "NULL"
 if $rows != 0 then
   return -1
 endi
 
-sql select * from tb_where_null where c2 = "NULL"
+sql select * from tb_where_NULL where c2 = "NULL"
 if $rows != 0 then
   return -1
 endi
 
-sql select * from tb_where_null where c2 <> "NULL"
+sql select * from tb_where_NULL where c2 <> "NULL"
 if $rows != 2 then
   return -1
 endi
-sql select * from tb_where_null where c2 <> "nUll"
+sql select * from tb_where_NULL where c2 <> "nUll"
 if $rows != 2 then
   return -1
 endi

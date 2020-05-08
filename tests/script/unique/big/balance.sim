@@ -160,7 +160,7 @@ print dnode3 freeVnodes $data3_192.168.0.3
 if $data3_192.168.0.1 != 2 then
 	goto show3
 endi
-if $data3_192.168.0.2 != null then
+if $data3_192.168.0.2 != NULL then
 	goto show3
 endi
 if $data3_192.168.0.3 != 2 then
@@ -216,7 +216,7 @@ print dnode3 freeVnodes $data3_192.168.0.3
 if $data3_192.168.0.1 != 0 then
 	goto show4
 endi
-if $data3_192.168.0.3 != null then
+if $data3_192.168.0.3 != NULL then
 	goto show4
 endi
 
@@ -304,3 +304,12 @@ print select count(*) from mt $data00 expect $rowNum
 if $data00 != $totalNum then
   goto show5
 endi
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

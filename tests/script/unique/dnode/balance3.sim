@@ -88,7 +88,7 @@ print dnode4 openVnodes $data2_4
 if $data2_1 != 2 then
 	goto show2
 endi
-if $data2_2 != null then
+if $data2_2 != NULL then
 	goto show2
 endi
 if $data2_3 != 2 then
@@ -122,7 +122,7 @@ print dnode5 openVnodes $data2_5
 if $data2_1 != 0 then
 	goto show3
 endi
-if $data2_2 != null then
+if $data2_2 != NULL then
 	goto show3
 endi
 if $data2_3 != 2 then
@@ -162,7 +162,7 @@ print dnode5 openVnodes $data2_5
 if $data2_1 != 0 then
 	goto show4
 endi
-if $data2_2 != null then
+if $data2_2 != NULL then
 	goto show4
 endi
 if $data2_3 != 3 then
@@ -228,7 +228,7 @@ endi
 if $data2_6 != 3 then
 	goto show6
 endi
-if $data2_3 != null then
+if $data2_3 != NULL then
 	goto show6
 endi
 if $data2_4 != 3 then

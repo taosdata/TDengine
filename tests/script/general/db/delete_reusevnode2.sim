@@ -8,6 +8,7 @@ system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
+sleep 3000
 sql connect
 
 print ======== step1
@@ -70,3 +71,5 @@ sql show databases
 if $rows != 0 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
