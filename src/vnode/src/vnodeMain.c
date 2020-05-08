@@ -42,6 +42,7 @@ static int      vnodeWalCallback(void *arg);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
+static void     vnodeNotifyFileSynced(void *ahandle);
 
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
@@ -230,6 +231,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.writeToCache = vnodeWriteToQueue;
   syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
+  syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
 
   // start continuous query
@@ -399,6 +401,13 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
     cqStart(pVnode->cq);
   else 
     cqStop(pVnode->cq);
+}
+
+static void vnodeNotifyFileSynced(void *ahandle) {
+  SVnodeObj *pVnode = ahandle;
+  dTrace("pVnode:%p vgId:%d, data file is synced", pVnode, pVnode->vgId);
+
+  // clsoe tsdb, then open tsdb
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {

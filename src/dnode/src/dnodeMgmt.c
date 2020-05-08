@@ -188,7 +188,7 @@ static int32_t dnodeOpenVnodes() {
 
   free(vnodeList);
 
-  dPrint("there are total vnodes:%d, failed to open:%d", numOfVnodes, failed);
+  dPrint("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, numOfVnodes-failed, failed);
   return TSDB_CODE_SUCCESS;
 }
 
