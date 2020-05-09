@@ -252,7 +252,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
-  mPrint("cfg vnode rsp is received, result:%s", tstrerror(rpcMsg->code));
+  mPrint("cfg dnode rsp is received");
 }
 
 void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {

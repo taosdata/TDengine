@@ -370,10 +370,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      char* pMsg = pCmd->payload + tsRpcHeadSize;
-      pMsg += sizeof(SMgmtHead);
+      char* pMsg = pCmd->payload;
 
       SCMCfgDnodeMsg* pCfg = (SCMCfgDnodeMsg*)pMsg;
+      pDCL->a[0].n = strdequote(pDCL->a[0].z);
+      
       strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
 
       strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);

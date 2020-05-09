@@ -323,11 +323,19 @@ void sdbCleanUp() {
   if (tsSdbObj.status != SDB_STATUS_SERVING) return;
 
   tsSdbObj.status = SDB_STATUS_CLOSING;
-  syncStop(tsSdbObj.sync);
-  walClose(tsSdbObj.wal);
+  
+  if (tsSdbObj.sync) {
+    syncStop(tsSdbObj.sync);
+    tsSdbObj.sync = NULL;
+  }
+
+  if (tsSdbObj.wal) {
+    walClose(tsSdbObj.wal);
+    tsSdbObj.wal = NULL;
+  }
+  
   sem_destroy(&tsSdbObj.sem);
   pthread_mutex_destroy(&tsSdbObj.mutex);
-  memset(&tsSdbObj, 0, sizeof(tsSdbObj));
 }
 
 void sdbIncRef(void *handle, void *pRow) {

@@ -27,21 +27,21 @@ cd ../../../debug; make
 ./test.sh -f general/compress/compress2.sim
 ./test.sh -f general/compress/uncompress.sim
 
-#./test.sh -f general/compute/avg.sim
+./test.sh -f general/compute/avg.sim
 ./test.sh -f general/compute/bottom.sim
-#./test.sh -f general/compute/count.sim
+./test.sh -f general/compute/count.sim
 ./test.sh -f general/compute/diff.sim
 #./test.sh -f general/compute/diff2.sim
-#./test.sh -f general/compute/first.sim
+./test.sh -f general/compute/first.sim
 #./test.sh -f general/compute/interval.sim
 #./test.sh -f general/compute/last.sim
 #./test.sh -f general/compute/leastsquare.sim
-#./test.sh -f general/compute/max.sim
-#./test.sh -f general/compute/min.sim
+./test.sh -f general/compute/max.sim
+./test.sh -f general/compute/min.sim
 ./test.sh -f general/compute/null.sim
 ./test.sh -f general/compute/percentile.sim
 ./test.sh -f general/compute/stddev.sim
-#./test.sh -f general/compute/sum.sim
+./test.sh -f general/compute/sum.sim
 ./test.sh -f general/compute/top.sim
 
 ./test.sh -f general/db/basic.sim
@@ -109,7 +109,7 @@ cd ../../../debug; make
 # ./test.sh -f general/parser/auto_create_tb.sim
 # ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f general/parser/binary_escapeCharacter.sim
-./test.sh -f general/parser/bug.sim
+#./test.sh -f general/parser/bug.sim
 ./test.sh -f general/parser/col_arithmetic_operation.sim
 ./test.sh -f general/parser/columnValue_bigint.sim
 ./test.sh -f general/parser/columnValue_bool.sim

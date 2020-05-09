@@ -318,10 +318,6 @@ typedef struct {
 } SCMCreateUserMsg, SCMAlterUserMsg;
 
 typedef struct {
-  char db[TSDB_TABLE_ID_LEN + 1];
-} SMgmtHead;
-
-typedef struct {
   int32_t  contLen;
   int32_t  vgId;
   int32_t  sid;
