@@ -255,8 +255,9 @@
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
 					dbExecuteDeleteCb(msg.responseJSON);
-				}
-				else {
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
 			}		
@@ -303,8 +304,9 @@
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
 					dbQueryCb(msg.responseJSON);
-				}
-				else {
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
 			}		

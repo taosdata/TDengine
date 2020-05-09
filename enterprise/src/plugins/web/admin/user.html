@@ -163,8 +163,9 @@
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
 					dbCreateUserCb(msg.responseJSON);
-				}
-				else {
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
 			}		

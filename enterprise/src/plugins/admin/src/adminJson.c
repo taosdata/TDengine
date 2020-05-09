@@ -90,6 +90,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
   TAOS_FIELD *fields = taos_fetch_fields(result);
   for (int i = 0; i < numOfRows; ++i) {
     TAOS_ROW row = taos_fetch_row(result);
+    int32_t* length = taos_fetch_lengths(result);
 
     if (cmd->numOfRows >= tsRestRowLimit) {
       break;
@@ -130,7 +131,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
+          httpJsonStringForTransMean(jsonBuf, row[i], length[i]);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
           httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);

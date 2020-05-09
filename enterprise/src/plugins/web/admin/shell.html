@@ -393,8 +393,9 @@
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
 					dbQueryCb(msg.responseJSON);
-				}
-				else {
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_EMPTY_DATA, msg);
 				}
 			}		
