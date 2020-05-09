@@ -72,8 +72,8 @@ matrix:
             fi
           done
 
-          grep 'definitely lost' mem-error-out.txt | uniq | tee uniq-definitely-lost-out.txt
-          for defiMemError in `cat uniq-definitely-lost-out.txt | awk '{print $7}'` 
+          grep 'definitely lost:' mem-error-out.txt | uniq | tee uniq-definitely-lost-out.txt
+          for defiMemError in `cat uniq-definitely-lost-out.txt | awk '{print $4}'`
           do
             if [ -n "$defiMemError" ]; then
               if [ "$defiMemError" -gt 16 ]; then
