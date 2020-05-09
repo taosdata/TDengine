@@ -94,6 +94,7 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
   for (int k = 0; k < numOfRows; ++k) {
     TAOS_ROW row = taos_fetch_row(result);
+    int32_t* length = taos_fetch_lengths(result);
 
     // data row array begin
     httpJsonItemToken(jsonBuf);
@@ -129,7 +130,7 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
+          httpJsonStringForTransMean(jsonBuf, row[i], length[i]);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
           if (timestampFormat == REST_TIMESTAMP_FMT_LOCAL_STRING) {
