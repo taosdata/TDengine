@@ -14,7 +14,7 @@ spring.datasource.druid.max-active=5
 # max wait time for get connection, ms
 spring.datasource.druid.max-wait=60000
 
-spring.datasource.druid.validation-query=describe log.dn
+spring.datasource.druid.validation-query=select server_status();
 spring.datasource.druid.validation-query-timeout=5000
 spring.datasource.druid.test-on-borrow=false
 spring.datasource.druid.test-on-return=false
