@@ -1129,7 +1129,6 @@ static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
 
 uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size) {
   // TODO: need to refactor this function
-  tsdbError("name:%s index:%d size:%d", name, *index, *size);
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   // STsdbMeta *pMeta = pRepo->tsdbMeta;
@@ -1138,6 +1137,8 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *
   char       fname[256] = "\0";
 
   struct stat fState;
+  char *spath = strdup(pRepo->rootDir);
+  char *prefixDir = dirname(spath);
 
   if (name[0] == 0) {
     // Map index to the file name
@@ -1146,6 +1147,7 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *
     if (fid > pFileH->numOfFGroups) {
       // return meta data file
       if ((*index) % 3 > 0) { // it is finished
+        tfree(spath);
         return 0;
       } else {
         tsdbGetMetaFileName(pRepo->rootDir, fname);
@@ -1154,13 +1156,16 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *
       // return data file name
       strcpy(fname, pFileH->fGroup[fid].files[(*index) % 3].fname);
     }
-    strcpy(name, fname);
+    strcpy(name, fname + strlen(spath));
   } else {
     // Name is provided, need to get the file info
-    sprintf(fname, "%s/%s", pRepo->rootDir, name);
+    sprintf(fname, "%s/%s", prefixDir, name);
   }
 
-  if (stat(fname, &fState) < 0) return 0;
+  if (stat(fname, &fState) < 0) {
+    tfree(spath);
+    return 0;
+  }
 
   *size = fState.st_size;
   magic = *size;
