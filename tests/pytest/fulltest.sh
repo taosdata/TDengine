@@ -81,3 +81,7 @@ python3 ./test.py $1 -f import_merge/importToCommit.py
 python3 ./test.py $1 -f import_merge/importTORestart.py
 python3 ./test.py $1 -f import_merge/importTPORestart.py
 python3 ./test.py $1 -f import_merge/importTRestart.py
+
+# user
+python3 ./test.py $1 -f user/user_create.py
+python3 ./test.py $1 -f user/pass_len.py
