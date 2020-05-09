@@ -1123,7 +1123,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
       if (addProjectionExprAndResultField(pQueryInfo, pItem) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
       }
-    } else if (pItem->pNode->nSQLOptr >= TK_COUNT && pItem->pNode->nSQLOptr <= TK_AVG_IRATE) {
+    } else if (pItem->pNode->nSQLOptr >= TK_COUNT && pItem->pNode->nSQLOptr <= TK_TBID) {
       // sql function in selection clause, append sql function info in pSqlCmd structure sequentially
       if (addExprAndResultField(pQueryInfo, outputIndex, pItem, true) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
@@ -1468,7 +1468,8 @@ static int32_t setExprInfoForFunctions(SQueryInfo* pQueryInfo, SSchema* pSchema,
 
 int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult) {
   STableMetaInfo* pTableMetaInfo = NULL;
-  int32_t         optr = pItem->pNode->nSQLOptr;
+  
+  int32_t optr = pItem->pNode->nSQLOptr;
 
   const char* msg1 = "not support column types";
   const char* msg2 = "invalid parameters";
@@ -1476,7 +1477,8 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
   const char* msg4 = "invalid table name";
   const char* msg5 = "parameter is out of range [0, 100]";
   const char* msg6 = "function applied to tags not allowed";
-
+  const char* msg7 = "normal table can not apply this function";
+  
   switch (optr) {
     case TK_COUNT: {
       if (pItem->pNode->pParam != NULL && pItem->pNode->pParam->nExpr != 1) {
@@ -1859,11 +1861,66 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
       }
 
       return TSDB_CODE_SUCCESS;
+    };
+    
+    case TK_TBID: {
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+      if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg7);
+      }
+    
+      // no parameters or more than one parameter for function
+      if (pItem->pNode->pParam == NULL || pItem->pNode->pParam->nExpr != 1) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+      }
+      
+      tSQLExpr* pParam = pItem->pNode->pParam->a[0].pNode;
+    
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if (getColumnIndexByName(&pParam->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+      }
+    
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+  
+      // functions can not be applied to normal columns
+      int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+      if (index.columnIndex < numOfCols) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg6);
+      }
+    
+      index.columnIndex -= numOfCols;
+      
+      // 2. valid the column type
+      int16_t colType = pSchema[index.columnIndex].type;
+      if (colType == TSDB_DATA_TYPE_BOOL || colType >= TSDB_DATA_TYPE_BINARY) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg1);
+      }
+
+      tscColumnListInsert(pTableMetaInfo->tagColList, &index);
+      SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+      SSchema s = pTagSchema[index.columnIndex];
+
+      int16_t bytes = 0;
+      int16_t type  = 0;
+      int16_t inter = 0;
+
+      int32_t ret = getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
+      assert(ret == TSDB_CODE_SUCCESS);
+      
+      s.type  = type;
+      s.bytes = bytes;
+
+      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
+      tscAddSpecialColumnForSelect(pQueryInfo, 0, TSDB_FUNC_TID_TAG, &index, &s, TSDB_COL_TAG);
+      
+      return TSDB_CODE_SUCCESS;
     }
+    
     default:
       return TSDB_CODE_INVALID_SQL;
   }
-  
   
 }
 
