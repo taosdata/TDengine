@@ -4685,15 +4685,6 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       pQuery->limit.offset);
 }
 
-static void prepareQueryInfoForReverseScan(SQInfo *pQInfo) {
-  //  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-
-  //  for (int32_t i = 0; i < pQInfo->groupInfo.numOfTables; ++i) {
-  //    STableQueryInfo *pTableQueryInfo = pQInfo->pTableQueryInfo[i].pTableQInfo;
-  //    changeMeterQueryInfoForSuppleQuery(pQuery, pTableQueryInfo);
-  //  }
-}
-
 static void doSaveContext(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;

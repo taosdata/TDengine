@@ -500,7 +500,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // todo valid the vgroupId at the client side
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     int32_t vgIndex = pTableMetaInfo->vgroupIndex;
     
     SVgroupsInfo* pVgroupInfo = pTableMetaInfo->vgroupList;
@@ -565,7 +565,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   //STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // table query without tags values
-  //if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  //if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
   //}
   
@@ -577,10 +577,10 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
+  if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
     
     SCMVgroupInfo* pVgroupInfo = NULL;
-    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       int32_t index = pTableMetaInfo->vgroupIndex;
       assert(index >= 0);
   
@@ -2292,7 +2292,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   taosCacheRelease(tscCacheHandle, (void **)&pTableMeta, true);
 
   if (pTableMetaInfo->pTableMeta) {
-    bool isSuperTable = UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
+    bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
 
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
 //    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pMetricMeta), true);

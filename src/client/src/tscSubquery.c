@@ -330,7 +330,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pNewQueryInfo->limit = pSupporter->limit;
   
     // fetch the join tag column
-    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       SSqlExpr* pExpr = tscSqlExprGet(pNewQueryInfo, 0);
       assert(pQueryInfo->tagCond.joinInfo.hasJoin);
     
@@ -1096,7 +1096,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     tscInitQueryInfo(pNewQueryInfo);
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
     
-    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) { // return the tableId & tag
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) { // return the tableId & tag
       SSchema s = {0};
       SColumnIndex index = {0};
   
