@@ -35,10 +35,10 @@ print =============== step3
 sql drop user read -x step31
   return -1
 step31:
-sql drop user sys -x step32
+sql drop user _root -x step32
   return -1
 step32:
-sql drop user stream -x step33
+sql drop user monitor -x step33
   return -1
 step33:
 
@@ -71,11 +71,11 @@ sql alter user read privilege 1 -x step43
   return -1
 step43:
 
-sql drop user sys -x step41
+sql drop user _root -x step41
   return -1
 step41:
 
-sql drop user stream -x step42
+sql drop user monitor -x step42
   return -1
 step42:
 
