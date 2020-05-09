@@ -1,49 +1,25 @@
 ################################# 
-run general/db/basic1.sim
-run general/db/basic2.sim
-run general/db/basic3.sim
+run general/cache/new_metrics.sim
+run general/compress/compress.sim
+run general/compute/avg.sim
+run general/compute/bottom.sim
+run general/compute/count.sim
+run general/db/len.sim
 run general/db/basic4.sim
-run general/db/basic5.sim
-
-run general/table/basic1.sim
-run general/table/basic2.sim
+run general/http/restful_insert.sim
+run general/import/basic.sim
+run general/import/commit.sim
+run general/insert/basic.sim
+run general/insert/query_file_memory.sim
+run general/parser/binary_escapeCharacter.sim
+run general/parser/columnValue_bigint.sim
+run general/parser/select_from_cache_disk.sim
+run general/table/autocreate.sim
 run general/table/basic3.sim
-run general/table/column_num.sim
 run general/table/column_name.sim
-run general/table/bigint.sim
-run general/table/bool.sim
-run general/table/double.sim
-run general/table/float.sim
 run general/table/int.sim
-run general/table/smallint.sim
-run general/table/tinyint.sim
-run general/table/db.table.sim
-
+run general/table/vgroup.sim
 run general/user/basic1.sim
-run general/user/pass_alter.sim
-run general/user/pass_len.sim
-run general/user/user_create.sim
 run general/user/user_len.sim
-
-# run general/compute/count.sim 
-# run general/compute/avg.sim 
-# run general/compute/sum.sim 
-# run general/compute/min.sim 
-# run general/compute/max.sim 
-# run general/compute/first.sim 
-# run general/compute/last.sim 
-run general/compute/stddev.sim 
-# run general/compute/leastsquare.sim 
-run general/compute/top.sim 
-run general/compute/bottom.sim 
-run general/compute/percentile.sim 
-run general/compute/diff.sim 
-# run general/compute/interval.sim 
-run general/compute/null.sim 
-# run general/compute/diff2.sim
-
-run general/parse/testSuite.sim
-run general/field/testSuite.sim
-
-
+run general/vector/single.sim
 ################################## 
