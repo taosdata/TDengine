@@ -496,6 +496,9 @@ void vnodeDecRefCount(void *param) {
   assert(vnodeIsQInfoValid(pQInfo));
   
   int32_t ref = atomic_sub_fetch_32(&pQInfo->refCount, 1);
+  if (ref < 0) {
+    return; // avoid two threads dec ref count
+  }
   assert(ref >= 0);
   
   dTrace("QInfo:%p decrease obj refcount, %d", pQInfo, ref);

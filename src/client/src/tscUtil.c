@@ -2064,7 +2064,14 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
                                      pMeterMetaInfo->tagColumnIndex);
   }
 
-  assert(pFinalInfo->pMeterMeta != NULL && pNewQueryInfo->numOfTables == 1);
+  if (pFinalInfo->pMeterMeta == NULL) {
+    tscError("%p new subquery failed for get pMeterMeta is NULL from cache", pSql);
+    tscFreeSqlObj(pNew);
+    return NULL;
+  }
+
+  assert(pNewQueryInfo->numOfTables == 1);
+  
   if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
     assert(pFinalInfo->pMetricMeta != NULL);
   }

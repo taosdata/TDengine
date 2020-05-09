@@ -494,6 +494,12 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+
+      code = tscGetMeterMeta(pSql, pMeterMetaInfo);
+      pRes->code = code;
+
+      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+
       assert(pMeterMetaInfo->pMeterMeta->numOfTags != 0 && pMeterMetaInfo->vnodeIndex >= 0 && pSql->param != NULL);
 
       SRetrieveSupport *trs = (SRetrieveSupport *)pSql->param;
@@ -504,11 +510,6 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       tscTrace("%p get metricMeta during super table query successfully", pSql);
       
-      code = tscGetMeterMeta(pSql, pMeterMetaInfo);
-      pRes->code = code;
-
-      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
-
       code = tscGetMetricMeta(pSql, 0);
       pRes->code = code;
 
