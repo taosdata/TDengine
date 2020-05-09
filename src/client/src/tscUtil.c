@@ -2156,3 +2156,26 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
   }
 }
 
+void* malloc_throw(size_t size) {
+  void* p = malloc(size);
+  if (p == NULL) {
+    THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
+void* calloc_throw(size_t nmemb, size_t size) {
+  void* p = malloc(size);
+  if (p == NULL) {
+    THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
+char* strdup_throw(const char* str) {
+  char* p = strdup(str);
+  if (p == NULL) {
+    THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
+  }
+  return p;
+}

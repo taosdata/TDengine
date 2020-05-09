@@ -265,6 +265,10 @@ void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)());
 
+void* malloc_throw(size_t size);
+void* calloc_throw(size_t nmemb, size_t size);
+char* strdup_throw(const char* str);
+
 #ifdef __cplusplus
 }
 #endif
