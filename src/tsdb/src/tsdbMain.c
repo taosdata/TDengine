@@ -7,6 +7,7 @@
 #include "tscompression.h"
 #include "tchecksum.h"
 #include "ttime.h"
+#include <sys/stat.h>
 
 int tsdbDebugFlag = 135;
 
@@ -760,7 +761,7 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
     return -1;
   }
 
-  tsdbError(
+  tsdbTrace(
       "id %d: set up tsdb environment succeed! cacheBlockSize %d, totalBlocks %d, maxTables %d, daysPerFile %d, keep "
       "%d, minRowsPerFileBlock %d, maxRowsPerFileBlock %d, precision %d, compression%d",
       pRepo->config.tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->maxTables, pCfg->daysPerFile, pCfg->keep,
@@ -1124,4 +1125,45 @@ static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
 
 static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   // TODO
+}
+
+uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size) {
+  // TODO: need to refactor this function
+  tsdbError("name:%s index:%d size:%d", name, *index, *size);
+
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  // STsdbMeta *pMeta = pRepo->tsdbMeta;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  uint32_t   magic = 0;
+  char       fname[256] = "\0";
+
+  struct stat fState;
+
+  if (name[0] == 0) {
+    // Map index to the file name
+    int fid = (*index) / 3;
+
+    if (fid > pFileH->numOfFGroups) {
+      // return meta data file
+      if ((*index) % 3 > 0) { // it is finished
+        return 0;
+      } else {
+        tsdbGetMetaFileName(pRepo->rootDir, fname);
+      }
+    } else {
+      // return data file name
+      strcpy(fname, pFileH->fGroup[fid].files[(*index) % 3].fname);
+    }
+    strcpy(name, fname);
+  } else {
+    // Name is provided, need to get the file info
+    sprintf(fname, "%s/%s", pRepo->rootDir, name);
+  }
+
+  if (stat(fname, &fState) < 0) return 0;
+
+  *size = fState.st_size;
+  magic = *size;
+
+  return magic;
 }

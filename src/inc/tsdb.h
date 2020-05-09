@@ -109,6 +109,8 @@ int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
 int   tsdbAlterTable(TsdbRepoT *repo, STableCfg *pCfg);
 TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid);
 
+uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size);
+
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
   STsdbCfg tsdbCfg;

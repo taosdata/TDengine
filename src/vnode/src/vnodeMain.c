@@ -383,9 +383,8 @@ static int vnodeWalCallback(void *arg) {
 }
 
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
-  // SVnodeObj *pVnode = ahandle;
-  //tsdbGetFileInfo(pVnode->tsdb, name, index, size);
-  return 0;
+  SVnodeObj *pVnode = ahandle;
+  return tsdbGetFileInfo(pVnode->tsdb, name, index, size);
 }
 
 static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {

@@ -490,9 +490,10 @@ int tsdbWriteCompInfo(SRWHelper *pHelper);
 int tsdbWriteCompIdx(SRWHelper *pHelper);
 
 // --------- Other functions need to further organize
-void tsdbFitRetention(STsdbRepo *pRepo);
-int  tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
-void tsdbAdjustCacheBlocks(STsdbCache *pCache);
+void    tsdbFitRetention(STsdbRepo *pRepo);
+int     tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
+void    tsdbAdjustCacheBlocks(STsdbCache *pCache);
+int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
 
 #ifdef __cplusplus
 }
