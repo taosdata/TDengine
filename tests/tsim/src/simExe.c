@@ -415,7 +415,7 @@ void simCloseNativeConnect(SScript *script) {
 
   simTrace("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
-  taosMsleep(1000);
+  taosMsleep(1200);
 
   script->taos = NULL;
 }

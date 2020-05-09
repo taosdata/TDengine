@@ -20,6 +20,7 @@ run general/table/column_name.sim
 run general/table/int.sim
 run general/table/vgroup.sim
 run general/user/basic1.sim
+run general/user/pass_alter.sim
 run general/user/user_len.sim
 run general/vector/single.sim
 ################################## 
