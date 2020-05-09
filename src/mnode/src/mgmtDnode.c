@@ -223,7 +223,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   if (pCmCfgDnode->ep[0] == 0) {
     strcpy(pCmCfgDnode->ep, tsLocalEp);
   } else {
-    strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep);
+    // TODO temporary disabled for compiling: strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep); 
   }
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
