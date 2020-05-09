@@ -278,7 +278,7 @@ void sdbUpdateSync() {
     sdbPrint("mnode:%d, %s:%d", syncCfg.nodeInfo[i].nodeId, syncCfg.nodeInfo[i].nodeFqdn, syncCfg.nodeInfo[i].nodePort);
   }
 
-  SSyncInfo syncInfo;
+  SSyncInfo syncInfo = {0};
   syncInfo.vgId = 1;
   syncInfo.version = sdbGetVersion();
   syncInfo.syncCfg = syncCfg;
