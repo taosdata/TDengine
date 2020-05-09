@@ -69,7 +69,7 @@ class TDSimClient:
         self.cfg("numOfLogLines", "100000000")
         self.cfg("numOfThreadsPerCore", "2.0")
         self.cfg("locale", "en_US.UTF-8")
-        self.cfg("charset", "GBK")
+        self.cfg("charset", "UTF-8")
         self.cfg("asyncLog", "0")
         self.cfg("anyIp", "0")
         self.cfg("sdbDebugFlag", "135")
