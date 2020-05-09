@@ -25,15 +25,14 @@
 #include "tdataformat.h"
 #include "machine.h"
 #include "mnode.h"
+#include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtTable.h"
-#include "mgmtDServer.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
-#include "dnodeMClient.h"
 #include "mgmtAcct.h"
 #include "mgmtUser.h"
 
@@ -76,7 +75,7 @@ static SGrantStatus grantStatus = {
 int32_t grantInit() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
-  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
+  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
   taosTmrReset(grantSendMsgToMgmt, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantSendTimer);
 
   uTrace("grant data is initialized");
@@ -494,7 +493,10 @@ static void grantSendMsgToMgmt() {
     .contLen = sizeof(SGrantMsg),
     .msgType = TSDB_MSG_TYPE_DM_GRANT
   };
-  dnodeSendMsgToMnode(&rpcMsg);
+
+  SRpcIpSet ipSet = {0};
+  dnodeGetMnodeDnodeIpSet(&ipSet);
+  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
 static void grantProcessMsgInMgmt(SRpcMsg *pMsg)

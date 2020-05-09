@@ -147,6 +147,7 @@ typedef struct SSyncNode {
   FWriteToCache   writeToCache;
   FConfirmForward confirmForward;
   FNotifyRole     notifyRole;
+  FNotifyFileSynced notifyFileSynced;
   pthread_mutex_t mutex;
 } SSyncNode;
 

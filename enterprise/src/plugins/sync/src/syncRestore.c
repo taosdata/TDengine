@@ -220,6 +220,8 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
+  if (pNode->notifyFileSynced) (*pNode->notifyFileSynced)(pNode->ahandle);
+
   sTrace("%s, start to restore wal", pPeer->id);
   if (syncRestoreWal(pPeer) < 0) {
     sError("%s, failed to restore wal", pPeer->id);

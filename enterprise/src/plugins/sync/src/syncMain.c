@@ -114,6 +114,7 @@ void *syncStart(const SSyncInfo *pInfo)
   pNode->writeToCache = pInfo->writeToCache;
   pNode->notifyRole = pInfo->notifyRole;
   pNode->confirmForward = pInfo->confirmForward;
+  pNode->notifyFileSynced = pInfo->notifyFileSynced;
  
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;
@@ -157,6 +158,7 @@ void syncStop(void *param)
   SSyncNode  *pNode = param;
   SSyncPeer  *pPeer;
 
+  if (pNode == NULL) return;
   sPrint("vgId:%d, cleanup sync", pNode->vgId);
 
   for (int i = 0; i < pNode->replica; ++i) {
