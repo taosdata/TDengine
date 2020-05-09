@@ -587,6 +587,8 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
           "size:%" PRId64 " bytes, collision:%d",
           pNode->key, pNode, HASH_INDEX(pNode->hashVal, pObj->capacity), pNode->addTime, pNode->time, pObj->size,
           pObj->totalSize, pObj->statistics.numOfCollision);
+    } else {
+      pError("key:%s failed to added into cache, out of memory", key);
     }
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pObj, pOldNode, key, keyLen, pData, dataSize, keepTime * 1000L);
