@@ -160,11 +160,11 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ", band_speed float"
              ", io_read float, io_write float"
              ", req_http int, req_select int, req_insert int"
-             ") tags (ipaddr binary(%d))",
+             ") tags (dnodeid int, fqdn binary(%d))",
              tsMonitorDbName, TSDB_FQDN_LEN + 1);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
-    snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn_%s using %s.dn tags('%s')", tsMonitorDbName,
-             tsMonitorConn.ep, tsMonitorDbName, tsLocalEp);
+    snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn%d using %s.dn tags(%d, '%s')", tsMonitorDbName,
+             dnodeGetDnodeId(), tsMonitorDbName, dnodeGetDnodeId(), tsLocalEp);
   } else if (cmd == MONITOR_CMD_CREATE_MT_ACCT) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.acct(ts timestamp "
@@ -347,7 +347,7 @@ static void monitorSaveSystemInfo() {
 
   int64_t ts = taosGetTimestampUs();
   char *  sql = tsMonitorConn.sql;
-  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%" PRId64, tsMonitorDbName, tsMonitorConn.ep, ts);
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
 
   pos += monitorBuildCpuSql(sql + pos);
   pos += monitorBuildMemorySql(sql + pos);
