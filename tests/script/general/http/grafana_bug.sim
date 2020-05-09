@@ -35,7 +35,7 @@ print ===============  step1 - one query, 1 column, with timestamp
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select ts from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"A","target":"A","datapoints":[["-",1577980800000],["-",1578067200000]]}]@ then
+if $system_content != @[{"refId":"A","target":"A","datapoints":[[null,1577980800000],[null,1578067200000]]}]@ then
   return -1
 endi
 
@@ -51,32 +51,32 @@ print ===============  step3 - one query, 3 column, with timestamp
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select ts,val,val1 from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step3.1-> $system_content
-if $system_content != @[{"refId":"A","target":"13","datapoints":[[2,1577980800000]]},{"refId":"A","target":"14","datapoints":[[2,1578067200000]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val1:13,}","datapoints":[[2,1577980800000]]},{"refId":"A","target":"{val1:14,}","datapoints":[[2,1578067200000]]}]@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select ts,val,val1 from db.tb "} ]' 127.0.0.1:6020/grafana/query
 print step3.2-> $system_content
-if $system_content != @[{"refId":"A","target":"11","datapoints":[[1,1577808000000]]},{"refId":"A","target":"12","datapoints":[[1,1577894400000]]},{"refId":"A","target":"13","datapoints":[[2,1577980800000]]},{"refId":"A","target":"14","datapoints":[[2,1578067200000]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val1:11,}","datapoints":[[1,1577808000000]]},{"refId":"A","target":"{val1:12,}","datapoints":[[1,1577894400000]]},{"refId":"A","target":"{val1:13,}","datapoints":[[2,1577980800000]]},{"refId":"A","target":"{val1:14,}","datapoints":[[2,1578067200000]]}]@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select ts,val1,val from db.tb "} ]' 127.0.0.1:6020/grafana/query
 print step3.3-> $system_content
-if $system_content != @[{"refId":"A","target":"1","datapoints":[[11,1577808000000],[12,1577894400000]]},{"refId":"A","target":"2","datapoints":[[13,1577980800000],[14,1578067200000]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val:1,}","datapoints":[[11,1577808000000],[12,1577894400000]]},{"refId":"A","target":"{val:2,}","datapoints":[[13,1577980800000],[14,1578067200000]]}]@ then
   return -1
 endi
 
 print ===============  step4 - one query, 4 column, with timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select ts,val2,val1,val from db.tb "} ]' 127.0.0.1:6020/grafana/query
 print step4.1-> $system_content
-if $system_content != @[{"refId":"A","target":"1","datapoints":[[21,1577808000000],[22,1577894400000]]},{"refId":"A","target":"2","datapoints":[[23,1577980800000],[24,1578067200000]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val1:11,, val:1,}","datapoints":[[21,1577808000000]]},{"refId":"A","target":"{val1:12,, val:1,}","datapoints":[[22,1577894400000]]},{"refId":"A","target":"{val1:13,, val:2,}","datapoints":[[23,1577980800000]]},{"refId":"A","target":"{val1:14,, val:2,}","datapoints":[[24,1578067200000]]}]@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select ts,val,val1,val2 from db.tb "} ]' 127.0.0.1:6020/grafana/query
 print step4.2-> $system_content
-if $system_content != @[{"refId":"A","target":"21","datapoints":[[1,1577808000000]]},{"refId":"A","target":"22","datapoints":[[1,1577894400000]]},{"refId":"A","target":"23","datapoints":[[2,1577980800000]]},{"refId":"A","target":"24","datapoints":[[2,1578067200000]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val1:11,, val2:21,}","datapoints":[[1,1577808000000]]},{"refId":"A","target":"{val1:12,, val2:22,}","datapoints":[[1,1577894400000]]},{"refId":"A","target":"{val1:13,, val2:23,}","datapoints":[[2,1577980800000]]},{"refId":"A","target":"{val1:14,, val2:24,}","datapoints":[[2,1578067200000]]}]@ then
   return -1
 endi
 
@@ -90,20 +90,20 @@ endi
 print ===============  step6 - one query, 2 column, no timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select val1,val2 from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"A","target":"23","datapoints":[[13,"-"]]},{"refId":"A","target":"24","datapoints":[[14,"-"]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val2:23,}","datapoints":[[13,"-"]]},{"refId":"A","target":"{val2:24,}","datapoints":[[14,"-"]]}]@ then
   return -1
 endi
 
 print ===============  step7 - one query, 3 column, no timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select val1,val2,val from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"A","target":"2","datapoints":[[13,"-"],[14,"-"]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val2:23,, val:2,}","datapoints":[[13,"-"]]},{"refId":"A","target":"{val2:24,, val:2,}","datapoints":[[14,"-"]]}]@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select val1,val2,val from db.tb"} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"A","target":"1","datapoints":[[11,"-"],[12,"-"]]},{"refId":"A","target":"2","datapoints":[[13,"-"],[14,"-"]]}]@ then
+if $system_content != @[{"refId":"A","target":"{val2:21,, val:1,}","datapoints":[[11,"-"]]},{"refId":"A","target":"{val2:22,, val:1,}","datapoints":[[12,"-"]]},{"refId":"A","target":"{val2:23,, val:2,}","datapoints":[[13,"-"]]},{"refId":"A","target":"{val2:24,, val:2,}","datapoints":[[14,"-"]]}]@ then
   return -1
 endi
 
@@ -132,7 +132,7 @@ print ===============  step11 - two query, 1 column, with timestamp, 1 column, w
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select ts from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"","sql":"select ts from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB","datapoints":[["-",1577980800000],["-",1578067200000]]},{"refId":"A","target":"A","datapoints":[["-",1577980800000],["-",1578067200000]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB","datapoints":[[null,1577980800000],[null,1578067200000]]},{"refId":"A","target":"A","datapoints":[[null,1577980800000],[null,1578067200000]]}]@ then
   return -1
 endi
 
@@ -140,14 +140,14 @@ print ===============  step12 - two query, 1 column, with timestamp, 2 column, w
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select ts from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"","sql":"select ts,val from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB","datapoints":[["-",1577980800000],["-",1578067200000]]},{"refId":"A","target":"A","datapoints":[[2,1577980800000],[2,1578067200000]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB","datapoints":[[null,1577980800000],[null,1578067200000]]},{"refId":"A","target":"A","datapoints":[[2,1577980800000],[2,1578067200000]]}]@ then
   return -1
 endi
 
 print ===============  step13 - two query, 1 column, with timestamp, 3 column, with timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select ts from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"","sql":"select ts,val,val1 from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB","datapoints":[["-",1577980800000],["-",1578067200000]]},{"refId":"A","target":"13","datapoints":[[2,1577980800000]]},{"refId":"A","target":"14","datapoints":[[2,1578067200000]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB","datapoints":[[null,1577980800000],[null,1578067200000]]},{"refId":"A","target":"{val1:13,}","datapoints":[[2,1577980800000]]},{"refId":"A","target":"{val1:14,}","datapoints":[[2,1578067200000]]}]@ then
   return -1
 endi
 
@@ -161,14 +161,14 @@ endi
 print ===============  step15 - two query, 2 column, with timestamp, 3 column, with timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select ts, val2, val1 from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select ts,val from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB213","datapoints":[[223,1577980800000]]},{"refId":"B","target":"BB214","datapoints":[[224,1578067200000]]},{"refId":"A","target":"AA","datapoints":[[2,1577980800000],[2,1578067200000]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB{val1:213,}","datapoints":[[223,1577980800000]]},{"refId":"B","target":"BB{val1:214,}","datapoints":[[224,1578067200000]]},{"refId":"A","target":"AA","datapoints":[[2,1577980800000],[2,1578067200000]]}]@ then
   return -1
 endi
 
 print ===============  step16 - two query, 3 column, with timestamp, 4 column, with timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select ts, val, val1, val2, val1 from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select ts,val,val1 from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB213","datapoints":[[22,1577980800000]]},{"refId":"B","target":"BB214","datapoints":[[22,1578067200000]]},{"refId":"A","target":"AA13","datapoints":[[2,1577980800000]]},{"refId":"A","target":"AA14","datapoints":[[2,1578067200000]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB{val1:213,, val2:223,, val1:213,}","datapoints":[[22,1577980800000]]},{"refId":"B","target":"BB{val1:214,, val2:224,, val1:214,}","datapoints":[[22,1578067200000]]},{"refId":"A","target":"AA{val1:13,}","datapoints":[[2,1577980800000]]},{"refId":"A","target":"AA{val1:14,}","datapoints":[[2,1578067200000]]}]@ then
   return -1
 endi
 
@@ -196,7 +196,7 @@ endi
 print ===============  step20 - two query, 1 column, no timestamp, 1 column, with timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select val from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select ts from db.tb2 where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB","datapoints":[[22,"-"],[22,"-"]]},{"refId":"A","target":"AA","datapoints":[["-",1577980800000],["-",1578067200000]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB","datapoints":[[22,"-"],[22,"-"]]},{"refId":"A","target":"AA","datapoints":[[null,1577980800000],[null,1578067200000]]}]@ then
   return -1
 endi
 
@@ -210,28 +210,28 @@ endi
 print ===============  step22 - two query, 1 column, no timestamp, 3 column, with timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select val from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select ts,val1, val2 from db.tb2 where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB","datapoints":[[22,"-"],[22,"-"]]},{"refId":"A","target":"AA223","datapoints":[[213,1577980800000]]},{"refId":"A","target":"AA224","datapoints":[[214,1578067200000]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB","datapoints":[[22,"-"],[22,"-"]]},{"refId":"A","target":"AA{val2:223,}","datapoints":[[213,1577980800000]]},{"refId":"A","target":"AA{val2:224,}","datapoints":[[214,1578067200000]]}]@ then
   return -1
 endi
 
 print ===============  step23 - two query, 2 column, no timestamp, 1 column, no timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select val1,val2 from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select val1 from db.tb2 where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB223","datapoints":[[213,"-"]]},{"refId":"B","target":"BB224","datapoints":[[214,"-"]]},{"refId":"A","target":"AA","datapoints":[[213,"-"],[214,"-"]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB{val2:223,}","datapoints":[[213,"-"]]},{"refId":"B","target":"BB{val2:224,}","datapoints":[[214,"-"]]},{"refId":"A","target":"AA","datapoints":[[213,"-"],[214,"-"]]}]@ then
   return -1
 endi
 
 print ===============  step24 - two query, 2 column, no timestamp, 2 column, no timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select val1,val2 from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select val,val1 from db.tb2 where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB223","datapoints":[[213,"-"]]},{"refId":"B","target":"BB224","datapoints":[[214,"-"]]},{"refId":"A","target":"AA213","datapoints":[[22,"-"]]},{"refId":"A","target":"AA214","datapoints":[[22,"-"]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB{val2:223,}","datapoints":[[213,"-"]]},{"refId":"B","target":"BB{val2:224,}","datapoints":[[214,"-"]]},{"refId":"A","target":"AA{val1:213,}","datapoints":[[22,"-"]]},{"refId":"A","target":"AA{val1:214,}","datapoints":[[22,"-"]]}]@ then
   return -1
 endi
 
 print ===============  step25 - two query, 2 column, no timestamp, 3 column, no timestamp
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select val1,val2 from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select val,val1,val2 from db.tb2 where ts >= 1577980800000 "} ]' 127.0.0.1:6020/grafana/query
 print step1-> $system_content
-if $system_content != @[{"refId":"B","target":"BB223","datapoints":[[213,"-"]]},{"refId":"B","target":"BB224","datapoints":[[214,"-"]]},{"refId":"A","target":"AA223","datapoints":[[22,"-"]]},{"refId":"A","target":"AA224","datapoints":[[22,"-"]]}]@ then
+if $system_content != @[{"refId":"B","target":"BB{val2:223,}","datapoints":[[213,"-"]]},{"refId":"B","target":"BB{val2:224,}","datapoints":[[214,"-"]]},{"refId":"A","target":"AA{val1:213,, val2:223,}","datapoints":[[22,"-"]]},{"refId":"A","target":"AA{val1:214,, val2:224,}","datapoints":[[22,"-"]]}]@ then
   return -1
 endi
 

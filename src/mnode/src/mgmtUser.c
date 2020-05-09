@@ -309,11 +309,14 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pUser->superAuth) {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "super", 5);
+      const char *src = "super";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     } else if (pUser->writeAuth) {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "writable", 8);
+      const char *src = "writable";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     } else {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "readable", 8);
+      const char *src = "readable";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     }
     cols++;
 

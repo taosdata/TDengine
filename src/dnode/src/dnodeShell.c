@@ -137,7 +137,6 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
   }
 }
 
-
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   return TSDB_CODE_SUCCESS;
 }

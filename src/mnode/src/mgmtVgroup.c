@@ -494,11 +494,12 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
         cols++;
       } else {
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        STR_WITH_SIZE_TO_VARSTR(pWrite, "NULL", 4);
+        const char *src = "NULL";
+        STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
         cols++;
         
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        STR_WITH_SIZE_TO_VARSTR(pWrite, "NULL", 4);
+        STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
         cols++;
       }
     }

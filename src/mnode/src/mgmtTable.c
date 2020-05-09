@@ -701,10 +701,10 @@ static void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
   }
 
   if (pMsg->pTable->type == TSDB_SUPER_TABLE) {
-    mTrace("table:%s, start to drop stable", pDrop->tableId);
+    mPrint("table:%s, start to drop stable", pDrop->tableId);
     mgmtProcessDropSuperTableMsg(pMsg);
   } else {
-    mTrace("table:%s, start to drop ctable", pDrop->tableId);
+    mPrint("table:%s, start to drop ctable", pDrop->tableId);
     mgmtProcessDropChildTableMsg(pMsg);
   }
 }
@@ -802,29 +802,32 @@ static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
       int32_t vgId = pStable->vgList[vg];
       if (vgId == 0) break;
 
+      SVgObj *pVgroup = mgmtGetVgroup(vgId);
+      if (pVgroup == NULL) break;
+      
       SMDDropSTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropSTableMsg));
+      pDrop->contLen = htonl(sizeof(SMDDropSTableMsg));
       pDrop->vgId = htonl(vgId);
       pDrop->uid = htobe64(pStable->uid);
       mgmtExtractTableName(pStable->info.tableId, pDrop->tableId);
-
-      SVgObj *pVgroup = mgmtGetVgroup(vgId);
-      if (pVgroup != NULL) {
-        SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-        SRpcMsg rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
-        dnodeSendMsgToDnode(&ipSet, &rpcMsg);
-        mgmtDecVgroupRef(pVgroup);
-      }
+        
+      mPrint("stable:%s, send drop stable msg to vgId:%d", pStable->info.tableId, vgId);
+      SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+      SRpcMsg rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
+      dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+      mgmtDecVgroupRef(pVgroup);
     }
-  } else {
-    SSdbOper oper = {
-      .type = SDB_OPER_GLOBAL,
-      .table = tsSuperTableSdb,
-      .pObj = pStable
-    };
-    int32_t code = sdbDeleteRow(&oper);
-    mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->info.tableId, tstrerror(code));
-    mgmtSendSimpleResp(pMsg->thandle, code);
-  }
+  } 
+  
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsSuperTableSdb,
+    .pObj = pStable
+  };
+  
+  int32_t code = sdbDeleteRow(&oper);
+  mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->info.tableId, tstrerror(code));
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
 static int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {
@@ -1303,7 +1306,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
- mTrace("drop stable rsp received, handle:%p code:%s", rpcMsg->handle, tstrerror(rpcMsg->code));
+  mPrint("drop stable rsp received, result:%s", tstrerror(rpcMsg->code));
 }
 
 static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
@@ -1540,7 +1543,7 @@ static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pMsg->pVgroup);
 
-  mTrace("table:%s, send drop ctable msg", pDrop->tableId);
+  mPrint("table:%s, send drop ctable msg", pDrop->tableId);
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
   SRpcMsg rpcMsg = {
@@ -1867,7 +1870,7 @@ static void mgmtProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   queueMsg->received++;
 
   SChildTableObj *pTable = queueMsg->ahandle;
-  mTrace("table:%s, drop table rsp received, thandle:%p result:%s", pTable->info.tableId, queueMsg->thandle, tstrerror(rpcMsg->code));
+  mPrint("table:%s, drop table rsp received, thandle:%p result:%s", pTable->info.tableId, queueMsg->thandle, tstrerror(rpcMsg->code));
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to drop in dnode, reason:%s", pTable->info.tableId, tstrerror(rpcMsg->code));

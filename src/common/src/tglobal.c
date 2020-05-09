@@ -204,10 +204,19 @@ static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
-    SGlobalCfg *cfg = &tsGlobalConfig[i];
-    if ((cfg->cfgType & TSDB_CFG_CTYPE_B_LOG) && cfg->cfgType == TAOS_CFG_VTYPE_INT32) {
-      *((int32_t*)cfg->ptr) = debugFlag;
-    }
+    mdebugFlag = debugFlag;
+    sdbDebugFlag = debugFlag;
+    dDebugFlag = debugFlag;
+    vDebugFlag = debugFlag;
+    cdebugFlag = debugFlag;
+    jnidebugFlag = debugFlag;
+    odbcdebugFlag = debugFlag;
+    httpDebugFlag = debugFlag;
+    monitorDebugFlag = debugFlag;
+    rpcDebugFlag = debugFlag;
+    uDebugFlag = debugFlag;
+    sDebugFlag = debugFlag;
+    //qdebugFlag = debugFlag;    
   }
   uPrint("all debug flag are set to %d", debugFlag);
 }
@@ -1189,6 +1198,10 @@ void taosInitGlobalCfg() {
 }
 
 bool taosCheckGlobalCfg() {
+  if (debugFlag == 135 || debugFlag == 199) {
+    taosSetAllDebugFlag();
+  }
+  
   taosGetFqdn(tsLocalEp);
   sprintf(tsLocalEp + strlen(tsLocalEp), ":%d", tsServerPort);
   uPrint("localEp is %s", tsLocalEp);
