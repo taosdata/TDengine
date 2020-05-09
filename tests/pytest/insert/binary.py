@@ -14,7 +14,6 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-
         tdLog.info('=============== step1')
         tdLog.info('create table tb (ts timestamp, speed binary(5))')
         tdSql.execute('create table tb (ts timestamp, speed binary(5))')
