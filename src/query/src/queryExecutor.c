@@ -39,10 +39,10 @@
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 #define QUERY_IS_ASC_QUERY(q) (GET_FORWARD_DIRECTION_FACTOR((q)->order.order) == QUERY_ASC_FORWARD_STEP)
 
-#define IS_MASTER_SCAN(runtime) (((runtime)->scanFlag & 1u) == MASTER_SCAN)
-#define IS_SUPPLEMENT_SCAN(runtime) ((runtime)->scanFlag == SUPPLEMENTARY_SCAN)
-#define SET_SUPPLEMENT_SCAN_FLAG(runtime) ((runtime)->scanFlag = SUPPLEMENTARY_SCAN)
-#define SET_MASTER_SCAN_FLAG(runtime) ((runtime)->scanFlag = MASTER_SCAN)
+#define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
+#define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == SUPPLEMENTARY_SCAN)
+#define SET_MASTER_SCAN_FLAG(runtime)  ((runtime)->scanFlag = MASTER_SCAN)
+#define SET_REVERSE_SCAN_FLAG(runtime) ((runtime)->scanFlag = SUPPLEMENTARY_SCAN)
 
 #define GET_QINFO_ADDR(x) ((void *)((char *)(x)-offsetof(SQInfo, runtimeEnv)))
 
@@ -1101,7 +1101,7 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
   }
 
   // in the supplementary scan, only the following functions need to be executed
-  if (IS_SUPPLEMENT_SCAN(pRuntimeEnv) &&
+  if (IS_REVERSE_SCAN(pRuntimeEnv) &&
       !(functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_FIRST ||
         functionId == TSDB_FUNC_LAST || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS)) {
     return false;
@@ -2450,8 +2450,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   qTrace("QInfo:%p query start, qrange:%" PRId64 "-%" PRId64 ", lastkey:%" PRId64 ", order:%d",
          GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
 
-  TsdbQueryHandleT pQueryHandle =
-      pRuntimeEnv->scanFlag == MASTER_SCAN ? pRuntimeEnv->pQueryHandle : pRuntimeEnv->pSecQueryHandle;
+  TsdbQueryHandleT pQueryHandle = IS_MASTER_SCAN(pRuntimeEnv)? pRuntimeEnv->pQueryHandle : pRuntimeEnv->pSecQueryHandle;
   while (tsdbNextDataBlock(pQueryHandle)) {
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       return 0;
@@ -2835,11 +2834,12 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
       return;  // failed to save data in the disk
     }
 
-    // set current query completed
-    //    if (pQInfo->numOfGroupResultPages == 0 && pQInfo->groupIndex == pQInfo->pSidSet->numOfSubSet) {
-    //      pQInfo->tableIndex = pQInfo->pSidSet->numOfTables;
-    //      return;
-    //    }
+    // check if all results has been sent to client
+    int32_t numOfGroup = taosArrayGetSize(pQInfo->groupInfo.pGroupList);
+    if (pQInfo->numOfGroupResultPages == 0 && pQInfo->groupIndex == numOfGroup) {
+      pQInfo->tableIndex = pQInfo->groupInfo.numOfTables;  // set query completed
+      return;
+    }
   }
 
   SQueryRuntimeEnv *   pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -3087,7 +3087,31 @@ void setTableDataInfo(STableQueryInfo *pTableQueryInfo, int32_t tableIndex, int3
   pTableQueryInfo->tableIndex = tableIndex;
 }
 
-static void doDisableFunctsForSupplementaryScan(SQuery *pQuery, SWindowResInfo *pWindowResInfo, int32_t order) {
+static void updateTableQueryInfoForReverseScan(SQuery *pQuery, STableQueryInfo *pTableQueryInfo) {
+  if (pTableQueryInfo == NULL) {
+    return;
+  }
+  
+  // order has change already!
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+  if (!QUERY_IS_ASC_QUERY(pQuery)) {
+    assert(pTableQueryInfo->win.ekey >= pTableQueryInfo->lastKey + step);
+  } else {
+    assert(pTableQueryInfo->win.ekey <= pTableQueryInfo->lastKey + step);
+  }
+  
+  pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
+  
+  SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
+  pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
+  
+  SWITCH_ORDER(pTableQueryInfo->cur.order);
+  pTableQueryInfo->cur.vgroupIndex = -1;
+}
+
+static void disableFuncInReverseScanImpl(SQInfo* pQInfo, SWindowResInfo *pWindowResInfo, int32_t order) {
+  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
+  
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
     SWindowStatus *pStatus = getTimeWindowResStatus(pWindowResInfo, i);
     if (!pStatus->closed) {
@@ -3108,18 +3132,32 @@ static void doDisableFunctsForSupplementaryScan(SQuery *pQuery, SWindowResInfo *
       }
     }
   }
+  
+  int32_t numOfGroups = taosArrayGetSize(pQInfo->groupInfo.pGroupList);
+  
+  for(int32_t i = 0; i < numOfGroups; ++i) {
+    SArray *group = taosArrayGetP(pQInfo->groupInfo.pGroupList, i);
+    qTrace("QInfo:%p no result in group %d, continue", pQInfo, pQInfo->groupIndex - 1);
+
+    size_t t = taosArrayGetSize(group);
+    for (int32_t j = 0; j < t; ++j) {
+      SGroupItem *item = taosArrayGet(group, j);
+      updateTableQueryInfoForReverseScan(pQuery, item->info);
+    }
+  }
 }
 
-void disableFuncInReverseScan(SQueryRuntimeEnv *pRuntimeEnv) {
+void disableFuncInReverseScan(SQInfo *pQInfo) {
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *pQuery = pRuntimeEnv->pQuery;
   int32_t order = pQuery->order.order;
 
   // group by normal columns and interval query on normal table
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || isIntervalQuery(pQuery)) {
-    doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
+    disableFuncInReverseScanImpl(pQInfo, pWindowResInfo, order);
   } else {  // for simple result of table query,
-    for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
+    for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {  // todo refactor
       int32_t functId = pQuery->pSelectExpr[j].base.functionId;
 
       SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[j];
@@ -3134,34 +3172,10 @@ void disableFuncInReverseScan(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 }
 
-void disableFuncForReverseScan(SQInfo *pQInfo, int32_t order) {
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
-
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1u;
-  }
-
-  if (isIntervalQuery(pQuery)) {
-    //    for (int32_t i = 0; i < pQInfo->groupInfo.numOfTables; ++i) {
-    //      STableQueryInfo *pTableQueryInfo = pQInfo->pTableQueryInfo[i].pTableQInfo;
-    //      SWindowResInfo * pWindowResInfo = &pTableQueryInfo->windowResInfo;
-    //
-    //      doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
-    //    }
-  } else {
-    SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
-    doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
-  }
-
-  pQuery->order.order = (pQuery->order.order) ^ 1u;
-}
-
 void switchCtxOrder(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    SWITCH_ORDER(pRuntimeEnv->pCtx[i]
-                     .order);  // = (pRuntimeEnv->pCtx[i].order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
+    SWITCH_ORDER(pRuntimeEnv->pCtx[i] .order);
   }
 }
 
@@ -3358,7 +3372,7 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
   SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
 
   SWITCH_ORDER(pQuery->order.order);
-  SET_SUPPLEMENT_SCAN_FLAG(pRuntimeEnv);
+  SET_REVERSE_SCAN_FLAG(pRuntimeEnv);
 
   STsdbQueryCond cond = {
       .twindow = pQuery->window,
@@ -3376,7 +3390,7 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
   switchCtxOrder(pRuntimeEnv);
-  disableFuncInReverseScan(pRuntimeEnv);
+  disableFuncInReverseScan(pQInfo);
 }
 
 static void clearEnvAfterReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusInfo *pStatus) {
@@ -3531,28 +3545,6 @@ void destroyTableQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols) 
 
   cleanupTimeWindowInfo(&pTableQueryInfo->windowResInfo, numOfCols);
   free(pTableQueryInfo);
-}
-
-void changeMeterQueryInfoForSuppleQuery(SQuery *pQuery, STableQueryInfo *pTableQueryInfo) {
-  if (pTableQueryInfo == NULL) {
-    return;
-  }
-
-  // order has change already!
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-  if (!QUERY_IS_ASC_QUERY(pQuery)) {
-    assert(pTableQueryInfo->win.ekey >= pTableQueryInfo->lastKey + step);
-  } else {
-    assert(pTableQueryInfo->win.ekey <= pTableQueryInfo->lastKey + step);
-  }
-
-  pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
-
-  SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
-  pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
-
-  pTableQueryInfo->cur.order = pTableQueryInfo->cur.order ^ 1u;
-  pTableQueryInfo->cur.vgroupIndex = -1;
 }
 
 void restoreIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, STableQueryInfo *pTableQueryInfo) {
@@ -3943,9 +3935,16 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     data += bytes * numOfRows;
   }
 
+  
   // all data returned, set query over
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-    setQueryStatus(pQuery, QUERY_OVER);
+    if (pQInfo->runtimeEnv.stableQuery && isIntervalQuery(pQuery)) {
+      if (pQInfo->tableIndex >= pQInfo->groupInfo.numOfTables) {
+        setQueryStatus(pQuery, QUERY_OVER);
+      }
+    } else {
+      setQueryStatus(pQuery, QUERY_OVER);
+    }
   }
 }
 
@@ -4368,7 +4367,8 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
 
   int64_t st = taosGetTimestampMs();
 
-  TsdbQueryHandleT *pQueryHandle = pRuntimeEnv->pQueryHandle;
+  TsdbQueryHandleT pQueryHandle = IS_MASTER_SCAN(pRuntimeEnv)? pRuntimeEnv->pQueryHandle : pRuntimeEnv->pSecQueryHandle;
+  
   while (tsdbNextDataBlock(pQueryHandle)) {
     if (isQueryKilled(pQInfo)) {
       break;
@@ -4400,7 +4400,7 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
       }
     }
 
-    assert(pTableQueryInfo != NULL && pTableQueryInfo != NULL);
+    assert(pTableQueryInfo != NULL);
     restoreIntervalQueryRange(pRuntimeEnv, pTableQueryInfo);
 
     SDataStatis *pStatis = NULL;
@@ -4759,28 +4759,35 @@ static void createTableQueryInfo(SQInfo *pQInfo) {
   }
 }
 
-static void prepareQueryInfoForReverseScan(SQInfo *pQInfo) {
-  //  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-
-  //  for (int32_t i = 0; i < pQInfo->groupInfo.numOfTables; ++i) {
-  //    STableQueryInfo *pTableQueryInfo = pQInfo->pTableQueryInfo[i].pTableQInfo;
-  //    changeMeterQueryInfoForSuppleQuery(pQuery, pTableQueryInfo);
-  //  }
-}
-
 static void doSaveContext(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
-  SET_SUPPLEMENT_SCAN_FLAG(pRuntimeEnv);
-  disableFuncForReverseScan(pQInfo, pQuery->order.order);
-
-  if (pRuntimeEnv->pTSBuf != NULL) {
-    pRuntimeEnv->pTSBuf->cur.order = pRuntimeEnv->pTSBuf->cur.order ^ 1u;
-  }
-
+  SET_REVERSE_SCAN_FLAG(pRuntimeEnv);
   SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
-  prepareQueryInfoForReverseScan(pQInfo);
+  SWITCH_ORDER(pQuery->order.order);
+  
+  if (pRuntimeEnv->pTSBuf != NULL) {
+    pRuntimeEnv->pTSBuf->cur.order = pQuery->order.order;
+  }
+  
+  STsdbQueryCond cond = {
+      .twindow = pQuery->window,
+      .order   = pQuery->order.order,
+      .colList = pQuery->colList,
+      .numOfCols = pQuery->numOfCols,
+  };
+  
+  // clean unused handle
+  if (pRuntimeEnv->pSecQueryHandle != NULL) {
+    tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
+  }
+  
+  pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableIdGroupInfo);
+  
+  setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
+  switchCtxOrder(pRuntimeEnv);
+  disableFuncInReverseScan(pQInfo);
 }
 
 static void doRestoreContext(SQInfo *pQInfo) {
@@ -4834,8 +4841,6 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
     } else {
       copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
     }
-
-    pQuery->rec.rows += pQuery->rec.rows;
 
     if (pQuery->rec.rows == 0) {
       //      vnodePrintQueryStatistics(pSupporter);
@@ -6287,7 +6292,10 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       SGroupItem* item = taosArrayGet(pa, i);
     
       char* output = pQuery->sdata[0]->data + i * rsize;
-      *(int64_t*) output = item->id.uid;  // memory align problem
+      varDataSetLen(output, rsize - VARSTR_HEADER_SIZE);
+      
+      output = varDataVal(output);
+      *(int64_t*) output = item->id.uid;  // memory align problem, todo serialize
       output += sizeof(item->id.uid);
       
       *(int32_t*) output = item->id.tid;

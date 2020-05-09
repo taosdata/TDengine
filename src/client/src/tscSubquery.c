@@ -412,10 +412,6 @@ static void updateQueryTimeRange(SQueryInfo* pQueryInfo, int64_t st, int64_t et)
 
 static void tSIntersectionAndLaunchSecQuery(SJoinSupporter* pSupporter, SSqlObj* pSql) {
   SSqlObj* pParentSql = pSupporter->pObj;
-//  SSqlCmd* pCmd = &pSql->cmd;
-//  SSqlRes* pRes = &pSql->res;
-  
-//  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SQueryInfo* pParentQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
   
 //  if (tscNonOrderedProjectionQueryOnSTable(pParentQueryInfo, 0)) {
@@ -601,21 +597,6 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   SSqlCmd* pCmd = &pSql->cmd;
   
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
-//  if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
-//    tscError("%p abort query due to other subquery failure. code:%d, global code:%s", pSql, numOfRows,
-//             tstrerror(pSupporter->pState->code));
-//
-//    quitAllSubquery(pParentSql, pSupporter);
-//    return;
-//  }
-//
-//  if (numOfRows < 0) {
-//    tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
-//    pSupporter->pState->code = numOfRows;
-//    quitAllSubquery(pParentSql, pSupporter);
-//    return;
-//  }
   
   // response of tag retrieve
   if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) {
@@ -1050,6 +1031,55 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 static void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code);
+
+//static void ddx(TAOS* taos) {
+//
+//  SSqlCmd* pCmd = &pSql->cmd;
+//
+//  tscPartiallyFreeSqlObj(pSql);
+////  tscTrace("continue parse sql: %s", pSql->cmd.curSql);
+//
+//  SQueryInfo* pQueryInfo = NULL;
+//  int32_t code = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
+//  assert(code == TSDB_CODE_SUCCESS);
+//
+//  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//
+//  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {  // return the tableId & tag
+//    SSchema      s = {0};
+//    SColumnIndex index = {0};
+//
+//    size_t numOfTags = taosArrayGetSize(pTableMetaInfo->tagColList);
+//    for (int32_t i = 0; i < numOfTags; ++i) {
+//      SColumn* c = taosArrayGetP(pTableMetaInfo->tagColList, i);
+//      index = (SColumnIndex){.tableIndex = 0, .columnIndex = c->colIndex.columnIndex};
+//
+//      SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+//      s = pTagSchema[c->colIndex.columnIndex];
+//
+//      int16_t bytes = 0;
+//      int16_t type = 0;
+//      int16_t inter = 0;
+//
+//      getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
+//
+//      s.type = type;
+//      s.bytes = bytes;
+////      pSupporter->tagSize = s.bytes;
+//    }
+//
+//    // set get tags query type
+//    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
+//
+//    tscAddSpecialColumnForSelect(pQueryInfo, 0, TSDB_FUNC_TID_TAG, &index, &s, TSDB_COL_TAG);
+//    size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
+//
+//    tscTrace( "%p vgroupIndex:%d, type:%d, tid_tag query to retrieve (tableId, tags), "
+//        "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+//        pSql, pTableMetaInfo->vgroupIndex, pQueryInfo->type, tscSqlExprNumOfExprs(pQueryInfo),
+//        numOfCols, pQueryInfo->fieldsInfo.numOfOutput, pQueryInfo->pTableMetaInfo[0]->name);
+//  }
+//}
 
 static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj);
 

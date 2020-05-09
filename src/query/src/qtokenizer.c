@@ -225,6 +225,7 @@ static SKeyword keywordTable[] = {
     {"TBNAME",       TK_TBNAME},
     {"JOIN",         TK_JOIN},
     {"METRICS",      TK_METRICS},
+    {"TBID",         TK_TBID},
     {"STABLE",       TK_STABLE},
     {"FILE",         TK_FILE},
     {"VNODES",       TK_VNODES},

@@ -245,20 +245,7 @@ enum {
   BLK_DATA_ALL_NEEDED = 0x3,
 };
 
-#define IS_FILE_BLOCK(x) (((x)&BLK_FILE_BLOCK) != 0)
-
-#define SET_FILE_BLOCK_FLAG(x) \
-  do {                         \
-    (x) &= (~BLK_CACHE_BLOCK); \
-    (x) |= BLK_FILE_BLOCK;     \
-  } while (0);
-
-#define SET_CACHE_BLOCK_FLAG(x) ((x) = BLK_CACHE_BLOCK | BLK_BLOCK_LOADED);
-
 #define SET_DATA_BLOCK_NOT_LOADED(x) ((x) &= (~BLK_BLOCK_LOADED));
-
-#define SET_DATA_BLOCK_LOADED(x) ((x) |= BLK_BLOCK_LOADED);
-#define IS_DATA_BLOCK_LOADED(x) (((x)&BLK_BLOCK_LOADED) != 0)
 
 typedef struct STwaInfo {
   TSKEY   lastKey;
@@ -290,7 +277,6 @@ void getStatistics(char *priData, char *data, int32_t size, int32_t numOfRow, in
 bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *minval, char *maxval);
 
 bool stableQueryFunctChanged(int32_t funcId);
-
 
 void resetResultInfo(SResultInfo *pResInfo);
 void initResultInfo(SResultInfo *pResInfo);
