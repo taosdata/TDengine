@@ -46,8 +46,9 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 2000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
-sql connect
-sleep 3000
+
+sql reset query cache
+sleep 1000
 
 sql use $db
 sql drop table tb5
@@ -71,13 +72,15 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 2000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
-sql connect
-sleep 3000
+
+sql reset query cache
+sleep 1000
 
 sql use $db
 
 sql create table tb5 using $stb tags(5)
 sql select * from tb5
+print $rows should be 0
 if $rows != 0 then
   return -1
 endi

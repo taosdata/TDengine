@@ -412,10 +412,6 @@ static void updateQueryTimeRange(SQueryInfo* pQueryInfo, int64_t st, int64_t et)
 
 static void tSIntersectionAndLaunchSecQuery(SJoinSupporter* pSupporter, SSqlObj* pSql) {
   SSqlObj* pParentSql = pSupporter->pObj;
-//  SSqlCmd* pCmd = &pSql->cmd;
-//  SSqlRes* pRes = &pSql->res;
-  
-//  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SQueryInfo* pParentQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
   
 //  if (tscNonOrderedProjectionQueryOnSTable(pParentQueryInfo, 0)) {
@@ -601,21 +597,6 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   SSqlCmd* pCmd = &pSql->cmd;
   
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
-//  if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
-//    tscError("%p abort query due to other subquery failure. code:%d, global code:%s", pSql, numOfRows,
-//             tstrerror(pSupporter->pState->code));
-//
-//    quitAllSubquery(pParentSql, pSupporter);
-//    return;
-//  }
-//
-//  if (numOfRows < 0) {
-//    tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
-//    pSupporter->pState->code = numOfRows;
-//    quitAllSubquery(pParentSql, pSupporter);
-//    return;
-//  }
   
   // response of tag retrieve
   if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) {
@@ -1455,7 +1436,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       return;
     } else {  // reach the maximum retry count, abort
       atomic_val_compare_exchange_32(&pState->code, TSDB_CODE_SUCCESS, numOfRows);
-      tscError("%p sub:%p retrieve failed,code:%s,orderOfSub:%d failed.no more retry,set global code:%d", pPObj, pSql,
+      tscError("%p sub:%p retrieve failed,code:%d,orderOfSub:%d failed.no more retry,set global code:%d", pPObj, pSql,
                numOfRows, subqueryIndex, tstrerror(pState->code));
     }
   }

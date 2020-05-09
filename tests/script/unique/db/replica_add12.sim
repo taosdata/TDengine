@@ -73,9 +73,9 @@ endi
 sleep 2000
 
 sql show dnodes
-print dnode1 ==> openVnodes: $data3_1
-print dnode2 ==> openVnodes: $data3_2
-print dnode3 ==> openVnodes: $data3_3
+print dnode1 ==> openVnodes: $data2_1
+print dnode2 ==> openVnodes: $data2_2
+print dnode3 ==> openVnodes: $data2_3
 
 if $data2_1 != 0 then
    return -1
@@ -99,9 +99,9 @@ sleep 10000
 print ======== step3
 	
 sql show dnodes
-print dnode1 ==> openVnodes: $data3_1
-print dnode2 ==> openVnodes: $data3_2
-print dnode3 ==> openVnodes: $data3_3
+print dnode1 ==> openVnodes: $data2_1
+print dnode2 ==> openVnodes: $data2_2
+print dnode3 ==> openVnodes: $data2_3
 
 if $data2_1 != 0 then
    return -1

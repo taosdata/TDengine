@@ -168,9 +168,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_SUCCESS;
   }
   
+  // (uid, tid) + VGID + TAGSIZE + VARSTR_HEADER_SIZE
   if (functionId == TSDB_FUNC_TID_TAG) { // todo use struct
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = dataBytes + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t); // (uid, tid) + VGID + TAGSIZE
+    *bytes = dataBytes + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t) + VARSTR_HEADER_SIZE;
     *interBytes = *bytes;
     return TSDB_CODE_SUCCESS;
   }
@@ -5285,10 +5286,10 @@ SQLAggFuncElem aAggs[] = {{
                           },
                           {
                               // 34
-                              "tid_tag",   // return table id and the corresponding tags for join match
+                              "tid_tag",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_TID_TAG,
                               TSDB_FUNC_TID_TAG,
-                              TSDB_FUNCSTATE_MO,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE,
                               function_setup,
                               noop1,
                               noop2,

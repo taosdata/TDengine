@@ -8,7 +8,8 @@ system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 2
 
 print ============== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start -t
+sleep 3000
 sql connect
 
 sql show mnodes
@@ -19,7 +20,7 @@ if $data2_1 != master then
 endi
 
 print ============== step2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start -t
 sql create dnode $hostname2
 
 $x = 0
@@ -44,8 +45,12 @@ print ============== step3
 sql_error drop dnode $hostname1 -x error1
 print should not drop master
 
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+return
+
 print ============== step4
-system sh/exec_up.sh -n dnode1 -s stop
+system sh/exec_up.sh -n dnode1 -s stop -x SIGINT
 sql_error show mnodes
 print error of no master
 
@@ -78,7 +83,7 @@ if $data2_2 != slave then
 endi
 
 print ============== step7
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start -t
 sql create dnode $hostname3
 sleep 5000
 

@@ -55,11 +55,6 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (grantInit() < 0) {
-    mError("failed to init grant");
-    return -1;
-  }
-
   if (mgmtInitUsers() < 0) {
     mError("failed to init users");
     return -1;
@@ -99,6 +94,11 @@ int32_t mgmtStartSystem() {
     mError("failed to init balance")
   }
 
+  if (grantInit() < 0) {
+    mError("failed to init grant");
+    return -1;
+  }
+
   if (mgmtInitServer() < 0) {
     return -1;
   }
@@ -132,20 +132,19 @@ int32_t mgmtInitSystem() {
 
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
-  grantCleanUp();
-  mgmtCleanupMnodes();
-  balanceCleanUp();
+  tsMgmtIsRunning = false;
   mgmtCleanUpShell();
   mgmtCleanupServer();
-  mgmtCleanUpAccts();
+  grantCleanUp();
+  balanceCleanUp();
+  sdbCleanUp();
+  mgmtCleanupMnodes();
   mgmtCleanUpTables();
   mgmtCleanUpVgroups();
   mgmtCleanUpDbs();
   mgmtCleanupDnodes();
   mgmtCleanUpUsers();
-  sdbCleanUp();
-  taosTmrCleanUp(tsMgmtTmr);
-  tsMgmtIsRunning = false;
+  mgmtCleanUpAccts();
   mPrint("mgmt is cleaned up");
 }
 

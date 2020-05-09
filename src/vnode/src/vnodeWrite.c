@@ -184,7 +184,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   int16_t numOfColumns  = htons(pTable->numOfColumns);
   int16_t numOfTags     = htons(pTable->numOfTags);
   int32_t sid           = htonl(pTable->sid);
-  uint64_t uid           = htobe64(pTable->uid);
+  uint64_t uid          = htobe64(pTable->uid);
   SSchema *pSchema = (SSchema *) pTable->data;
 
   int32_t totalCols = numOfColumns + numOfTags;
@@ -231,13 +231,15 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   int32_t code = 0;
 
   vTrace("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
-  // TODO: drop stable in vvnode
-  //int64_t uid = htobe64(pTable->uid);
-  //void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
-  //rpcRsp.code = tsdbDropTable(pTsdb, pTable->uid);
+  
+  STableId stableId = {
+    .uid = htobe64(pTable->uid),
+    .tid = -1
+  };
 
-  code = TSDB_CODE_SUCCESS;
-  vTrace("vgId:%d, stable:%s, drop stable result:%x", pVnode, pTable->tableId, code);
+  code = tsdbDropTable(pVnode->tsdb, stableId);
+  
+  vTrace("vgId:%d, stable:%s, drop stable result:%s", pVnode, pTable->tableId, tstrerror(code));
  
   return code;
 }
