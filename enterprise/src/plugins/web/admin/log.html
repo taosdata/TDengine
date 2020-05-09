@@ -53,13 +53,32 @@
 	<!-- content begin -->
 	<div class="container">
 		<div class="panel panel-default dbpanel">
-			<div class="panel-body dbheadforbody">
-				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">System Events</label>	
-				<a id="download" style="display:none" download="events.csv" href="#">download</a>
-				<button type="button" class="btn btn-default btn-sm" style="float:right;margin-right:4px" onclick="dbGotoLog()">
-					<span class="glyphicon glyphicon-refresh"></span> 
-					Refresh
-				</button>	
+			<div class="panel-heading dbhead">
+				<label class="control-label" id="dbTableName" style="font-weight:bold;padding-top:4px;height:1px">Audit Events</label>
+				<div class="nav navbar-nav navbar-right dbtop" style="padding-left:16px;padding-right:14px">
+					<form class="form-inline">
+						<div class="form-group">
+							<input type="text" class="form-control" id="dbBeginTime" style="font-size:12px;width:155px;height:28px;" placeholder="1970-01-01 00:00:00">
+						</div>
+						<div class="form-group">
+							<input type="text" class="form-control" id="dbEndTime" style="font-size:12px;width:155px;height:28px;" placeholder="2050-01-01 12:34:56">
+						</div>						
+						<div class="form-group">
+							<input type="text" class="form-control" id="dbInfoLevel" style="font-size:12px;width:155px;height:28px;" placeholder="Info level:0/1/2">
+						</div>
+						<div class="form-group">
+							<input type="text" class="form-control" id="dbKeyWords" style="font-size:12px;width:155px;height:28px;" placeholder="key words">
+						</div>
+						<div class="form-group">
+							<input type="text" class="form-control" id="dbIpAddr" style="font-size:12px;width:155px;height:28px;" placeholder="dnode ip">
+						</div>						
+						<a id="download" style="display:none" download="tableData.csv" href="#">download</a>
+						<button type="button" class="btn btn-default btn-sm" onclick="dbFilter()">
+							<span class="glyphicon glyphicon-plus-sign"></span> 
+							Query
+						</button>	
+					</form>
+				</div>
 			</div>
 			<div class="table-responsive" id="dbShowListDiv">
 				<table class="table table-striped table-bordered table-hover dbtable" id="dbTable" style="font-size:12px">
@@ -178,15 +197,52 @@
 		}
 		DbCache.OnData(d);
 	}
-	
+
+	function dbFilter()
+	{
+		DbCache.Clear();
+		dbQuery();
+	}
+
 	function dbQuery() {
+		var sql = "select * from log.log";
+		
+		var begin = $.trim($('#dbBeginTime').val());
+		var end = $.trim($('#dbEndTime').val());
+		var infoLevel = $.trim($('#dbInfoLevel').val())
+		var keywords = $.trim($('#dbKeyWords').val())
+		var ipaddr = $.trim($('#dbIpAddr').val())
+			
+		if (begin != "" && end != ""){
+			sql = sql + " where ts >= '" + begin + "' and ts <= '" + end + "'";
+		}
+		else if (begin != "") {
+			sql = sql + " where ts >= '" + begin + "'";
+		}
+		else if  (end != "") {
+			sql = sql + " where ts <= '" + end + "'";
+		}
+		else {
+			sql = sql + " where ts > 0"
+		}
+
+		if (infoLevel != "") {
+			sql = sql + " and level = " + infoLevel;
+		}
+		if (keywords != "") {
+			sql = sql + " and content like '%" + keywords +"%'";
+		}
+		if (ipaddr != "") {
+			sql = sql + " and ipaddr ='" + ipaddr +"'";
+		}
+
 		$.ajax({
 			type: "post",
 			url: "admin/sql",
 			headers: {
 				'Authorization' : "Taosd " + DbSession.GetToken()
 			},
-			data: "select * from log.log",
+			data: sql,
 			dataType: "json",
 			success: dbQueryCb,
 			error: function(msg) { 
