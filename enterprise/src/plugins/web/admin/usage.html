@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>Usage</title>
+	<link rel="icon" href="images/db.png">
+	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
+	<link type="text/css" href="css/info.css" rel="stylesheet">
+	<link type="text/css" href="css/edit.css" rel="stylesheet">
+	<link type="text/css" href="css/dlg.css" rel="stylesheet">
+	<script type="text/javascript" src="js/dbUtil.js"></script>
+	<script type="text/javascript" src="js/dbCache.js"></script>
+	<script type="text/javascript" src="js/dbSession.js"></script>
+	<script type="text/javascript" src="js/dbBase64.js"></script>
+</head>
+<body class="graph" onload="dbOnLoad()">
+	<!-- navbar begin -->
+	<nav class="navbar navbar-inverse navbar-static-top">
+		<div class="container graph-fluid ">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand graph-brand" href="home.html">TDengine</a>
+			</div>
+			<!--/.nav-collapse -->
+			<div id="navbar" class="navbar-collapse collapse">
+				<ul class="nav navbar-nav">					
+					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="tables.html">Tables</a></li>
+					<li><a href="users.html">Users</a></li>
+					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
+					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li class="active"><a href="usage.html">Usage</a></li>
+					<li><a href="query.html">Queries</a></li>
+					<li><a href="shell.html">Shell</a></li>
+				</ul>
+				<ul class="nav navbar-nav navbar-right">
+					<li><a href="userInfo.html" id="user"></a></li>
+					<li><a href="login.html">Logout</a></li>
+				</ul>
+			</div>
+			<!--/.nav-label -->
+		</div>
+	</nav>
+	<!-- navbar end -->
+	<!-- content begin -->
+	<div class="container">
+		<div class="panel panel-default dbpanel">
+			<div class="panel-body dbheadforbody" style="border-bottom:1px solid #ddd; padding-right:5px">
+				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Usage</label>	
+				<button type="button" class="btn btn-default btn-sm" style="float:right;margin-right:4px" onclick="dbGotoMonitor()">
+					<span class="glyphicon glyphicon-refresh"></span> 
+					Refresh
+				</button>				
+				<div class="form-group" style="float:right;height:8px;margin-right:4px">
+					<div class="dropdown">
+						<button class="btn btn-default btn-sm dropdown-toggle" type="button" id="dropdownMenu2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="width:105px">
+						Last 1 hour
+							<span class="caret"></span>
+						</button>
+						<ul class="dropdown-menu" aria-labelledby="dropdownMenu2" style="min-width:100px">
+							<li><a href="#" style='font-size:12px' onclick="dbSelectInterval('last1hour')" id="last1hour">Last 1 hour</a></li>
+							<li><a href="#" style='font-size:12px' onclick="dbSelectInterval('last4hours')" id="last4hours">Last 4 hours</a></li>
+							<li><a href="#" style='font-size:12px' onclick="dbSelectInterval('last12hours')" id="last12hours">Last 12 hours</a></li>
+							<li><a href="#" style='font-size:12px' onclick="dbSelectInterval('last1day')" id="last1day">Last 1 day</a></li>
+							<li><a href="#" style='font-size:12px' onclick="dbSelectInterval('last7days')" id="last7days">Last 7 days</a></li>
+							<li><a href="#" style='font-size:12px' onclick="dbSelectInterval('last30days')" id="last30days">Last 30 days</a></li>
+						</ul>
+					</div>
+				</div>
+				
+				<a id="download" style="display:none" download="monitor.csv" href="#">download</a>
+			</div>
+			
+			<div class="row" style="margin-bottom:0px;margin-right:5px;margin-left:5px" id="dbShowGraphDiv">
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
+					<div class="row" >
+						<div class="col-sm-12 col-xs-12 dbcol2" id="storageDivId" style="height:213px;">
+						</div>
+					</div>
+				</div>
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
+					<div class="row " >
+						<div class="col-sm-12 col-xs-12 dbcol2" id="timeseriesDivId" style="height:213px;">
+						</div>
+					</div>
+				</div>
+			
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
+					<div class="row" >
+						<div class="col-sm-12 col-xs-12 dbcol2" id="dbsDivId" style="height:213px;">
+						</div>
+					</div>
+				</div>
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
+					<div class="row " >
+						<div class="col-sm-12 col-xs-12 dbcol2" id="usersDivId" style="height:213px;">
+						</div>
+					</div>
+				</div>
+			
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
+					<div class="row" >
+						<div class="col-sm-12 col-xs-12 dbcol2" id="streamsDivId" style="height:213px;">
+						</div>
+					</div>
+				</div>
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:233px;">
+					<div class="row " >
+						<div class="col-sm-12 col-xs-12 dbcol2" id="querytimeDivId" style="height:213px;">
+						</div>
+					</div>
+				</div>
+				
+			</div>
+			
+			<div class="table-responsive" id="dbShowListDiv" style="display:none">
+				<table class="table table-striped table-bordered table-hover dbtable" id="dbTable" style="font-size:12px">
+					<thead id="dbTableHead">
+						<tr>
+							<th style="font-weight: normal"></th>
+							<th style="font-weight: normal"></th>
+							<th style="font-weight: normal;text-align:center" colspan="2">TimeSeries</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Storage(GB)</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">QueryTime(Hour)</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Databases</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Users</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Streams</th>
+						</tr>
+						<tr>
+							<th style="font-weight: normal">No</th>
+							<th style="font-weight: normal">timestamp</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+						</tr>
+					</thead>
+					<tbody id="dbTableBody">	
+					</tbody>
+				</table>
+			</div>
+			<div class="panel-body dbbody">
+				<div class="btn-group btn-group-sm">
+					<button type="button" class="btn btn-default btn-sm" onclick="DbCache.CacheToCsv()">
+						<span class="glyphicon glyphicon-export"></span> 
+						Export
+					</button>
+					<button type="button" class="btn btn-default btn-sm" id="dbShowGraphBtn" onclick="dbShowGraph(true)">
+						<span class="glyphicon glyphicon-stats"></span> 
+						Graph
+					</button>
+					<button type="button" style="display:none" class="btn btn-default btn-sm" id="dbShowListBtn" onclick="dbShowGraph(false)">
+						<span class="glyphicon glyphicon-th-list"></span> 
+						List
+					</button>
+				</div>
+				<div class="btn-group btn-group-sm"  style="float:right;" id='dbPageDivId'>
+					<button class="btn btn-default" type="button" onclick="DbCache.First()">
+						<span><<</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Prev()">
+						<span>&nbsp<&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Next()">
+						<span>&nbsp>&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.End()">
+						<span>>></span> 
+					</button>
+				</div>
+			</div>
+		</div>		
+		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data</a></div>	
+	</div>
+
+	<!-- content end -->
+	<div class="modal modalstyle" id="infoDialog" tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="infoType"></h4>
+				</div>
+				<div class="modal-body">
+					<p id="infoContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<div class="modal modalstyle" id="confirmDialog" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="confirmType">Confirm</h4>
+				</div>
+				<div class="modal-body">
+					<p id="confirmContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" onclick="dbExecuteDelete()" data-dismiss="modal">Confirm</button>
+					<button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<script type="text/javascript">
+	
+	dbUsageIntervalId = "last1hour";
+	dbUsageInterval = 60000;
+	
+	function dbShowGraph(model)
+	{
+		if (model) {
+			$('#dbShowGraphBtn').hide();
+			$('#dbShowListBtn').show();
+			$('#dbShowGraphDiv').show();
+			$('#dbShowListDiv').hide();
+			$('#dbPageDivId').hide();
+			
+			if (DbStorageChart.graph != null) {
+				DbStorageChart.graph.resize();
+				DbTimeSeriesChart.graph.resize();
+				DbQueryTimeChart.graph.resize();
+				DbStreamsChart.graph.resize();
+				DbDbsChart.graph.resize();
+				DbUsersChart.graph.resize();
+			}
+		}
+		else {
+			$('#dbShowGraphBtn').show();
+			$('#dbShowListBtn').hide();
+			$('#dbShowGraphDiv').hide();
+			$('#dbShowListDiv').show();
+			$('#dbPageDivId').show();
+		}
+	}
+	
+	function dbOnLoad()
+	{
+		dbShowGraph(true);
+		
+		DbStorageChart.Init('storageDivId');
+		DbQueryTimeChart.Init('querytimeDivId');
+		DbTimeSeriesChart.Init('timeseriesDivId');
+		DbStreamsChart.Init('streamsDivId');
+		DbDbsChart.Init('dbsDivId');
+		DbUsersChart.Init('usersDivId');
+		
+		DbCache.Clear();
+		DbCache.Init(null, dbFillTableBody);
+				
+		DbSession.ValidSession();
+		
+		dbQueryAcct();
+	}
+	
+	function dbQueryAcct()
+	{
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			dataType: "json",
+			data: "show users",
+			success: dbQueryAcctCallback,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbQueryAcctCallback(msg.responseJSON);
+				}
+				else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});		
+	}
+	
+	function dbQueryAcctCallback(d) 
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			dbSetAcctInfo(d.data);
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+	
+	function dbSetAcctInfo(data) 
+	{
+		if (data.length <= 0) return;
+		
+		DbSession.SetAcct(data[0][3]);
+		dbQueryAll();
+	}
+	
+	function dbSelectInterval(interval) {
+		dbUsageIntervalId = interval;
+		var id = '#' + dbUsageIntervalId;
+		$('#dropdownMenu2').html($(id).text() + '<span class="caret"></span>');	
+		dbQueryAll();
+	}
+
+	function dbQueryAll(dnode)
+	{
+		var interval = "interval(1m)";
+		var begintime = Number(new Date());
+		var endtime = begintime;
+		
+		if (dbUsageIntervalId == "last1hour") {
+			interval = "interval(1m)";	//60
+			begintime -= 60*60*1000;
+		}
+		else if (dbUsageIntervalId == "last4hours") {
+			interval = "interval(2m)";	//120
+			begintime -= 60*60*1000*4;
+		}
+		else if (dbUsageIntervalId == "last12hours") {
+			interval = "interval(5m)";	//144
+			begintime -= 60*60*1000*12;
+		}
+		else if (dbUsageIntervalId == "last1day") {
+			interval = "interval(10m)";	//144
+			begintime -= 60*60*1000*24;
+		}
+		else if (dbUsageIntervalId == "last7days") {
+			interval = "interval(1h)";	//164
+			begintime -= 60*60*1000*24*7;
+		}
+		else if (dbUsageIntervalId == "last30days") {
+			interval = "interval(4h)";	//180
+			begintime -= 60*60*1000*24*30;
+		}
+		else {}
+		//begintime = "now-1h";
+		//endtime='now';
+		
+		var user = DbSession.GetUser();
+
+        begintime *= 1000;
+        endtime *= 1000;
+		//log. sys.
+		var sql = "select avg(currentPointsPerSecond), last(maxPointsPerSecond), avg(totalTimeSeries), last(maxTimeSeries), avg(totalStorage), last(maxStorage), avg(totalQueryTime), last(maxQueryTime), avg(totalInbound), last(maxInbound), avg(totalOutbound), last(maxOutbound), avg(totalDbs), last(maxDbs), avg(totalUsers), last(maxUsers), avg(totalStreams), last(maxStreams) from log.acct_" + DbSession.GetAcct() + " where ts>=" + begintime + " and ts<=" + endtime + " " + interval + " fill(prev);";
+
+		dbQuery(sql, dbMonitorCallback)
+	}
+	
+	function dbMonitorCallback(d)
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			for (var row = 0; row < d.data.length; ++row) {
+				for (var col = 1; col < 19; col++) {
+					if (d.data[row][col] == "NULL" || d.data[row][col] == "null")
+						d.data[row][col] = 0;
+				}				
+			}
+			
+			for (var row = 0; row < d.data.length; ++row) {
+				d.data[row][5] /= (1024*1024*1024);
+				d.data[row][6] /= (1024*1024*1024);
+				d.data[row][7] /= (3600);
+				d.data[row][8] /= (3600);				
+			}
+			
+			DbStorageChart.OnData(d);
+			DbQueryTimeChart.OnData(d);
+			DbTimeSeriesChart.OnData(d);
+			DbStreamsChart.OnData(d);
+			DbDbsChart.OnData(d);
+			DbUsersChart.OnData(d);
+			
+			DbCache.Clear();
+			DbCache.OnData(d);
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+		
+	var dbCallback;
+	function dbQuery(sql, callback) {
+		dbCallback = callback;
+		
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+
+			//sys monitor
+			headers: {
+				'Authorization' : "Basic " + DbBase64.encode("monitor:secretkey")
+			},
+			data: sql,
+			dataType: "json",
+			success: dbQueryCb,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbQueryCb(msg.responseJSON);
+				}
+				else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});		
+	}
+	
+	function dbQueryCb(d) 
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			dbCallback(d);
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+	
+	function dbFillTableBody(d) 
+	{
+		var rowNum = d.data.length;
+		var rowBegin = "<tr>";
+		var rowEnd = "</tr>";
+		var colNum = d.head.length;		
+		var colBegin = "<td>";
+		var colEnd = "</td>";
+		
+		var rowIndex = 0;
+		var bodyContent = "";
+		for (rowIndex = 0; rowIndex < rowNum; ++rowIndex) {
+			var row = rowBegin + colBegin + DbCache.GetRowIndex(rowIndex) + colEnd;
+			var data = d.data[rowIndex]; 	
+			
+			var ts = data[0];
+			
+			var curTimeSeries = data[3];
+			var maxTimeSeries = data[4];
+			var curStorage = data[5].toFixed(1);
+			var maxStorage = data[6].toFixed(1);
+			var curQueryTime = data[7].toFixed(2);
+			var maxQueryTime = data[8].toFixed(2);
+			var curDatabases = data[13];
+			var maxDatabases = data[14];
+			var curUsers = data[15];
+			var maxUsers = data[16];
+			var curStreams = data[17];
+			var maxStreams = data[18];
+			
+			row = row + colBegin + ts + colEnd;
+			row = row + colBegin + curTimeSeries + colEnd;
+			row = row + colBegin + maxTimeSeries + colEnd;
+			row = row + colBegin + curStorage + colEnd;
+			row = row + colBegin + maxStorage + colEnd;
+			row = row + colBegin + curQueryTime + colEnd;
+			row = row + colBegin + maxQueryTime + colEnd;
+			row = row + colBegin + curDatabases + colEnd;
+			row = row + colBegin + maxDatabases + colEnd;
+			row = row + colBegin + curUsers + colEnd;
+			row = row + colBegin + maxUsers + colEnd;
+			row = row + colBegin + curStreams + colEnd;
+			row = row + colBegin + maxStreams + colEnd;
+			
+			bodyContent += row;
+		}
+		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
+			var row = rowBegin + colBegin + '-' + colEnd;
+			for (colIndex = 0; colIndex < 13; colIndex++) {
+				row = row + colBegin + colEnd;
+			}
+			bodyContent += row;
+		}
+		
+		$('#dbTableBody').html(bodyContent);
+	}	
+	
+
+//taosEcharts.js	
+//var DbCurveColor = ['rgb(70,190,233)', 'rgb(255,160,34)', 'rgb(166,200,76)'];
+//var DbCurveColor = ['rgb(109,202,238)', 'rgb(255,180,79)', 'rgb(183,210,108)'];
+//var DbCurveColor = ['rgb(123,208,240)', 'rgb(255,201,128)', 'rgb(186,213,117)'];
+//var DbCurveColor = ['rgb(143,215,241)', 'rgb(255,207,142)', 'rgb(199,220,141)'];
+
+var DbCurveColor = ['rgb(109,202,238)', 'rgb(255,180,79)', 'rgb(183,210,108)'];
+var DbAreaColor = ['rgb(143,215,241)', 'rgb(255,207,142)', 'rgb(199,220,141)'];
+
+var dbIsUseTime = false;
+
+var DbEchartOption = new function() {
+	this.grid = function() {		
+		return {
+			top: 38,
+			bottom: 46,
+			left: 44,
+			right: 15
+		};
+	};
+	this.xAxis = function() {
+		return {
+			//type: 'time',
+			type: 'category',
+			splitLine: {
+				show: true,
+				lineStyle: {
+					color: "#d4d4d4",
+					type: "solid",
+					width: 0.5
+				},
+				interval: function (index, value) {
+					if (index == 0) {
+						return false;
+					}
+					var date = new Date(value);
+					var minute = date.getMinutes() * 1;
+					var hour = date.getHours() * 1;
+					var month = (date.getMonth()) * 1 + 1;
+					var day = date.getDate() * 1;
+					
+					if (dbUsageIntervalId == "last1hour") {
+						if (minute % 15 == 0) return true;
+					}
+					else if (dbUsageIntervalId == "last4hours") {
+						if (minute == 0) return true;
+					}
+					else if (dbUsageIntervalId == "last12hours") {
+						if (hour % 3 == 0 && minute == 0) return true;
+					}
+					else if (dbUsageIntervalId == "last1day") {
+						if (hour % 6 == 0 && minute == 0) return true;
+					}
+					else if (dbUsageIntervalId == "last7days") {
+						if (hour == 0 && minute == 0) return true;
+					}
+					else if (dbUsageIntervalId == "last30days") {
+						if (day % 5 == 0 && hour == 0 && minute == 0) return true;
+					}
+					
+					return "";				
+				}
+			},
+			splitNumber : 4,
+			axisLine : {
+				show : false,
+			},
+			axisTick : {
+				show : false,
+			},
+			axisLabel : {
+				show : true,
+				showMinLabel : false,
+				showMaxLabel : false,
+				interval: 0,
+				formatter: function (value, index) {
+					if (index == 0) {
+						return "";
+					}
+					var date = new Date(value);
+					var minute = date.getMinutes() * 1;
+					var hour = date.getHours() * 1;
+					var month = (date.getMonth()) * 1 + 1;
+					var day = date.getDate() * 1;
+					
+					showHour = hour;
+					showMonth = month;
+					showDay = day;
+					showMinute = minute;
+					if (hour < 10) showHour = "0" + hour;
+					if (minute < 10) showMinute = "0" + minute;
+					if (day < 10) showDay = "0" + day;
+					if (month < 10) showMonth = "0" + month;
+					
+					if (dbUsageIntervalId == "last1hour") {
+						if (minute % 15 == 0) return showHour + ":" + showMinute;
+					}
+					else if (dbUsageIntervalId == "last4hours") {
+						if (minute == 0) return showHour + ":" + showMinute;
+					}
+					else if (dbUsageIntervalId == "last12hours") {
+						if (hour % 3 == 0 && minute == 0) return showHour + ":" + showMinute;
+					}
+					else if (dbUsageIntervalId == "last1day") {
+						if (hour % 6 == 0 && minute == 0) return showHour + ":" + showMinute;
+					}
+					else if (dbUsageIntervalId == "last7days") {
+						if (hour == 0 && minute == 0) return showMonth + "-" + showDay;
+					}
+					else if (dbUsageIntervalId == "last30days") {
+						if (day % 5 == 0 && hour == 0 && minute == 0) return showMonth + "-" + showDay;
+					}
+					
+					return "";
+				}
+			},
+			
+			data: [],
+		};
+	};
+	
+	this.title = function() {
+		return {
+			text: '',
+			show: true,
+			x: 'center',  
+			y: 'top',
+			padding : [12, 0, 0, 0],
+			textStyle : {
+				fontStyle: 'normal',
+				fontSize: '12.5',
+				fontWeight: '100',
+				fontFamily: 'Arial,sans-serif,Hiragino Sans GB,Microsoft Yahei'
+			}
+		};
+	};	
+};
+
+var DbStorageChart = new function() {
+	this.maxVal = 0;
+	this.graph = null;
+	this.data = null;
+	this.option = {
+		backgroundColor: 'rgb(245,245,245)',
+		animation: false,
+		title: DbEchartOption.title(),
+		grid: DbEchartOption.grid(),
+		xAxis: DbEchartOption.xAxis(),
+		tooltip:{
+			trigger: 'axis',
+			textStyle: {
+				fontSize: 12,
+			},
+			formatter: function(value) 
+			{ 
+				var showdate = value[0].axisValueLabel.substring(5, 16);					
+				if (dbIsUseTime) {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' GB<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' GB';
+				}
+				else {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' GB<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' GB';
+				
+				}
+			} 
+		},
+		legend: {
+			show: true,  
+			x: 'left',  
+			y: 'bottom',  
+			data:['Current Storage', 'Maximum Storage'],
+			padding : [0, 0, 9, 44],
+		},
+		yAxis: {
+			name: '',
+			nameTextStyle : {
+				padding : [0, 0, 0, 58],
+			},
+			type: 'value',
+			splitNumber: 5,
+			min: 0,
+			splitLine: {
+				show: true,
+				lineStyle: {
+					color: "#d4d4d4",
+					type: "solid",
+					width: 0.5
+				}
+			},
+			axisLine : {
+				show : false,
+			},
+			axisTick : {
+				show : false,
+			},
+			axisLabel : {
+				show : true,
+				showMinLabel : true,
+				showMaxLabel : true,
+				interval: 0,
+				formatter: function (value, index) {	
+					return dbGetValue(value, DbStorageChart.maxVal);	
+				}
+			},
+		},
+		series: [
+			{
+				name: 'current',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[0],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[0],
+					}
+				},
+				areaStyle: {normal: {color: {
+					type: 'linear',
+					x: 0,
+					y: 0,
+					x2: 0,
+					y2: 1,
+					colorStops: [{
+						offset: 0, color: DbAreaColor[0],
+					}, {
+						offset: 1, color: DbAreaColor[0],
+					}],
+					globalCoord: false
+				}}},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
+			}
+		]
+	};	
+	
+	this.Init = function(divid)
+	{
+		this.graph = echarts.init(document.getElementById(divid));
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	};  
+
+	this.OnData = function(d)
+	{
+		if (d == null) {
+			return;
+		}
+		this.data = d;
+		this.option.series[0].data = [];
+		this.option.series[1].data = [];
+		this.option.xAxis.data = [];
+		this.maxVal = 0;
+		
+		var length = d.data.length;
+		for (var row = 0; row < length; ++row) {
+			var data = d.data[row]; 	
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[5]];
+				this.option.series[1].data[row] = [data[0],data[6]];				
+			}
+			else {
+				this.option.series[0].data[row] = data[5];
+				this.option.series[1].data[row] = data[6];
+			}
+			this.option.title.text = "Storage(GB)";
+			this.maxVal = Math.max(this.maxVal, data[5]);
+			this.maxVal = Math.max(this.maxVal, data[6]);
+		}
+		
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	}
+};
+
+var DbQueryTimeChart = new function() {
+	this.maxVal = 0;
+	this.graph = null;
+	this.data = null;
+	this.option = {
+		backgroundColor: 'rgb(245,245,245)',
+		animation: false,
+		title: DbEchartOption.title(),
+		grid: DbEchartOption.grid(),
+		xAxis: DbEchartOption.xAxis(),
+		tooltip:{
+			trigger: 'axis',
+			textStyle: {
+				fontSize: 12,
+			},
+			formatter: function(value) 
+			{ 
+				var showdate = value[0].axisValueLabel.substring(5, 16);
+				if (dbIsUseTime) {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' Hour<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' Hour';
+				}
+				else {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' Hour<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' Hour';
+				}
+			} 
+		},
+		legend: {
+			show: true,  
+			x: 'left',  
+			y: 'bottom',  
+			data:['Current QueryTime', 'Maximum QueryTime'],
+			padding : [0, 0, 9, 44],
+		},
+		yAxis: {
+			name: '',
+			nameTextStyle : {
+				padding : [0, 0, 0, 47],
+			},
+			type: 'value',
+			splitNumber: 5,
+			min: 0,
+			splitLine: {
+				show: true,
+				lineStyle: {
+					color: "#d4d4d4",
+					type: "solid",
+					width: 0.5
+				}
+			},
+			axisLine : {
+				show : false,
+			},
+			axisTick : {
+				show : false,
+			},
+			axisLabel : {
+				show : true,
+				showMinLabel : true,
+				showMaxLabel : true,
+				interval: 0,
+				formatter: function (value, index) {
+					return dbGetValue(value, DbQueryTimeChart.maxVal);	
+				}
+			},
+		},
+		series: [
+			{
+				name: 'current',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[0],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[0],
+					}
+				},
+				areaStyle: {normal: {color: {
+					type: 'linear',
+					x: 0,
+					y: 0,
+					x2: 0,
+					y2: 1,
+					colorStops: [{
+						offset: 0, color: DbAreaColor[0],
+					}, {
+						offset: 1, color: DbAreaColor[0],
+					}],
+					globalCoord: false
+				}}},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
+			}
+		]
+	};	
+	
+	this.Init = function(divid)
+	{
+		this.graph = echarts.init(document.getElementById(divid));
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	};  
+
+	this.OnData = function(d)
+	{
+		if (d == null) {
+			return;
+		}
+		this.data = d;
+		this.option.series[0].data = [];
+		this.option.series[1].data = [];
+		this.option.xAxis.data = [];
+		this.maxVal = 0;
+		
+		var length = d.data.length;
+		for (var row = 0; row < length; ++row) {
+			var data = d.data[row]; 	
+			this.option.xAxis.data[row] = data[0];	
+			if (dbIsUseTime) { 
+				this.option.series[0].data[row] = [data[0],data[7]];
+				this.option.series[1].data[row] = [data[0],data[8]];				
+			}
+			else {
+				this.option.series[0].data[row] = data[7];
+				this.option.series[1].data[row] = data[8];
+			}
+			this.option.title.text = "QueryTime(Hour)";
+			this.maxVal = Math.max(this.maxVal, data[7]);
+			this.maxVal = Math.max(this.maxVal, data[8]);
+		}
+		
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	}
+};
+
+var DbTimeSeriesChart = new function() {
+	this.maxVal = 0;
+	this.graph = null;
+	this.data = null;
+	this.option = {
+		backgroundColor: 'rgb(245,245,245)',
+		animation: false,
+		title: DbEchartOption.title(),
+		grid: DbEchartOption.grid(),
+		xAxis: DbEchartOption.xAxis(),
+		tooltip:{
+			trigger: 'axis',
+			textStyle: {
+				fontSize: 12,
+			},
+			formatter: function(value) 
+			{ 
+				var showdate = value[0].axisValueLabel.substring(5, 16);					
+				if (dbIsUseTime) {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
+				}
+				else {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
+				}
+			} 
+		},
+		legend: {
+			show: true,  
+			x: 'left',  
+			y: 'bottom',  
+			data:['Current TimeSeries', 'Maximum TimeSeries'],
+			padding : [0, 0, 9, 44],
+		},		
+		yAxis: {
+			name: '',
+			nameTextStyle : {
+				padding : [0, 0, 0, 61],
+			},
+			type: 'value',
+			splitNumber: 5,
+			min: 0,
+			splitLine: {
+				show: true,
+				lineStyle: {
+					color: "#d4d4d4",
+					type: "solid",
+					width: 0.5
+				}
+			},
+			axisLine : {
+				show : false,
+			},
+			axisTick : {
+				show : false,
+			},
+			axisLabel : {
+				show : true,
+				showMinLabel : true,
+				showMaxLabel : true,
+				interval: 0,
+				formatter: function (value, index) {
+					return dbGetValue(value, DbTimeSeriesChart.maxVal);					
+				}
+			},
+		},
+		series: [
+			{
+				name: 'current',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[0],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[0],
+					}
+				},
+				areaStyle: {normal: {color: {
+					type: 'linear',
+					x: 0,
+					y: 0,
+					x2: 0,
+					y2: 1,
+					colorStops: [{
+						offset: 0, color: DbAreaColor[0],
+					}, {
+						offset: 1, color: DbAreaColor[0],
+					}],
+					globalCoord: false
+				}}},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
+			}
+		]
+	};	
+	
+	this.Init = function(divid)
+	{
+		this.graph = echarts.init(document.getElementById(divid));
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	};  
+
+	this.OnData = function(d)
+	{
+		if (d == null) {
+			return;
+		}
+		this.data = d;
+		this.option.series[0].data = [];
+		this.option.series[1].data = [];
+		this.option.xAxis.data = [];
+		this.maxVal = 0;
+		
+		var length = d.data.length;
+		for (var row = 0; row < length; ++row) {
+			var data = d.data[row]; 	
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[3]];
+				this.option.series[1].data[row] = [data[0],data[4]];				
+			}
+			else {
+				this.option.series[0].data[row] = data[3];
+				this.option.series[1].data[row] = data[4];
+			}
+			this.option.title.text = "TimeSeries";
+			this.maxVal = Math.max(this.maxVal, data[3]);
+			this.maxVal = Math.max(this.maxVal, data[4]);
+		}
+		
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	}
+};
+
+var DbStreamsChart = new function() {
+	this.maxVal = 0;
+	this.graph = null;
+	this.data = null;
+	this.option = {
+		backgroundColor: 'rgb(245,245,245)',
+		animation: false,
+		title: DbEchartOption.title(),
+		grid: DbEchartOption.grid(),
+		xAxis: DbEchartOption.xAxis(),
+		tooltip:{
+			trigger: 'axis',
+			textStyle: {
+				fontSize: 12,
+			},
+			formatter: function(value) 
+			{ 
+				var showdate = value[0].axisValueLabel.substring(5, 16);					
+				if (dbIsUseTime) {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
+				}
+				else {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
+				}
+			} 
+		},
+		legend: {
+			show: true,  
+			x: 'left',  
+			y: 'bottom',  
+			data:['Current Streams', 'Maximum Streams'],
+			padding : [0, 0, 9, 44],
+		},
+		yAxis: {
+			name: '',
+			nameTextStyle : {
+				padding : [0, 0, 0, 60],
+			},
+			type: 'value',
+			splitNumber: 5,
+			min: 0,
+			splitLine: {
+				show: true,
+				lineStyle: {
+					color: "#d4d4d4",
+					type: "solid",
+					width: 0.5
+				}
+			},
+			axisLine : {
+				show : false,
+			},
+			axisTick : {
+				show : false,
+			},
+			axisLabel : {
+				show : true,
+				showMinLabel : true,
+				showMaxLabel : true,
+				interval: 0,
+				formatter: function (value, index) {
+					return dbGetValue(value, DbStreamsChart.maxVal);	
+				}
+			},
+		},
+		series: [
+			{
+				name: 'current',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[0],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[0],
+					}
+				},
+				areaStyle: {normal: {color: {
+					type: 'linear',
+					x: 0,
+					y: 0,
+					x2: 0,
+					y2: 1,
+					colorStops: [{
+						offset: 0, color: DbAreaColor[0],
+					}, {
+						offset: 1, color: DbAreaColor[0],
+					}],
+					globalCoord: false
+				}}},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
+			}
+		]
+	};	
+	
+	this.Init = function(divid)
+	{
+		this.graph = echarts.init(document.getElementById(divid));
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	};  
+
+	this.OnData = function(d)
+	{
+		if (d == null) {
+			return;
+		}
+		this.data = d;
+		this.option.series[0].data = [];
+		this.option.series[1].data = [];
+		this.option.xAxis.data = [];
+		this.maxVal = 0;
+		
+		var length = d.data.length;
+		for (var row = 0; row < length; ++row) {
+			var data = d.data[row]; 	
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[17]];
+				this.option.series[1].data[row] = [data[0],data[18]];				
+			}
+			else {
+				this.option.series[0].data[row] = data[17];
+				this.option.series[1].data[row] = data[18];
+			}
+			this.option.title.text = "Streams";
+			this.maxVal = Math.max(this.maxVal, data[17]);
+			this.maxVal = Math.max(this.maxVal, data[18]);
+		}
+		
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	}
+};
+
+var DbDbsChart = new function() {
+	this.maxVal = 0;
+	this.graph = null;
+	this.data = null;
+	this.option = {
+		backgroundColor: 'rgb(245,245,245)',
+		animation: false,
+		title: DbEchartOption.title(),
+		grid: DbEchartOption.grid(),
+		xAxis: DbEchartOption.xAxis(),
+		tooltip:{
+			trigger: 'axis',
+			textStyle: {
+				fontSize: 12,
+			},
+			formatter: function(value) 
+			{ 
+				var showdate = value[0].axisValueLabel.substring(5, 16);
+				if (dbIsUseTime) {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
+				}
+				else {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
+				}
+			} 
+		},
+		legend: {
+			show: true,  
+			x: 'left',  
+			y: 'bottom',  
+			data:['Current Databases', 'Maximum Databases'],
+			padding : [0, 0, 9, 44],
+		},
+		yAxis: {
+			name: '',
+			nameTextStyle : {
+				padding : [0, 0, 0, 37],
+			},
+			type: 'value',
+			splitNumber: 5,
+			min: 0,
+			splitLine: {
+				show: true,
+				lineStyle: {
+					color: "#d4d4d4",
+					type: "solid",
+					width: 0.5
+				}
+			},
+			axisLine : {
+				show : false,
+			},
+			axisTick : {
+				show : false,
+			},
+			axisLabel : {
+				show : true,
+				showMinLabel : true,
+				showMaxLabel : true,
+				interval: 0,
+				formatter: function (value, index) {
+					return dbGetValue(value, DbDbsChart.maxVal);	
+				}
+			},
+		},
+		series: [
+			{
+				name: 'current',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[0],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[0],
+					}
+				},
+				areaStyle: {normal: {color: {
+					type: 'linear',
+					x: 0,
+					y: 0,
+					x2: 0,
+					y2: 1,
+					colorStops: [{
+						offset: 0, color: DbAreaColor[0],
+					}, {
+						offset: 1, color: DbAreaColor[0],
+					}],
+					globalCoord: false
+				}}},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
+			}
+		]
+	};	
+	
+	this.Init = function(divid)
+	{
+		this.graph = echarts.init(document.getElementById(divid));
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	};  
+
+	this.OnData = function(d)
+	{
+		if (d == null) {
+			return;
+		}
+		this.data = d;
+		this.option.series[0].data = [];
+		this.option.series[1].data = [];
+		this.option.xAxis.data = [];
+		this.maxVal = 0;
+		
+		var length = d.data.length;
+		for (var row = 0; row < length; ++row) {
+			var data = d.data[row]; 	
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[13]];
+				this.option.series[1].data[row] = [data[0],data[14]];				
+			}
+			else {
+				this.option.series[0].data[row] = data[13];
+				this.option.series[1].data[row] = data[14];
+			}
+			this.option.title.text = "Databases";
+			this.maxVal = Math.max(this.maxVal, data[13]);
+			this.maxVal = Math.max(this.maxVal, data[14]);
+		}
+		
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	}
+};
+
+var DbUsersChart = new function() {
+	this.maxVal = 0;
+	this.graph = null;
+	this.data = null;
+	this.option = {
+		backgroundColor: 'rgb(245,245,245)',
+		animation: false,
+		title: DbEchartOption.title(),
+		grid: DbEchartOption.grid(),
+		xAxis: DbEchartOption.xAxis(),
+		tooltip:{
+			trigger: 'axis',
+			textStyle: {
+				fontSize: 12,
+			},
+			formatter: function(value) 
+			{ 
+				var showdate = value[0].axisValueLabel.substring(5, 16);					
+				if (dbIsUseTime) {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
+				}
+				else {
+					return showdate + '<br>' 
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
+				}
+			} 
+		},
+		legend: {
+			show: true,  
+			x: 'left',  
+			y: 'bottom',  
+			data:['Current Users', 'Maximum Users'],
+			padding : [0, 0, 9, 44],
+		},		
+		yAxis: {
+			name: '',
+			nameTextStyle : {
+				padding : [0, 0, 0, 44],
+			},
+			type: 'value',
+			splitNumber: 5,
+			min: 0,
+			splitLine: {
+				show: true,
+				lineStyle: {
+					color: "#d4d4d4",
+					type: "solid",
+					width: 0.5
+				}
+			},
+			axisLine : {
+				show : false,
+			},
+			axisTick : {
+				show : false,
+			},
+			axisLabel : {
+				show : true,
+				showMinLabel : true,
+				showMaxLabel : true,
+				interval: 0,
+				formatter: function (value, index) {
+					return dbGetValue(value, DbUsersChart.maxVal);	
+				}
+			},
+		},
+		series: [
+			{
+				name: 'current',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[0],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[0],
+					}
+				},
+				areaStyle: {normal: {color: {
+					type: 'linear',
+					x: 0,
+					y: 0,
+					x2: 0,
+					y2: 1,
+					colorStops: [{
+						offset: 0, color: DbAreaColor[0],
+					}, {
+						offset: 1, color: DbAreaColor[0],
+					}],
+					globalCoord: false
+				}}},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
+			}
+		]
+	};	
+	
+	this.Init = function(divid)
+	{
+		this.graph = echarts.init(document.getElementById(divid));
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	};  
+
+	this.OnData = function(d)
+	{
+		if (d == null) {
+			return;
+		}
+		this.data = d;
+		this.option.series[0].data = [];
+		this.option.series[1].data = [];
+		this.option.xAxis.data = [];
+		this.maxVal = 0;
+		
+		var length = d.data.length;
+		for (var row = 0; row < length; ++row) {
+			var data = d.data[row]; 	
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[15]];
+				this.option.series[1].data[row] = [data[0],data[16]];				
+			}
+			else {
+				this.option.series[0].data[row] = data[15];
+				this.option.series[1].data[row] = data[16];
+			}
+			this.option.title.text = "Users";
+			this.maxVal = Math.max(this.maxVal, data[15]);
+			this.maxVal = Math.max(this.maxVal, data[16]);
+		}
+		
+		this.graph.setOption(this.option);
+		this.graph.resize();		
+	}
+};
+
+function dbGetValue(value, maxVal)
+{
+	if (value == 0) {
+		return "0";
+	}
+	if (maxVal < 1) {
+		return value.toFixed(2);
+	}
+	else if (maxVal < 5) {
+		return value.toFixed(1);
+	}
+	else if (maxVal < 6000) {
+		return value.toFixed(0);
+	}
+	else if (maxVal < 6000000) {
+		return (value / 1000).toFixed(0) + 'K';
+	}
+	else if (maxVal < 6000000000) {
+		return (value / 1000000).toFixed(0) + 'M';
+	}
+	else if (maxVal < 6000000000000) {
+		return (value / 1000000000).toFixed(0) + 'G';
+	}
+	else {
+		return (value / 1000000000000).toFixed(0) + 'T';
+	}
+	
+	return value;
+}
+
+
+
+	</script>
+	
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+	<script src="js/echarts.common.min.js"></script>
+	<script src="js/jquery-2.0.2.min.js"></script>
+	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+</body>
+</html>
