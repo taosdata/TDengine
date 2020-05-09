@@ -35,6 +35,7 @@
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
 				</ul>
@@ -113,8 +114,9 @@
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
 					dbQuerySummaryCallback(msg.responseJSON);
-				}
-				else {
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
 			}		
@@ -189,8 +191,9 @@
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
 					dbQueryEventsCb(msg.responseJSON);
-				}
-				else {
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
 			}		
