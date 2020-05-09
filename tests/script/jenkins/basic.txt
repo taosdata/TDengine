@@ -96,11 +96,6 @@ cd ../../../debug; make
 ./test.sh -f general/insert/query_multi_file.sim
 ./test.sh -f general/insert/tcp.sim
 
-#./test.sh -f general/metrics/disk.sim
-#./test.sh -f general/metrics/metrics.sim
-#./test.sh -f general/metrics/values.sim
-#./test.sh -f general/metrics/vnode3.sim
-
 #parser
 
 # ./test.sh -f general/parser/alter.sim
@@ -161,6 +156,11 @@ cd ../../../debug; make
 # ./test.sh -f general/parser/projection_limit_offset.sim
 # ./test.sh -f general/parser/select_with_tags.sim
 # ./test.sh -f general/parser/groupby.sim
+
+#./test.sh -f general/stable/disk.sim
+#./test.sh -f general/stable/metrics.sim
+#./test.sh -f general/stable/values.sim
+#./test.sh -f general/stable/vnode3.sim
 
 #stream
 
