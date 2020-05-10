@@ -239,7 +239,7 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 
   code = tsdbDropTable(pVnode->tsdb, stableId);
   
-  vTrace("vgId:%d, stable:%s, drop stable result:%s", pVnode, pTable->tableId, tstrerror(code));
+  vTrace("vgId:%d, stable:%s, drop stable result:%s", pVnode->vgId, pTable->tableId, tstrerror(code));
  
   return code;
 }
