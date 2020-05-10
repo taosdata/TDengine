@@ -28,9 +28,9 @@
 #endif
 
 void taosPrintLog(const char * const flags, int dflag, const char * const format, ...);
-#define odbcError(...) if ( odbcdebugFlag & DEBUG_ERROR ) { taosPrintLog("ODBC ERROR ", odbcdebugFlag, __VA_ARGS__); }
-#define odbcWarn(...)  if ( odbcdebugFlag & DEBUG_WARN )  { taosPrintLog("ODBC WARN  ", odbcdebugFlag, __VA_ARGS__); }
-#define odbcTrace(...) if ( odbcdebugFlag & DEBUG_TRACE ) { taosPrintLog("ODBC ", odbcdebugFlag, __VA_ARGS__); }
+#define odbcError(...) if ( odbcDebugFlag & DEBUG_ERROR ) { taosPrintLog("ODBC ERROR ", odbcDebugFlag, __VA_ARGS__); }
+#define odbcWarn(...)  if ( odbcDebugFlag & DEBUG_WARN )  { taosPrintLog("ODBC WARN  ", odbcDebugFlag, __VA_ARGS__); }
+#define odbcTrace(...) if ( odbcDebugFlag & DEBUG_TRACE ) { taosPrintLog("ODBC ", odbcDebugFlag, __VA_ARGS__); }
 #define odbcPrint(...) { taosPrintLog("ODBC INFO ", 255, __VA_ARGS__); }
 
 #define MAX_BIND_COL TSDB_MAX_COLUMNS
