@@ -2969,11 +2969,12 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
     char* output = pCtx->aOutputBuf;
   
     if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-      *(int16_t*) output = pCtx->tag.nLen;
-      output += VARSTR_HEADER_SIZE;
+      varDataSetLen(output, pCtx->tag.nLen);
+      tVariantDump(&pCtx->tag, varDataVal(output), pCtx->outputType);
+    } else {
+      tVariantDump(&pCtx->tag, output, pCtx->outputType);
     }
     
-    tVariantDump(&pCtx->tag, output, pCtx->outputType);
     pCtx->aOutputBuf += pCtx->outputBytes;
   }
 }

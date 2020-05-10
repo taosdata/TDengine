@@ -99,7 +99,8 @@ echo "cDebugFlag       135"                  >> $TAOS_CFG
 echo "httpDebugFlag    135"                  >> $TAOS_CFG
 echo "monitorDebugFlag 135"                  >> $TAOS_CFG
 echo "udebugFlag       135"                  >> $TAOS_CFG
-echo "clog             0"                    >> $TAOS_CFG
+echo "tablemetakeeptimer 5"                  >> $TAOS_CFG
+echo "wal              0"                    >> $TAOS_CFG
 echo "asyncLog         0"                    >> $TAOS_CFG
 echo "locale           en_US.UTF-8"          >> $TAOS_CFG
 echo " "                                     >> $TAOS_CFG

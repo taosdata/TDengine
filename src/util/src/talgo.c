@@ -144,11 +144,11 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const
   }
   
   if (leftPartEnd > start) {
-    tqsortImpl(src, size, start, leftPartEnd, param, comparFn, buf);
+    tqsortImpl(src, start, leftPartEnd, size, param, comparFn, buf);
   }
   
   if (rightPartStart < end) {
-    tqsortImpl(src, size, rightPartStart, end, param, comparFn, buf);
+    tqsortImpl(src, rightPartStart, end, size, param, comparFn, buf);
   }
 }
 

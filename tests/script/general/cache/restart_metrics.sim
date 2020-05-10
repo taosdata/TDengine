@@ -27,11 +27,15 @@ sql create table $tb using $mt tags( "1" )
 sql insert into $tb values (now, 1)
 
 sql select * from $tb
-print ===>rows $rows, data $data01
+#print ===>rows $rows, data $data01
+
 if $rows != 1 then
+  print expect 1, actual: $rows
   return -1
-endi  
+endi
+
 if $data01 != 1 then
+  print expect 1 actual: $data01
   return -1
 endi  
 
@@ -66,8 +70,10 @@ sql select * from $tb
 print ===>rows $rows, data $data01
 if $rows != 1 then
   return -1
-endi  
+endi
+
 if $data01 != 1 then
+  print expect 1, actual $data01
   return -1
 endi  
 
@@ -80,6 +86,7 @@ if $data01 != 1 then
   return -1
 endi  
 if $data02 != 3 then
+  print expect 3 actual: $data02
   return -1
 endi 
 
