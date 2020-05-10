@@ -23,13 +23,13 @@ extern "C" {
 #include "tlog.h"
 #include "monitor.h"
 
-extern int32_t mdebugFlag;
+extern int32_t mDebugFlag;
 extern int32_t sdbDebugFlag;
 
 // mnode log function
-#define mError(...) if (mdebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR MND ", 255, __VA_ARGS__); }
-#define mWarn(...)  if (mdebugFlag & DEBUG_WARN)  { taosPrintLog("WARN  MND ", mdebugFlag, __VA_ARGS__); }
-#define mTrace(...) if (mdebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mdebugFlag, __VA_ARGS__); }
+#define mError(...) if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR MND ", 255, __VA_ARGS__); }
+#define mWarn(...)  if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN  MND ", mDebugFlag, __VA_ARGS__); }
+#define mTrace(...) if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }
 #define mPrint(...)                               { taosPrintLog("MND ", 255, __VA_ARGS__); }
 
 #define mLError(...) monitorSaveLog(2, __VA_ARGS__); mError(__VA_ARGS__)

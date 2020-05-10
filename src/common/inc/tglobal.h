@@ -141,9 +141,9 @@ extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
-extern int32_t mdebugFlag;
-extern int32_t cdebugFlag;
-extern int32_t jnidebugFlag;
+extern int32_t mDebugFlag;
+extern int32_t cDebugFlag;
+extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
 extern int32_t httpDebugFlag;
@@ -151,8 +151,8 @@ extern int32_t monitorDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t debugFlag;
-extern int32_t odbcdebugFlag;
-extern int32_t qdebugFlag;
+extern int32_t odbcDebugFlag;
+extern int32_t qDebugFlag;
 
 extern uint32_t taosMaxTmrCtrl;
 
