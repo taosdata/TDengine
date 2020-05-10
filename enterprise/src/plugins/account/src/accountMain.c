@@ -27,7 +27,7 @@
 #include "monitor.h"
 #include "mnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtAcct.h"
 #include "mgmtDnode.h"
 #include "mgmtDb.h"

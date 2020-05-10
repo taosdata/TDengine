@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="">
 	<meta name="author" content="">
-	<title>Monitor</title>
+	<title>Usage</title>
 	<link rel="icon" href="images/db.png">
 	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
 	<link type="text/css" href="css/info.css" rel="stylesheet">
@@ -15,6 +15,7 @@
 	<script type="text/javascript" src="js/dbUtil.js"></script>
 	<script type="text/javascript" src="js/dbCache.js"></script>
 	<script type="text/javascript" src="js/dbSession.js"></script>
+	<script type="text/javascript" src="js/dbBase64.js"></script>
 </head>
 <body class="graph" onload="dbOnLoad()">
 	<!-- navbar begin -->
@@ -36,8 +37,8 @@
 					<li><a href="tables.html">Tables</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
-					<li class="active" id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
-					<li><a href="usage.html">Usage</a></li>
+					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li class="active"><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
 				</ul>
@@ -54,22 +55,11 @@
 	<div class="container">
 		<div class="panel panel-default dbpanel">
 			<div class="panel-body dbheadforbody" style="border-bottom:1px solid #ddd; padding-right:5px">
-				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Monitor</label>	
+				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Usage</label>	
 				<button type="button" class="btn btn-default btn-sm" style="float:right;margin-right:4px" onclick="dbGotoMonitor()">
 					<span class="glyphicon glyphicon-refresh"></span> 
 					Refresh
 				</button>				
-				<div class="form-group" style="float:right;height:8px;margin-right:4px">
-					<div class="dropdown">
-						<button class="btn btn-default btn-sm dropdown-toggle" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="width:102px">
-						no dnodes
-							<span class="caret"></span>
-						</button>
-						<ul class="dropdown-menu" aria-labelledby="dropdownMenu1" id='dropdownMenuContent' style="min-width:90px">
-							<li><a href="#" style='font-size:12px'>no dnodes</a></li>
-						</ul>
-					</div>
-				</div>
 				<div class="form-group" style="float:right;height:8px;margin-right:4px">
 					<div class="dropdown">
 						<button class="btn btn-default btn-sm dropdown-toggle" type="button" id="dropdownMenu2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="width:105px">
@@ -91,41 +81,41 @@
 			</div>
 			
 			<div class="row" style="margin-bottom:0px;margin-right:5px;margin-left:5px" id="dbShowGraphDiv">
-				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
 					<div class="row" >
-						<div class="col-sm-12 col-xs-12 dbcol2" id="cpuDivId" style="height:213px;">
+						<div class="col-sm-12 col-xs-12 dbcol2" id="storageDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
 				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
 					<div class="row " >
-						<div class="col-sm-12 col-xs-12 dbcol2" id="bandwidthDivId" style="height:213px;">
+						<div class="col-sm-12 col-xs-12 dbcol2" id="timeseriesDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
 			
-				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
 					<div class="row" >
-						<div class="col-sm-12 col-xs-12 dbcol2" id="memoryDivId" style="height:213px;">
+						<div class="col-sm-12 col-xs-12 dbcol2" id="dbsDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
 				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
 					<div class="row " >
-						<div class="col-sm-12 col-xs-12 dbcol2" id="ioDivId" style="height:213px;">
+						<div class="col-sm-12 col-xs-12 dbcol2" id="usersDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
 			
-				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
 					<div class="row" >
-						<div class="col-sm-12 col-xs-12 dbcol2" id="diskDivId" style="height:213px;">
+						<div class="col-sm-12 col-xs-12 dbcol2" id="streamsDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
 				<div class="col-sm-6 col-xs-12 dbcol" style="height:233px;">
 					<div class="row " >
-						<div class="col-sm-12 col-xs-12 dbcol2" id="reqDivId" style="height:213px;">
+						<div class="col-sm-12 col-xs-12 dbcol2" id="querytimeDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
@@ -138,32 +128,31 @@
 						<tr>
 							<th style="font-weight: normal"></th>
 							<th style="font-weight: normal"></th>
-							<th style="font-weight: normal;text-align:center" colspan="2">cpu</th>
-							<th style="font-weight: normal;text-align:center" colspan="3">memory</th>
-							<th style="font-weight: normal;text-align:center" colspan="2">disk</th>
-							<th style="font-weight: normal;" colspan="1">band</th>
-							<th style="font-weight: normal;text-align:center" colspan="2">io</th>
-							<th style="font-weight: normal;text-align:center" colspan="3">request</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">TimeSeries</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Storage(GB)</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">QueryTime(Hour)</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Databases</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Users</th>
+							<th style="font-weight: normal;text-align:center" colspan="2">Streams</th>
 						</tr>
 						<tr>
 							<th style="font-weight: normal">No</th>
 							<th style="font-weight: normal">timestamp</th>
-							<th style="font-weight: normal">taosd</th>
-							<th style="font-weight: normal">system</th>
-							<th style="font-weight: normal">taosd</th>
-							<th style="font-weight: normal">system</th>
-							<th style="font-weight: normal">total</th>
-							<th style="font-weight: normal">used</th>
-							<th style="font-weight: normal">total</th>
-							<th style="font-weight: normal">speed</th>
-							<th style="font-weight: normal">read</th>
-							<th style="font-weight: normal">write</th>
-							<th style="font-weight: normal">http</th>
-							<th style="font-weight: normal">select</th>
-							<th style="font-weight: normal">insert</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
+							<th style="font-weight: normal">cur</th>
+							<th style="font-weight: normal">max</th>
 						</tr>
 					</thead>
-					<tbody id="dbTableBody">
+					<tbody id="dbTableBody">	
 					</tbody>
 				</table>
 			</div>
@@ -180,14 +169,6 @@
 					<button type="button" style="display:none" class="btn btn-default btn-sm" id="dbShowListBtn" onclick="dbShowGraph(false)">
 						<span class="glyphicon glyphicon-th-list"></span> 
 						List
-					</button>
-					<button type="button" class="btn btn-default btn-sm" onclick="dbGotoLog()">
-						<span class="glyphicon glyphicon-link"></span> 
-						Events
-					</button>	
-					<button type="button" class="btn btn-default btn-sm" onclick="dbGotoSlowQuery()">
-						<span class="glyphicon glyphicon-hourglass"></span> 
-						SlowQueries
 					</button>
 				</div>
 				<div class="btn-group btn-group-sm"  style="float:right;" id='dbPageDivId'>
@@ -206,7 +187,7 @@
 				</div>
 			</div>
 		</div>		
-		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data</a></div>
+		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data</a></div>	
 	</div>
 
 	<!-- content end -->
@@ -245,9 +226,8 @@
 	
 	<script type="text/javascript">
 	
-	dbDnodeIp = "";
-	dbDnodeIntervalId = "last1hour";
-	dbDnodeInerval = 60000;
+	dbUsageIntervalId = "last1hour";
+	dbUsageInterval = 60000;
 	
 	function dbShowGraph(model)
 	{
@@ -258,13 +238,13 @@
 			$('#dbShowListDiv').hide();
 			$('#dbPageDivId').hide();
 			
-			if (DbCpuChart.graph != null) {
-				DbCpuChart.graph.resize();
-				DbDiskChart.graph.resize();
-				DbMemoryChart.graph.resize();
-				DbBandWidthChart.graph.resize();
-				DbIoChart.graph.resize();
-				DbRequestChart.graph.resize();
+			if (DbStorageChart.graph != null) {
+				DbStorageChart.graph.resize();
+				DbTimeSeriesChart.graph.resize();
+				DbQueryTimeChart.graph.resize();
+				DbStreamsChart.graph.resize();
+				DbDbsChart.graph.resize();
+				DbUsersChart.graph.resize();
 			}
 		}
 		else {
@@ -280,48 +260,44 @@
 	{
 		dbShowGraph(true);
 		
-		DbCpuChart.Init('cpuDivId');
-		DbMemoryChart.Init('memoryDivId');
-		DbDiskChart.Init('diskDivId');
-		DbBandWidthChart.Init('bandwidthDivId');
-		DbIoChart.Init('ioDivId');
-		DbRequestChart.Init('reqDivId');
+		DbStorageChart.Init('storageDivId');
+		DbQueryTimeChart.Init('querytimeDivId');
+		DbTimeSeriesChart.Init('timeseriesDivId');
+		DbStreamsChart.Init('streamsDivId');
+		DbDbsChart.Init('dbsDivId');
+		DbUsersChart.Init('usersDivId');
 		
 		DbCache.Clear();
 		DbCache.Init(null, dbFillTableBody);
 				
 		DbSession.ValidSession();
 		
-		dbDnodeIp = DbUtil.GetUrlFirstPara();
-		if (dbDnodeIp != "") {
-			dbQueryAll();
-		}
-		dbGetDnodes();
+		dbQueryAcct();
 	}
 	
-	function dbGetDnodes() {
+	function dbQueryAcct()
+	{
 		$.ajax({
 			type: "post",
 			url: "admin/sql",
 			headers: {
 				'Authorization' : "Taosd " + DbSession.GetToken()
 			},
-			data: "show dnodes",
 			dataType: "json",
-			success: dbGetDnodesCb,
+			data: "show users",
+			success: dbQueryAcctCallback,
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
-					dbGetDnodesCb(msg.responseJSON);
-				} else if (msg != null) {
-					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
-				} else {
+					dbQueryAcctCallback(msg.responseJSON);
+				}
+				else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
 			}		
 		});		
 	}
 	
-	function dbGetDnodesCb(d)
+	function dbQueryAcctCallback(d) 
 	{
 		if (d == null || d.status == null) {
 			DbUtil.Error(DB_CODE_INVALID_FORMAT);
@@ -331,53 +307,55 @@
 			DbUtil.HandleError(d);
 		}
 		else if (d.status == "succ") {
-			dbSetDropDownMemu(d);
+			dbSetAcctInfo(d.data);
 		}	
 		else{
 			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 	
+	function dbSetAcctInfo(data) 
+	{
+		if (data.length <= 0) return;
+		
+		DbSession.SetAcct(data[0][3]);
+		dbQueryAll();
+	}
+	
 	function dbSelectInterval(interval) {
-		dbDnodeIntervalId = interval;
-		var id = '#' + dbDnodeIntervalId;
+		dbUsageIntervalId = interval;
+		var id = '#' + dbUsageIntervalId;
 		$('#dropdownMenu2').html($(id).text() + '<span class="caret"></span>');	
 		dbQueryAll();
 	}
-	
-	function dbSelectDnode(dnode) {
-		dbDnodeIp = "dnode " + dnode;
-		$('#dropdownMenu1').html(dbDnodeIp + '<span class="caret"></span>');
-		dbQueryAll();
-	}
-	
+
 	function dbQueryAll(dnode)
 	{
 		var interval = "interval(1m)";
 		var begintime = Number(new Date());
 		var endtime = begintime;
 		
-		if (dbDnodeIntervalId == "last1hour") {
+		if (dbUsageIntervalId == "last1hour") {
 			interval = "interval(1m)";	//60
 			begintime -= 60*60*1000;
 		}
-		else if (dbDnodeIntervalId == "last4hours") {
+		else if (dbUsageIntervalId == "last4hours") {
 			interval = "interval(2m)";	//120
 			begintime -= 60*60*1000*4;
 		}
-		else if (dbDnodeIntervalId == "last12hours") {
+		else if (dbUsageIntervalId == "last12hours") {
 			interval = "interval(5m)";	//144
 			begintime -= 60*60*1000*12;
 		}
-		else if (dbDnodeIntervalId == "last1day") {
+		else if (dbUsageIntervalId == "last1day") {
 			interval = "interval(10m)";	//144
 			begintime -= 60*60*1000*24;
 		}
-		else if (dbDnodeIntervalId == "last7days") {
+		else if (dbUsageIntervalId == "last7days") {
 			interval = "interval(1h)";	//164
 			begintime -= 60*60*1000*24*7;
 		}
-		else if (dbDnodeIntervalId == "last30days") {
+		else if (dbUsageIntervalId == "last30days") {
 			interval = "interval(4h)";	//180
 			begintime -= 60*60*1000*24*30;
 		}
@@ -385,10 +363,13 @@
 		//begintime = "now-1h";
 		//endtime='now';
 		
-		begintime *= 1000;
+		var user = DbSession.GetUser();
+
+        begintime *= 1000;
         endtime *= 1000;
-		
-		var sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn" + dbDnodeIp + " where ts>=" + begintime + " and ts<=" + endtime + " " + interval + " fill(value, 0);";
+		//log. sys.
+		var sql = "select avg(currentPointsPerSecond), last(maxPointsPerSecond), avg(totalTimeSeries), last(maxTimeSeries), avg(totalStorage), last(maxStorage), avg(totalQueryTime), last(maxQueryTime), avg(totalInbound), last(maxInbound), avg(totalOutbound), last(maxOutbound), avg(totalDbs), last(maxDbs), avg(totalUsers), last(maxUsers), avg(totalStreams), last(maxStreams) from log.acct_" + DbSession.GetAcct() + " where ts>=" + begintime + " and ts<=" + endtime + " " + interval + " fill(prev);";
+
 		dbQuery(sql, dbMonitorCallback)
 	}
 	
@@ -402,12 +383,26 @@
 			DbUtil.HandleError(d);
 		}
 		else if (d.status == "succ") {
-			DbCpuChart.OnData(d);
-			DbMemoryChart.OnData(d);
-			DbDiskChart.OnData(d);
-			DbBandWidthChart.OnData(d);
-			DbIoChart.OnData(d);
-			DbRequestChart.OnData(d);
+			for (var row = 0; row < d.data.length; ++row) {
+				for (var col = 1; col < 19; col++) {
+					if (d.data[row][col] == "NULL" || d.data[row][col] == "null")
+						d.data[row][col] = 0;
+				}				
+			}
+			
+			for (var row = 0; row < d.data.length; ++row) {
+				d.data[row][5] /= (1024*1024*1024);
+				d.data[row][6] /= (1024*1024*1024);
+				d.data[row][7] /= (3600);
+				d.data[row][8] /= (3600);				
+			}
+			
+			DbStorageChart.OnData(d);
+			DbQueryTimeChart.OnData(d);
+			DbTimeSeriesChart.OnData(d);
+			DbStreamsChart.OnData(d);
+			DbDbsChart.OnData(d);
+			DbUsersChart.OnData(d);
 			
 			DbCache.Clear();
 			DbCache.OnData(d);
@@ -420,11 +415,14 @@
 	var dbCallback;
 	function dbQuery(sql, callback) {
 		dbCallback = callback;
+		
 		$.ajax({
 			type: "post",
 			url: "admin/sql",
+
+			//sys monitor
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : "Basic " + DbBase64.encode("monitor:secretkey")
 			},
 			data: sql,
 			dataType: "json",
@@ -432,16 +430,15 @@
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
 					dbQueryCb(msg.responseJSON);
-				} else if (msg != null) {
-					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
-				} else {
+				}
+				else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
 			}		
 		});		
 	}
 	
-	function dbQueryCb(d)
+	function dbQueryCb(d) 
 	{
 		if (d == null || d.status == null) {
 			DbUtil.Error(DB_CODE_INVALID_FORMAT);
@@ -458,51 +455,7 @@
 		}
 	}
 	
-	function dbSetDropDownMemu(d)
-	{
-		if (d == null || d.data.rows < 1) {
-			return;
-		}
-		
-		var dnodes = d.data;		
-		var dnodeExist = false;
-		var dnodeLiList = "";
-		
-		var onlineDnode = "";
-		var onlieDnodeVnodeNum = -1;		
-		
-		for (var row = dnodes.length-1; row >= 0; --row) {
-			var dnode = dnodes[row][0];
-			
-			var dnodePara = "'" + dnode + "'";
-			var dnodePara = dnode;
-			var dnodeName = "dnode " + dnode;
-			var onclick = 'onclick="dbSelectDnode(' + dnodePara + ')"';
-			dnodeLiList += '<li><a href="#" style="font-size:12px" ' + onclick + ' id="' + dnode + '">dnode ' + dnodeName + '</a></li>';
-			
-			if (dnodes[row][4] != 'offline' && dnodes[row][2]*1 > onlieDnodeVnodeNum) {
-				onlineDnode = dnode;
-				onlieDnodeVnodeNum = dnodes[row][2]*1;
-			}
-			
-			if (dbDnodeIp == dnode) {
-				dnodeExist = true;
-			}
-		}
-		
-		if (dbDnodeIp == "") {
-			dbDnodeIp = onlineDnode;
-			if (dbDnodeIp == "" ) {
-				dbDnodeIp = dnodes[0][0];
-			}
-			dbQueryAll();
-		}
-		
-		$('#dropdownMenu1').html(dnodeName + '<span class="caret"></span>');
-		$('#dropdownMenuContent').html(dnodeLiList);		
-	}
-	
-	function dbFillTableBody(d)
+	function dbFillTableBody(d) 
 	{
 		var rowNum = d.data.length;
 		var rowBegin = "<tr>";
@@ -519,47 +472,38 @@
 			
 			var ts = data[0];
 			
-			var cpu_db = data[1].toFixed(2) + "%";
-			var cpu_system = data[2].toFixed(2) + "%";
-			var cpu_cores = data[3].toFixed(0);
-			
-			var mem_db = data[4].toFixed(1) + "MB";
-			var mem_system = data[5].toFixed(1) + "MB";
-			var mem_total = (data[6]/1024).toFixed(0) + "GB";
-			
-			var disk_db = data[7].toFixed(1) + "GB";
-			var disk_system = data[8].toFixed(0) + "GB";
-			
-			var band = data[9].toFixed(2) + "Kb/s";
-			
-			var io_read = data[10].toFixed(2) + "KB/s";
-			var io_write = data[11].toFixed(2) + "KB/s";
-			
-			var req_http = data[12].toFixed(2) + "KB/s";
-			var req_select = data[13].toFixed(2) + "KB/s";
-			var req_insert = data[14].toFixed(2) + "KB/s";
+			var curTimeSeries = data[3];
+			var maxTimeSeries = data[4];
+			var curStorage = data[5].toFixed(1);
+			var maxStorage = data[6].toFixed(1);
+			var curQueryTime = data[7].toFixed(2);
+			var maxQueryTime = data[8].toFixed(2);
+			var curDatabases = data[13];
+			var maxDatabases = data[14];
+			var curUsers = data[15];
+			var maxUsers = data[16];
+			var curStreams = data[17];
+			var maxStreams = data[18];
 			
 			row = row + colBegin + ts + colEnd;
-			row = row + colBegin + cpu_db + colEnd;
-			row = row + colBegin + cpu_system + colEnd;
-			//row = row + colBegin + cpu_cores + colEnd;
-			row = row + colBegin + mem_db + colEnd;
-			row = row + colBegin + mem_system + colEnd;
-			row = row + colBegin + mem_total + colEnd;
-			row = row + colBegin + disk_db + colEnd;
-			row = row + colBegin + disk_system + colEnd;
-			row = row + colBegin + band + colEnd;
-			row = row + colBegin + io_read + colEnd;
-			row = row + colBegin + io_write + colEnd;
-			row = row + colBegin + req_http + colEnd;
-			row = row + colBegin + req_select + colEnd;
-			row = row + colBegin + req_insert + colEnd;
+			row = row + colBegin + curTimeSeries + colEnd;
+			row = row + colBegin + maxTimeSeries + colEnd;
+			row = row + colBegin + curStorage + colEnd;
+			row = row + colBegin + maxStorage + colEnd;
+			row = row + colBegin + curQueryTime + colEnd;
+			row = row + colBegin + maxQueryTime + colEnd;
+			row = row + colBegin + curDatabases + colEnd;
+			row = row + colBegin + maxDatabases + colEnd;
+			row = row + colBegin + curUsers + colEnd;
+			row = row + colBegin + maxUsers + colEnd;
+			row = row + colBegin + curStreams + colEnd;
+			row = row + colBegin + maxStreams + colEnd;
 			
 			bodyContent += row;
 		}
 		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
 			var row = rowBegin + colBegin + '-' + colEnd;
-			for (colIndex = 0; colIndex < 14; colIndex++) {
+			for (colIndex = 0; colIndex < 13; colIndex++) {
 				row = row + colBegin + colEnd;
 			}
 			bodyContent += row;
@@ -568,29 +512,8 @@
 		$('#dbTableBody').html(bodyContent);
 	}	
 	
-	function dbGotoMonitor()
-	{
-		if (dbDnodeIp == "") {
-			DbUtil.GotoPage("monitor.html");
-		}
-		else {
-			dbSelectDnode(dbDnodeIp);
-		}
-	}
-	
-	function dbGotoSlowQuery()
-	{
-		DbUtil.GotoPage("slowquery.html?dnode=" + dbDnodeIp);
-	}
-	
-	function dbGotoLog()
-	{
-		DbUtil.GotoPage("log.html?dnode=" + dbDnodeIp);
-	}
 
-
-
-//dbEcharts.js
+//taosEcharts.js	
 //var DbCurveColor = ['rgb(70,190,233)', 'rgb(255,160,34)', 'rgb(166,200,76)'];
 //var DbCurveColor = ['rgb(109,202,238)', 'rgb(255,180,79)', 'rgb(183,210,108)'];
 //var DbCurveColor = ['rgb(123,208,240)', 'rgb(255,201,128)', 'rgb(186,213,117)'];
@@ -631,22 +554,22 @@ var DbEchartOption = new function() {
 					var month = (date.getMonth()) * 1 + 1;
 					var day = date.getDate() * 1;
 					
-					if (dbDnodeIntervalId == "last1hour") {
+					if (dbUsageIntervalId == "last1hour") {
 						if (minute % 15 == 0) return true;
 					}
-					else if (dbDnodeIntervalId == "last4hours") {
+					else if (dbUsageIntervalId == "last4hours") {
 						if (minute == 0) return true;
 					}
-					else if (dbDnodeIntervalId == "last12hours") {
+					else if (dbUsageIntervalId == "last12hours") {
 						if (hour % 3 == 0 && minute == 0) return true;
 					}
-					else if (dbDnodeIntervalId == "last1day") {
+					else if (dbUsageIntervalId == "last1day") {
 						if (hour % 6 == 0 && minute == 0) return true;
 					}
-					else if (dbDnodeIntervalId == "last7days") {
+					else if (dbUsageIntervalId == "last7days") {
 						if (hour == 0 && minute == 0) return true;
 					}
-					else if (dbDnodeIntervalId == "last30days") {
+					else if (dbUsageIntervalId == "last30days") {
 						if (day % 5 == 0 && hour == 0 && minute == 0) return true;
 					}
 					
@@ -684,22 +607,22 @@ var DbEchartOption = new function() {
 					if (day < 10) showDay = "0" + day;
 					if (month < 10) showMonth = "0" + month;
 					
-					if (dbDnodeIntervalId == "last1hour") {
+					if (dbUsageIntervalId == "last1hour") {
 						if (minute % 15 == 0) return showHour + ":" + showMinute;
 					}
-					else if (dbDnodeIntervalId == "last4hours") {
+					else if (dbUsageIntervalId == "last4hours") {
 						if (minute == 0) return showHour + ":" + showMinute;
 					}
-					else if (dbDnodeIntervalId == "last12hours") {
+					else if (dbUsageIntervalId == "last12hours") {
 						if (hour % 3 == 0 && minute == 0) return showHour + ":" + showMinute;
 					}
-					else if (dbDnodeIntervalId == "last1day") {
+					else if (dbUsageIntervalId == "last1day") {
 						if (hour % 6 == 0 && minute == 0) return showHour + ":" + showMinute;
 					}
-					else if (dbDnodeIntervalId == "last7days") {
+					else if (dbUsageIntervalId == "last7days") {
 						if (hour == 0 && minute == 0) return showMonth + "-" + showDay;
 					}
-					else if (dbDnodeIntervalId == "last30days") {
+					else if (dbUsageIntervalId == "last30days") {
 						if (day % 5 == 0 && hour == 0 && minute == 0) return showMonth + "-" + showDay;
 					}
 					
@@ -728,7 +651,7 @@ var DbEchartOption = new function() {
 	};	
 };
 
-var DbCpuChart = new function() {
+var DbStorageChart = new function() {
 	this.maxVal = 0;
 	this.graph = null;
 	this.data = null;
@@ -748,13 +671,13 @@ var DbCpuChart = new function() {
 				var showdate = value[0].axisValueLabel.substring(5, 16);					
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +'%<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +'%';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' GB<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' GB';
 				}
 				else {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +'%<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +'%';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' GB<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' GB';
 				
 				}
 			} 
@@ -763,7 +686,7 @@ var DbCpuChart = new function() {
 			show: true,  
 			x: 'left',  
 			y: 'bottom',  
-			data:['taosd', 'system'],
+			data:['Current Storage', 'Maximum Storage'],
 			padding : [0, 0, 9, 44],
 		},
 		yAxis: {
@@ -794,28 +717,13 @@ var DbCpuChart = new function() {
 				showMaxLabel : true,
 				interval: 0,
 				formatter: function (value, index) {	
-					if (value == 0) {
-						return "0%";
-					}
-					var showValue = value;
-					if (DbCpuChart.maxVal <= 1) {
-						showValue = value.toFixed(2);
-					}
-					else if (DbCpuChart.maxVal < 9) {
-						showValue = value.toFixed(1);
-					}
-					
-					showValue = showValue+"";
-					if (showValue.length >= 6) {
-						return showValue.substring(0, 5) + '%';
-					}
-					return showValue + '%';
+					return dbGetValue(value, DbStorageChart.maxVal);	
 				}
 			},
 		},
 		series: [
 			{
-				name: 'taosd',
+				name: 'current',
 				type: 'line',
 				data: [],		
 				lineStyle: {
@@ -851,7 +759,7 @@ var DbCpuChart = new function() {
 				symbolSize: 5
 			},
 			{
-				name: 'system',
+				name: 'maximum',
 				type: 'line',
 				data: [],		
 				lineStyle: {
@@ -899,17 +807,16 @@ var DbCpuChart = new function() {
 			var data = d.data[row]; 	
 			this.option.xAxis.data[row] = data[0];
 			if (dbIsUseTime) {
-				this.option.series[0].data[row] = [data[0],data[1]];
-				this.option.series[1].data[row] = [data[0],data[2]];				
+				this.option.series[0].data[row] = [data[0],data[5]];
+				this.option.series[1].data[row] = [data[0],data[6]];				
 			}
 			else {
-				this.option.series[0].data[row] = data[1];
-				this.option.series[1].data[row] = data[2];
+				this.option.series[0].data[row] = data[5];
+				this.option.series[1].data[row] = data[6];
 			}
-			if (data[3]*1 != 0)
-				this.option.title.text = "cpu usage(cores:" + data[3] + ")";
-			this.maxVal = Math.max(this.maxVal, data[1]);
-			this.maxVal = Math.max(this.maxVal, data[2]);
+			this.option.title.text = "Storage(GB)";
+			this.maxVal = Math.max(this.maxVal, data[5]);
+			this.maxVal = Math.max(this.maxVal, data[6]);
 		}
 		
 		this.graph.setOption(this.option);
@@ -917,7 +824,7 @@ var DbCpuChart = new function() {
 	}
 };
 
-var DbMemoryChart = new function() {
+var DbQueryTimeChart = new function() {
 	this.maxVal = 0;
 	this.graph = null;
 	this.data = null;
@@ -937,13 +844,13 @@ var DbMemoryChart = new function() {
 				var showdate = value[0].axisValueLabel.substring(5, 16);
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' GB<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' GB';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' Hour<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' Hour';
 				}
 				else {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' GB<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' GB';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' Hour<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' Hour';
 				}
 			} 
 		},
@@ -951,7 +858,7 @@ var DbMemoryChart = new function() {
 			show: true,  
 			x: 'left',  
 			y: 'bottom',  
-			data:['taosd', 'system'],
+			data:['Current QueryTime', 'Maximum QueryTime'],
 			padding : [0, 0, 9, 44],
 		},
 		yAxis: {
@@ -982,13 +889,13 @@ var DbMemoryChart = new function() {
 				showMaxLabel : true,
 				interval: 0,
 				formatter: function (value, index) {
-					return dbGetValue(value, DbMemoryChart.maxVal);
+					return dbGetValue(value, DbQueryTimeChart.maxVal);	
 				}
 			},
 		},
 		series: [
 			{
-				name: 'taosd',
+				name: 'current',
 				type: 'line',
 				data: [],		
 				lineStyle: {
@@ -1024,7 +931,7 @@ var DbMemoryChart = new function() {
 				symbolSize: 5
 			},
 			{
-				name: 'system',
+				name: 'maximum',
 				type: 'line',
 				data: [],		
 				lineStyle: {
@@ -1071,26 +978,25 @@ var DbMemoryChart = new function() {
 		for (var row = 0; row < length; ++row) {
 			var data = d.data[row]; 	
 			this.option.xAxis.data[row] = data[0];	
-			if (dbIsUseTime) { //3
-				this.option.series[0].data[row] = [data[0],data[4]/1000];
-				this.option.series[1].data[row] = [data[0],data[5]/1000];				
+			if (dbIsUseTime) { 
+				this.option.series[0].data[row] = [data[0],data[7]];
+				this.option.series[1].data[row] = [data[0],data[8]];				
 			}
 			else {
-				this.option.series[0].data[row] = data[4]/1000;
-				this.option.series[1].data[row] = data[5]/1000;
+				this.option.series[0].data[row] = data[7];
+				this.option.series[1].data[row] = data[8];
 			}
-			if (data[6]*1 != 0)
-				this.option.title.text = "memory(total:" + (data[6]/1000).toFixed(1) +"GB)";
-			this.maxVal = Math.max(this.maxVal, data[4]/1000);
-			this.maxVal = Math.max(this.maxVal, data[5]/1000);
-		}	
+			this.option.title.text = "QueryTime(Hour)";
+			this.maxVal = Math.max(this.maxVal, data[7]);
+			this.maxVal = Math.max(this.maxVal, data[8]);
+		}
 		
 		this.graph.setOption(this.option);
 		this.graph.resize();		
 	}
 };
 
-var DbDiskChart = new function() {
+var DbTimeSeriesChart = new function() {
 	this.maxVal = 0;
 	this.graph = null;
 	this.data = null;
@@ -1107,14 +1013,17 @@ var DbDiskChart = new function() {
 			},
 			formatter: function(value) 
 			{ 
-				var showdate = value[0].axisValueLabel.substring(5, 16);
+				var showdate = value[0].axisValueLabel.substring(5, 16);					
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' GB';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
 				}
 				else {
 					return showdate + '<br>' 
-					+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' GB';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
 				}
 			} 
 		},
@@ -1122,7 +1031,7 @@ var DbDiskChart = new function() {
 			show: true,  
 			x: 'left',  
 			y: 'bottom',  
-			data:['system'],
+			data:['Current TimeSeries', 'Maximum TimeSeries'],
 			padding : [0, 0, 9, 44],
 		},		
 		yAxis: {
@@ -1153,13 +1062,13 @@ var DbDiskChart = new function() {
 				showMaxLabel : true,
 				interval: 0,
 				formatter: function (value, index) {
-					return dbGetValue(value, DbDiskChart.maxVal);
+					return dbGetValue(value, DbTimeSeriesChart.maxVal);					
 				}
 			},
 		},
 		series: [
 			{
-				name: 'system',
+				name: 'current',
 				type: 'line',
 				data: [],		
 				lineStyle: {
@@ -1193,6 +1102,29 @@ var DbDiskChart = new function() {
 				hoverAnimation: false,
 				showSymbol: false,
 				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
 			}
 		]
 	};	
@@ -1211,22 +1143,25 @@ var DbDiskChart = new function() {
 		}
 		this.data = d;
 		this.option.series[0].data = [];
+		this.option.series[1].data = [];
 		this.option.xAxis.data = [];
 		this.maxVal = 0;
 		
 		var length = d.data.length;
 		for (var row = 0; row < length; ++row) {
 			var data = d.data[row]; 	
-			this.option.xAxis.data[row] = data[0];	
-			if (dbIsUseTime) {//6
-				this.option.series[0].data[row] = [data[0],data[7]];			
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[3]];
+				this.option.series[1].data[row] = [data[0],data[4]];				
 			}
 			else {
-				this.option.series[0].data[row] = data[7];
+				this.option.series[0].data[row] = data[3];
+				this.option.series[1].data[row] = data[4];
 			}
-			if (data[8]*1 != 0)
-				this.option.title.text = "diskspace(total:" + (data[8]*1).toFixed(0) +"GB)";
-			this.maxVal = Math.max(this.maxVal, data[7]);
+			this.option.title.text = "TimeSeries";
+			this.maxVal = Math.max(this.maxVal, data[3]);
+			this.maxVal = Math.max(this.maxVal, data[4]);
 		}
 		
 		this.graph.setOption(this.option);
@@ -1234,7 +1169,7 @@ var DbDiskChart = new function() {
 	}
 };
 
-var DbBandWidthChart = new function() {
+var DbStreamsChart = new function() {
 	this.maxVal = 0;
 	this.graph = null;
 	this.data = null;
@@ -1251,14 +1186,17 @@ var DbBandWidthChart = new function() {
 			},
 			formatter: function(value) 
 			{ 
-				var showdate = value[0].axisValueLabel.substring(5, 16);
+				var showdate = value[0].axisValueLabel.substring(5, 16);					
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(3) +' Kb/s';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
 				}
 				else {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(3) +' Kb/s';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
 				}
 			} 
 		},
@@ -1266,7 +1204,7 @@ var DbBandWidthChart = new function() {
 			show: true,  
 			x: 'left',  
 			y: 'bottom',  
-			data:['system'],
+			data:['Current Streams', 'Maximum Streams'],
 			padding : [0, 0, 9, 44],
 		},
 		yAxis: {
@@ -1297,13 +1235,13 @@ var DbBandWidthChart = new function() {
 				showMaxLabel : true,
 				interval: 0,
 				formatter: function (value, index) {
-					return dbGetValue(value, DbBandWidthChart.maxVal);
+					return dbGetValue(value, DbStreamsChart.maxVal);	
 				}
 			},
 		},
 		series: [
 			{
-				name: 'system',
+				name: 'current',
 				type: 'line',
 				data: [],		
 				lineStyle: {
@@ -1337,6 +1275,29 @@ var DbBandWidthChart = new function() {
 				hoverAnimation: false,
 				showSymbol: false,
 				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
 			}
 		]
 	};	
@@ -1355,28 +1316,33 @@ var DbBandWidthChart = new function() {
 		}
 		this.data = d;
 		this.option.series[0].data = [];
+		this.option.series[1].data = [];
 		this.option.xAxis.data = [];
 		this.maxVal = 0;
 		
 		var length = d.data.length;
 		for (var row = 0; row < length; ++row) {
 			var data = d.data[row]; 	
-			this.option.xAxis.data[row] = data[0];	
-			if (dbIsUseTime) { //8
-				this.option.series[0].data[row] = [data[0],data[9]];			
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[17]];
+				this.option.series[1].data[row] = [data[0],data[18]];				
 			}
 			else {
-				this.option.series[0].data[row] = data[9];
+				this.option.series[0].data[row] = data[17];
+				this.option.series[1].data[row] = data[18];
 			}
-			this.maxVal = Math.max(this.maxVal, data[9]);
-		}	
-		this.option.title.text = "bandwidth";
+			this.option.title.text = "Streams";
+			this.maxVal = Math.max(this.maxVal, data[17]);
+			this.maxVal = Math.max(this.maxVal, data[18]);
+		}
+		
 		this.graph.setOption(this.option);
 		this.graph.resize();		
 	}
 };
 
-var DbIoChart = new function() {
+var DbDbsChart = new function() {
 	this.maxVal = 0;
 	this.graph = null;
 	this.data = null;
@@ -1396,13 +1362,14 @@ var DbIoChart = new function() {
 				var showdate = value[0].axisValueLabel.substring(5, 16);
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' KB/s<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' KB/s';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
 				}
 				else {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' KB/s<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' KB/s';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
 				}
 			} 
 		},
@@ -1410,7 +1377,7 @@ var DbIoChart = new function() {
 			show: true,  
 			x: 'left',  
 			y: 'bottom',  
-			data:['read', 'write'],
+			data:['Current Databases', 'Maximum Databases'],
 			padding : [0, 0, 9, 44],
 		},
 		yAxis: {
@@ -1441,15 +1408,14 @@ var DbIoChart = new function() {
 				showMaxLabel : true,
 				interval: 0,
 				formatter: function (value, index) {
-					return dbGetValue(value, DbIoChart.maxVal);
+					return dbGetValue(value, DbDbsChart.maxVal);	
 				}
 			},
 		},
 		series: [
 			{
-				name: 'read',
+				name: 'current',
 				type: 'line',
-				stack: 'a',
 				data: [],		
 				lineStyle: {
 					normal: {
@@ -1463,10 +1429,6 @@ var DbIoChart = new function() {
 						color:DbCurveColor[0],
 					}
 				},
-				yAxisIndex: 0,
-				smooth: true,
-				smoothMonotone: 'x',
-				hoverAnimation: false,
 				areaStyle: {normal: {color: {
 					type: 'linear',
 					x: 0,
@@ -1480,13 +1442,16 @@ var DbIoChart = new function() {
 					}],
 					globalCoord: false
 				}}},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
 				showSymbol: false,
 				symbolSize: 5
 			},
 			{
-				name: 'write',
+				name: 'maximum',
 				type: 'line',
-				stack: 'a',
 				data: [],		
 				lineStyle: {
 					normal: {
@@ -1504,7 +1469,6 @@ var DbIoChart = new function() {
 				smooth: true,
 				smoothMonotone: 'x',
 				hoverAnimation: false,
-				areaStyle: {normal: {}},
 				showSymbol: false,
 				symbolSize: 5,
 			}
@@ -1532,25 +1496,26 @@ var DbIoChart = new function() {
 		var length = d.data.length;
 		for (var row = 0; row < length; ++row) {
 			var data = d.data[row]; 	
-			this.option.xAxis.data[row] = data[0];	
-			if (dbIsUseTime) { //9
-				this.option.series[0].data[row] = [data[0],data[10]];
-				this.option.series[1].data[row] = [data[0],data[11]];				
+			this.option.xAxis.data[row] = data[0];
+			if (dbIsUseTime) {
+				this.option.series[0].data[row] = [data[0],data[13]];
+				this.option.series[1].data[row] = [data[0],data[14]];				
 			}
 			else {
-				this.option.series[0].data[row] = data[10];
-				this.option.series[1].data[row] = data[11];
+				this.option.series[0].data[row] = data[13];
+				this.option.series[1].data[row] = data[14];
 			}
-			this.maxVal = Math.max(this.maxVal, data[10] + data[11]);
-		}	
+			this.option.title.text = "Databases";
+			this.maxVal = Math.max(this.maxVal, data[13]);
+			this.maxVal = Math.max(this.maxVal, data[14]);
+		}
 		
-		this.option.title.text = "disk io";
 		this.graph.setOption(this.option);
 		this.graph.resize();		
 	}
 };
 
-var DbRequestChart = new function() {
+var DbUsersChart = new function() {
 	this.maxVal = 0;
 	this.graph = null;
 	this.data = null;
@@ -1567,18 +1532,17 @@ var DbRequestChart = new function() {
 			},
 			formatter: function(value) 
 			{ 
-				var showdate = value[0].axisValueLabel.substring(5, 16);
+				var showdate = value[0].axisValueLabel.substring(5, 16);					
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[2].marker + value[2].seriesName + ' ' + value[2].data[1] +'<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'<br>'
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1];
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1] +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1] +'';
 				}
 				else {
 					return showdate + '<br>' 
-						+ value[2].marker + value[2].seriesName + ' ' + value[2].data +'<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'<br>'
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data;
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data +'<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data +'';
+				
 				}
 			} 
 		},
@@ -1586,9 +1550,9 @@ var DbRequestChart = new function() {
 			show: true,  
 			x: 'left',  
 			y: 'bottom',  
-			data:['http', 'select', 'insert'],
+			data:['Current Users', 'Maximum Users'],
 			padding : [0, 0, 9, 44],
-		},
+		},		
 		yAxis: {
 			name: '',
 			nameTextStyle : {
@@ -1617,90 +1581,15 @@ var DbRequestChart = new function() {
 				showMaxLabel : true,
 				interval: 0,
 				formatter: function (value, index) {
-					return dbGetValue(value, DbRequestChart.maxVal);
+					return dbGetValue(value, DbUsersChart.maxVal);	
 				}
 			},
 		},
 		series: [
 			{
-				name: 'insert',
-				type: 'bar',
-				data: [],	
-				stack: 'a',	
-				lineStyle: {
-					normal: {
-						type: 'solid',
-						color:DbCurveColor[2],
-						width: 1.5
-					},
-				},
-				itemStyle:{
-					normal:{
-						color:DbCurveColor[2],
-					}
-				},
-				areaStyle: {normal: {color: {
-					type: 'linear',
-					x: 0,
-					y: 0,
-					x2: 0,
-					y2: 1,
-					colorStops: [{
-						offset: 0, color: DbAreaColor[2],
-					}, {
-						offset: 1, color: DbAreaColor[2],
-					}],
-					globalCoord: false
-				}}},
-				yAxisIndex: 0,
-				smooth: true,
-				smoothMonotone: 'x',
-				hoverAnimation: false,
-				showSymbol: false,
-				symbolSize: 5,
-			},
-			{
-				name: 'select',
-				type: 'bar',
-				data: [],	
-				stack: 'a',	
-				lineStyle: {
-					normal: {
-						type: 'solid',
-						color:DbCurveColor[1],
-						width: 1.5
-					},
-				},
-				itemStyle:{
-					normal:{
-						color:DbCurveColor[1],
-					}
-				},
-				areaStyle: {normal: {color: {
-					type: 'linear',
-					x: 0,
-					y: 0,
-					x2: 0,
-					y2: 1,
-					colorStops: [{
-						offset: 0, color: DbAreaColor[1],
-					}, {
-						offset: 1, color: DbAreaColor[1],
-					}],
-					globalCoord: false
-				}}},
-				yAxisIndex: 0,
-				smooth: true,
-				smoothMonotone: 'x',
-				hoverAnimation: false,
-				showSymbol: false,
-				symbolSize: 5,
-			},
-			{
-				name: 'http',
-				type: 'bar',
-				data: [],	
-				stack: 'a',				
+				name: 'current',
+				type: 'line',
+				data: [],		
 				lineStyle: {
 					normal: {
 						type: 'solid',
@@ -1732,6 +1621,29 @@ var DbRequestChart = new function() {
 				hoverAnimation: false,
 				showSymbol: false,
 				symbolSize: 5
+			},
+			{
+				name: 'maximum',
+				type: 'line',
+				data: [],		
+				lineStyle: {
+					normal: {
+						type: 'solid',
+						color:DbCurveColor[1],
+						width: 1.5
+					},
+				},
+				itemStyle:{
+					normal:{
+						color:DbCurveColor[1],
+					}
+				},
+				yAxisIndex: 0,
+				smooth: true,
+				smoothMonotone: 'x',
+				hoverAnimation: false,
+				showSymbol: false,
+				symbolSize: 5,
 			}
 		]
 	};	
@@ -1751,28 +1663,26 @@ var DbRequestChart = new function() {
 		this.data = d;
 		this.option.series[0].data = [];
 		this.option.series[1].data = [];
-		this.option.series[2].data = [];
 		this.option.xAxis.data = [];
 		this.maxVal = 0;
 		
 		var length = d.data.length;
 		for (var row = 0; row < length; ++row) {
 			var data = d.data[row]; 	
-			this.option.xAxis.data[row] = data[0]; 	
+			this.option.xAxis.data[row] = data[0];
 			if (dbIsUseTime) {
-				this.option.series[0].data[row] = [data[0],data[14]];
-				this.option.series[1].data[row] = [data[0],data[13]];	
-				this.option.series[2].data[row] = [data[0],data[12]];					
+				this.option.series[0].data[row] = [data[0],data[15]];
+				this.option.series[1].data[row] = [data[0],data[16]];				
 			}
 			else {
-				this.option.series[0].data[row] = data[14];
-				this.option.series[1].data[row] = data[13];
-				this.option.series[2].data[row] = data[12];
+				this.option.series[0].data[row] = data[15];
+				this.option.series[1].data[row] = data[16];
 			}
-			this.maxVal = Math.max(this.maxVal, data[12]+data[13]+data[14]);
-		}	
+			this.option.title.text = "Users";
+			this.maxVal = Math.max(this.maxVal, data[15]);
+			this.maxVal = Math.max(this.maxVal, data[16]);
+		}
 		
-		this.option.title.text = "request";
 		this.graph.setOption(this.option);
 		this.graph.resize();		
 	}
@@ -1798,8 +1708,11 @@ function dbGetValue(value, maxVal)
 	else if (maxVal < 6000000000) {
 		return (value / 1000000).toFixed(0) + 'M';
 	}
-	else {
+	else if (maxVal < 6000000000000) {
 		return (value / 1000000000).toFixed(0) + 'G';
+	}
+	else {
+		return (value / 1000000000000).toFixed(0) + 'T';
 	}
 	
 	return value;

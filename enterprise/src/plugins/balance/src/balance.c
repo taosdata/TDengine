@@ -24,7 +24,7 @@
 #include "dnode.h"
 #include "mnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtDnode.h"
 #include "mgmtDb.h"
 #include "mgmtMnode.h"
@@ -726,7 +726,7 @@ void balanceAccquireDnodeList() {
     if (pDnode == NULL) break;
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       mgmtDecDnodeRef(pDnode);
-      break;
+      continue;
     }
 
     balanceCalcDnodeScore(pDnode);
