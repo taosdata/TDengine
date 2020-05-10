@@ -85,7 +85,6 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   
   varDataSetLen(pTable->name, len);
   memcpy(pTable->name->data, ptr, len);
-  printf("%s\n", pTable->name->data);
   
   ptr = (char *)ptr + len;
   T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
