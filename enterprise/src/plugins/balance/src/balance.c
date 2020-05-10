@@ -726,7 +726,7 @@ void balanceAccquireDnodeList() {
     if (pDnode == NULL) break;
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       mgmtDecDnodeRef(pDnode);
-      break;
+      continue;
     }
 
     balanceCalcDnodeScore(pDnode);
