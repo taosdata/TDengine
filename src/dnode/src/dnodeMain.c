@@ -167,9 +167,9 @@ static int32_t dnodeInitSystem() {
   if (dnodeInitRead() != 0) return -1;
   if (dnodeInitWrite() != 0) return -1;
   if (dnodeInitClient() != 0) return -1;
-  if (dnodeInitModules() != 0) return -1;
   if (dnodeInitServer() != 0) return -1;
   if (dnodeInitMgmt() != 0) return -1;
+  if (dnodeInitModules() != 0) return -1;
   if (dnodeInitShell() != 0) return -1;
 
   dnodeStartModules();
@@ -184,14 +184,14 @@ static void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
     dnodeCleanupShell();
-    dnodeCleanupServer();
+    dnodeCleanUpModules();
     dnodeCleanupMgmt();
+    dnodeCleanupServer();
     dnodeCleanupClient();
     dnodeCleanupWrite();
     dnodeCleanupRead();
-    dnodeCleanUpModules();
-    taos_cleanup();
     dnodeCleanupStorage();
+    taos_cleanup();
     taosCloseLog();
   }
 }
