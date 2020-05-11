@@ -470,7 +470,11 @@ int main(int argc, char *argv[]) {
         break;
     }
 
+    if (c=='q') break;
+
   }
+
+  syncStop(syncHandle);
 
   if (dataFd >= 0) {
     close(dataFd);
