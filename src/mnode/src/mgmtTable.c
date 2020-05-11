@@ -1241,9 +1241,8 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   SCMSTableVgroupMsg *pInfo = pMsg->pCont;
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
-  SCMSTableVgroupRspMsg *pRsp = NULL;
+  // reserve space
   int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo); 
-  //reserve space
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
     SSuperTableObj *pTable = mgmtGetSuperTable(stableName);
@@ -1253,7 +1252,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
     mgmtDecTableRef(pTable);
   }
 
-  pRsp = rpcMallocCont(contLen);
+  SCMSTableVgroupRspMsg *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return;
@@ -1265,32 +1264,31 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
     SSuperTableObj *pTable = mgmtGetSuperTable(stableName);
-    SVgroupsInfo *pVgroup = (SVgroupsInfo *)msg;
+    SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
 
     SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
     int32_t vgSize = 0;
     while (taosHashIterNext(pIter)) {
       int32_t *pVgId = taosHashIterGet(pIter);
-      SVgObj * pVgItem = mgmtGetVgroup(*pVgId
-      );
-      if (pVgItem == NULL) continue;
+      SVgObj * pVgroup = mgmtGetVgroup(*pVgId);
+      if (pVgroup == NULL) continue;
 
-      pVgroup->vgroups[vgSize].vgId = htonl(pVgItem->vgId);
-      for (int32_t vn = 0; vn < pVgItem->numOfVnodes; ++vn) {
-        SDnodeObj *pDnode = pVgItem->vnodeGid[vn].pDnode;
+      pVgroupInfo->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
+      for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
+        SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
         if (pDnode == NULL) break;
 
-        strncpy(pVgroup->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
-        pVgroup->vgroups[vgSize].ipAddr[vn].port = htons(tsDnodeShellPort);
+        strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
+        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(tsDnodeShellPort);
 
-        pVgroup->vgroups[vgSize].numOfIps++;
+        pVgroupInfo->vgroups[vgSize].numOfIps++;
       }
 
       vgSize++;
-      mgmtDecVgroupRef(pVgItem);
+      mgmtDecVgroupRef(pVgroup);
     }
 
-    pVgroup->numOfVgroups = htonl(vgSize);
+    pVgroupInfo->numOfVgroups = htonl(vgSize);
 
     // one table is done, try the next table
     msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
