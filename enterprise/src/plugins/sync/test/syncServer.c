@@ -223,7 +223,7 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
   return ret;
 }
 
-void processRequestMsg(SRpcMsg *pMsg) {
+void processRequestMsg(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   
   SRpcMsg *pTemp;
 
@@ -470,7 +470,11 @@ int main(int argc, char *argv[]) {
         break;
     }
 
+    if (c=='q') break;
+
   }
+
+  syncStop(syncHandle);
 
   if (dataFd >= 0) {
     close(dataFd);
