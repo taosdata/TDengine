@@ -2436,8 +2436,16 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
           // set the pCtx output buffer position
           pRuntimeEnv->pCtx[i].aOutputBuf = pQuery->sdata[i]->data + pRec->rows * bytes;
+          
+          int32_t functionId = pQuery->pSelectExpr[i].base.functionId;
+          if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
+            pRuntimeEnv->pCtx[i].ptsOutputBuf = pRuntimeEnv->pCtx[0].aOutputBuf;
+          }
         }
-
+  
+        qTrace("QInfo: %p realloc output buffer, new size: %d rows, old:%d, remain:%d", GET_QINFO_ADDR(pRuntimeEnv),
+               newSize, pRec->capacity, newSize - pRec->rows);
+        
         pRec->capacity = newSize;
       }
     }
