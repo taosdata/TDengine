@@ -163,7 +163,7 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}/tests
 
-          ./test-all.sh $TRAVIS_EVENT_TYPE
+          ./test-all.sh $TRAVIS_EVENT_TYPE COVER
 
           TEST_RESULT=$?
 
