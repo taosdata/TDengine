@@ -1,17 +1,15 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
 sql connect
 print ======================== dnode1 start
 
-$dbPrefix = fi_do_db
-$tbPrefix = fi_do_tb
-$mtPrefix = fi_do_mt
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = st
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -158,3 +156,5 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

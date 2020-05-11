@@ -6,18 +6,15 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 
-system sh/cfg.sh -n dnode1 -c clog -v 2
-system sh/cfg.sh -n dnode2 -c clog -v 2
-system sh/cfg.sh -n dnode3 -c clog -v 2
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode2 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode3 -c cacheBlockSize -v 200
 
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
@@ -29,7 +26,7 @@ system sh/exec_up.sh -n dnode3 -s start
 sleep 3000
 
 print ======== step1 
-sql create database db replica 3 ablocks 2 tblocks 5 tables 10000
+sql create database db replica 3 ablocks 2 tblocks 5 maxtables 10000
 sql create table db.mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
 $tbPrefix = db.t
@@ -47,3 +44,12 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi 
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

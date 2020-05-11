@@ -25,20 +25,20 @@ system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
 
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode2 -c clog -v 1
-system sh/cfg.sh -n dnode3 -c clog -v 1
-system sh/cfg.sh -n dnode4 -c clog -v 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
+system sh/cfg.sh -n dnode4 -c wallevel -v 1
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
 
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode3 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode4 -c sessionsPerVnode -v 4
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
 
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
@@ -75,7 +75,7 @@ $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 $st = $stPrefix . $i
 
-sql create database $db tables 4
+sql create database $db maxTables 4
 sql use $db
 sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
 
@@ -163,7 +163,7 @@ print dnode2 $dnode2Vnodes
 if $dnode1Vnodes != 6 then
   goto show1
 endi
-if $dnode2Vnodes != null then
+if $dnode2Vnodes != NULL then
   goto show1
 endi
 
@@ -214,7 +214,7 @@ print dnode1 $dnode1Vnodes
 $dnode2Vnodes = $data3_192.168.0.2
 print dnode2 $dnode2Vnodes
 
-if $dnode1Vnodes != null then
+if $dnode1Vnodes != NULL then
   goto show6
 endi
 if $dnode2Vnodes != 6 then

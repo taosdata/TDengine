@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c http -v 1
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
 #system sh/cfg.sh -n dnode1 -c adminRowLimit -v 10
 system sh/cfg.sh -n dnode1 -c httpDebugFlag -v 135
 system sh/exec_up.sh -n dnode1 -s start
@@ -178,3 +178,12 @@ print ===============  step8 - monitor dbs
 #if $system_content != @[{"status":"succ","head":["IP","created time","open vnodes","free vnodes","status","balance state"],"data":[["127.0.0.1","2018-09-04 #11:16:13.985",1,3,"ready","balanced"]],"rows":1},{"status":"succ","head":["IP","created time","status","role"],"data":[["127.0.0.1","2018-09-04 11:16:13.371","serving","master"]],"rows":1}]@ then
 #  return -1
 #	endi
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

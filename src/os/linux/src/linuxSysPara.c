@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tsysctl.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
@@ -356,10 +357,15 @@ static bool taosGetCardName(char *ip, char *name) {
       break;
     }
 
-    if (strcmp(host, ip) == 0) {
-      strcpy(name, ifa->ifa_name);
-      ret = true;
+    if (strcmp(host, "127.0.0.1") == 0) {
+      continue;
     }
+
+    // TODO: the ip not config
+    // if (strcmp(host, ip) == 0) {
+    strcpy(name, ifa->ifa_name);
+    ret = true;
+    // }
   }
 
   freeifaddrs(ifaddr);

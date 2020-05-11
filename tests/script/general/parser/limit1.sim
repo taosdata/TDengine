@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -56,8 +56,8 @@ while $i < $halfNum
 endw 
 print ====== tables created
 
-run lite/parser/limit1_tb.sim
-run lite/parser/limit1_stb.sim
+run general/parser/limit1_tb.sim
+run general/parser/limit1_stb.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -65,5 +65,5 @@ sleep 2000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
-run lite/parser/limit1_tb.sim
-run lite/parser/limit1_stb.sim
+run general/parser/limit1_tb.sim
+run general/parser/limit1_stb.sim

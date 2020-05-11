@@ -330,7 +330,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -357,7 +357,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -384,7 +384,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -411,7 +411,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -438,7 +438,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 

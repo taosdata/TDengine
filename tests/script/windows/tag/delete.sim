@@ -420,7 +420,7 @@ endi
 if $data02 != true then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
 
@@ -444,7 +444,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
 
@@ -468,7 +468,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
 
@@ -492,7 +492,7 @@ endi
 if $data02 != 1.000000000 then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
 
@@ -516,10 +516,10 @@ endi
 if $data02 != true then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
-if $data04 != null then 
+if $data04 != NULL then 
   return -1
 endi
 
@@ -546,10 +546,10 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
-if $data04 != null then 
+if $data04 != NULL then 
   return -1
 endi
 
@@ -576,10 +576,10 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
-if $data04 != null then 
+if $data04 != NULL then 
   return -1
 endi
 
@@ -606,10 +606,10 @@ endi
 if $data02 != 1.000000000 then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
-if $data04 != null then 
+if $data04 != NULL then 
   return -1
 endi
 
@@ -636,13 +636,13 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi
-if $data04 != null then 
+if $data04 != NULL then 
   return -1
 endi
-if $data05 != null then 
+if $data05 != NULL then 
   return -1
 endi
 
@@ -675,13 +675,13 @@ endi
 if $data03 != 4.0000 then 
   return -1
 endi
-if $data04 != null then 
+if $data04 != NULL then 
   return -1
 endi
-if $data05 != null then 
+if $data05 != NULL then 
   return -1
 endi
-if $data06 != null then 
+if $data06 != NULL then 
   return -1
 endi
 
@@ -714,16 +714,16 @@ endi
 if $data03 != 4.000000000 then 
   return -1
 endi
-if $data04 != null then 
+if $data04 != NULL then 
   return -1
 endi
-if $data05 != null then 
+if $data05 != NULL then 
   return -1
 endi
-if $data06 != null then 
+if $data06 != NULL then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -763,13 +763,13 @@ endi
 if $data04 != 5.000000000 then 
   return -1
 endi
-if $data05 != null then 
+if $data05 != NULL then 
   return -1
 endi
-if $data06 != null then 
+if $data06 != NULL then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 

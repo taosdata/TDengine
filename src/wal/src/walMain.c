@@ -62,7 +62,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
   pWal->max = pCfg->wals;
   pWal->id = 0;
   pWal->num = 0;
-  pWal->level = pCfg->commitLog;
+  pWal->level = pCfg->walLevel;
   pWal->keep = pCfg->keep;
   strcpy(pWal->path, path);
   pthread_mutex_init(&pWal->mutex, NULL);
@@ -79,7 +79,9 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
     pthread_mutex_destroy(&pWal->mutex);
     free(pWal);
     pWal = NULL;
-  } 
+  } else {
+    wTrace("wal:%s, it is open, level:%d", path, pWal->level);
+  }
 
   return pWal;
 }
@@ -177,8 +179,11 @@ void walFsync(void *handle) {
 
   SWal *pWal = handle;
 
-  if (pWal->level == TAOS_WAL_FSYNC) 
-    fsync(pWal->fd);
+  if (pWal->level == TAOS_WAL_FSYNC && pWal->fd >=0) {
+    if (fsync(pWal->fd) < 0) {
+      wError("wal:%s, fsync failed(%s)", pWal->name, strerror(errno));
+    }
+  }
 }
 
 int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) {

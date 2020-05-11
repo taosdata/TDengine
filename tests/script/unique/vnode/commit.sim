@@ -2,8 +2,8 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode1 -c clog -v 2
-system sh/cfg.sh -n dnode2 -c clog -v 2
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
 system sh/cfg.sh -n dnode1 -c numofMpeers -v 3
 system sh/cfg.sh -n dnode2 -c numofMpeers -v 3
 system sh/exec_up.sh -n dnode1 -s start
@@ -148,4 +148,11 @@ if $rows != $remainRows then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

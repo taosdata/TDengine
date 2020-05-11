@@ -634,7 +634,7 @@ void *readMetric(void *sarg) {
   fprintf(fp, "Querying On %d records:\n", totalData);
 
   for (int j = 0; j < n; j++) {
-    char condition[BUFFER_SIZE] = "\0";
+    char condition[BUFFER_SIZE - 30] = "\0";
     char tempS[BUFFER_SIZE] = "\0";
 
     int m = 10 < num_of_tables ? 10 : num_of_tables;

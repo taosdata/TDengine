@@ -16,9 +16,9 @@ system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c clog -v 1
-system sh/cfg.sh -n dnode2 -c clog -v 1
-system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
 
 print ========== step1
 system sh/exec_up.sh -n dnode1 -s start
@@ -27,7 +27,7 @@ sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
 sleep 3000
 
-sql create database d1 replica 2 tables 4
+sql create database d1 replica 2 maxTables 4
 sql create table d1.t1(ts timestamp, i int)
 sql insert into d1.t1 values(now, 1)
 
@@ -90,7 +90,7 @@ sql show dnodes
 if $data4_1 != ready then
   goto show4
 endi
-if $data4_2 != null then
+if $data4_2 != NULL then
   goto show4
 endi
 if $data4_3 != ready then
@@ -106,3 +106,11 @@ if $rows != 1 then
   return -1
 endi
 
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

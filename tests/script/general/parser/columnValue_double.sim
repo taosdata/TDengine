@@ -11,145 +11,146 @@ print ========== double
 sql create table mt_double (ts timestamp, c double) tags (tagname double)
 
 ## case 00: static create table for test tag values
-sql create table st_double_0  using mt_double tags (null)
-sql describe st_double_0
-if $data23 != NULL then
+sql create table st_double_0  using mt_double tags (NULL )
+sql select tagname from st_double_0
+if $data00 != NULL then
   return -1
 endi
 sql create table st_double_1  using mt_double tags (NULL)
-sql describe st_double_1
-if $data23 != NULL then
+sql select tagname from st_double_1
+if $data00 != NULL then
   return -1
 endi
-sql create table st_double_2  using mt_double tags ('null')
-sql describe st_double_2
-if $data23 != NULL then
+sql create table st_double_2  using mt_double tags ('NULL')
+sql select tagname from st_double_2
+if $data00 != NULL then
   return -1
 endi
 sql create table st_double_3  using mt_double tags ('NULL')
-sql describe st_double_3
-if $data23 != NULL then
+sql select tagname from st_double_3
+if $data00 != NULL then
   return -1
 endi
-sql create table st_double_4  using mt_double tags ("null")
-sql describe st_double_4
-if $data23 != NULL then
+sql create table st_double_4  using mt_double tags ("NULL")
+sql select tagname from st_double_4
+if $data00 != NULL then
   return -1
 endi
 sql create table st_double_5  using mt_double tags ("NULL")
-sql describe st_double_5
-if $data23 != NULL then
+sql select tagname from st_double_5
+if $data00 != NULL then
   return -1
 endi
 sql create table st_double_6  using mt_double tags (-123.321)
-sql describe st_double_6
-if $data23 != -123.321000 then
+sql select tagname from st_double_6
+if $data00 != -123.321000000 then
+  print expect -123.321000000, actual: $data00
   return -1
 endi
 sql create table st_double_7  using mt_double tags (+1.567)
-sql describe st_double_7
-if $data23 != 1.567000 then
+sql select tagname from st_double_7
+if $data00 != 1.567000000 then
   return -1
 endi
 sql create table st_double_8  using mt_double tags (379.001)
-sql describe st_double_8
-if $data23 != 379.001000 then
+sql select tagname from st_double_8
+if $data00 != 379.001000000 then
   return -1
 endi
 sql create table st_double_9  using mt_double tags (1.5e+3)
-sql describe st_double_9
-if $data23 != 1500.000000 then
+sql select tagname from st_double_9
+if $data00 != 1500.000000000 then
   return -1
 endi
 sql create table st_double_10 using mt_double tags (-1.5e-3)
-sql describe st_double_10
-if $data23 != -0.001500 then
+sql select tagname from st_double_10
+if $data00 != -0.001500000 then
   return -1
 endi
 sql create table st_double_11 using mt_double tags (+1.5e+3)
-sql describe st_double_11
-if $data23 != 1500.000000 then
+sql select tagname from st_double_11
+if $data00 != 1500.000000000 then
   return -1
 endi
 sql create table st_double_12 using mt_double tags (-1.5e+3)
-sql describe st_double_12
-if $data23 != -1500.000000 then
+sql select tagname from st_double_12
+if $data00 != -1500.000000000 then
   return -1
 endi
 sql create table st_double_13 using mt_double tags (1.5e-3)
-sql describe st_double_13
-if $data23 != 0.001500 then
+sql select tagname from st_double_13
+if $data00 != 0.001500000 then
   return -1
 endi
 sql create table st_double_14 using mt_double tags (1.5E-3)
-sql describe st_double_14
-if $data23 != 0.001500 then
+sql select tagname from st_double_14
+if $data00 != 0.001500000 then
   return -1
 endi
 
 sql create table st_double_6_0  using mt_double tags ('-123.321')
-sql describe st_double_6_0
-if $data23 != -123.321000 then
+sql select tagname from st_double_6_0
+if $data00 != -123.321000000 then
   return -1
 endi
 sql create table st_double_7_0  using mt_double tags ('+1.567')
-sql describe st_double_7_0
-if $data23 != 1.567000 then
+sql select tagname from st_double_7_0
+if $data00 != 1.567000000 then
   return -1
 endi
 sql create table st_double_8_0  using mt_double tags ('379.001')
-sql describe st_double_8_0
-if $data23 != 379.001000 then
+sql select tagname from st_double_8_0
+if $data00 != 379.001000000 then
   return -1
 endi
 sql create table st_double_9_0  using mt_double tags ('1.5e+3')
-sql describe st_double_9_0
-if $data23 != 1500.000000 then
+sql select tagname from st_double_9_0
+if $data00 != 1500.000000000 then
   return -1
 endi
 sql create table st_double_10_0 using mt_double tags ('-1.5e-3')
-sql describe st_double_10_0
-if $data23 != -0.001500 then
+sql select tagname from st_double_10_0
+if $data00 != -0.001500000 then
   return -1
 endi
 sql create table st_double_11_0 using mt_double tags ('+1.5e+3')
-sql describe st_double_11_0
-if $data23 != 1500.000000 then
+sql select tagname from st_double_11_0
+if $data00 != 1500.000000000 then
   return -1
 endi
 sql create table st_double_12_0 using mt_double tags ('-1.5e+3')
-sql describe st_double_12_0
-if $data23 != -1500.000000 then
+sql select tagname from st_double_12_0
+if $data00 != -1500.000000000 then
   return -1
 endi
 sql create table st_double_13_0 using mt_double tags ('1.5e-3')
-sql describe st_double_13_0
-if $data23 != 0.001500 then
+sql select tagname from st_double_13_0
+if $data00 != 0.001500000 then
   return -1
 endi
 sql create table st_double_14_0 using mt_double tags ('1.5E-3')
-sql describe st_double_14_0
-if $data23 != 0.001500 then
+sql select tagname from st_double_14_0
+if $data00 != 0.001500000 then
   return -1
 endi
 sql create table st_double_15_0 using mt_double tags (1.7976931348623157e+308)
-sql describe st_double_15_0
-#if $data23 != 0.001500 then
+sql select tagname from st_double_15_0
+#if $data00 != 0.001500000 then
 #  return -1
 #endi
 sql create table st_double_16_0 using mt_double tags (-1.7976931348623157e+308)
-sql describe st_double_16_0
-#if $data23 != 0.001500 then
+sql select tagname from st_double_16_0
+#if $data00 != 0.001500000 then
 #  return -1
 #endi
 
 ## case 01: insert values  for test column values
-sql insert into st_double_0  values (now, null)
+sql insert into st_double_0  values (now, NULL )
 sql select * from st_double_0
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi 
 sql insert into st_double_1  values (now, NULL)
@@ -157,15 +158,15 @@ sql select * from st_double_1
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi  
-sql insert into st_double_2  values (now, 'null')
+sql insert into st_double_2  values (now, 'NULL')
 sql select * from st_double_2
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
 sql insert into st_double_3  values (now, 'NULL')
@@ -173,15 +174,15 @@ sql select * from st_double_3
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
-sql insert into st_double_4  values (now, "null")
+sql insert into st_double_4  values (now, "NULL")
 sql select * from st_double_4
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
 sql insert into st_double_5  values (now, "NULL")
@@ -189,7 +190,7 @@ sql select * from st_double_5
 if $rows != 1 then
   return -1
 endi
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
 
@@ -215,7 +216,7 @@ sql select * from st_double_8
 if $rows != 1 then
   return -1
 endi
-#if $data01 != 100.89000 then
+#if $data01 != 100.89000000 then
 #  return -1
 #endi   
 sql insert into st_double_9  values (now, "-0.98")
@@ -223,7 +224,7 @@ sql select * from st_double_9
 if $rows != 1 then
   return -1
 endi
-#if $data01 != -0.980000 then
+#if $data01 != -0.980000000 then
 #  return -1
 #endi 
 sql insert into st_double_10 values (now, '0')
@@ -231,7 +232,7 @@ sql select * from st_double_10
 if $rows != 1 then
   return -1
 endi
-#if $data01 != 0.00000 then   # tsim only print 4 bits after dot
+#if $data01 != 0.00000000 then   # tsim only print 4 bits after dot
 #  return -1
 #endi 
 sql insert into st_double_11 values (now, -0)  
@@ -239,7 +240,7 @@ sql select * from st_double_11
 if $rows != 1 then
   return -1
 endi
-#if $data01 != 0.00000 then
+#if $data01 != 0.000000000 then
 #  return -1
 #endi 
 sql insert into st_double_12 values (now, "+056")
@@ -256,7 +257,7 @@ sql select * from st_double_13
 if $rows != 1 then
   return -1
 endi
-#if $data01 != 56.000000 then
+#if $data01 != 56.000000000 then
 #  return -1
 #endi 
 
@@ -270,64 +271,64 @@ endi
 #endi 
 
 ## case 02: dynamic create table for test tag values
-sql insert into st_double_16 using mt_double tags (null)   values (now, null)
-sql describe st_double_16
-if $data23 != NULL then
+sql insert into st_double_16 using mt_double tags (NULL )   values (now, NULL )
+sql select tagname from st_double_16
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_double_16
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
     
 sql insert into st_double_17 using mt_double tags (NULL)   values (now, NULL)
-sql describe st_double_17
-if $data23 != NULL then
+sql select tagname from st_double_17
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_double_17
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi  
-sql insert into st_double_18 using mt_double tags ('null') values (now, 'null')
-sql describe st_double_18
-if $data23 != NULL then
+sql insert into st_double_18 using mt_double tags ('NULL') values (now, 'NULL')
+sql select tagname from st_double_18
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_double_18
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
 sql insert into st_double_19 using mt_double tags ('NULL') values (now, 'NULL')
-sql describe st_double_19
-if $data23 != NULL then
+sql select tagname from st_double_19
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_double_19
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
-sql insert into st_double_20 using mt_double tags ("null") values (now, "null")
-sql describe st_double_20
-if $data23 != NULL then
+sql insert into st_double_20 using mt_double tags ("NULL") values (now, "NULL")
+sql select tagname from st_double_20
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_double_20
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
 sql insert into st_double_21 using mt_double tags ("NULL") values (now, "NULL")
-sql describe st_double_21
-if $data23 != NULL then
+sql select tagname from st_double_21
+if $data00 != NULL then
   return -1
 endi
 sql select * from st_double_21
-if $data01 != null then
+if $data01 != NULL  then
   return -1
 endi
 sql insert into st_double_22 using mt_double tags (127)  values (now, 1.7976931348623157e+308)
-sql describe st_double_22
-#if $data23 != 127 then
+sql select tagname from st_double_22
+#if $data00 != 127 then
 #  return -1
 #endi
 sql select * from st_double_22
@@ -335,8 +336,8 @@ sql select * from st_double_22
 #  return -1
 #endi 
 sql insert into st_double_23 using mt_double tags (-127)  values (now, -1.7976931348623157e+308)
-sql describe st_double_23
-#if $data23 != -127 then
+sql select tagname from st_double_23
+#if $data00 != -127 then
 #  return -1
 #endi
 sql select * from st_double_23
@@ -344,8 +345,8 @@ sql select * from st_double_23
 #  return -1
 #endi  
 sql insert into st_double_24 using mt_double tags (10)    values (now, 10)
-sql describe st_double_24
-#if $data23 != 10 then
+sql select tagname from st_double_24
+#if $data00 != 10 then
 #  return -1
 #endi
 sql select * from st_double_24
@@ -353,8 +354,8 @@ sql select * from st_double_24
 #  return -1
 #endi    
 sql insert into st_double_25 using mt_double tags ("-0") values (now, "-0")
-sql describe st_double_25
-#if $data23 != 0 then
+sql select tagname from st_double_25
+#if $data00 != 0 then
 #  return -1
 #endi
 sql select * from st_double_25
@@ -362,8 +363,8 @@ sql select * from st_double_25
 #  return -1
 #endi 
 sql insert into st_double_26 using mt_double tags ('123') values (now, '12.3')
-sql describe st_double_26
-#if $data23 != 123 then
+sql select tagname from st_double_26
+#if $data00 != 123 then
 #  return -1
 #endi
 sql select * from st_double_26
@@ -371,8 +372,8 @@ sql select * from st_double_26
 #  return -1
 #endi 
 sql insert into st_double_27 using mt_double tags (+056) values (now, +0005.6)
-sql describe st_double_27
-#if $data23 != 56 then
+sql select tagname from st_double_27
+#if $data00 != 56 then
 #  return -1
 #endi
 sql select * from st_double_27
@@ -380,8 +381,8 @@ sql select * from st_double_27
 #  return -1
 #endi 
 sql insert into st_double_28 using mt_double tags (-056) values (now, -005.6)
-sql describe st_double_28
-#if $data23 != -56 then
+sql select tagname from st_double_28
+#if $data00 != -56 then
 #  return -1
 #endi
 sql select * from st_double_28
@@ -389,47 +390,47 @@ sql select * from st_double_28
 #  return -1
 #endi 
 
-## case 03: alter tag values
-sql alter table st_double_0 set tag tagname=1.7976931348623157e+308
-sql describe st_double_0
-#if $data23 != 127 then
-#  return -1
-#endi 
-sql alter table st_double_0 set tag tagname=-1.7976931348623157e+308
-sql describe st_double_0
-#if $data23 != -127 then
-#  return -1
-#endi 
-sql alter table st_double_0 set tag tagname=+10.340
-sql describe st_double_0
-#if $data23 != 100 then
-#  return -1
-#endi
-sql alter table st_double_0 set tag tagname=-33.87
-sql describe st_double_0
-#if $data23 != -33 then
-#  return -1
-#endi
-sql alter table st_double_0 set tag tagname='+9.8'
-sql describe st_double_0
-#if $data23 != 98 then
-#  return -1
-#endi
-sql alter table st_double_0 set tag tagname='-07.6'
-sql describe st_double_0
-#if $data23 != -76 then
-#  return -1
-#endi
-sql alter table st_double_0 set tag tagname=+0012.871
-sql describe st_double_0
-#if $data23 != 12 then
-#  return -1
-#endi
-sql alter table st_double_0 set tag tagname=-00063.582
-sql describe st_double_0
-#if $data23 != -63 then
-#  return -1
-#endi
+### case 03: alter tag values
+#sql alter table st_double_0 set tag tagname=1.7976931348623157e+308
+#sql select tagname from st_double_0
+##if $data00 != 127 then
+##  return -1
+##endi
+#sql alter table st_double_0 set tag tagname=-1.7976931348623157e+308
+#sql select tagname from st_double_0
+##if $data00 != -127 then
+##  return -1
+##endi
+#sql alter table st_double_0 set tag tagname=+10.340
+#sql select tagname from st_double_0
+##if $data00 != 100 then
+##  return -1
+##endi
+#sql alter table st_double_0 set tag tagname=-33.87
+#sql select tagname from st_double_0
+##if $data00 != -33 then
+##  return -1
+##endi
+#sql alter table st_double_0 set tag tagname='+9.8'
+#sql select tagname from st_double_0
+##if $data00 != 98 then
+##  return -1
+##endi
+#sql alter table st_double_0 set tag tagname='-07.6'
+#sql select tagname from st_double_0
+##if $data00 != -76 then
+##  return -1
+##endi
+#sql alter table st_double_0 set tag tagname=+0012.871
+#sql select tagname from st_double_0
+##if $data00 != 12 then
+##  return -1
+##endi
+#sql alter table st_double_0 set tag tagname=-00063.582
+#sql select tagname from st_double_0
+##if $data00 != -63 then
+##  return -1
+##endi
 
 ## case 04: illegal input
 sql_error create table st_double_e0 using mt_double tags (1.8976931348623157e+308)

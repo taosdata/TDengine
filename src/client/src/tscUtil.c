@@ -30,7 +30,10 @@
 #include "ttokendef.h"
 #include "tscLog.h"
 
-SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
+static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
+static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
+  
+  SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->pCond == NULL) {
     return NULL;
   }
@@ -309,6 +312,7 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
     for (int i = 0; i < pRes->numOfCols; i++) {
       tfree(pRes->buffer[i]);
     }
+    
     pRes->numOfCols = 0;
   }
   
@@ -320,7 +324,30 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
   tfree(pRes->pColumnIndex);
   tfree(pRes->buffer);
   
+  if (pRes->pArithSup != NULL) {
+    tfree(pRes->pArithSup->data);
+    tfree(pRes->pArithSup);
+  }
+  
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
+}
+
+static void tscFreeQueryInfo(SSqlCmd* pCmd) {
+  if (pCmd == NULL || pCmd->numOfClause == 0) {
+    return;
+  }
+  
+  for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
+    char* addr = (char*)pCmd - offsetof(SSqlObj, cmd);
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
+    
+    freeQueryInfoImpl(pQueryInfo);
+    clearAllTableMetaInfo(pQueryInfo, (const char*)addr, false);
+    tfree(pQueryInfo);
+  }
+  
+  pCmd->numOfClause = 0;
+  tfree(pCmd->pQueryInfo);
 }
 
 void tscResetSqlCmdObj(SSqlCmd* pCmd) {
@@ -330,11 +357,13 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd) {
   pCmd->curSql    = NULL;
   pCmd->msgType   = 0;
   pCmd->parseFinished = 0;
+  pCmd->autoCreated = 0;
   
   taosHashCleanup(pCmd->pTableList);
-  pCmd->pTableList= NULL;
+  pCmd->pTableList = NULL;
   
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  
   tscFreeQueryInfo(pCmd);
 }
 
@@ -343,6 +372,7 @@ void tscFreeSqlResult(SSqlObj* pSql) {
   
   SSqlRes* pRes = &pSql->res;
   tscDestroyResPointerInfo(pRes);
+  
   memset(&pSql->res, 0, sizeof(SSqlRes));
 }
 
@@ -366,8 +396,8 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   pthread_mutex_unlock(&pObj->mutex);
   
   tscFreeSqlResult(pSql);
-  tfree(pSql->pSubs);
   
+  tfree(pSql->pSubs);
   pSql->freed = 0;
   pSql->numOfSubs = 0;
   
@@ -726,10 +756,17 @@ void tscCloseTscObj(STscObj* pObj) {
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 
-  rpcClose(pObj->pMgmtConn);
+  if (pSql) {
+    sem_destroy(&pSql->rspSem);
+  }
+  
   pthread_mutex_destroy(&pObj->mutex);
   
-  tscTrace("%p DB connection is closed", pObj);
+  if (pObj->pDnodeConn != NULL) {
+    rpcClose(pObj->pDnodeConn);
+  }
+  
+  tscTrace("%p DB connection is closed, dnodeConn:%p", pObj, pObj->pDnodeConn);
   tfree(pObj);
 }
 
@@ -913,6 +950,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     
     if (pInfo->pArithExprInfo != NULL) {
       tExprTreeDestroy(&pInfo->pArithExprInfo->pExpr, NULL);
+      tfree(pInfo->pArithExprInfo);
     }
   }
   
@@ -947,7 +985,7 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   pExpr->colInfo.colIndex = pColIndex->columnIndex;
   pExpr->resType       = type;
   pExpr->resBytes      = size;
-  pExpr->interResBytes = interSize;
+  pExpr->interBytes = interSize;
   pExpr->uid           = pTableMetaInfo->pTableMeta->uid;
   
   return pExpr;
@@ -1422,20 +1460,6 @@ bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
   return pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE;
 }
 
-void tscCleanSqlCmd(SSqlCmd* pCmd) {
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  tscFreeQueryInfo(pCmd);
-
-  uint32_t allocSize = pCmd->allocSize;
-  char*    allocPtr = pCmd->payload;
-
-  memset(pCmd, 0, sizeof(SSqlCmd));
-
-  // restore values
-  pCmd->allocSize = allocSize;
-  pCmd->payload = allocPtr;
-}
-
 /*
  * the following three kinds of SqlObj should not be freed
  * 1. SqlObj for stream computing
@@ -1628,24 +1652,6 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool rem
   }
   
   tfree(pQueryInfo->pTableMetaInfo);
-}
-
-void tscFreeQueryInfo(SSqlCmd* pCmd) {
-  if (pCmd == NULL || pCmd->numOfClause == 0) {
-    return;
-  }
-
-  for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
-    char* addr = (char*)pCmd - offsetof(SSqlObj, cmd);
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
-
-    freeQueryInfoImpl(pQueryInfo);
-    clearAllTableMetaInfo(pQueryInfo, (const char*)addr, false);
-    tfree(pQueryInfo);
-  }
-
-  pCmd->numOfClause = 0;
-  tfree(pCmd->pQueryInfo);
 }
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,

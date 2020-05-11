@@ -13,19 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MCLIENT_H
-#define TDENGINE_DNODE_MCLIENT_H
+#ifndef TDENGINE_TSYSCTL_H
+#define TDENGINE_TSYSCTL_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t  dnodeInitMClient();
-void     dnodeCleanupMClient();
-void     dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
-
-#ifdef __cplusplus
-}
+#ifndef _ALPINE
+  #include <error.h>
+  #include <sys/sysctl.h>
+#else
+  #include <linux/sysctl.h>  
 #endif
 
 #endif

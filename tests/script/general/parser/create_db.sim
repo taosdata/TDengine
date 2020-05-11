@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -108,10 +108,10 @@ $cache = 4096 # 4 kb
 $ablocks = 100 
 $tblocks = 32 # max=512, automatically trimmed when exceeding
 $ctime = 36000 # 10 hours
-$clog = 0 # max=32, automatically trimmed when exceeding
+$wal = 0 # valid value is 0, 1, 2
 $comp = 1 # max=32, automatically trimmed when exceeding
 
-sql create database $db replica $replica days $days keep $keep rows $rows_db cache $cache ablocks $ablocks tblocks $tblocks ctime $ctime clog $clog comp $comp
+sql create database $db replica $replica days $days keep $keep maxrows $rows_db cache $cache ablocks $ablocks tblocks $tblocks ctime $ctime wal $wal comp $comp
 sql show databases
 if $rows != 1 then
   return -1
@@ -156,14 +156,14 @@ sql_error create database $db keep 0
 #sql_error create database $db keep 3651
 
 # rows [200, 10000]
-sql_error create database $db rows 199
-#sql_error create database $db rows 10001
+sql_error create database $db maxrows 199
+#sql_error create database $db maxrows 10001
 
 # cache [100, 10485760]
 sql_error create database $db cache 99
 #sql_error create database $db cache 10485761
 
-# ablocks [overwriten by 4*sessionsPerVnode, 409600]
+# ablocks [overwriten by 4*maxtablesPerVnode, 409600]
 sql_error create database $db ablocks -1
 #sql_error create database $db ablocks 409601
 
@@ -175,9 +175,9 @@ sql_error create database $db ablocks -1
 sql_error create database $db ctime 29
 sql_error create database $db ctime 40961
 
-# clog {0, 1}
-sql_error create database $db clog -1
-#sql_error create database $db clog 2
+# wal {0, 1}
+sql_error create database $db wal -1
+#sql_error create database $db wal 2
 
 # comp {0, 1, 2}
 sql_error create database $db comp -1

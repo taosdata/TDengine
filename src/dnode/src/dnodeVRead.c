@@ -21,9 +21,9 @@
 #include "trpc.h"
 #include "twal.h"
 #include "tglobal.h"
-#include "dnodeLog.h"
+#include "dnodeInt.h"
 #include "dnodeMgmt.h"
-#include "dnodeRead.h"
+#include "dnodeVRead.h"
 #include "vnode.h"
 
 typedef struct {
@@ -81,10 +81,12 @@ void dnodeCleanupRead() {
   }
 
   taosCloseQset(readQset);
+  free(readPool.readWorker);
+
   dPrint("dnode read is closed");
 }
 
-void dnodeRead(SRpcMsg *pMsg) {
+void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   int32_t     queuedMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
@@ -97,7 +99,7 @@ void dnodeRead(SRpcMsg *pMsg) {
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
-    if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
+    if (pMsg->msgType == TSDB_MSG_TYPE_FETCH) {
       pVnode = vnodeGetVnode(pHead->vgId);
     } else {
       pVnode = vnodeAccquireVnode(pHead->vgId);

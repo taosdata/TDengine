@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 
@@ -47,3 +47,5 @@ sql select count(b) from tb
 if $data00 != 5 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

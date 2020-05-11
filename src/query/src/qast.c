@@ -544,12 +544,10 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
   setQueryCond(pQueryInfo, &cond);
 
   if (cond.start != NULL) {
-    iter = tSkipListCreateIterFromVal(pSkipList, (char*) &cond.start->v, pSkipList->keyInfo.type, TSDB_ORDER_ASC);
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->keyInfo.type, TSDB_ORDER_ASC);
   } else {
-    iter = tSkipListCreateIterFromVal(pSkipList, (char*) &cond.end->v, pSkipList->keyInfo.type, TSDB_ORDER_DESC);
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.end->v, pSkipList->keyInfo.type, TSDB_ORDER_DESC);
   }
-  
-  __compar_fn_t func = getKeyComparFunc(pSkipList->keyInfo.type);
   
   if (cond.start != NULL) {
     int32_t optr = cond.start->optr;
@@ -558,7 +556,7 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
       while(tSkipListIterNext(iter)) {
         SSkipListNode* pNode = tSkipListIterGet(iter);
 
-        int32_t ret = func(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
+        int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
         if (ret == 0) {
           taosArrayPush(result, SL_GET_NODE_DATA(pNode));
         } else {
@@ -573,7 +571,7 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         SSkipListNode* pNode = tSkipListIterGet(iter);
     
         if (comp) {
-          ret = func(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
+          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
           assert(ret >= 0);
         }
         
@@ -600,7 +598,7 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         SSkipListNode* pNode = tSkipListIterGet(iter);
       
         if (comp) {
-          ret = func(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
+          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
           assert(ret <= 0);
         }
         
@@ -708,7 +706,7 @@ static void tArrayTraverse(tExprNode *pExpr, __result_filter_fn_t fp, SArray *pR
   }
 }
 
-static bool filterItem(tExprNode *pExpr, const void *pItem, SBinaryFilterSupp *param) {
+static bool filterItem(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
   tExprNode *pLeft = pExpr->_node.pLeft;
   tExprNode *pRight = pExpr->_node.pRight;
 
@@ -747,7 +745,7 @@ static bool filterItem(tExprNode *pExpr, const void *pItem, SBinaryFilterSupp *p
  * @param pSchema   tag schemas
  * @param fp        filter callback function
  */
-static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SBinaryFilterSupp *param) {
+static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SExprTraverseSupp *param) {
   size_t size = taosArrayGetSize(pResult);
   
   SArray* array = taosArrayInit(size, POINTER_BYTES);
@@ -763,7 +761,7 @@ static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SBinaryFilte
 }
 
 
-static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSkipList *pSkipList, SBinaryFilterSupp *param ) {
+static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSkipList *pSkipList, SExprTraverseSupp *param ) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
 
   while (tSkipListIterNext(iter)) {
@@ -813,7 +811,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
 
 
 // post-root order traverse syntax tree
-void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param) {
+void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param) {
   if (pExpr == NULL) {
     return;
   }
@@ -979,7 +977,8 @@ void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, 
 
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // 12 + columnRight
       // column data specified on right-hand-side
-      char *            pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
+      char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
+      
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pVal->nType, pRight->pSchema->type, pExprs->_node.optr);
       fp(&pLeft->pVal->i64Key, pRightInputData, 1, numOfRows, pOutput, order);
 

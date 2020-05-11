@@ -1,9 +1,8 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 3
-system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 3
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -39,7 +38,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
 sql alter table tb add column c3 nchar(4)
@@ -47,7 +46,7 @@ sql select * from tb order by ts desc
 if $rows != 1 then
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
 sql insert into tb values (now, 2, 2, 'taos')
@@ -73,13 +72,13 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
 
 sql alter table mt add column c3 nchar(4)
 sql select * from tb order by ts desc
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
 sql insert into tb values (now, 2, 2, 'taos')
@@ -90,7 +89,7 @@ endi
 if $data03 != taos then
   return -1
 endi
-if $data13 != null then
+if $data13 != NULL then
   return -1
 endi
 sql drop table tb
@@ -170,7 +169,7 @@ endi
 if $data01 != 2 then
   return -1
 endi
-if $data02 != null then
+if $data02 != NULL then
   return -1
 endi
 sql alter table mt add column c2 int
@@ -201,7 +200,7 @@ if $data02 != insert then
 endi
 sql alter table mt add column c3 nchar(4)
 sql select * from tb order by ts desc 
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
 # the query below should be deleted after bug fix

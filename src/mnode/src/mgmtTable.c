@@ -24,13 +24,12 @@
 #include "tname.h"
 #include "tidpool.h"
 #include "tglobal.h"
+#include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtAcct.h"
-#include "mgmtDClient.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDServer.h"
 #include "tgrant.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
@@ -539,12 +538,12 @@ int32_t mgmtInitTables() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_TABLE_META, mgmtProcessTableMetaMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_STABLE_VGROUP, mgmtProcessSuperTableVgroupMsg);
   
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP, mgmtProcessCreateChildTableRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, mgmtProcessDropChildTableRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, mgmtProcessDropSuperTableRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, mgmtProcessAlterTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP, mgmtProcessCreateChildTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, mgmtProcessDropChildTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, mgmtProcessDropSuperTableRsp);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, mgmtProcessAlterTableRsp);
 
-  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_TABLE, mgmtProcessTableCfgMsg);
+  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_TABLE, mgmtProcessTableCfgMsg);
 
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
@@ -702,10 +701,10 @@ static void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
   }
 
   if (pMsg->pTable->type == TSDB_SUPER_TABLE) {
-    mTrace("table:%s, start to drop stable", pDrop->tableId);
+    mPrint("table:%s, start to drop stable", pDrop->tableId);
     mgmtProcessDropSuperTableMsg(pMsg);
   } else {
-    mTrace("table:%s, start to drop ctable", pDrop->tableId);
+    mPrint("table:%s, start to drop ctable", pDrop->tableId);
     mgmtProcessDropChildTableMsg(pMsg);
   }
 }
@@ -803,36 +802,39 @@ static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
       int32_t vgId = pStable->vgList[vg];
       if (vgId == 0) break;
 
+      SVgObj *pVgroup = mgmtGetVgroup(vgId);
+      if (pVgroup == NULL) break;
+      
       SMDDropSTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropSTableMsg));
+      pDrop->contLen = htonl(sizeof(SMDDropSTableMsg));
       pDrop->vgId = htonl(vgId);
       pDrop->uid = htobe64(pStable->uid);
       mgmtExtractTableName(pStable->info.tableId, pDrop->tableId);
-
-      SVgObj *pVgroup = mgmtGetVgroup(vgId);
-      if (pVgroup != NULL) {
-        SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-        SRpcMsg rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
-        mgmtSendMsgToDnode(&ipSet, &rpcMsg);
-        mgmtDecVgroupRef(pVgroup);
-      }
+        
+      mPrint("stable:%s, send drop stable msg to vgId:%d", pStable->info.tableId, vgId);
+      SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+      SRpcMsg rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
+      dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+      mgmtDecVgroupRef(pVgroup);
     }
-  } else {
-    SSdbOper oper = {
-      .type = SDB_OPER_GLOBAL,
-      .table = tsSuperTableSdb,
-      .pObj = pStable
-    };
-    int32_t code = sdbDeleteRow(&oper);
-    mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->info.tableId, tstrerror(code));
-    mgmtSendSimpleResp(pMsg->thandle, code);
-  }
+  } 
+  
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsSuperTableSdb,
+    .pObj = pStable
+  };
+  
+  int32_t code = sdbDeleteRow(&oper);
+  mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->info.tableId, tstrerror(code));
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
 static int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {
-  for (int32_t i = 0; i < pStable->numOfTags; i++) {
-    SSchema *schema = (SSchema *)(pStable->schema + (pStable->numOfColumns + i) * sizeof(SSchema));
-    if (strcasecmp(tagName, schema->name) == 0) {
-      return i;
+  SSchema *schema = (SSchema *) pStable->schema;
+  for (int32_t tag = 0; tag < pStable->numOfTags; tag++) {
+    if (strcasecmp(schema[pStable->numOfColumns + tag].name, tagName) == 0) {
+      return tag;
     }
   }
 
@@ -1304,7 +1306,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
- mTrace("drop stable rsp received, handle:%p code:%s", rpcMsg->handle, tstrerror(rpcMsg->code));
+  mPrint("drop stable rsp received, result:%s", tstrerror(rpcMsg->code));
 }
 
 static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
@@ -1514,7 +1516,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
       .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
   };
 
-  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
 static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
@@ -1541,7 +1543,7 @@ static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pMsg->pVgroup);
 
-  mTrace("table:%s, send drop ctable msg", pDrop->tableId);
+  mPrint("table:%s, send drop ctable msg", pDrop->tableId);
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
   SRpcMsg rpcMsg = {
@@ -1552,7 +1554,7 @@ static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
     .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
 
-  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
 static int32_t mgmtModifyChildTableTagValue(SChildTableObj *pTable, char *tagName, char *nContent) {
@@ -1854,7 +1856,7 @@ static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg) {
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
   };
-  mgmtSendMsgToDnode(&ipSet, &rpcRsp);
+  dnodeSendMsgToDnode(&ipSet, &rpcRsp);
 
   mgmtDecTableRef(pTable);
   mgmtDecDnodeRef(pDnode);
@@ -1868,7 +1870,7 @@ static void mgmtProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   queueMsg->received++;
 
   SChildTableObj *pTable = queueMsg->ahandle;
-  mTrace("table:%s, drop table rsp received, thandle:%p result:%s", pTable->info.tableId, queueMsg->thandle, tstrerror(rpcMsg->code));
+  mPrint("table:%s, drop table rsp received, thandle:%p result:%s", pTable->info.tableId, queueMsg->thandle, tstrerror(rpcMsg->code));
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to drop in dnode, reason:%s", pTable->info.tableId, tstrerror(rpcMsg->code));

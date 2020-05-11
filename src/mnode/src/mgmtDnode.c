@@ -27,9 +27,7 @@
 #include "tdataformat.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
-#include "mgmtDClient.h"
-#include "mgmtDServer.h"
+#include "mgmtInt.h"
 #include "mgmtDnode.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
@@ -153,8 +151,8 @@ int32_t mgmtInitDnodes() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DNODE, mgmtProcessCreateDnodeMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DNODE, mgmtProcessDropDnodeMsg); 
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
-  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
+  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtGetConfigMeta);
@@ -225,7 +223,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   if (pCmCfgDnode->ep[0] == 0) {
     strcpy(pCmCfgDnode->ep, tsLocalEp);
   } else {
-    strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep);
+    // TODO temporary disabled for compiling: strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep); 
   }
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
@@ -242,7 +240,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
         .pCont = pMdCfgDnode,
         .contLen = sizeof(SMDCfgDnodeMsg)
     };
-    mgmtSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
+    dnodeSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
     rpcRsp.code = TSDB_CODE_SUCCESS;
   }
 
@@ -254,7 +252,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
-  mPrint("cfg vnode rsp is received, result:%s", tstrerror(rpcMsg->code));
+  mPrint("cfg dnode rsp is received");
 }
 
 void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {

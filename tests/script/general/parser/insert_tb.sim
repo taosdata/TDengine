@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -218,10 +218,10 @@ if $data46 != @quoted double@ then
   return -1
 endi
 
-# case: support null char of the binary field [TBASE-660]
-sql create table nullb (ts timestamp, c1 binary(20), c2 binary(20), c3 float) 
-sql insert into nullb values ('2018-09-17 09:00:00.000', '', '', 3.746)
-sql select * from nullb
+# case: support NULL char of the binary field [TBASE-660]
+sql create table NULLb (ts timestamp, c1 binary(20), c2 binary(20), c3 float) 
+sql insert into NULLb values ('2018-09-17 09:00:00.000', '', '', 3.746)
+sql select * from NULLb
 if $rows != 1 then
   return -1
 endi

@@ -22,10 +22,10 @@ print dnode3 ==> $data3_3
 if $data2_1 != master then
   return -1
 endi
-if $data3_2 != null then
+if $data3_2 != NULL then
   return -1
 endi
-if $data3_3 != null then
+if $data3_3 != NULL then
   return -1
 endi
 
@@ -50,10 +50,10 @@ endi
 if $dnode2Role != slave then
   return -1
 endi
-if $dnode3Role != null then
+if $dnode3Role != NULL then
   return -1
 endi
-if $dnode4Role != null then
+if $dnode4Role != NULL then
   return -1
 endi
 
@@ -81,7 +81,7 @@ endi
 if $dnode3Role != slave then
   return -1
 endi
-if $dnode4Role != null then
+if $dnode4Role != NULL then
   return -1
 endi
 
@@ -110,7 +110,7 @@ endi
 if $dnode3Role != slave then
   return -1
 endi
-if $dnode4Role != null then
+if $dnode4Role != NULL then
   return -1
 endi
 
@@ -131,7 +131,7 @@ print dnode4 ==> $dnode4Role
 if $dnode1Role != master then
   return -1
 endi
-if $dnode2Role != null then
+if $dnode2Role != NULL then
   return -1
 endi
 if $dnode3Role != slave then
@@ -165,7 +165,7 @@ print dnode4 ==> $dnode4Role
 if $dnode1Role != master then
   return -1
 endi
-if $dnode2Role != null then
+if $dnode2Role != NULL then
   return -1
 endi
 if $dnode3Role != slave then
@@ -207,7 +207,7 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
 
-if $dnode1Role != null then
+if $dnode1Role != NULL then
   return -1
 endi
 if $dnode2Role != slave then
@@ -220,7 +220,11 @@ endi
 #  return -1
 #endi
 
-system sh/exec_up.sh -n dnode1 -s stop
-system sh/exec_up.sh -n dnode2 -s stop
-system sh/exec_up.sh -n dnode3 -s stop
-system sh/exec_up.sh -n dnode4 -s stop
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

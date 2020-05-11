@@ -9,6 +9,12 @@ python3 ./test.py $1 -f insert/smallint.py
 python3 ./test.py $1 -f insert/tinyint.py
 python3 ./test.py $1 -f insert/date.py
 python3 ./test.py $1 -f insert/binary.py
+python3 ./test.py $1 -f insert/nchar.py
+
+python3 ./test.py $1 -f table/column_name.py
+python3 ./test.py $1 -f table/column_num.py
+python3 ./test.py $1 -f table/db_table.py
+
 python3 ./test.py $1 -f import_merge/importBlock1HO.py
 python3 ./test.py $1 -f import_merge/importBlock1HPO.py
 python3 ./test.py $1 -f import_merge/importBlock1H.py
@@ -75,3 +81,7 @@ python3 ./test.py $1 -f import_merge/importToCommit.py
 python3 ./test.py $1 -f import_merge/importTORestart.py
 python3 ./test.py $1 -f import_merge/importTPORestart.py
 python3 ./test.py $1 -f import_merge/importTRestart.py
+
+# user
+python3 ./test.py $1 -f user/user_create.py
+python3 ./test.py $1 -f user/pass_len.py

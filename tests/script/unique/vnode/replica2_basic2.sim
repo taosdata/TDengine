@@ -5,10 +5,10 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 
-system sh/cfg.sh -n dnode1 -c clog -v 2
-system sh/cfg.sh -n dnode2 -c clog -v 2
-system sh/cfg.sh -n dnode3 -c clog -v 2
-system sh/cfg.sh -n dnode4 -c clog -v 2
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
+system sh/cfg.sh -n dnode4 -c wallevel -v 2
 
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
@@ -27,6 +27,7 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
+sleep 3000
 sql connect
 sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
@@ -86,6 +87,19 @@ if $data2_2 != 4 then
 endi
 
 if $data2_3 != 4 then
+  return -1
+endi
+
+if $data4_1 != ready then
+  print dnode1 status should ready but is $data4_1
+  return -1
+endi
+
+if $data4_2 != ready then
+  return -1
+endi
+
+if $data4_3 != ready then
   return -1
 endi
 
@@ -203,3 +217,12 @@ sql select * from d4.t4
 if $rows != 3 then
 	return -1
 endi
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT

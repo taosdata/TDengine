@@ -19,7 +19,7 @@
 #include "taoserror.h"
 #include "tutil.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtAcct.h"
 #include "mgmtDnode.h"
 #include "mgmtDb.h"

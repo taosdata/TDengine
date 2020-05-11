@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-v")==0 && i < argc-1) {
       ver = atoll(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
-      ddebugFlag = atoi(argv[++i]);
+      dDebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p path]: wal file path default is:%s\n", path);
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
       printf("  [-r rows]: rows of records per wal file, default is:%d\n", rows);
       printf("  [-k keep]: keep the wal after closing, default is:%d\n", keep);
       printf("  [-v version]: initial version, default is:%ld\n", ver);
-      printf("  [-d debugFlag]: debug flag, default:%d\n", ddebugFlag);
+      printf("  [-d debugFlag]: debug flag, default:%d\n", dDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   taosInitLog("wal.log", 100000, 10);
 
   SWalCfg walCfg;
-  walCfg.commitLog = level;
+  walCfg.walLevel = level;
   walCfg.wals = max;
   walCfg.keep = keep;
 

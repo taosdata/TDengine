@@ -1,10 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode1 -c numOfBlocksPerMeter -v 4
-system sh/cfg.sh -n dnode1 -c pointsPerCompBlock -v 100
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 1024
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -82,12 +79,12 @@ $st = $stPrefix . c3
 sql select * from $st
 print ===> select * from $st
 print ===> $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-if $data01 != null then 
+if $data01 != NULL then 
   return -1
 endi
-if $data02 != null then 
+if $data02 != NULL then 
   return -1
 endi
-if $data03 != null then 
+if $data03 != NULL then 
   return -1
 endi

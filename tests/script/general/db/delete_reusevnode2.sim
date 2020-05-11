@@ -1,30 +1,22 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
-system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode2 -c cacheBlockSize -v 200
-system sh/cfg.sh -n dnode3 -c cacheBlockSize -v 200
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-
 sleep 3000
+sql connect
 
 print ======== step1
 
-
-sql create database db tables 4;
+sql create database db maxTables 4;
 sql use db
-
 
 $tbPrefix = t
 $i = 0
-while $i < 1000
-
+while $i < 10
 
   sql create table st (ts timestamp, i int) tags(j int);
   $tb = $tbPrefix . $i
@@ -42,7 +34,7 @@ while $i < 1000
     sql create table $tb1 using st tags(1)
     sql insert into  $tb1 values(now, 1);
 
-    $tb1 = $tb . 5
+    $tb1 = $tb . 4
     sql create table $tb1 using st tags(1)
     sql insert into  $tb1 values(now, 1);
 
@@ -64,7 +56,7 @@ while $i < 1000
 
   sql drop table st
 
-  sleep 1000
+  sleep 2000
   print times $i
   $i = $i + 1
 
@@ -77,3 +69,5 @@ sql show databases
 if $rows != 0 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -117,12 +117,13 @@ static SKeyword keywordTable[] = {
     {"KEEP",         TK_KEEP},
     {"REPLICA",      TK_REPLICA},
     {"DAYS",         TK_DAYS},
-    {"ROWS",         TK_ROWS},
+    {"MINROWS",      TK_MINROWS},
+    {"MAXROWS",      TK_MAXROWS},
+    {"BLOCKS",       TK_BLOCKS},
+    {"MAXTABLES",    TK_MAXTABLES},
     {"CACHE",        TK_CACHE},
-    {"ABLOCKS",      TK_ABLOCKS},
-    {"TBLOCKS",      TK_TBLOCKS},
     {"CTIME",        TK_CTIME},
-    {"CLOG",         TK_CLOG},
+    {"WAL",          TK_WAL},
     {"COMP",         TK_COMP},
     {"PRECISION",    TK_PRECISION},
     {"LP",           TK_LP},
@@ -224,6 +225,7 @@ static SKeyword keywordTable[] = {
     {"TBNAME",       TK_TBNAME},
     {"JOIN",         TK_JOIN},
     {"METRICS",      TK_METRICS},
+    {"TBID",         TK_TBID},
     {"STABLE",       TK_STABLE},
     {"FILE",         TK_FILE},
     {"VNODES",       TK_VNODES},
@@ -265,11 +267,15 @@ static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
 int tSQLKeywordCode(const char* z, int n) {
   pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
-
-  char key[128] = {0};
+  
+  char key[512] = {0};
+  if (n > tListLen(key)) { // too long token, can not be any other token type
+    return TK_ID;
+  }
+  
   for (int32_t j = 0; j < n; ++j) {
     if (z[j] >= 'a' && z[j] <= 'z') {
-      key[j] = (char)(z[j] & 0xDF);  // touppercase and set the null-terminated
+      key[j] = (char)(z[j] & 0xDF);  // to uppercase and set the null-terminated
     } else {
       key[j] = z[j];
     }

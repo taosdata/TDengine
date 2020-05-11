@@ -25,7 +25,7 @@
 #include "tbalance.h"
 #include "tdataformat.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
@@ -251,8 +251,8 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCfg->commitLog < TSDB_MIN_CLOG_LEVEL || pCfg->commitLog > TSDB_MAX_CLOG_LEVEL) {
-    mError("invalid db option commitLog:%d, only 0-2 allowed", pCfg->commitLog);
+  if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) {
+    mError("invalid db option walLevel:%d, only 0-2 allowed", pCfg->walLevel);
     return TSDB_CODE_INVALID_OPTION;
   }
 
@@ -274,8 +274,8 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
 
 static void mgmtSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->cacheBlockSize < 0) pCfg->cacheBlockSize = tsCacheBlockSize;
-  if (pCfg->totalBlocks < 0) pCfg->totalBlocks = tsTotalBlocks;
-  if (pCfg->maxTables < 0) pCfg->maxTables = tsTablesPerVnode;
+  if (pCfg->totalBlocks < 0) pCfg->totalBlocks = tsBlocksPerVnode;
+  if (pCfg->maxTables < 0) pCfg->maxTables = tsMaxTablePerVnode;
   if (pCfg->daysPerFile < 0) pCfg->daysPerFile = tsDaysPerFile;
   if (pCfg->daysToKeep < 0) pCfg->daysToKeep = tsDaysToKeep;
   if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep;
@@ -285,7 +285,7 @@ static void mgmtSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->commitTime < 0) pCfg->commitTime = tsCommitTime;
   if (pCfg->precision < 0) pCfg->precision = tsTimePrecision;
   if (pCfg->compression < 0) pCfg->compression = tsCompression;
-  if (pCfg->commitLog < 0) pCfg->commitLog = tsCommitLog;
+  if (pCfg->walLevel < 0) pCfg->walLevel = tsWAL;
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
 }
 
@@ -312,8 +312,8 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   pDb->createdTime = taosGetTimestampMs(); 
   pDb->cfg = (SDbCfg) {
     .cacheBlockSize      = pCreate->cacheBlockSize,
-    .totalBlocks         = pCreate->totalBlocks,
-    .maxTables           = pCreate->maxSessions,
+    .totalBlocks         = pCreate->numOfBlocks,
+    .maxTables           = pCreate->maxTables,
     .daysPerFile         = pCreate->daysPerFile,
     .daysToKeep          = pCreate->daysToKeep,
     .daysToKeep1         = pCreate->daysToKeep1,
@@ -323,7 +323,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
     .commitTime          = pCreate->commitTime,
     .precision           = pCreate->precision,
     .compression         = pCreate->compression,
-    .commitLog           = pCreate->commitLog,
+    .walLevel            = pCreate->walLevel,
     .replications        = pCreate->replications
   };
 
@@ -491,7 +491,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 #endif
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
-    strcpy(pSchema[cols].name, "tables");
+    strcpy(pSchema[cols].name, "maxtables");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -521,13 +521,13 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
-    strcpy(pSchema[cols].name, "ctime(s)");
+    strcpy(pSchema[cols].name, "ctime(Sec.)");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 1;
     pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-    strcpy(pSchema[cols].name, "clog");
+    strcpy(pSchema[cols].name, "wallevel");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -659,7 +659,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int8_t *)pWrite = pDb->cfg.commitLog;
+      *(int8_t *)pWrite = pDb->cfg.walLevel;
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -677,9 +677,11 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pDb->status == TSDB_DB_STATUS_READY) {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "ready", 5);
+      const char *src = "ready";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     } else {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "dropping", 8);
+      const char *src = "dropping";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     }
     cols++;
 
@@ -728,9 +730,10 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
 
 static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
   SCMCreateDbMsg *pCreate = pMsg->pCont;
-  pCreate->maxSessions     = htonl(pCreate->maxSessions);
+  
+  pCreate->maxTables       = htonl(pCreate->maxTables);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
-  pCreate->totalBlocks     = htonl(pCreate->totalBlocks);
+  pCreate->numOfBlocks     = htonl(pCreate->numOfBlocks);
   pCreate->daysPerFile     = htonl(pCreate->daysPerFile);
   pCreate->daysToKeep      = htonl(pCreate->daysToKeep);
   pCreate->daysToKeep1     = htonl(pCreate->daysToKeep1);
@@ -757,14 +760,15 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
 static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   SDbCfg  newCfg = pDb->cfg;
   int32_t cacheBlockSize = htonl(pAlter->daysToKeep);
-  int32_t totalBlocks = htonl(pAlter->totalBlocks);
-  int32_t maxTables = htonl(pAlter->maxSessions);
-  int32_t daysToKeep = htonl(pAlter->daysToKeep);
+  int32_t totalBlocks = htonl(pAlter->numOfBlocks);
+  int32_t maxTables   = htonl(pAlter->maxTables);
+  int32_t daysToKeep  = htonl(pAlter->daysToKeep);
   int32_t daysToKeep1 = htonl(pAlter->daysToKeep1);
   int32_t daysToKeep2 = htonl(pAlter->daysToKeep2);
   int8_t  compression = pAlter->compression;
   int8_t  replications = pAlter->replications;
-
+  int8_t  walLevel   = pAlter->walLevel;
+  
   terrno = TSDB_CODE_SUCCESS;
 
   if (cacheBlockSize > 0 && cacheBlockSize != pDb->cfg.cacheBlockSize) {
@@ -801,7 +805,7 @@ static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     newCfg.daysToKeep2 = daysToKeep2;
   }
 
-  if (compression > 0 && compression != pDb->cfg.compression) {
+  if (compression >= 0 && compression != pDb->cfg.compression) {
     mTrace("db:%s, compression:%d change to %d", pDb->name, pDb->cfg.compression, compression);
     newCfg.compression = compression;
   }
@@ -809,15 +813,20 @@ static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   if (replications > 0 && replications != pDb->cfg.replications) {
     mTrace("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
     newCfg.replications = replications;
-  } 
 
-  if (replications > mgmtGetDnodesNum()) {
-    mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
-    terrno = TSDB_CODE_NO_ENOUGH_DNODES;
+    if (replications > mgmtGetDnodesNum()) {
+      mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
+      terrno = TSDB_CODE_NO_ENOUGH_DNODES;
+    }
+
+    if (pDb->cfg.replications - replications >= 2) {
+      mError("db:%s, replica number can't change from 3 to 1", pDb->name, replications);
+      terrno = TSDB_CODE_INVALID_OPTION;
+    }
   }
 
-  if (pDb->cfg.replications - replications >= 2) {
-    mError("db:%s, replica number can't change from 3 to 1", pDb->name, replications);
+  if (walLevel >= 0 && (walLevel < TSDB_MIN_WAL_LEVEL || walLevel > TSDB_MAX_WAL_LEVEL)) {
+    mError("db:%s, wal level %d should be between 0-2, origin:%d", pDb->name, walLevel, pDb->cfg.walLevel);
     terrno = TSDB_CODE_INVALID_OPTION;
   }
 

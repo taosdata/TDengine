@@ -23,7 +23,7 @@
 #include "tdataformat.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtAcct.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
@@ -309,11 +309,14 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pUser->superAuth) {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "super", 5);
+      const char *src = "super";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     } else if (pUser->writeAuth) {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "writable", 8);
+      const char *src = "writable";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     } else {
-      STR_WITH_SIZE_TO_VARSTR(pWrite, "readable", 8);
+      const char *src = "readable";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     }
     cols++;
 
@@ -396,7 +399,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
       code = mgmtUpdateUser(pUser);
       mLPrint("user:%s, password is altered by %s, result:%s", pUser->user, pOperUser->user, tstrerror(code));
     } else {
-      mError("user:%s, no rights to ater user", pOperUser->user);
+      mError("user:%s, no rights to alter user", pOperUser->user);
       code = TSDB_CODE_NO_RIGHTS;
     }
 
@@ -439,13 +442,13 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
       code = mgmtUpdateUser(pUser);
       mLPrint("user:%s, privilege is altered by %s, result:%s", pUser->user, pOperUser->user, tstrerror(code));
     } else {
-      mError("user:%s, no rights to ater user", pOperUser->user);
+      mError("user:%s, no rights to alter user", pOperUser->user);
       code = TSDB_CODE_NO_RIGHTS;
     }
 
     mgmtSendSimpleResp(pMsg->thandle, code);
   } else {
-    mError("user:%s, no rights to ater user", pOperUser->user);
+    mError("user:%s, no rights to alter user", pOperUser->user);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
   }
 

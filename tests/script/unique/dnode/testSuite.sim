@@ -4,6 +4,6 @@ run unique/dnode/balance3.sim
 run unique/dnode/balancex.sim
 run unique/dnode/offline1.sim
 run unique/dnode/offline2.sim
-#run unique/dnode/remove1.sim
-#run unique/dnode/remove2.sim
-#run unique/dnode/vnode_clean.sim
+run unique/dnode/remove1.sim
+run unique/dnode/remove2.sim
+run unique/dnode/vnode_clean.sim

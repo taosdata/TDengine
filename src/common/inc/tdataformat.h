@@ -28,16 +28,16 @@ extern "C" {
 
 #define STR_TO_VARSTR(x, str) do {VarDataLenT __len = strlen(str); \
   *(VarDataLenT*)(x) = __len; \
-  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), __len);} while(0);
+  strncpy(varDataVal(x), (str), __len);} while(0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs) do {\
-  char* _e = stpncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), (_maxs));\
-  *(VarDataLenT*)(x) = (_e - (x) - VARSTR_HEADER_SIZE);\
+  char* _e = stpncpy(varDataVal(x), (str), (_maxs));\
+  varDataSetLen(x, (_e - (x) - VARSTR_HEADER_SIZE));\
 } while(0)
 
 #define STR_WITH_SIZE_TO_VARSTR(x, str, _size) do {\
   *(VarDataLenT*)(x) = (_size); \
-  strncpy((char*)(x) + VARSTR_HEADER_SIZE, (str), (_size));\
+  strncpy(varDataVal(x), (str), (_size));\
 } while(0);
 
 // ----------------- TSDB COLUMN DEFINITION
@@ -97,7 +97,7 @@ typedef void *SDataRow;
 #define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
 
 #define dataRowLen(r) (*(int32_t *)(r))
-#define dataRowTuple(r) POINTER_DRIFT(r, TD_DATA_ROW_HEAD_SIZE)
+#define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
@@ -114,10 +114,10 @@ static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t o
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      return POINTER_DRIFT(row, *(VarDataOffsetT *)POINTER_DRIFT(row, offset));
+      return POINTER_SHIFT(row, *(VarDataOffsetT *)POINTER_SHIFT(row, offset));
       break;
     default:
-      return POINTER_DRIFT(row, offset);
+      return POINTER_SHIFT(row, offset);
       break;
   }
 }
@@ -149,11 +149,11 @@ static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   switch (pCol->type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      return POINTER_DRIFT(pCol->pData, pCol->dataOff[row]);
+      return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
       break;
 
     default:
-      return POINTER_DRIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
+      return POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
       break;
   }
 }

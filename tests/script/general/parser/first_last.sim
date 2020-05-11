@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -21,7 +21,9 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db rows 400 cache 4096 tables 4
+
+sql create database $db maxrows 400 cache 1 maxTables 4
+
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
 
@@ -69,7 +71,7 @@ sql import into $tb (ts) values ( $ts )
 
 print ====== test data created
 
-run lite/parser/first_last_query.sim
+run general/parser/first_last_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -79,5 +81,5 @@ print ================== server restart completed
 sql connect
 sleep 3000
 
-run lite/parser/first_last_query.sim
+run general/parser/first_last_query.sim
 

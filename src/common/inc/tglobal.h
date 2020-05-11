@@ -55,18 +55,15 @@ extern char  tsFirst[];
 extern char  tsSecond[];
 extern char  tsLocalEp[];
 extern uint16_t tsServerPort;
-extern uint16_t tsMnodeDnodePort;
-extern uint16_t tsMnodeShellPort;
 extern uint16_t tsDnodeShellPort;
-extern uint16_t tsDnodeMnodePort;
+extern uint16_t tsDnodeDnodePort;
 extern uint16_t tsSyncPort;
 
 extern int32_t tsStatusInterval;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsVnodePeerHBTimer;
 extern int32_t tsMgmtPeerHBTimer;
-extern int32_t tsMeterMetaKeepTimer;
-extern int32_t tsMetricMetaKeepTimer;
+extern int32_t tsTableMetaKeepTimer;
 
 extern float    tsNumOfThreadsPerCore;
 extern float    tsRatioOfQueryThreads;
@@ -77,8 +74,8 @@ extern int16_t  tsNumOfTotalVnodes;
 extern uint32_t tsPublicIpInt;
 
 extern int32_t tsCacheBlockSize;
-extern int32_t tsTotalBlocks;
-extern int32_t tsTablesPerVnode;
+extern int32_t tsBlocksPerVnode;
+extern int32_t tsMaxTablePerVnode;
 extern int16_t tsDaysPerFile;
 extern int32_t tsDaysToKeep;
 extern int32_t tsMinRowsInFileBlock;
@@ -86,7 +83,7 @@ extern int32_t tsMaxRowsInFileBlock;
 extern int16_t tsCommitTime;  // seconds
 extern int32_t tsTimePrecision;
 extern int16_t tsCompression;
-extern int16_t tsCommitLog;
+extern int16_t tsWAL;
 extern int32_t tsReplications;
 
 extern int16_t tsAffectedRowsMod;
@@ -94,7 +91,6 @@ extern int32_t tsNumOfMPeers;
 extern int32_t tsMaxShellConns;
 extern int32_t tsMaxTables;
 
-extern char tsLocalIp[];
 extern char tsDefaultDB[];
 extern char tsDefaultUser[];
 extern char tsDefaultPass[];
@@ -136,7 +132,6 @@ extern int32_t  tsHttpEnableRecordSql;
 extern int32_t  tsTelegrafUseFieldNum;
 
 extern int32_t  tsTscEnableRecordSql;
-extern int32_t  tsAnyIp;
 
 extern char     tsMonitorDbName[];
 extern char     tsInternalPass[];
@@ -144,10 +139,11 @@ extern int32_t  tsMonitorInterval;
 
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
-extern int32_t ddebugFlag;
-extern int32_t mdebugFlag;
-extern int32_t cdebugFlag;
-extern int32_t jnidebugFlag;
+extern int32_t dDebugFlag;
+extern int32_t vDebugFlag;
+extern int32_t mDebugFlag;
+extern int32_t cDebugFlag;
+extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
 extern int32_t httpDebugFlag;
@@ -155,8 +151,8 @@ extern int32_t monitorDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t debugFlag;
-extern int32_t odbcdebugFlag;
-extern int32_t qdebugFlag;
+extern int32_t odbcDebugFlag;
+extern int32_t qDebugFlag;
 
 extern uint32_t taosMaxTmrCtrl;
 

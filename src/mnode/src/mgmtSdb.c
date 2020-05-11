@@ -27,7 +27,7 @@
 #include "hashstr.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 
@@ -142,7 +142,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.commitLog = 2, .wals = 2, .keep = 1};
+  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1};
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbObj.wal = walOpen(temp, &walCfg);
@@ -278,7 +278,7 @@ void sdbUpdateSync() {
     sdbPrint("mnode:%d, %s:%d", syncCfg.nodeInfo[i].nodeId, syncCfg.nodeInfo[i].nodeFqdn, syncCfg.nodeInfo[i].nodePort);
   }
 
-  SSyncInfo syncInfo;
+  SSyncInfo syncInfo = {0};
   syncInfo.vgId = 1;
   syncInfo.version = sdbGetVersion();
   syncInfo.syncCfg = syncCfg;
@@ -323,12 +323,19 @@ void sdbCleanUp() {
   if (tsSdbObj.status != SDB_STATUS_SERVING) return;
 
   tsSdbObj.status = SDB_STATUS_CLOSING;
-  syncStop(tsSdbObj.sync);
-  free(tsSdbObj.sync);
-  walClose(tsSdbObj.wal);
+  
+  if (tsSdbObj.sync) {
+    syncStop(tsSdbObj.sync);
+    tsSdbObj.sync = NULL;
+  }
+
+  if (tsSdbObj.wal) {
+    walClose(tsSdbObj.wal);
+    tsSdbObj.wal = NULL;
+  }
+  
   sem_destroy(&tsSdbObj.sem);
   pthread_mutex_destroy(&tsSdbObj.mutex);
-  memset(&tsSdbObj, 0, sizeof(tsSdbObj));
 }
 
 void sdbIncRef(void *handle, void *pRow) {

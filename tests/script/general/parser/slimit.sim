@@ -1,8 +1,8 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 8
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
@@ -22,7 +22,7 @@ $db = $dbPrefix . $i
 $stb = $stbPrefix . $i
 
 sql drop database if exists $db
-sql create database $db rows 200 cache 1024 tblocks 200 tables 4
+sql create database $db maxrows 200 cache 1024 tblocks 200 maxTables 4
 print ====== create tables
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 binary(15), t2 int, t3 bigint, t4 nchar(10), t5 double, t6 bool)
@@ -57,14 +57,14 @@ while $i < $tbNum
     $x = $x + 1
   endw 
   $ts = $ts + $delta
-  sql insert into $tb values ( $ts , null, null, null, null, null, null, null, null, null )
+  sql insert into $tb values ( $ts , NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
   $i = $i + 1
 endw
 print ====== $db tables created
 
 $db = $dbPrefix . 1
 sql drop database if exists $db
-sql create database $db rows 200 cache 1024
+sql create database $db maxrows 200 cache 1024
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 binary(15), t2 int, t3 bigint, t4 nchar(10), t5 double, t6 bool)
 
@@ -87,14 +87,14 @@ while $i < $tbNum
   while $x < $rowNum
     $xs = $x * $delta
     $ts = $ts0 + $xs
-    sql insert into $tb values ( $ts , null , null , null , null , null , null , null , null , null ) 
+    sql insert into $tb values ( $ts , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL ) 
     $x = $x + 1
   endw 
   $i = $i + 1
 endw
 print ====== $db tables created
   
-run lite/parser/slimit_query.sim
+run general/parser/slimit_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -104,4 +104,4 @@ print ================== server restart completed
 sql connect
 sleep 3000
 
-run lite/parser/slimit_query.sim
+run general/parser/slimit_query.sim

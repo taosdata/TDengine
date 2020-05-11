@@ -10,16 +10,14 @@ system sh/cfg.sh -n dnode1 -c statusInterval -v 1
 system sh/cfg.sh -n dnode2 -c statusInterval -v 1
 system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
-system sh/cfg.sh -n dnode2 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode2 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c sessionsPerVnode -v 4
-system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 5
-system sh/cfg.sh -n dnode2 -c meterMetaKeepTimer -v 5
-system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 5
-system sh/cfg.sh -n dnode2 -c metricMetaKeepTimer -v 5
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 5
+system sh/cfg.sh -n dnode2 -c tableMetaKeepTimer -v 5
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
 
@@ -36,7 +34,7 @@ sql connect
 
 print ============== step1
 $db = $dbPrefix
-sql create database $db tables 4
+sql create database $db maxTables 4
 sql use $db
 
 $i = 0
@@ -194,7 +192,7 @@ print dnode2 $dnode2Vnodes
 if $dnode1Vnodes != 0 then
   goto show1
 endi
-if $dnode2Vnodes != null then
+if $dnode2Vnodes != NULL then
   goto show1
 endi
 

@@ -178,9 +178,9 @@ void tsdbFitRetention(STsdbRepo *pRepo) {
   SFileGroup *pGroup = pFileH->fGroup;
 
   int mfid =
-      tsdbGetKeyFileId(taosGetTimestamp(pRepo->config.precision), pRepo->config.daysPerFile, pRepo->config.precision);
+      tsdbGetKeyFileId(taosGetTimestamp(pRepo->config.precision), pRepo->config.daysPerFile, pRepo->config.precision) - pFileH->maxFGroups + 3;
 
-  while (pGroup[0].fileId < mfid) {
+  while (pFileH->numOfFGroups > 0 && pGroup[0].fileId < mfid) {
     tsdbRemoveFileGroup(pFileH, pGroup[0].fileId);
   }
 }

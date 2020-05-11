@@ -305,10 +305,8 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
     case TSDB_DATA_TYPE_BINARY:
       // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
       if (pToken->type == TK_NULL) {
-        *(int16_t*) payload = sizeof(int8_t);
-        payload += VARSTR_HEADER_SIZE;
-        
-        *payload = TSDB_DATA_BINARY_NULL;
+        varDataSetLen(payload, sizeof(int8_t));
+        *(uint8_t*) varDataVal(payload) = TSDB_DATA_BINARY_NULL;
       } else { // too long values will return invalid sql, not be truncated automatically
         if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) { //todo refactor
           return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
@@ -321,21 +319,18 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
 
     case TSDB_DATA_TYPE_NCHAR:
       if (pToken->type == TK_NULL) {
-        *(int16_t*) payload = sizeof(int32_t);
-        payload += VARSTR_HEADER_SIZE;
-  
-        *(uint32_t*) payload = TSDB_DATA_NCHAR_NULL;
+        varDataSetLen(payload, sizeof(int32_t));
+        *(uint32_t*) varDataVal(payload) = TSDB_DATA_NCHAR_NULL;
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
-        int32_t resLen = -1;
-        if (!taosMbsToUcs4(pToken->z, pToken->n, payload + VARSTR_HEADER_SIZE, pSchema->bytes - VARSTR_HEADER_SIZE, &resLen)) {
+        size_t output = 0;
+        if (!taosMbsToUcs4(pToken->z, pToken->n, varDataVal(payload), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
           char buf[512] = {0};
-          snprintf(buf, 512, "%s", strerror(errno));
-          
+          snprintf(buf, tListLen(buf), "%s", strerror(errno));
           return tscInvalidSQLErrMsg(msg, buf, pToken->z);
         }
         
-        *(uint16_t*)payload = (uint16_t) (resLen * TSDB_NCHAR_SIZE);
+        varDataSetLen(payload, output);
       }
       break;
 
@@ -479,10 +474,19 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     char *ptr = payload;
 
     for (int32_t i = 0; i < spd->numOfCols; ++i) {
+      
       if (!spd->hasVal[i]) {  // current column do not have any value to insert, set it to null
-        setNull(ptr, schema[i].type, schema[i].bytes);
+        if (schema[i].type == TSDB_DATA_TYPE_BINARY) {
+          varDataSetLen(ptr, sizeof(int8_t));
+          *(uint8_t*) varDataVal(ptr) = TSDB_DATA_BINARY_NULL;
+        } else if (schema[i].type == TSDB_DATA_TYPE_NCHAR) {
+          varDataSetLen(ptr, sizeof(int32_t));
+          *(uint32_t*) varDataVal(ptr) = TSDB_DATA_NCHAR_NULL;
+        } else {
+          setNull(ptr, schema[i].type, schema[i].bytes);
+        }
       }
-
+      
       ptr += schema[i].bytes;
     }
 
@@ -960,6 +964,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     *sqlstr = sql;
   }
 
+  if (*sqlstr == NULL) {
+    code = TSDB_CODE_INVALID_SQL;
+  }
+  
   return code;
 }
 
@@ -1283,6 +1291,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
   pCmd->count = 0;
   pCmd->command = TSDB_SQL_INSERT;
+  pSql->res.numOfRows = 0;
 
   SQueryInfo *pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
@@ -1295,7 +1304,6 @@ int tsParseInsertSql(SSqlObj *pSql) {
     return tscInvalidSQLErrMsg(pCmd->payload, "keyword INTO is expected", sToken.z);
   }
 
-  pSql->res.numOfRows = 0;
   return doParseInsertSql(pSql, pSql->sqlstr + index);
 }
 

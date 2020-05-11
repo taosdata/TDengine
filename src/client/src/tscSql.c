@@ -65,9 +65,9 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     terrno = TSDB_CODE_INVALID_PASS;
     return NULL;
   }
-
-  void* pMgmtConn = NULL;
-  if (tscInitRpc(user, pass, &pMgmtConn) != 0) {
+  
+  void *pDnodeConn = NULL;
+  if (tscInitRpc(user, pass, &pDnodeConn) != 0) {
     terrno = TSDB_CODE_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -78,7 +78,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     tscMgmtIpSet.inUse = 0;
     tscMgmtIpSet.numOfIps = 1;
     strcpy(tscMgmtIpSet.fqdn[0], ip);
-    tscMgmtIpSet.port[0] = port? port: tsMnodeShellPort;
+    tscMgmtIpSet.port[0] = port? port: tsDnodeShellPort;
   } else {
     if (tsFirst[0] != 0) {
       taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
@@ -94,6 +94,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    rpcClose(pDnodeConn);
     return NULL;
   }
 
@@ -101,14 +102,15 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
-  pObj->mgmtPort = port ? port : tsMnodeShellPort;
+  pObj->mgmtPort = port ? port : tsDnodeShellPort;
 
   if (db) {
     int32_t len = strlen(db);
     /* db name is too long */
     if (len > TSDB_DB_NAME_LEN) {
-      free(pObj);
       terrno = TSDB_CODE_INVALID_DB;
+      rpcClose(pDnodeConn);
+      free(pObj);
       return NULL;
     }
 
@@ -119,12 +121,12 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     strtolower(pObj->db, tmp);
   }
 
-  pObj->pMgmtConn = pMgmtConn;
   pthread_mutex_init(&pObj->mutex, NULL);
 
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (NULL == pSql) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    rpcClose(pDnodeConn);
     free(pObj);
     return NULL;
   }
@@ -136,6 +138,8 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   tsem_init(&pSql->rspSem, 0, 0);
   
   pObj->pSql = pSql;
+  pObj->pDnodeConn = pDnodeConn;
+  
   pSql->fp = fp;
   pSql->param = param;
   if (taos != NULL) {
@@ -145,6 +149,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   pSql->cmd.command = TSDB_SQL_CONNECT;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    rpcClose(pDnodeConn);
     free(pSql);
     free(pObj);
     return NULL;
@@ -167,14 +172,7 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscTrace("try to create a connection to %s", ip);
-  if (port != 0) {
-    tsServerPort = port;
-    tsMnodeShellPort = tsServerPort + TSDB_PORT_MNODESHELL;
-    tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;
-    tsMnodeDnodePort = tsServerPort + TSDB_PORT_MNODEDNODE;
-    tsDnodeMnodePort = tsServerPort + TSDB_PORT_DNODEMNODE;
-  }
+  tscTrace("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
 
   STscObj *pObj = taosConnectImpl(ip, user, pass, db, port, NULL, NULL, NULL);
   if (pObj != NULL) {
@@ -193,7 +191,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
       return NULL;
     }
     
-    tscTrace("%p DB connection is opening", pObj);
+    tscTrace("%p DB connection is opening, dnodeConn:%p", pObj, pObj->pDnodeConn);
     
     // version compare only requires the first 3 segments of the version string
     int code = taosCheckVersion(version, taos_get_server_info(pObj), 3);
@@ -440,23 +438,6 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   return (pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows;
 }
 
-static UNUSED_FUNC char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
-//  SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
-//  SExprInfo *  pExpr = pSupport->pArithExpr;
-
-//  int32_t index = -1;
-//  for (int32_t i = 0; i < pExpr->numOfCols; ++i) {
-//    if (strcmp(name, pExpr->colList[i].name) == 0) {
-//      index = i;
-//      break;
-//    }
-//  }
-//
-//  assert(index >= 0 && index < pExpr->numOfCols);
-//  return pSupport->data[index] + pSupport->offset * pSupport->elemSize[index];
-return 0;
-}
-
 static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
   
@@ -618,42 +599,18 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
     tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
 
-    void *fp = pSql->fp;
-    if (fp != NULL) {
-      pSql->freed = 1;
-    }
-
+    pSql->freed = 1;
     tscProcessSql(pSql);
 
     /*
      *  If release connection msg is sent to vnode, the corresponding SqlObj for async query can not be freed instantly,
      *  since its free operation is delegated to callback function, which is tscProcessMsgFromServer.
      */
-    if (fp == NULL) {
-      /*
-       * fp may be released here, so we cannot use the pSql->fp
-       *
-       * In case of handle sync model query, the main SqlObj cannot be freed.
-       * So, we only free part attributes, including allocated resources and references on metermeta/metricmeta
-       * data in cache.
-       *
-       * Then this object will be reused and no free operation is required.
-       */
-      if (keepCmd) {
-        tscFreeSqlResult(pSql);
-        tscTrace("%p sql result is freed by app while sql command is kept", pSql);
-      } else {
-        tscPartiallyFreeSqlObj(pSql);
-        tscTrace("%p sql result is freed by app", pSql);
-      }
-    } else {  // for async release, remove its link
-      STscObj* pObj = pSql->pTscObj;
-      if (pObj->pSql == pSql) {
-        pObj->pSql = NULL;
-      }
+    STscObj* pObj = pSql->pTscObj;
+    if (pObj->pSql == pSql) {
+      pObj->pSql = NULL;
     }
-  } else {
-    // if no free resource msg is sent to vnode, we free this object immediately.
+  } else { // if no free resource msg is sent to vnode, we free this object immediately.
     STscObj* pTscObj = pSql->pTscObj;
     
     if (pTscObj->pSql != pSql) {
@@ -885,7 +842,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
 static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t tblListLen) {
   // must before clean the sqlcmd object
-  tscCleanSqlCmd(&pSql->cmd);
+  tscResetSqlCmdObj(&pSql->cmd);
 
   SSqlCmd *pCmd = &pSql->cmd;
 

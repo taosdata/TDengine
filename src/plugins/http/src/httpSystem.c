@@ -117,7 +117,7 @@ void httpCleanUpSystem() {
   httpPrint("http service cleanup");
   httpStopSystem();
 
-#if 0
+//#if 0
   if (httpServer == NULL) {
     return;
   }
@@ -131,7 +131,13 @@ void httpCleanUpSystem() {
     httpServer->timerHandle = NULL;
   }
 
-  httpCleanUpConnect(httpServer);
+  if (httpServer->pThreads != NULL) {
+    httpCleanUpConnect(httpServer);
+    httpServer->pThreads = NULL;
+  }
+  
+
+#if 0
   httpRemoveAllSessions(httpServer);
 
   if (httpServer->pContextPool != NULL) {

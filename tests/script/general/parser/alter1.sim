@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -36,16 +36,16 @@ print rows = $rows
 if $rows != 4 then
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
-if $data13 != null then
+if $data13 != NULL then
   return -1
 endi
-if $data23 != null then
+if $data23 != NULL then
   return -1
 endi
-if $data33 != null then
+if $data33 != NULL then
   return -1
 endi
 
@@ -53,10 +53,10 @@ sql select c1 from stb
 if $rows != 4 then
   return -1
 endi
-if $data00 != null then
+if $data00 != NULL then
   return -1
 endi
-if $data30 != null then
+if $data30 != NULL then
   return -1
 endi
 
@@ -69,10 +69,10 @@ sql select c1+speed from car1
 if $rows != 2 then
   return -1
 endi
-if $data00 != null then
+if $data00 != NULL then
   return -1
 endi
-if $data10 != null then
+if $data10 != NULL then
   return -1
 endi
 
@@ -80,10 +80,10 @@ sql select * from car1
 if $rows != 2 then
   return -1
 endi
-if $data03 != null then
+if $data03 != NULL then
   return -1
 endi
-if $data13 != null then
+if $data13 != NULL then
   return -1
 endi
 

@@ -231,7 +231,6 @@ static UNUSED_FUNC int32_t compareWStrPatternComp(const void* pLeft, const void*
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
-// todo promote the type definition before the comparsion
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
   

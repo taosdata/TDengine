@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -338,7 +338,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -365,7 +365,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -392,7 +392,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -419,7 +419,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -446,7 +446,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != null then 
+if $data07 != NULL then 
   return -1
 endi
 
@@ -456,3 +456,5 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

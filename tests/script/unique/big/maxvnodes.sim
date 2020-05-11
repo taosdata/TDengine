@@ -1,8 +1,8 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c clog           -v 0
-system sh/cfg.sh -n dnode1 -c tables         -v 100
+system sh/cfg.sh -n dnode1 -c walLevel            -v 0
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode   -v 100
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v 256
 system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 100000
 system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 100000
@@ -39,8 +39,8 @@ endi
 
 
 system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode2 -c clog           -v 0
-system sh/cfg.sh -n dnode2 -c tables         -v 100
+system sh/cfg.sh -n dnode2 -c walLevel            -v 0
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode   -v 100
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes    -v 256
 system sh/cfg.sh -n dnode2 -c maxVnodeConnections -v 100000
 system sh/cfg.sh -n dnode2 -c maxMeterConnections -v 100000
@@ -79,3 +79,12 @@ sql select count(*) from mt
 if $data00 != 25600 then
   return -1
 endi  
+
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
