@@ -620,9 +620,13 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
         if (pCol->info.type != TSDB_DATA_TYPE_BINARY && pCol->info.type != TSDB_DATA_TYPE_NCHAR) {
           memmove(pCol->pData, src->pData + bytes * start, bytes * pQueryHandle->realNumOfRows);
         } else { // handle the var-string
+          char* dst = pCol->pData;
+  
+          // todo refactor, only copy one-by-one
           for(int32_t k = start; k < pQueryHandle->realNumOfRows + start; ++k) {
             char* p = tdGetColDataOfRow(src, k);
-            memcpy(pCol->pData + k * bytes, p, varDataTLen(p));  // todo refactor
+            memcpy(dst, p, varDataTLen(p));
+            dst += varDataTLen(p);
           }
         }
         
