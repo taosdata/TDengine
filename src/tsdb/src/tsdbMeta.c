@@ -8,7 +8,7 @@
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
 #define TSDB_META_FILE_NAME "META"
 
-const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;
+const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;   // skip list built based on the first column of tags
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
@@ -548,7 +548,10 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
   assert(pSTable != NULL);
   
-  char* key = dataRowTuple(pTable->tagVal); // key
+  STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
+  STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
+  
+  char* key = tdGetRowDataOfCol(pTable->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
   bool ret = tSkipListRemove(pSTable->pIndex, key);
   
   assert(ret);

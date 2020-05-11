@@ -194,8 +194,10 @@ sql reset query cache
 sql select * from $mt where tgcol = '1'
 step2:
 if $rows != 100  then
+  print expect 100, actual: $rows
   return -1
 endi
+
 sql select * from $mt where tgcol > '0'
 #print rows = $rows
 if $rows != 100 then
