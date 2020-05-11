@@ -163,11 +163,9 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}/tests
 
-          ./test-all.sh
+          ./test-all.sh $TRAVIS_EVENT_TYPE
 
-          if [ "$?" -ne "0" ]; then
-            travis_terminate $?
-          fi
+          TEST_RESULT=$?
 
           pkill taosd
           sleep 1
@@ -199,6 +197,9 @@ matrix:
             echo -e "${RED} ## Codecov did not collect coverage report! ## ${NC} "
           fi
 
+          if [ "$TEST_RESULT" -ne "0" ]; then
+            travis_terminate $?
+          fi
           ;;
         esac
 
