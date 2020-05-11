@@ -92,23 +92,23 @@ if __name__ == "__main__":
     tdDnodes.start(1)
 
     if masterIp == "":
-        host='127.0.0.1'
+        host = '127.0.0.1'
     else:
-        host=masterIp
+        host = masterIp
 
-    tdLog.notice("Procedures for tdengine deployed in %s" % (host))
+    tdLog.info("Procedures for tdengine deployed in %s" % (host))
 
     if testCluster:
-        tdLog.notice("Procedures for testing cluster")
+        tdLog.info("Procedures for testing cluster")
         if fileName == "all":
             tdCases.runAllCluster()
         else:
             tdCases.runOneCluster(fileName)
     else:
-        tdLog.notice("Procedures for testing self-deployment")
+        tdLog.info("Procedures for testing self-deployment")
         conn = taos.connect(
-                host,
-                config=tdDnodes.getSimCfgPath())
+            host,
+            config=tdDnodes.getSimCfgPath())
         if fileName == "all":
             tdCases.runAllLinux(conn)
         else:

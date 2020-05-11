@@ -132,6 +132,7 @@ int32_t mgmtInitSystem() {
 
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
+  tsMgmtIsRunning = false;
   mgmtCleanUpShell();
   mgmtCleanupServer();
   grantCleanUp();
@@ -144,7 +145,6 @@ void mgmtCleanUpSystem() {
   mgmtCleanupDnodes();
   mgmtCleanUpUsers();
   mgmtCleanUpAccts();
-  tsMgmtIsRunning = false;
   mPrint("mgmt is cleaned up");
 }
 

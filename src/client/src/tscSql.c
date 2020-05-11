@@ -172,7 +172,7 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscTrace("try to create a connection to %s", ip);
+  tscTrace("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
 
   STscObj *pObj = taosConnectImpl(ip, user, pass, db, port, NULL, NULL, NULL);
   if (pObj != NULL) {
@@ -191,7 +191,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
       return NULL;
     }
     
-    tscTrace("%p DB connection is opening", pObj);
+    tscTrace("%p DB connection is opening, dnodeConn:%p", pObj, pObj->pDnodeConn);
     
     // version compare only requires the first 3 segments of the version string
     int code = taosCheckVersion(version, taos_get_server_info(pObj), 3);

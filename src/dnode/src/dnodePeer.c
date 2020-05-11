@@ -61,7 +61,7 @@ int32_t dnodeInitServer() {
   rpcInit.cfp          = dnodeProcessReqMsgFromDnode;
   rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 2000;
+  rpcInit.idleTime     = tsShellActivityTimer * 1000;
 
   tsDnodeServerRpc = rpcOpen(&rpcInit);
   if (tsDnodeServerRpc == NULL) {
@@ -122,7 +122,7 @@ int32_t dnodeInitClient() {
   rpcInit.ufp          = dnodeUpdateIpSet;
   rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_CLIENT;
-  rpcInit.idleTime     = tsShellActivityTimer * 2000;
+  rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.user         = "t";
   rpcInit.ckey         = "key";
   rpcInit.secret       = "secret";

@@ -793,7 +793,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
 
   pConn->chandle = pRecv->chandle;
   pConn->peerIp = pRecv->ip; 
-  if (pConn->peerPort == 0) pConn->peerPort = pRecv->port;
+  pConn->peerPort = pRecv->port;
   if (pHead->port) pConn->peerPort = htons(pHead->port); 
 
   terrno = rpcCheckAuthentication(pConn, (char *)pHead, pRecv->msgLen);
@@ -1094,8 +1094,8 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   } else {
     if (pHead->code == 0) pConn->secured = 1; // for success response, set link as secured
     if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace( "%s %p, %s is sent to %s:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
-          pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
+      tTrace( "%s %p, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
+          pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIp, pConn->peerPort, 
           htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 

@@ -119,7 +119,7 @@ char *simGetVariable(SScript *script, char *varName, int varLen) {
 int simExecuteExpression(SScript *script, char *exp) {
   char *op1, *op2, *var1, *var2, *var3, *rest;
   int op1Len, op2Len, var1Len, var2Len, var3Len, val0, val1;
-  char t0[512], t1[512], t2[512], t3[512];
+  char t0[512], t1[512], t2[512], t3[1024];
   int result;
 
   rest = paGetToken(exp, &var1, &var1Len);
@@ -310,14 +310,15 @@ void simStoreSystemContentResult(SScript *script, char *filename) {
 
 bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
+  char buf1[4096 + 512] = {0};
   char filename[400] = {0};
   sprintf(filename, "%s/%s.tmp", tsScriptDir, script->fileName);
 
   sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
-  sprintf(buf, "%s > %s 2>/dev/null", buf, filename);
+  sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
 
-  sprintf(script->system_exit_code, "%d", system(buf));
+  sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);
 
   script->linePos++;
@@ -414,7 +415,7 @@ void simCloseNativeConnect(SScript *script) {
 
   simTrace("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
-  taosMsleep(1000);
+  taosMsleep(1200);
 
   script->taos = NULL;
 }

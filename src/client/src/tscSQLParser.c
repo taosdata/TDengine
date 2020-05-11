@@ -370,10 +370,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      char* pMsg = pCmd->payload + tsRpcHeadSize;
-      pMsg += sizeof(SMgmtHead);
+      char* pMsg = pCmd->payload;
 
       SCMCfgDnodeMsg* pCfg = (SCMCfgDnodeMsg*)pMsg;
+      pDCL->a[0].n = strdequote(pDCL->a[0].z);
+      
       strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
 
       strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);
@@ -2254,14 +2255,14 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   char* portStr = strtok(NULL, &delim);
 
   if (!validateIpAddress(ipStr, strlen(ipStr))) {
-    memset(pCmd->payload, 0, tListLen(pCmd->payload));
+    memset(pCmd->payload, 0, strlen(pCmd->payload));
 
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   uint16_t port = (uint16_t)strtol(portStr, NULL, 10);
   if (port <= 0 || port > 65535) {
-    memset(pCmd->payload, 0, tListLen(pCmd->payload));
+    memset(pCmd->payload, 0, strlen(pCmd->payload));
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
