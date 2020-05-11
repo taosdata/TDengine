@@ -20,7 +20,7 @@ system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 1000
 
 print =============== prepare data
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
@@ -87,7 +87,7 @@ endi
 
 print ========== step1
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
 show1: 
@@ -98,12 +98,12 @@ show1:
 	endi
 	
 sql show dnodes
-print dnode1 freeVnodes $data3_192.168.0.1
-print dnode2 freeVnodes $data3_192.168.0.2
-if $data3_192.168.0.1 != 2 then
+print dnode1 openvnodes $data2_1
+print dnode2 openvnodes $data2_2
+if $data2_1 != 2 then
 	goto show1
 endi
-if $data3_192.168.0.2 != 2 then
+if $data2_2 != 2 then
 	goto show1
 endi
 
@@ -139,7 +139,7 @@ endi
 
 print ========== step2
 sql create dnode $hostname3
-system sh/exec.sh -n dnode3 -s start
+system sh/exec_up.sh -n dnode3 -s start
 sleep 10000
 
 print ========== step3
@@ -154,20 +154,20 @@ show3:
 	endi
 	
 sql show dnodes
-print dnode1 freeVnodes $data3_192.168.0.1
-print dnode2 freeVnodes $data3_192.168.0.2
-print dnode3 freeVnodes $data3_192.168.0.3
-if $data3_192.168.0.1 != 2 then
+print dnode1 freeVnodes $data2_1
+print dnode2 freeVnodes $data2_2
+print dnode3 freeVnodes $data2_3
+if $data2_1 != 2 then
 	goto show3
 endi
-if $data3_192.168.0.2 != NULL then
+if $data2_2 != NULL then
 	goto show3
 endi
-if $data3_192.168.0.3 != 2 then
+if $data2_3 != 2 then
 	goto show3
 endi
 
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -211,16 +211,16 @@ show4:
 	endi
 	
 sql show dnodes
-print dnode1 freeVnodes $data3_192.168.0.1
-print dnode3 freeVnodes $data3_192.168.0.3
-if $data3_192.168.0.1 != 0 then
+print dnode1 freeVnodes $data2_1
+print dnode3 freeVnodes $data2_3
+if $data2_1 != 0 then
 	goto show4
 endi
-if $data3_192.168.0.3 != NULL then
+if $data2_3 != NULL then
 	goto show4
 endi
 
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -255,7 +255,7 @@ endi
 print ========== step5
 sql alter database db replica 2
 sql create dnode $hostname4
-system sh/exec.sh -n dnode4 -s start
+system sh/exec_up.sh -n dnode4 -s start
 
 $x = 0
 show5: 
@@ -266,12 +266,12 @@ show5:
 	endi
 	
 sql show dnodes
-print dnode1 freeVnodes $data3_192.168.0.1
-print dnode4 freeVnodes $data3_192.168.0.4
-if $data3_192.168.0.1 != 0 then
+print dnode1 freeVnodes $data2_1
+print dnode4 freeVnodes $data2_4
+if $data2_1 != 0 then
 	goto show5
 endi
-if $data3_192.168.0.4 != 0 then
+if $data2_4 != 0 then
 	goto show5
 endi
 

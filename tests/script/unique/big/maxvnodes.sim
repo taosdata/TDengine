@@ -1,25 +1,32 @@
 system sh/stop_dnodes.sh
 
+$totalVnodes = 100
+$minVnodes = 48
+$maxVnodes = 52
+$maxTables = 4
+$totalRows = $totalVnodes * $maxTables
+
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel            -v 0
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode   -v 100
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v 256
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode   -v $maxTables
+system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v $totalVnodes
 system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 100000
 system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 100000
 system sh/cfg.sh -n dnode1 -c maxShellConns       -v 100000
 system sh/cfg.sh -n dnode1 -c maxMgmtConnections  -v 100000
 
 print ==========  prepare data
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
+sleep 3000
 sql connect 
-sql create database db
+sql create database db blocks 2 cache 1 maxTables $maxTables
 sql use db
 
 print ==========  step1
 sql create table mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
 $x = 0
-while $x < 25600
+while $x < $totalRows
   $tb = t . $x
   sql create table $tb using mt tags( $x )
   sql insert into $tb values (now, $x ) 
@@ -28,15 +35,14 @@ endw
 
 print ========== step2
 sql select * from mt
-if $rows != 25600 then
+if $rows != $totalRows then
   return -1
 endi  
 
 sql select count(*) from mt
-if $data00 != 25600 then
+if $data00 != $totalRows then
   return -1
 endi  
-
 
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c walLevel            -v 0
@@ -49,7 +55,7 @@ system sh/cfg.sh -n dnode2 -c maxMgmtConnections  -v 100000
 
 print ==========  step2
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
 show3: 
@@ -60,23 +66,23 @@ show3:
 	endi
 	
 sql show dnodes
-print dnode1 freeVnodes $data3_192.168.0.1
-print dnode2 freeVnodes $data3_192.168.0.2
-if $data3_192.168.0.1 != 126 then
+print dnode1 openvnodes $data2_1
+print dnode2 openvnodes $data2_2
+if $data2_1 != $minVnodes then
 	goto show3
 endi
-if $data3_192.168.0.2 != 130 then
+if $data2_2 != $maxVnodes then
 	goto show3
 endi
 
 print ========== step4
 sql select * from mt
-if $rows != 25600 then
+if $rows != $totalRows then
   return -1
 endi  
 
 sql select count(*) from mt
-if $data00 != 25600 then
+if $data00 != $totalRows then
   return -1
 endi  
 
