@@ -25,7 +25,7 @@
 #include "tglobal.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtDb.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
@@ -88,10 +88,12 @@ void mgmtProcessReqMsgFromDnode(SRpcMsg *rpcMsg) {
     
     SRpcIpSet ipSet = {0};
     dnodeGetMnodeDnodeIpSet(&ipSet);
+    for (int i = 0; i < ipSet.numOfIps; ++i) 
+      ipSet.port[i] = htons(ipSet.port[i]);
     
     mTrace("conn from dnode ip:%s user:%s redirect msg, inUse:%d", taosIpStr(connInfo.clientIp), connInfo.user, ipSet.inUse);
     for (int32_t i = 0; i < ipSet.numOfIps; ++i) {
-      mTrace("index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
+      mTrace("mnode index:%d %s:%d", i, ipSet.fqdn[i], htons(ipSet.port[i]));
     }
     rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
     return;

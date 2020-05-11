@@ -267,7 +267,7 @@ void vnodeRelease(void *pVnodeRaw) {
   assert(refCount >= 0);
 
   if (refCount > 0) {
-    vTrace("vgId:%d, release vnode, refCount:%d", pVnode, vgId, refCount);
+    vTrace("vgId:%d, release vnode, refCount:%d", vgId, refCount);
     return;
   }
 
@@ -301,7 +301,7 @@ void *vnodeGetVnode(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
-    vPrint("vgId:%d not exist", vgId);
+    vPrint("vgId:%d, not exist", vgId);
     return NULL;
   }
 
@@ -693,8 +693,9 @@ static bool vnodeReadVersion(SVnodeObj *pVnode) {
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "r");
   if (!fp) {
-    vTrace("vgId:%d, failed to open version file:%s error:%s", pVnode->vgId,
-           versionFile, strerror(errno));
+    if (errno != ENOENT) {
+      vError("vgId:%d, failed to open version file:%s error:%s", pVnode->vgId, versionFile, strerror(errno));
+    }
     return false;
   }
 

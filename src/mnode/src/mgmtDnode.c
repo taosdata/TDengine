@@ -27,7 +27,7 @@
 #include "tdataformat.h"
 #include "dnode.h"
 #include "mgmtDef.h"
-#include "mgmtLog.h"
+#include "mgmtInt.h"
 #include "mgmtDnode.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
@@ -223,7 +223,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   if (pCmCfgDnode->ep[0] == 0) {
     strcpy(pCmCfgDnode->ep, tsLocalEp);
   } else {
-    strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep);
+    // TODO temporary disabled for compiling: strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep); 
   }
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
@@ -252,7 +252,7 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
 }
 
 static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
-  mPrint("cfg vnode rsp is received, result:%s", tstrerror(rpcMsg->code));
+  mPrint("cfg dnode rsp is received");
 }
 
 void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {

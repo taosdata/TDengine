@@ -1005,13 +1005,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCMCfgDnodeMsg);
-
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-
-  pCmd->msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE;
+  pCmd->msgType = TSDB_MSG_TYPE_CM_CONFIG_DNODE;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1189,7 +1183,7 @@ int32_t tscBuildKillMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscEstimateCreateTableMsgLength(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &(pSql->cmd);
 
-  int32_t size = minMsgSize() + sizeof(SMgmtHead) + sizeof(SCMCreateTableMsg);
+  int32_t size = minMsgSize() + sizeof(SCMCreateTableMsg);
 
   SCreateTableSQL *pCreateTableInfo = pInfo->pCreateTableInfo;
   if (pCreateTableInfo->type == TSQL_CREATE_TABLE_FROM_STABLE) {
@@ -1277,7 +1271,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int tscEstimateAlterTableMsgLength(SSqlCmd *pCmd) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  return minMsgSize() + sizeof(SMgmtHead) + sizeof(SCMAlterTableMsg) + sizeof(SSchema) * tscNumOfFields(pQueryInfo) +
+  return minMsgSize() + sizeof(SCMAlterTableMsg) + sizeof(SSchema) * tscNumOfFields(pQueryInfo) +
          TSDB_EXTRA_PAYLOAD_SIZE;
 }
 
@@ -1534,6 +1528,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
  *      no used         4B
  **/
 int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+#if 0
   SSqlCmd *pCmd = &pSql->cmd;
 
   // copy payload content to temp buff
@@ -1566,6 +1561,8 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
            pCmd->payloadLen);
 
   return pCmd->payloadLen;
+#endif
+  return 0;  
 }
 
 //static UNUSED_FUNC int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
@@ -1765,7 +1762,7 @@ int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {
   int      size = 0;
   STscObj *pObj = pSql->pTscObj;
 
-  size += tsRpcHeadSize + sizeof(SMgmtHead);
+  size += tsRpcHeadSize;
   size += sizeof(SQqueryList);
 
   SSqlObj *tpSql = pObj->sqlList;
@@ -1801,12 +1798,8 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return -1;
   }
 
-  pMsg = pCmd->payload + tsRpcHeadSize;
+  pMsg = pCmd->payload;
   pStart = pMsg;
-
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-  strcpy(pMgmt->db, pObj->db);
-  pMsg += sizeof(SMgmtHead);
 
   pMsg = tscBuildQueryStreamDesc(pMsg, pObj);
   pthread_mutex_unlock(&pObj->mutex);

@@ -236,7 +236,7 @@ void taosReadGlobalLogCfg() {
   int    olen, vlen;
   char   fileName[PATH_MAX] = {0};
 
-  mdebugFlag = 135;
+  mDebugFlag = 135;
   sdbDebugFlag = 135;
 
   wordexp_t full_path;

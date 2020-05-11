@@ -156,7 +156,8 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 3);
     if (i >= tscGetNumOfColumns(pMeta) && tscGetNumOfTags(pMeta) != 0) {
       char* output = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i;
-      STR_WITH_SIZE_TO_VARSTR(output, "TAG", 3);
+      const char *src = "TAG";
+      STR_WITH_SIZE_TO_VARSTR(output, src, strlen(src));
     }
   }
 
@@ -191,7 +192,8 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     // tag value
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 3);
     char *target = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i;
-    STR_WITH_SIZE_TO_VARSTR(target, "TAG", 3);
+    const char *src = "TAG";
+    STR_WITH_SIZE_TO_VARSTR(target, src, strlen(src));
 
     pTagValue += pSchema[i].bytes;
   }

@@ -69,6 +69,8 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
     if (*pDnodeConn == NULL) {
       tscError("failed to init connection to TDengine");
       return -1;
+    } else {
+      tscTrace("dnodeConn:%p is created, user:%s", *pDnodeConn, user);
     }
   }
 

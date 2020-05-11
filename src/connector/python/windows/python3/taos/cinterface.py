@@ -96,7 +96,8 @@ def _crow_nchar_to_python(data, num_of_rows, nbytes=None, micro=False):
     for i in range(abs(num_of_rows)):
         try:
             if num_of_rows >= 0:
-                res.append( (ctypes.cast(data+nbytes*(abs(num_of_rows - i -1)),  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[0].value )
+                tmpstr = ctypes.c_char_p(data)
+                res.append( tmpstr.value.decode() )
             else:
                 res.append( (ctypes.cast(data+nbytes*i,  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[0].value )
         except ValueError:
@@ -146,6 +147,7 @@ class CTaosInterface(object):
     libtaos.taos_errstr.restype = ctypes.c_char_p
     libtaos.taos_subscribe.restype = ctypes.c_void_p
     libtaos.taos_consume.restype = ctypes.c_void_p
+    libtaos.taos_fetch_lengths.restype = ctypes.c_void_p
 
     def __init__(self, config=None):
         '''
@@ -314,6 +316,8 @@ class CTaosInterface(object):
 
         isMicro = (CTaosInterface.libtaos.taos_result_precision(result) == FieldType.C_TIMESTAMP_MICRO)
         blocks = [None] * len(fields)
+        fieldL = CTaosInterface.libtaos.taos_fetch_lengths(result)
+        fieldLen = [ele for ele in ctypes.cast(fieldL,  ctypes.POINTER(ctypes.c_int))[:len(fields)]]
         for i in range(len(fields)):
             data = ctypes.cast(pblock, ctypes.POINTER(ctypes.c_void_p))[i]
             if data == None:
@@ -323,7 +327,7 @@ class CTaosInterface(object):
             if fields[i]['type'] not in _CONVERT_FUNC:
                 raise DatabaseError("Invalid data type returned from database")
             
-            blocks[i] = _CONVERT_FUNC[fields[i]['type']](data, num_of_rows, fields[i]['bytes'], isMicro)
+            blocks[i] = _CONVERT_FUNC[fields[i]['type']](data, num_of_rows, fieldLen[i], isMicro)
 
         return blocks, abs(num_of_rows)
 

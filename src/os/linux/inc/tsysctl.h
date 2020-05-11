@@ -13,33 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_RPC_LOG_H
-#define TDENGINE_RPC_LOG_H
+#ifndef TDENGINE_TSYSCTL_H
+#define TDENGINE_TSYSCTL_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tlog.h"
-
-extern int32_t qDebugFlag;
-
-#define qTrace(...)                               \
-  if (qDebugFlag & DEBUG_TRACE) {                 \
-    taosPrintLog("DND QRY ", qDebugFlag, __VA_ARGS__); \
-  }
-
-#define qError(...)                                   \
-  if (qDebugFlag & DEBUG_ERROR) {                   \
-    taosPrintLog("ERROR QRY ", qDebugFlag, __VA_ARGS__); \
-  }
-#define qWarn(...)                                    \
-  if (qDebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  QRY ", qDebugFlag, __VA_ARGS__); \
-  }  
-
-#ifdef __cplusplus
-}
+#ifndef _ALPINE
+  #include <error.h>
+  #include <sys/sysctl.h>
+#else
+  #include <linux/sysctl.h>  
 #endif
 
-#endif  // TDENGINE_RPC_CACHE_H
+#endif
