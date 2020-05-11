@@ -223,7 +223,7 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
   return ret;
 }
 
-void processRequestMsg(SRpcMsg *pMsg) {
+void processRequestMsg(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   
   SRpcMsg *pTemp;
 
