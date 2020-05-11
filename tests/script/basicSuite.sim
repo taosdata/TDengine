@@ -22,4 +22,5 @@ run general/table/vgroup.sim
 run general/user/basic1.sim
 run general/user/user_len.sim
 run general/vector/single.sim
+run general/connection/connection.sim
 ################################## 
