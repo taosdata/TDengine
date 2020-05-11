@@ -3277,11 +3277,11 @@ static SQueryStatusInfo getQueryStatusInfo(SQueryRuntimeEnv *pRuntimeEnv) {
   STableQueryInfo* pTableQueryInfo = pQuery->current;
   
   SQueryStatusInfo info = {
-      .status = pQuery->status,
+      .status      = pQuery->status,
       .windowIndex = pRuntimeEnv->windowResInfo.curIndex,
-      .lastKey = pTableQueryInfo->lastKey,
-      .w = pQuery->window,
-      .curWindow = {.skey = pTableQueryInfo->lastKey, .ekey = pQuery->window.ekey},
+      .lastKey     = pTableQueryInfo->lastKey,
+      .w           = pQuery->window,
+      .curWindow   = {.skey = pTableQueryInfo->lastKey, .ekey = pTableQueryInfo->win.ekey},
   };
 
   return info;
@@ -3306,7 +3306,7 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
 
   STsdbQueryCond cond = {
       .twindow = pQuery->window,
-      .order = pQuery->order.order,
+      .order   = pQuery->order.order,
       .colList = pQuery->colList,
       .numOfCols = pQuery->numOfCols,
   };
@@ -4499,6 +4499,9 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
         
         initCtxOutputBuf(pRuntimeEnv);
         setTagVal(pRuntimeEnv, (STableId*) taosArrayGet(tx, 0), pQInfo->tsdb);
+        
+        // here we simply set the first table as current table
+        pRuntimeEnv->pQuery->current = ((SGroupItem*) taosArrayGet(group, 0))->info;
         scanAllDataBlocks(pRuntimeEnv);
         
         int64_t numOfRes = getNumOfResult(pRuntimeEnv);
