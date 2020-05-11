@@ -5628,7 +5628,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return doLocalQueryProcess(pQueryInfo, pQuerySql);
   }
 
-  if (pQuerySql->from->nExpr > TSDB_MAX_JOIN_TABLE_NUM) {
+  if (pQuerySql->from->nExpr > 2) {  // not allowed more than 2 table join
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
