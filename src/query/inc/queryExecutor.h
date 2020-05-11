@@ -110,6 +110,14 @@ typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
 
+typedef struct SQueryCostSummary {
+} SQueryCostSummary;
+
+typedef struct SGroupItem {
+  STableId id;
+  STableQueryInfo* info;
+} SGroupItem;
+
 typedef struct SQuery {
   int16_t           numOfCols;
   int16_t           numOfTags;
@@ -131,16 +139,14 @@ typedef struct SQuery {
   SColumnInfo*      tagColList;
   int32_t           numOfFilterCols;
   int64_t*          defaultVal;
-  TSKEY             lastKey;
+//  TSKEY             lastKey;
   uint32_t          status;  // query status
   SResultRec        rec;
   int32_t           pos;
   SData**           sdata;
+  STableQueryInfo*  current;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
-
-typedef struct SQueryCostSummary {
-} SQueryCostSummary;
 
 typedef struct SQueryRuntimeEnv {
   SResultInfo*       resultInfo;  // todo refactor to merge with SWindowResInfo

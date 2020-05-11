@@ -121,7 +121,7 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 
 1.  sudo apt install
     build-essential cmake net-tools python-pip python-setuptools python3-pip
-    python3-setuptools valgrind
+    python3-setuptools valgrind psmisc curl
 
 2.  git clone <https://github.com/taosdata/TDengine>; cd TDengine
 

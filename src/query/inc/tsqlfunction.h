@@ -104,7 +104,7 @@ extern "C" {
 
 enum {
   MASTER_SCAN           = 0x0u,
-  SUPPLEMENTARY_SCAN    = 0x1u,
+  REVERSE_SCAN          = 0x1u,
   REPEAT_SCAN           = 0x2u,  //repeat scan belongs to the master scan
   FIRST_STAGE_MERGE     = 0x10u,
   SECONDARY_STAGE_MERGE = 0x20u,
