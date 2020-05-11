@@ -122,7 +122,8 @@ endi
 print =============== step14
 sql select count(tbcol) as c from $mt where ts > 1000 group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
+if $data00 != 100 then
+  print expect 100, actual $data00
   return -1
 endi
 

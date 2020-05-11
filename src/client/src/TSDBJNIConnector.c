@@ -23,16 +23,16 @@
 #include "ttime.h"
 
 #define jniError(...)                                 \
-  if (jnidebugFlag & DEBUG_ERROR) {                   \
-    taosPrintLog("ERROR JNI ", jnidebugFlag, __VA_ARGS__); \
+  if (jniDebugFlag & DEBUG_ERROR) {                   \
+    taosPrintLog("ERROR JNI ", jniDebugFlag, __VA_ARGS__); \
   }
 #define jniWarn(...)                                  \
-  if (jnidebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  JNI ", jnidebugFlag, __VA_ARGS__); \
+  if (jniDebugFlag & DEBUG_WARN) {                    \
+    taosPrintLog("WARN  JNI ", jniDebugFlag, __VA_ARGS__); \
   }
 #define jniTrace(...)                           \
-  if (jnidebugFlag & DEBUG_TRACE) {             \
-    taosPrintLog("JNI ", jnidebugFlag, __VA_ARGS__); \
+  if (jniDebugFlag & DEBUG_TRACE) {             \
+    taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
   }
 #define jniPrint(...) \
   { taosPrintLog("JNI ", 255, __VA_ARGS__); }

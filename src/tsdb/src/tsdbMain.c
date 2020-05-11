@@ -808,7 +808,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (pTable->mem == NULL) {
     pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
     if (pTable->mem == NULL) return -1;
-    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, getTupleKey);
+    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, getTSTupleKey);
     pTable->mem->keyFirst = INT64_MAX;
     pTable->mem->keyLast = 0;
   }
@@ -831,7 +831,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (pTable->mem == NULL) {
     pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
     if (pTable->mem == NULL) return -1;
-    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, getTupleKey);
+    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, getTSTupleKey);
     pTable->mem->keyFirst = INT64_MAX;
     pTable->mem->keyLast = 0;
   }
