@@ -21,11 +21,12 @@ fi
 echo -e "${GREEN} ### Total $totalSuccess TSIM case(s) succeed! ### ${NC}"
 
 totalFailed=`grep 'failed\|fault' out.txt | wc -l`
-echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
+# echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
 
 if [ "$totalFailed" -ne "0" ]; then
-#  echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
-  exit $totalFailed
+  echo -e "${RED} ### Total $totalFailed TSIM case(s) failed! ### ${NC}"
+
+#  exit $totalFailed
 fi
 
 echo "### run Python script ###"
@@ -46,6 +47,7 @@ fi
 totalPyFailed=`grep 'failed\|fault' pytest-out.txt | wc -l`
 if [ "$totalPyFailed" -ne "0" ]; then
   echo -e "${RED} ### Total $totalPyFailed python case(s) failed! ### ${NC}"
-  exit $totalPyFailed
+#  exit $totalPyFailed
 fi
 
+exit $(($totalFailed + $totalPyFailed))
