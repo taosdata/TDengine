@@ -97,7 +97,7 @@ extern "C" {
 
 #define TSDB_METER_NAME_LEN       64
 #define TSDB_DB_NAME_LEN          32
-#define TSDB_COL_NAME_LEN         64
+#define TSDB_COL_NAME_LEN         128
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 16
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 6mb
@@ -230,7 +230,7 @@ extern "C" {
 
 #define TSDB_QUERY_TYPE_INSERT                        0x100U    // insert type
 #define TSDB_QUERY_TYPE_IMPORT                        0x200U    // import data
-#define TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY        0x400u    // join query without ts match
+#define        TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY        0x400u    // join query without ts match
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)         (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))

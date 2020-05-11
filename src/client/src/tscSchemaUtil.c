@@ -156,7 +156,8 @@ static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
  */
 void extractTableName(char* meterId, char* name) {
   char* r = skipSegments(meterId, TS_PATH_DELIMITER[0], 2);
-  copy(name, r, TS_PATH_DELIMITER[0]);
+  size_t len = copy(name, r, TS_PATH_DELIMITER[0]);
+  name[len] = 0;
 }
 
 SSQLToken extractDBName(char* meterId, char* name) {
