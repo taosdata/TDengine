@@ -1242,14 +1242,11 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
   SCMSTableVgroupRspMsg *pRsp = NULL;
-  int32_t contLen = sizeof(SCMSTableVgroupRspMsg);
+  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo); 
+  //reserve space
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
     SSuperTableObj *pTable = mgmtGetSuperTable(stableName);
-    if (pTable != NULL) {
-      stableName = (char*)pTable; //hack way
-    }
-
     if (pTable->vgHash != NULL) {
       contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo));
     }
@@ -1263,11 +1260,12 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   }
 
   pRsp->numOfTables = htonl(numOfTable);
-  char *msg = (char *)pRsp + sizeof(SCMSTableVgroupRspMsg);
+  char* msg = (char*) pRsp + sizeof(SCMSTableVgroupRspMsg);
 
   for (int32_t i = 0; i < numOfTable; ++i) {
-    SSuperTableObj *pTable = (SSuperTableObj *)((char *)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN)*i);
-    SVgroupsInfo *  pVgroup = (SVgroupsInfo *)msg;
+    char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
+    SSuperTableObj *pTable = mgmtGetSuperTable(stableName);
+    SVgroupsInfo *pVgroup = (SVgroupsInfo *)msg;
 
     SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
     int32_t vgSize = 0;
