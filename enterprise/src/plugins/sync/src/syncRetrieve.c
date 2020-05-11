@@ -356,7 +356,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
 static int syncRetrieveWal(SSyncPeer *pPeer)
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
-  char        fname[TSDB_FILENAME_LEN * 2];
+  char        fname[TSDB_FILENAME_LEN * 3];
   char        wname[TSDB_FILENAME_LEN * 2];
   int32_t     size;
   struct stat fstat;
