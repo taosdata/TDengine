@@ -175,6 +175,7 @@ void syncStop(void *param)
   atomic_sub_fetch_32(&tsNodeNum, 1);
   
   if (tsNodeNum <=0) {
+    sTrace("all sync resources are freed");
     taosCloseTcpThreadPool(tsTcpPool);
     taosCleanUpIntHash(vgIdHash);
   }
@@ -264,7 +265,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   int         fwdLen;
   int         code = 0;
 
-  if (nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
+  if (pNode == NULL || nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
 
   // always update version
   nodeVersion = pWalHead->version;
@@ -406,6 +407,7 @@ static int syncDecPeerRef(SSyncPeer *pPeer)
   if (atomic_sub_fetch_8(&pPeer->refCount, 1) == 0) {
     syncDecNodeRef(pPeer->pSyncNode);
 
+    sTrace("%s, resource is freed", pPeer->id);
     tfree(pPeer->watchFd);
     tfree(pPeer);
     return 0;
@@ -421,8 +423,13 @@ static void syncRemovePeer(SSyncPeer *pPeer)
 
   pPeer->ip = 0;
   taosTmrStopA(&pPeer->timer);
+  if (pPeer->peerFd >=0) {
+    taosFreeTcpThread(pPeer->pThread, &pPeer->peerFd);
+    syncDecPeerRef(pPeer);
+  }
+
+  pPeer->peerFd = -1;
   tclose(pPeer->syncFd);
-  tclose(pPeer->peerFd);
 
   syncDecPeerRef(pPeer);
 }
