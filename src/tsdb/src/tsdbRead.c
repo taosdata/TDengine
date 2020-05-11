@@ -626,7 +626,7 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
           for(int32_t k = start; k < pQueryHandle->realNumOfRows + start; ++k) {
             char* p = tdGetColDataOfRow(src, k);
             memcpy(dst, p, varDataTLen(p));
-            dst += varDataTLen(p);
+            dst += bytes;
           }
         }
         
@@ -1311,8 +1311,8 @@ void filterPrepare(void* expr, void* param) {
   } else {
     pInfo->q = calloc(1, pSchema->bytes);
     if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-      varDataSetLen(pInfo->q, pCond->nLen);
       tVariantDump(pCond, varDataVal(pInfo->q), pSchema->type);
+      varDataSetLen(pInfo->q, pCond->nLen);  // the length may be changed after dump, so assign its value after dump
     } else {
       tVariantDump(pCond, pInfo->q, pSchema->type);
     }
