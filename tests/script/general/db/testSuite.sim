@@ -1,4 +1,4 @@
-run general//db/basic.sim
+run general/db/basic.sim
 run general/db/basic1.sim
 run general/db/basic2.sim
 run general/db/basic3.sim
@@ -13,3 +13,4 @@ run general/db/delete_writing2.sim
 run general/db/len.sim
 run general/db/repeat.sim
 run general/db/tables.sim
+run general/db/vnodes.sim
