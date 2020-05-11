@@ -2641,26 +2641,21 @@ static UNUSED_FUNC void printBinaryData(int32_t functionId, char *data, int32_t 
   }
 }
 
-void UNUSED_FUNC displayInterResult(SData **pdata, SQuery *pQuery, int32_t numOfRows) {
-#if 0
+void UNUSED_FUNC displayInterResult(SData **pdata, SQueryRuntimeEnv* pRuntimeEnv, int32_t numOfRows) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
   int32_t numOfCols = pQuery->numOfOutput;
   printf("super table query intermediate result, total:%d\n", numOfRows);
   
-  SQInfo *   pQInfo = (SQInfo *)(GET_QINFO_ADDR(pQuery));
-  SMeterObj *pMeterObj = pQInfo->pObj;
-  
   for (int32_t j = 0; j < numOfRows; ++j) {
     for (int32_t i = 0; i < numOfCols; ++i) {
+      
       switch (pQuery->pSelectExpr[i].type) {
         case TSDB_DATA_TYPE_BINARY: {
-          int32_t colIndex = pQuery->pSelectExpr[i].base.colInfo.colIndex;
-          int32_t type = 0;
-          
-          if (TSDB_COL_IS_TAG(pQuery->pSelectExpr[i].base.colInfo.flag)) {
-            type = pQuery->pSelectExpr[i].type;
-          } else {
-            type = pMeterObj->schema[colIndex].type;
-          }
+//          int32_t colIndex = pQuery->pSelectExpr[i].base.colInfo.colIndex;
+          int32_t type = pQuery->pSelectExpr[i].type;
+//          } else {
+//            type = pMeterObj->schema[colIndex].type;
+//          }
           printBinaryData(pQuery->pSelectExpr[i].base.functionId, pdata[i]->data + pQuery->pSelectExpr[i].bytes * j,
                           type);
           break;
@@ -2682,7 +2677,6 @@ void UNUSED_FUNC displayInterResult(SData **pdata, SQuery *pQuery, int32_t numOf
     }
     printf("\n");
   }
-#endif
 }
 
 typedef struct SCompSupporter {
@@ -2950,7 +2944,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
   int64_t endt = taosGetTimestampMs();
 
 #ifdef _DEBUG_VIEW
-  displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->num);
+  displayInterResult(pQuery->sdata, pRuntimeEnv, pQuery->sdata[0]->num);
 #endif
 
   qTrace("QInfo:%p result merge completed, elapsed time:%" PRId64 " ms", GET_QINFO_ADDR(pQuery), endt - startt);
@@ -3588,7 +3582,8 @@ void setIntervalQueryRange(SQInfo *pQInfo, TSKEY key) {
   if (pTableQueryInfo->queryRangeSet) {
     pTableQueryInfo->lastKey = key;
   } else {
-    pQuery->window.skey = key;
+//    pQuery->window.skey = key;
+    pTableQueryInfo->win.skey = key;
     STimeWindow win = {.skey = key, .ekey = pQuery->window.ekey};
 
     // for too small query range, no data in this interval.
@@ -3608,7 +3603,7 @@ void setIntervalQueryRange(SQInfo *pQInfo, TSKEY key) {
     SWindowResInfo *pWindowResInfo = &pTableQueryInfo->windowResInfo;
 
     getAlignQueryTimeWindow(pQuery, win.skey, win.skey, win.ekey, &skey1, &ekey1, &w);
-    pWindowResInfo->startTime = pQuery->window.skey;  // windowSKey may be 0 in case of 1970 timestamp
+    pWindowResInfo->startTime = pTableQueryInfo->win.skey;  // windowSKey may be 0 in case of 1970 timestamp
 
     if (pWindowResInfo->prevSKey == 0) {
       if (QUERY_IS_ASC_QUERY(pQuery)) {
@@ -3620,8 +3615,8 @@ void setIntervalQueryRange(SQInfo *pQInfo, TSKEY key) {
     }
 
     pTableQueryInfo->queryRangeSet = 1;
-    pTableQueryInfo->lastKey = pQuery->window.skey;
-    pTableQueryInfo->win.skey = pQuery->window.skey;
+    pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
+    pTableQueryInfo->win.skey = pTableQueryInfo->win.skey;
   }
 }
 
@@ -3726,7 +3721,7 @@ static int32_t doCopyToSData(SQInfo *pQInfo, SWindowResult *result, int32_t orde
   qTrace("QInfo:%p copy data to query buf completed", pQInfo);
 
 #ifdef _DEBUG_VIEW
-  displayInterResult(pQuery->sdata, pQuery, numOfResult);
+  displayInterResult(pQuery->sdata, pRuntimeEnv, numOfResult);
 #endif
   return numOfResult;
 }
@@ -4766,7 +4761,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
       copyResToQueryResultBuf(pQInfo, pQuery);
 
 #ifdef _DEBUG_VIEW
-      displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->num);
+      displayInterResult(pQuery->sdata, pRuntimeEnv, pQuery->sdata[0]->num);
 #endif
     } else {
       copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
@@ -4819,7 +4814,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
       copyResToQueryResultBuf(pQInfo, pQuery);
 
 #ifdef _DEBUG_VIEW
-      displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->num);
+      displayInterResult(pQuery->sdata, pRuntimeEnv, pQuery->sdata[0]->num);
 #endif
     }
   } else {  // not a interval query
@@ -5276,26 +5271,26 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     }
 
     for (int32_t f = 0; f < numOfFilters; ++f) {
-      SColumnFilterInfo *pFilterInfo = (SColumnFilterInfo *)pMsg;
-      SColumnFilterInfo *pDestFilterInfo = &pColInfo->filters[f];
-
-      pDestFilterInfo->filterstr = htons(pFilterInfo->filterstr);
+      SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)pMsg;
+      
+      SColumnFilterInfo *pColFilter = &pColInfo->filters[f];
+      pColFilter->filterstr = htons(pFilterMsg->filterstr);
 
       pMsg += sizeof(SColumnFilterInfo);
 
-      if (pDestFilterInfo->filterstr) {
-        pDestFilterInfo->len = htobe64(pFilterInfo->len);
+      if (pColFilter->filterstr) {
+        pColFilter->len = htobe64(pFilterMsg->len);
 
-        pDestFilterInfo->pz = (int64_t) calloc(1, pDestFilterInfo->len);
-        memcpy((void *)pDestFilterInfo->pz, pMsg, pDestFilterInfo->len);
-        pMsg += (pDestFilterInfo->len);
+        pColFilter->pz = (int64_t) calloc(1, pColFilter->len);
+        memcpy((void *)pColFilter->pz, pMsg, pColFilter->len);
+        pMsg += (pColFilter->len + 1);
       } else {
-        pDestFilterInfo->lowerBndi = htobe64(pFilterInfo->lowerBndi);
-        pDestFilterInfo->upperBndi = htobe64(pFilterInfo->upperBndi);
+        pColFilter->lowerBndi = htobe64(pFilterMsg->lowerBndi);
+        pColFilter->upperBndi = htobe64(pFilterMsg->upperBndi);
       }
 
-      pDestFilterInfo->lowerRelOptr = htons(pFilterInfo->lowerRelOptr);
-      pDestFilterInfo->upperRelOptr = htons(pFilterInfo->upperRelOptr);
+      pColFilter->lowerRelOptr = htons(pFilterMsg->lowerRelOptr);
+      pColFilter->upperRelOptr = htons(pFilterMsg->upperRelOptr);
     }
   }
 
@@ -5692,9 +5687,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
 
   for (int16_t i = 0; i < numOfCols; ++i) {
     pQuery->colList[i] = pQueryMsg->colList[i];
-
-    SColumnInfo *pColInfo = &pQuery->colList[i];
-    pColInfo->filters = tscFilterInfoClone(pQueryMsg->colList[i].filters, pColInfo->numOfFilters);
+    pQuery->colList[i].filters = tscFilterInfoClone(pQueryMsg->colList[i].filters, pQuery->colList[i].numOfFilters);
   }
   
   pQuery->tagColList = pTagCols;

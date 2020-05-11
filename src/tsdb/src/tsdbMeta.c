@@ -234,7 +234,6 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-// todo refactor table name definition
 int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
@@ -242,6 +241,7 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   STColumn* pCol = NULL;
   
+  // todo binary search
   for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
     STColumn* p = schemaColAt(pSchema, col);
     if (p->colId == colId) {
