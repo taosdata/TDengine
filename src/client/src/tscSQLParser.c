@@ -5563,8 +5563,8 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
       
-      *(VarDataLenT*)tagVal = pList->a[i].pVar.nLen;
-      ret = tVariantDump(&(pList->a[i].pVar), tagVal + VARSTR_HEADER_SIZE, pTagSchema[i].type);
+      ret = tVariantDump(&(pList->a[i].pVar), varDataVal(tagVal), pTagSchema[i].type);
+      varDataSetLen(tagVal, pList->a[i].pVar.nLen);
     } else {
       ret = tVariantDump(&(pList->a[i].pVar), tagVal, pTagSchema[i].type);
     }

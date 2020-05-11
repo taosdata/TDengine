@@ -540,8 +540,11 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
 
 static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
   SSkipListIterator* iter = NULL;
+  
   SQueryCond cond = {0};
-  setQueryCond(pQueryInfo, &cond);
+  if (setQueryCond(pQueryInfo, &cond) != TSDB_CODE_SUCCESS) {
+    //todo handle error
+  }
 
   if (cond.start != NULL) {
     iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->keyInfo.type, TSDB_ORDER_ASC);
