@@ -41,7 +41,7 @@ SSyncCfg *pCfg;
 int writeIntoWal(SWalHead *pHead)
 { 
   if (dataFd < 0) {
-    char  walName[64];
+    char  walName[280];
     sprintf(walName, "%s/wal/wal.%d", path, walNum);
     remove(walName);
     dataFd = open(walName, O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
@@ -238,7 +238,7 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size)
 {
   uint32_t     magic;
   struct stat  fstat;
-  char         aname[256];
+  char         aname[280];
 
   if (*index == 2) {
     uPrint("wait for a while .....");
@@ -265,7 +265,7 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size)
 int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
 
   struct stat  fstat;
-  char         aname[256];
+  char         aname[280];
 
   name[0] = 0;
   if (*index + 1> walNum) return 0;
