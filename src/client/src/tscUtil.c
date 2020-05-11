@@ -457,9 +457,11 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   pCmd->command = 0;
 
   // pSql->sqlstr will be used by tscBuildQueryStreamDesc
-  pthread_mutex_lock(&pObj->mutex);
-  tfree(pSql->sqlstr);
-  pthread_mutex_unlock(&pObj->mutex);
+  if (pObj->signature == pObj) {
+    pthread_mutex_lock(&pObj->mutex);
+    tfree(pSql->sqlstr);
+    pthread_mutex_unlock(&pObj->mutex);
+  }
 
   tscFreeSqlResult(pSql);
   tfree(pSql->pSubs);
