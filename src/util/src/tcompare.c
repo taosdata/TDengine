@@ -60,8 +60,15 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   }
 }
 
-int32_t compareStrVal(const void *pLeft, const void *pRight) {
-  return (int32_t)strcmp(pLeft, pRight);
+int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {
+  int32_t len1 = varDataLen(pLeft);
+  int32_t len2 = varDataLen(pRight);
+  
+  if (len1 != len2) {
+    return len1 > len2? 1:-1;
+  } else {
+    return (int32_t) strncmp(varDataVal(pLeft), varDataVal(pRight), len1);
+  }
 }
 
 int32_t compareWStrVal(const void *pLeft, const void *pRight) {
@@ -267,7 +274,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindStrInArray;
       } else { /* normal relational comparFn */
-        comparFn = compareStrVal;
+        comparFn = compareLenPrefixedStr;
       }
     
       break;
@@ -296,6 +303,7 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
   
   switch (keyType) {
     case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_BOOL:
       comparFn = compareInt8Val;
       break;
     case TSDB_DATA_TYPE_SMALLINT:
@@ -308,17 +316,13 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       comparFn = compareInt64Val;
       break;
-    case TSDB_DATA_TYPE_BOOL:
-      comparFn = compareInt32Val;
-      break;
-    
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
       break;
     
     case TSDB_DATA_TYPE_BINARY:
-      comparFn = compareStrVal;
+      comparFn = compareLenPrefixedStr;
       break;
     
     case TSDB_DATA_TYPE_NCHAR:
@@ -349,13 +353,20 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
       }
       return (ret < 0) ? -1 : 1;
     }
-    default: {
-      int32_t ret = strncmp(f1, f2, (size_t)size);
-      if (ret == 0) {
-        return ret;
-      }
+    default: {  // todo refactor
+      tstr* t1 = (tstr*) f1;
+      tstr* t2 = (tstr*) f2;
       
-      return (ret < 0) ? -1 : 1;
+      if (t1->len != t2->len) {
+        return t1->len > t2->len? 1:-1;
+      } else {
+        int32_t ret = strncmp(t1->data, t2->data, t1->len);
+        if (ret == 0) {
+          return 0;
+        } else {
+          return ret < 0? -1:1;
+        }
+      }
     }
   }
 }

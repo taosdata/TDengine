@@ -5911,7 +5911,7 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray*
   }
   
   if (pSqlExpr->pLeft == NULL) {
-    if (pSqlExpr->nSQLOptr >= TK_TINYINT && pSqlExpr->nSQLOptr <= TK_DOUBLE) {
+    if (pSqlExpr->nSQLOptr >= TK_BOOL && pSqlExpr->nSQLOptr <= TK_STRING) {
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));

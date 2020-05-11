@@ -1076,17 +1076,13 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, STable* pTable, TSKEY
       }
       
       assert(offset != -1); // todo handle error
+      void *value = tdGetRowDataOfCol(row, pColInfo->info.type, TD_DATA_ROW_HEAD_SIZE + offset);
       
       if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-        void *value = tdGetRowDataOfCol(row, pColInfo->info.type, TD_DATA_ROW_HEAD_SIZE + offset);
         memcpy(pData, value, varDataTLen(value));
-  
-        offset += sizeof(int32_t);
       } else {
-        memcpy(pData, dataRowTuple(row) + offset, pColInfo->info.bytes);
-        offset += pColInfo->info.bytes;
+        memcpy(pData, value, pColInfo->info.bytes);
       }
-      
     }
 
     numOfRows++;
@@ -1225,8 +1221,8 @@ static int32_t getAllTableIdList(STable* pSuperTable, SArray* list) {
   while (tSkipListIterNext(iter)) {
     SSkipListNode* pNode = tSkipListIterGet(iter);
     
-    STable* t = *(STable**)SL_GET_NODE_DATA(pNode);
-    taosArrayPush(list, &t->tableId);
+    STableIndexElem* elem = (STableIndexElem*)(SL_GET_NODE_DATA((SSkipListNode*) pNode));
+    taosArrayPush(list, &elem->pTable->tableId);
   }
   
   tSkipListDestroyIter(iter);
@@ -1235,6 +1231,7 @@ static int32_t getAllTableIdList(STable* pSuperTable, SArray* list) {
 
 /**
  * convert the result pointer to table id instead of table object pointer
+ * todo remove it by using callback function to change the final result in-time.
  * @param pRes
  */
 static void convertQueryResult(SArray* pRes, SArray* pTableList) {
@@ -1244,8 +1241,8 @@ static void convertQueryResult(SArray* pRes, SArray* pTableList) {
 
   size_t size = taosArrayGetSize(pTableList);
   for (int32_t i = 0; i < size; ++i) {  // todo speedup  by using reserve space.
-    STable* pTable = taosArrayGetP(pTableList, i);
-    taosArrayPush(pRes, &pTable->tableId);
+    STableIndexElem* elem = taosArrayGet(pTableList, i);
+    taosArrayPush(pRes, &elem->pTable->tableId);
   }
 }
 
@@ -1309,7 +1306,12 @@ void filterPrepare(void* expr, void* param) {
     pInfo->q = (char*) pCond->arr;
   } else {
     pInfo->q = calloc(1, pSchema->bytes);
-    tVariantDump(pCond, pInfo->q, pSchema->type);
+    if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+      varDataSetLen(pInfo->q, pCond->nLen);
+      tVariantDump(pCond, varDataVal(pInfo->q), pSchema->type);
+    } else {
+      tVariantDump(pCond, pInfo->q, pSchema->type);
+    }
   }
 }
 
@@ -1341,16 +1343,16 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     int32_t bytes = 0;
     
     if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      f1 = pTable1->name;
-      f2 = pTable2->name;
+      f1 = (char*) pTable1->name;
+      f2 = (char*) pTable2->name;
       type = TSDB_DATA_TYPE_BINARY;
-      bytes = TSDB_TABLE_NAME_LEN;
+      bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
     } else {
-      f1 = dataRowTuple(pTable1->tagVal);
-      f2 = dataRowTuple(pTable2->tagVal);
-
-      type = schemaColAt(pTableGroupSupp->pTagSchema, colIndex)->type;
-      bytes = schemaColAt(pTableGroupSupp->pTagSchema, colIndex)->bytes;
+      STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
+      bytes = pCol->bytes;
+  
+      f1 = tdGetRowDataOfCol(pTable1->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+      f2 = tdGetRowDataOfCol(pTable2->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
     }
     
     int32_t ret = doCompare(f1, f2, type, bytes);
@@ -1428,24 +1430,20 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
 bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
   tQueryInfo* pInfo = (tQueryInfo*) param;
-
-  STable* pTable = *(STable**)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
+  
+  STableIndexElem* elem = (STableIndexElem*)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
 
   char*  val = NULL;
   int8_t type = pInfo->sch.type;
 
   if (pInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
-    val = pTable->name;
+    val = (char*) elem->pTable->name;
     type = TSDB_DATA_TYPE_BINARY;
   } else {
     STSchema* pTSchema = (STSchema*) pInfo->param; // todo table schema is identical to stable schema??
     
     int32_t offset = pTSchema->columns[pInfo->colIndex].offset;
-    if (pInfo->sch.type == TSDB_DATA_TYPE_BINARY || pInfo->sch.type == TSDB_DATA_TYPE_NCHAR) {
-      val = tdGetRowDataOfCol(pTable->tagVal, pInfo->sch.type, TD_DATA_ROW_HEAD_SIZE + offset);
-    } else {
-      val = dataRowTuple(pTable->tagVal) + offset;
-    }
+    val = tdGetRowDataOfCol(elem->pTable->tagVal, pInfo->sch.type, TD_DATA_ROW_HEAD_SIZE + offset);
   }
 
   int32_t ret = 0;
@@ -1456,8 +1454,6 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
       ret = pInfo->compare(val, pInfo->q);
     }
   } else {
-//    tVariant t = {0};
-//    tVariantCreateFromBinary(&t, val, (uint32_t)pInfo->sch.bytes, type);
     ret = pInfo->compare(val, pInfo->q);
   }
 
@@ -1502,7 +1498,7 @@ static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr)
       .pExtInfo = pSTable->tagSchema,
       };
 
-  SArray* pTableList = taosArrayInit(8, POINTER_BYTES);
+  SArray* pTableList = taosArrayInit(8, sizeof(STableIndexElem));
 
   tExprTreeTraverse(pExpr, pSTable->pIndex, pTableList, &supp);
   tExprTreeDestroy(&pExpr, destroyHelper);
