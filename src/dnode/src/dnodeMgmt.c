@@ -266,8 +266,8 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
   return taosCfgDynamicOptions(pCfg->config);
 }
 
-void dnodeUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
-  dPrint("mnode IP list is changed for ufp is called, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
+void dnodeUpdateIpSet(SRpcIpSet *pIpSet) {
+  dPrint("mnode IP list is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
   for (int i = 0; i < pIpSet->numOfIps; ++i) {
     dPrint("mnode index:%d %s:%u", i, pIpSet->fqdn[i], pIpSet->port[i])
   }

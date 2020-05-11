@@ -365,7 +365,7 @@ void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg);
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
 int  tscRenewMeterMeta(SSqlObj *pSql, char *tableId);
