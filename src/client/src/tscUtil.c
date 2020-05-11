@@ -2165,7 +2165,7 @@ void* malloc_throw(size_t size) {
 }
 
 void* calloc_throw(size_t nmemb, size_t size) {
-  void* p = malloc(size);
+  void* p = calloc(nmemb, size);
   if (p == NULL) {
     THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
   }
