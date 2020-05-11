@@ -10,7 +10,8 @@ system sh/cfg.sh -n dnode1 -c maxShellConns       -v 100000
 system sh/cfg.sh -n dnode1 -c maxMgmtConnections  -v 100000
 
 print ==========  prepare data
-system sh/exec.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode1 -s start
+sleep 3000
 sql connect 
 sql create database db
 sql use db
@@ -49,7 +50,7 @@ system sh/cfg.sh -n dnode2 -c maxMgmtConnections  -v 100000
 
 print ==========  step2
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode2 -s start
 
 $x = 0
 show3: 
