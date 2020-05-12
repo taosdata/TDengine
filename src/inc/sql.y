@@ -406,10 +406,35 @@ as(X) ::= .             { X.n = 0;  }
 from(A) ::= FROM tablelist(X).                 {A = X;}
 
 %type tablelist {tVariantList*}
-tablelist(A) ::= ids(X) cpxName(Y).                    { toTSDBType(X.type); X.n += Y.n; A = tVariantListAppendToken(NULL, &X, -1); A = tVariantListAppendToken(A, &X, -1);}
-tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             { toTSDBType(X.type); X.n += Y.n; A = tVariantListAppendToken(NULL, &X, -1); A = tVariantListAppendToken(A, &Z, -1);}
-tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z). { toTSDBType(X.type); X.n += Z.n; A = tVariantListAppendToken(Y, &X, -1);  A = tVariantListAppendToken(A, &X, -1); }
-tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). { toTSDBType(X.type); X.n += Z.n; A = tVariantListAppendToken(Y, &X, -1); A = tVariantListAppendToken(A, &F, -1);  }
+tablelist(A) ::= ids(X) cpxName(Y).                    {
+   toTSDBType(X.type);
+   X.n += Y.n;
+   A = tVariantListAppendToken(NULL, &X, -1);
+   A = tVariantListAppendToken(A, &X, -1);
+}
+
+tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
+   toTSDBType(X.type);
+   toTSDBType(Z.type);
+   X.n += Y.n;
+   A = tVariantListAppendToken(NULL, &X, -1);
+   A = tVariantListAppendToken(A, &Z, -1);
+}
+
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z). {
+   toTSDBType(X.type);
+   X.n += Z.n;
+   A = tVariantListAppendToken(Y, &X, -1);
+   A = tVariantListAppendToken(A, &X, -1);
+}
+
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
+   toTSDBType(X.type);
+   toTSDBType(F.type);
+   X.n += Z.n;
+   A = tVariantListAppendToken(Y, &X, -1);
+   A = tVariantListAppendToken(A, &F, -1);
+}
 
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"
 %type tmvar {SSQLToken}

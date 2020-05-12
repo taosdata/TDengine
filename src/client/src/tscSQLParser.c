@@ -2011,9 +2011,8 @@ int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnInd
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
-    extractTableName(pMeterMetaInfo->name, tableName);
-
-    if (strncasecmp(tableName, pTableToken->z, pTableToken->n) == 0 && strlen(tableName) == pTableToken->n) {
+    if (strncasecmp(pMeterMetaInfo->aliasName, pTableToken->z, pTableToken->n) == 0 &&
+        strlen(pMeterMetaInfo->aliasName) == pTableToken->n) {
       pIndex->tableIndex = i;
       break;
     }
@@ -5603,7 +5602,8 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   const char* msg7 = "illegal number of tables in from clause";
   const char* msg8 = "too many columns in selection clause";
   const char* msg9 = "TWA query requires both the start and end time";
-
+  const char* msg10 = "alias name too long";
+  
   int32_t code = TSDB_CODE_SUCCESS;
 
   SSqlCmd* pCmd = &pSql->cmd;
@@ -5632,8 +5632,8 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return doLocalQueryProcess(pQueryInfo, pQuerySql);
   }
   
-  if (pQuerySql->from->nExpr > 1) {
-    if (pQuerySql->from->nExpr > 2) {   // not support more than 2 tables join query
+  if (pQuerySql->from->nExpr > 2) {
+    if (pQuerySql->from->nExpr > 4) {   // not support more than 2 tables join query
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
     }
     
@@ -5644,7 +5644,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   pQueryInfo->command = TSDB_SQL_SELECT;
 
   // set all query tables, which are maybe more than one.
-  for (int32_t i = 0; i < pQuerySql->from->nExpr; ++i) {
+  for (int32_t i = 0; i < pQuerySql->from->nExpr; i += 2) {
     tVariant* pTableItem = &pQuerySql->from->a[i].pVar;
 
     if (pTableItem->nType != TSDB_DATA_TYPE_BINARY) {
@@ -5673,9 +5673,17 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+    
+    //set the alias name
+    tVariant* aliasName = &pQuerySql->from->a[i + 1].pVar;
+    if (aliasName->nLen > TSDB_METER_NAME_LEN) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
+    }
+    
+    tVariantDump(aliasName, pMeterInfo1->aliasName, TSDB_DATA_TYPE_BINARY);
   }
 
-  assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr);
+  assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr / 2);
 
   // parse the group by clause in the first place
   if (parseGroupbyClause(pQueryInfo, pQuerySql->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {

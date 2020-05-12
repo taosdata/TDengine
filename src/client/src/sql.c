@@ -2404,19 +2404,41 @@ static void yy_reduce(
 {yymsp[-1].minor.yy30 = yymsp[0].minor.yy30;}
         break;
       case 137: /* tablelist ::= ids cpxName */
-{ toTSDBType(yymsp[-1].minor.yy0.type); yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yylhsminor.yy30 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1); yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[-1].minor.yy0, -1);}
+{
+   toTSDBType(yymsp[-1].minor.yy0.type);
+   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
+   yylhsminor.yy30 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
+   yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[-1].minor.yy0, -1);
+}
   yymsp[-1].minor.yy30 = yylhsminor.yy30;
         break;
       case 138: /* tablelist ::= ids cpxName ids */
-{ toTSDBType(yymsp[-2].minor.yy0.type); yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n; yylhsminor.yy30 = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1); yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[0].minor.yy0, -1);}
+{
+   toTSDBType(yymsp[-2].minor.yy0.type);
+   toTSDBType(yymsp[0].minor.yy0.type);
+   yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
+   yylhsminor.yy30 = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1);
+   yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[0].minor.yy0, -1);
+}
   yymsp[-2].minor.yy30 = yylhsminor.yy30;
         break;
       case 139: /* tablelist ::= tablelist COMMA ids cpxName */
-{ toTSDBType(yymsp[-1].minor.yy0.type); yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yylhsminor.yy30 = tVariantListAppendToken(yymsp[-3].minor.yy30, &yymsp[-1].minor.yy0, -1);  yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[-1].minor.yy0, -1); }
+{
+   toTSDBType(yymsp[-1].minor.yy0.type);
+   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
+   yylhsminor.yy30 = tVariantListAppendToken(yymsp[-3].minor.yy30, &yymsp[-1].minor.yy0, -1);
+   yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[-1].minor.yy0, -1);
+}
   yymsp[-3].minor.yy30 = yylhsminor.yy30;
         break;
       case 140: /* tablelist ::= tablelist COMMA ids cpxName ids */
-{ toTSDBType(yymsp[-2].minor.yy0.type); yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n; yylhsminor.yy30 = tVariantListAppendToken(yymsp[-4].minor.yy30, &yymsp[-2].minor.yy0, -1); yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[0].minor.yy0, -1);  }
+{
+   toTSDBType(yymsp[-2].minor.yy0.type);
+   toTSDBType(yymsp[0].minor.yy0.type);
+   yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
+   yylhsminor.yy30 = tVariantListAppendToken(yymsp[-4].minor.yy30, &yymsp[-2].minor.yy0, -1);
+   yylhsminor.yy30 = tVariantListAppendToken(yylhsminor.yy30, &yymsp[0].minor.yy0, -1);
+}
   yymsp[-4].minor.yy30 = yylhsminor.yy30;
         break;
       case 141: /* tmvar ::= VARIABLE */
