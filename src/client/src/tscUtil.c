@@ -1701,6 +1701,12 @@ void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
   tfree(pTableMetaInfo->vgroupList);
   
   if (pTableMetaInfo->tagColList != NULL) {
+    size_t numOfTags = taosArrayGetSize(pTableMetaInfo->tagColList);
+    for(int32_t i = 0; i < numOfTags; ++i) { // todo do NOT use the allocated object
+      SColumn* pCol = taosArrayGetP(pTableMetaInfo->tagColList, i);
+      tfree(pCol);
+    }
+    
     taosArrayDestroy(pTableMetaInfo->tagColList);
     pTableMetaInfo->tagColList = NULL;
   }

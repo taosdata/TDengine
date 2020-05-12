@@ -544,8 +544,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 /*
- * for meter query, simply return the size <= 1k
- * for metric query, estimate size according to meter tags
+ * for table query, simply return the size <= 1k
  */
 static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
@@ -556,15 +555,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   int32_t exprSize = sizeof(SSqlFuncMsg) * numOfExprs;
   
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  // meter query without tags values
-  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize;
-  }
-  
-  int32_t size = 4096;
-  return size;
+  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
