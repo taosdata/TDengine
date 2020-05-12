@@ -41,7 +41,6 @@
 typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-//static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg);
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
 static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
@@ -137,7 +136,7 @@ void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     mgmtGetMnodeIpSet(&ipSet);
     mTrace("conn from shell ip:%s user:%s redirect msg, inUse:%d", taosIpStr(connInfo.clientIp), connInfo.user, ipSet.inUse);
     for (int32_t i = 0; i < ipSet.numOfIps; ++i) {
-      mTrace("index:%d ip:%s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
+      mTrace("mnode index:%d ip:%s:%d", i, ipSet.fqdn[i], htons(ipSet.port[i]));
     }
 
     rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
@@ -342,29 +341,6 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
   };
   rpcSendResponse(&rpcRsp);
 }
-
-/*
-static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  *spi = 1;
-  *encrypt = 0;
-  *ckey = 0;
-
-  if (!sdbIsMaster()) {
-    *secret = 0;
-    return TSDB_CODE_NOT_READY;
-  }
-
-  SUserObj *pUser = mgmtGetUser(user);
-  if (pUser == NULL) {
-    *secret = 0;
-    return TSDB_CODE_INVALID_USER;
-  } else {
-    memcpy(secret, pUser->pass, TSDB_KEY_LEN);
-    mgmtDecUserRef(pUser);
-    return TSDB_CODE_SUCCESS;
-  }
-}
-*/
 
 static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};

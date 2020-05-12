@@ -55,9 +55,8 @@ typedef struct {
   char     secret[TSDB_KEY_LEN]; // secret for the link
   char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
-  void   (*cfp)(SRpcMsg *);
+  void   (*cfp)(SRpcMsg *, SRpcIpSet *);
   int    (*afp)(char *user, char *spi, char *encrypt, char *secret, char *ckey); 
-  void   (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
 
   void     *idPool;   // handle to ID pool
   void     *tmrCtrl;  // handle to timer
@@ -222,7 +221,6 @@ void *rpcOpen(const SRpcInit *pInit) {
   if (pInit->secret) strcpy(pRpc->secret, pInit->secret);
   if (pInit->ckey) strcpy(pRpc->ckey, pInit->ckey);
   pRpc->spi = pInit->spi;
-  pRpc->ufp = pInit->ufp;
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
 
@@ -793,7 +791,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
 
   pConn->chandle = pRecv->chandle;
   pConn->peerIp = pRecv->ip; 
-  if (pConn->peerPort == 0) pConn->peerPort = pRecv->port;
+  pConn->peerPort = pRecv->port;
   if (pHead->port) pConn->peerPort = htons(pHead->port); 
 
   terrno = rpcCheckAuthentication(pConn, (char *)pHead, pRecv->msgLen);
@@ -900,10 +898,11 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
     memcpy(pContext->pRsp, pMsg, sizeof(SRpcMsg));
   } else {
     // for asynchronous API 
-    if (pRpc->ufp && (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect)) 
-      (*pRpc->ufp)(pContext->ahandle, &pContext->ipSet);  // notify the update of ipSet
+    SRpcIpSet *pIpSet = NULL;
+    if (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect) 
+      pIpSet = &pContext->ipSet;  
 
-    (*pRpc->cfp)(pMsg);  
+    (*pRpc->cfp)(pMsg, pIpSet);  
   }
 
   // free the request message
@@ -924,7 +923,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   if ( rpcIsReq(pHead->msgType) ) {
     rpcMsg.handle = pConn;
     taosTmrReset(rpcProcessProgressTimer, tsRpcTimer/2, pConn, pRpc->tmrCtrl, &pConn->pTimer);
-    (*(pRpc->cfp))(&rpcMsg);
+    (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {
     // it's a response
     SRpcReqContext *pContext = pConn->pContext;
@@ -1094,8 +1093,8 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   } else {
     if (pHead->code == 0) pConn->secured = 1; // for success response, set link as secured
     if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace( "%s %p, %s is sent to %s:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
-          pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
+      tTrace( "%s %p, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
+          pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIp, pConn->peerPort, 
           htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 

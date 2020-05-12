@@ -96,25 +96,25 @@ $ts1 = $ts0 + 1000
 $ts2 = $ts0 + 2000
 sql insert into tb_1 using $stb tags (-1) values ( $ts1 , 1,1,1,1,'bin',1,1,1,'涛思数据') ( $ts2 , 2,2,2,2,'binar', 1,1,1,'nchar')
 sql select * from $stb
-if $rows != 3 then
+if $rows != 5 then
   return -1
 endi
-if $data19 != 涛思数据 then
+if $data09 != 涛思数据 then
   return -1
 endi
-if $data11 != 1 then
+if $data01 != 1 then
   return -1
 endi
-if $data22 != 2 then
+if $data42 != 2 then
   return -2
 endi
-if $data23 != 2.00000 then
+if $data43 != 2.00000 then
   return -1
 endi
-if $data25 != binar then
+if $data45 != binar then
   return -1
 endi
-if $data29 != nchar then
+if $data49 != nchar then
   return -1
 endi
 sql drop table tb_1
@@ -127,22 +127,22 @@ sql select * from $stb
 if $rows != 5 then
   return -1
 endi
-if $data19 != 涛思数据 then
+if $data09 != 涛思数据 then
   return -1
 endi
-if $data11 != 1 then
+if $data01 != 1 then
   return -1
 endi
-if $data22 != 2 then
+if $data42 != 2 then
   return -2
 endi
-if $data23 != 2.00000 then
+if $data43 != 2.00000 then
   return -1
 endi
-if $data25 != binar then
+if $data45 != binar then
   return -1
 endi
-if $data29 != nchar then
+if $data49 != nchar then
   return -1
 endi
 
@@ -154,13 +154,13 @@ sql show tables
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
+if $data00 != tb1 then
   return -1
 endi
 if $data10 != tb2 then
   return -1
 endi
-if $data20 != tb1 then
+if $data20 != tb3 then
   return -1
 endi
 

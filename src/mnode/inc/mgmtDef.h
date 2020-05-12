@@ -85,8 +85,7 @@ typedef struct SSuperTableObj {
   int32_t    numOfTables;
   int16_t    nextColId;
   SSchema *  schema;
-  int32_t    vgLen;
-  int32_t *  vgList;
+  void *     vgHash;
 } SSuperTableObj;
 
 typedef struct {

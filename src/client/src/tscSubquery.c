@@ -1436,8 +1436,8 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       return;
     } else {  // reach the maximum retry count, abort
       atomic_val_compare_exchange_32(&pState->code, TSDB_CODE_SUCCESS, numOfRows);
-      tscError("%p sub:%p retrieve failed,code:%d,orderOfSub:%d failed.no more retry,set global code:%d", pPObj, pSql,
-               numOfRows, subqueryIndex, tstrerror(pState->code));
+      tscError("%p sub:%p retrieve failed,code:%s,orderOfSub:%d failed.no more retry,set global code:%s", pPObj, pSql,
+               tstrerror(numOfRows), subqueryIndex, tstrerror(pState->code));
     }
   }
   
@@ -1450,7 +1450,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   }
   
   // all subqueries are failed
-  tscError("%p retrieve from %d vnode(s) completed,code:%d.FAILED.", pPObj, pState->numOfTotal, pState->code);
+  tscError("%p retrieve from %d vnode(s) completed,code:%s.FAILED.", pPObj, pState->numOfTotal, tstrerror(pState->code));
   pPObj->res.code = pState->code;
   
   // release allocated resource

@@ -37,6 +37,7 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
 static void    mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessAlterUserMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessDropUserMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessAuthMsg(SRpcMsg *rpcMsg);
 
 static int32_t mgmtUserActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
@@ -140,7 +141,8 @@ int32_t mgmtInitUsers() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mgmtProcessDropUserMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
-  
+  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mgmtProcessAuthMsg);
+   
   mTrace("table:%s, hash is created", tableDesc.tableName);
   return 0;
 }
@@ -528,4 +530,41 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
   }
 
   mTrace("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
+}
+
+int32_t mgmtRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (!sdbIsMaster()) {
+    *secret = 0;
+    mTrace("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_NOT_READY));
+    return TSDB_CODE_NOT_READY;
+  }
+
+  SUserObj *pUser = mgmtGetUser(user);
+  if (pUser == NULL) {
+    *secret = 0;
+    mError("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_INVALID_USER));
+    return TSDB_CODE_INVALID_USER;
+  } else {
+    *spi = 1;
+    *encrypt = 0;
+    *ckey = 0;
+
+    memcpy(secret, pUser->pass, TSDB_KEY_LEN);
+    mgmtDecUserRef(pUser);
+    mTrace("user:%s, auth info is returned", user);
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+static void mgmtProcessAuthMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  
+  SDMAuthMsg *pAuthMsg = rpcMsg->pCont;
+  SDMAuthRsp *pAuthRsp = rpcMallocCont(sizeof(SDMAuthRsp));
+  
+  rpcRsp.code = mgmtRetriveAuth(pAuthMsg->user, &pAuthRsp->spi, &pAuthRsp->encrypt, pAuthRsp->secret, pAuthRsp->ckey);
+  rpcRsp.pCont = pAuthRsp;
+  rpcRsp.contLen = sizeof(SDMAuthRsp);
+  
+  rpcSendResponse(&rpcRsp);
 }

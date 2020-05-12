@@ -766,7 +766,7 @@ void tscCloseTscObj(STscObj* pObj) {
     rpcClose(pObj->pDnodeConn);
   }
   
-  tscTrace("%p DB connection is closed", pObj);
+  tscTrace("%p DB connection is closed, dnodeConn:%p", pObj, pObj->pDnodeConn);
   tfree(pObj);
 }
 
@@ -1144,23 +1144,21 @@ SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
 }
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters) {
-  SColumnFilterInfo* pFilter = NULL;
-  if (numOfFilters > 0) {
-    pFilter = calloc(1, numOfFilters * sizeof(SColumnFilterInfo));
-  } else {
+  if (numOfFilters == 0) {
     assert(src == NULL);
     return NULL;
   }
   
+  SColumnFilterInfo* pFilter = calloc(1, numOfFilters * sizeof(SColumnFilterInfo));
+  
   memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
   for (int32_t j = 0; j < numOfFilters; ++j) {
+    
     if (pFilter[j].filterstr) {
       size_t len = (size_t) pFilter[j].len + 1;
-  
-      char*  pTmp   = calloc(1, len);
-      pFilter[j].pz = (int64_t) pTmp;
+      pFilter[j].pz = (int64_t) calloc(1, len);
       
-      memcpy((char*)pFilter[j].pz, (char*)src->pz, (size_t)len);
+      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t)len);
     }
   }
   
@@ -1675,10 +1673,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   pTableMetaInfo->pTableMeta = pTableMeta;
   
   if (vgroupList != NULL) {
-    assert(vgroupList->numOfVgroups == 1);  // todo fix me
-    
     size_t size = sizeof(SVgroupsInfo) + sizeof(SCMVgroupInfo) * vgroupList->numOfVgroups;
-    
     pTableMetaInfo->vgroupList = malloc(size);
     memcpy(pTableMetaInfo->vgroupList, vgroupList, size);
   }

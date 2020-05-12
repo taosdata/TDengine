@@ -1691,10 +1691,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
 }
 
 static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  if (pCtx->order == TSDB_ORDER_ASC) {
-    return;
-  }
-  
+  assert(pCtx->order != TSDB_ORDER_ASC);
   void *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
@@ -2912,7 +2909,7 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 static void date_col_output_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->scanFlag == SUPPLEMENTARY_SCAN) {
+  if (pCtx->scanFlag == REVERSE_SCAN) {
     return;
   }
   
@@ -2969,11 +2966,12 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
     char* output = pCtx->aOutputBuf;
   
     if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-      *(int16_t*) output = pCtx->tag.nLen;
-      output += VARSTR_HEADER_SIZE;
+      varDataSetLen(output, pCtx->tag.nLen);
+      tVariantDump(&pCtx->tag, varDataVal(output), pCtx->outputType);
+    } else {
+      tVariantDump(&pCtx->tag, output, pCtx->outputType);
     }
     
-    tVariantDump(&pCtx->tag, output, pCtx->outputType);
     pCtx->aOutputBuf += pCtx->outputBytes;
   }
 }

@@ -36,6 +36,11 @@ extern "C" {
 typedef int32_t VarDataOffsetT;
 typedef int16_t VarDataLenT;
 
+typedef struct tstr {
+  VarDataLenT len;
+  char        data[];
+} tstr;
+
 #define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
 
 #define varDataLen(v)       ((VarDataLenT *)(v))[0]
@@ -74,10 +79,10 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
 
-#define TSDB_TRUE 1
-#define TSDB_FALSE 0
-#define TSDB_OK 0
-#define TSDB_ERR -1
+#define TSDB_TRUE   1
+#define TSDB_FALSE  0
+#define TSDB_OK     0
+#define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
 

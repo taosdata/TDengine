@@ -127,16 +127,16 @@ int32_t tsRestRowLimit = 10240;
 int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
 int32_t tsNumOfLogLines = 10000000;
-int32_t mdebugFlag = 135;
+int32_t mDebugFlag = 135;
 int32_t sdbDebugFlag = 135;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
-int32_t cdebugFlag = 135;
-int32_t jnidebugFlag = 131;
-int32_t odbcdebugFlag = 131;
+int32_t cDebugFlag = 135;
+int32_t jniDebugFlag = 131;
+int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
 int32_t monitorDebugFlag = 131;
-int32_t qdebugFlag = 131;
+int32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 135;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
@@ -204,19 +204,19 @@ static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
-    mdebugFlag = debugFlag;
+    mDebugFlag = debugFlag;
     sdbDebugFlag = debugFlag;
     dDebugFlag = debugFlag;
     vDebugFlag = debugFlag;
-    cdebugFlag = debugFlag;
-    jnidebugFlag = debugFlag;
-    odbcdebugFlag = debugFlag;
+    cDebugFlag = debugFlag;
+    jniDebugFlag = debugFlag;
+    odbcDebugFlag = debugFlag;
     httpDebugFlag = debugFlag;
     monitorDebugFlag = debugFlag;
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
     sDebugFlag = debugFlag;
-    //qdebugFlag = debugFlag;    
+    //qDebugFlag = debugFlag;    
   }
   uPrint("all debug flag are set to %d", debugFlag);
 }
@@ -1002,7 +1002,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "mDebugFlag";
-  cfg.ptr = &mdebugFlag;
+  cfg.ptr = &mDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
@@ -1062,7 +1062,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "cDebugFlag";
-  cfg.ptr = &cdebugFlag;
+  cfg.ptr = &cDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
@@ -1072,7 +1072,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "jniDebugFlag";
-  cfg.ptr = &jnidebugFlag;
+  cfg.ptr = &jniDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
@@ -1082,7 +1082,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "odbcDebugFlag";
-  cfg.ptr = &odbcdebugFlag;
+  cfg.ptr = &odbcDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
@@ -1122,7 +1122,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "qDebugFlag";
-  cfg.ptr = &qdebugFlag;
+  cfg.ptr = &qDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;

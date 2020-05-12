@@ -63,12 +63,15 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
     rpcInit.user = (char*)user;
     rpcInit.idleTime = 2000;
     rpcInit.ckey = "key";
+    rpcInit.spi = 1;
     rpcInit.secret = secretEncrypt;
 
     *pDnodeConn = rpcOpen(&rpcInit);
     if (*pDnodeConn == NULL) {
       tscError("failed to init connection to TDengine");
       return -1;
+    } else {
+      tscTrace("dnodeConn:%p is created, user:%s", *pDnodeConn, user);
     }
   }
 

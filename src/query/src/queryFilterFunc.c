@@ -183,33 +183,33 @@ bool equal_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 
 bool equal_str(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   // query condition string is greater than the max length of string, not qualified data
-  if (pFilter->filterInfo.len > pFilter->bytes) {
+  if (pFilter->filterInfo.len != varDataLen(minval)) {
     return false;
   }
 
-  return strncmp((char *)pFilter->filterInfo.pz, minval, pFilter->bytes) == 0;
+  return strncmp((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)) == 0;
 }
 
 bool equal_nchar(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   // query condition string is greater than the max length of string, not qualified data
-  if (pFilter->filterInfo.len > pFilter->bytes) {
+  if (pFilter->filterInfo.len != varDataLen(minval)) {
     return false;
   }
 
-  return wcsncmp((wchar_t *)pFilter->filterInfo.pz, (wchar_t*) minval, pFilter->bytes/TSDB_NCHAR_SIZE) == 0;
+  return wcsncmp((wchar_t *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE) == 0;
 }
 
 ////////////////////////////////////////////////////////////////
 bool like_str(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  return patternMatch((char *)pFilter->filterInfo.pz, minval, pFilter->bytes, &info) == TSDB_PATTERN_MATCH;
+  return patternMatch((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval), &info) == TSDB_PATTERN_MATCH;
 }
 
 bool like_nchar(SColumnFilterElem* pFilter, char* minval, char *maxval) {
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-
-  return WCSPatternMatch((wchar_t*) pFilter->filterInfo.pz, (wchar_t*) minval, pFilter->bytes/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
+  
+  return WCSPatternMatch((wchar_t*) pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -270,11 +270,11 @@ bool nequal_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool nequal_str(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (pFilter->filterInfo.len > pFilter->bytes) {
+  if (pFilter->filterInfo.len != varDataLen(minval)) {
     return true;
   }
 
-  return strncmp((char *)pFilter->filterInfo.pz, minval, pFilter->bytes) != 0;
+  return strncmp((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)) != 0;
 }
 
 bool nequal_nchar(SColumnFilterElem *pFilter, char* minval, char *maxval) {
@@ -282,7 +282,7 @@ bool nequal_nchar(SColumnFilterElem *pFilter, char* minval, char *maxval) {
     return true;
   }
 
-  return wcsncmp((wchar_t *)pFilter->filterInfo.pz, (wchar_t*)minval, pFilter->bytes/TSDB_NCHAR_SIZE) != 0;
+  return wcsncmp((wchar_t *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE) != 0;
 }
 
 ////////////////////////////////////////////////////////////////

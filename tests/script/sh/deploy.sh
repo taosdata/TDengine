@@ -99,7 +99,7 @@ echo "logDir              $LOG_DIR"       >> $TAOS_CFG
 echo "dDebugFlag          199"            >> $TAOS_CFG
 echo "mDebugFlag          199"            >> $TAOS_CFG
 echo "sdbDebugFlag        199"            >> $TAOS_CFG
-echo "rpcDebugFlag        135"            >> $TAOS_CFG
+echo "rpcDebugFlag        151"            >> $TAOS_CFG
 echo "tmrDebugFlag        131"            >> $TAOS_CFG
 echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "httpDebugFlag       135"            >> $TAOS_CFG

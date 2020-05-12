@@ -27,6 +27,7 @@ system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
+sleep 3000
 sql connect
 sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
@@ -86,6 +87,19 @@ if $data2_2 != 4 then
 endi
 
 if $data2_3 != 4 then
+  return -1
+endi
+
+if $data4_1 != ready then
+  print dnode1 status should ready but is $data4_1
+  return -1
+endi
+
+if $data4_2 != ready then
+  return -1
+endi
+
+if $data4_3 != ready then
   return -1
 endi
 
