@@ -81,7 +81,6 @@ typedef struct {
 // ---------- TSDB TABLE DEFINITION
 typedef struct STable {
   int8_t         type;
-  char *         name;
   STableId       tableId;
   int64_t        superUid;  // Super table UID
   int32_t        sversion;
@@ -96,9 +95,10 @@ typedef struct STable {
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
   struct STable *prev;
+  tstr *         name;           // NOTE: there a flexible string here
 } STable;
 
-#define TSDB_GET_TABLE_LAST_KEY(pTable) ((pTable)->lastKey)
+#define TSDB_GET_TABLE_LAST_KEY(tb) ((tb)->lastKey)
 
 void *  tsdbEncodeTable(STable *pTable, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);
@@ -120,6 +120,12 @@ typedef struct {
   int        maxRowBytes;
   int        maxCols;
 } STsdbMeta;
+
+// element put in skiplist for each table
+typedef struct STableIndexElem {
+  STsdbMeta* pMeta;
+  STable*    pTable;
+} STableIndexElem;
 
 STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
@@ -150,7 +156,7 @@ int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
-char *  getTupleKey(const void *data);
+char *getTSTupleKey(const void * data);
 
 typedef struct {
   int  blockId;

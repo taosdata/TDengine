@@ -49,7 +49,7 @@ matrix:
           ./test-all.sh $TRAVIS_EVENT_TYPE || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
-          ./smoketest.sh -g 2>&1 | tee mem-error-out.txt
+          ./valgrind-test.sh -g 2>&1 | tee mem-error-out.txt
           sleep 1
 
           # Color setting
@@ -115,7 +115,7 @@ matrix:
 
         # The command that will be added as an argument to "cov-build" to compile your project for analysis,
         # ** likely specific to your build **
-        build_command: make > /dev/null
+        build_command: make
 
         # Pattern to match selecting branches that will run analysis. We recommend leaving this set to 'coverity_scan'.
         # Take care in resource usage, and consider the build frequency allowances per
@@ -163,11 +163,9 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}/tests
 
-          ./test-all.sh
+          ./test-all.sh $TRAVIS_EVENT_TYPE COVER
 
-          if [ "$?" -ne "0" ]; then
-            travis_terminate $?
-          fi
+          TEST_RESULT=$?
 
           pkill taosd
           sleep 1
@@ -199,6 +197,9 @@ matrix:
             echo -e "${RED} ## Codecov did not collect coverage report! ## ${NC} "
           fi
 
+          if [ "$TEST_RESULT" -ne "0" ]; then
+            travis_terminate $?
+          fi
           ;;
         esac
 

@@ -221,7 +221,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
   if (pSql == NULL) {
     tscError("%p sql is already released", pSql->signature);
@@ -243,6 +243,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     tscFreeSqlObj(pSql);
     rpcFreeCont(rpcMsg->pCont);
     return;
+  }
+
+  if (pCmd->command < TSDB_SQL_MGMT) {
+    if (pIpSet) pSql->ipList = *pIpSet;
+  } else {
+    if (pIpSet) tscMgmtIpSet = *pIpSet;
   }
 
   if (rpcMsg->pCont == NULL) {
@@ -492,13 +498,15 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(pQueryInfo->type);
 
   // todo valid the vgroupId at the client side
-  if (UTIL_TABLE_IS_SUPERTABLE(pQueryInfo->pTableMetaInfo[0])) {
-    SVgroupsInfo* pVgroupInfo = pQueryInfo->pTableMetaInfo[0]->vgroupList;
-    assert(pVgroupInfo->numOfVgroups == 1); // todo fix me
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  
+  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    int32_t vgIndex = pTableMetaInfo->vgroupIndex;
     
-    pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[0].vgId);
+    SVgroupsInfo* pVgroupInfo = pTableMetaInfo->vgroupList;
+    pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
   } else {
-    STableMeta* pTableMeta = pQueryInfo->pTableMetaInfo[0]->pTableMeta;
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     pRetrieveMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
   }
   

@@ -28,7 +28,7 @@
 #include "dnodeShell.h"
 
 static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
-static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg);
+static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcIpSet *);
 static int     dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static void  * tsDnodeShellRpc = NULL;
 static int32_t tsDnodeQueryReqNum  = 0;
@@ -106,7 +106,7 @@ void dnodeCleanupShell() {
   }
 }
 
-void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
+void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SRpcMsg rpcMsg;
   rpcMsg.handle = pMsg->handle;
   rpcMsg.pCont = NULL;

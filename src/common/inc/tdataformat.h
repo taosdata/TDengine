@@ -115,10 +115,8 @@ static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t o
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       return POINTER_SHIFT(row, *(VarDataOffsetT *)POINTER_SHIFT(row, offset));
-      break;
     default:
       return POINTER_SHIFT(row, offset);
-      break;
   }
 }
 

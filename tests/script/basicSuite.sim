@@ -1,26 +1,20 @@
-################################# 
 run general/cache/new_metrics.sim
 run general/compress/compress.sim
 run general/compute/avg.sim
-run general/compute/bottom.sim
 run general/compute/count.sim
 run general/db/len.sim
 run general/db/basic4.sim
 run general/http/restful_insert.sim
 run general/import/basic.sim
 run general/import/commit.sim
-run general/insert/basic.sim
 run general/insert/query_file_memory.sim
 run general/parser/binary_escapeCharacter.sim
 run general/parser/columnValue_bigint.sim
 run general/parser/select_from_cache_disk.sim
 run general/table/autocreate.sim
-run general/table/basic3.sim
 run general/table/column_name.sim
 run general/table/int.sim
 run general/table/vgroup.sim
 run general/user/basic1.sim
 run general/user/pass_alter.sim
-run general/user/user_len.sim
 run general/vector/single.sim
-################################## 

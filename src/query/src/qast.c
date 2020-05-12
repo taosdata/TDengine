@@ -540,8 +540,11 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
 
 static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
   SSkipListIterator* iter = NULL;
+  
   SQueryCond cond = {0};
-  setQueryCond(pQueryInfo, &cond);
+  if (setQueryCond(pQueryInfo, &cond) != TSDB_CODE_SUCCESS) {
+    //todo handle error
+  }
 
   if (cond.start != NULL) {
     iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->keyInfo.type, TSDB_ORDER_ASC);
@@ -552,18 +555,18 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
   if (cond.start != NULL) {
     int32_t optr = cond.start->optr;
     
-    if (optr == TSDB_RELATION_EQUAL) {
+    if (optr == TSDB_RELATION_EQUAL) {   // equals
       while(tSkipListIterNext(iter)) {
         SSkipListNode* pNode = tSkipListIterGet(iter);
 
         int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
-        if (ret == 0) {
-          taosArrayPush(result, SL_GET_NODE_DATA(pNode));
-        } else {
+        if (ret != 0) {
           break;
         }
+        
+        taosArrayPush(result, SL_GET_NODE_DATA(pNode));
       }
-    } else if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL) {
+    } else if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL) { // greater equal
       bool comp = true;
       int32_t ret = 0;
       
@@ -582,8 +585,33 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
           comp = false;
         }
       }
-    } else if (optr == TSDB_RELATION_NOT_EQUAL) {
-      assert(0);
+    } else if (optr == TSDB_RELATION_NOT_EQUAL) {   // not equal
+      bool comp = true;
+      
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
+        if (comp) {
+          continue;
+        }
+        
+        taosArrayPush(result, SL_GET_NODE_DATA(pNode));
+      }
+      
+      tSkipListDestroyIter(iter);
+  
+      comp = true;
+      iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->keyInfo.type, TSDB_ORDER_DESC);
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
+        if (comp) {
+          continue;
+        }
+  
+        taosArrayPush(result, SL_GET_NODE_DATA(pNode));
+      }
+  
     } else {
       assert(0);
     }
@@ -773,8 +801,6 @@ static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSki
   tSkipListDestroyIter(iter);
 }
 
-
-
 static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
 
@@ -785,7 +811,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     char* pTable = SL_GET_NODE_DATA(pNode);
     
     //todo refactor:
-    char* name = (*(STable**) pTable)->name;
+    tstr* name = ((STableIndexElem*) pTable)->pTable->name;
 //    char* name = NULL;
 //    tsdbGetTableName(tsdb, pTable, &name);
 

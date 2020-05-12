@@ -201,8 +201,8 @@ class TDDnode:
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
-        tdLog.debug("wait 2 seconds for the dnode:%d to start." % (self.index))
-        time.sleep(2)
+        tdLog.debug("wait 4 seconds for the dnode:%d to start." % (self.index))
+        time.sleep(4)
 
     def stop(self):
         if self.valgrind == 0:
