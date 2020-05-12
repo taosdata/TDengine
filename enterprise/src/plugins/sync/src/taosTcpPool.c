@@ -133,6 +133,7 @@ static void taosProcessTcpData(void *param) {
   struct epoll_event events[maxEvents];
 
   void *buffer = malloc(pInfo->bufferSize);
+  pthread_cleanup_push(free, buffer);  
 
   taosBlockSIGPIPE();
 
@@ -164,7 +165,7 @@ static void taosProcessTcpData(void *param) {
     }
   }
 
-  free (buffer);
+  pthread_cleanup_pop(1);  
 }
 
 static void *taosAcceptPeerTcpConnection(void *argv) {
