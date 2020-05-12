@@ -1432,7 +1432,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   return pTableGroup;
 }
 
-bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
+bool indexedNodeFilterFp(const void* pNode, void* param) {
   tQueryInfo* pInfo = (tQueryInfo*) param;
   
   STableIndexElem* elem = (STableIndexElem*)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
@@ -1497,7 +1497,7 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr) {
   // query according to the expression tree
   SExprTraverseSupp supp = {
-      .fp = (__result_filter_fn_t) tSkipListNodeFilterCallback,
+      .nodeFilterFn = (__result_filter_fn_t) indexedNodeFilterFp,
       .setupInfoFn = filterPrepare,
       .pExtInfo = pSTable->tagSchema,
       };

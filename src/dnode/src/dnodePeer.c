@@ -52,7 +52,8 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = mgmtProcessReqMsgFromDnode;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = mgmtProcessReqMsgFromDnode;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = mgmtProcessReqMsgFromDnode;
-
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = mgmtProcessReqMsgFromDnode;
+  
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort    = tsDnodeDnodePort;
@@ -162,4 +163,10 @@ void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
 
 void dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg) {
   rpcSendRequest(tsDnodeClientRpc, ipSet, rpcMsg);
+}
+
+void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
+  SRpcIpSet ipSet = {0};
+  dnodeGetMnodeDnodeIpSet(&ipSet);
+  rpcSendRecv(tsDnodeClientRpc, &ipSet, rpcMsg, rpcRsp);
 }

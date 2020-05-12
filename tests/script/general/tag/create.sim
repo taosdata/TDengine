@@ -134,7 +134,8 @@ if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
-if $rows != 0 then 
+if $rows != 0 then
+  print expect 0, actual: $rows
   return -1
 endi
   
@@ -184,7 +185,8 @@ sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 bool)
 sql create table $tb using $mt tags( 1, 2 )
 sql insert into $tb values(now, 1)  
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
+  print expect 1, actual: $rows
   return -1
 endi
 if $data01 != 1 then 

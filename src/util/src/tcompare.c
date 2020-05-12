@@ -51,12 +51,21 @@ int32_t compareDoubleIntVal(const void *pLeft, const void *pRight) {
   }
 }
 
+int32_t compareFloatVal(const void *pLeft, const void *pRight) {
+  float ret = GET_FLOAT_VAL(pLeft) - GET_FLOAT_VAL(pRight);
+  if (fabs(ret) < FLT_EPSILON) {
+    return 0;
+  } else {
+    return ret > 0? 1 : -1;
+  }
+}
+
 int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   double ret = GET_DOUBLE_VAL(pLeft) - GET_DOUBLE_VAL(pRight);
   if (fabs(ret) < FLT_EPSILON) {
     return 0;
   } else {
-    return ret > 0 ? 1 : -1;
+    return ret > 0? 1 : -1;
   }
 }
 
@@ -127,7 +136,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
         size_t n = strcspn(str, next);
         str += n;
         
-        if (str[0] == 0 || (n >= size - 1)) {
+        if (str[0] == 0 || (n >= size)) {
           break;
         }
         
@@ -175,10 +184,10 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
       
       wchar_t accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
-        size_t n = wcsspn(str, accept);
+        size_t n = wcscspn(str, accept);
         
         str += n;
-        if (str[0] == 0 || (n >= size - 1)) {
+        if (str[0] == 0 || (n >= size)) {
           break;
         }
         
@@ -257,7 +266,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      comparFn = compareDoubleVal; break;
+      comparFn = compareFloatVal; break;
     }
     
     case TSDB_DATA_TYPE_DOUBLE: {
@@ -313,6 +322,8 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
       comparFn = compareInt64Val;
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      comparFn = compareFloatVal;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
       break;

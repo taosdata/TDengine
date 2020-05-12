@@ -406,7 +406,7 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
 
 static void vnodeNotifyFileSynced(void *ahandle) {
   SVnodeObj *pVnode = ahandle;
-  vTrace("pVnode:%p vgId:%d, data file is synced", pVnode, pVnode->vgId);
+  vTrace("vgId:%d, data file is synced", pVnode->vgId);
 
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
