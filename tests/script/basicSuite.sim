@@ -18,3 +18,5 @@ run general/table/vgroup.sim
 run general/user/basic1.sim
 run general/user/pass_alter.sim
 run general/vector/single.sim
+run general/connection/connection.sim
+run general/user/authority.sim
