@@ -151,8 +151,6 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
 
 STsdbMeta *tsdbGetMeta(TsdbRepoT *pRepo);
 
-int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
-int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);

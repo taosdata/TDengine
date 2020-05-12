@@ -134,6 +134,7 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) 
  */
 int32_t tsdbDropRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  int id = pRepo->config.tsdbId;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
 
@@ -148,6 +149,8 @@ int32_t tsdbDropRepo(TsdbRepoT *repo) {
 
   free(pRepo->rootDir);
   free(pRepo);
+
+  tsdbTrace("vgId %d: tsdb repository is dropped!", id);
 
   return 0;
 }
@@ -239,6 +242,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
 
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
+  tsdbTrace("vgId %d: open tsdb repository successfully!", pRepo->config.tsdbId);
   return (TsdbRepoT *)pRepo;
 }
 
@@ -257,6 +261,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
 int32_t tsdbCloseRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   if (pRepo == NULL) return 0;
+  int id = pRepo->config.tsdbId;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
   tsdbLockRepo(repo);
@@ -289,6 +294,8 @@ int32_t tsdbCloseRepo(TsdbRepoT *repo) {
 
   tfree(pRepo->rootDir);
   tfree(pRepo);
+
+  tsdbTrace("vgId %d: repository is closed!", id);
 
   return 0;
 }
@@ -350,6 +357,7 @@ int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
   pthread_create(&(pRepo->commitThread), &thattr, tsdbCommitData, (void *)repo);
+  tsdbTrace("vgId %d: start to commit!", pRepo->config.tsdbId);
 
   return 0;
 }
@@ -377,11 +385,6 @@ STsdbRepoInfo *tsdbGetStatus(TsdbRepoT *pRepo) {
   return NULL;
 }
 
-int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-  return tsdbCreateTableImpl(pRepo->tsdbMeta, pCfg);
-}
-
 int tsdbAlterTable(TsdbRepoT *pRepo, STableCfg *pCfg) {
   // TODO
   return 0;
@@ -394,13 +397,6 @@ TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid) {
   if (pTable == NULL) return -1;
 
   return TSDB_GET_TABLE_LAST_KEY(pTable);
-}
-
-int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
-  if (repo == NULL) return -1;
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-
-  return tsdbDropTableImpl(pRepo->tsdbMeta, tableId);
 }
 
 STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tableId) {
@@ -843,6 +839,9 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
 
+  tsdbTrace("vgId %d, tid %d, uid " PRId64 "a row is inserted to table! key" PRId64,
+            pRepo->config.tsdbId, pTable->tableId.tid, pTable->tableId.uid, dataRowKey(row));
+
   return 0;
 }
 
@@ -1105,11 +1104,14 @@ static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minK
 }
 
 static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
+  int8_t oldCompRession = pRepo->config.compression;
   pRepo->config.compression = compression;
+  tsdbTrace("vgId %d: tsdb compression is changed from %d to %d", oldCompRession, compression);
 }
 
 static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
   STsdbCfg *pCfg = &pRepo->config;
+  int oldKeep = pCfg->keep;
 
   int maxFiles = keep / pCfg->maxTables + 3;
   if (pRepo->config.keep > keep) {
@@ -1121,10 +1123,13 @@ static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
     }
     pRepo->tsdbFileH->maxFGroups = maxFiles;
   }
+  tsdbTrace("id %d: keep is changed from %d to %d", pRepo->config.tsdbId, oldKeep, keep);
 }
 
 static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   // TODO
+  int oldMaxTables = pRepo->config.maxTables;
+  tsdbTrace("vgId %d: tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
 }
 
 uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size) {
