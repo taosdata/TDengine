@@ -182,7 +182,7 @@ static void tscProcessSubscriptionTimer(void *handle, void *tmrId) {
 static SArray* getTableList( SSqlObj* pSql ) {
   const char* p = strstr( pSql->sqlstr, " from " );
   char* sql = alloca(strlen(p) + 32);
-  sprintf(sql, "select tbid(area)%s", p);
+  sprintf(sql, "select tbid(tbname)%s", p);
   int code = taos_query( pSql->pTscObj, sql );
   if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to retrieve table id: %s", tstrerror(code));
