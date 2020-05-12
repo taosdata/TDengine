@@ -31,20 +31,14 @@ typedef struct {
   void     *pRpc;
 } SInfo;
 
-void processResponse(SRpcMsg *pMsg) {
+void processResponse(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SInfo *pInfo = (SInfo *)pMsg->handle;
   uTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
 
+  if (pIpSet) pInfo->ipSet = *pIpSet;
   rpcFreeCont(pMsg->pCont);
 
   sem_post(&pInfo->rspSem); 
-}
-
-void processUpdateIpSet(void *handle, SRpcIpSet *pIpSet) {
-  SInfo *pInfo = (SInfo *)handle;
-
-  uTrace("thread:%d, ip set is changed, index:%d", pInfo->index, pIpSet->inUse);
-  pInfo->ipSet = *pIpSet;
 }
 
 int tcount = 0;
@@ -99,7 +93,6 @@ int main(int argc, char *argv[]) {
   rpcInit.label        = "APP";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = processResponse;
-  rpcInit.ufp          = processUpdateIpSet;
   rpcInit.sessions     = 100;
   rpcInit.idleTime     = tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
