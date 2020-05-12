@@ -405,9 +405,9 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
 
 static void vnodeNotifyFileSynced(void *ahandle) {
   SVnodeObj *pVnode = ahandle;
-  vTrace("pVnode:%p vgId:%d, data file is synced", pVnode, pVnode->vgId);
+  vTrace("vgId:%d, data file is synced", pVnode->vgId);
 
-  // clsoe tsdb, then open tsdb
+  // close tsdb, then open tsdb
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
