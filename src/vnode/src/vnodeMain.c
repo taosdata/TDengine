@@ -182,6 +182,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->refCount = 1;
   pVnode->version  = 0;  
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
+  pVnode->rootDir = strdup(rootDir);
   taosAddIntHash(tsDnodeVnodesHash, pVnode->vgId, (char *)(&pVnode));
   
   int32_t code = vnodeReadCfg(pVnode);
@@ -271,6 +272,7 @@ void vnodeRelease(void *pVnodeRaw) {
     return;
   }
 
+  tfree(pVnode->rootDir);
   // remove read queue
   dnodeFreeRqueue(pVnode->rqueue);
   pVnode->rqueue = NULL;
@@ -406,7 +408,15 @@ static void vnodeNotifyFileSynced(void *ahandle) {
   SVnodeObj *pVnode = ahandle;
   vTrace("pVnode:%p vgId:%d, data file is synced", pVnode, pVnode->vgId);
 
+  char rootDir[128] = "\0";
+  sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
   // clsoe tsdb, then open tsdb
+  tsdbCloseRepo(pVnode->tsdb);
+  STsdbAppH appH = {0};
+  appH.appH = (void *)pVnode;
+  appH.walCallBack = vnodeWalCallback;
+  appH.cqH = pVnode->cq;
+  pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
