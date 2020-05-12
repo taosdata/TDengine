@@ -4185,6 +4185,12 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
       pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
     } else if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
 
+      if(pQInfo->groupInfo.numOfTables == 1) {
+        SArray* pa = taosArrayGetP(pQInfo->groupInfo.pGroupList, 0);
+        SGroupItem* pItem = taosArrayGet(pa, 0);
+        cond.twindow = pItem->info->win;
+      }
+
       pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
     }
   }
@@ -4903,6 +4909,12 @@ static void tableMultiOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo)
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
     qTrace("QInfo:%p query paused due to output limitation, next qrange:%" PRId64 "-%" PRId64, pQInfo,
         pQuery->current->lastKey, pQuery->window.ekey);
+  } else if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
+    STableIdInfo tidInfo;
+    tidInfo.uid = pQuery->current->id.uid;
+    tidInfo.tid = pQuery->current->id.tid;
+    tidInfo.key = pQuery->current->lastKey;
+    taosArrayPush(pQInfo->arrTableIdInfo, &tidInfo);
   }
 
   if (!isTSCompQuery(pQuery)) {
@@ -5195,7 +5207,6 @@ static char *createTableIdList(SQueryTableMsg *pQueryMsg, char *pMsg, SArray **p
     pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
     pTableIdInfo->key = htobe64(pTableIdInfo->key);
 
-printf("createTableIdList: uid = %ld, key = %ld\n", pTableIdInfo->uid, pTableIdInfo->key);
     taosArrayPush(*pTableIdList, pTableIdInfo);
     pMsg += sizeof(STableIdInfo);
   }
@@ -5759,7 +5770,6 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
       // not a problem at present because we only use their 1st int64_t field
       STableIdInfo* pTableId = taosArraySearch( pTableIdList, compareTableIdInfo, &id );
       if (pTableId != NULL ) {
-        printf("create QInfoImpl: %ld  %ld\n", pTableId->uid, pTableId->key);
         window.skey = pTableId->key;
       } else {
         window.skey = INT64_MIN;
