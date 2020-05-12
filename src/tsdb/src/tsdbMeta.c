@@ -409,7 +409,7 @@ int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
     return -1;
   }
 
-  tsdbTrace("vgId %d: table is dropped! tid %s, uid " PRId64, pRepo->config.tsdbId, tableId.tid, tableId.uid);
+  tsdbTrace("vgId %d: table is dropped! tid %d, uid " PRId64, pRepo->config.tsdbId, tableId.tid, tableId.uid);
   if (tsdbRemoveTableFromMeta(pMeta, pTable) < 0) return -1;
 
   return 0;
@@ -503,7 +503,9 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     SSkipListIterator  *pIter = tSkipListCreateIter(pTable->pIndex);
     while (tSkipListIterNext(pIter)) {
-      STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STableIndexElem *pEle = (STableIndexElem *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STable *tTable = pEle->pTable;
+
       ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
 
       pMeta->tables[tTable->tableId.tid] = NULL;
