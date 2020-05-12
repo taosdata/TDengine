@@ -4184,11 +4184,9 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
     if (!isSTableQuery && isFirstLastRowQuery(pQuery)) {  // in case of last_row query, invoke a different API.
       pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
     } else if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
+
       pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
     }
-  
-    // create the table query support structures
-    createTableQueryInfo(pQInfo);
   }
   
   pQInfo->tsdb = tsdb;
@@ -4608,12 +4606,11 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
          * to ensure that, we can reset the query range once query on a meter is completed.
          */
         pQInfo->tableIndex++;
-        pInfo->lastKey = pQuery->lastKey;
 
         STableIdInfo tidInfo;
         tidInfo.uid = item->id.uid;
         tidInfo.tid = item->id.tid;
-        tidInfo.key = pInfo->lastKey;
+        tidInfo.key = pQuery->current->lastKey;
         taosArrayPush(pQInfo->arrTableIdInfo, &tidInfo);
 
         // if the buffer is full or group by each table, we need to jump out of the loop
@@ -5198,6 +5195,7 @@ static char *createTableIdList(SQueryTableMsg *pQueryMsg, char *pMsg, SArray **p
     pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
     pTableIdInfo->key = htobe64(pTableIdInfo->key);
 
+printf("createTableIdList: uid = %ld, key = %ld\n", pTableIdInfo->uid, pTableIdInfo->key);
     taosArrayPush(*pTableIdList, pTableIdInfo);
     pMsg += sizeof(STableIdInfo);
   }
@@ -5761,9 +5759,10 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
       // not a problem at present because we only use their 1st int64_t field
       STableIdInfo* pTableId = taosArraySearch( pTableIdList, compareTableIdInfo, &id );
       if (pTableId != NULL ) {
+        printf("create QInfoImpl: %ld  %ld\n", pTableId->uid, pTableId->key);
         window.skey = pTableId->key;
       } else {
-        window.skey = 0;
+        window.skey = INT64_MIN;
       }
       item.info = createTableQueryInfo(&pQInfo->runtimeEnv, item.id, window);
       item.info->groupIdx = i;
@@ -6060,20 +6059,36 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
     }
   } else if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_STABLE_QUERY)) {
     isSTableQuery = true;
-    STableIdInfo *id = taosArrayGet(pTableIdList, 0);
-    
-    // group by normal column, do not pass the group by condition to tsdb to group table into different group
-    int32_t numOfGroupByCols = pQueryMsg->numOfGroupCols;
-    if (pQueryMsg->numOfGroupCols == 1 && !TSDB_COL_IS_TAG(pGroupColIndex->flag)) {
-      numOfGroupByCols = 0;
-    }
-    
-    // todo handle the error
-    /*int32_t ret =*/tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &groupInfo, pGroupColIndex,
-                                         numOfGroupByCols);
-    if (groupInfo.numOfTables == 0) {  // no qualified tables no need to do query
-      code = TSDB_CODE_SUCCESS;
-      goto _over;
+    // TODO: need a macro from TSDB to check if table is super table,
+    // also note there's possiblity that only one table in the super table
+    if (taosArrayGetSize(pTableIdList) == 1) {
+      STableIdInfo *id = taosArrayGet(pTableIdList, 0);
+      // if array size is 1 and assert super table
+
+      // group by normal column, do not pass the group by condition to tsdb to group table into different group
+      int32_t numOfGroupByCols = pQueryMsg->numOfGroupCols;
+      if (pQueryMsg->numOfGroupCols == 1 && !TSDB_COL_IS_TAG(pGroupColIndex->flag)) {
+        numOfGroupByCols = 0;
+      }
+      
+      // todo handle the error
+      /*int32_t ret =*/tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &groupInfo, pGroupColIndex,
+                                          numOfGroupByCols);
+      if (groupInfo.numOfTables == 0) {  // no qualified tables no need to do query
+        code = TSDB_CODE_SUCCESS;
+        goto _over;
+      }
+    } else {
+      groupInfo.numOfTables = taosArrayGetSize(pTableIdList);
+      SArray* pTableGroup = taosArrayInit(1, POINTER_BYTES);
+
+      SArray* sa = taosArrayInit(groupInfo.numOfTables, sizeof(STableId));
+      for(int32_t i = 0; i < groupInfo.numOfTables; ++i) {
+        STableIdInfo* tableId = taosArrayGet(pTableIdList, i);
+        taosArrayPush(sa, tableId);
+      }
+      taosArrayPush(pTableGroup, &sa);
+      groupInfo.pGroupList = pTableGroup;
     }
   } else {
     assert(0);

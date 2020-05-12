@@ -236,8 +236,10 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   taosArrayDestroy(pSub->progress);
   pSub->progress = progress;
 
-  taosArraySort( tables, tscCompareTidTags );
-  tscBuildVgroupTableInfo( pTableMetaInfo, tables );
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    taosArraySort( tables, tscCompareTidTags );
+    tscBuildVgroupTableInfo( pTableMetaInfo, tables );
+  }
   taosArrayDestroy(tables);
 
   return 1;
@@ -274,16 +276,9 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
     return 0;
   }
 
-  if (fgets(buf, sizeof(buf), fp) == NULL || atoi(buf) < 0) {
-    tscTrace("invalid subscription progress file: %s", pSub->topic);
-    fclose(fp);
-    return 0;
-  }
-
-  int numOfTables = atoi(buf);
   SArray* progress = pSub->progress;
   taosArrayClear(progress);
-  for (int i = 0; i < numOfTables; i++) {
+  while( 1 ) {
     if (fgets(buf, sizeof(buf), fp) == NULL) {
       fclose(fp);
       return 0;
@@ -296,7 +291,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   fclose(fp);
 
   taosArraySort(progress, tscCompareSubscriptionProgress);
-  tscTrace("subscription progress loaded, %d tables: %s", numOfTables, pSub->topic);
+  tscTrace("subscription progress loaded, %d tables: %s", taosArrayGetSize(progress), pSub->topic);
   return 1;
 }
 
@@ -317,6 +312,7 @@ void tscSaveSubscriptionProgress(void* sub) {
   }
 
   fputs(pSub->pSql->sqlstr, fp);
+  fprintf(fp, "\n");
   for(size_t i = 0; i < taosArrayGetSize(pSub->progress); i++) {
     SSubscriptionProgress* p = taosArrayGet(pSub->progress, i);
     fprintf(fp, "%" PRId64 ":%" PRId64 "\n", p->uid, p->key);
@@ -387,19 +383,18 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       tscTrace("begin table synchronization");
       if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
       tscTrace("table synchronization completed");
-    } else {
-      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-      
-      uint32_t type = pQueryInfo->type;
-      // taos_free_result_imp(pSql, 1);
-      pRes->numOfRows = 1;
-      //pRes->numOfTotal = 0;
-      pRes->qhandle = 0;
-      pSql->cmd.command = TSDB_SQL_SELECT;
-      pQueryInfo->type = type;
-
-      tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->vgroupIndex = 0;
     }
+
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+    
+    uint32_t type = pQueryInfo->type;
+    tscFreeSqlResult(pSql);
+    pRes->numOfRows = 1;
+    pRes->qhandle = 0;
+    pSql->cmd.command = TSDB_SQL_SELECT;
+    pQueryInfo->type = type;
+
+    tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->vgroupIndex = 0;
 
     pSql->fp = asyncCallback;
     pSql->param = pSql;
