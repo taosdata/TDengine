@@ -27,7 +27,7 @@ class TDTestCase:
     def run(self):
         self.ntables = 1
         self.startTime = 1520000010000
-        self.maxwrows = 200
+        self.maxrows = 200
         self.rowsPerTable = 20
 
         tdDnodes.stop(1)
