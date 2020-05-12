@@ -283,7 +283,10 @@ char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes) {
   }
 }
 
-int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
+int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
   if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 
   STable *super = NULL;
@@ -351,8 +354,14 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   }
 
   // Register to meta
-  if (newSuper) tsdbAddTableToMeta(pMeta, super, true);
+  if (newSuper) {
+    tsdbAddTableToMeta(pMeta, super, true);
+    tsdbTrace("vgId %d: super table is created! uid " PRId64, pRepo->config.tsdbId,
+              super->tableId.uid);
+  }
   tsdbAddTableToMeta(pMeta, table, true);
+  tsdbTrace("vgId %d: table is created! tid %d, uid " PRId64, pRepo->config.tsdbId,
+            super->tableId.tid, super->tableId.uid);
 
   // Write to meta file
   int bufLen = 0;
@@ -385,13 +394,24 @@ STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId) {
   return pTable;
 }
 
-int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
+// int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
+int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  if (pRepo == NULL) return -1;
+
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
   if (pMeta == NULL) return -1;
 
   STable *pTable = tsdbGetTableByUid(pMeta, tableId.uid);
-  if (pTable == NULL) return -1;
+  if (pTable == NULL) {
+    tsdbError("vgId %d: failed to drop table since table not exists! tid %d, uid " PRId64, pRepo->config.tsdbId,
+              tableId.tid, tableId.uid);
+    return -1;
+  }
 
+  tsdbTrace("vgId %d: table is dropped! tid %s, uid " PRId64, pRepo->config.tsdbId, tableId.tid, tableId.uid);
   if (tsdbRemoveTableFromMeta(pMeta, pTable) < 0) return -1;
+
   return 0;
 
 }
