@@ -5662,7 +5662,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       tscAddEmptyMeterMetaInfo(pQueryInfo);
     }
 
-    SMeterMetaInfo* pMeterInfo1 = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+    SMeterMetaInfo* pMeterInfo1 = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i/2);
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
     if (setMeterID(pMeterInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
