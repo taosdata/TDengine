@@ -562,15 +562,15 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   int32_t exprSize = sizeof(SSqlFuncMsg) * numOfExprs;
   
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  //STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  // meter query without tags values
-  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize;
-  }
+  // table query without tags values
+  //if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
+  //}
   
-  int32_t size = 4096;
-  return size;
+  //int32_t size = 4096;
+  //return size;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
