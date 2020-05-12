@@ -1,5 +1,4 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c ctime -v 30
@@ -81,3 +80,5 @@ while $x < 100
   $x = $x + 1
   print loop $x
 endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

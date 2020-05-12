@@ -74,3 +74,5 @@ system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
 run general/parser/limit2_query.sim
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

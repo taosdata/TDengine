@@ -52,3 +52,4 @@ if $data00 != $res then
   return -1
 endi
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
