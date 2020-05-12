@@ -136,7 +136,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
         size_t n = strcspn(str, next);
         str += n;
         
-        if (str[0] == 0 || (n >= size - 1)) {
+        if (str[0] == 0 || (n >= size)) {
           break;
         }
         
@@ -187,7 +187,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
         size_t n = wcscspn(str, accept);
         
         str += n;
-        if (str[0] == 0 || (n >= size - 1)) {
+        if (str[0] == 0 || (n >= size)) {
           break;
         }
         
