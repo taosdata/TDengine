@@ -290,7 +290,7 @@ void vnodeRelease(void *pVnodeRaw) {
   free(pVnode);
 
   int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
-  vTrace("vgId:%d, vnode is released, vnodes:%d", pVnode, vgId, count);
+  vTrace("vgId:%d, vnode is released, vnodes:%d", vgId, count);
 
   if (count <= 0) {
     taosCleanUpIntHash(tsDnodeVnodesHash);

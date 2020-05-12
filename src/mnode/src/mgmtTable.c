@@ -381,7 +381,7 @@ static void mgmtRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *p
   if (pStable->vgHash == NULL) return;
 
   SVgObj *pVgroup = mgmtGetVgroup(pCtable->vgId);
-  if (pVgroup != NULL) {
+  if (pVgroup == NULL) {
     taosHashRemove(pStable->vgHash, (char *)&pCtable->vgId, sizeof(pCtable->vgId));
   }
   mgmtDecVgroupRef(pVgroup);
