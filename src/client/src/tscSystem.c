@@ -63,6 +63,7 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
     rpcInit.user = (char*)user;
     rpcInit.idleTime = 2000;
     rpcInit.ckey = "key";
+    rpcInit.spi = 1;
     rpcInit.secret = secretEncrypt;
 
     *pDnodeConn = rpcOpen(&rpcInit);
