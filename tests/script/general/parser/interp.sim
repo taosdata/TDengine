@@ -65,3 +65,5 @@ system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
 run general/parser/interp_test.sim
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,6 +1,4 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
@@ -305,3 +303,5 @@ sql select * from tu
 if $rows != 2 then
     return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -64,7 +64,7 @@ matrix:
           for memError in `cat uniq-mem-error-out.txt | awk '{print $4}'` 
           do
             if [ -n "$memError" ]; then
-              if [ "$memError" -gt 5 ]; then
+              if [ "$memError" -gt 12 ]; then
                 echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
                          More than our threshold! ## ${NC}"
                 travis_terminate $memError
@@ -76,7 +76,7 @@ matrix:
           for defiMemError in `cat uniq-definitely-lost-out.txt | awk '{print $7}'`
           do
             if [ -n "$defiMemError" ]; then
-              if [ "$defiMemError" -gt 3 ]; then
+              if [ "$defiMemError" -gt 13 ]; then
                 echo -e "${RED} ## Memory errors number valgrind reports \
                          Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
                 travis_terminate $defiMemError
