@@ -53,9 +53,10 @@ typedef struct SMeterMetaInfo {
    * 2. keep the vnode index for multi-vnode insertion
    */
   int32_t vnodeIndex;
-  char    name[TSDB_METER_ID_LEN + 1];    // table(super table) name
-  int16_t numOfTags;                      // total required tags in query, including groupby tags
-  int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
+  char    name[TSDB_METER_ID_LEN + 1];         // table(super table) name
+  char    aliasName[TSDB_METER_ID_LEN + 1];    // alias name
+  int16_t numOfTags;                           // total required tags in query, including groupby tags
+  int16_t tagColumnIndex[TSDB_MAX_TAGS];       // clause + tag projection
 } SMeterMetaInfo;
 
 /* the structure for sql function in select clause */
