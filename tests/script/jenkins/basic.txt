@@ -12,8 +12,8 @@ cd ../../../debug; make
 #unsupport ./test.sh -f general/alter/table.sim
 
 ./test.sh -f general/cache/new_metrics.sim
-#jeff ./test.sh -f general/cache/restart_metrics.sim
-#jeff ./test.sh -f general/cache/restart_table.sim
+./test.sh -f general/cache/restart_metrics.sim
+./test.sh -f general/cache/restart_table.sim
 
 #hongze ./test.sh -f general/column/commit.sim
 ./test.sh -f general/column/metrics.sim
@@ -40,8 +40,6 @@ cd ../../../debug; make
 ./test.sh -f general/compute/stddev.sim
 ./test.sh -f general/compute/sum.sim
 ./test.sh -f general/compute/top.sim
-
-#jeff ./test.sh -f general/connection/connection.sim
 
 ./test.sh -f general/db/basic.sim
 ./test.sh -f general/db/basic1.sim
