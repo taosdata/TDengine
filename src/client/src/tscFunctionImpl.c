@@ -3669,7 +3669,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
 
       wchar_t accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
-        size_t n = wcsspn(str, accept);
+        size_t n = wcscspn(str, accept);
 
         str += n;
         if (str[0] == 0 || (n >= size - 1)) {
