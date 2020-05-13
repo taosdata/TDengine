@@ -16,7 +16,7 @@
 //#include <stdint.h>
 //#include <stdbool.h>
 #include "os.h"
-#include "ihash.h"
+#include "hash.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "ttimer.h"
@@ -89,7 +89,7 @@ static void syncModuleInitFunc() {
   tsTcpPool = taosOpenTcpThreadPool(&info);
 
   syncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
-  vgIdHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SSyncNode *), taosHashInt); 
+  vgIdHash = taosHashInit(TSDB_MAX_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true); 
 
   taosGetFqdn(tsNodeFqdn);
 }
@@ -145,7 +145,7 @@ void *syncStart(const SSyncInfo *pInfo)
 
   atomic_add_fetch_32(&tsNodeNum, 1);
   syncAddNodeRef(pNode);
-  taosAddIntHash(vgIdHash, pNode->vgId, (char *)(&pNode));
+  taosHashPut(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t), (char *)(&pNode), sizeof(SSyncNode *));
 
   if (pNode->notifyRole) 
    (*pNode->notifyRole)(pNode->ahandle, nodeRole);
@@ -171,7 +171,7 @@ void syncStop(void *param)
   pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
   if (pPeer) syncRemovePeer(pPeer);
 
-  taosDeleteIntHash(vgIdHash, pNode->vgId);
+  taosHashRemove(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
   taosTmrStop(pNode->pFwdTimer);
 
   pthread_mutex_unlock(&(pNode->mutex));
@@ -183,7 +183,7 @@ void syncStop(void *param)
     sTrace("all sync resources are freed");
     taosTmrCleanUp(syncTmrCtrl);
     taosCloseTcpThreadPool(tsTcpPool);
-    taosCleanUpIntHash(vgIdHash);
+    taosHashCleanup(vgIdHash);
   }
 }
 
@@ -958,7 +958,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
     return;
   }
 
-  SSyncNode **ppNode = (SSyncNode **)taosGetIntHashData(vgIdHash, vgId); 
+  SSyncNode **ppNode = (SSyncNode **)taosHashGet(vgIdHash, (const char *)&vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
     taosCloseTcpSocket(connFd);
