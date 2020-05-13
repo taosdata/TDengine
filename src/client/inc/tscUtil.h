@@ -31,13 +31,13 @@ extern "C" {
 #include "tscSecondaryMerge.h"
 #include "tsclient.h"
 
-#define UTIL_TABLE_IS_SUPERTABLE(metaInfo)  \
+#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
 #define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
   
-#define UTIL_TABLE_IS_NOMRAL_TABLE(metaInfo)\
-  (!(UTIL_TABLE_IS_SUPERTABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
+#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
+  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 
@@ -264,6 +264,10 @@ bool hasMoreVnodesToTry(SSqlObj *pSql);
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)());
+
+void* malloc_throw(size_t size);
+void* calloc_throw(size_t nmemb, size_t size);
+char* strdup_throw(const char* str);
 
 #ifdef __cplusplus
 }

@@ -34,12 +34,14 @@ extern "C" {
 
 #define TSDB_INVALID_SUPER_TABLE_ID -1
 
+#define TSDB_STATUS_COMMIT_START 1
+#define TSDB_STATUS_COMMIT_OVER  2
+
 // --------- TSDB APPLICATION HANDLE DEFINITION
 typedef struct {
-  // WAL handle
   void *appH;
   void *cqH;
-  int (*walCallBack)(void *);
+  int (*notifyStatus)(void *, int status);
   int (*eventCallBack)(void *);
 } STsdbAppH;
 

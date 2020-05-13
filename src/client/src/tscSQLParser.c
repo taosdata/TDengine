@@ -1348,7 +1348,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
 
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     numOfTotalColumns = tinfo.numOfColumns + tinfo.numOfTags;
   } else {
     numOfTotalColumns = tinfo.numOfColumns;
@@ -1408,7 +1408,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
-      if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+      if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
       }
 
@@ -1862,7 +1862,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
     
     case TK_TBID: {
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-      if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+      if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg7);
       }
     
@@ -2279,7 +2279,7 @@ bool validateIpAddress(const char* ip, size_t size) {
 int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  if (pTableMetaInfo->pTableMeta == NULL || !UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (pTableMetaInfo->pTableMeta == NULL || !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     return TSDB_CODE_INVALID_SQL;
   }
 
@@ -2318,7 +2318,7 @@ int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 /* transfer the field-info back to original input format */
 void tscRestoreSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     return;
   }
   
@@ -2542,7 +2542,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
     }
     
     if (groupTag) {
-      if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+      if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg9);
       }
 
@@ -3254,7 +3254,7 @@ static bool validateJoinExprNode(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SColum
   }
 
   // table to table/ super table to super table are allowed
-  if (UTIL_TABLE_IS_SUPERTABLE(pLeftMeterMeta) != UTIL_TABLE_IS_SUPERTABLE(pRightMeterMeta)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pLeftMeterMeta) != UTIL_TABLE_IS_SUPER_TABLE(pRightMeterMeta)) {
     invalidSqlErrMsg(pQueryInfo->msg, msg5);
     return false;
   }
@@ -3337,7 +3337,7 @@ static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, S
   } else if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) ||
              index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {  // query on tags
     // check for tag query condition
-    if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
 
@@ -3697,7 +3697,7 @@ static int32_t validateJoinExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
   }
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {  // for stable join, tag columns
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // for stable join, tag columns
                                                    // must be present for join
     if (pCondExpr->pJoinExpr == NULL) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
@@ -3735,7 +3735,7 @@ static void cleanQueryExpr(SCondExpr* pCondExpr) {
 
 static void doAddJoinTagsColumnsIntoTagList(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     SColumnIndex index = {0};
 
     getColumnIndexByName(&pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index);
@@ -4102,7 +4102,7 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
   }
 
   /* for super table query, set default ascending order for group output */
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
   }
 }
@@ -4128,7 +4128,7 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
    *
    * for super table query, the order option must be less than 3.
    */
-  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
     if (pSortorder->nExpr > 1) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg0);
     }
@@ -4149,7 +4149,7 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
   SSQLToken    columnName = {pVar->nLen, pVar->nType, pVar->pz};
   SColumnIndex index = {0};
 
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {  // super table query
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // super table query
     if (getColumnIndexByName(&columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
@@ -4302,10 +4302,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN ||
       pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
-    if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg3);
     }
-  } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) && (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo))) {
+  } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) && (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo))) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg4);
   } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN) &&
              UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) {
@@ -4691,7 +4691,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   }
 
   // todo refactor
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
       if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
@@ -5627,7 +5627,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return code;
   }
 
-  bool isSTable = UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
+  bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }
@@ -5771,7 +5771,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr);
   bool isSTable = false;
   
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     isSTable = true;
     code = tscGetSTableVgroupInfo(pSql, index);
     if (code != TSDB_CODE_SUCCESS) {

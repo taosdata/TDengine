@@ -1525,7 +1525,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagC
   }
   
   if (pTable->type != TSDB_SUPER_TABLE) {
-    uError("%p query normal tag not allowed, uid:%, tid:%d, name:%s" PRIu64,
+    uError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s",
            tsdb, uid, pTable->tableId.tid, pTable->name);
     
     return TSDB_CODE_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client

@@ -122,7 +122,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   int32_t numOfRows = tscGetNumOfColumns(pMeta);
   int32_t totalNumOfRows = numOfRows + tscGetNumOfTags(pMeta);
 
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     numOfRows = numOfRows + tscGetNumOfTags(pMeta);
   }
 
@@ -161,7 +161,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     }
   }
 
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     return 0;
   }
 

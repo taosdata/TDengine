@@ -284,6 +284,7 @@ int32_t tsdbCloseRepo(TsdbRepoT *repo) {
   pRepo->tsdbCache->curBlock = NULL;
   tsdbUnLockRepo(repo);
 
+  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
   tsdbCommitData((void *)repo);
 
   tsdbCloseFileH(pRepo->tsdbFileH);
@@ -330,7 +331,7 @@ int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
 int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  if (pRepo->appH.walCallBack) pRepo->appH.walCallBack(pRepo->appH.appH);
+  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
   
   tsdbLockRepo(repo);
   if (pRepo->commit) {
@@ -942,7 +943,6 @@ static void tsdbFreeMemTable(SMemTable *pMemTable) {
 
 // Commit to file
 static void *tsdbCommitData(void *arg) {
-  printf("Starting to commit....\n");
   STsdbRepo * pRepo = (STsdbRepo *)arg;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCache *pCache = pRepo->tsdbCache;
@@ -950,6 +950,8 @@ static void *tsdbCommitData(void *arg) {
   SDataCols * pDataCols = NULL;
   SRWHelper   whelper = {0};
   if (pCache->imem == NULL) return NULL;
+
+  tsdbPrint("vgId: %d, starting to commit....", pRepo->config.tsdbId);
 
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
@@ -974,6 +976,7 @@ static void *tsdbCommitData(void *arg) {
 
   // Do retention actions
   tsdbFitRetention(pRepo);
+  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER);
 
 _exit:
   tdFreeDataCols(pDataCols);

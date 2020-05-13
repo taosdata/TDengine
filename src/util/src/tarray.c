@@ -176,6 +176,11 @@ SArray* taosArrayClone(const SArray* pSrc) {
   return dst;
 }
 
+void taosArrayClear(SArray* pArray) {
+  assert( pArray != NULL );
+  pArray->size = 0;
+}
+
 void taosArrayDestroy(SArray* pArray) {
   if (pArray == NULL) {
     return;
