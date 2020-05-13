@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tmd5.h"
-#include "shash.h"
 #include "taos.h"
 #include "http.h"
 #include "httpLog.h"

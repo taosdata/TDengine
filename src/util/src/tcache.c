@@ -149,6 +149,7 @@ static void taosRemoveFromTrash(SCacheObj *pCacheObj, STrashElem *pElem) {
   }
   
   pElem->pData->signature = 0;
+  if (pCacheObj->freeFp) pCacheObj->freeFp(pElem->pData->data);
   free(pElem->pData);
   free(pElem);
 }
@@ -210,7 +211,8 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   int32_t size = pNode->size;
   taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
   
-  uTrace("key:%s is removed from cache,total:%d,size:%ldbytes", pNode->key, pCacheObj->totalSize, size);
+  uTrace("key:%s is removed from cache,total:%d,size:%ldbytes", pNode->key, pCacheObj->totalSize, size);  
+  if (pCacheObj->freeFp) pCacheObj->freeFp(pNode->data);
   free(pNode);
 }
 
@@ -380,7 +382,7 @@ static void taosCacheRefresh(void *handle, void *tmrId) {
     }
 }
 
-SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
+SCacheObj *taosCacheInitWithCb(void *tmrCtrl, int64_t refreshTime, void (*freeCb)(void *data)) {
   if (tmrCtrl == NULL || refreshTime <= 0) {
     return NULL;
   }
@@ -401,6 +403,7 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
   // set free cache node callback function for hash table
   taosHashSetFreecb(pCacheObj->pHashTable, taosFreeNode);
   
+  pCacheObj->freeFp = freeCb;
   pCacheObj->refreshTime = refreshTime * 1000;
   pCacheObj->tmrCtrl = tmrCtrl;
   
@@ -417,6 +420,10 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
   
   T_REF_INC(pCacheObj);
   return pCacheObj;
+}
+
+SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTime) {
+  return taosCacheInitWithCb(tmrCtrl, refreshTime, NULL);
 }
 
 void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, size_t dataSize, int duration) {

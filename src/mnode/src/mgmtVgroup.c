@@ -288,8 +288,8 @@ SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {
   return pDb->pHead;
 }
 
-void *mgmtGetNextVgroup(void *pNode, SVgObj **pVgroup) { 
-  return sdbFetchRow(tsVgroupSdb, pNode, (void **)pVgroup); 
+void *mgmtGetNextVgroup(void *pIter, SVgObj **pVgroup) { 
+  return sdbFetchRow(tsVgroupSdb, pIter, (void **)pVgroup); 
 }
 
 void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
@@ -429,10 +429,10 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
 
   if (NULL == pTable) {
     pShow->numOfRows = pDb->numOfVgroups;
-    pShow->pNode = pDb->pHead;
+    pShow->pIter = pDb->pHead;
   } else {
     pShow->numOfRows = 1;
-    pShow->pNode = pVgroup;
+    pShow->pIter = pVgroup;
   }
 
    mgmtDecDbRef(pDb);
@@ -457,9 +457,9 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
   }
 
   while (numOfRows < rows) {
-    pVgroup = (SVgObj *) pShow->pNode;
+    pVgroup = (SVgObj *) pShow->pIter;
     if (pVgroup == NULL) break;
-    pShow->pNode = (void *) pVgroup->next;
+    pShow->pIter = (void *) pVgroup->next;
 
     cols = 0;
 
@@ -749,14 +749,12 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
 }
 
 void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
-  void *  pNode = NULL;
-  void *  pLastNode = NULL;
+  void *  pIter = NULL;
   SVgObj *pVgroup = NULL;
   int32_t numOfVgroups = 0;
 
   while (1) {
-    pLastNode = pNode;
-    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     if (pVgroup->vnodeGid[0].dnodeId == pDropDnode->dnodeId) {
@@ -766,24 +764,23 @@ void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
         .pObj = pVgroup,
       };
       sdbDeleteRow(&oper);
-      pNode = pLastNode;
       numOfVgroups++;
       continue;
     }
     mgmtDecVgroupRef(pVgroup);
   }
+
+  sdbFreeIter(pIter);
 }
 
 void mgmtDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
-  void *pNode = NULL;
-  void *pLastNode = NULL;
+  void *  pIter = NULL;
   int32_t numOfVgroups = 0;
   SVgObj *pVgroup = NULL;
 
   mPrint("db:%s, all vgroups will be dropped from sdb", pDropDb->name);
   while (1) {
-    pLastNode = pNode;
-    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     if (pVgroup->pDb == pDropDb) {
@@ -793,7 +790,6 @@ void mgmtDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
         .pObj = pVgroup,
       };
       sdbDeleteRow(&oper);
-      pNode = pLastNode;
       numOfVgroups++;
 
       if (sendMsg) {
@@ -803,6 +799,8 @@ void mgmtDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
 
     mgmtDecVgroupRef(pVgroup);
   }
+
+  sdbFreeIter(pIter);
 
   mPrint("db:%s, all vgroups:%d is dropped from sdb", pDropDb->name, numOfVgroups);
 }

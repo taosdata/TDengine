@@ -156,8 +156,8 @@ int32_t mgmtInitDbs() {
   return 0;
 }
 
-void *mgmtGetNextDb(void *pNode, SDbObj **pDb) {
-  return sdbFetchRow(tsDbSdb, pNode, (void **)pDb);
+void *mgmtGetNextDb(void *pIter, SDbObj **pDb) {
+  return sdbFetchRow(tsDbSdb, pIter, (void **)pDb);
 }
 
 SDbObj *mgmtGetDb(char *db) {
@@ -583,7 +583,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
   if (pUser == NULL) return 0;
 
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextDb(pShow->pNode, &pDb);
+    pShow->pIter = mgmtGetNextDb(pShow->pIter, &pDb);
     if (pDb == NULL) break;
 
     cols = 0;
@@ -865,14 +865,15 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     }
   }
 
-  void *pNode = NULL;
+  void *pIter = NULL;
   while (1) {
     SVgObj *pVgroup = NULL;
-    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;   
     mgmtSendCreateVgroupMsg(pVgroup, NULL);
     mgmtDecVgroupRef(pVgroup);
   }
+  sdbFreeIter(pIter);
 
   if (oldReplica != pDb->cfg.replications) {
     balanceNotify();
@@ -983,12 +984,12 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
 void  mgmtDropAllDbs(SAcctObj *pAcct)  {
   int32_t numOfDbs = 0;
   SDbObj *pDb = NULL;
-  void *  pNode = NULL;
+  void *  pIter = NULL;
 
   mPrint("acct:%s, all dbs will be dropped from sdb", pAcct->user);
 
   while (1) {
-    pNode = mgmtGetNextDb(pNode, &pDb);
+    pIter = mgmtGetNextDb(pIter, &pDb);
     if (pDb == NULL) break;
 
     if (pDb->pAcct == pAcct) {
@@ -1004,6 +1005,8 @@ void  mgmtDropAllDbs(SAcctObj *pAcct)  {
     }
     mgmtDecDbRef(pDb);
   }
+
+  sdbFreeIter(pIter);
 
   mPrint("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
 }

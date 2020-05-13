@@ -155,8 +155,8 @@ SUserObj *mgmtGetUser(char *name) {
   return (SUserObj *)sdbGetRow(tsUserSdb, name);
 }
 
-void *mgmtGetNextUser(void *pNode, SUserObj **pUser) { 
-  return sdbFetchRow(tsUserSdb, pNode, (void **)pUser); 
+void *mgmtGetNextUser(void *pIter, SUserObj **pUser) { 
+  return sdbFetchRow(tsUserSdb, pIter, (void **)pUser); 
 }
 
 void mgmtIncUserRef(SUserObj *pUser) { 
@@ -300,7 +300,7 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
   char     *pWrite;
 
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextUser(pShow->pNode, &pUser);
+    pShow->pIter = mgmtGetNextUser(pShow->pIter, &pUser);
     if (pUser == NULL) break;
     
     cols = 0;
@@ -504,15 +504,13 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
 }
 
 void  mgmtDropAllUsers(SAcctObj *pAcct)  {
-  void *    pNode = NULL;
-  void *    pLastNode = NULL;
+  void *    pIter = NULL;
   int32_t   numOfUsers = 0;
   int32_t   acctNameLen = strlen(pAcct->user);
   SUserObj *pUser = NULL;
 
   while (1) {
-    pLastNode = pNode;
-    pNode = mgmtGetNextUser(pNode, &pUser);
+    pIter = mgmtGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
 
     if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
@@ -522,12 +520,13 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
         .pObj = pUser,
       };
       sdbDeleteRow(&oper);
-      pNode = pLastNode;
       numOfUsers++;
     }
 
     mgmtDecUserRef(pUser);
   }
+
+  sdbFreeIter(pIter);
 
   mTrace("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
 }
