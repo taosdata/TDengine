@@ -61,7 +61,7 @@ enum _sql_type {
   TSDB_SQL_LOCAL,  // SQL below for client local
   TSDB_SQL_DESCRIBE_TABLE,
   TSDB_SQL_RETRIEVE_LOCALMERGE,
-  TSDB_SQL_METRIC_JOIN_RETRIEVE,
+  TSDB_SQL_TABLE_JOIN_RETRIEVE,
 
   /*
    * build empty result instead of accessing dnode to fetch result

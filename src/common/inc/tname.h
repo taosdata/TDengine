@@ -23,4 +23,5 @@ void extractTableName(const char *tableId, char *name);
 
 char* extractDBName(const char *tableId, char *name);
 
+
 #endif  // TDENGINE_NAME_H
