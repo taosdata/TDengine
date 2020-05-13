@@ -1998,16 +1998,15 @@ int32_t doGetColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColum
 }
 
 int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
+  pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
+  
   if (pTableToken->n == 0) {  // only one table and no table name prefix in column name
     if (pQueryInfo->numOfTables == 1) {
       pIndex->tableIndex = 0;
     }
-
+    
     return TSDB_CODE_SUCCESS;
   }
-
-  pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
-  char tableName[TSDB_METER_ID_LEN + 1] = {0};
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
@@ -5662,7 +5661,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       tscAddEmptyMeterMetaInfo(pQueryInfo);
     }
 
-    SMeterMetaInfo* pMeterInfo1 = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+    SMeterMetaInfo* pMeterInfo1 = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i/2);
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
     if (setMeterID(pMeterInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
