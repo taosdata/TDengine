@@ -29,11 +29,11 @@
 #include "dnodeVWrite.h"
 #include "mnode.h"
 
-extern void dnodeUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet);
+extern void dnodeUpdateIpSet(SRpcIpSet *pIpSet);
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
-static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg);
+static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *);
 static void (*dnodeProcessRspMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
-static void dnodeProcessRspFromDnode(SRpcMsg *pMsg);
+static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet);
 static void *tsDnodeServerRpc = NULL;
 static void *tsDnodeClientRpc = NULL;
 
@@ -52,7 +52,8 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = mgmtProcessReqMsgFromDnode;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = mgmtProcessReqMsgFromDnode;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = mgmtProcessReqMsgFromDnode;
-
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = mgmtProcessReqMsgFromDnode;
+  
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort    = tsDnodeDnodePort;
@@ -81,7 +82,7 @@ void dnodeCleanupServer() {
   }
 }
 
-static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg) {
+static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SRpcMsg rspMsg;
   rspMsg.handle  = pMsg->handle;
   rspMsg.pCont   = NULL;
@@ -119,7 +120,6 @@ int32_t dnodeInitClient() {
   rpcInit.label        = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessRspFromDnode;
-  rpcInit.ufp          = dnodeUpdateIpSet;
   rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
@@ -145,9 +145,10 @@ void dnodeCleanupClient() {
   }
 }
 
-static void dnodeProcessRspFromDnode(SRpcMsg *pMsg) {
+static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
 
   if (dnodeProcessRspMsgFp[pMsg->msgType]) {
+    if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pIpSet) dnodeUpdateIpSet(pIpSet);
     (*dnodeProcessRspMsgFp[pMsg->msgType])(pMsg);
   } else {
     dError("RPC %p, msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
@@ -162,4 +163,10 @@ void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
 
 void dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg) {
   rpcSendRequest(tsDnodeClientRpc, ipSet, rpcMsg);
+}
+
+void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
+  SRpcIpSet ipSet = {0};
+  dnodeGetMnodeDnodeIpSet(&ipSet);
+  rpcSendRecv(tsDnodeClientRpc, &ipSet, rpcMsg, rpcRsp);
 }

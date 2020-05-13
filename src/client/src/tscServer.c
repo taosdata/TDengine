@@ -221,7 +221,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
   if (pSql == NULL) {
     tscError("%p sql is already released", pSql->signature);
@@ -243,6 +243,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     tscFreeSqlObj(pSql);
     rpcFreeCont(rpcMsg->pCont);
     return;
+  }
+
+  if (pCmd->command < TSDB_SQL_MGMT) {
+    if (pIpSet) pSql->ipList = *pIpSet;
+  } else {
+    if (pIpSet) tscMgmtIpSet = *pIpSet;
   }
 
   if (rpcMsg->pCont == NULL) {

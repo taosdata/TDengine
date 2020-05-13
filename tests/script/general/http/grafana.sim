@@ -157,25 +157,25 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"refId":"A","alias":"","sql":"select count(i) from d1.mt group by a"},{"refId":"B","alias":"","sql":"select sum(i) from d1.mt group by b"}]'  127.0.0.1:6020/grafana/query
 print 16-> $system_content
-if $system_content != @[{"refId":"A","target":"1","datapoints":[[5,"-"]]},{"refId":"A","target":"2","datapoints":[[4,"-"]]},{"refId":"A","target":"3","datapoints":[[3,"-"]]},{"refId":"B","target":"a","datapoints":[[5,"-"]]},{"refId":"B","target":"b","datapoints":[[8,"-"]]},{"refId":"B","target":"c","datapoints":[[9,"-"]]}]@ then
+if $system_content != @[{"refId":"A","target":"{a:1,}","datapoints":[[5,"-"]]},{"refId":"A","target":"{a:2,}","datapoints":[[4,"-"]]},{"refId":"A","target":"{a:3,}","datapoints":[[3,"-"]]},{"refId":"B","target":"{b:a}","datapoints":[[5,"-"]]},{"refId":"B","target":"{b:b}","datapoints":[[8,"-"]]},{"refId":"B","target":"{b:c}","datapoints":[[9,"-"]]}]@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"refId":"A","alias":"count","sql":"select count(i) from d1.mt group by a"},{"refId":"B","alias":"sum-","sql":"select sum(i) from d1.mt group by b"}]'  127.0.0.1:6020/grafana/query
 print 17-> $system_content
-if $system_content != @[{"refId":"A","target":"count1","datapoints":[[5,"-"]]},{"refId":"A","target":"count2","datapoints":[[4,"-"]]},{"refId":"A","target":"count3","datapoints":[[3,"-"]]},{"refId":"B","target":"sum-a","datapoints":[[5,"-"]]},{"refId":"B","target":"sum-b","datapoints":[[8,"-"]]},{"refId":"B","target":"sum-c","datapoints":[[9,"-"]]}]@ then
+if $system_content != @[{"refId":"A","target":"count{a:1,}","datapoints":[[5,"-"]]},{"refId":"A","target":"count{a:2,}","datapoints":[[4,"-"]]},{"refId":"A","target":"count{a:3,}","datapoints":[[3,"-"]]},{"refId":"B","target":"sum-{b:a}","datapoints":[[5,"-"]]},{"refId":"B","target":"sum-{b:b}","datapoints":[[8,"-"]]},{"refId":"B","target":"sum-{b:c}","datapoints":[[9,"-"]]}]@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"refId":"A","alias":"count","sql":"select count(i) from d1.mt interval(1m) group by a "}]'  127.0.0.1:6020/grafana/query
 print 18-> $system_content
-if $system_content != @[{"refId":"A","target":"count1","datapoints":[[1,1514208300000],[1,1514208360000],[1,1514208420000],[1,1514208480000],[1,1514208540000]]},{"refId":"A","target":"count2","datapoints":[[1,1514208300000],[1,1514208360000],[1,1514208420000],[1,1514208480000]]},{"refId":"A","target":"count3","datapoints":[[1,1514208300000],[1,1514208360000],[1,1514208420000]]}]@ then
+if $system_content != @[{"refId":"A","target":"count{a:1,}","datapoints":[[1,1514208300000],[1,1514208360000],[1,1514208420000],[1,1514208480000],[1,1514208540000]]},{"refId":"A","target":"count{a:2,}","datapoints":[[1,1514208300000],[1,1514208360000],[1,1514208420000],[1,1514208480000]]},{"refId":"A","target":"count{a:3,}","datapoints":[[1,1514208300000],[1,1514208360000],[1,1514208420000]]}]@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"refId":"A","alias":"","sql":"select sum(v2), count(v1) from d1.m1"},{"refId":"B","alias":"","sql":"select count(v2), sum(v2) from d1.m1"}]'  127.0.0.1:6020/grafana/query
 print 19-> $system_content
-if $system_content != @[{"refId":"A","target":"3","datapoints":[[15.299999714,"-"]]},{"refId":"B","target":"15.299999714","datapoints":[[3,"-"]]}]@ then
+if $system_content != @[{"refId":"A","target":"{count(v1):3}","datapoints":[[15.299999714,"-"]]},{"refId":"B","target":"{sum(v2):15.299999714}","datapoints":[[3,"-"]]}]@ then
   return -1
 endi
 

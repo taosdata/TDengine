@@ -297,8 +297,10 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   if (pDb != NULL) {
     mgmtDecDbRef(pDb); 
     if (pCreate->ignoreExist) {
+      mTrace("db:%s, already exist, ignore exist is set", pCreate->db);
       return TSDB_CODE_SUCCESS;
     } else {
+      mError("db:%s, is already exist, ignore exist not set", pCreate->db);
       return TSDB_CODE_DB_ALREADY_EXIST;
     }
   }
@@ -751,6 +753,8 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
     code = mgmtCreateDb(pMsg->pUser->pAcct, pCreate);
     if (code == TSDB_CODE_SUCCESS) {
       mLPrint("db:%s, is created by %s", pCreate->db, pMsg->pUser->user);
+    } else {
+      mError("db:%s, failed to create, reason:%s", pCreate->db, tstrerror(code));
     }
   }
 

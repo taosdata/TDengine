@@ -69,3 +69,5 @@ sleep 3000
 
 run general/parser/limit_tb.sim
 run general/parser/limit_stb.sim
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

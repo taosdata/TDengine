@@ -107,3 +107,5 @@ while $loop <= $loops
   endi
   $loop = $loop + 1
 endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

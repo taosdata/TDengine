@@ -1,6 +1,4 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
@@ -96,25 +94,25 @@ $ts1 = $ts0 + 1000
 $ts2 = $ts0 + 2000
 sql insert into tb_1 using $stb tags (-1) values ( $ts1 , 1,1,1,1,'bin',1,1,1,'涛思数据') ( $ts2 , 2,2,2,2,'binar', 1,1,1,'nchar')
 sql select * from $stb
-if $rows != 3 then
+if $rows != 5 then
   return -1
 endi
-if $data19 != 涛思数据 then
+if $data09 != 涛思数据 then
   return -1
 endi
-if $data11 != 1 then
+if $data01 != 1 then
   return -1
 endi
-if $data22 != 2 then
+if $data42 != 2 then
   return -2
 endi
-if $data23 != 2.00000 then
+if $data43 != 2.00000 then
   return -1
 endi
-if $data25 != binar then
+if $data45 != binar then
   return -1
 endi
-if $data29 != nchar then
+if $data49 != nchar then
   return -1
 endi
 sql drop table tb_1
@@ -127,22 +125,22 @@ sql select * from $stb
 if $rows != 5 then
   return -1
 endi
-if $data19 != 涛思数据 then
+if $data09 != 涛思数据 then
   return -1
 endi
-if $data11 != 1 then
+if $data01 != 1 then
   return -1
 endi
-if $data22 != 2 then
+if $data42 != 2 then
   return -2
 endi
-if $data23 != 2.00000 then
+if $data43 != 2.00000 then
   return -1
 endi
-if $data25 != binar then
+if $data45 != binar then
   return -1
 endi
-if $data29 != nchar then
+if $data49 != nchar then
   return -1
 endi
 
@@ -154,13 +152,13 @@ sql show tables
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
+if $data00 != tb1 then
   return -1
 endi
 if $data10 != tb2 then
   return -1
 endi
-if $data20 != tb1 then
+if $data20 != tb3 then
   return -1
 endi
 
@@ -222,13 +220,13 @@ sql show tables
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
+if $data00 != tb1 then
   return -1
 endi
 if $data10 != tb2 then
   return -1
 endi
-if $data20 != tb1 then
+if $data20 != tb3 then
   return -1
 endi
 
@@ -301,6 +299,9 @@ sql_error create table txu using tu tags(0) values(now, 1);
 
 #[TBASE-675]
 sql insert into tu values(1565971200000, 1) (1565971200000,2) (1565971200001, 3)(1565971200001, 4)
+sql select * from tu
 if $rows != 2 then
     return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

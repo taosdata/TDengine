@@ -21,6 +21,7 @@
 #include "trpc.h"
 #include "tglobal.h"
 #include "http.h"
+#include "mnode.h"
 #include "dnode.h"
 #include "dnodeInt.h"
 #include "dnodeVRead.h"
@@ -28,7 +29,7 @@
 #include "dnodeShell.h"
 
 static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
-static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg);
+static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcIpSet *);
 static int     dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static void  * tsDnodeShellRpc = NULL;
 static int32_t tsDnodeQueryReqNum  = 0;
@@ -106,7 +107,7 @@ void dnodeCleanupShell() {
   }
 }
 
-void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
+void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SRpcMsg rpcMsg;
   rpcMsg.handle = pMsg->handle;
   rpcMsg.pCont = NULL;
@@ -138,7 +139,34 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
 }
 
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  return TSDB_CODE_SUCCESS;
+  int code = mgmtRetriveAuth(user, spi, encrypt, secret, ckey);
+  if (code != TSDB_CODE_NOT_READY) return code;
+
+  SDMAuthMsg *pMsg = rpcMallocCont(sizeof(SDMAuthMsg));
+  strcpy(pMsg->user, user);
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pMsg;
+  rpcMsg.contLen = sizeof(SDMAuthMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_DM_AUTH;
+  
+  dTrace("user:%s, send auth msg to mnode", user);
+  SRpcMsg rpcRsp = {0};
+  dnodeSendMsgToDnodeRecv(&rpcMsg, &rpcRsp);
+
+  if (rpcRsp.code != 0) {
+    dError("user:%s, auth msg received from mnode, error:%s", user, tstrerror(rpcRsp.code));
+  } else {
+    dTrace("user:%s, auth msg received from mnode", user);
+    SDMAuthRsp *pRsp = rpcRsp.pCont;
+    memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
+    memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
+    *spi = pRsp->spi;
+    *encrypt = pRsp->encrypt;
+  }
+
+  rpcFreeCont(rpcRsp.pCont);
+  return rpcRsp.code;
 }
 
 SDnodeStatisInfo dnodeGetStatisInfo() {

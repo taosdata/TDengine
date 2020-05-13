@@ -49,6 +49,7 @@ typedef struct {
   STsdbCfg    tsdbCfg;
   SSyncCfg    syncCfg;
   SWalCfg     walCfg;
+  char *       rootDir;
 } SVnodeObj;
 
 int  vnodeWriteToQueue(void *param, void *pHead, int type);

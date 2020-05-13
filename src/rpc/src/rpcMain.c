@@ -55,9 +55,8 @@ typedef struct {
   char     secret[TSDB_KEY_LEN]; // secret for the link
   char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
-  void   (*cfp)(SRpcMsg *);
+  void   (*cfp)(SRpcMsg *, SRpcIpSet *);
   int    (*afp)(char *user, char *spi, char *encrypt, char *secret, char *ckey); 
-  void   (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
 
   void     *idPool;   // handle to ID pool
   void     *tmrCtrl;  // handle to timer
@@ -222,7 +221,6 @@ void *rpcOpen(const SRpcInit *pInit) {
   if (pInit->secret) strcpy(pRpc->secret, pInit->secret);
   if (pInit->ckey) strcpy(pRpc->ckey, pInit->ckey);
   pRpc->spi = pInit->spi;
-  pRpc->ufp = pInit->ufp;
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
 
@@ -614,7 +612,12 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = pHead->linkUid;
     if (pRpc->afp) {
-      terrno = (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
+      if (pConn->user[0] == 0) {
+        terrno = TSDB_CODE_AUTH_REQUIRED;
+      } else {
+        terrno = (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
+      }
+
       if (terrno != 0) {
         tWarn("%s %p, user not there or server not ready", pRpc->label, pConn);
         taosFreeId(pRpc->idPool, sid);   // sid shall be released
@@ -900,10 +903,11 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
     memcpy(pContext->pRsp, pMsg, sizeof(SRpcMsg));
   } else {
     // for asynchronous API 
-    if (pRpc->ufp && (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect)) 
-      (*pRpc->ufp)(pContext->ahandle, &pContext->ipSet);  // notify the update of ipSet
+    SRpcIpSet *pIpSet = NULL;
+    if (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect) 
+      pIpSet = &pContext->ipSet;  
 
-    (*pRpc->cfp)(pMsg);  
+    (*pRpc->cfp)(pMsg, pIpSet);  
   }
 
   // free the request message
@@ -924,12 +928,18 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   if ( rpcIsReq(pHead->msgType) ) {
     rpcMsg.handle = pConn;
     taosTmrReset(rpcProcessProgressTimer, tsRpcTimer/2, pConn, pRpc->tmrCtrl, &pConn->pTimer);
-    (*(pRpc->cfp))(&rpcMsg);
+    (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {
     // it's a response
     SRpcReqContext *pContext = pConn->pContext;
     rpcMsg.handle = pContext->ahandle;
     pConn->pContext = NULL;
+
+    if (pHead->code == TSDB_CODE_AUTH_REQUIRED) {
+      pConn->secured = 0;
+      rpcSendReqToServer(pRpc, pContext);
+      return;
+    }
 
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
     rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->ipSet.port[pContext->ipSet.inUse], pConn->connType);    

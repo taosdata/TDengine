@@ -98,3 +98,8 @@ sleep 2000
 run general/parser/select_with_tags.sim
 sleep 2000
 run general/parser/groupby.sim
+
+sleep 2000
+run general/parser/binary_escapeCharacter.sim
+sleep 2000
+#run general/parser/bug.sim

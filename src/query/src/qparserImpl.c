@@ -820,7 +820,7 @@ void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBI
 
   pInfo->pDCLInfo->dbOpt = *pDB;
   pInfo->pDCLInfo->dbOpt.dbname = *pToken;
-  pInfo->pDCLInfo->dbOpt.ignoreExists = (pIgExists->z != NULL);
+  pInfo->pDCLInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 }
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo) {
