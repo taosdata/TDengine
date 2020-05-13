@@ -183,7 +183,7 @@ void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
 SColumn* tscColumnClone(const SColumn* src);
 SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
-void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex);
+SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);

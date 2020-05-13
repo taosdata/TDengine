@@ -33,13 +33,3 @@ python3 ./test.py $1 -f import_merge/importCacheFileT.py
 python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f import_merge/importDataLastSub.py
 python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f import_merge/importHead.py
-python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f import_merge/importLastT.py
-python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f import_merge/importSpan.py
-python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f import_merge/importTail.py
-python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f import_merge/importTRestart.py
-python3 ./test.py $1 -s && sleep 1

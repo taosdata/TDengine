@@ -39,4 +39,4 @@ sql alter table tb1 set tag len = 379
 # test end   
 sql drop database $db
 
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

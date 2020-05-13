@@ -42,4 +42,3 @@ sql select st1.ts, st1.f1, st2.f2 from db.st1, db.st2 where st1.t1=st2.t2 and st
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select st1.ts, st1.f1, st2.f2 from db.st1, db.st2 where st1.t1=st2.t2 and st1.ts=st2.ts'  127.0.0.1:6020/restful/sql
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-

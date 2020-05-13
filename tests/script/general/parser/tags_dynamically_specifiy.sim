@@ -56,3 +56,5 @@ endi
 #  print "expect: 100.90000, act: $data06"
 #  return -1
 #endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

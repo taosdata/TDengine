@@ -3,21 +3,21 @@ cd ../../debug; make
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
-#./test.sh -f general/alter/cached_schema_after_alter.sim
-#./test.sh -f general/alter/count.sim
-#./test.sh -f general/alter/import.sim
-#./test.sh -f general/alter/insert1.sim
-#./test.sh -f general/alter/insert2.sim
-#./test.sh -f general/alter/metrics.sim
-#./test.sh -f general/alter/table.sim
+#unsupport ./test.sh -f general/alter/cached_schema_after_alter.sim
+#unsupport ./test.sh -f general/alter/count.sim
+#unsupport ./test.sh -f general/alter/import.sim
+#unsupport ./test.sh -f general/alter/insert1.sim
+#unsupport ./test.sh -f general/alter/insert2.sim
+#unsupport ./test.sh -f general/alter/metrics.sim
+#unsupport ./test.sh -f general/alter/table.sim
 
 ./test.sh -f general/cache/new_metrics.sim
 ./test.sh -f general/cache/restart_metrics.sim
 ./test.sh -f general/cache/restart_table.sim
 
 #hongze ./test.sh -f general/column/commit.sim
-#hongze ./test.sh -f general/column/metrics.sim
-#hongze ./test.sh -f general/column/table.sim
+./test.sh -f general/column/metrics.sim
+./test.sh -f general/column/table.sim
 
 ./test.sh -f general/compress/commitlog.sim
 ./test.sh -f general/compress/compress.sim
@@ -28,11 +28,11 @@ cd ../../../debug; make
 ./test.sh -f general/compute/bottom.sim
 ./test.sh -f general/compute/count.sim
 ./test.sh -f general/compute/diff.sim
-# liao./test.sh -f general/compute/diff2.sim
+./test.sh -f general/compute/diff2.sim
 ./test.sh -f general/compute/first.sim
-# liao./test.sh -f general/compute/interval.sim
-# liao./test.sh -f general/compute/last.sim
-# liao./test.sh -f general/compute/leastsquare.sim
+# liao ./test.sh -f general/compute/interval.sim
+./test.sh -f general/compute/last.sim
+# liao ./test.sh -f general/compute/leastsquare.sim
 ./test.sh -f general/compute/max.sim
 ./test.sh -f general/compute/min.sim
 ./test.sh -f general/compute/null.sim
@@ -54,30 +54,30 @@ cd ../../../debug; make
 ./test.sh -f general/db/delete_writing1.sim
 ./test.sh -f general/db/delete_writing2.sim
 ./test.sh -f general/db/len.sim
-#./test.sh -u -f general/db/vnodes.sim
+#liao ./test.sh -f general/db/vnodes.sim
 ./test.sh -f general/db/repeat.sim
 ./test.sh -f general/db/tables.sim
 
 ./test.sh -f general/field/2.sim
-#./test.sh -f general/field/3.sim
-#./test.sh -f general/field/4.sim
-#./test.sh -f general/field/5.sim
-#./test.sh -f general/field/6.sim
+#liao ./test.sh -f general/field/3.sim
+#liao? ./test.sh -f general/field/4.sim
+#liao? ./test.sh -f general/field/5.sim
+#liao? ./test.sh -f general/field/6.sim
 ./test.sh -f general/field/bigint.sim
-# liao./test.sh -f general/field/binary.sim
+./test.sh -f general/field/binary.sim
 ./test.sh -f general/field/bool.sim
 ./test.sh -f general/field/single.sim
 ./test.sh -f general/field/smallint.sim
 ./test.sh -f general/field/tinyint.sim
 
-# jeff ./test.sh -f general/http/restful.sim
+./test.sh -f general/http/restful.sim
 ./test.sh -f general/http/restful_insert.sim
 ./test.sh -f general/http/restful_limit.sim
-# jeff ./test.sh -f general/http/restful_full.sim
+./test.sh -f general/http/restful_full.sim
 ./test.sh -f general/http/prepare.sim
 ./test.sh -f general/http/telegraf.sim
 ./test.sh -f general/http/grafana_bug.sim
-# jeff ./test.sh -f general/http/grafana.sim
+./test.sh -f general/http/grafana.sim
 
 ./test.sh -f general/import/basic.sim
 ./test.sh -f general/import/commit.sim
@@ -94,74 +94,67 @@ cd ../../../debug; make
 ./test.sh -f general/insert/query_multi_file.sim
 ./test.sh -f general/insert/tcp.sim
 
-# ./test.sh -f general/parser/alter.sim
-# ./test.sh -f general/parser/alter1.sim
-# ./test.sh -f general/parser/alter_stable.sim
-# ./test.sh -f general/parser/auto_create_tb.sim
-# ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
-./test.sh -f general/parser/binary_escapeCharacter.sim
-#./test.sh -f general/parser/bug.sim
+#unsupport ./test.sh -f general/parser/alter.sim
+#unsupport ./test.sh -f general/parser/alter1.sim
+#unsupport ./test.sh -f general/parser/alter_stable.sim
+./test.sh -f general/parser/auto_create_tb.sim
+#slguan ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f general/parser/col_arithmetic_operation.sim
-./test.sh -f general/parser/columnValue_bigint.sim
-./test.sh -f general/parser/columnValue_bool.sim
-./test.sh -f general/parser/columnValue_double.sim
-./test.sh -f general/parser/columnValue_float.sim
-./test.sh -f general/parser/columnValue_int.sim
-# ./test.sh -f general/parser/col_arithmetic_operation.sim
 ./test.sh -f general/parser/columnValue.sim
 ./test.sh -f general/parser/commit.sim
 # ./test.sh -f general/parser/create_db.sim
 # ./test.sh -f general/parser/create_mt.sim
 # ./test.sh -f general/parser/create_tb.sim
 # ./test.sh -f general/parser/dbtbnameValidate.sim
-# ./test.sh -f general/parser/fill.sim
-# ./test.sh -f general/parser/fill_stb.sim
-# ./test.sh -f general/parser/first_last.sim
 ./test.sh -f general/parser/import_commit1.sim
 ./test.sh -f general/parser/import_commit2.sim
 ./test.sh -f general/parser/import_commit3.sim
-# ./test.sh -f general/parser/import_file.sim
 # ./test.sh -f general/parser/insert_tb.sim
+# ./test.sh -f general/parser/first_last.sim
+# ./test.sh -f general/parser/import_file.sim
+# ./test.sh -f general/parser/lastrow.sim
+# ./test.sh -f general/parser/nchar.sim
+# ./test.sh -f general/parser/null_char.sim
+# ./test.sh -f general/parser/single_row_in_tb.sim
+./test.sh -f general/parser/select_from_cache_disk.sim
+# ./test.sh -f general/parser/limit.sim
+# ./test.sh -f general/parser/fill.sim
+# ./test.sh -f general/parser/fill_stb.sim
 # ./test.sh -f general/parser/tags_dynamically_specifiy.sim
 # ./test.sh -f general/parser/interp.sim
-# ./test.sh -f general/parser/lastrow.sim
-# ./test.sh -f general/parser/limit.sim
 # ./test.sh -f general/parser/limit1.sim
 # ./test.sh -f general/parser/limit1_tblocks100.sim
 # ./test.sh -f general/parser/limit2.sim
 # ./test.sh -f general/parser/mixed_blocks.sim
-# ./test.sh -f general/parser/nchar.sim
-# ./test.sh -f general/parser/null_char.sim
 # ./test.sh -f general/parser/selectResNum.sim
 # ./test.sh -f general/parser/select_across_vnodes.sim
-./test.sh -f general/parser/select_from_cache_disk.sim
 # ./test.sh -f general/parser/set_tag_vals.sim
-# ./test.sh -f general/parser/single_row_in_tb.sim
 # ./test.sh -f general/parser/slimit.sim
 ./test.sh -f general/parser/slimit1.sim
-./test.sh -f general/parser/slimit1_query.sim
-# ./test.sh -f general/parser/slimit_alter_tags.sim
-# ./test.sh -f general/parser/stream_on_sys.sim
-# ./test.sh -f general/parser/stream.sim
+#unsupport ./test.sh -f general/parser/slimit_alter_tags.sim
+#unsupport ./test.sh -f general/parser/stream_on_sys.sim
+#unsupport ./test.sh -f general/parser/stream.sim
 # ./test.sh -f general/parser/tbnameIn.sim
 # ./test.sh -f general/parser/where.sim
-# #./test.sh -f general/parser/repeatAlter.sim
-# #./test.sh -f general/parser/repeatStream.sim
+# ./test.sh -f general/parser/repeatAlter.sim
+#unsupport ./test.sh -f general/parser/repeatStream.sim
 # ./test.sh -f general/parser/join.sim
 # ./test.sh -f general/parser/join_multivnode.sim
 # ./test.sh -f general/parser/projection_limit_offset.sim
 # ./test.sh -f general/parser/select_with_tags.sim
 # ./test.sh -f general/parser/groupby.sim
+./test.sh -f general/parser/binary_escapeCharacter.sim
+#./test.sh -f general/parser/bug.sim
 
-#./test.sh -f general/stable/disk.sim
-#./test.sh -f general/stable/metrics.sim
-#./test.sh -f general/stable/values.sim
+./test.sh -f general/stable/disk.sim
+./test.sh -f general/stable/metrics.sim
+#liao? ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
 
 ./test.sh -f general/table/autocreate.sim
 ./test.sh -f general/table/basic1.sim
 ./test.sh -f general/table/basic2.sim
-#hongze ./test.sh -f general/table/basic3.sim
+./test.sh -f general/table/basic3.sim
 ./test.sh -f general/table/bigint.sim
 ./test.sh -f general/table/binary.sim
 ./test.sh -f general/table/bool.sim
@@ -186,29 +179,29 @@ cd ../../../debug; make
 ./test.sh -f general/table/tinyint.sim
 ./test.sh -f general/table/vgroup.sim
 
-#./test.sh -f general/tag/3.sim
-#./test.sh -f general/tag/4.sim
-#./test.sh -f general/tag/5.sim
-#./test.sh -f general/tag/6.sim
-#./test.sh -f general/tag/add.sim
+#liao ./test.sh -f general/tag/3.sim
+#liao? ./test.sh -f general/tag/4.sim
+#liao? ./test.sh -f general/tag/5.sim
+#liao? ./test.sh -f general/tag/6.sim
+#unsupport ./test.sh -f general/tag/add.sim
 ./test.sh -f general/tag/bigint.sim
-#./test.sh -f general/tag/binary_binary.sim
-#./test.sh -f general/tag/binary.sim
-#./test.sh -f general/tag/bool_binary.sim
-#./test.sh -f general/tag/bool_int.sim
+./test.sh -f general/tag/binary_binary.sim
+./test.sh -f general/tag/binary.sim
+./test.sh -f general/tag/bool_binary.sim
+./test.sh -f general/tag/bool_int.sim
 ./test.sh -f general/tag/bool.sim
-#./test.sh -f general/tag/change.sim
-#liao ./test.sh -f general/tag/column.sim
-#./test.sh -f general/tag/commit.sim
-#liao ./test.sh -f general/tag/create.sim
-#./test.sh -f general/tag/delete.sim
+#unsupport ./test.sh -f general/tag/change.sim
+./test.sh -f general/tag/column.sim
+#unsupport ./test.sh -f general/tag/commit.sim
+./test.sh -f general/tag/create.sim
+#unsupport ./test.sh -f general/tag/delete.sim
 #./test.sh -f general/tag/double.sim
 ./test.sh -f general/tag/filter.sim
-#./test.sh -f general/tag/float.sim
-#./test.sh -f general/tag/int_binary.sim
-#./test.sh -f general/tag/int_float.sim
+#liao? ./test.sh -f general/tag/float.sim
+#liao? ./test.sh -f general/tag/int_binary.sim
+./test.sh -f general/tag/int_float.sim
 ./test.sh -f general/tag/int.sim
-#./test.sh -f general/tag/set.sim
+#unsupport ./test.sh -f general/tag/set.sim
 ./test.sh -f general/tag/smallint.sim
 ./test.sh -f general/tag/tinyint.sim
 
@@ -224,7 +217,7 @@ cd ../../../debug; make
 ./test.sh -f general/vector/metrics_query.sim
 ./test.sh -f general/vector/metrics_tag.sim
 ./test.sh -f general/vector/metrics_time.sim
-#liao ./test.sh -f general/vector/multi.sim
+./test.sh -f general/vector/multi.sim
 ./test.sh -f general/vector/single.sim
 ./test.sh -f general/vector/table_field.sim
 ./test.sh -f general/vector/table_mix.sim

@@ -375,4 +375,4 @@ sql_error select 'abc';
 #=============================tbase-1205
 sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
 
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

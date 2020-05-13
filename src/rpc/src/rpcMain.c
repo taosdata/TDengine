@@ -612,7 +612,12 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = pHead->linkUid;
     if (pRpc->afp) {
-      terrno = (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
+      if (pConn->user[0] == 0) {
+        terrno = TSDB_CODE_AUTH_REQUIRED;
+      } else {
+        terrno = (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
+      }
+
       if (terrno != 0) {
         tWarn("%s %p, user not there or server not ready", pRpc->label, pConn);
         taosFreeId(pRpc->idPool, sid);   // sid shall be released
@@ -929,6 +934,12 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     SRpcReqContext *pContext = pConn->pContext;
     rpcMsg.handle = pContext->ahandle;
     pConn->pContext = NULL;
+
+    if (pHead->code == TSDB_CODE_AUTH_REQUIRED) {
+      pConn->secured = 0;
+      rpcSendReqToServer(pRpc, pContext);
+      return;
+    }
 
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
     rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->ipSet.port[pContext->ipSet.inUse], pConn->connType);    

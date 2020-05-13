@@ -1507,8 +1507,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   SQueryInfo *pPQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
   tscClearInterpInfo(pPQueryInfo);
   
-  tscCreateLocalReducer(trsupport->pExtMemBuffer, pState->numOfTotal, pDesc, trsupport->pFinalColModel,
-                        &pPObj->cmd, &pPObj->res);
+  tscCreateLocalReducer(trsupport->pExtMemBuffer, pState->numOfTotal, pDesc, trsupport->pFinalColModel, pPObj);
   tscTrace("%p build loser tree completed", pPObj);
   
   pPObj->res.precision = pSql->res.precision;

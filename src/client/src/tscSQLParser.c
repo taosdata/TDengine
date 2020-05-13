@@ -1297,10 +1297,6 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
       pSchema->bytes, functionId == TSDB_FUNC_TAGPRJ);
 }
 
-void addRequiredTagColumn(STableMetaInfo* pTableMetaInfo, SColumnIndex* index) {
-
-}
-
 static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSQLExprItem* pItem) {
   SSqlExpr* pExpr = doAddProjectCol(pQueryInfo, startPos, pIndex->columnIndex, pIndex->tableIndex);
 
@@ -3796,6 +3792,8 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
     
     tSQLExprDestroy(p1);
     tExprTreeDestroy(&p, NULL);
+    
+    taosArrayDestroy(colList);
   }
 
   pCondExpr->pTagCond = NULL;

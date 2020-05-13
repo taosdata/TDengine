@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c commitTime -v 30
+system sh/cfg.sh -n dnode1 -c ctime -v 30
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -59,3 +59,4 @@ if $data00 != $res then
   return -1
 endi
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

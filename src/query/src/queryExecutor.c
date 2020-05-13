@@ -506,7 +506,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
     w.ekey = pQuery->window.ekey;
   }
 
-  assert(ts >= w.skey && ts <= w.ekey && w.skey != 0);
+  assert(ts >= w.skey && ts <= w.ekey);
 
   return w;
 }
@@ -623,7 +623,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     setQueryStatus(pQuery, QUERY_COMPLETED | QUERY_RESBUF_FULL);
   } else {  // set the current index to be the last unclosed window
     int32_t i = 0;
-    int64_t skey = 0;
+    int64_t skey = TSKEY_INITIAL_VAL;
 
     for (i = 0; i < pWindowResInfo->size; ++i) {
       SWindowResult *pResult = &pWindowResInfo->pResult[i];
@@ -641,7 +641,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     }
 
     // all windows are closed, set the last one to be the skey
-    if (skey == 0) {
+    if (skey == TSKEY_INITIAL_VAL) {
       assert(i == pWindowResInfo->size);
       pWindowResInfo->curIndex = pWindowResInfo->size - 1;
     } else {
@@ -659,7 +659,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     qTrace("QInfo:%p total window:%d, closed:%d", GET_QINFO_ADDR(pRuntimeEnv), pWindowResInfo->size, n);
   }
 
-  assert(pWindowResInfo->prevSKey != 0);
+  assert(pWindowResInfo->prevSKey != TSKEY_INITIAL_VAL);
 }
 
 static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SDataBlockInfo *pDataBlockInfo, TSKEY *pPrimaryColumn,
@@ -3079,6 +3079,9 @@ void disableFuncInReverseScan(SQInfo *pQInfo) {
       int32_t functId = pQuery->pSelectExpr[j].base.functionId;
 
       SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[j];
+      if (pCtx->resultInfo == NULL) {
+        continue; // resultInfo is NULL, means no data checked in previous scan
+      }
 
       if (((functId == TSDB_FUNC_FIRST || functId == TSDB_FUNC_FIRST_DST) && order == TSDB_ORDER_ASC) ||
           ((functId == TSDB_FUNC_LAST || functId == TSDB_FUNC_LAST_DST) && order == TSDB_ORDER_DESC)) {
@@ -3593,7 +3596,6 @@ void setIntervalQueryRange(SQInfo *pQInfo, TSKEY key) {
   if (pTableQueryInfo->queryRangeSet) {
     pTableQueryInfo->lastKey = key;
   } else {
-//    pQuery->window.skey = key;
     pTableQueryInfo->win.skey = key;
     STimeWindow win = {.skey = key, .ekey = pQuery->window.ekey};
 
@@ -3616,18 +3618,16 @@ void setIntervalQueryRange(SQInfo *pQInfo, TSKEY key) {
     getAlignQueryTimeWindow(pQuery, win.skey, win.skey, win.ekey, &skey1, &ekey1, &w);
     pWindowResInfo->startTime = pTableQueryInfo->win.skey;  // windowSKey may be 0 in case of 1970 timestamp
 
-    if (pWindowResInfo->prevSKey == 0) {
-      if (QUERY_IS_ASC_QUERY(pQuery)) {
-        pWindowResInfo->prevSKey = w.skey;
-      } else {
+    if (pWindowResInfo->prevSKey == TSKEY_INITIAL_VAL) {
+      if (!QUERY_IS_ASC_QUERY(pQuery)) {
         assert(win.ekey == pQuery->window.skey);
-        pWindowResInfo->prevSKey = w.skey;
       }
+      
+      pWindowResInfo->prevSKey = w.skey;
     }
 
     pTableQueryInfo->queryRangeSet = 1;
     pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
-    pTableQueryInfo->win.skey = pTableQueryInfo->win.skey;
   }
 }
 
@@ -4071,10 +4071,11 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv) {
    *    pQuery->limit.offset times. Since hole exists, pQuery->intervalTime*pQuery->limit.offset value is
    *    not valid. otherwise, we only forward pQuery->limit.offset number of points
    */
-  assert(pRuntimeEnv->windowResInfo.prevSKey == 0);
+  assert(pRuntimeEnv->windowResInfo.prevSKey == TSKEY_INITIAL_VAL);
 
-  TSKEY           skey1, ekey1;
-  STimeWindow     w = {0};
+  TSKEY       skey1, ekey1;
+  STimeWindow w = TSWINDOW_INITIALIZER;
+  
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   STableQueryInfo *pTableQueryInfo = pQuery->current;
 
@@ -4739,7 +4740,7 @@ static void doRestoreContext(SQInfo *pQInfo) {
   SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
 
   if (pRuntimeEnv->pTSBuf != NULL) {
-    pRuntimeEnv->pTSBuf->cur.order = pRuntimeEnv->pTSBuf->cur.order ^ 1;
+    SWITCH_ORDER(pRuntimeEnv->pTSBuf->cur.order);
   }
 
   switchCtxOrder(pRuntimeEnv);

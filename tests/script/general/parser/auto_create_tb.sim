@@ -1,6 +1,4 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
@@ -222,13 +220,13 @@ sql show tables
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
+if $data00 != tb1 then
   return -1
 endi
 if $data10 != tb2 then
   return -1
 endi
-if $data20 != tb1 then
+if $data20 != tb3 then
   return -1
 endi
 
@@ -301,6 +299,9 @@ sql_error create table txu using tu tags(0) values(now, 1);
 
 #[TBASE-675]
 sql insert into tu values(1565971200000, 1) (1565971200000,2) (1565971200001, 3)(1565971200001, 4)
+sql select * from tu
 if $rows != 2 then
     return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
