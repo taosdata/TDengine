@@ -157,7 +157,7 @@ void *taosProcessAlarmSignal(void *tharg) {
   void (*callback)(int) = tharg;
 
   static timer_t         timerId;
-  struct sigevent sevent = {0};
+  struct sigevent sevent = {{0}};
 
   #ifdef _ALPINE
     sevent.sigev_notify = SIGEV_THREAD;

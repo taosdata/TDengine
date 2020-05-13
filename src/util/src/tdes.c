@@ -32,7 +32,7 @@ char* taosDesImp(unsigned char* key, char* src, unsigned int len, int process_mo
   unsigned int  number_of_blocks = len / 8;
   unsigned char data_block[9] = {0};
   unsigned char processed_block[9] = {0};
-  key_set       key_sets[17] = {0};
+  key_set       key_sets[17]; memset(key_sets, 0, sizeof(key_sets));
   char*         dest = calloc(len + 1, 1);
   generate_sub_keys(key, key_sets);
 

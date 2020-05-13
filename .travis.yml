@@ -204,6 +204,29 @@ matrix:
         esac
 
   - os: linux
+    dist: trusty
+    language: c
+    git:
+      - depth: 1
+
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+    env: 
+      - DESC="trusty/gcc-4.8 build"
+
+    before_script:
+      - cd ${TRAVIS_BUILD_DIR}
+      - mkdir debug
+      - cd debug
+
+    script:
+      - cmake .. > /dev/null
+      - make > /dev/null
+
+  - os: linux
     language: c
     compiler: clang
     env: DESC="linux/clang build"
