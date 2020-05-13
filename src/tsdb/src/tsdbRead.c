@@ -1346,7 +1346,7 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     int32_t type = 0;
     int32_t bytes = 0;
     
-    if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {  // todo refactor extract method , to queryExecutor to generate tags values
       f1 = (char*) pTable1->name;
       f2 = (char*) pTable2->name;
       type = TSDB_DATA_TYPE_BINARY;
@@ -1354,7 +1354,8 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     } else {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;
-  
+      type = pCol->type;
+      
       f1 = tdGetRowDataOfCol(pTable1->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
       f2 = tdGetRowDataOfCol(pTable2->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
     }

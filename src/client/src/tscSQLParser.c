@@ -3792,6 +3792,8 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
     
     tSQLExprDestroy(p1);
     tExprTreeDestroy(&p, NULL);
+    
+    taosArrayDestroy(colList);
   }
 
   pCondExpr->pTagCond = NULL;

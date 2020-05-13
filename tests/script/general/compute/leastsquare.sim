@@ -48,41 +48,41 @@ $tb = $tbPrefix . $i
 
 sql select leastsquares(tbcol, 1, 1) from $tb
 print ===> $data00
-if $data00 != @(1.000000, 1.000000)@ then 
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step3
 sql select leastsquares(tbcol, 1, 1) from $tb where ts < now + 4m
 print ===> $data00
-if $data00 != @(1.000000, 1.000000)@ then 
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step4
 sql select leastsquares(tbcol, 1, 1) as b from $tb
 print ===> $data00
-if $data00 != @(1.000000, 1.000000)@ then 
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step5
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1m)
 print ===> $data01 
-if $data01 != @(1.000000, 1.000000)@ then 
+if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 print ===> $data01
-if $data01 != @(1.000000, 1.000000)@ then 
+if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step6
 sql select leastsquares(tbcol, 1, 1) as b from $tb where ts < now + 4m interval(1m)
 print ===> $data01
-if $data01 != @(1.000000, 1.000000)@ then 
+if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 print ===> $rows
