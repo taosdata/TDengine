@@ -2399,7 +2399,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     // todo extract methods
     if (isIntervalQuery(pQuery) && pRuntimeEnv->windowResInfo.prevSKey == 0) {
       TSKEY           skey1, ekey1;
-      STimeWindow     w = {0};
+      STimeWindow     w = TSWINDOW_INITIALIZER;
       SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
 
       if (QUERY_IS_ASC_QUERY(pQuery)) {
