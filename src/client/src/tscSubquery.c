@@ -1203,7 +1203,7 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
     }
   }
   
-  pSql->cmd.command = (pSql->numOfSubs <= 0)? TSDB_SQL_RETRIEVE_EMPTY_RESULT:TSDB_SQL_METRIC_JOIN_RETRIEVE;
+  pSql->cmd.command = (pSql->numOfSubs <= 0)? TSDB_SQL_RETRIEVE_EMPTY_RESULT:TSDB_SQL_TABLE_JOIN_RETRIEVE;
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1949,7 +1949,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   
   assert(pRes->row >= 0 && pRes->row <= pRes->numOfRows);
   
-  if(pCmd->command == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
+  if(pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     if (pRes->completed) {
       tfree(pRes->tsrow);
     }
