@@ -1,0 +1,43 @@
+## Builder image
+FROM tdengine/tdengine:1.6.5.9 as builder1
+FROM golang:latest as builder
+
+
+
+WORKDIR /root
+
+COPY --from=builder1 /usr/include/taos.h /usr/include/
+COPY --from=builder1 /usr/lib/libtaos.so /usr/lib/libtaos.so
+COPY --from=builder1 /usr/include/taos.h /usr/include/
+COPY --from=builder1 /usr/lib/libtaos.so.1 /usr/lib/
+COPY blm_prometheus /root/blm_prometheus
+COPY go.mod /root
+COPY go.sum /root
+
+
+
+WORKDIR /root/blm_prometheus
+RUN go build
+
+FROM centos:7
+
+
+WORKDIR /root
+COPY --from=builder1 /usr/include/taos.h /usr/include/
+COPY --from=builder1 /usr/lib/libtaos.so.1 /usr/lib/
+RUN ln -s /usr/lib/libtaos.so.1 /usr/lib/libtaos.so
+
+COPY --from=builder /root/blm_prometheus /root
+
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib"
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+
+#RUN git config --global http.sslVerify false
+#RUN git config --global http.postbuffer 524288000
+VOLUME [ "/var/lib/taos", "/var/log/taos","/etc/taos/" ]
+
+ENTRYPOINT  [ "/root/blm_prometheus" ]
+
