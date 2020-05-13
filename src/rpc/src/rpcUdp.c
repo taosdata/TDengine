@@ -18,7 +18,6 @@
 #include "tsystem.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "thash.h"
 #include "rpcLog.h"
 #include "rpcHaship.h"
 #include "rpcUdp.h"

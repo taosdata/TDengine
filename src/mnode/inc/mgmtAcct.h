@@ -25,7 +25,7 @@ extern "C" {
 int32_t mgmtInitAccts();
 void    mgmtCleanUpAccts();
 void *  mgmtGetAcct(char *acctName);
-void *  mgmtGetNextAcct(void *pNode, SAcctObj **pAcct);
+void *  mgmtGetNextAcct(void *pIter, SAcctObj **pAcct);
 void    mgmtIncAcctRef(SAcctObj *pAcct);
 void    mgmtDecAcctRef(SAcctObj *pAcct);
 void    mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);

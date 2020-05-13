@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "ihash.h"
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "ttime.h"

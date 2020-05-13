@@ -95,11 +95,12 @@ static int32_t mgmtMnodeActionDecode(SSdbOper *pOper) {
 static int32_t mgmtMnodeActionRestored() {
   if (mgmtGetMnodesNum() == 1) {
     SMnodeObj *pMnode = NULL;
-    mgmtGetNextMnode(NULL, &pMnode);
+    void *pIter = mgmtGetNextMnode(NULL, &pMnode);
     if (pMnode != NULL) {
       pMnode->role = TAOS_SYNC_ROLE_MASTER;
       mgmtDecMnodeRef(pMnode);
     }
+    sdbFreeIter(pIter);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -157,8 +158,8 @@ void mgmtDecMnodeRef(SMnodeObj *pMnode) {
   sdbDecRef(tsMnodeSdb, pMnode);
 }
 
-void *mgmtGetNextMnode(void *pNode, SMnodeObj **pMnode) { 
-  return sdbFetchRow(tsMnodeSdb, pNode, (void **)pMnode); 
+void *mgmtGetNextMnode(void *pIter, SMnodeObj **pMnode) { 
+  return sdbFetchRow(tsMnodeSdb, pIter, (void **)pMnode); 
 }
 
 char *mgmtGetMnodeRoleStr(int32_t role) {
@@ -177,10 +178,10 @@ char *mgmtGetMnodeRoleStr(int32_t role) {
 }
 
 void mgmtGetMnodeIpSet(SRpcIpSet *ipSet) {
-  void *pNode = NULL;
+  void *pIter = NULL;
   while (1) {
     SMnodeObj *pMnode = NULL;
-    pNode = mgmtGetNextMnode(pNode, &pMnode);
+    pIter = mgmtGetNextMnode(pIter, &pMnode);
     if (pMnode == NULL) break;
 
     strcpy(ipSet->fqdn[ipSet->numOfIps], pMnode->pDnode->dnodeFqdn);
@@ -194,6 +195,7 @@ void mgmtGetMnodeIpSet(SRpcIpSet *ipSet) {
     
     mgmtDecMnodeRef(pMnode);
   }
+  sdbFreeIter(pIter);
 }
 
 void mgmtGetMnodeInfos(void *param) {
@@ -201,10 +203,10 @@ void mgmtGetMnodeInfos(void *param) {
   mnodes->inUse = 0;
   
   int32_t index = 0;
-  void *pNode = NULL;
+  void *pIter = NULL;
   while (1) {
     SMnodeObj *pMnode = NULL;
-    pNode = mgmtGetNextMnode(pNode, &pMnode);
+    pIter = mgmtGetNextMnode(pIter, &pMnode);
     if (pMnode == NULL) break;
 
     mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
@@ -216,6 +218,7 @@ void mgmtGetMnodeInfos(void *param) {
     index++;
     mgmtDecMnodeRef(pMnode);
   }
+  sdbFreeIter(pIter);
 
   mnodes->nodeNum = index;
 }
@@ -317,7 +320,7 @@ static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 
   pShow->numOfRows = mgmtGetMnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  pShow->pNode = NULL;
+  pShow->pIter = NULL;
   mgmtDecUserRef(pUser);
 
   return 0;
@@ -330,7 +333,7 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
   char      *pWrite;
 
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextMnode(pShow->pNode, &pMnode);
+    pShow->pIter = mgmtGetNextMnode(pShow->pIter, &pMnode);
     if (pMnode == NULL) break;
 
     cols = 0;
