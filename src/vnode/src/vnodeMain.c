@@ -54,7 +54,7 @@ int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
 void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
 #endif
 
-void vnodeInit() {
+static void vnodeInit() {
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
@@ -299,6 +299,8 @@ void vnodeRelease(void *pVnodeRaw) {
 }
 
 void *vnodeGetVnode(int32_t vgId) {
+  if (tsDnodeVnodesHash == NULL) return NULL;
+
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;

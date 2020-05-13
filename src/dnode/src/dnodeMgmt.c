@@ -173,7 +173,6 @@ static int32_t dnodeOpenVnodes() {
   int32_t numOfVnodes;
   int32_t status;
 
-  vnodeInit();
   status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
