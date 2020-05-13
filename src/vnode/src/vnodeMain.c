@@ -33,12 +33,11 @@ static int32_t  tsOpennedVnodes;
 static void    *tsDnodeVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
 static void     vnodeBuildVloadMsg(char *pNode, void * param);
-static int      vnodeWalCallback(void *arg);
 static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
 static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
 static bool     vnodeReadVersion(SVnodeObj *pVnode);
-static int      vnodeWalCallback(void *arg);
+static int      vnodeProcessTsdbStatus(void *arg, int status);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
@@ -206,7 +205,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
-  appH.walCallBack = vnodeWalCallback;
+  appH.notifyStatus = vnodeProcessTsdbStatus;
   appH.cqH = pVnode->cq;
 
   sprintf(temp, "%s/tsdb", rootDir);
@@ -374,14 +373,20 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   walClose(pVnode->wal);
   pVnode->wal = NULL;
 
-  vnodeSaveVersion(pVnode);
   vnodeRelease(pVnode);
 }
 
 // TODO: this is a simple implement
-static int vnodeWalCallback(void *arg) {
+static int vnodeProcessTsdbStatus(void *arg, int status) {
   SVnodeObj *pVnode = arg;
-  return walRenew(pVnode->wal);
+
+  if (status == TSDB_STATUS_COMMIT_START)
+    return walRenew(pVnode->wal);
+
+  if (status == TSDB_STATUS_COMMIT_OVER)
+    return vnodeSaveVersion(pVnode);
+
+  return 0; 
 }
 
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
@@ -414,7 +419,7 @@ static void vnodeNotifyFileSynced(void *ahandle) {
   tsdbCloseRepo(pVnode->tsdb);
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
-  appH.walCallBack = vnodeWalCallback;
+  appH.notifyStatus = vnodeProcessTsdbStatus;
   appH.cqH = pVnode->cq;
   pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
 }
