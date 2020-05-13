@@ -477,10 +477,10 @@ void mgmtSendSimpleResp(void *thandle, int32_t code) {
 bool mgmtCheckQhandle(uint64_t qhandle) {
   void *pSaved = taosCacheAcquireByData(tsQhandleCache, (void *)qhandle);
   if (pSaved == (void *)qhandle) {
-    mTrace("qhandle:%p is retrived", qhandle);
+    mTrace("show:%p, is retrieved", qhandle);
     return true;
   } else {
-    mTrace("qhandle:%p is already released", qhandle);
+    mTrace("show:%p, is already released", qhandle);
     return false;
   }
 }
@@ -492,7 +492,7 @@ void* mgmtSaveQhandle(void *qhandle, int32_t size) {
     void *newQhandle = taosCachePut(tsQhandleCache, key, qhandle, size, 60);
     free(qhandle);
     
-    mTrace("qhandle:%p is saved", newQhandle);
+    mTrace("show:%p, is saved", newQhandle);
     return newQhandle;
   }
   
@@ -501,12 +501,12 @@ void* mgmtSaveQhandle(void *qhandle, int32_t size) {
 
 static void mgmtFreeShowObj(void *data) {
   SShowObj *pShow = data;
-  //sdbFreeIter(pShow->pIter);
-  mTrace("qhandle:%p is destroyed", pShow);
+  sdbFreeIter(pShow->pIter);
+  mTrace("show:%p, is destroyed", pShow);
 }
 
 void mgmtFreeQhandle(void *qhandle, bool forceRemove) {
-  mTrace("qhandle:%p is released", qhandle);
+  mTrace("show:%p, is released, force:%s", qhandle, forceRemove ? "true" : "false");
   taosCacheRelease(tsQhandleCache, &qhandle, forceRemove);
 }
 

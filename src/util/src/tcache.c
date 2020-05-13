@@ -401,7 +401,7 @@ SCacheObj *taosCacheInitWithCb(void *tmrCtrl, int64_t refreshTime, void (*freeCb
   }
   
   // set free cache node callback function for hash table
-  // taosHashSetFreecb(pCacheObj->pHashTable, taosFreeNode);
+  taosHashSetFreecb(pCacheObj->pHashTable, taosFreeNode);
   
   pCacheObj->freeFp = freeCb;
   pCacheObj->refreshTime = refreshTime * 1000;
