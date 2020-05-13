@@ -7,6 +7,7 @@
 #include "tscompression.h"
 #include "tchecksum.h"
 #include "ttime.h"
+#include <sys/stat.h>
 
 int tsdbDebugFlag = 135;
 
@@ -133,6 +134,7 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) 
  */
 int32_t tsdbDropRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  int id = pRepo->config.tsdbId;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
 
@@ -147,6 +149,8 @@ int32_t tsdbDropRepo(TsdbRepoT *repo) {
 
   free(pRepo->rootDir);
   free(pRepo);
+
+  tsdbTrace("vgId: %d tsdb repository is dropped!", id);
 
   return 0;
 }
@@ -238,6 +242,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
 
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
+  tsdbTrace("vgId: %d open tsdb repository successfully!", pRepo->config.tsdbId);
   return (TsdbRepoT *)pRepo;
 }
 
@@ -256,6 +261,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
 int32_t tsdbCloseRepo(TsdbRepoT *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   if (pRepo == NULL) return 0;
+  int id = pRepo->config.tsdbId;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
   tsdbLockRepo(repo);
@@ -288,6 +294,8 @@ int32_t tsdbCloseRepo(TsdbRepoT *repo) {
 
   tfree(pRepo->rootDir);
   tfree(pRepo);
+
+  tsdbTrace("vgId: %d repository is closed!", id);
 
   return 0;
 }
@@ -349,6 +357,7 @@ int32_t tsdbTriggerCommit(TsdbRepoT *repo) {
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
   pthread_create(&(pRepo->commitThread), &thattr, tsdbCommitData, (void *)repo);
+  tsdbTrace("vgId: %d start to commit!", pRepo->config.tsdbId);
 
   return 0;
 }
@@ -376,11 +385,6 @@ STsdbRepoInfo *tsdbGetStatus(TsdbRepoT *pRepo) {
   return NULL;
 }
 
-int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-  return tsdbCreateTableImpl(pRepo->tsdbMeta, pCfg);
-}
-
 int tsdbAlterTable(TsdbRepoT *pRepo, STableCfg *pCfg) {
   // TODO
   return 0;
@@ -393,13 +397,6 @@ TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid) {
   if (pTable == NULL) return -1;
 
   return TSDB_GET_TABLE_LAST_KEY(pTable);
-}
-
-int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
-  if (repo == NULL) return -1;
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-
-  return tsdbDropTableImpl(pRepo->tsdbMeta, tableId);
 }
 
 STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tableId) {
@@ -756,12 +753,12 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
   if (tsdbGetDataDirName(pRepo, dirName) < 0) return -1;
 
   if (mkdir(dirName, 0755) < 0) {
-    tsdbError("id %d: failed to create repository directory! reason %s", pRepo->config.tsdbId, strerror(errno));
+    tsdbError("vgId: %d failed to create repository directory! reason %s", pRepo->config.tsdbId, strerror(errno));
     return -1;
   }
 
-  tsdbError(
-      "id %d: set up tsdb environment succeed! cacheBlockSize %d, totalBlocks %d, maxTables %d, daysPerFile %d, keep "
+  tsdbTrace(
+      "vgId: %d set up tsdb environment succeed! cacheBlockSize %d, totalBlocks %d, maxTables %d, daysPerFile %d, keep "
       "%d, minRowsPerFileBlock %d, maxRowsPerFileBlock %d, precision %d, compression%d",
       pRepo->config.tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->maxTables, pCfg->daysPerFile, pCfg->keep,
       pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression);
@@ -841,6 +838,9 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (key > pTable->lastKey) pTable->lastKey = key;
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
+
+  tsdbTrace("vgId: %d, tid: %d, uid: " PRId64 "a row is inserted to table! key" PRId64,
+            pRepo->config.tsdbId, pTable->tableId.tid, pTable->tableId.uid, dataRowKey(row));
 
   return 0;
 }
@@ -1104,11 +1104,14 @@ static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minK
 }
 
 static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
+  int8_t oldCompRession = pRepo->config.compression;
   pRepo->config.compression = compression;
+  tsdbTrace("vgId: %d tsdb compression is changed from %d to %d", oldCompRession, compression);
 }
 
 static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
   STsdbCfg *pCfg = &pRepo->config;
+  int oldKeep = pCfg->keep;
 
   int maxFiles = keep / pCfg->maxTables + 3;
   if (pRepo->config.keep > keep) {
@@ -1120,8 +1123,57 @@ static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
     }
     pRepo->tsdbFileH->maxFGroups = maxFiles;
   }
+  tsdbTrace("vgId: %d keep is changed from %d to %d", pRepo->config.tsdbId, oldKeep, keep);
 }
 
 static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   // TODO
+  int oldMaxTables = pRepo->config.maxTables;
+  tsdbTrace("vgId: %d tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
+}
+
+uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size) {
+  // TODO: need to refactor this function
+
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  // STsdbMeta *pMeta = pRepo->tsdbMeta;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  uint32_t   magic = 0;
+  char       fname[256] = "\0";
+
+  struct stat fState;
+  char *spath = strdup(pRepo->rootDir);
+  char *prefixDir = dirname(spath);
+
+  if (name[0] == 0) {
+    // Map index to the file name
+    int fid = (*index) / 3;
+
+    if (fid > pFileH->numOfFGroups) {
+      // return meta data file
+      if ((*index) % 3 > 0) { // it is finished
+        tfree(spath);
+        return 0;
+      } else {
+        tsdbGetMetaFileName(pRepo->rootDir, fname);
+      }
+    } else {
+      // return data file name
+      strcpy(fname, pFileH->fGroup[fid].files[(*index) % 3].fname);
+    }
+    strcpy(name, fname + strlen(spath));
+  } else {
+    // Name is provided, need to get the file info
+    sprintf(fname, "%s/%s", prefixDir, name);
+  }
+
+  if (stat(fname, &fState) < 0) {
+    tfree(spath);
+    return 0;
+  }
+
+  *size = fState.st_size;
+  magic = *size;
+
+  return magic;
 }

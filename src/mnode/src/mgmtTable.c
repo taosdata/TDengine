@@ -24,6 +24,7 @@
 #include "tname.h"
 #include "tidpool.h"
 #include "tglobal.h"
+#include "hash.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtInt.h"
@@ -194,7 +195,7 @@ static int32_t mgmtChildTableActionUpdate(SSdbOper *pOper) {
 }
 
 static int32_t mgmtChildTableActionEncode(SSdbOper *pOper) {
-  const int32_t maxRowSize = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS;
+  const int32_t maxRowSize = sizeof(SChildTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
   SChildTableObj *pTable = pOper->pObj;
   assert(pTable != NULL && pOper->rowData != NULL);
 
@@ -336,7 +337,7 @@ static int32_t mgmtInitChildTables() {
     .tableId      = SDB_TABLE_CTABLE,
     .tableName    = "ctables",
     .hashSessions = tsMaxTables,
-    .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+    .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16),
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
     .insertFp     = mgmtChildTableActionInsert,
@@ -363,39 +364,35 @@ static void mgmtCleanUpChildTables() {
 }
 
 static void mgmtAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
-  if (pStable->vgLen == 0) {
-    pStable->vgLen = 8;
-    pStable->vgList = calloc(pStable->vgLen, sizeof(int32_t));
-  }
-  
-  bool find = false;
-  int32_t pos = 0;
-  for (pos = 0; pos < pStable->vgLen; ++pos) {
-    if (pStable->vgList[pos] == 0) break;
-    if (pStable->vgList[pos] == pCtable->vgId) {
-      find = true;
-      break;
-    }
-  }
-
-  if (!find) {
-    if (pos >= pStable->vgLen) {
-      pStable->vgLen *= 2;
-      pStable->vgList = realloc(pStable->vgList, pStable->vgLen * sizeof(int32_t));
-    }
-    pStable->vgList[pos] = pCtable->vgId;
-  }
-
   pStable->numOfTables++;
+
+  if (pStable->vgHash == NULL) {
+    pStable->vgHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  }
+
+  if (pStable->vgHash != NULL) {
+    taosHashPut(pStable->vgHash, (char *)&pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+  }
 }
 
 static void mgmtRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
   pStable->numOfTables--;
+
+  if (pStable->vgHash == NULL) return;
+
+  SVgObj *pVgroup = mgmtGetVgroup(pCtable->vgId);
+  if (pVgroup == NULL) {
+    taosHashRemove(pStable->vgHash, (char *)&pCtable->vgId, sizeof(pCtable->vgId));
+  }
+  mgmtDecVgroupRef(pVgroup);
 }
 
 static void mgmtDestroySuperTable(SSuperTableObj *pStable) {
+  if (pStable->vgHash != NULL) {
+    taosHashCleanup(pStable->vgHash);
+    pStable->vgHash = NULL;
+  }
   tfree(pStable->schema);
-  tfree(pStable->vgList)
   tfree(pStable);
 }
 
@@ -434,7 +431,7 @@ static int32_t mgmtSuperTableActionUpdate(SSdbOper *pOper) {
     void *oldSchema = pTable->schema;
     memcpy(pTable, pNew, pOper->rowSize);
     pTable->schema = pNew->schema;
-    free(pNew->vgList);
+    free(pNew->vgHash);
     free(pNew);
     free(oldSchema);
   }
@@ -443,7 +440,7 @@ static int32_t mgmtSuperTableActionUpdate(SSdbOper *pOper) {
 }
 
 static int32_t mgmtSuperTableActionEncode(SSdbOper *pOper) {
-  const int32_t maxRowSize = sizeof(SChildTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS;
+  const int32_t maxRowSize = sizeof(SChildTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
 
   SSuperTableObj *pStable = pOper->pObj;
   assert(pOper->pObj != NULL && pOper->rowData != NULL);
@@ -494,7 +491,7 @@ static int32_t mgmtInitSuperTables() {
     .tableId      = SDB_TABLE_STABLE,
     .tableName    = "stables",
     .hashSessions = TSDB_MAX_SUPER_TABLES,
-    .maxRowSize   = tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+    .maxRowSize   = tsSuperTableUpdateSize + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16),
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
     .insertFp     = mgmtSuperTableActionInsert,
@@ -797,26 +794,26 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
 static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
   SSuperTableObj *pStable = (SSuperTableObj *)pMsg->pTable;
   if (pStable->numOfTables != 0) {
-    mgmtDropAllChildTablesInStable(pStable);
-    for (int32_t vg = 0; vg < pStable->vgLen; ++vg) {
-      int32_t vgId = pStable->vgList[vg];
-      if (vgId == 0) break;
-
-      SVgObj *pVgroup = mgmtGetVgroup(vgId);
+    SHashMutableIterator *pIter = taosHashCreateIter(pStable->vgHash);
+    while (taosHashIterNext(pIter)) {
+      int32_t *pVgId = taosHashIterGet(pIter);
+      SVgObj *pVgroup = mgmtGetVgroup(*pVgId);
       if (pVgroup == NULL) break;
-      
+
       SMDDropSTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropSTableMsg));
       pDrop->contLen = htonl(sizeof(SMDDropSTableMsg));
-      pDrop->vgId = htonl(vgId);
+      pDrop->vgId = htonl(pVgroup->vgId);
       pDrop->uid = htobe64(pStable->uid);
       mgmtExtractTableName(pStable->info.tableId, pDrop->tableId);
         
-      mPrint("stable:%s, send drop stable msg to vgId:%d", pStable->info.tableId, vgId);
+      mPrint("stable:%s, send drop stable msg to vgId:%d", pStable->info.tableId, pVgroup->vgId);
       SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
       SRpcMsg rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
       dnodeSendMsgToDnode(&ipSet, &rpcMsg);
       mgmtDecVgroupRef(pVgroup);
     }
+
+    mgmtDropAllChildTablesInStable(pStable);
   } 
   
   SSdbOper oper = {
@@ -1219,7 +1216,7 @@ static int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTa
 
 static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
   SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
-  STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
+  STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sversion     = htons(pTable->sversion);
   pMeta->precision    = pMsg->pDb->cfg.precision;
@@ -1243,59 +1240,58 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
 static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
   SCMSTableVgroupMsg *pInfo = pMsg->pCont;
   int32_t numOfTable = htonl(pInfo->numOfTables);
-  
-  char* name = (char*) pInfo + sizeof(struct SCMSTableVgroupMsg);
-  SCMSTableVgroupRspMsg *pRsp = NULL;
-  
-  // todo set the initial size to be 10, fix me
-  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + (sizeof(SCMVgroupInfo) * 10 + sizeof(SVgroupsInfo))*numOfTable;
-  
-  pRsp = rpcMallocCont(contLen);
+
+  // reserve space
+  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo); 
+  for (int32_t i = 0; i < numOfTable; ++i) {
+    char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
+    SSuperTableObj *pTable = mgmtGetSuperTable(stableName);
+    if (pTable->vgHash != NULL) {
+      contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo));
+    }
+    mgmtDecTableRef(pTable);
+  }
+
+  SCMSTableVgroupRspMsg *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return;
   }
-  
+
   pRsp->numOfTables = htonl(numOfTable);
   char* msg = (char*) pRsp + sizeof(SCMSTableVgroupRspMsg);
-  
-  for(int32_t i = 0; i < numOfTable; ++i) {
-    SSuperTableObj *pTable = mgmtGetSuperTable(name);
-  
-    pMsg->pTable = (STableObj *)pTable;
-    if (pMsg->pTable == NULL) {
-      mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
-      return;
-    }
-    
-    SVgroupsInfo* pVgroup = (SVgroupsInfo*) msg;
-    
-    int32_t vg = 0;
-    for (; vg < pTable->vgLen; ++vg) {
-      int32_t vgId = pTable->vgList[vg];
-      if (vgId == 0) break;
-    
-      SVgObj *vgItem = mgmtGetVgroup(vgId);
-      if (vgItem == NULL) break;
-  
-      pVgroup->vgroups[vg].vgId = htonl(vgId);
-      for (int32_t vn = 0; vn < vgItem->numOfVnodes; ++vn) {
-        SDnodeObj *pDnode = vgItem->vnodeGid[vn].pDnode;
+
+  for (int32_t i = 0; i < numOfTable; ++i) {
+    char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
+    SSuperTableObj *pTable = mgmtGetSuperTable(stableName);
+    SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
+
+    SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
+    int32_t vgSize = 0;
+    while (taosHashIterNext(pIter)) {
+      int32_t *pVgId = taosHashIterGet(pIter);
+      SVgObj * pVgroup = mgmtGetVgroup(*pVgId);
+      if (pVgroup == NULL) continue;
+
+      pVgroupInfo->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
+      for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
+        SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
         if (pDnode == NULL) break;
-  
-        strncpy(pVgroup->vgroups[vg].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
-        pVgroup->vgroups[vg].ipAddr[vn].port = htons(tsDnodeShellPort);
-        
-        pVgroup->vgroups[vg].numOfIps++;
+
+        strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
+        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(tsDnodeShellPort);
+
+        pVgroupInfo->vgroups[vgSize].numOfIps++;
       }
-    
-      mgmtDecVgroupRef(vgItem);
+
+      vgSize++;
+      mgmtDecVgroupRef(pVgroup);
     }
-  
-    pVgroup->numOfVgroups = htonl(vg);
-    
+
+    pVgroupInfo->numOfVgroups = htonl(vgSize);
+
     // one table is done, try the next table
-    msg += sizeof(SVgroupsInfo) + vg * sizeof(SCMVgroupInfo);
+    msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
   }
 
   SRpcMsg rpcRsp = {0};
@@ -1735,7 +1731,7 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
 }
 
 static void mgmtGetChildTableMeta(SQueuedMsg *pMsg) {
-  STableMetaMsg *pMeta = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
+  STableMetaMsg *pMeta = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
   if (pMeta == NULL) {
     mError("table:%s, failed to get table meta, no enough memory", pMsg->pTable->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
@@ -1983,7 +1979,7 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
     if (pMsg->pDb == NULL) continue;
 
     int availLen = totalMallocLen - pMultiMeta->contLen;
-    if (availLen <= sizeof(STableMetaMsg) + sizeof(SSchema) * TSDB_MAX_COLUMNS) {
+    if (availLen <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
       //TODO realloc
       //totalMallocLen *= 2;
       //pMultiMeta = rpcReMalloc(pMultiMeta, totalMallocLen);

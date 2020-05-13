@@ -83,3 +83,4 @@ sleep 3000
 
 run general/parser/first_last_query.sim
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -8,7 +8,7 @@
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
 #define TSDB_META_FILE_NAME "META"
 
-const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;
+const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;   // skip list built based on the first column of tags
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
@@ -234,7 +234,6 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-// todo refactor table name definition
 int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
@@ -242,6 +241,7 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   STColumn* pCol = NULL;
   
+  // todo binary search
   for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
     STColumn* p = schemaColAt(pSchema, col);
     if (p->colId == colId) {
@@ -283,7 +283,10 @@ char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes) {
   }
 }
 
-int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
+int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
   if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 
   STable *super = NULL;
@@ -351,8 +354,14 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   }
 
   // Register to meta
-  if (newSuper) tsdbAddTableToMeta(pMeta, super, true);
+  if (newSuper) {
+    tsdbAddTableToMeta(pMeta, super, true);
+    tsdbTrace("vgId: %d super table is created! uid " PRId64, pRepo->config.tsdbId,
+              super->tableId.uid);
+  }
   tsdbAddTableToMeta(pMeta, table, true);
+  tsdbTrace("vgId: %d table is created! tid %d, uid " PRId64, pRepo->config.tsdbId, table->tableId.tid,
+            table->tableId.uid);
 
   // Write to meta file
   int bufLen = 0;
@@ -385,13 +394,24 @@ STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId) {
   return pTable;
 }
 
-int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
+// int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
+int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  if (pRepo == NULL) return -1;
+
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
   if (pMeta == NULL) return -1;
 
   STable *pTable = tsdbGetTableByUid(pMeta, tableId.uid);
-  if (pTable == NULL) return -1;
+  if (pTable == NULL) {
+    tsdbError("vgId %d: failed to drop table since table not exists! tid %d, uid " PRId64, pRepo->config.tsdbId,
+              tableId.tid, tableId.uid);
+    return -1;
+  }
 
+  tsdbTrace("vgId: %d table is dropped! tid %d, uid " PRId64, pRepo->config.tsdbId, tableId.tid, tableId.uid);
   if (tsdbRemoveTableFromMeta(pMeta, pTable) < 0) return -1;
+
   return 0;
 
 }
@@ -483,7 +503,9 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     SSkipListIterator  *pIter = tSkipListCreateIter(pTable->pIndex);
     while (tSkipListIterNext(pIter)) {
-      STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STableIndexElem *pEle = (STableIndexElem *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STable *tTable = pEle->pTable;
+
       ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
 
       pMeta->tables[tTable->tableId.tid] = NULL;
@@ -548,7 +570,10 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
   assert(pSTable != NULL);
   
-  char* key = dataRowTuple(pTable->tagVal); // key
+  STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
+  STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
+  
+  char* key = tdGetRowDataOfCol(pTable->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
   bool ret = tSkipListRemove(pSTable->pIndex, key);
   
   assert(ret);

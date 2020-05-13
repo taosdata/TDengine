@@ -51,10 +51,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
     return TSDB_CODE_MSG_NOT_PROCESSED; 
 
-  if (pVnode->status != TAOS_VN_STATUS_READY && qtype == TAOS_QTYPE_RPC) 
-    return TSDB_CODE_NOT_ACTIVE_VNODE; 
-
-  if (pHead->version == 0) { // from client 
+  if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) 
       return TSDB_CODE_NOT_ACTIVE_VNODE;
 
@@ -64,12 +61,10 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     // assign version
     pVnode->version++;
     pHead->version = pVnode->version;
-  } else {  
+  } else { // from wal or forward 
     // for data from WAL or forward, version may be smaller
     if (pHead->version <= pVnode->version) return 0;
   }
-   
-  // more status and role checking here
 
   pVnode->version = pHead->version;
 
@@ -77,9 +72,13 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   code = walWrite(pVnode->wal, pHead);
   if (code < 0) return code;
 
-  int32_t syncCode = syncForwardToPeer(pVnode->sync, pHead, item);
+  // forward to peers if data is from RPC or CQ
+  int32_t syncCode = 0;
+  if (qtype == TAOS_QTYPE_RPC || qtype == TAOS_QTYPE_CQ) 
+    syncCode = syncForwardToPeer(pVnode->sync, pHead, item);
   if (syncCode < 0) return syncCode;
 
+  // write data locally 
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
   if (code < 0) return code;
 

@@ -540,8 +540,11 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
 
 static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
   SSkipListIterator* iter = NULL;
+  
   SQueryCond cond = {0};
-  setQueryCond(pQueryInfo, &cond);
+  if (setQueryCond(pQueryInfo, &cond) != TSDB_CODE_SUCCESS) {
+    //todo handle error
+  }
 
   if (cond.start != NULL) {
     iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->keyInfo.type, TSDB_ORDER_ASC);
@@ -757,7 +760,7 @@ static bool filterItem(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *p
   assert(pLeft->nodeType == TSQL_NODE_COL && pRight->nodeType == TSQL_NODE_VALUE);
   param->setupInfoFn(pExpr, param->pExtInfo);
 
-  return param->fp(pItem, pExpr->_node.info);
+  return param->nodeFilterFn(pItem, pExpr->_node.info);
 }
 
 /**
@@ -798,33 +801,33 @@ static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSki
   tSkipListDestroyIter(iter);
 }
 
-static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
+static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* res, __result_filter_fn_t filterFp) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
 
   while (tSkipListIterNext(iter)) {
     bool addToResult = false;
 
     SSkipListNode *pNode = tSkipListIterGet(iter);
-    char* pTable = SL_GET_NODE_DATA(pNode);
-    
-    //todo refactor:
-    tstr* name = ((STableIndexElem*) pTable)->pTable->name;
-//    char* name = NULL;
-//    tsdbGetTableName(tsdb, pTable, &name);
+    char *         pData = SL_GET_NODE_DATA(pNode);
+
+    // todo refactor:
+    tstr *name = ((STableIndexElem *)pData)->pTable->name;
+    //    char* name = NULL;
+//        tsdbGetTableName(pQueryInfo->, pTable, &name);
 
     // todo speed up by using hash
     if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
         addToResult = pQueryInfo->compare(name, pQueryInfo->q);
-      } else if(pQueryInfo->optr == TSDB_RELATION_LIKE) {
+      } else if (pQueryInfo->optr == TSDB_RELATION_LIKE) {
         addToResult = !pQueryInfo->compare(name, pQueryInfo->q);
       }
     } else {
-      // TODO: other columns
+      addToResult = filterFp(pNode, pQueryInfo);
     }
 
     if (addToResult) {
-      taosArrayPush(result, pTable);
+      taosArrayPush(res, pData);
     }
   }
 
@@ -848,7 +851,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
 
     param->setupInfoFn(pExpr, param->pExtInfo);
     if (pSkipList == NULL) {
-      tArrayTraverse(pExpr, param->fp, result);
+      tArrayTraverse(pExpr, param->nodeFilterFn, result);
       return;
     }
 
@@ -856,7 +859,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
     if (pQueryInfo->colIndex == 0 && pQueryInfo->optr != TSDB_RELATION_LIKE) {
       tQueryIndexColumn(pSkipList, pQueryInfo, result);
     } else {
-      tQueryIndexlessColumn(pSkipList, pQueryInfo, result);
+      tQueryIndexlessColumn(pSkipList, pQueryInfo, result, param->nodeFilterFn);
     }
 
     return;

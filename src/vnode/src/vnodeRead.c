@@ -65,7 +65,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
     
-    vTrace("vgId:%d QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
+    vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
   } else {
     pQInfo = pCont;
     code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -83,7 +83,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  vTrace("vgId:%d QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
+  vTrace("vgId:%d, QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
   
   pRet->code = qRetrieveQueryResultInfo(pQInfo);
   if (pRet->code != TSDB_CODE_SUCCESS) {
@@ -104,6 +104,6 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
     }
   }
   
-  vTrace("vgId:%d QInfo:%p, retrieve msg is disposed", pVnode->vgId, pQInfo);
+  vTrace("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, pQInfo);
   return code;
 }

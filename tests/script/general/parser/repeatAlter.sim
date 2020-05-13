@@ -5,3 +5,5 @@ while $i <= $loops
   run general/parser/alter.sim
   $i = $i + 1
 endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

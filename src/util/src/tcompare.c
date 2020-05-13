@@ -51,12 +51,21 @@ int32_t compareDoubleIntVal(const void *pLeft, const void *pRight) {
   }
 }
 
+int32_t compareFloatVal(const void *pLeft, const void *pRight) {
+  float ret = GET_FLOAT_VAL(pLeft) - GET_FLOAT_VAL(pRight);
+  if (fabs(ret) < FLT_EPSILON) {
+    return 0;
+  } else {
+    return ret > 0? 1 : -1;
+  }
+}
+
 int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   double ret = GET_DOUBLE_VAL(pLeft) - GET_DOUBLE_VAL(pRight);
   if (fabs(ret) < FLT_EPSILON) {
     return 0;
   } else {
-    return ret > 0 ? 1 : -1;
+    return ret > 0? 1 : -1;
   }
 }
 
@@ -67,33 +76,29 @@ int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {
   if (len1 != len2) {
     return len1 > len2? 1:-1;
   } else {
-    return (int32_t) strncmp(varDataVal(pLeft), varDataVal(pRight), len1);
+    int32_t ret = strncmp(varDataVal(pLeft), varDataVal(pRight), len1);
+    if (ret == 0) {
+      return 0;
+    } else {
+      return ret > 0 ? 1:-1;
+    }
   }
 }
 
-int32_t compareWStrVal(const void *pLeft, const void *pRight) {
-  //  SSkipListKey *pL = (SSkipListKey *)pLeft;
-  //  SSkipListKey *pR = (SSkipListKey *)pRight;
-  //
-  //  if (pL->nLen == 0 && pR->nLen == 0) {
-  //    return 0;
-  //  }
-  //
-  //  // handle only one-side bound compare situation, there is only lower bound or only upper bound
-  //  if (pL->nLen == -1) {
-  //    return 1;  // no lower bound, lower bound is minimum, always return -1;
-  //  } else if (pR->nLen == -1) {
-  //    return -1;  // no upper bound, upper bound is maximum situation, always return 1;
-  //  }
-  //
-  //  int32_t ret = wcscmp(((SSkipListKey *)pLeft)->wpz, ((SSkipListKey *)pRight)->wpz);
-  //
-  //  if (ret == 0) {
-  //    return 0;
-  //  } else {
-  //    return ret > 0 ? 1 : -1;
-  //  }
-  return 0;
+int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
+  int32_t len1 = varDataLen(pLeft);
+  int32_t len2 = varDataLen(pRight);
+  
+  if (len1 != len2) {
+    return len1 > len2? 1:-1;
+  } else {
+    int32_t ret = wcsncmp(varDataVal(pLeft), varDataVal(pRight), len1);
+    if (ret == 0) {
+      return 0;
+    } else {
+      return ret > 0 ? 1 : -1;
+    }
+  }
 }
 
 /*
@@ -131,7 +136,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
         size_t n = strcspn(str, next);
         str += n;
         
-        if (str[0] == 0 || (n >= size - 1)) {
+        if (str[0] == 0 || (n >= size)) {
           break;
         }
         
@@ -179,10 +184,10 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
       
       wchar_t accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
-        size_t n = wcsspn(str, accept);
+        size_t n = wcscspn(str, accept);
         
         str += n;
-        if (str[0] == 0 || (n >= size - 1)) {
+        if (str[0] == 0 || (n >= size)) {
           break;
         }
         
@@ -261,7 +266,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      comparFn = compareDoubleVal; break;
+      comparFn = compareFloatVal; break;
     }
     
     case TSDB_DATA_TYPE_DOUBLE: {
@@ -284,7 +289,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
       } else {
-        comparFn = compareWStrVal;
+        comparFn = compareLenPrefixedWStr;
       }
     
       break;
@@ -317,6 +322,8 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
       comparFn = compareInt64Val;
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      comparFn = compareFloatVal;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
       break;
@@ -326,7 +333,7 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
       break;
     
     case TSDB_DATA_TYPE_NCHAR:
-      comparFn = compareWStrVal;
+      comparFn = compareLenPrefixedWStr;
       break;
     
     default:
