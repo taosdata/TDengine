@@ -17,7 +17,7 @@
 #include "hash.h"
 #include "hashfunc.h"
 #include "os.h"
-#include "shash.h"
+#include "hash.h"
 #include "taos.h"
 #include "taosdef.h"
 #include "tstoken.h"

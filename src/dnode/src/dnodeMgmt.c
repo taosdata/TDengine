@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "ihash.h"
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "ttime.h"
@@ -174,6 +173,7 @@ static int32_t dnodeOpenVnodes() {
   int32_t numOfVnodes;
   int32_t status;
 
+  vnodeInit();
   status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {

@@ -24,8 +24,6 @@
 #include "twal.h"
 #include "tsync.h"
 #include "tglobal.h"
-#include "hashint.h"
-#include "hashstr.h"
 #include "dnode.h"
 #include "mgmtDef.h"
 #include "mgmtInt.h"

@@ -19,7 +19,6 @@
 #include "tglobal.h"
 #include "tsocket.h"
 #include "ttimer.h"
-#include "shash.h"
 #include "http.h"
 #include "httpLog.h"
 #include "httpCode.h"
