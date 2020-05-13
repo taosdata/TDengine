@@ -15,6 +15,8 @@ cd ../../../debug; make
 ./test.sh -f general/cache/restart_metrics.sim
 ./test.sh -f general/cache/restart_table.sim
 
+./test.sh -f general/connection/connections.sim
+
 ./test.sh -f general/column/commit.sim
 ./test.sh -f general/column/metrics.sim
 ./test.sh -f general/column/table.sim
@@ -205,6 +207,7 @@ cd ../../../debug; make
 ./test.sh -f general/tag/smallint.sim
 ./test.sh -f general/tag/tinyint.sim
 
+./test.sh -f general/user/authority.sim
 ./test.sh -f general/user/basic1.sim
 ./test.sh -f general/user/monitor.sim
 ./test.sh -f general/user/pass_alter.sim
