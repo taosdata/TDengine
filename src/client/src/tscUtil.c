@@ -157,7 +157,7 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   }
   
   // for select query super table, the super table vgroup list can not be null in any cases.
-  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     assert(pTableMetaInfo->vgroupList != NULL);
   }
   
@@ -172,7 +172,7 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
 
   if (((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) != TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&
       pQueryInfo->command == TSDB_SQL_SELECT) {
-    return UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
+    return UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   }
 
   return false;
@@ -187,7 +187,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
    * 4. show queries, instead of a select query
    */
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-  if (pTableMetaInfo == NULL || !UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) ||
+  if (pTableMetaInfo == NULL || !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) ||
       pQueryInfo->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || numOfExprs == 0) {
     return false;
   }
@@ -1350,7 +1350,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == -1 && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (colId == -1 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     return true;
   }
 
@@ -1461,10 +1461,11 @@ bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
 }
 
 /*
- * the following three kinds of SqlObj should not be freed
+ * the following four kinds of SqlObj should not be freed
  * 1. SqlObj for stream computing
  * 2. main SqlObj
  * 3. heartbeat SqlObj
+ * 4. SqlObj for subscription
  *
  * If res code is error and SqlObj does not belong to above types, it should be
  * automatically freed for async query, ignoring that connection should be kept.
@@ -1477,7 +1478,7 @@ bool tscShouldBeFreed(SSqlObj* pSql) {
   }
 
   STscObj* pTscObj = pSql->pTscObj;
-  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pTscObj->pSql == pSql) {
+  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pTscObj->pSql == pSql || pSql->pSubscription != NULL) {
     return false;
   }
 
@@ -1874,7 +1875,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   
   assert(pNewQueryInfo->numOfTables == 1);
   
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     assert(pFinalInfo->vgroupList != NULL);
   }
   
@@ -2009,7 +2010,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
 //  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
 //  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-//  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) || (pTableMetaInfo->pMetricMeta == NULL)) {
+//  if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) || (pTableMetaInfo->pMetricMeta == NULL)) {
     return false;
 //  }
   
@@ -2169,3 +2170,26 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
   }
 }
 
+void* malloc_throw(size_t size) {
+  void* p = malloc(size);
+  if (p == NULL) {
+    THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
+void* calloc_throw(size_t nmemb, size_t size) {
+  void* p = calloc(nmemb, size);
+  if (p == NULL) {
+    THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
+char* strdup_throw(const char* str) {
+  char* p = strdup(str);
+  if (p == NULL) {
+    THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
+  }
+  return p;
+}

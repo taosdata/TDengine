@@ -14,7 +14,7 @@ int32_t exceptionPopNode() {
     return node->code;
 }
 
-void exceptionThrow( int code ) {
+void exceptionThrow( int32_t code ) {
     expList->code = code;
     longjmp( expList->jb, 1 );
 }
@@ -38,12 +38,17 @@ static void cleanupWrapper_void_ptr( SCleanupAction* ca ) {
 
 static void cleanupWrapper_int_int( SCleanupAction* ca ) {
     int (*func)( int ) = ca->func;
-    func( (int)(intptr_t)(ca->arg1.Int) );
+    func( ca->arg1.Int );
 }
 
-static void cleanupWrapper_void_void( SCleanupAction* ca ) {
+static void cleanupWrapper_void( SCleanupAction* ca ) {
     void (*func)() = ca->func;
     func();
+}
+
+static void cleanupWrapper_int_ptr( SCleanupAction* ca ) {
+    int (*func)( void* ) = ca->func;
+    func( ca->arg1.Ptr );
 }
 
 typedef void (*wrapper)(SCleanupAction*);
@@ -52,7 +57,8 @@ static wrapper wrappers[] = {
     cleanupWrapper_void_ptr_bool,
     cleanupWrapper_void_ptr,
     cleanupWrapper_int_int,
-    cleanupWrapper_void_void,
+    cleanupWrapper_void,
+    cleanupWrapper_int_ptr,
 };
 
 
@@ -107,6 +113,15 @@ void cleanupPush_void( bool failOnly, void* func ) {
     ca->func = func;
 }
 
+void cleanupPush_int_ptr( bool failOnly, void* func, void* arg ) {
+    assert( expList->numCleanupAction < expList->maxCleanupAction );
+
+    SCleanupAction *ca = expList->cleanupActions + expList->numCleanupAction++;
+    ca->wrapper = 5;
+    ca->failOnly = failOnly;
+    ca->func = func;
+    ca->arg1.Ptr = arg;
+}
 
 
 int32_t cleanupGetActionCount() {
@@ -118,8 +133,9 @@ static void doExecuteCleanup( SExceptionNode* node, int32_t anchor, bool failed 
     while( node->numCleanupAction > anchor ) {
         --node->numCleanupAction;
         SCleanupAction *ca = node->cleanupActions + node->numCleanupAction;
-        if( failed || !(ca->failOnly) )
+        if( failed || !(ca->failOnly) ) {
             wrappers[ca->wrapper]( ca );
+        }
     }
 }
 
