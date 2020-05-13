@@ -488,7 +488,7 @@ void tscBuildVgroupTableInfo(STableMetaInfo* pTableMetaInfo, SArray* tables) {
     if( prev == NULL || tt->vgId != prev->vgId ) {
       SVgroupsInfo* pvg = pTableMetaInfo->vgroupList;
 
-      SVgroupTableInfo info = { 0 };
+      SVgroupTableInfo info = {{ 0 }};
       for( int32_t m = 0; m < pvg->numOfVgroups; ++m ) {
         if( tt->vgId == pvg->vgroups[m].vgId ) {
           info.vgInfo = pvg->vgroups[m];

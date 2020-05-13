@@ -161,7 +161,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
   SFileGroup *pFGroup = NULL;
 
   SFileGroupIter iter;
-  SRWHelper      rhelper = {0};
+  SRWHelper      rhelper = {{0}};
 
   if (tsdbInitReadHelper(&rhelper, pRepo) < 0) goto _err;
   tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_ASC);
@@ -948,7 +948,7 @@ static void *tsdbCommitData(void *arg) {
   STsdbCache *pCache = pRepo->tsdbCache;
   STsdbCfg *  pCfg = &(pRepo->config);
   SDataCols * pDataCols = NULL;
-  SRWHelper   whelper = {0};
+  SRWHelper   whelper = {{0}};
   if (pCache->imem == NULL) return NULL;
 
   tsdbPrint("vgId: %d, starting to commit....", pRepo->config.tsdbId);

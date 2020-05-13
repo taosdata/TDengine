@@ -25,7 +25,7 @@
 #include "tsystem.h"
 #include "tutil.h"
 
-SGlobalCfg tsGlobalConfig[TSDB_CFG_MAX_NUM] = {0};
+SGlobalCfg tsGlobalConfig[TSDB_CFG_MAX_NUM] = {{0}};
 int32_t    tsGlobalConfigNum = 0;
 
 static char *tsGlobalUnit[] = {
