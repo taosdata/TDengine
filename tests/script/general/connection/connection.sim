@@ -16,6 +16,6 @@ sql connect
 
 print ============= step3
 sql close
-sql connect write
+sql connect
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
