@@ -4162,6 +4162,42 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv) {
   return true;
 }
 
+
+static void setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
+  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+
+  if (onlyQueryTags(pQuery)) {
+    return;
+  }
+
+  if (isSTableQuery && (!isIntervalQuery(pQuery)) && (!isFixedOutputQuery(pQuery))) {
+    return;
+  }
+
+  STsdbQueryCond cond = {
+    .twindow = pQuery->window,
+    .order   = pQuery->order.order,
+    .colList = pQuery->colList,
+    .numOfCols = pQuery->numOfCols,
+  };
+
+  if (!isSTableQuery
+    && (pQInfo->groupInfo.numOfTables == 1)
+    && (cond.order == TSDB_ORDER_ASC) 
+    && (!isIntervalQuery(pQuery))
+    && (!isGroupbyNormalCol(pQuery->pGroupbyExpr))
+    && (!isFixedOutputQuery(pQuery))
+  ) {
+    SArray* pa = taosArrayGetP(pQInfo->groupInfo.pGroupList, 0);
+    SGroupItem* pItem = taosArrayGet(pa, 0);
+    cond.twindow = pItem->info->win;
+  }
+
+  pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
+}
+
+
 int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool isSTableQuery) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
@@ -4170,30 +4206,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
 
   setScanLimitationByResultBuffer(pQuery);
   changeExecuteScanOrder(pQuery, false);
-
-  STsdbQueryCond cond = {
-      .twindow = pQuery->window,
-      .order   = pQuery->order.order,
-      .colList = pQuery->colList,
-      .numOfCols = pQuery->numOfCols,
-  };
-  
-  
-  // normal query setup the queryhandle here
-  if (!onlyQueryTags(pQuery)) {
-    if (!isSTableQuery && isFirstLastRowQuery(pQuery)) {  // in case of last_row query, invoke a different API.
-      pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
-    } else if (!isSTableQuery || isIntervalQuery(pQuery) || isFixedOutputQuery(pQuery)) {
-
-      if(pQInfo->groupInfo.numOfTables == 1) {
-        SArray* pa = taosArrayGetP(pQInfo->groupInfo.pGroupList, 0);
-        SGroupItem* pItem = taosArrayGet(pa, 0);
-        cond.twindow = pItem->info->win;
-      }
-
-      pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
-    }
-  }
+  setupQueryHandle(tsdb, pQInfo, isSTableQuery);
   
   pQInfo->tsdb = tsdb;
   pQInfo->vgId = vgId;
@@ -5772,7 +5785,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
       if (pTableId != NULL ) {
         window.skey = pTableId->key;
       } else {
-        window.skey = INT64_MIN;
+        window.skey = pQueryMsg->window.skey;
       }
       item.info = createTableQueryInfo(&pQInfo->runtimeEnv, item.id, window);
       item.info->groupIdx = i;

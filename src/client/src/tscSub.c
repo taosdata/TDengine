@@ -56,16 +56,16 @@ static int tscCompareSubscriptionProgress(const void* a, const void* b) {
   return 0;
 }
 
-TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid) {
+TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt) {
   if (sub == NULL) {
-    return 0;
+    return dflt;
   }
   SSub* pSub = (SSub*)sub;
 
   SSubscriptionProgress target = {.uid = uid, .key = 0};
   SSubscriptionProgress* p = taosArraySearch(pSub->progress, tscCompareSubscriptionProgress, &target);
   if (p == NULL) {
-    return INT64_MIN;
+    return dflt;
   }
   return p->key;
 }
@@ -228,7 +228,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   for( size_t i = 0; i < numOfTables; i++ ) {
     STidTags* tt = taosArrayGet( tables, i );
     SSubscriptionProgress p = { .uid = tt->uid };
-    p.key = tscGetSubscriptionProgress(pSub, tt->uid);
+    p.key = tscGetSubscriptionProgress(pSub, tt->uid, INT64_MIN);
     taosArrayPush(progress, &p);
   }
   taosArraySort(progress, tscCompareSubscriptionProgress);
