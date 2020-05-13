@@ -145,7 +145,7 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
     return;
   }
   
-  // local reducer has handle this situation during super table non-projection query.
+  // local merge has handle this situation during super table non-projection query.
   if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
     pRes->numOfTotalInCurrentClause += pRes->numOfRows;
   }
@@ -222,9 +222,30 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   tscResetForNextRetrieve(pRes);
   
   // handle the sub queries of join query
-  if (pCmd->command == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
+  if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     tscFetchDatablockFromSubquery(pSql);
-  } else {
+  } else if (pRes->completed && pCmd->command == TSDB_SQL_FETCH) {
+    if (hasMoreVnodesToTry(pSql)) { // sequentially retrieve data from remain vnodes.
+      tscTryQueryNextVnode(pSql, tscAsyncQueryRowsForNextVnode);
+      return;
+    } else {
+      /*
+       * all available virtual node has been checked already, now we need to check
+       * for the next subclause queries
+       */
+      if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
+        tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
+        return;
+      }
+    
+      /*
+       * 1. has reach the limitation
+       * 2. no remain virtual nodes to be retrieved anymore
+       */
+      (*pSql->fetchFp)(param, pSql, 0);
+    }
+    return;
+  } else { // current query is not completed, continue retrieve from node
     if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }

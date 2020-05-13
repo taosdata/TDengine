@@ -283,7 +283,6 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   // used to keep the latest input row
   pReducer->pTempBuffer = (tFilePage *)calloc(1, pReducer->rowSize + sizeof(tFilePage));
-
   pReducer->discardData = (tFilePage *)calloc(1, pReducer->rowSize + sizeof(tFilePage));
   pReducer->discard = false;
 
@@ -311,6 +310,8 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     return;
   }
 
+  size = tscSqlExprNumOfExprs(pQueryInfo);
+  
   pReducer->pTempBuffer->numOfElems = 0;
   pReducer->pResInfo = calloc(size, sizeof(SResultInfo));
 

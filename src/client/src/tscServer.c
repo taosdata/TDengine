@@ -1445,8 +1445,9 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
+  pRes->completed = (pRes->numOfRows == 0);
 
-  uint8_t code = pRes->code;
+  int32_t code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
   } else {
