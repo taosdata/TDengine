@@ -1209,18 +1209,18 @@ void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex) {
   }
 }
 
-void tscColumnListDestroy(SArray* pColumnBaseInfo) {
-  if (pColumnBaseInfo == NULL) {
+void tscColumnListDestroy(SArray* pColumnList) {
+  if (pColumnList == NULL) {
     return;
   }
 
-  size_t num = taosArrayGetSize(pColumnBaseInfo);
+  size_t num = taosArrayGetSize(pColumnList);
   for (int32_t i = 0; i < num; ++i) {
-    SColumn* pCol = taosArrayGetP(pColumnBaseInfo, i);
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
     tscColumnDestroy(pCol);
   }
 
-  taosArrayDestroy(pColumnBaseInfo);
+  taosArrayDestroy(pColumnList);
 }
 
 /*
@@ -1572,7 +1572,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   
   assert(pQueryInfo->exprList == NULL);
   pQueryInfo->exprList = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->colList  = taosArrayInit(4, POINTER_BYTES);
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
@@ -1666,8 +1666,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   assert(pTableMetaInfo != NULL);
 
   if (name != NULL) {
-    assert(strlen(name) <= TSDB_TABLE_ID_LEN);
-    strcpy(pTableMetaInfo->name, name);
+    strncpy(pTableMetaInfo->name, name, TSDB_TABLE_ID_LEN);
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
@@ -1678,10 +1677,9 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
     memcpy(pTableMetaInfo->vgroupList, vgroupList, size);
   }
 
-  if (pTagCols == NULL) {
-    pTableMetaInfo->tagColList = taosArrayInit(4, POINTER_BYTES);
-  } else {
-    pTableMetaInfo->tagColList = taosArrayClone(pTagCols);
+  pTableMetaInfo->tagColList = taosArrayInit(4, POINTER_BYTES);
+  if (pTagCols != NULL) {
+    tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, -1);
   }
   
   pQueryInfo->numOfTables += 1;
@@ -1701,6 +1699,12 @@ void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
   tfree(pTableMetaInfo->vgroupList);
   
   if (pTableMetaInfo->tagColList != NULL) {
+    size_t numOfTags = taosArrayGetSize(pTableMetaInfo->tagColList);
+    for(int32_t i = 0; i < numOfTags; ++i) { // todo do NOT use the allocated object
+      SColumn* pCol = taosArrayGetP(pTableMetaInfo->tagColList, i);
+      tfree(pCol);
+    }
+    
     taosArrayDestroy(pTableMetaInfo->tagColList);
     pTableMetaInfo->tagColList = NULL;
   }
@@ -1788,7 +1792,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     tscFreeSqlObj(pNew);
     return NULL;
   }
-
+  
   tscColumnListCopy(pNewQueryInfo->colList, pQueryInfo->colList, (int16_t)tableIndex);
 
   // set the correct query type
@@ -1847,7 +1851,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   if (pPrevSql == NULL) {
     STableMeta* pTableMeta = taosCacheAcquireByName(tscCacheHandle, name);
-
+    // todo handle error
+    assert(pTableMeta != NULL);
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->tagColList);
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);

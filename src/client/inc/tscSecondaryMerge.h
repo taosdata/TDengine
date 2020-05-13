@@ -116,7 +116,7 @@ int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tF
  * create local reducer to launch the second-stage reduce process at client site
  */
 void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
-                           SColumnModel *finalModel, SSqlCmd *pSqlCmd, SSqlRes *pRes);
+                           SColumnModel *finalModel, SSqlObj* pSql);
 
 void tscDestroyLocalReducer(SSqlObj *pSql);
 

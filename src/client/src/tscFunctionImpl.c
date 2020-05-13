@@ -2904,7 +2904,11 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
   
   param[1][2] /= param[1][1];
   
-  sprintf(pCtx->aOutputBuf, "(%lf, %lf)", param[0][2], param[1][2]);
+  int32_t maxOutputSize = TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE - VARSTR_HEADER_SIZE;
+  size_t n = snprintf(varDataVal(pCtx->aOutputBuf), maxOutputSize, "{slop:%.6lf, intercept:%.6lf}",
+      param[0][2], param[1][2]);
+  
+  varDataSetLen(pCtx->aOutputBuf, n);
   doFinalizer(pCtx);
 }
 
