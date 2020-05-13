@@ -494,11 +494,10 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-
-      code = tscGetMeterMeta(pSql, pMeterMetaInfo);
-      pRes->code = code;
-
-      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      if(pMeterMetaInfo->pMeterMeta == NULL) {
+        code = tscGetMeterMeta(pSql, pMeterMetaInfo);
+        assert(code == TSDB_CODE_SUCCESS);
+      }
 
       assert(pMeterMetaInfo->pMeterMeta->numOfTags != 0 && pMeterMetaInfo->vnodeIndex >= 0 && pSql->param != NULL);
 
