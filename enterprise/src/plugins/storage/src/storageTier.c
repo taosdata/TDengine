@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "shash.h"
+#include "hash.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "storageTier.h"
