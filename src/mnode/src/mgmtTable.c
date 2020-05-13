@@ -812,6 +812,7 @@ static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
       dnodeSendMsgToDnode(&ipSet, &rpcMsg);
       mgmtDecVgroupRef(pVgroup);
     }
+    taosHashDestroyIter(pIter);
 
     mgmtDropAllChildTablesInStable(pStable);
   } 
@@ -1287,6 +1288,8 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
       vgSize++;
       mgmtDecVgroupRef(pVgroup);
     }
+
+    taosHashDestroyIter(pIter);
 
     pVgroupInfo->numOfVgroups = htonl(vgSize);
 
