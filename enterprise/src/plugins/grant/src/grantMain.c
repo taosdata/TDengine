@@ -104,7 +104,7 @@ static char *grantSecondsToString(uint32_t seconds) {
 }
 
 static uint32_t grantGetCulsterCreateTime() {
-  void *     pNode = NULL;
+  void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   SAcctObj * pAcct = NULL;
   SUserObj * pUser = NULL;
@@ -112,32 +112,39 @@ static uint32_t grantGetCulsterCreateTime() {
 
   int64_t createTime = (int64_t)taosGetTimestampMs();
   while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     createTime = createTime < pDnode->createdTime ? createTime : pDnode->createdTime;
     mgmtDecDnodeRef(pDnode);
   }
+  sdbFreeIter(pIter);
+  pIter = NULL;
 
   while (1) {
-    pNode = mgmtGetNextAcct(pNode, &pAcct);
+    pIter = mgmtGetNextAcct(pIter, &pAcct);
     if (pAcct == NULL) break;
     createTime = createTime < pAcct->createdTime ? createTime : pAcct->createdTime;
     mgmtDecAcctRef(pAcct);
   }
+  sdbFreeIter(pIter);
+  pIter = NULL;
 
   while (1) {
-    pNode = mgmtGetNextUser(pNode, &pUser);
+    pIter = mgmtGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
     createTime = createTime < pUser->createdTime ? createTime : pUser->createdTime;
     mgmtDecUserRef(pUser);
   }
+  sdbFreeIter(pIter);
+  pIter = NULL;
 
   while (1) {
-    pNode = mgmtGetNextDb(pNode, &pDb);
+    pIter = mgmtGetNextDb(pIter, &pDb);
     if (pDb == NULL) break;
     createTime = createTime < pDb->createdTime ? createTime : pDb->createdTime;
     mgmtDecDbRef(pDb);
   }
+  sdbFreeIter(pIter);
 
   return (uint32_t)(createTime / 1000);
 }
@@ -145,12 +152,12 @@ static uint32_t grantGetCulsterCreateTime() {
 static uint32_t grantGetCulsterCurSpeed() { return 0; }
 
 static uint32_t grantGetCulsterCurTimeSeries() {
-  void *          pNode = NULL;
+  void *          pIter = NULL;
   SChildTableObj *pTable = NULL;
   uint32_t        numOfPoints = 0;
 
   while (1) {
-    pNode = mgmtGetNextChildTable(pNode, &pTable);
+    pIter = mgmtGetNextChildTable(pIter, &pTable);
     if (pTable == NULL) break;
     if (pTable->superTable != NULL) {
       numOfPoints += (pTable->superTable->numOfColumns - 1);
@@ -160,39 +167,45 @@ static uint32_t grantGetCulsterCurTimeSeries() {
     mgmtDecTableRef(pTable);
   }
 
+  sdbFreeIter(pIter);
+
   return numOfPoints;
 }
 
 static uint32_t grantGetCulsterCurQueryTime() { return 0; }
 
 static uint32_t grantGetCulsterCurDbs() {
-  void *   pNode = NULL;
+  void *   pIter = NULL;
   SDbObj * pDb = NULL;
   uint32_t numOfDbs = 0;
 
   while (1) {
-    pNode = mgmtGetNextDb(pNode, &pDb);
+    pIter = mgmtGetNextDb(pIter, &pDb);
     if (pDb == NULL) break;
     if (strcmp(pDb->name, tsMonitorDbName) != 0) numOfDbs++;
     mgmtDecDbRef(pDb);
   }
 
+  sdbFreeIter(pIter);
+
   return numOfDbs;
 }
 
 static uint32_t grantGetCulsterCurUsers() {
-  void *    pNode = NULL;
+  void *    pIter = NULL;
   SUserObj *pUser = NULL;
   uint32_t  numOfUsers = 0;
 
   while (1) {
-    pNode = mgmtGetNextUser(pNode, &pUser);
+    pIter = mgmtGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
     if (strcmp(pUser->user, "monitor") == 0) continue;
     if (pUser->user[0] == '_') continue;
     numOfUsers++;
     mgmtDecUserRef(pUser);
   }
+
+  sdbFreeIter(pIter);
 
   return numOfUsers;
 }
@@ -204,47 +217,52 @@ UNUSED_FUNC
 static uint32_t grantGetCulsterCurStreams() { return 0; }
 
 static uint32_t grantGetCulsterCurAccts() {
-  void *    pNode = NULL;
+  void *    pIter = NULL;
   SAcctObj *pAcct = NULL;
   uint32_t  numOfAccts = 0;
 
   while (1) {
-    pNode = mgmtGetNextAcct(pNode, &pAcct);
+    pIter = mgmtGetNextAcct(pIter, &pAcct);
     if (pAcct == NULL) break;
     numOfAccts++;
     mgmtDecAcctRef(pAcct);
   }
+  sdbFreeIter(pIter);
 
   return numOfAccts;
 }
 
 static uint32_t grantGetCulsterCurDnodes() {
-  void *     pNode = NULL;
+  void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   int32_t    numOfDnodes = 0;
 
   while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     numOfDnodes++;
     mgmtDecDnodeRef(pDnode);
   }
+
+  sdbFreeIter(pIter);
 
   return numOfDnodes;
 }
 
 UNUSED_FUNC
 static uint32_t grantGetCulsterCurCpuCores() {
-  void *     pNode = NULL;
+  void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   uint32_t   numOfCpuCores = 0;
 
   while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     numOfCpuCores += pDnode->numOfCores;
     mgmtDecDnodeRef(pDnode);
   }
+
+  sdbFreeIter(pIter);
 
   return numOfCpuCores;
 }
@@ -568,10 +586,10 @@ static void grantCheckGrantInfo() {
     /*
      * When all nodes are online, the grant time is judged
      */
-    void *     pNode = NULL;
+    void *     pIter = NULL;
     SDnodeObj *pDnode = NULL;
     while (1) {
-      pNode = mgmtGetNextDnode(pNode, &pDnode);
+      pIter = mgmtGetNextDnode(pIter, &pDnode);
       if (pDnode == NULL) break;
 
       if (pDnode->status == 0) {  // TSDB_DN_STATUS_OFFLINE
@@ -581,6 +599,7 @@ static void grantCheckGrantInfo() {
 
       mgmtDecDnodeRef(pDnode);
     }
+    sdbFreeIter(pIter);
 
     uint32_t curTime = taosGetTimestampSec();
     if (curTime > grantStatus.lastReceived && curTime - grantStatus.lastReceived > GRANT_TOLERENCE) {
@@ -706,7 +725,7 @@ static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 
   pShow->numOfRows = 1;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  pShow->pNode = NULL;
+  pShow->pIter = NULL;
 
   return 0;
 }
