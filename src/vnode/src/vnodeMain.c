@@ -265,7 +265,10 @@ void vnodeRelease(void *pVnodeRaw) {
   int32_t    vgId = pVnode->vgId;
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  assert(refCount >= 0);
+  if (ref < 0) {
+    vTrace("vgId:%d, other thread is releasing vnode, refCount:%d", vgId, refCount);
+    return; // avoid two threads dec ref count
+  }
 
   if (refCount > 0) {
     vTrace("vgId:%d, release vnode, refCount:%d", vgId, refCount);
