@@ -33,21 +33,9 @@ class TDTestCase:
 
         print("==============step2")
         try:
-            tdSql.execute("drop table db.st")
+            tdSql.execute("create table db.test as select * from db.st")
         except Exception as e:
             tdLog.exit(e)
-
-        try:
-            tdSql.execute("select * from db.st")
-        except Exception as e:
-            if e.args[0] != 'invalid table name':
-                tdLog.exit(e)
-
-        try:
-            tdSql.execute("select * from db.tb")
-        except Exception as e:
-            if e.args[0] != 'invalid table name':
-                tdLog.exit(e)
 
     def stop(self):
         tdSql.close()
