@@ -425,11 +425,10 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-      
-      code = tscGetTableMeta(pSql, pTableMetaInfo);
-      pRes->code = code;
-
-      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      if (pTableMetaInfo->pTableMeta == NULL){
+        code = tscGetTableMeta(pSql, pTableMetaInfo);
+        assert(code == TSDB_CODE_SUCCESS);      
+      }     
       
       assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->vgroupIndex >= 0 && pSql->param != NULL);
 
