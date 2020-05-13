@@ -316,10 +316,10 @@ static bool balanceMonitorBalance() {
     SDnodeObj *pSrcDnode = tsBalanceDnodeList[src];
     float srcScore = balanceTryCalcDnodeScore(pSrcDnode, -1);
 
-    void *pNode = NULL;
+    void *pIter = NULL;
     while (1) {
       SVgObj *pVgroup;
-      pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+      pIter = mgmtGetNextVgroup(pIter, &pVgroup);
       if (pVgroup == NULL) break;
 
       if (balanceCheckDnodeInVgroup(pSrcDnode, pVgroup)) {
@@ -341,6 +341,8 @@ static bool balanceMonitorBalance() {
 
       mgmtDecVgroupRef(pVgroup);
     }
+
+    sdbFreeIter(pIter);
   }
 
   return false;
@@ -351,10 +353,10 @@ static bool balanceMonitorBalance() {
 // 2. reset state of dnodes to offline
 // 3. reset lastAccess of dnodes to zero
 void balanceReset() {
-  void *     pNode = NULL;
+  void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
 
     // while master change, should reset dnode to offline
@@ -367,16 +369,18 @@ void balanceReset() {
     mgmtDecDnodeRef(pDnode);
   }
 
+  sdbFreeIter(pIter);
+
   tsAccessSquence = 0;
 }
 
 static int32_t balanceMonitorVgroups() {
-  void *  pNode = NULL;
+  void *  pIter = NULL;
   SVgObj *pVgroup = NULL;
   bool    hasUpdatingVgroup = false;
 
   while (1) {
-    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     int32_t dbReplica = pVgroup->pDb->cfg.replications;
@@ -404,17 +408,19 @@ static int32_t balanceMonitorVgroups() {
     mgmtDecVgroupRef(pVgroup);
   }
 
+  sdbFreeIter(pIter);
+
   return hasUpdatingVgroup;
 }
 
 static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
   mTrace("dnode:%d, in dropping state", pDnode->dnodeId);
 
-  void *  pNode = NULL;
+  void *  pIter = NULL;
   bool    hasThisDnode = false;
   while (1) {
     SVgObj *pVgroup = NULL;
-    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     hasThisDnode = balanceCheckDnodeInVgroup(pDnode, pVgroup);
@@ -422,6 +428,8 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
 
     if (hasThisDnode) break;
   }
+
+  sdbFreeIter(pIter);
 
   if (!hasThisDnode) {
     mPrint("dnode:%d, dropped for all vnodes are moving to other dnodes", pDnode->dnodeId);
@@ -433,12 +441,12 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
 }
 
 static bool balanceMontiorDropping() {
-  void *pNode = NULL;
+  void *pIter = NULL;
   SDnodeObj *pDnode = NULL;
 
   while (1) {
     mgmtDecDnodeRef(pDnode);
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
 
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
@@ -461,6 +469,8 @@ static bool balanceMontiorDropping() {
       return ret;
     }
   }
+
+  sdbFreeIter(pIter);
 
   return false;
 }
@@ -492,10 +502,10 @@ static bool balanceStart() {
 }
 
 static void balanceSetVgroupOffline(SDnodeObj* pDnode) {
-  void *pNode = NULL;
+  void *pIter = NULL;
   while (1) {
     SVgObj *pVgroup;
-    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
@@ -505,14 +515,16 @@ static void balanceSetVgroupOffline(SDnodeObj* pDnode) {
     }
     mgmtDecVgroupRef(pVgroup);
   }
+
+  sdbFreeIter(pIter);
 }
 
 static void balanceCheckDnodeAccess() {
-  void *     pNode = NULL;
+  void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
 
   while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     if (tsAccessSquence - pDnode->lastAccess > 3) {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
@@ -523,6 +535,8 @@ static void balanceCheckDnodeAccess() {
     }
     mgmtDecDnodeRef(pDnode);
   }
+
+  sdbFreeIter(pIter);
 }
 
 static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
@@ -595,11 +609,11 @@ void balanceCleanUp() {
 
 int32_t balanceDropDnode(SDnodeObj *pDnode) {
   int32_t    totalFreeVnodes = 0;
-  void *     pNode = NULL;
+  void *     pIter = NULL;
   SDnodeObj *pTempDnode = NULL;
 
   while (1) {
-    pNode = mgmtGetNextDnode(pNode, &pTempDnode);
+    pIter = mgmtGetNextDnode(pIter, &pTempDnode);
     if (pTempDnode == NULL) break;
 
     if (pTempDnode != pDnode && balanceCheckFree(pTempDnode)) {
@@ -608,6 +622,8 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
 
     mgmtDecDnodeRef(pTempDnode);
   }
+
+  sdbFreeIter(pIter);
 
   if (pDnode->openVnodes > totalFreeVnodes) {
     mError("dnode:%d, openVnodes:%d totalFreeVnodes:%d no enough dnodes", pDnode->dnodeId, pDnode->openVnodes, totalFreeVnodes);
@@ -716,13 +732,13 @@ void balanceAccquireDnodeList() {
   int32_t dnodesNum = mgmtGetDnodesNum();
   balanceCheckDnodeListSize(dnodesNum);
 
-  void *     pNode = NULL;
+  void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   int32_t    dnodeIndex = 0;
 
   while (1) {  
     if (dnodeIndex >= dnodesNum) break;
-    pNode = mgmtGetNextDnode(pNode, &pDnode);
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       mgmtDecDnodeRef(pDnode);
@@ -741,6 +757,8 @@ void balanceAccquireDnodeList() {
     tsBalanceDnodeList[orderIndex] = pDnode;
     dnodeIndex++;
   }
+
+  sdbFreeIter(pIter);
 
   tsBalanceDnodeListSize = dnodeIndex;
 }
@@ -830,7 +848,7 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
 
   pShow->numOfRows = mgmtGetDnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  pShow->pNode = NULL;
+  pShow->pIter = NULL;
 
   mgmtDecUserRef(pUser);
 
@@ -844,7 +862,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
   int32_t    cols = 0;
   
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextDnode(pShow->pNode, &pDnode);
+    pShow->pIter = mgmtGetNextDnode(pShow->pIter, &pDnode);
     if (pDnode == NULL) break;
 
     int32_t systemScore = balanceCalcCpuScore(pDnode) + balanceCalcMemoryScore(pDnode) + balanceCalcDiskScore(pDnode) +
