@@ -32,7 +32,6 @@
 static int32_t  tsOpennedVnodes;
 static void    *tsDnodeVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
-static int      vnodeWalCallback(void *arg);
 static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
 static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
