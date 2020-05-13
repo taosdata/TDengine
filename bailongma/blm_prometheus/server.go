@@ -40,7 +40,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/common/model"
-	_ "github.com/taosdata/TDengine/src/connector/go/src/taosSql"
+	_ "github.com/taosdata/driver-go/taosSql"
 
 	"github.com/prometheus/prometheus/prompb"
 )
@@ -302,7 +302,7 @@ func ProcessReq(req prompb.WriteRequest) error {
 	return err
 }
 
-func HandleStable(ts prompb.TimeSeries, db *sql.DB) error {
+func HandleStable(ts *prompb.TimeSeries, db *sql.DB) error {
 	taglist := list.New()
 	tbtaglist := list.New()
 	tagmap := make(map[string]string)
@@ -546,7 +546,7 @@ func tablenameEscape(mn string) string {
 	return stbname
 }
 
-func serilizeTDengine(m prompb.TimeSeries, tbn string, db *sql.DB) error {
+func serilizeTDengine(m *prompb.TimeSeries, tbn string, db *sql.DB) error {
 	idx := TAOShashID([]byte(tbn))
 	sqlcmd := " " + tbn + " values("
 	vl := m.Samples[0].GetValue()
@@ -682,11 +682,11 @@ func processBatches(iworker int) {
 
 func TestSerialization() {
 	var req prompb.WriteRequest
-	var ts []prompb.TimeSeries
+	var ts []*prompb.TimeSeries
 	var tse prompb.TimeSeries
 	var sample *prompb.Sample
 	var label prompb.Label
-	var lbs []prompb.Label
+	var lbs []*prompb.Label
 	promPath, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("can't get current dir :%s \n", err)
@@ -732,11 +732,11 @@ func TestSerialization() {
 			}
 			tse.Samples = append(tse.Samples, *sample)
 		} else if strings.Contains(line, "server.go:202:") {
-			lbs = make([]prompb.Label, 0)
+			lbs = make([]*prompb.Label, 0)
 			lb := strings.Split(line[45:], "{")
 			label.Name = "__name__"
 			label.Value = lb[0]
-			lbs = append(lbs, label)
+			lbs = append(lbs, &label)
 			lbc := strings.Split(lb[1][:len(lb[1])-1], ", ")
 			for i = 0; i < len(lbc); i++ {
 				content := strings.Split(lbc[i], "=\"")
@@ -747,10 +747,10 @@ func TestSerialization() {
 
 					label.Value = content[1][:len(content[1])-1]
 				}
-				lbs = append(lbs, label)
+				lbs = append(lbs, &label)
 			}
 			tse.Labels = lbs
-			ts = append(ts, tse)
+			ts = append(ts, &tse)
 			req.Timeseries = ts
 		}
 

@@ -32,7 +32,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/taosdata/TDengine/src/connector/go/src/taosSql"
+	_ "github.com/taosdata/driver-go/taosSql"
 )
 
 type metric struct {
@@ -72,7 +72,7 @@ var (
 	batchChans      []chan string  //multi table one chan
 	nodeChans       []chan Metrics //multi node one chan
 	inputDone       chan struct{}
-	workersGroup    sync.WaitGroup
+	//workersGroup    sync.WaitGroup
 	reportTags      [][2]string
 	reportHostname  string
 	taosDriverName  string = "taosSql"
@@ -135,7 +135,7 @@ func main() {
 	createDatabase(dbname)
 
 	for i := 0; i < httpworkers; i++ {
-		workersGroup.Add(1)
+		//workersGroup.Add(1)
 		go NodeProcess(i)
 	}
 
@@ -144,7 +144,7 @@ func main() {
 	}
 
 	for i := 0; i < sqlworkers; i++ {
-		workersGroup.Add(1)
+		//workersGroup.Add(1)
 		go processBatches(i)
 	}
 
@@ -298,7 +298,7 @@ func SerilizeTDengine(m metric, dbn string, hostip string, taglist *list.List, d
 	for _, v := range m.Tags {
 		tbna = append(tbna, v)
 	}
-	sort.Strings())
+	sort.Strings(tbna)
 	tbn := strings.Join(tbna, "") // Go map 遍历结果是随机的，必须排下序
 
 	for k, v := range m.Fields {
@@ -329,7 +329,7 @@ func SerilizeTDengine(m metric, dbn string, hostip string, taglist *list.List, d
 			sqlcmd = sqlcmd + "\"" + hostip + "\"," + "\"" + k + "\")\n"
 			execSql(dbn, sqlcmd, db)
 			IsTableCreated.Store(s, true)
-		} else {
+		} 
 			idx := TAOShashID([]byte(s))
 			sqlcmd := " " + s + " values("
 
@@ -347,8 +347,6 @@ func SerilizeTDengine(m metric, dbn string, hostip string, taglist *list.List, d
 			batchChans[idx%sqlworkers] <- sqlcmd
 			//execSql(dbn,sqlcmd)
 		}
-
-	}
 	return nil
 }
 
@@ -546,5 +544,5 @@ func processBatches(iworker int) {
 		}
 	}
 
-	workersGroup.Done()
+	//workersGroup.Done()
 }
