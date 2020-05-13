@@ -27,11 +27,13 @@ class TDTestCase:
         tdSql.prepare()
 
         print("==============step1")
+        print("prepare data")
         tdSql.execute("create table db.st (ts timestamp, i int) tags(j int)")
         tdSql.execute("create table db.tb using st tags(1)")
         tdSql.execute("insert into db.tb values(now, 1)")
 
         print("==============step2")
+        print("create table as select")
         try:
             tdSql.execute("create table db.test as select * from db.st")
         except Exception as e:
