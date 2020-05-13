@@ -439,6 +439,8 @@ void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, siz
       
       uTrace("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%d, size:%" PRId64 " bytes",
              key, pNode, pNode->addedTime, pNode->expiredTime, pCacheObj->totalSize, dataSize);
+    } else {
+      uError("key:%s failed to added into cache, out of memory", key);
     }
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pCacheObj, pOld, key, keyLen, pData, dataSize, duration * 1000L);

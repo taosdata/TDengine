@@ -391,9 +391,11 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   }
   
   // pSql->sqlstr will be used by tscBuildQueryStreamDesc
-  pthread_mutex_lock(&pObj->mutex);
-  tfree(pSql->sqlstr);
-  pthread_mutex_unlock(&pObj->mutex);
+  if (pObj->signature == pObj) {
+    pthread_mutex_lock(&pObj->mutex);
+    tfree(pSql->sqlstr);
+    pthread_mutex_unlock(&pObj->mutex);
+  }
   
   tscFreeSqlResult(pSql);
   
@@ -1865,7 +1867,14 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList);
   }
 
-  assert(pFinalInfo->pTableMeta != NULL && pNewQueryInfo->numOfTables == 1);
+  if (pFinalInfo->pTableMeta == NULL) {
+    tscError("%p new subquery failed for get pMeterMeta is NULL from cache", pSql);
+    tscFreeSqlObj(pNew);
+    return NULL;
+  }
+  
+  assert(pNewQueryInfo->numOfTables == 1);
+  
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     assert(pFinalInfo->vgroupList != NULL);
   }
