@@ -126,8 +126,8 @@ void *mgmtGetAcct(char *name) {
   return sdbGetRow(tsAcctSdb, name);
 }
 
-void *mgmtGetNextAcct(void *pNode, SAcctObj **pAcct) {
-  return sdbFetchRow(tsAcctSdb, pNode, (void **)pAcct); 
+void *mgmtGetNextAcct(void *pIter, SAcctObj **pAcct) {
+  return sdbFetchRow(tsAcctSdb, pIter, (void **)pAcct); 
 }
 
 void mgmtIncAcctRef(SAcctObj *pAcct) {

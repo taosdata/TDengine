@@ -239,10 +239,10 @@ void sdbUpdateSync() {
   }
 
   if (index == 0) {
-    void *pNode = NULL;
+    void *pIter = NULL;
     while (1) {
       SMnodeObj *pMnode = NULL;
-      pNode = mgmtGetNextMnode(pNode, &pMnode);
+      pIter = mgmtGetNextMnode(pIter, &pMnode);
       if (pMnode == NULL) break;
 
       syncCfg.nodeInfo[index].nodeId = pMnode->mnodeId;
@@ -252,6 +252,7 @@ void sdbUpdateSync() {
 
       mgmtDecMnodeRef(pMnode);
     }
+    sdbFreeIter(pIter);
   }
 
   syncCfg.replica = index;
@@ -666,12 +667,21 @@ void *sdbFetchRow(void *handle, void *pNode, void **ppRow) {
   }
 
   SSdbRow *pMeta = taosHashIterGet(pIter);
-  if (pMeta == NULL) return NULL;
+  if (pMeta == NULL) {
+    taosHashDestroyIter(pIter);
+    return NULL;
+  }
 
   *ppRow = pMeta->row;
   sdbIncRef(handle, pMeta->row);
 
   return pIter;
+}
+
+void sdbFreeIter(void *pIter) {
+  if (pIter != NULL) {
+    taosHashDestroyIter(pIter);
+  }
 }
 
 void *sdbOpenTable(SSdbTableDesc *pDesc) {

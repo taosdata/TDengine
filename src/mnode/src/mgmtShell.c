@@ -48,6 +48,7 @@ static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessUseMsg(SQueuedMsg *queuedMsg);
+static void mgmtFreeShowObj(void *data);
 
 void *tsMgmtTmr;
 static void *tsMgmtTranQhandle = NULL;
@@ -65,7 +66,7 @@ int32_t mgmtInitShell() {
   
   tsMgmtTmr = taosTmrInit((tsMaxShellConns) * 3, 200, 3600000, "MND");
   tsMgmtTranQhandle = taosInitScheduler(tsMaxShellConns, 1, "mnodeT");
-  tsQhandleCache = taosCacheInit(tsMgmtTmr, 10);
+  tsQhandleCache = taosCacheInitWithCb(tsMgmtTmr, 10, mgmtFreeShowObj);
 
   return 0;
 }
@@ -479,7 +480,7 @@ bool mgmtCheckQhandle(uint64_t qhandle) {
     mTrace("qhandle:%p is retrived", qhandle);
     return true;
   } else {
-    mTrace("qhandle:%p is already freed", qhandle);
+    mTrace("qhandle:%p is already released", qhandle);
     return false;
   }
 }
@@ -498,8 +499,14 @@ void* mgmtSaveQhandle(void *qhandle, int32_t size) {
   return NULL;
 }
 
+static void mgmtFreeShowObj(void *data) {
+  SShowObj *pShow = data;
+  //sdbFreeIter(pShow->pIter);
+  mTrace("qhandle:%p is destroyed", pShow);
+}
+
 void mgmtFreeQhandle(void *qhandle, bool forceRemove) {
-  mTrace("qhandle:%p is freed", qhandle);
+  mTrace("qhandle:%p is released", qhandle);
   taosCacheRelease(tsQhandleCache, &qhandle, forceRemove);
 }
 
