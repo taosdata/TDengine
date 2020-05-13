@@ -284,6 +284,7 @@ int32_t tsdbCloseRepo(TsdbRepoT *repo) {
   pRepo->tsdbCache->curBlock = NULL;
   tsdbUnLockRepo(repo);
 
+  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
   tsdbCommitData((void *)repo);
 
   tsdbCloseFileH(pRepo->tsdbFileH);

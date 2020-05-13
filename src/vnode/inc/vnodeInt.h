@@ -38,6 +38,7 @@ typedef struct {
   int          status; 
   int8_t       role;   
   int64_t      version;
+  int64_t      savedVersion;
   void        *wqueue;
   void        *rqueue;
   void        *wal;

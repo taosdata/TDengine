@@ -380,8 +380,10 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 static int vnodeProcessTsdbStatus(void *arg, int status) {
   SVnodeObj *pVnode = arg;
 
-  if (status == TSDB_STATUS_COMMIT_START)
+  if (status == TSDB_STATUS_COMMIT_START) {
+    pVnode->savedVersion = pVnode->version; 
     return walRenew(pVnode->wal);
+  }
 
   if (status == TSDB_STATUS_COMMIT_OVER)
     return vnodeSaveVersion(pVnode);
@@ -690,14 +692,14 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->version);
+  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->savedVersion);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
   fclose(fp);
   free(content);
 
-  vPrint("vgId:%d, save vnode version:%" PRId64 " successed", pVnode->vgId, pVnode->version);
+  vPrint("vgId:%d, save vnode version:%" PRId64 " succeed", pVnode->vgId, pVnode->savedVersion);
 
   return 0;
 }
@@ -739,7 +741,7 @@ static bool vnodeReadVersion(SVnodeObj *pVnode) {
 
   ret = true;
 
-  vPrint("vgId:%d, read vnode version successed, version:%%" PRId64, pVnode->vgId, pVnode->version);
+  vPrint("vgId:%d, read vnode version succeed, version:%" PRId64, pVnode->vgId, pVnode->version);
 
 PARSE_OVER:
   free(content);
