@@ -380,7 +380,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   cqClose(pVnode->cq);
   pVnode->cq = NULL;
 
-  tsdbCloseRepo(pVnode->tsdb);
+  tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
 
   walClose(pVnode->wal);
@@ -431,8 +431,8 @@ static void vnodeNotifyFileSynced(void *ahandle) {
 
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
-  // close tsdb, then open tsdb
-  tsdbCloseRepo(pVnode->tsdb);
+  // clsoe tsdb, then open tsdb
+  tsdbCloseRepo(pVnode->tsdb, 0);
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
   appH.notifyStatus = vnodeProcessTsdbStatus;
