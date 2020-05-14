@@ -29,7 +29,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 // static int     tsdbOpenMetaFile(char *tsdbDir);
-static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now);
+static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now, int * affectedrows);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
 static void *  tsdbCommitData(void *arg);
@@ -406,22 +406,23 @@ STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tableId) {
 }
 
 // TODO: need to return the number of data inserted
-int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg) {
+int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg * pRsp) {
   SSubmitMsgIter msgIter;
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   tsdbInitSubmitMsgIter(pMsg, &msgIter);
   SSubmitBlk *pBlock = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t affectedrows = 0;
 
   TSKEY now = taosGetTimestamp(pRepo->config.precision);
 
   while ((pBlock = tsdbGetSubmitMsgNext(&msgIter)) != NULL) {
-    if ((code = tsdbInsertDataToTable(repo, pBlock, now)) != TSDB_CODE_SUCCESS) {
+    if ((code = tsdbInsertDataToTable(repo, pBlock, now, &affectedrows)) != TSDB_CODE_SUCCESS) {
       return code;
     }
   }
-
+  pRsp->affectedRows = htonl(affectedrows);
   return code;
 }
 
@@ -846,7 +847,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   return 0;
 }
 
-static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now) {
+static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
@@ -875,6 +876,7 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
     if (tdInsertRowToTable(pRepo, row, pTable) < 0) {
       return -1;
     }
+     (*affectedrows)++;
   }
 
   return TSDB_CODE_SUCCESS;
