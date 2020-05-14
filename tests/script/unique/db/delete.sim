@@ -34,6 +34,11 @@ while $i < 2000
   $i = $i + 1
 endw 
 
+sql show db.vgroups
+if $rows != 2 then 
+  return -1
+endi 
+
 print ======== step2
 sleep 1000
 sql drop database db
@@ -59,14 +64,14 @@ endi
 
 print ======== step3
 
-system sh/exec.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
 
 sleep 1000
-system sh/exec.sh -n dnode1 -s start -t
-system sh/exec.sh -n dnode2 -s start -t
-system sh/exec.sh -n dnode3 -s start -t
+system sh/exec_up.sh -n dnode1 -s start
+system sh/exec_up.sh -n dnode2 -s start
+system sh/exec_up.sh -n dnode3 -s start
 
 $x = 0
 step3: 
