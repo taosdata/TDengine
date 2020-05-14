@@ -140,7 +140,7 @@ STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tid);
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(TsdbRepoT *pRepo, SSubmitMsg *pMsg);
+int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg * pRsp) ;
 
 // -- FOR QUERY TIME SERIES DATA
 
