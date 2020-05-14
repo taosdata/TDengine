@@ -546,6 +546,7 @@ static void *mgmtGetSuperTableByUid(uint64_t uid) {
     pIter = mgmtGetNextSuperTable(pIter, &pStable);
     if (pStable == NULL) break;
     if (pStable->uid == uid) {
+      sdbFreeIter(pIter);
       return pStable;
     }
     mgmtDecTableRef(pStable);

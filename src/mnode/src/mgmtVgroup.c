@@ -681,7 +681,7 @@ static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
   mTrace("vgId:%d, send drop all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
-    mTrace("vgId:%d, send drop vnode msg to dnode:%d, ahandle:%p", vgId, pVgroup->vnodeGid[i].dnodeId, ahandle);
+    mTrace("vgId:%d, send drop vnode msg to dnode:%d, ahandle:%p", pVgroup->vgId, pVgroup->vnodeGid[i].dnodeId, ahandle);
     mgmtSendDropVnodeMsg(pVgroup->vgId, &ipSet, ahandle);
   }
 }
