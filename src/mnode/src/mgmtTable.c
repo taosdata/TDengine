@@ -546,6 +546,7 @@ static void *mgmtGetSuperTableByUid(uint64_t uid) {
     pIter = mgmtGetNextSuperTable(pIter, &pStable);
     if (pStable == NULL) break;
     if (pStable->uid == uid) {
+      sdbFreeIter(pIter);
       return pStable;
     }
     mgmtDecTableRef(pStable);
@@ -1459,15 +1460,15 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  int32_t sid = taosAllocateId(pVgroup->idPool);
-  if (sid <= 0) {
-    mTrace("tables:%s, no enough sid in vgId:%d", pCreate->tableId, pVgroup->vgId);
-    mgmtCreateVgroup(mgmtCloneQueuedMsg(pMsg), pMsg->pDb);
-    return;
-  }
-
   if (pMsg->retry == 0) {
     if (pMsg->pTable == NULL) {
+      int32_t sid = taosAllocateId(pVgroup->idPool);
+      if (sid <= 0) {
+        mTrace("tables:%s, no enough sid in vgId:%d", pCreate->tableId, pVgroup->vgId);
+        mgmtCreateVgroup(mgmtCloneQueuedMsg(pMsg), pMsg->pDb);
+        return;
+      }
+
       pMsg->pTable = (STableObj *)mgmtDoCreateChildTable(pCreate, pVgroup, sid);
       mgmtIncTableRef(pMsg->pTable);
     }
