@@ -27,27 +27,17 @@ class TDTestCase:
         tdSql.prepare()
 
         print("==============step1")
+        print("prepare data")
         tdSql.execute("create table db.st (ts timestamp, i int) tags(j int)")
         tdSql.execute("create table db.tb using st tags(1)")
         tdSql.execute("insert into db.tb values(now, 1)")
 
         print("==============step2")
+        print("create table as select")
         try:
-            tdSql.execute("drop table db.st")
+            tdSql.execute("create table db.test as select * from db.st")
         except Exception as e:
             tdLog.exit(e)
-
-        try:
-            tdSql.execute("select * from db.st")
-        except Exception as e:
-            if e.args[0] != 'invalid table name':
-                tdLog.exit(e)
-
-        try:
-            tdSql.execute("select * from db.tb")
-        except Exception as e:
-            if e.args[0] != 'invalid table name':
-                tdLog.exit(e)
 
     def stop(self):
         tdSql.close()
