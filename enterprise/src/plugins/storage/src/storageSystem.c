@@ -19,7 +19,7 @@
 #include "taosdef.h"
 #include "tlog.h"
 #include "tutil.h"
-#include "shash.h"
+#include "hash.h"
 #include "tglobal.h"
 #include "dnode.h"
 #include "storage.h"
