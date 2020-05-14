@@ -1842,6 +1842,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->fp = fp;
   pNew->param = param;
+  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
 
   char* name = pTableMetaInfo->name;
   STableMetaInfo* pFinalInfo = NULL;
@@ -2068,47 +2069,14 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     tscResetForNextRetrieve(pRes);
 
-    // in case of async query, set the callback function
-//    void* fp1 = pSql->fp;
+    // set the callback function
     pSql->fp = fp;
-
-//    if (fp1 != NULL) {
-//      assert(fp != NULL);
-//    }
-
     int32_t ret = tscProcessSql(pSql);
     if (ret == TSDB_CODE_SUCCESS) {
       return;
     } else {// todo check for failure
     }
-    // in case of async query, return now
-//    if (fp != NULL) {
-//      return;
-//    }
-//
-//    if (ret != TSDB_CODE_SUCCESS) {
-//      pSql->res.code = ret;
-//      return;
-//    }
-//
-//    // retrieve data
-//    assert(pCmd->command == TSDB_SQL_SELECT);
-//    pCmd->command = TSDB_SQL_FETCH;
-//
-//    if ((ret = tscProcessSql(pSql)) != TSDB_CODE_SUCCESS) {
-//      pSql->res.code = ret;
-//      return;
-//    }
-//
-//    // if the result from current virtual node are empty, try next if exists. otherwise, return the results.
-//    if (pRes->numOfRows > 0) {
-//      break;
-//    }
   }
-
-//  if (pRes->numOfRows == 0) {
-//    tscTrace("%p all vnodes exhausted, prj query completed. total res:%d", pSql, totalVnode, pRes->numOfTotal);
-//  }
 }
 
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
