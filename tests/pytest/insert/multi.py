@@ -37,9 +37,15 @@ class TDTestCase:
             "CREATE TABLE if not exists dev_001 using st tags('dev_01')")
 
         print("==============step2")
-        tdLog.info("multiple inserts")
+        tdLog.info("multiple inserts by insert")
         tdSql.execute(
-            "INSERT INTO dev_001 VALUES ('2020-05-13 10:00:00.000', 1),('2020-05-13 10:00:00.001', 1)")
+            "insert INTO dev_001 VALUES ('2020-05-13 10:00:00.000', 1),('2020-05-13 10:00:00.001', 1)")
+        tdSql.checkAffectedRows(2)
+
+        print("==============step3")
+        tdLog.info("multiple inserts by import")
+        tdSql.execute(
+            "import INTO dev_001 VALUES ('2020-05-13 10:00:00.000', 1),('2020-05-13 10:00:00.001', 1)")
         tdSql.checkAffectedRows(2)
 
     def stop(self):
