@@ -15,7 +15,7 @@ cd ../../../debug; make
 ./test.sh -f general/cache/restart_metrics.sim
 ./test.sh -f general/cache/restart_table.sim
 
-./test.sh -f general/connection/connections.sim
+./test.sh -f general/connection/connection.sim  
 
 ./test.sh -f general/column/commit.sim
 ./test.sh -f general/column/metrics.sim
@@ -267,12 +267,12 @@ cd ../../../debug; make
 ##./test.sh -u -f unique/dnode/balancex.sim
 ##./test.sh -u -f unique/dnode/offline1.sim
 ##./test.sh -u -f unique/dnode/offline2.sim
-#./test.sh -u -f unique/dnode/remove1.sim
-#./test.sh -u -f unique/dnode/remove2.sim
+./test.sh -u -f unique/dnode/remove1.sim
+#hongze ./test.sh -u -f unique/dnode/remove2.sim
 #./test.sh -u -f unique/dnode/vnode_clean.sim
 
-##./test.sh -u -f unique/http/admin.sim
-##./test.sh -u -f unique/http/opentsdb.sim
+./test.sh -u -f unique/http/admin.sim
+./test.sh -u -f unique/http/opentsdb.sim
 
 #./test.sh -u -f unique/import/replica2.sim
 #./test.sh -u -f unique/import/replica3.sim
@@ -293,8 +293,7 @@ cd ../../../debug; make
 ./test.sh -u -f unique/mnode/mgmt26.sim
 ./test.sh -u -f unique/mnode/mgmt33.sim
 ./test.sh -u -f unique/mnode/mgmt34.sim
-#./test.sh -u -f unique/mnode/mgmtr2.sim
-#./test.sh -u -f unique/mnode/secondIp.sim
+./test.sh -u -f unique/mnode/mgmtr2.sim
 
 ##./test.sh -u -f unique/table/delete_part.sim
 
