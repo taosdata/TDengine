@@ -840,7 +840,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
 
-  tsdbTrace("vgId:%d, tid:%d, uid:" PRId64 ", a row is inserted to table! key:" PRId64,
+  tsdbTrace("vgId:%d, tid:%d, uid:%" PRId64 ", a row is inserted to table! key:%" PRId64,
             pRepo->config.tsdbId, pTable->tableId.tid, pTable->tableId.uid, dataRowKey(row));
 
   return 0;
