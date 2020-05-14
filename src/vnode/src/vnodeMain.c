@@ -352,7 +352,6 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;
-  pStatus->openVnodes++;
 }
 
 void vnodeBuildStatusMsg(void *param) {
