@@ -119,9 +119,14 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeDrop(int32_t vgId) {
+  if (tsDnodeVnodesHash == NULL) {
+    vTrace("vgId:%d, failed to drop, vgId not exist", vgId);
+    return TSDB_CODE_INVALID_VGROUP_ID;
+  }
+
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
-    vTrace("vgId:%d, failed to drop, vgId not exist", vgId);
+    vTrace("vgId:%d, failed to drop, vgId not find", vgId);
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
 
@@ -347,6 +352,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;
+  pStatus->openVnodes++;
 }
 
 void vnodeBuildStatusMsg(void *param) {
@@ -359,7 +365,6 @@ void vnodeBuildStatusMsg(void *param) {
     if (*pVnode == NULL) continue;
 
     vnodeBuildVloadMsg(*pVnode, pStatus);
-    pStatus++;
   }
 
   taosHashDestroyIter(pIter);
@@ -412,6 +417,7 @@ static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 
 static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
+  vPrint("vgId:%d, sync role changed from %d to %d", pVnode->vgId, pVnode->role, role);
   pVnode->role = role;
 
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
@@ -426,7 +432,7 @@ static void vnodeNotifyFileSynced(void *ahandle) {
 
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
-  // clsoe tsdb, then open tsdb
+  // close tsdb, then open tsdb
   tsdbCloseRepo(pVnode->tsdb);
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
