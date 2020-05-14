@@ -73,6 +73,7 @@ void cleanupPush_void_ptr_bool  ( bool failOnly, void* func, void* arg1, bool ar
 void cleanupPush_void_ptr       ( bool failOnly, void* func, void* arg );
 void cleanupPush_int_int        ( bool failOnly, void* func, int arg );
 void cleanupPush_void           ( bool failOnly, void* func );
+void cleanupPush_int_ptr        ( bool failOnly, void* func, void* arg );
 
 int32_t cleanupGetActionCount();
 void cleanupExecuteTo( int32_t anchor, bool failed );
@@ -83,8 +84,10 @@ void cleanupExecute( SExceptionNode* node, bool failed );
 #define CLEANUP_PUSH_VOID_PTR( failOnly, func, arg )             cleanupPush_void_ptr( (failOnly), (void*)(func), (void*)(arg) )
 #define CLEANUP_PUSH_INT_INT( failOnly, func, arg )              cleanupPush_void_ptr( (failOnly), (void*)(func), (int)(arg) )
 #define CLEANUP_PUSH_VOID( failOnly, func )                      cleanupPush_void( (failOnly), (void*)(func) )
+#define CLEANUP_PUSH_INT_PTR( failOnly, func, arg )              cleanupPush_int_ptr( (failOnly), (void*)(func), (void*)(arg) )
 #define CLEANUP_PUSH_FREE( failOnly, arg )                       cleanupPush_void_ptr( (failOnly), free, (void*)(arg) )
 #define CLEANUP_PUSH_CLOSE( failOnly, arg )                      cleanupPush_int_int( (failOnly), close, (int)(arg) )
+#define CLEANUP_PUSH_FCLOSE( failOnly, arg )                     cleanupPush_int_ptr( (failOnly), fclose, (void*)(arg) )
 
 #define CLEANUP_GET_ANCHOR()          cleanupGetActionCount()
 #define CLEANUP_EXECUTE_TO( anchor, failed )  cleanupExecuteTo( (anchor), (failed) )
@@ -95,7 +98,7 @@ void cleanupExecute( SExceptionNode* node, bool failed );
 
 void exceptionPushNode( SExceptionNode* node );
 int32_t exceptionPopNode();
-void exceptionThrow( int code );
+void exceptionThrow( int32_t code );
 
 #define TRY(maxCleanupActions) do { \
     SExceptionNode exceptionNode = { 0 }; \
@@ -106,10 +109,10 @@ void exceptionThrow( int code );
     int caughtException = setjmp( exceptionNode.jb ); \
     if( caughtException == 0 )
 
-#define CATCH( code ) int code = exceptionPopNode(); \
+#define CATCH( code ) int32_t code = exceptionPopNode(); \
     if( caughtException == 1 )
 
-#define FINALLY( code ) int code = exceptionPopNode();
+#define FINALLY( code ) int32_t code = exceptionPopNode();
 
 #define END_TRY } while( 0 );
 

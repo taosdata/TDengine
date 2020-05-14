@@ -35,7 +35,7 @@ void    mgmtDecVgroupRef(SVgObj *pVgroup);
 void    mgmtDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg);
 void    mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode);
 
-void *  mgmtGetNextVgroup(void *pNode, SVgObj **pVgroup);
+void *  mgmtGetNextVgroup(void *pIter, SVgObj **pVgroup);
 void    mgmtUpdateVgroup(SVgObj *pVgroup);
 void    mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *dnodeId, SVnodeLoad *pVload);
 

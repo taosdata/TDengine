@@ -120,12 +120,6 @@ typedef struct tExtMemBuffer {
   EXT_BUFFER_FLUSH_MODEL flushModel;
 } tExtMemBuffer;
 
-//typedef struct tTagSchema {
-//  struct SSchema *pSchema;
-//  int32_t         numOfCols;
-//  int32_t         colOffset[];
-//} tTagSchema;
-
 /**
  *
  * @param inMemSize

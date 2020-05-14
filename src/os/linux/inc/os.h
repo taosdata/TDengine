@@ -253,6 +253,17 @@ void taosBlockSIGPIPE();
 #define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZ(val) __builtin_ctz(val)
 
+#undef threadlocal
+#ifdef _ISOC11_SOURCE
+  #define threadlocal _Thread_local
+#elif defined(__APPLE__)
+  #define threadlocal
+#elif defined(__GNUC__) && !defined(threadlocal)
+  #define threadlocal __thread
+#else
+  #define threadlocal
+#endif
+
 #ifdef __cplusplus
 }
 #endif

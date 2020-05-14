@@ -24,7 +24,7 @@ extern "C" {
 int32_t   mgmtInitUsers();
 void      mgmtCleanUpUsers();
 SUserObj *mgmtGetUser(char *name);
-void *    mgmtGetNextUser(void *pNode, SUserObj **pUser);
+void *    mgmtGetNextUser(void *pIter, SUserObj **pUser);
 void      mgmtIncUserRef(SUserObj *pUser);
 void      mgmtDecUserRef(SUserObj *pUser);
 SUserObj *mgmtGetUserFromConn(void *pConn);

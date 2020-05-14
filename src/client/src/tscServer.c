@@ -39,7 +39,7 @@ int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
 void tscProcessActivityTimer(void *handle, void *tmrId);
 int tscKeepConn[TSDB_SQL_MAX] = {0};
 
-TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid);
+TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt);
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
 void tscSaveSubscriptionProgress(void* sub);
 
@@ -500,7 +500,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // todo valid the vgroupId at the client side
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     int32_t vgIndex = pTableMetaInfo->vgroupIndex;
     
     SVgroupsInfo* pVgroupInfo = pTableMetaInfo->vgroupList;
@@ -550,8 +550,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 /*
- * for meter query, simply return the size <= 1k
- * for metric query, estimate size according to meter tags
+ * for table query, simply return the size <= 1k
  */
 static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
@@ -562,25 +561,18 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   int32_t exprSize = sizeof(SSqlFuncMsg) * numOfExprs;
   
-  //STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  // table query without tags values
-  //if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
-  //}
-  
-  //int32_t size = 4096;
-  //return size;
+  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
+  TSKEY dfltKey = htobe64(pQueryMsg->window.skey);
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
+  if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
     
     SCMVgroupInfo* pVgroupInfo = NULL;
-    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       int32_t index = pTableMetaInfo->vgroupIndex;
       assert(index >= 0);
   
@@ -589,25 +581,25 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     } else {
       pVgroupInfo = &pTableMeta->vgroupInfo;
     }
-    
+
     tscSetDnodeIpList(pSql, pVgroupInfo);
     pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
-    
+
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
     pTableIdInfo->tid = htonl(pTableMeta->sid);
     pTableIdInfo->uid = htobe64(pTableMeta->uid);
-    pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
-  
+    pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid, dfltKey));
+
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
-    
+
     pMsg += sizeof(STableIdInfo);
   } else {
     int32_t index = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     assert(index >= 0 && index < numOfVgroups);
-  
+
     tscTrace("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, numOfVgroups);
-    
+
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
     
     // set the vgroup info
@@ -624,7 +616,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
       STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
       pTableIdInfo->tid = htonl(pItem->tid);
       pTableIdInfo->uid = htobe64(pItem->uid);
-//      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
+      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pItem->uid, dfltKey));
       pMsg += sizeof(STableIdInfo);
     }
   }
@@ -1453,8 +1445,9 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
+  pRes->completed = (pRes->numOfRows == 0);
 
-  uint8_t code = pRes->code;
+  int32_t code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
   } else {
@@ -2292,7 +2285,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   taosCacheRelease(tscCacheHandle, (void **)&pTableMeta, true);
 
   if (pTableMetaInfo->pTableMeta) {
-    bool isSuperTable = UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
+    bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
 
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
 //    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pMetricMeta), true);
@@ -2354,6 +2347,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     for (int i = 0; i < numOfTables; i++) {
       int64_t uid = htobe64(*(int64_t*)p);
       p += sizeof(int64_t);
+      p += sizeof(int32_t); // skip tid
       TSKEY key = htobe64(*(TSKEY*)p);
       p += sizeof(TSKEY);
       tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);

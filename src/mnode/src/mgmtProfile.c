@@ -140,7 +140,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
 //
 //  // sorting based on useconds
 //
-//  pShow->pNode = pQueryShow;
+//  pShow->pIter = pQueryShow;
 
   return 0;
 }
@@ -187,7 +187,7 @@ int32_t mgmtGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = 1000000;
-  pShow->pNode = NULL;
+  pShow->pIter = NULL;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   mgmtGetQueries(pShow, pConn);
@@ -252,7 +252,7 @@ int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pCo
   char *pWrite;
   int32_t   cols = 0;
 
-  SQueryShow *pQueryShow = (SQueryShow *)pShow->pNode;
+  SQueryShow *pQueryShow = (SQueryShow *)pShow->pIter;
 
   if (rows > pQueryShow->numOfQueries - pQueryShow->index) rows = pQueryShow->numOfQueries - pQueryShow->index;
 
@@ -339,7 +339,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
 //
 //  // sorting based on useconds
 //
-//  pShow->pNode = pStreamShow;
+//  pShow->pIter = pStreamShow;
 
   return 0;
 }
@@ -397,7 +397,7 @@ int32_t mgmtGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = 1000000;
-  pShow->pNode = NULL;
+  pShow->pIter = NULL;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   mgmtGetStreams(pShow, pConn);
@@ -409,7 +409,7 @@ int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pCo
   char *pWrite;
   int32_t   cols = 0;
 
-  SStreamShow *pStreamShow = (SStreamShow *)pShow->pNode;
+  SStreamShow *pStreamShow = (SStreamShow *)pShow->pIter;
 
   if (rows > pStreamShow->numOfStreams - pStreamShow->index) rows = pStreamShow->numOfStreams - pStreamShow->index;
 
@@ -592,7 +592,7 @@ int mgmtGetConns(SShowObj *pShow, void *pConn) {
   //
   //  // sorting based on useconds
   //
-  //  pShow->pNode = pConnShow;
+  //  pShow->pIter = pConnShow;
 
   return 0;
 }
@@ -627,7 +627,7 @@ int32_t mgmtGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = 1000000;
-  pShow->pNode = NULL;
+  pShow->pIter = NULL;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   mgmtGetConns(pShow, pConn);
@@ -639,7 +639,7 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
   char      *pWrite;
   int32_t   cols = 0;
 
-  SConnShow *pConnShow = (SConnShow *)pShow->pNode;
+  SConnShow *pConnShow = (SConnShow *)pShow->pIter;
 
   if (rows > pConnShow->numOfConns - pConnShow->index) rows = pConnShow->numOfConns - pConnShow->index;
 
