@@ -254,11 +254,19 @@ int32_t tscLaunchSecondPhaseDirectly(SSqlObj* pSql, SSubqueryState* pState) {
      * Because this column is required to filter with timestamp after intersecting.
      */
     assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
+
     /*
      * if the first column of the secondary query is not ts function, add this function.
      * Because this column is required to filter with timestamp after intersecting.
      */
-    if (tscSqlExprGet(pQueryInfo, 0)->functionId != TSDB_FUNC_TS) {
+    if (tscSqlExprNumOfExprs(pQueryInfo) == 0) {
+      SColumnIndex index = {0};
+      SSqlExpr* pExpr = tscSqlExprInsert(pQueryInfo, 0, TSDB_FUNC_COUNT, &index, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), sizeof(int64_t));
+      SColumnList columnList = {0};
+      columnList.num = 1;
+      columnList.ids[0] = index;
+      insertResultField(pQueryInfo, 0, &columnList, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, "ts", pExpr);
+    } else if (tscSqlExprGet(pQueryInfo, 0)->functionId != TSDB_FUNC_TS) {
       tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
     }
     
