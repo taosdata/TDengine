@@ -482,14 +482,9 @@ CTaosInterface.prototype.subscribe = function subscribe(connection, restart, top
   catch(err) {
     throw TypeError("topic is expected as a str");
   }
-  // try {
-  //   interval = ref.alloc(ref.types.int, interval);
-  // }
-  // catch(err) {
-  //   throw TypeError("interval is expected as an int");
-  // }
+
   restart = ref.alloc(ref.types.int, restart);
-  //TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)
+
   let subscription = this.libtaos.taos_subscribe(connection, restart, topic, sql, null, null, interval);
   if (ref.isNull(subscription)) {
     throw new errors.TDError('Failed to subscribe to TDengine | Database: ' + dbOrig + ', Table: ' + tableOrig);
