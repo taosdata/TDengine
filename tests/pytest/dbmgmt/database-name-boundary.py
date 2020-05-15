@@ -33,7 +33,7 @@ class TDTestCase:
 
         getDbNameLen = "grep -w '#define TSDB_DB_NAME_LEN' ../../src/inc/taosdef.h|awk '{print $3}'"
         dbNameMaxLen = int(subprocess.check_output(getDbNameLen, shell=True))
-        tdLog.notice("DB name max length is %d" % dbNameMaxLen)
+        tdLog.info("DB name max length is %d" % dbNameMaxLen)
 
         tdLog.info("=============== step1")
         db_name = ''.join(random.choices(chars, k=(dbNameMaxLen + 1)))

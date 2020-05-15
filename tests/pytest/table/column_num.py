@@ -53,7 +53,7 @@ class TDTestCase:
 
         getMaxColumnNum = "grep -w '#define TSDB_MAX_COLUMNS' ../../src/inc/taosdef.h|awk '{print $3}'"
         boundary = int(subprocess.check_output(getMaxColumnNum, shell=True))
-        tdLog.notice("get max column number is %d" % boundary)
+        tdLog.info("get max column number is %d" % boundary)
 
         columnSeq = "ts timestamp"
         for x in range(0, boundary):
