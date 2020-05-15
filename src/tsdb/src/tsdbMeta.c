@@ -6,7 +6,7 @@
 #include "tsdbMain.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
-#define TSDB_META_FILE_NAME "META"
+// #define TSDB_META_FILE_NAME "META"
 
 const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;   // skip list built based on the first column of tags
 
