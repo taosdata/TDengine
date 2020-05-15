@@ -150,7 +150,11 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint8_t keyLen, ui
     maxLevel = MAX_SKIP_LIST_LEVEL;
   }
 
-  pSkipList->keyInfo  = (SSkipListKeyInfo){.type = keyType, .len = keyLen, .dupKey = dupKey, .freeNode = freeNode};
+  pSkipList->keyInfo.type = keyType;
+  pSkipList->keyInfo.len = keyLen;
+  pSkipList->keyInfo.dupKey = dupKey;
+  pSkipList->keyInfo.freeNode = freeNode;
+  
   pSkipList->keyFn    = fn;
   pSkipList->comparFn = getKeyComparFunc(keyType);
   pSkipList->maxLevel = maxLevel;
