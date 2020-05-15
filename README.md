@@ -115,32 +115,16 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
 - [Node.js](https://www.taosdata.com/en/documentation/connector/#Node.js-Connector)
 
-# How to run the test cases and how to add a new test case?
-  TDengine's test framework and all test cases are fully open source.
-  Please refer to [this document](tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
-
-### CI Covenant submission adoption principle.
-
--   Every commit / PR compilation must pass. Currently, the warning is treated
-    as an error, so the warning must also be resolved.
-
--   Test cases that already exist must pass.
-
--   Because CI is very important to support build and automatically test
-    procedure, it is necessary to manually test the test case before adding it
-    and do as many iterations as possible to ensure that the test case provides
-    stable and reliable test results when added.
-
->   Note: In the future, according to the requirements and test development
->   progress will add stress testing, performance testing, code style, 
->   and other features based on functional testing.
-
 ### Third Party Connectors
 
 The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
 
 - [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
+
+# How to run the test cases and how to add a new test case?
+  TDengine's test framework and all test cases are fully open source.
+  Please refer to [this document](tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
 # TDengine Roadmap
 - Support event-driven stream computing
