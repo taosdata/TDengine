@@ -20,6 +20,12 @@ while $i < 2000
   $i = $i + 1
 endw 
 
+sql show db.vgroups
+if $rows != 2 then 
+  return -1
+endi 
+
+return
 print ======== step2
 sleep 1000
 sql drop database db

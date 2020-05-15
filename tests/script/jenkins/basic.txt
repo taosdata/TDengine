@@ -49,7 +49,7 @@ cd ../../../debug; make
 ./test.sh -f general/db/basic3.sim
 ./test.sh -f general/db/basic4.sim
 ./test.sh -f general/db/basic5.sim
-./test.sh -f unique/db/delete.sim
+./test.sh -f general/db/delete.sim
 ./test.sh -f general/db/delete_reuse1.sim
 ./test.sh -f general/db/delete_reuse2.sim
 ./test.sh -f general/db/delete_reusevnode.sim
