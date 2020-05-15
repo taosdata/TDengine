@@ -23,7 +23,7 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static int syncRestoreFile(SSyncPeer *pPeer) 
+static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
   SFileInfo  minfo;   // master file info
@@ -32,14 +32,30 @@ static int syncRestoreFile(SSyncPeer *pPeer)
   int        code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
 
+  *fversion = 0;
+  sinfo.index = 0;
   while (1) {
     // read file info
     int ret = taosReadMsg(pPeer->syncFd, &(minfo), sizeof(minfo));
     if (ret < 0 ) break;
 
-    // if no more file, break;
+    // if no more file from master, break;
     if (minfo.name[0] == 0 || minfo.magic == 0) {
       sTrace("%s, no more files to restore", pPeer->id);
+     
+      // remove extra files on slave
+      sinfo.index = minfo.index;
+      while (1) {
+        sinfo.name[0] = 0;
+        sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size, &sinfo.fversion);
+        if (sinfo.magic == 0) break;
+
+        sprintf(name, "%s/%s", pNode->path, sinfo.name);
+        remove(name);
+        sTrace("%s, %s is removed", pPeer->id, name);
+        sinfo.index++;
+      }        
+
       code = 0; 
       break;
     }
@@ -83,6 +99,9 @@ static int syncRestoreFile(SSyncPeer *pPeer)
 
     sTrace("%s, %s is received, size:%d", pPeer->id, minfo.name, minfo.size);
   }
+
+  if (code == 0 && (minfo.fversion != sinfo.fversion)) 
+    *fversion = minfo.fversion;
 
   if (code < 0) {
     sError("%s, failed to restore %s(%s)", pPeer->id, name, strerror(errno));
@@ -213,14 +232,16 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
+  uint64_t fversion = 0;
 
   sTrace("%s, start to restore file", pPeer->id);
-  if (syncRestoreFile(pPeer) < 0) {
+  if (syncRestoreFile(pPeer, &fversion) < 0) {
     sError("%s, failed to restore file", pPeer->id);
     return -1;
   }
 
-  if (pNode->notifyFileSynced) (*pNode->notifyFileSynced)(pNode->ahandle);
+  if (fversion && && pNode->notifyFileSynced) 
+    (*pNode->notifyFileSynced)(pNode->ahandle, fversion);
 
   sTrace("%s, start to restore wal", pPeer->id);
   if (syncRestoreWal(pPeer) < 0) {
