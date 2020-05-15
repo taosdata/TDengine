@@ -28,7 +28,7 @@
 
 static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOfRows);
 static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOfRows);
-static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql);
+void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql);
 static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer);
 
 static int64_t getDelayValueAfterTimewindowClosed(SSqlStream* pStream, int64_t launchDelay) {
@@ -94,6 +94,13 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
     tscError("%p stream:%p,get metermeta failed, retry in %" PRId64 "ms", pStream->pSql, pStream, retryDelayTime);
   
     tscSetRetryTimer(pStream, pSql, retryDelayTime);
+    return;
+  }
+
+  if (0 == pMeterMetaInfo->pMetricMeta->numOfVnodes || 0 == pMeterMetaInfo->pMetricMeta->numOfMeters) {
+    tscTrace("%p no table in metricmeta, no launch query", pSql);
+    tscClearMeterMetaInfo(pMeterMetaInfo, false);
+    tscSetNextLaunchTimer(pStream, pSql);
     return;
   }
 
@@ -323,7 +330,7 @@ static int64_t getLaunchTimeDelay(const SSqlStream* pStream) {
 }
 
 
-static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
+void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
   int64_t timer = 0;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);

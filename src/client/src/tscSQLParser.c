@@ -4657,6 +4657,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     if (pMeterMetaInfo->pMeterMeta == NULL || pMetricMeta == NULL || pMetricMeta->numOfMeters == 0) {
       tscTrace("%p no table in metricmeta, no output result", pSql);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      pSql->res.qhandle = 0x1;  // to pass the qhandle check;
     }
 
     // keep original limitation value in globalLimit
