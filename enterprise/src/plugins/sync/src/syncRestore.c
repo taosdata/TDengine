@@ -68,7 +68,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
 
     // check the file info
     strcpy(sinfo.name, minfo.name);
-    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size);
+    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size, &sinfo.fversion);
 
     // if file not there or magic is not the same, file shall be synced
     if (sinfo.magic != minfo.magic || sinfo.name[0] == 0) fileAck.sync =1;
@@ -240,7 +240,7 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
-  if (fversion && && pNode->notifyFileSynced) 
+  if (fversion && pNode->notifyFileSynced) 
     (*pNode->notifyFileSynced)(pNode->ahandle, fversion);
 
   sTrace("%s, start to restore wal", pPeer->id);

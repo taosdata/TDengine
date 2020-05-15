@@ -103,7 +103,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
   while (1) {
     // retrieve file info
     fileInfo.name[0] = 0;
-    fileInfo.magic = (*pNode->getFileInfo)(pNode->ahandle, fileInfo.name, &fileInfo.index, &fileInfo.size, &file.fversion);   
+    fileInfo.magic = (*pNode->getFileInfo)(pNode->ahandle, fileInfo.name, &fileInfo.index, &fileInfo.size, &fileInfo.fversion);   
     //fileInfo.size = htonl(size);
 
     // send the file info
