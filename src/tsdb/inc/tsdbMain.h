@@ -45,7 +45,7 @@ extern int tsdbDebugFlag;
   { taosPrintLog("TSDB ", 255, __VA_ARGS__); }
 
 // ------------------------------ TSDB META FILE INTERFACES ------------------------------
-#define TSDB_META_FILE_NAME "META"
+#define TSDB_META_FILE_NAME "meta"
 #define TSDB_META_HASH_FRACTION 1.1
 
 typedef int (*iterFunc)(void *, void *cont, int contLen);
