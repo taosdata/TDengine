@@ -325,6 +325,13 @@ typedef struct {
   int16_t len;    // Column length // TODO: int16_t is not enough
   int32_t type : 8;
   int32_t offset : 24;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+  char    padding[2];
 } SCompCol;
 
 // TODO: Take recover into account

@@ -29,7 +29,7 @@ sql insert into d1.t1 values(now+5s, 11)
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
-if $data2_1 != 3 then
+if $data2_1 != 1 then
 	return -1
 endi
 
@@ -41,16 +41,16 @@ $x = 0
 show2: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
-if $data2_1 != 4 then
+if $data2_1 != 0 then
 	goto show2
 endi
-if $data2_2 != 3 then
+if $data2_2 != 1 then
 	goto show2
 endi
 
@@ -68,7 +68,7 @@ $x = 0
 sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
-if $data2_1 != 4 then
+if $data2_1 != 0 then
 	return -1
 endi
 if $data2_2 != 2 then
@@ -82,7 +82,7 @@ $x = 0
 show4: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 sql show dnodes
@@ -91,7 +91,7 @@ print dnode2 openVnodes $data2_2
 if $data2_1 != 2 then
     goto show4
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
     goto show4
 endi
 if $rows != 1 then
@@ -102,13 +102,8 @@ system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 
 print ========== step5
 sleep 2000
-sql create dnode $hostname2
-system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c wallevel -v 1
-system sh/exec_up.sh -n dnode2 -s start
+sql create dnode $hostname3
+system sh/exec_up.sh -n dnode3 -s start
 
 $x = 0
 show5: 
@@ -119,11 +114,11 @@ show5:
 	endi
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
-if $data2_1 != 4 then
+print dnode3 openVnodes $data2_3
+if $data2_1 != 0 then
     goto show5
 endi
-if $data2_2 != 2 then
+if $data2_3 != 2 then
     goto show5
 endi
 
@@ -138,17 +133,17 @@ sql insert into d3.t3 values(now+5s, 31)
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
-if $data2_1 != 4 then
+print dnode2 openVnodes $data2_3
+if $data2_1 != 0 then
 	return -1
 endi
-if $data2_2 != 1 then
+if $data2_3 != 3 then
 	return -1
 endi
 
 print ========== step7
-sql create dnode $hostname3
-system sh/exec_up.sh -n dnode3 -s start
+sql create dnode $hostname4
+system sh/exec_up.sh -n dnode4 -s start
 
 $x = 0
 show7: 
@@ -160,15 +155,15 @@ show7:
 	
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
 print dnode3 openVnodes $data2_3
-if $data2_1 != 4 then
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
   goto show7
 endi
-if $data2_2 != 2 then
+if $data2_3 != 2 then
   goto show7
 endi
-if $data2_3 != 3 then
+if $data2_4 != 1 then
   goto show7
 endi
 
@@ -185,49 +180,49 @@ $x = 0
 show8: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
 print dnode3 openVnodes $data2_3
-if $data2_1 != 4 then
-  goto show8
-endi
-if $data2_2 != 2 then
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
   goto show8
 endi
 if $data2_3 != 2 then
   goto show8
 endi
+if $data2_4 != 2 then
+  goto show8
+endi
 
 print ========== step9
-sql drop dnode $hostname2
+sql drop dnode $hostname3
 
 $x = 0
 show9: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
 print dnode3 openVnodes $data2_3
-if $data2_1 != 4 then
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
   goto show9
 endi
-if $data2_2 != NULL then
+if $data2_3 != null then
   goto show9
 endi
-if $data2_3 != 0 then
+if $data2_4 != 4 then
   goto show9
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
 
 print ========== step10
 sql select * from d1.t1  order by t desc

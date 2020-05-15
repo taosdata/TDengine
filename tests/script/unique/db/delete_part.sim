@@ -31,17 +31,17 @@ system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
 
 print ========= start dnodes
 system sh/exec_up.sh -n dnode1 -s start
+sleep 3000
 sql connect
 sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
-sleep 3000
 
 $loop = 0
 begin:
 
     $db = db . $loop
 	
-	print ======== step1
+	print ======== step1 $loop
 	sql create database $db
 	sql use $db
 	
@@ -53,15 +53,16 @@ begin:
 	  $x = $x + 1
 	endw
 
-	print ======== step2
+	print ======== step2 $loop
 	system sh/exec_up.sh -n dnode2 -s stop
+	sleep 1000
 	sql drop database $db 
 
 	
-	print ======== step3
+	print ======== step3 $loop
 	sleep 3000
 	system sh/exec_up.sh -n dnode2 -s start
-	sleep 20000
+	sleep 5000
 	
 	print ===> test times : $loop
     if $loop > 5 then	  
@@ -69,6 +70,9 @@ begin:
 	endi
 
 	$loop = $loop + 1
+
+	sql reset query cache
+	sleep 1000
 	
 goto begin
   

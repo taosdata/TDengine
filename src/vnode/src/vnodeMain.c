@@ -37,10 +37,10 @@ static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
 static bool     vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
-static void     vnodeNotifyFileSynced(void *ahandle);
+static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
@@ -119,9 +119,14 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeDrop(int32_t vgId) {
+  if (tsDnodeVnodesHash == NULL) {
+    vTrace("vgId:%d, failed to drop, vgId not exist", vgId);
+    return TSDB_CODE_INVALID_VGROUP_ID;
+  }
+
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
-    vTrace("vgId:%d, failed to drop, vgId not exist", vgId);
+    vTrace("vgId:%d, failed to drop, vgId not find", vgId);
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
 
@@ -191,6 +196,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   vnodeReadVersion(pVnode);
+  pVnode->fversion = pVnode->version;
   
   pVnode->wqueue = dnodeAllocateWqueue(pVnode);
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
@@ -359,7 +365,6 @@ void vnodeBuildStatusMsg(void *param) {
     if (*pVnode == NULL) continue;
 
     vnodeBuildVloadMsg(*pVnode, pStatus);
-    pStatus++;
   }
 
   taosHashDestroyIter(pIter);
@@ -376,7 +381,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   cqClose(pVnode->cq);
   pVnode->cq = NULL;
 
-  tsdbCloseRepo(pVnode->tsdb);
+  tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
 
   walClose(pVnode->wal);
@@ -390,7 +395,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   SVnodeObj *pVnode = arg;
 
   if (status == TSDB_STATUS_COMMIT_START) {
-    pVnode->savedVersion = pVnode->version; 
+    pVnode->fversion = pVnode->version; 
     return walRenew(pVnode->wal);
   }
 
@@ -400,8 +405,9 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   return 0; 
 }
 
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) {
   SVnodeObj *pVnode = ahandle;
+  *fversion = pVnode->fversion;
   return tsdbGetFileInfo(pVnode->tsdb, name, index, size);
 }
 
@@ -412,6 +418,7 @@ static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 
 static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
+  vPrint("vgId:%d, sync role changed from %d to %d", pVnode->vgId, pVnode->role, role);
   pVnode->role = role;
 
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
@@ -420,14 +427,18 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
     cqStop(pVnode->cq);
 }
 
-static void vnodeNotifyFileSynced(void *ahandle) {
+static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   SVnodeObj *pVnode = ahandle;
   vTrace("vgId:%d, data file is synced", pVnode->vgId);
+
+  pVnode->fversion = fversion;
+  pVnode->version = fversion;
+  vnodeSaveVersion(pVnode);
 
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
   // clsoe tsdb, then open tsdb
-  tsdbCloseRepo(pVnode->tsdb);
+  tsdbCloseRepo(pVnode->tsdb, 0);
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
   appH.notifyStatus = vnodeProcessTsdbStatus;
@@ -701,14 +712,14 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->savedVersion);
+  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->fversion);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
   fclose(fp);
   free(content);
 
-  vPrint("vgId:%d, save vnode version:%" PRId64 " succeed", pVnode->vgId, pVnode->savedVersion);
+  vPrint("vgId:%d, save vnode version:%" PRId64 " succeed", pVnode->vgId, pVnode->fversion);
 
   return 0;
 }

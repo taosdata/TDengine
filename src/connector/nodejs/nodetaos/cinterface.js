@@ -241,17 +241,12 @@ function CTaosInterface (config = null, pass = false) {
     'taos_fetch_rows_a': [ ref.types.void, [ ref.types.void_ptr, ref.types.void_ptr, ref.types.void_ptr ]],
 
     // Subscription
-    //TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, long time, int mseconds)
-    ////TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, int64_t time, int mseconds);
-    'taos_subscribe': [ ref.types.void_ptr, [ ref.types.char_ptr, ref.types.char_ptr, ref.types.char_ptr, ref.types.char_ptr, ref.types.char_ptr, ref.types.int64, ref.types.int] ],
-    //TAOS_ROW taos_consume(TAOS_SUB *tsub);
-    'taos_consume': [ ref.refType(ref.types.void_ptr2), [ref.types.void_ptr] ],
+    //TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)
+    'taos_subscribe': [ ref.types.void_ptr, [ ref.types.void_ptr, ref.types.int, ref.types.char_ptr, ref.types.char_ptr, ref.types.void_ptr, ref.types.void_ptr, ref.types.int] ],
+    // TAOS_RES *taos_consume(TAOS_SUB *tsub)
+    'taos_consume': [ ref.types.void_ptr, [ref.types.void_ptr] ],
     //void taos_unsubscribe(TAOS_SUB *tsub);
     'taos_unsubscribe': [ ref.types.void, [ ref.types.void_ptr ] ],
-    //int taos_subfields_count(TAOS_SUB *tsub);
-    'taos_subfields_count': [ ref.types.int, [ref.types.void_ptr ] ],
-    //TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub);
-    'taos_fetch_subfields': [ ref.refType(TaosField), [ ref.types.void_ptr ] ],
 
     // Continuous Query
     //TAOS_STREAM *taos_open_stream(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
@@ -362,7 +357,7 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   blocks.fill(null);
   num_of_rows = Math.abs(num_of_rows);
   let offset = 0;
-  pblock = pblock.deref()
+  pblock = pblock.deref();
   for (let i = 0; i < fields.length; i++) {
 
     if (!convertFunctions[fields[i]['type']] ) {
@@ -472,64 +467,40 @@ CTaosInterface.prototype.getClientInfo = function getClientInfo() {
 }
 
 // Subscription
-CTaosInterface.prototype.subscribe = function subscribe(host=null, user="root", password="taosdata", db=null, table=null, time=null, mseconds=null) {
-  let dbOrig = db;
-  let tableOrig = table;
-  try  {
-    host = host != null ? ref.allocCString(host) : ref.alloc(ref.types.char_ptr, ref.NULL);
+CTaosInterface.prototype.subscribe = function subscribe(connection, restart, topic, sql, interval) {
+  let topicOrig = topic;
+  let sqlOrig = sql;
+  try {
+    sql = sql != null ? ref.allocCString(sql) : ref.alloc(ref.types.char_ptr, ref.NULL);
   }
   catch(err) {
-    throw "Attribute Error: host is expected as a str";
+    throw "Attribute Error: sql is expected as a str";
   }
   try {
-    user = ref.allocCString(user)
+    topic = topic != null ? ref.allocCString(topic) : ref.alloc(ref.types.char_ptr, ref.NULL);
   }
   catch(err) {
-    throw "Attribute Error: user is expected as a str";
+    throw TypeError("topic is expected as a str");
   }
-  try {
-    password = ref.allocCString(password);
-  }
-  catch(err) {
-    throw "Attribute Error: password is expected as a str";
-  }
-  try {
-    db = db != null ? ref.allocCString(db) : ref.alloc(ref.types.char_ptr, ref.NULL);
-  }
-  catch(err) {
-    throw "Attribute Error: db is expected as a str";
-  }
-  try {
-    table = table != null ? ref.allocCString(table) : ref.alloc(ref.types.char_ptr, ref.NULL);
-  }
-  catch(err) {
-    throw TypeError("table is expected as a str");
-  }
-  try {
-    mseconds = ref.alloc(ref.types.int, mseconds);
-  }
-  catch(err) {
-    throw TypeError("mseconds is expected as an int");
-  }
-  //TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, int64_t time, int mseconds);
-  let subscription = this.libtaos.taos_subscribe(host, user, password, db, table, time, mseconds);
+
+  restart = ref.alloc(ref.types.int, restart);
+
+  let subscription = this.libtaos.taos_subscribe(connection, restart, topic, sql, null, null, interval);
   if (ref.isNull(subscription)) {
     throw new errors.TDError('Failed to subscribe to TDengine | Database: ' + dbOrig + ', Table: ' + tableOrig);
   }
   else {
-    console.log('Successfully subscribed to TDengine | Database: ' + dbOrig + ', Table: ' + tableOrig);
+    console.log('Successfully subscribed to TDengine - Topic: ' + topicOrig);
   }
   return subscription;
 }
-CTaosInterface.prototype.subFieldsCount = function subFieldsCount(subscription) {
-  return this.libtaos.taos_subfields_count(subscription);
-}
-CTaosInterface.prototype.fetchSubFields = function fetchSubFields(subscription) {
-  let pfields = this.libtaos.taos_fetch_subfields(subscription);
-  let pfieldscount = this.subFieldsCount(subscription);
+
+CTaosInterface.prototype.consume = function consume(subscription) {
+  let result = this.libtaos.taos_consume(subscription);
   let fields = [];
+  let pfields = this.fetchFields(result);
   if (ref.isNull(pfields) == false) {
-    pfields = ref.reinterpret(pfields, 68 * pfieldscount , 0);
+    pfields = ref.reinterpret(pfields, this.numFields(result) * 68, 0);
     for (let i = 0; i < pfields.length; i += 68) {
       //0 - 63 = name //64 - 65 = bytes, 66 - 67 = type
       fields.push( {
@@ -539,27 +510,23 @@ CTaosInterface.prototype.fetchSubFields = function fetchSubFields(subscription) 
       })
     }
   }
-  return fields;
-}
-CTaosInterface.prototype.consume = function consume(subscription) {
-  let row = this.libtaos.taos_consume(subscription);
-  let fields = this.fetchSubFields(subscription);
-  //let isMicro = (cti.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO);
-  let isMicro = false; //no supported function for determining precision?
-  let blocks = new Array(fields.length);
-  blocks.fill(null);
-  let numOfRows2 = 1; //Math.abs(numOfRows2);
-  let offset = 0;
-  if (numOfRows2 > 0){
-    for (let i = 0; i < fields.length; i++) {
-      if (!convertFunctions[fields[i]['type']] ) {
-        throw new errors.DatabaseError("Invalid data type returned from database");
+
+  let data = [];
+  while(true) {
+    let { blocks, num_of_rows } = this.fetchBlock(result, fields);
+    if (num_of_rows == 0) {
+      break;
+    }
+    for (let i = 0; i < num_of_rows; i++) {
+      data.push([]);
+      let rowBlock = new Array(fields.length);
+      for (let j = 0; j < fields.length; j++) {
+        rowBlock[j] = blocks[j][i];
       }
-      blocks[i] = convertFunctions[fields[i]['type']](row, numOfRows2, fields[i]['bytes'], offset, isMicro);
-      offset += fields[i]['bytes'] * numOfRows2;
+      data[data.length-1] = (rowBlock);
     }
   }
-  return {blocks:blocks, fields:fields};
+  return { data: data, fields: fields, result: result };
 }
 CTaosInterface.prototype.unsubscribe = function unsubscribe(subscription) {
   //void taos_unsubscribe(TAOS_SUB *tsub);

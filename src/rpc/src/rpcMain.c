@@ -898,9 +898,9 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
 
   if (pContext->pRsp) { 
     // for synchronous API
-    tsem_post(pContext->pSem);
     memcpy(pContext->pSet, &pContext->ipSet, sizeof(SRpcIpSet));
     memcpy(pContext->pRsp, pMsg, sizeof(SRpcMsg));
+    tsem_post(pContext->pSem);
   } else {
     // for asynchronous API 
     SRpcIpSet *pIpSet = NULL;

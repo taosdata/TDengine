@@ -74,6 +74,7 @@ static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
  
 #ifndef _SYNC 
+  //TODO: drop dnode local
   mgmtDropAllDnodeVgroups(pDnode);
 #endif  
   mgmtDropMnodeLocal(pDnode->dnodeId);

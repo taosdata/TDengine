@@ -15,7 +15,7 @@ cd ../../../debug; make
 ./test.sh -f general/cache/restart_metrics.sim
 ./test.sh -f general/cache/restart_table.sim
 
-./test.sh -f general/connection/connections.sim
+./test.sh -f general/connection/connection.sim  
 
 ./test.sh -f general/column/commit.sim
 ./test.sh -f general/column/metrics.sim
@@ -49,6 +49,7 @@ cd ../../../debug; make
 ./test.sh -f general/db/basic3.sim
 ./test.sh -f general/db/basic4.sim
 ./test.sh -f general/db/basic5.sim
+./test.sh -f general/db/delete.sim
 ./test.sh -f general/db/delete_reuse1.sim
 ./test.sh -f general/db/delete_reuse2.sim
 ./test.sh -f general/db/delete_reusevnode.sim
@@ -243,15 +244,15 @@ cd ../../../debug; make
 #slguan ./test.sh -u -f unique/big/maxvnodes.sim
 ./test.sh -u -f unique/big/tcp.sim
 
-##./test.sh -u -f unique/cluster/balance1.sim
-##./test.sh -u -f unique/cluster/balance2.sim
-##./test.sh -u -f unique/cluster/balance3.sim
+#jeff ./test.sh -u -f unique/cluster/balance1.sim
+#jeff ./test.sh -u -f unique/cluster/balance2.sim
+#jeff ./test.sh -u -f unique/cluster/balance3.sim
 #./test.sh -u -f unique/cluster/cache.sim
 
 ./test.sh -u -f unique/column/replica3.sim
 
-#./test.sh -u -f unique/db/commit.sim
-#./test.sh -u -f unique/db/delete.sim
+#hongze ./test.sh -u -f unique/db/commit.sim
+./test.sh -u -f unique/db/delete.sim
 #./test.sh -u -f unique/db/delete_part.sim
 ##./test.sh -u -f unique/db/replica_add12.sim
 ##./test.sh -u -f unique/db/replica_add13.sim
@@ -267,12 +268,12 @@ cd ../../../debug; make
 ##./test.sh -u -f unique/dnode/balancex.sim
 ##./test.sh -u -f unique/dnode/offline1.sim
 ##./test.sh -u -f unique/dnode/offline2.sim
-#./test.sh -u -f unique/dnode/remove1.sim
-#./test.sh -u -f unique/dnode/remove2.sim
-#./test.sh -u -f unique/dnode/vnode_clean.sim
+./test.sh -u -f unique/dnode/remove1.sim
+#hongze ./test.sh -u -f unique/dnode/remove2.sim
+./test.sh -u -f unique/dnode/vnode_clean.sim
 
-##./test.sh -u -f unique/http/admin.sim
-##./test.sh -u -f unique/http/opentsdb.sim
+./test.sh -u -f unique/http/admin.sim
+./test.sh -u -f unique/http/opentsdb.sim
 
 #./test.sh -u -f unique/import/replica2.sim
 #./test.sh -u -f unique/import/replica3.sim
@@ -293,8 +294,7 @@ cd ../../../debug; make
 ./test.sh -u -f unique/mnode/mgmt26.sim
 ./test.sh -u -f unique/mnode/mgmt33.sim
 ./test.sh -u -f unique/mnode/mgmt34.sim
-#./test.sh -u -f unique/mnode/mgmtr2.sim
-#./test.sh -u -f unique/mnode/secondIp.sim
+./test.sh -u -f unique/mnode/mgmtr2.sim
 
 ##./test.sh -u -f unique/table/delete_part.sim
 
@@ -303,6 +303,6 @@ cd ../../../debug; make
 #./test.sh -u -f unique/vnode/replica2_basic.sim
 ./test.sh -u -f unique/vnode/replica2_basic2.sim
 #./test.sh -u -f unique/vnode/replica2_repeat.sim
-##./test.sh -u -f unique/vnode/replica3_basic.sim
+#hongze ./test.sh -u -f unique/vnode/replica3_basic.sim
 #./test.sh -u -f unique/vnode/replica3_repeat.sim
 #./test.sh -u -f unique/vnode/replica3_vgroup.sim
