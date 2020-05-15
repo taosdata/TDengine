@@ -196,6 +196,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   vnodeReadVersion(pVnode);
+  pVnode->fversion = pVnode->version;
   
   pVnode->wqueue = dnodeAllocateWqueue(pVnode);
   pVnode->rqueue = dnodeAllocateRqueue(pVnode);
@@ -394,7 +395,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   SVnodeObj *pVnode = arg;
 
   if (status == TSDB_STATUS_COMMIT_START) {
-    pVnode->savedVersion = pVnode->version; 
+    pVnode->fversion = pVnode->version; 
     return walRenew(pVnode->wal);
   }
 
@@ -404,8 +405,9 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   return 0; 
 }
 
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size) {
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) {
   SVnodeObj *pVnode = ahandle;
+  *fversion = pVnode->fversion;
   return tsdbGetFileInfo(pVnode->tsdb, name, index, size);
 }
 
@@ -425,12 +427,17 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
     cqStop(pVnode->cq);
 }
 
-static void vnodeNotifyFileSynced(void *ahandle) {
+static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   SVnodeObj *pVnode = ahandle;
   vTrace("vgId:%d, data file is synced", pVnode->vgId);
 
+  pVnode->fversion = fversion;
+  pVnode->version = fversion;
+  vnodeSaveVersion(pVnode);
+
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
+
   // close tsdb, then open tsdb
   tsdbCloseRepo(pVnode->tsdb);
   STsdbAppH appH = {0};
@@ -706,14 +713,14 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->savedVersion);
+  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->fversion);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
   fclose(fp);
   free(content);
 
-  vPrint("vgId:%d, save vnode version:%" PRId64 " succeed", pVnode->vgId, pVnode->savedVersion);
+  vPrint("vgId:%d, save vnode version:%" PRId64 " succeed", pVnode->vgId, pVnode->fversion);
 
   return 0;
 }
