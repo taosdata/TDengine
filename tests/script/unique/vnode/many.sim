@@ -53,27 +53,27 @@ sql select count(*) from db4.tb4
 $lastRows4 = $rows
 
 print ======== step2
-run_back cluster/vnode/back_insert_many.sim
+run_back unique/vnode/back_insert_many.sim
 sleep 5000
 
 print ======== step3
 system sh/exec_up.sh -n dnode2 -s stop
-sleep 10000
+sleep 5000
 
 $x = 0
 loop:
 
 print ======== step4
 system sh/exec_up.sh -n dnode2 -s start
-sleep 10000
+sleep 5000
 system sh/exec_up.sh -n dnode3 -s stop
-sleep 10000
+sleep 5000
 
 print ======== step5
 system sh/exec_up.sh -n dnode3 -s start
-sleep 10000
+sleep 5000
 system sh/exec_up.sh -n dnode2 -s stop
-sleep 10000
+sleep 5000
 
 print ======== step6
 sql select count(*) from db1.tb1
@@ -108,7 +108,7 @@ print ======== step7
 
 print ======== loop Times $x
 
-if $x < 5 then
+if $x < 2 then
   $x = $x + 1
   goto loop
 endi

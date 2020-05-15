@@ -33,7 +33,7 @@ sleep 3001
 
 
 $tbPre = m
-$N = 280
+$N = 300
 $x = 0
 $y = $x + $N
 while $x < $y
@@ -46,20 +46,20 @@ endw
 
 
 #print =================== step 2
-#$x = 1
-#$y = $x + $N
-#$expect = $N
-#while $x < $y
-#  $ms = $x . m 
-#  sql insert into $table values (now + $ms , $x ) 
-#  $x = $x + 1
-#endw 
+$x = -500
+$y = $x + $N
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now $ms , $x ) 
+  $x = $x + 1
+endw 
 
-#sql select * from $table
-#print sql select * from $table -> $rows points 
-#if $rows != $expect then 
-#  return -1
-#endi
+$expect = $N + 1
+sql select * from $table
+print sql select * from $table -> $rows points expect $expect
+if $rows != $expect then 
+  return -1
+endi
 
 system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
