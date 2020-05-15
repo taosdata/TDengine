@@ -136,7 +136,7 @@ static bool tExtMemBufferAlloc(tExtMemBuffer *pMemBuffer) {
   }
 
   item->pNext = NULL;
-  item->item.numOfElems = 0;
+  item->item.num = 0;
 
   if (pMemBuffer->pTail != NULL) {
     pMemBuffer->pTail->pNext = item;
@@ -167,13 +167,13 @@ int16_t tExtMemBufferPut(tExtMemBuffer *pMemBuffer, void *data, int32_t numOfRow
     pLast = pMemBuffer->pTail;
   }
 
-  if (pLast->item.numOfElems + numOfRows <= pMemBuffer->numOfElemsPerPage) { // enough space for records
+  if (pLast->item.num + numOfRows <= pMemBuffer->numOfElemsPerPage) { // enough space for records
     tColModelAppend(pMemBuffer->pColumnModel, &pLast->item, data, 0, numOfRows, numOfRows);
     
     pMemBuffer->numOfElemsInBuffer += numOfRows;
     pMemBuffer->numOfTotalElems += numOfRows;
   } else {
-    int32_t numOfRemainEntries = pMemBuffer->numOfElemsPerPage - pLast->item.numOfElems;
+    int32_t numOfRemainEntries = pMemBuffer->numOfElemsPerPage - pLast->item.num;
     tColModelAppend(pMemBuffer->pColumnModel, &pLast->item, data, 0, numOfRemainEntries, numOfRows);
 
     pMemBuffer->numOfElemsInBuffer += numOfRemainEntries;
@@ -271,7 +271,7 @@ bool tExtMemBufferFlush(tExtMemBuffer *pMemBuffer) {
       ret = false;
     }
 
-    pMemBuffer->fileMeta.numOfElemsInFile += first->item.numOfElems;
+    pMemBuffer->fileMeta.numOfElemsInFile += first->item.num;
     pMemBuffer->fileMeta.nFileSize += 1;
 
     tFilePagesItem *ptmp = first;
@@ -985,16 +985,16 @@ void tColModelDisplayEx(SColumnModel *pModel, void *pData, int32_t numOfRows, in
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity) {
-  if (inputBuffer->numOfElems == 0 || maxElemsCapacity == inputBuffer->numOfElems) {
+  if (inputBuffer->num == 0 || maxElemsCapacity == inputBuffer->num) {
     return;
   }
 
   /* start from the second column */
   for (int32_t i = 1; i < pModel->numOfCols; ++i) {
     SSchemaEx* pSchemaEx = &pModel->pFields[i];
-    memmove(inputBuffer->data + pSchemaEx->offset * inputBuffer->numOfElems,
+    memmove(inputBuffer->data + pSchemaEx->offset * inputBuffer->num,
             inputBuffer->data + pSchemaEx->offset * maxElemsCapacity,
-            pSchemaEx->field.bytes * inputBuffer->numOfElems);
+            pSchemaEx->field.bytes * inputBuffer->num);
   }
 }
 
@@ -1009,13 +1009,13 @@ int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index) {
 }
 
 void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockCapacity, int32_t s, int32_t e) {
-  if (inputBuffer->numOfElems == 0 || (e - s + 1) <= 0) {
+  if (inputBuffer->num == 0 || (e - s + 1) <= 0) {
     return;
   }
 
   int32_t removed = e - s + 1;
-  int32_t remain = inputBuffer->numOfElems - removed;
-  int32_t secPart = inputBuffer->numOfElems - e - 1;
+  int32_t remain = inputBuffer->num - removed;
+  int32_t secPart = inputBuffer->num - e - 1;
 
   /* start from the second column */
   for (int32_t i = 0; i < pModel->numOfCols; ++i) {
@@ -1028,7 +1028,7 @@ void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockC
     memmove(startPos, endPos, pSchema->bytes * secPart);
   }
 
-  inputBuffer->numOfElems = remain;
+  inputBuffer->num = remain;
 }
 
 /*
@@ -1040,16 +1040,16 @@ void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockC
  */
 void tColModelAppend(SColumnModel *dstModel, tFilePage *dstPage, void *srcData, int32_t start, int32_t numOfRows,
                      int32_t srcCapacity) {
-  assert(dstPage->numOfElems + numOfRows <= dstModel->capacity);
+  assert(dstPage->num + numOfRows <= dstModel->capacity);
 
   for (int32_t col = 0; col < dstModel->numOfCols; ++col) {
-    char *dst = COLMODEL_GET_VAL(dstPage->data, dstModel, dstModel->capacity, dstPage->numOfElems, col);
+    char *dst = COLMODEL_GET_VAL(dstPage->data, dstModel, dstModel->capacity, dstPage->num, col);
     char *src = COLMODEL_GET_VAL((char *)srcData, dstModel, srcCapacity, start, col);
 
     memmove(dst, src, dstModel->pFields[col].field.bytes * numOfRows);
   }
 
-  dstPage->numOfElems += numOfRows;
+  dstPage->num += numOfRows;
 }
 
 tOrderDescriptor *tOrderDesCreate(const int32_t *orderColIdx, int32_t numOfOrderCols, SColumnModel *pModel,

@@ -1390,7 +1390,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       tExtMemBufferClear(trsupport->pExtMemBuffer[subqueryIndex]);
       
       // clear local saved number of results
-      trsupport->localBuffer->numOfElems = 0;
+      trsupport->localBuffer->num = 0;
       pthread_mutex_unlock(&trsupport->queryMutex);
       
       tscTrace("%p sub:%p retrieve failed, code:%s, orderOfSub:%d, retry:%d", trsupport->pParentSqlObj, pSql,
@@ -1457,7 +1457,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
   
   // data in from current vnode is stored in cache and disk
-  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
+  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num;
     tscTrace("%p sub:%p all data retrieved from ip:%u,vgId:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql,
         pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
@@ -1465,11 +1465,11 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
 
 #ifdef _DEBUG_VIEW
-  printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
+  printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->num);
     SSrcColumnInfo colInfo[256] = {0};
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
-    tColModelDisplayEx(pDesc->pColumnModel, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
-                       trsupport->localBuffer->numOfElems, colInfo);
+    tColModelDisplayEx(pDesc->pColumnModel, trsupport->localBuffer->data, trsupport->localBuffer->num,
+                       trsupport->localBuffer->num, colInfo);
 #endif
   
   if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {

@@ -4159,16 +4159,16 @@ static void interp_function(SQLFunctionCtx *pCtx) {
     SInterpInfoDetail *pInfoDetail = interpInfo.pInterpDetail;
     
     /* set no output result */
-    if (pInfoDetail->type == TSDB_INTERPO_NONE) {
+    if (pInfoDetail->type == TSDB_FILL_NONE) {
       pCtx->param[3].i64Key = 0;
     } else if (pInfoDetail->primaryCol == 1) {
       *(TSKEY *)pCtx->aOutputBuf = pInfoDetail->ts;
     } else {
-      if (pInfoDetail->type == TSDB_INTERPO_NULL) {
+      if (pInfoDetail->type == TSDB_FILL_NULL) {
         setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      } else if (pInfoDetail->type == TSDB_INTERPO_SET_VALUE) {
+      } else if (pInfoDetail->type == TSDB_FILL_SET_VALUE) {
         tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType);
-      } else if (pInfoDetail->type == TSDB_INTERPO_PREV) {
+      } else if (pInfoDetail->type == TSDB_FILL_PREV) {
         char *data = pCtx->param[1].pz;
         char *pVal = data + TSDB_KEYSIZE;
         
@@ -4179,7 +4179,7 @@ static void interp_function(SQLFunctionCtx *pCtx) {
           assignVal(pCtx->aOutputBuf, pVal, pCtx->outputBytes, pCtx->outputType);
         }
         
-      } else if (pInfoDetail->type == TSDB_INTERPO_LINEAR) {
+      } else if (pInfoDetail->type == TSDB_FILL_LINEAR) {
         char *data1 = pCtx->param[1].pz;
         char *data2 = pCtx->param[2].pz;
         

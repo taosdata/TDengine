@@ -4020,19 +4020,19 @@ int32_t parseFillClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL) {
   }
 
   if (strncasecmp(pItem->pVar.pz, "none", 4) == 0 && pItem->pVar.nLen == 4) {
-    pQueryInfo->interpoType = TSDB_INTERPO_NONE;
+    pQueryInfo->fillType = TSDB_FILL_NONE;
   } else if (strncasecmp(pItem->pVar.pz, "null", 4) == 0 && pItem->pVar.nLen == 4) {
-    pQueryInfo->interpoType = TSDB_INTERPO_NULL;
+    pQueryInfo->fillType = TSDB_FILL_NULL;
     for (int32_t i = START_INTERPO_COL_IDX; i < size; ++i) {
       TAOS_FIELD* pFields = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
       setNull((char*)&pQueryInfo->defaultVal[i], pFields->type, pFields->bytes);
     }
   } else if (strncasecmp(pItem->pVar.pz, "prev", 4) == 0 && pItem->pVar.nLen == 4) {
-    pQueryInfo->interpoType = TSDB_INTERPO_PREV;
+    pQueryInfo->fillType = TSDB_FILL_PREV;
   } else if (strncasecmp(pItem->pVar.pz, "linear", 6) == 0 && pItem->pVar.nLen == 6) {
-    pQueryInfo->interpoType = TSDB_INTERPO_LINEAR;
+    pQueryInfo->fillType = TSDB_FILL_LINEAR;
   } else if (strncasecmp(pItem->pVar.pz, "value", 5) == 0 && pItem->pVar.nLen == 5) {
-    pQueryInfo->interpoType = TSDB_INTERPO_SET_VALUE;
+    pQueryInfo->fillType = TSDB_FILL_SET_VALUE;
 
     if (pFillToken->nExpr == 1) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);

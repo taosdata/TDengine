@@ -280,7 +280,7 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
     return;
   }
 
-  pQueryInfo->interpoType = TSDB_INTERPO_NONE;
+  pQueryInfo->fillType = TSDB_FILL_NONE;
   tfree(pQueryInfo->defaultVal);
 }
 
@@ -1779,7 +1779,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   
   tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond);
 
-  if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
+  if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     pNewQueryInfo->defaultVal = malloc(pQueryInfo->fieldsInfo.numOfOutput * sizeof(int64_t));
     memcpy(pNewQueryInfo->defaultVal, pQueryInfo->defaultVal, pQueryInfo->fieldsInfo.numOfOutput * sizeof(int64_t));
   }

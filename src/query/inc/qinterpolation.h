@@ -24,18 +24,34 @@ extern "C" {
 #include "taosdef.h"
 #include "qextbuffer.h"
 
-typedef struct SInterpolationInfo {
-  int64_t startTimestamp;
-  int32_t order;                // order [asc/desc]
-  int32_t numOfRawDataInRows;   // number of points in pQuery->sdata
-  int32_t rowIdx;               // rowIdx in pQuery->sdata
-  int32_t numOfTotalInterpo;    // number of interpolated rows in one round
-  int32_t numOfCurrentInterpo;  // number of interpolated rows in current results
-  char *  prevValues;           // previous row of data
+typedef struct {
+  STColumn col;             // column info
+  int16_t  functionId;      // sql function id
+  int16_t  flag;            // column flag: TAG COLUMN|NORMAL COLUMN
+  union {int64_t i; double d;} defaultVal;
+} SFillColInfo;
+  
+typedef struct SFillInfo {
+  TSKEY   start;                // start timestamp
+  TSKEY   endKey;               // endKey for fill
+  int32_t order;                // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
+  int32_t fillType;             // fill type
+  int32_t numOfRows;            // number of rows in the input data block
+  int32_t rowIdx;               // rowIdx
+  int32_t numOfTotal;           // number of filled rows in one round
+  int32_t numOfCurrent;         // number of filled rows in current results
+
+  int32_t numOfTags;            // number of tags
+  int32_t numOfCols;            // number of columns, including the tags columns
+  int32_t rowSize;              // size of each row
+  char ** pTags;                // tags value for current interpolation
+  
+  int64_t slidingTime;         // sliding value to determine the number of result for a given time window
+  char *  prevValues;           // previous row of data, to generate the interpolation results
   char *  nextValues;           // next row of data
-  int32_t numOfTags;
-  char ** pTags;  // tags value for current interoplation
-} SInterpolationInfo;
+  SFillColInfo* pFillCol;       // column info for fill operations
+  char** pData;                 // original result data block involved in filling data
+} SFillInfo;
 
 typedef struct SPoint {
   int64_t key;
@@ -44,48 +60,30 @@ typedef struct SPoint {
 
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit, int16_t precision);
 
-void taosInitInterpoInfo(SInterpolationInfo *pInterpoInfo, int32_t order, int64_t startTimeStamp, int32_t numOfTags,
-                         int32_t rowSize);
+SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity,
+                            int32_t numOfCols, int64_t slidingTime, int32_t fillType, SFillColInfo* pFillCol);
 
-void taosDestoryInterpoInfo(SInterpolationInfo *pInterpoInfo);
+void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp);
 
-void taosInterpoSetStartInfo(SInterpolationInfo *pInterpoInfo, int32_t numOfRawDataInRows, int32_t type);
+void taosDestoryFillInfo(SFillInfo *pFillInfo);
 
-TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t intervalTimeUnit, int8_t precision);
+void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 
-/**
- *
- * @param pInterpoInfo
- * @param pPrimaryKeyArray
- * @param numOfRows
- * @param nInterval
- * @param ekey
- * @param maxNumOfRows
- * @return
- */
-int32_t taosGetNumOfResultWithInterpo(SInterpolationInfo *pInterpoInfo, int64_t *pPrimaryKeyArray, int32_t numOfRows,
-                                      int64_t nInterval, int64_t ekey, int32_t maxNumOfRows);
+void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, tFilePage** pInput);
 
-int32_t taosGetNumOfResWithoutLimit(SInterpolationInfo *pInterpoInfo, int64_t *pPrimaryKeyArray,
-                                    int32_t numOfRawDataInRows, int64_t nInterval, int64_t ekey);
-/**
- *
- * @param pInterpoInfo
- * @return
- */
-bool taosHasRemainsDataForInterpolation(SInterpolationInfo *pInterpoInfo);
+void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInput);
 
-int32_t taosNumOfRemainPoints(SInterpolationInfo *pInterpoInfo);
+TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int64_t timeInterval, int8_t slidingTimeUnit, int8_t precision);
 
-/**
- *
- */
-int32_t taosDoInterpoResult(SInterpolationInfo *pInterpoInfo, int16_t interpoType, tFilePage **data,
-                            int32_t numOfRawDataInRows, int32_t outputRows, int64_t nInterval,
-                            const int64_t *pPrimaryKeyArray, SColumnModel *pModel, char **srcData, int64_t *defaultVal,
-                            const int32_t *functionIDs, int32_t bufSize);
+int32_t taosGetNumOfResultWithFill(SFillInfo* pFillInfo, int32_t numOfRows, int64_t ekey, int32_t maxNumOfRows);
 
+int32_t taosNumOfRemainRows(SFillInfo *pFillInfo);
+
+int32_t taosDoInterpoResult(SFillInfo* pFillInfo, tFilePage** data, int32_t numOfRows, int32_t outputRows, char** srcData);
+  
 int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
+
+void taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int64_t* outputRows, int32_t capacity);
 
 #ifdef __cplusplus
 }

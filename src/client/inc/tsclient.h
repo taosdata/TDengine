@@ -210,7 +210,7 @@ typedef struct SQueryInfo {
   SLimitVal        slimit;
   STagCond         tagCond;
   SOrderVal        order;
-  int16_t          interpoType;  // interpolate type
+  int16_t          fillType;  // interpolate type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
