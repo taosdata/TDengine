@@ -116,6 +116,8 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Node.js](https://www.taosdata.com/en/documentation/connector/#Node.js-Connector)
 
 # How to run the test cases and how to add a new test case?
+  TDengine's test framework and all test cases are fully open source.
+  Please refer to [this document](https://www.github.com/taosdata/TDengine/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
 ### Prepare development environment
 
