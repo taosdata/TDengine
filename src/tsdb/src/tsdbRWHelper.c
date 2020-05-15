@@ -701,6 +701,8 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
       continue;
     }
 
+    memset(pCompCol, 0, sizeof(*pCompCol));
+
     pCompCol->colId = pDataCol->colId;
     pCompCol->type = pDataCol->type;
     if (tDataTypeDesc[pDataCol->type].getStatisFunc) {
