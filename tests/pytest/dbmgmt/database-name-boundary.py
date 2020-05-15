@@ -29,14 +29,14 @@ class TDTestCase:
 
     def run(self):
 
-        chars = string.ascii_uppercase+string.ascii_lowercase
+        chars = string.ascii_uppercase + string.ascii_lowercase
 
         getDbNameLen = "grep -w '#define TSDB_DB_NAME_LEN' ../../src/inc/taosdef.h|awk '{print $3}'"
         dbNameMaxLen = int(subprocess.check_output(getDbNameLen, shell=True))
         tdLog.notice("DB name max length is %d" % dbNameMaxLen)
 
         tdLog.info("=============== step1")
-        db_name = ''.join(random.choices(chars, k=(dbNameMaxLen+1)))
+        db_name = ''.join(random.choices(chars, k=(dbNameMaxLen + 1)))
         tdLog.info('db_name length %d' % len(db_name))
         tdLog.info('create database %s' % db_name)
         tdSql.error('create database %s' % db_name)
@@ -52,7 +52,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, db_name.lower())
 
         tdLog.info("=============== step3")
-        db_name = ''.join(random.choices(chars, k=(dbNameMaxLen-1)))
+        db_name = ''.join(random.choices(chars, k=(dbNameMaxLen - 1)))
         tdLog.info('db_name length %d' % len(db_name))
         tdLog.info('create database %s' % db_name)
         tdSql.execute('create database %s' % db_name)

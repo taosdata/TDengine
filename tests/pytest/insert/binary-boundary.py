@@ -25,7 +25,21 @@ class TDTestCase:
         tdSql.error("insert into tb values (now, )")
 
         with open("../../README.md", "r") as inputFile:
-            data = inputFile.read(4084).replace("\n", " ").replace("\\", " ").replace("\'", " ").replace("\"", " ").replace("[", " ").replace("]", " ").replace("!", " ")
+            data = inputFile.read(4084).replace(
+                "\n",
+                " ").replace(
+                "\\",
+                " ").replace(
+                "\'",
+                " ").replace(
+                "\"",
+                " ").replace(
+                    "[",
+                    " ").replace(
+                        "]",
+                        " ").replace(
+                            "!",
+                " ")
 
         tdLog.info("insert %d length data: %s" % (len(data), data))
 
@@ -39,17 +53,79 @@ class TDTestCase:
         tdLog.info("tdSql.checkData(0, 1, '%s')" % data)
         tdSql.checkData(0, 1, data)
 
-        tdLog.info('create table tb2 (ts timestamp, speed binary(2040), temp binary(2044))')
-        tdSql.execute('create table tb2 (ts timestamp, speed binary(2040), temp binary(2044))')
-        speed = inputFile.read(2044).replace("\n", " ").replace("\\", " ").replace("\'", " ").replace("\"", " ").replace("[", " ").replace("]", " ").replace("!", " ")
-        temp = inputFile.read(2040).replace("\n", " ").replace("\\", " ").replace("\'", " ").replace("\"", " ").replace("[", " ").replace("]", " ").replace("!", " ")
+        tdLog.info(
+            'create table tb2 (ts timestamp, speed binary(2040), temp binary(2044))')
+        tdSql.execute(
+            'create table tb2 (ts timestamp, speed binary(2040), temp binary(2044))')
+        speed = inputFile.read(2044).replace(
+            "\n",
+            " ").replace(
+            "\\",
+            " ").replace(
+            "\'",
+            " ").replace(
+                "\"",
+                " ").replace(
+                    "[",
+                    " ").replace(
+                        "]",
+                        " ").replace(
+                            "!",
+            " ")
+        temp = inputFile.read(2040).replace(
+            "\n",
+            " ").replace(
+            "\\",
+            " ").replace(
+            "\'",
+            " ").replace(
+                "\"",
+                " ").replace(
+                    "[",
+                    " ").replace(
+                        "]",
+                        " ").replace(
+                            "!",
+            " ")
         tdLog.info("insert into tb values (now+3a, speed, temp)")
-        tdSql.error("insert into tb values (now+3a, '%s', '%s')" % (speed, temp))
+        tdSql.error(
+            "insert into tb values (now+3a, '%s', '%s')" %
+            (speed, temp))
 
-        speed = inputFile.read(2040).replace("\n", " ").replace("\\", " ").replace("\'", " ").replace("\"", " ").replace("[", " ").replace("]", " ").replace("!", " ")
-        temp = inputFile.read(2044).replace("\n", " ").replace("\\", " ").replace("\'", " ").replace("\"", " ").replace("[", " ").replace("]", " ").replace("!", " ")
+        speed = inputFile.read(2040).replace(
+            "\n",
+            " ").replace(
+            "\\",
+            " ").replace(
+            "\'",
+            " ").replace(
+                "\"",
+                " ").replace(
+                    "[",
+                    " ").replace(
+                        "]",
+                        " ").replace(
+                            "!",
+            " ")
+        temp = inputFile.read(2044).replace(
+            "\n",
+            " ").replace(
+            "\\",
+            " ").replace(
+            "\'",
+            " ").replace(
+                "\"",
+                " ").replace(
+                    "[",
+                    " ").replace(
+                        "]",
+                        " ").replace(
+                            "!",
+            " ")
         tdLog.info("insert into tb values (now+4a, speed, temp)")
-        tdSql.error("insert into tb values (now+4a, '%s', '%s')" % (speed, temp))
+        tdSql.error(
+            "insert into tb values (now+4a, '%s', '%s')" %
+            (speed, temp))
 
         tdLog.info('tdSql.checkRow(2)')
         tdSql.checkRows(2)

@@ -33,19 +33,27 @@ class TDTestCase:
             stb_name = "stb%d" % x
 
             tagSeq = "tag0 int"
-            for y in range(1, x+1):
+            for y in range(1, x + 1):
                 tagSeq = tagSeq + ", tag%d int" % y
 
-            tdLog.info("create table %s (ts timestamp, value int) tags (%s)" % (stb_name, tagSeq))
-            tdSql.execute("create table %s (ts timestamp, value int) tags (%s)" % (stb_name, tagSeq))
+            tdLog.info(
+                "create table %s (ts timestamp, value int) tags (%s)" %
+                (stb_name, tagSeq))
+            tdSql.execute(
+                "create table %s (ts timestamp, value int) tags (%s)" %
+                (stb_name, tagSeq))
 
         tdSql.query("show stables")
         tdSql.checkRows(boundary)
 
-        stb_name = "stb%d" % (boundary+1)
+        stb_name = "stb%d" % (boundary + 1)
         tagSeq = tagSeq + ", tag%d int" % (boundary)
-        tdLog.info("create table %s (ts timestamp, value int) tags (%s)" % (stb_name, tagSeq))
-        tdSql.error("create table %s (ts timestamp, value int) tags (%s)" % (stb_name, tagSeq))
+        tdLog.info(
+            "create table %s (ts timestamp, value int) tags (%s)" %
+            (stb_name, tagSeq))
+        tdSql.error(
+            "create table %s (ts timestamp, value int) tags (%s)" %
+            (stb_name, tagSeq))
         tdSql.query("show stables")
         tdSql.checkRows(boundary)
 

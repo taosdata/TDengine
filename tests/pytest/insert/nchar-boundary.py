@@ -33,7 +33,21 @@ class TDTestCase:
         tdSql.checkData(0, 1, 'taosdata')
 
         with open("../../README.md", "r") as inputFile:
-            data = inputFile.read(1021).replace("\n", " ").replace("\\", " ").replace("\'", " ").replace("\"", " ").replace("[", " ").replace("]", " ").replace("!", " ")
+            data = inputFile.read(1021).replace(
+                "\n",
+                " ").replace(
+                "\\",
+                " ").replace(
+                "\'",
+                " ").replace(
+                "\"",
+                " ").replace(
+                    "[",
+                    " ").replace(
+                        "]",
+                        " ").replace(
+                            "!",
+                " ")
 
         tdLog.info("insert %d length data: %s" % (len(data), data))
 
