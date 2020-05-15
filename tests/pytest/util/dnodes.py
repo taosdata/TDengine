@@ -202,7 +202,7 @@ class TDDnode:
         if (binPath == ""):
             tdLog.exit("taosd not found!s")
         else:
-            tdLog.notice("taosd found in %s" % rootRealPath)
+            tdLog.info("taosd found in %s" % rootRealPath)
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -408,7 +408,7 @@ class TDDnodes:
             tdLog.exit("index:%d should on a scale of [1, 10]" % (index))
 
     def stopAll(self):
-        tdLog.debug("stop all dnodes")
+        tdLog.info("stop all dnodes")
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
