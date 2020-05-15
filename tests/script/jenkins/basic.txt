@@ -241,14 +241,14 @@ cd ../../../debug; make
 ./test.sh -u -f unique/account/user_create.sim
 ./test.sh -u -f unique/account/user_len.sim
 
-#./test.sh -u -f unique/big/balance.sim
-#slguan ./test.sh -u -f unique/big/maxvnodes.sim
+#liao wait ./test.sh -u -f unique/big/balance.sim
+#liao wait ./test.sh -u -f unique/big/maxvnodes.sim
 ./test.sh -u -f unique/big/tcp.sim
 
-#jeff ./test.sh -u -f unique/cluster/balance1.sim
-#jeff ./test.sh -u -f unique/cluster/balance2.sim
-#jeff ./test.sh -u -f unique/cluster/balance3.sim
-#./test.sh -u -f unique/cluster/cache.sim
+./test.sh -u -f unique/cluster/balance1.sim
+./test.sh -u -f unique/cluster/balance2.sim
+./test.sh -u -f unique/cluster/balance3.sim
+./test.sh -u -f unique/cluster/cache.sim
 
 ./test.sh -u -f unique/column/replica3.sim
 
