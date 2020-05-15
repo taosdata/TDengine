@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import subprocess
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -25,7 +26,9 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        boundary = 32
+        getMaxTagNum = "grep -w TSDB_MAX_TAGS ../../src/inc/taosdef.h|awk '{print $3}'"
+        boundary = int(subprocess.check_output(getMaxTagNum, shell=True))
+        tdLog.notice("get max tags number is %d" % boundary)
         for x in range(0, boundary):
             stb_name = "stb%d" % x
 
@@ -40,7 +43,7 @@ class TDTestCase:
         tdSql.checkRows(boundary)
 
         stb_name = "stb%d" % (boundary+1)
-        tagSeq = tagSeq + ", tag%d int" % (boundary+1)
+        tagSeq = tagSeq + ", tag%d int" % (boundary)
         tdLog.info("create table %s (ts timestamp, value int) tags (%s)" % (stb_name, tagSeq))
         tdSql.error("create table %s (ts timestamp, value int) tags (%s)" % (stb_name, tagSeq))
         tdSql.query("show stables")
