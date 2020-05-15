@@ -37,10 +37,10 @@ static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
 static bool     vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
-static void     vnodeNotifyFileSynced(void *ahandle);
+static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
