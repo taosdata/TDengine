@@ -2,7 +2,7 @@
 
 **1. TSIM test cases:**
 
-TSIM test cases are the testing framework has been used internally. Now it still be used to run the test cases we develop in the past as a legacy system. We are turning to use Python to develop new test case and are abandoning TSIM gradually.
+TSIM was the testing framework has been used internally. Now it still be used to run the test cases we develop in the past as a legacy system. We are turning to use Python to develop new test case and are abandoning TSIM gradually.
 
 **2. Python test cases:**
 
