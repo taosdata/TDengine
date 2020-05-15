@@ -6,6 +6,7 @@
 #
 matrix:
   - os: linux
+    dist: bionic
     language: c
 
     git:
