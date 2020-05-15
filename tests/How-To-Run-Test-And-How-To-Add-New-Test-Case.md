@@ -218,7 +218,7 @@ def checkAffectedRows(self, expectAffectedRows):
 >   appropriate without additional
 >   burden. <https://nakedsecurity.sophos.com/2020/01/03/python-is-dead-long-live-python/> 
 
-### CI Covenant submission adoption principle.
+### CI submission adoption principle.
 
 -   Every commit / PR compilation must pass. Currently, the warning is treated
     as an error, so the warning must also be resolved.
