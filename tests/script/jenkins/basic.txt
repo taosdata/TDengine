@@ -150,7 +150,7 @@ cd ../../../debug; make
 #./test.sh -f general/parser/bug.sim
 
 ./test.sh -f general/stable/disk.sim
-#./test.sh -f general/stable/dnode3.sim
+#liao ./test.sh -f general/stable/dnode3.sim
 ./test.sh -f general/stable/metrics.sim
 ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
@@ -252,23 +252,23 @@ cd ../../../debug; make
 
 ./test.sh -u -f unique/column/replica3.sim
 
-#hongze crash ./test.sh -u -f unique/db/commit.sim
+#liao wait ./test.sh -u -f unique/db/commit.sim
 ./test.sh -u -f unique/db/delete.sim
 ./test.sh -u -f unique/db/delete_part.sim
 ./test.sh -u -f unique/db/replica_add12.sim
-#hongze crash ./test.sh -u -f unique/db/replica_add13.sim
-#hongze crash ./test.sh -u -f unique/db/replica_add23.sim
-#hongze crash ./test.sh -u -f unique/db/replica_reduce21.sim
+#hongze ./test.sh -u -f unique/db/replica_add13.sim
+#hongze wait ./test.sh -u -f unique/db/replica_add23.sim
+#hongze wait ./test.sh -u -f unique/db/replica_reduce21.sim
 ./test.sh -u -f unique/db/replica_reduce32.sim
-#hongze crash /test.sh -u -f unique/db/replica_reduce31.sim
+#hongze wait /test.sh -u -f unique/db/replica_reduce31.sim
 ./test.sh -u -f unique/db/replica_part.sim
 
-##./test.sh -u -f unique/dnode/balance1.sim
-##./test.sh -u -f unique/dnode/balance2.sim
-##./test.sh -u -f unique/dnode/balance3.sim
-##./test.sh -u -f unique/dnode/balancex.sim
-##./test.sh -u -f unique/dnode/offline1.sim
-##./test.sh -u -f unique/dnode/offline2.sim
+./test.sh -u -f unique/dnode/balance1.sim
+./test.sh -u -f unique/dnode/balance2.sim
+./test.sh -u -f unique/dnode/balance3.sim
+./test.sh -u -f unique/dnode/balancex.sim
+./test.sh -u -f unique/dnode/offline1.sim
+#hongze wait ./test.sh -u -f unique/dnode/offline2.sim
 ./test.sh -u -f unique/dnode/remove1.sim
 #hongze ./test.sh -u -f unique/dnode/remove2.sim
 ./test.sh -u -f unique/dnode/vnode_clean.sim
@@ -276,17 +276,17 @@ cd ../../../debug; make
 ./test.sh -u -f unique/http/admin.sim
 ./test.sh -u -f unique/http/opentsdb.sim
 
-#./test.sh -u -f unique/import/replica2.sim
-#./test.sh -u -f unique/import/replica3.sim
+#liao wait ./test.sh -u -f unique/import/replica2.sim
+#liao wait ./test.sh -u -f unique/import/replica3.sim
 
-#./test.sh -u -f unique/stable/balance_replica1.sim
-#./test.sh -u -f unique/stable/dnode2_stop.sim
-#./test.sh -u -f unique/stable/dnode2.sim
-#./test.sh -u -f unique/stable/dnode3.sim
-#./test.sh -u -f unique/stable/replica2_dnode4.sim
-#./test.sh -u -f unique/stable/replica2_vnode3.sim
-#./test.sh -u -f unique/stable/replica3_dnode6.sim
-#./test.sh -u -f unique/stable/replica3_vnode3.sim
+#liao wait ./test.sh -u -f unique/stable/balance_replica1.sim
+#liao wait ./test.sh -u -f unique/stable/dnode2_stop.sim
+#liao wait ./test.sh -u -f unique/stable/dnode2.sim
+#liao wait ./test.sh -u -f unique/stable/dnode3.sim
+#liao wait ./test.sh -u -f unique/stable/replica2_dnode4.sim
+#liao wait ./test.sh -u -f unique/stable/replica2_vnode3.sim
+#liao wait ./test.sh -u -f unique/stable/replica3_dnode6.sim
+#liao wait ./test.sh -u -f unique/stable/replica3_vnode3.sim
 
 ./test.sh -u -f unique/mnode/mgmt22.sim
 ./test.sh -u -f unique/mnode/mgmt23.sim

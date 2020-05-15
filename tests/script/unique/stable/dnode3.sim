@@ -77,11 +77,11 @@ if $rows != 3 then
 endi
 
 sql show dnodes
-$dnode1Vnodes = $data3_192.168.0.1
+$dnode1Vnodes = $data2_1
 print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
-$dnode3Vnodes = $data3_192.168.0.3
+$dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
 if $dnode1Vnodes != 3 then
