@@ -926,6 +926,20 @@ void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionE
   pFieldInfo->pExpr[index] = pExpr;
 }
 
+void tscFieldInfoUpdateBySqlFunc(SQueryInfo* pQueryInfo) {
+  for(int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+    TAOS_FIELD* field = tscFieldInfoGetField(pQueryInfo, i);
+    
+    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
+    if (pExpr == NULL) {
+      continue;
+    }
+    
+    field->type = pExpr->resType;
+    field->bytes = pExpr->resBytes;
+  }
+}
+
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo) {
   SSqlExprInfo* pExprInfo = &pQueryInfo->exprsInfo;
   pExprInfo->pExprs[0]->offset = 0;
@@ -2012,6 +2026,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     // create the fields info from the sql functions
     SColumnList columnList = {.num = 1};
   
+    // for avg/last/first/histo.. query, the output type is binary not numeric data type
     for(int32_t k = 0; k < numOfOutputCols; ++k) {
       SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, indexList[k]);
       columnList.ids[0] = (SColumnIndex){.tableIndex = tableIndex, .columnIndex = pExpr->colInfo.colIdx};
