@@ -29,20 +29,20 @@ extern "C" {
 
 extern int tsdbDebugFlag;
 
-#define tsdbError(...)                                       \
-  if (tsdbDebugFlag & DEBUG_ERROR) {                         \
-    taosPrintLog("ERROR TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+#define tsdbError(...)                                      \
+  if (tsdbDebugFlag & DEBUG_ERROR) {                        \
+    taosPrintLog("ERROR TDB ", tsdbDebugFlag, __VA_ARGS__); \
   }
-#define tsdbWarn(...)                                       \
-  if (tsdbDebugFlag & DEBUG_WARN) {                         \
-    taosPrintLog("WARN TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+#define tsdbWarn(...)                                      \
+  if (tsdbDebugFlag & DEBUG_WARN) {                        \
+    taosPrintLog("WARN TDB ", tsdbDebugFlag, __VA_ARGS__); \
   }
-#define tsdbTrace(...)                                 \
-  if (tsdbDebugFlag & DEBUG_TRACE) {                   \
-    taosPrintLog("TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+#define tsdbTrace(...)                                \
+  if (tsdbDebugFlag & DEBUG_TRACE) {                  \
+    taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); \
   }
 #define tsdbPrint(...) \
-  { taosPrintLog("TSDB ", 255, __VA_ARGS__); }
+  { taosPrintLog("TDB ", 255, __VA_ARGS__); }
 
 // ------------------------------ TSDB META FILE INTERFACES ------------------------------
 #define TSDB_META_FILE_NAME "META"
