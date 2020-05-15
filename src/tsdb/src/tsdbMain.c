@@ -18,7 +18,7 @@ int tsdbDebugFlag = 135;
 #define TSDB_MIN_ID 0
 #define TSDB_MAX_ID INT_MAX
 
-#define TSDB_CFG_FILE_NAME "CONFIG"
+#define TSDB_CFG_FILE_NAME "config"
 #define TSDB_DATA_DIR_NAME "data"
 #define TSDB_DEFAULT_FILE_BLOCK_ROW_OPTION 0.7
 #define TSDB_MAX_LAST_FILE_SIZE (1024 * 1024 * 10) // 10M
@@ -169,6 +169,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
     if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
     for (int i = 1; i < pRepo->config.maxTables; i++) {
       STable *  pTable = pMeta->tables[i];
+      if (pTable == NULL) continue;
       SCompIdx *pIdx = &rhelper.pCompIdx[i];
 
       if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;
@@ -841,8 +842,8 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   
   pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
 
-  tsdbTrace("vgId:%d, tid:%d, uid:%" PRId64 ", a row is inserted to table! key:%" PRId64,
-            pRepo->config.tsdbId, pTable->tableId.tid, pTable->tableId.uid, dataRowKey(row));
+  tsdbTrace("vgId:%d, tid:%d, uid:%" PRId64 ", table:%s a row is inserted to table! key:%" PRId64, pRepo->config.tsdbId,
+            pTable->tableId.tid, pTable->tableId.uid, varDataVal(pTable->name), dataRowKey(row));
 
   return 0;
 }
@@ -867,9 +868,9 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   tsdbInitSubmitBlkIter(pBlock, &blkIter);
   while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
     if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
-      tsdbError("vgId:%d, table tid:%d, talbe uid:%ld timestamp is out of range. now:" PRId64 ", maxKey:" PRId64
+      tsdbError("vgId:%d, table:%s, tid:%d, talbe uid:%ld timestamp is out of range. now:" PRId64 ", maxKey:" PRId64
                 ", minKey:" PRId64,
-                pRepo->config.tsdbId, pTable->tableId.tid, pTable->tableId.uid, now, minKey, maxKey);
+                pRepo->config.tsdbId, varDataVal(pTable->name), pTable->tableId.tid, pTable->tableId.uid, now, minKey, maxKey);
       return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
     }
 
