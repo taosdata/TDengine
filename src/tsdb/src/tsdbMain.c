@@ -18,7 +18,7 @@ int tsdbDebugFlag = 135;
 #define TSDB_MIN_ID 0
 #define TSDB_MAX_ID INT_MAX
 
-#define TSDB_CFG_FILE_NAME "CONFIG"
+#define TSDB_CFG_FILE_NAME "config"
 #define TSDB_DATA_DIR_NAME "data"
 #define TSDB_DEFAULT_FILE_BLOCK_ROW_OPTION 0.7
 #define TSDB_MAX_LAST_FILE_SIZE (1024 * 1024 * 10) // 10M
