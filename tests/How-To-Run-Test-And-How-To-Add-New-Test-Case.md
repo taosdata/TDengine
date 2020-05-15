@@ -218,3 +218,18 @@ def checkAffectedRows(self, expectAffectedRows):
 >   appropriate without additional
 >   burden. <https://nakedsecurity.sophos.com/2020/01/03/python-is-dead-long-live-python/> 
 
+### CI Covenant submission adoption principle.
+
+-   Every commit / PR compilation must pass. Currently, the warning is treated
+    as an error, so the warning must also be resolved.
+
+-   Test cases that already exist must pass.
+
+-   Because CI is very important to support build and automatically test
+    procedure, it is necessary to manually test the test case before adding it
+    and do as many iterations as possible to ensure that the test case provides
+    stable and reliable test results when added.
+
+>   Note: In the future, according to the requirements and test development
+>   progress will add stress testing, performance testing, code style, 
+>   and other features based on functional testing.
