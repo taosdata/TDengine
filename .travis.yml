@@ -65,7 +65,6 @@ matrix:
           do
             if [ -n "$memError" ]; then
               if [ "$memError" -gt 12 ]; then
-                cat uniq-mem-error-out.txt
                 echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
                          More than our threshold! ## ${NC}"
                 travis_terminate $memError
@@ -78,7 +77,6 @@ matrix:
           do
             if [ -n "$defiMemError" ]; then
               if [ "$defiMemError" -gt 13 ]; then
-                cat uniq-definitely-list-out.txt
                 echo -e "${RED} ## Memory errors number valgrind reports \
                          Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
                 travis_terminate $defiMemError
