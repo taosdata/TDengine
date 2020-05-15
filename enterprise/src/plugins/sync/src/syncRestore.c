@@ -100,8 +100,11 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
     sTrace("%s, %s is received, size:%d", pPeer->id, minfo.name, minfo.size);
   }
 
-  if (code == 0 && (minfo.fversion != sinfo.fversion)) 
+  if (code == 0 && (minfo.fversion != sinfo.fversion)) {
+   // data file is changed, code shall be set to 1 
     *fversion = minfo.fversion;
+    code = 1;  
+  }
 
   if (code < 0) {
     sError("%s, failed to restore %s(%s)", pPeer->id, name, strerror(errno));
@@ -235,12 +238,14 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
   uint64_t fversion = 0;
 
   sTrace("%s, start to restore file", pPeer->id);
-  if (syncRestoreFile(pPeer, &fversion) < 0) {
+  int code = syncRestoreFile(pPeer, &fversion);
+  if (code < 0) {
     sError("%s, failed to restore file", pPeer->id);
     return -1;
   }
 
-  if (fversion && pNode->notifyFileSynced) 
+  // if code > 0, data file is changed, notify app, and pass the version 
+  if (code > 0 && pNode->notifyFileSynced) 
     (*pNode->notifyFileSynced)(pNode->ahandle, fversion);
 
   sTrace("%s, start to restore wal", pPeer->id);
