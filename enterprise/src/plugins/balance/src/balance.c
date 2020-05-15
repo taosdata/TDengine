@@ -221,7 +221,7 @@ static void balanceRemoveVnode(SVgObj *pVgroup) {
       mTrace("vgId:%d, dnode:%d in dropping state", pVgroup->vgId, pVnode->dnodeId);
       pRmVnode = pVnode;
     } else if (pVnode->dnodeId == pVgroup->lbDnodeId) {
-      mTrace("vgId:%d, dnode:%d is updating", pVgroup->vgId, pVnode->dnodeId);
+      mTrace("vgId:%d, dnode:%d in updating state", pVgroup->vgId, pVnode->dnodeId);
       pRmVnode = pVnode;
     } else {
       if (pSelVnode == NULL) {
