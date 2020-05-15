@@ -184,6 +184,8 @@ void syncStop(void *param)
     taosTmrCleanUp(syncTmrCtrl);
     taosCloseTcpThreadPool(tsTcpPool);
     taosHashCleanup(vgIdHash);
+    vgIdHash = NULL;
+    syncModuleInit = PTHREAD_ONCE_INIT;
   }
 }
 
