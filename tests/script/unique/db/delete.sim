@@ -34,13 +34,14 @@ while $i < 2000
   $i = $i + 1
 endw 
 
+sleep 2500
+
 sql show db.vgroups
 if $rows != 2 then 
   return -1
 endi 
 
 print ======== step2
-sleep 1000
 sql drop database db
 sql show databases
 if $rows != 0 then 

@@ -157,8 +157,8 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   if (rpcRsp.code != 0) {
     dError("user:%s, auth msg received from mnode, error:%s", user, tstrerror(rpcRsp.code));
   } else {
-    dTrace("user:%s, auth msg received from mnode", user);
     SDMAuthRsp *pRsp = rpcRsp.pCont;
+    dTrace("user:%s, auth msg received from mnode", user);
     memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
     memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
     *spi = pRsp->spi;

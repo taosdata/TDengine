@@ -63,7 +63,7 @@ print dnode1 $data4_2
 if $data4_1 != ready then
   return -1
 endi
-if $data4_2 != NULL then
+if $data4_2 != null then
   return -1
 endi
 
