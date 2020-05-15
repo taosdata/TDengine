@@ -204,7 +204,7 @@ system_content curl -u root:taosdata -d  '[{"metric": "sys_mem","timestamp": 134
 
 print $system_content
 
-if $system_content != @{"failed":1,"success":1}@ then
+if $system_content != @{"failed":0,"success":2}@ then
   return -1
 endi
 
