@@ -47,7 +47,7 @@ class TDTestCase:
                 "This test failed: INT data overflow error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("INT data overflow error catched")
+            tdLog.info("INT data overflow error catched")
 
         cmd = 'insert into tb values (now+1m, NULL)'
         tdLog.info(cmd)
@@ -76,7 +76,7 @@ class TDTestCase:
                 "This test failed: INT data overflow error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("INT data overflow error catched")
+            tdLog.info("INT data overflow error catched")
 
         cmd = 'insert into tb values (now+3m, NULL)'
         tdLog.info(cmd)
@@ -96,7 +96,7 @@ class TDTestCase:
                 "This test failed: insert wrong data error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("insert wrong data error catched")
+            tdLog.info("insert wrong data error catched")
 
         cmd = 'insert into tb values (now+4m, 0)'
         tdLog.info(cmd)
@@ -116,7 +116,7 @@ class TDTestCase:
                 "This test failed: insert wrong data error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("insert wrong data error catched")
+            tdLog.info("insert wrong data error catched")
 
         cmd = 'insert into tb values (now+5m, 2)'
         tdLog.info(cmd)
@@ -135,7 +135,7 @@ class TDTestCase:
                 "This test failed: insert wrong data error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("insert wrong data error catched")
+            tdLog.info("insert wrong data error catched")
 
         cmd = 'insert into tb values (now+6m, 2)'
         tdLog.info(cmd)

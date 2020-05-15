@@ -49,7 +49,7 @@ matrix:
           ./test-all.sh $TRAVIS_EVENT_TYPE || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
-          ./valgrind-test.sh -g 2>&1 | tee mem-error-out.txt
+          ./valgrind-test.sh -g 2>&1 > mem-error-out.txt
           sleep 1
 
           # Color setting
@@ -59,7 +59,7 @@ matrix:
           GREEN_UNDERLINE='\033[4;32m'
           NC='\033[0m'
 
-          grep 'ERROR SUMMARY' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-mem-error-out.txt
+          grep 'start to execute\|ERROR SUMMARY' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-mem-error-out.txt
 
           for memError in `cat uniq-mem-error-out.txt | awk '{print $4}'` 
           do
@@ -72,7 +72,7 @@ matrix:
             fi
           done
 
-          grep 'definitely lost:' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-definitely-lost-out.txt
+          grep 'start to execute\|definitely lost:' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-definitely-lost-out.txt
           for defiMemError in `cat uniq-definitely-lost-out.txt | awk '{print $7}'`
           do
             if [ -n "$defiMemError" ]; then

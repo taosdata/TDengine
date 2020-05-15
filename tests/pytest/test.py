@@ -79,7 +79,8 @@ if __name__ == "__main__":
             time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True)
 
-        tdLog.exit('stop All dnodes')
+        tdLog.info('stop All dnodes')
+        sys.exit(0)
 
     tdDnodes.init(deployPath)
     tdDnodes.setTestCluster(testCluster)

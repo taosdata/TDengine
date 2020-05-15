@@ -29,8 +29,6 @@ python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f table/db_table.py
 python3 ./test.py $1 -s && sleep 1
 
-python3 ./test.py $1 -f import_merge/importCacheFileT.py
-python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f import_merge/importDataLastSub.py
 python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f import_merge/importHead.py
