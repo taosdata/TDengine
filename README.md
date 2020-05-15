@@ -117,7 +117,7 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 
 # How to run the test cases and how to add a new test case?
   TDengine's test framework and all test cases are fully open source.
-  Please refer to [this document](https://github.com/taosdata/TDengine/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
+  Please refer to [this document](tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
 ### Prepare development environment
 
