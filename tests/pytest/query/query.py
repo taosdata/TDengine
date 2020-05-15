@@ -37,7 +37,7 @@ class TDTestCase:
         print("==============step2")
 
         tdSql.execute(
-            """INSERT INTO dev_001(ts, tagtype) VALUES('2020-05-13 10:00:00.000', 1), 
+            """INSERT INTO dev_001(ts, tagtype) VALUES('2020-05-13 10:00:00.000', 1),
             ('2020-05-13 10:00:00.001', 1)
              dev_002 VALUES('2020-05-13 10:00:00.001', 1)""")
 
