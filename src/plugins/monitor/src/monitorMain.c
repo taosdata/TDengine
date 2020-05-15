@@ -109,6 +109,11 @@ static void monitorStartSystemRetry() {
 }
 
 static void monitorInitConn(void *para, void *unused) {
+  if (dnodeGetDnodeId() <= 0) {
+    monitorStartSystemRetry();
+    return;
+  }
+  
   monitorPrint("starting to initialize monitor service ..");
   tsMonitorConn.state = MONITOR_STATE_INITIALIZING;
 
