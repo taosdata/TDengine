@@ -130,6 +130,7 @@ extern "C" {
 
 #define POW2(x) ((x) * (x))
 
+size_t twcslen(const wchar_t *wcs);
 int32_t strdequote(char *src);
 
 void strtrim(char *src);
