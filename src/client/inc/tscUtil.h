@@ -43,7 +43,7 @@ extern "C" {
 
 typedef struct SParsedColElem {
   int16_t colIndex;
-  int16_t offset;
+  uint16_t offset;
 } SParsedColElem;
 
 typedef struct SParsedDataColInfo {
