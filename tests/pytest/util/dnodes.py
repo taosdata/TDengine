@@ -244,11 +244,8 @@ class TDDnode:
                 time.sleep(1)
                 processID = subprocess.check_output(psCmd, shell=True)
 
+            self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
-            tdLog.debug(
-                "wait 2 seconds for the dnode:%d to stop." %
-                (self.index))
-            time.sleep(2)
 
     def forcestop(self):
         if self.valgrind == 0:
@@ -267,11 +264,8 @@ class TDDnode:
                 time.sleep(1)
                 processID = subprocess.check_output(psCmd, shell=True)
 
+            self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -KILL" % (self.index))
-            tdLog.debug(
-                "wait 2 seconds for the dnode:%d to stop." %
-                (self.index))
-            time.sleep(2)
 
     def startIP(self):
         cmd = "sudo ifconfig lo:%d 192.168.0.%d up" % (self.index, self.index)

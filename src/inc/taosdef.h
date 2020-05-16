@@ -236,7 +236,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_PAYLOAD_SIZE         (TSDB_DEFAULT_PKT_SIZE - 100)
 #define TSDB_DEFAULT_PAYLOAD_SIZE 1024   // default payload size
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
-#define TSDB_SQLCMD_SIZE          1024
+#define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MAX_VNODES           256
 #define TSDB_MIN_VNODES           50
 #define TSDB_INVALID_VNODE_NUM    0

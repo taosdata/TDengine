@@ -28,7 +28,7 @@ class TDTestCase:
 
         getMaxTagNum = "grep -w TSDB_MAX_TAGS ../../src/inc/taosdef.h|awk '{print $3}'"
         boundary = int(subprocess.check_output(getMaxTagNum, shell=True))
-        tdLog.notice("get max tags number is %d" % boundary)
+        tdLog.info("get max tags number is %d" % boundary)
         for x in range(0, boundary):
             stb_name = "stb%d" % x
 
