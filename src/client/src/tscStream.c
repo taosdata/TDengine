@@ -97,7 +97,12 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
     return;
   }
 
-  if (0 == pMeterMetaInfo->pMetricMeta->numOfVnodes || 0 == pMeterMetaInfo->pMetricMeta->numOfMeters) {
+  if ((UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo) 
+      && ( pMeterMetaInfo->pMeterMeta  == NULL 
+        || pMeterMetaInfo->pMetricMeta == NULL 
+        || pMeterMetaInfo->pMetricMeta->numOfMeters == 0 
+        || pMeterMetaInfo->pMetricMeta->numOfVnodes == 0)) 
+      || (!(UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo))  && (pMeterMetaInfo->pMeterMeta  == NULL))) {
     tscTrace("%p no table in metricmeta, no launch query", pSql);
     tscClearMeterMetaInfo(pMeterMetaInfo, false);
     tscSetNextLaunchTimer(pStream, pSql);

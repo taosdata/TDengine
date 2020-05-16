@@ -27,6 +27,23 @@
 #include "tlog.h"
 #include "taoserror.h"
 
+size_t twcslen(const wchar_t *wcs) {
+  int *wstr = (int *)wcs;
+  if (NULL == wstr) {
+    return 0;
+  }
+
+  size_t n = 0;
+  while (1) {
+    if (0 == *wstr++) {
+      break;
+    }
+    n++;
+  }
+
+  return n;
+}
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;

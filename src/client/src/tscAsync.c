@@ -561,9 +561,14 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
      */
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
-    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);    
-    if (0 == pMeterMetaInfo->pMetricMeta->numOfVnodes || 0 == pMeterMetaInfo->pMetricMeta->numOfMeters) {
-      tscTrace("%p stream:%p meta is updated, but no table, clear meter meta ans set next launch new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
+    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);   
+    if ((UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo) 
+         && ( pMeterMetaInfo->pMeterMeta  == NULL 
+           || pMeterMetaInfo->pMetricMeta == NULL 
+           || pMeterMetaInfo->pMetricMeta->numOfMeters == 0 
+           || pMeterMetaInfo->pMetricMeta->numOfVnodes == 0)) 
+      || (!(UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo))  && (pMeterMetaInfo->pMeterMeta  == NULL)))  {
+      tscTrace("%p stream:%p meta is updated, but no table, clear meter meta and set next launch new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
       tscClearMeterMetaInfo(pMeterMetaInfo, false);
       tscSetNextLaunchTimer(pSql->pStream, pSql);
       return;

@@ -4648,7 +4648,7 @@ static void doSetInterpVal(SQLFunctionCtx *pCtx, TSKEY ts, int16_t type, int32_t
     len = t + 1 + TSDB_KEYSIZE;
     pCtx->param[index].pz = calloc(1, len);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    t = wcslen((const wchar_t *)data);
+    t = twcslen((const wchar_t *)data);
 
     len = (t + 1) * TSDB_NCHAR_SIZE + TSDB_KEYSIZE;
     pCtx->param[index].pz = calloc(1, len);
