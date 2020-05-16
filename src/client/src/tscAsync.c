@@ -26,6 +26,7 @@
 #include "tutil.h"
 #include "tnote.h"
 
+extern void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql);
 static void tscProcessFetchRow(SSchedMsg *pMsg);
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 
@@ -553,13 +554,22 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
   }
 
   if (pSql->pStream) {
-    tscTrace("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
     /*
      * NOTE:
      * transfer the sql function for super table query before get meter/metric meta,
      * since in callback functions, only tscProcessSql(pStream->pSql) is executed!
      */
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  
+    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);    
+    if (0 == pMeterMetaInfo->pMetricMeta->numOfVnodes || 0 == pMeterMetaInfo->pMetricMeta->numOfMeters) {
+      tscTrace("%p stream:%p meta is updated, but no table, clear meter meta ans set next launch new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
+      tscClearMeterMetaInfo(pMeterMetaInfo, false);
+      tscSetNextLaunchTimer(pSql->pStream, pSql);
+      return;
+    }
+    
+    tscTrace("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
     
     tscTansformSQLFunctionForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);
