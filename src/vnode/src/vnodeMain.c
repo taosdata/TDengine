@@ -429,7 +429,7 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
 
 static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   SVnodeObj *pVnode = ahandle;
-  vTrace("vgId:%d, data file is synced", pVnode->vgId);
+  vTrace("vgId:%d, data file is synced, fversion:%" PRId64 "", pVnode->vgId, fversion);
 
   pVnode->fversion = fversion;
   pVnode->version = fversion;
