@@ -35,7 +35,8 @@ typedef enum {
 typedef enum {
   SDB_KEY_STRING, 
   SDB_KEY_INT,
-  SDB_KEY_AUTO
+  SDB_KEY_AUTO,
+  SDB_KEY_VAR_STRING,
 } ESdbKey;
 
 typedef enum {

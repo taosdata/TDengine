@@ -33,5 +33,8 @@ Target/
 *.failed
 *.sql
 sim/
+psim/
+pysim/
+*.out
 *DS_Store
 
