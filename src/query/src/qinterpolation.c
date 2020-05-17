@@ -185,6 +185,7 @@ int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
                                                 : pFillInfo->rowIdx + 1;
 }
 
+// todo: refactor
 static double linearInterpolationImpl(double v1, double v2, double k1, double k2, double k) {
   return v1 + (v2 - v1) * (k - k1) / (k2 - k1);
 }
@@ -446,14 +447,6 @@ int32_t taosDoInterpoResult(SFillInfo* pFillInfo, tFilePage** data, int32_t numO
         return num;
       }
     }
-  }
-}
-
-void taosFillInfoSetSource(SFillInfo* pFillInfo, tFilePage **data, TSKEY endKey) {
-  pFillInfo->endKey = endKey;
-  
-  for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    memcpy(pFillInfo->pData[i], data[i]->data, pFillInfo->numOfRows * pFillInfo->pFillCol[i].col.bytes);
   }
 }
 

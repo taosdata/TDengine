@@ -476,44 +476,6 @@ typedef struct {
   SEndPoint* end;
 } SQueryCond;
 
-//static void setInitialValueForRangeQueryCondition(tSKipListQueryCond *q, int8_t type) {
-//  q->lowerBndRelOptr = TSDB_RELATION_GREATER;
-//  q->upperBndRelOptr = TSDB_RELATION_LESS;
-//
-//  switch (type) {
-//    case TSDB_DATA_TYPE_BOOL:
-//    case TSDB_DATA_TYPE_TINYINT:
-//    case TSDB_DATA_TYPE_SMALLINT:
-//    case TSDB_DATA_TYPE_INT:
-//    case TSDB_DATA_TYPE_BIGINT: {
-//      q->upperBnd.nType = TSDB_DATA_TYPE_BIGINT;
-//      q->lowerBnd.nType = TSDB_DATA_TYPE_BIGINT;
-//
-//      q->upperBnd.i64Key = INT64_MAX;
-//      q->lowerBnd.i64Key = INT64_MIN;
-//      break;
-//    };
-//    case TSDB_DATA_TYPE_FLOAT:
-//    case TSDB_DATA_TYPE_DOUBLE: {
-//      q->upperBnd.nType = TSDB_DATA_TYPE_DOUBLE;
-//      q->lowerBnd.nType = TSDB_DATA_TYPE_DOUBLE;
-//      q->upperBnd.dKey = DBL_MAX;
-//      q->lowerBnd.dKey = -DBL_MIN;
-//      break;
-//    };
-//    case TSDB_DATA_TYPE_NCHAR:
-//    case TSDB_DATA_TYPE_BINARY: {
-//      q->upperBnd.nType = type;
-//      q->upperBnd.pz = NULL;
-//      q->upperBnd.nLen = -1;
-//
-//      q->lowerBnd.nType = type;
-//      q->lowerBnd.pz = NULL;
-//      q->lowerBnd.nLen = -1;
-//    }
-//  }
-//}
-
 // todo check for malloc failure
 static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
   int32_t optr = queryColInfo->optr;
@@ -788,7 +750,6 @@ static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SExprTravers
   taosArrayCopy(pResult, array);
 }
 
-
 static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSkipList *pSkipList, SExprTraverseSupp *param ) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
 
@@ -833,8 +794,6 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
 
   tSkipListDestroyIter(iter);
 }
-
-
 
 // post-root order traverse syntax tree
 void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param) {
@@ -1099,7 +1058,6 @@ static char* exception_strdup(const char* str) {
   }
   return p;
 }
-
 
 static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
   int32_t anchor = CLEANUP_GET_ANCHOR();

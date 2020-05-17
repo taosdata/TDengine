@@ -32,7 +32,7 @@ extern "C" {
 #define TSKEY int64_t
 #endif
 
-#define TSWINDOW_INITIALIZER {INT64_MIN, INT64_MAX};
+#define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR

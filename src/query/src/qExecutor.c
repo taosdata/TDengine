@@ -17,18 +17,18 @@
 
 #include "hash.h"
 #include "hashfunc.h"
+#include "qExecutor.h"
+#include "qUtil.h"
 #include "qast.h"
 #include "qresultBuf.h"
 #include "query.h"
-#include "queryExecutor.h"
 #include "queryLog.h"
-#include "queryUtil.h"
 #include "taosmsg.h"
+#include "tdataformat.h"
 #include "tlosertree.h"
+#include "tscUtil.h"  // todo move the function to common module
 #include "tscompression.h"
 #include "ttime.h"
-#include "tscUtil.h"   // todo move the function to common module
-#include "tdataformat.h"
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 

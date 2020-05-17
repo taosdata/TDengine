@@ -167,12 +167,6 @@ typedef struct {
   SArray *pGroupList;
 } STableGroupInfo;
 
-typedef struct {
-} SFields;
-
-#define TSDB_TS_GREATER_EQUAL 1
-#define TSDB_TS_LESS_EQUAL 2
-
 typedef struct SQueryRowCond {
   int32_t rel;
   TSKEY   ts;

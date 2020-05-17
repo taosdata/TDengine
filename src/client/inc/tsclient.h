@@ -30,10 +30,10 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
+#include "qExecutor.h"
 #include "qsqlparser.h"
 #include "qsqltype.h"
 #include "qtsbuf.h"
-#include "queryExecutor.h"
 
 // forward declaration
 struct SSqlInfo;
