@@ -21,6 +21,8 @@ python3 ./test.py $1 -f insert/date.py
 python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f insert/nchar.py
 python3 ./test.py $1 -s && sleep 1
+python3 ./test.py $1 -f insert/multi.py
+python3 ./test.py $1 -s && sleep 1
 
 python3 ./test.py $1 -f table/column_name.py
 python3 ./test.py $1 -s && sleep 1
