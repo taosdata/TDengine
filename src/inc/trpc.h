@@ -48,6 +48,7 @@ typedef struct {
   int     contLen;
   int32_t code;
   void   *handle;
+  void   *ahandle;  //app handle set by client, for debug purpose
 } SRpcMsg;
 
 typedef struct {

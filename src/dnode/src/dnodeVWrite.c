@@ -200,6 +200,7 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
         pHead->len = pWrite->contLen;
+        dTrace("%p, msg:%s will be processed", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
       } else {
         pHead = (SWalHead *)item;
       }
