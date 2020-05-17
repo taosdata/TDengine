@@ -77,6 +77,7 @@ typedef struct SSuperTableObj {
   uint64_t   uid;
   int64_t    createdTime;
   int32_t    sversion;
+  int32_t    tversion;
   int32_t    numOfColumns;
   int32_t    numOfTags;
   int8_t     reserved[15];

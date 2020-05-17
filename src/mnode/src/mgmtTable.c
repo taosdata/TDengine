@@ -763,6 +763,7 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
   pStable->createdTime  = taosGetTimestampMs();
   pStable->uid          = (((uint64_t) pStable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
   pStable->sversion     = 0;
+  pStable->tversion     = 0;
   pStable->numOfColumns = htons(pCreate->numOfColumns);
   pStable->numOfTags    = htons(pCreate->numOfTags);
 
@@ -882,7 +883,7 @@ static int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], i
   }
 
   pStable->numOfTags += ntags;
-  pStable->sversion++;
+  pStable->tversion++;
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -909,7 +910,7 @@ static int32_t mgmtDropSuperTableTag(SSuperTableObj *pStable, char *tagName) {
   memmove(pStable->schema + pStable->numOfColumns + col, pStable->schema + pStable->numOfColumns + col + 1,
           sizeof(SSchema) * (pStable->numOfTags - col - 1));
   pStable->numOfTags--;
-  pStable->sversion++;
+  pStable->tversion++;
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
