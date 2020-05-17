@@ -1686,7 +1686,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->sid       = htonl(pTable->sid);
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
-  strncpy(pMeta->tableId, pTable->info.tableId, tListLen(pTable->info.tableId));
+  strncpy(pMeta->tableId, pTable->info.tableId, strlen(pTable->info.tableId));
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pMeta->sversion     = htons(pTable->superTable->sversion);
