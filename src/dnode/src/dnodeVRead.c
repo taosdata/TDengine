@@ -92,8 +92,6 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   char        *pCont       = (char *) pMsg->pCont;
   void        *pVnode;  
 
-  dTrace("dnode %s msg incoming, thandle:%p", taosMsg[pMsg->msgType], pMsg->handle);
-
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
     pHead->vgId    = htonl(pHead->vgId);
@@ -214,6 +212,7 @@ static void *dnodeProcessReadQueue(void *param) {
       continue;
     }
 
+    dTrace("%p, msg:%s will be processed", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);
     int32_t code = vnodeProcessRead(pVnode, pReadMsg->rpcMsg.msgType, pReadMsg->pCont, pReadMsg->contLen, &pReadMsg->rspRet);
     dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     taosFreeQitem(pReadMsg);
