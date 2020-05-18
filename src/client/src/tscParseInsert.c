@@ -1016,7 +1016,9 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   }
 
-  if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {
+  // TODO: 2048 is added because TSDB_MAX_TAGS_LEN now is 65536
+  // but TSDB_PAYLOAD_SIZE is 65380
+  if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE + 2048)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 
