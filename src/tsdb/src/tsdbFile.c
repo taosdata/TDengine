@@ -97,6 +97,8 @@ static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile
   pBuf = taosDecodeFixed32(pBuf, &version);
   pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
 
+  tsdbCloseFile(pFile);
+
   return 0;
 }
 
