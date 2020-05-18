@@ -22,11 +22,6 @@ extern "C" {
 
 #include "mgmtDef.h"
 
-enum _TSDB_VG_STATUS {
-  TSDB_VG_STATUS_READY,
-  TSDB_VG_STATUS_UPDATE
-};
-
 int32_t mgmtInitVgroups();
 void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);

@@ -123,7 +123,6 @@ typedef struct SVgObj {
   int32_t        numOfVnodes;
   int32_t        lbDnodeId;
   int32_t        lbTime;
-  int8_t         status;
   int8_t         inUse;
   int8_t         reserved[13];
   int8_t         updateEnd[1];
