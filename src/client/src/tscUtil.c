@@ -2163,3 +2163,24 @@ char* strdup_throw(const char* str) {
   }
   return p;
 }
+
+int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
+  tscMgmtIpSet.numOfIps = 0;
+  tscMgmtIpSet.inUse = 0;
+
+  if (first && first[0] != 0) {
+    if (strlen(first) >= TSDB_FQDN_LEN) return TSDB_CODE_INVALID_FQDN;
+    taosGetFqdnPortFromEp(first, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
+    tscMgmtIpSet.numOfIps++;
+  }
+
+  if (second && second[0] != 0) {
+    if (strlen(second) >= TSDB_FQDN_LEN) return TSDB_CODE_INVALID_FQDN;
+    taosGetFqdnPortFromEp(second, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
+    tscMgmtIpSet.numOfIps++;
+  }
+
+  if ( tscMgmtIpSet.numOfIps == 0) return TSDB_CODE_INVALID_FQDN;
+
+  return 0;
+}

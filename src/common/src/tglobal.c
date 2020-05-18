@@ -61,7 +61,7 @@ int32_t tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
-char  tsFirst[TSDB_FQDN_LEN] = {0};
+char  tsFirst[TSDB_FQDN_LEN] = {0};  
 char  tsSecond[TSDB_FQDN_LEN] = {0};
 char  tsArbitrator[TSDB_FQDN_LEN] = {0};
 char  tsLocalEp[TSDB_FQDN_LEN] = {0};  // Local End Point, hostname:port
@@ -1252,7 +1252,7 @@ bool taosCheckGlobalCfg() {
   return true;
 }
 
-int taosGetFqdnPortFromEp(char *ep, char *fqdn, uint16_t *port) {
+int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
   *port = 0;
   strcpy(fqdn, ep);
 
