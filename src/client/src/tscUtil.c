@@ -2169,7 +2169,7 @@ int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
   tscMgmtIpSet.inUse = 0;
 
   if (first && first[0] != 0) {
-    if (strlen(first) >= TSDB_FQDN_LEN) {
+    if (strlen(first) >= TSDB_EP_LEN) {
       terrno = TSDB_CODE_INVALID_FQDN;
       return -1;
     }
@@ -2178,7 +2178,7 @@ int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
   }
 
   if (second && second[0] != 0) {
-    if (strlen(second) >= TSDB_FQDN_LEN) {
+    if (strlen(second) >= TSDB_EP_LEN) {
       terrno = TSDB_CODE_INVALID_FQDN;
       return -1;
     }
