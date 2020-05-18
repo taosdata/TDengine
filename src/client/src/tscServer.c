@@ -1467,15 +1467,16 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *         pMsg;
   int            msgLen = 0;
 
-  char *tmpData = 0;
-  if (pSql->cmd.allocSize > 0) {
-    tmpData = calloc(1, pSql->cmd.allocSize);
+  char *tmpData = NULL;
+  uint32_t len = pSql->cmd.payloadLen;
+  if (len > 0) {
+    tmpData = calloc(1, len);
     if (NULL == tmpData) {
       return TSDB_CODE_CLI_OUT_OF_MEMORY;
     }
 
     // STagData is in binary format, strncpy is not available
-    memcpy(tmpData, pSql->cmd.payload, pSql->cmd.allocSize);
+    memcpy(tmpData, pSql->cmd.payload, len);
   }
 
   SSqlCmd *   pCmd = &pSql->cmd;
@@ -1489,9 +1490,9 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pMsg = (char*)pInfoMsg + sizeof(SCMTableInfoMsg);
 
-  if (pSql->cmd.autoCreated) {
-    memcpy(pInfoMsg->tags, tmpData, sizeof(STagData));
-    pMsg += sizeof(STagData);
+  if (pSql->cmd.autoCreated && len > 0) {
+    memcpy(pInfoMsg->tags, tmpData, len);
+    pMsg += len;
   }
 
   pCmd->payloadLen = pMsg - (char*)pInfoMsg;;
@@ -2375,7 +2376,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   tscGetQueryInfoDetailSafely(&pNew->cmd, 0, &pNewQueryInfo);
 
   pNew->cmd.autoCreated = pSql->cmd.autoCreated;  // create table if not exists
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
     tscError("%p malloc failed for payload to get table meta", pSql);
     free(pNew);
 
@@ -2386,7 +2387,8 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
 
   strncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, tListLen(pNewMeterMetaInfo->name));
-  memcpy(pNew->cmd.payload, pSql->cmd.payload, TSDB_DEFAULT_PAYLOAD_SIZE);  // tag information if table does not exists.
+  memcpy(pNew->cmd.payload, pSql->cmd.payload, pSql->cmd.payloadLen);  // tag information if table does not exists.
+  pNew->cmd.payloadLen = pSql->cmd.payloadLen;
   tscTrace("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);
 
   pNew->fp = tscTableMetaCallBack;

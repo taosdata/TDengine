@@ -1742,7 +1742,12 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
   pCreateMsg->igExists = 1;
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);
-  memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
+
+  contLen = sizeof(STagData);
+  if (contLen > pMsg->contLen - sizeof(SCMTableInfoMsg)) {
+    contLen = pMsg->contLen - sizeof(SCMTableInfoMsg);
+  }
+  memcpy(pCreateMsg->schema, pInfo->tags, contLen);
 
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   pMsg->pCont = newMsg->pCont;
