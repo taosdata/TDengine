@@ -236,6 +236,7 @@ typedef struct {
   int16_t  numOfTags;
   int32_t  sid;
   int32_t  sversion;
+  int32_t  tversion;
   int32_t  tagDataLen;
   int32_t  sqlDataLen;
   uint64_t uid;
@@ -632,6 +633,7 @@ typedef struct STableMetaMsg {
   uint8_t       tableType;
   int16_t       numOfColumns;
   int16_t       sversion;
+  int16_t       tversion;
   int32_t       sid;
   uint64_t      uid;
   SCMVgroupInfo vgroup;
