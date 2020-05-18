@@ -23,6 +23,7 @@
 #include "tutil.h"
 #include "tsched.h"
 #include "tscLog.h"
+#include "tscUtil.h"
 #include "tsclient.h"
 #include "tglobal.h"
 #include "tconfig.h"
@@ -114,14 +115,10 @@ void taos_init_imp() {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
 
-  tscMgmtIpSet.inUse = 0;
-  tscMgmtIpSet.numOfIps = 1;
-  taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
-
-  if (tsSecond[0] && strcmp(tsSecond, tsFirst) != 0) {
-    tscMgmtIpSet.numOfIps = 2;
-    taosGetFqdnPortFromEp(tsSecond, tscMgmtIpSet.fqdn[1], &tscMgmtIpSet.port[1]);
-  }
+  if (tscSetMgmtIpListFromCfg(tsFirst, tsSecond) < 0) {
+    tscError("failed to init mgmt IP list");
+    return;
+  } 
 
   tscInitMsgsFp();
   int queueSize = tsMaxVnodeConnections + tsMaxMeterConnections + tsMaxMgmtConnections + tsMaxMgmtConnections;
