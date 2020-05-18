@@ -478,7 +478,7 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
 
       // Decode it
       void *ptr = pHelper->pBuffer;
-      while ((char *)ptr - (char *)pHelper->pBuffer >= pFile->info.len - sizeof(TSCKSUM)) {
+      while (((char *)ptr - (char *)pHelper->pBuffer) < (pFile->info.len - sizeof(TSCKSUM))) {
         uint32_t tid = 0;
         if ((ptr = taosDecodeVariant32(ptr, &tid)) == NULL) return -1;
         ASSERT(tid > 0 && tid < pHelper->config.maxTables);
@@ -487,6 +487,8 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
 
         ASSERT((char *)ptr - (char *)pHelper->pBuffer <= pFile->info.len - sizeof(TSCKSUM));
       }
+
+      ASSERT(((char *)ptr - (char *)pHelper->pBuffer) == (pFile->info.len - sizeof(TSCKSUM)));
     }
 
   }
