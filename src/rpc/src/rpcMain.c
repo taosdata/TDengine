@@ -1116,7 +1116,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
           htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
-  tTrace("connection type is: %d", pConn->connType);
+  //tTrace("connection type is: %d", pConn->connType);
   writtenLen = (*taosSendData[pConn->connType])(pConn->peerIp, pConn->peerPort, pHead, msgLen, pConn->chandle);
 
   if (writtenLen != msgLen) {
