@@ -1148,8 +1148,16 @@ static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
 }
 
 static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
-  // TODO
   int oldMaxTables = pRepo->config.maxTables;
+  if (oldMaxTables < pRepo->config.maxTables) {
+    // TODO
+  }
+
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
+  pMeta->maxTables = maxTables;
+  pMeta->tables = realloc(pMeta->tables, maxTables * sizeof(STable *));
+
   tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
 }
 

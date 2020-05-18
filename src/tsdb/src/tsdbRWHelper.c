@@ -18,6 +18,7 @@
 #include "tchecksum.h"
 #include "tscompression.h"
 #include "talgo.h"
+#include "tcoding.h"
 
 // Local function definitions
 // static int  tsdbCheckHelperCfg(SHelperCfg *pCfg);
@@ -211,13 +212,15 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
     // Create and open .h
     if (tsdbOpenFile(&(pHelper->files.nHeadF), O_WRONLY | O_CREAT) < 0) return -1;
-    size_t tsize = TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pHelper->config.maxTables + sizeof(TSCKSUM);
-    if (tsendfile(pHelper->files.nHeadF.fd, pHelper->files.headF.fd, NULL, tsize) < tsize) goto _err;
+    // size_t tsize = TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pHelper->config.maxTables + sizeof(TSCKSUM);
+    if (tsendfile(pHelper->files.nHeadF.fd, pHelper->files.headF.fd, NULL, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE)
+      goto _err;
 
     // Create and open .l file if should
     if (tsdbShouldCreateNewLast(pHelper)) {
       if (tsdbOpenFile(&(pHelper->files.nLastF), O_WRONLY | O_CREAT) < 0) goto _err;
-      if (tsendfile(pHelper->files.nLastF.fd, pHelper->files.lastF.fd, NULL, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) goto _err;
+      if (tsendfile(pHelper->files.nLastF.fd, pHelper->files.lastF.fd, NULL, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE)
+        goto _err;
     }
   } else {
     if (tsdbOpenFile(&(pHelper->files.dataF), O_RDONLY) < 0) goto _err;
@@ -426,13 +429,26 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
 
 int tsdbWriteCompIdx(SRWHelper *pHelper) {
   ASSERT(TSDB_HELPER_TYPE(pHelper) == TSDB_WRITE_HELPER);
-  if (lseek(pHelper->files.nHeadF.fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) return -1;
+  off_t offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
+  if (offset < 0) return -1;
 
-  ASSERT(tsizeof(pHelper->pCompIdx) == sizeof(SCompIdx) * pHelper->config.maxTables + sizeof(TSCKSUM));
-  taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompIdx, tsizeof(pHelper->pCompIdx));
+  SFile *pFile = &(pHelper->files.nHeadF);
+  pFile->info.offset = offset;
 
-  if (twrite(pHelper->files.nHeadF.fd, (void *)pHelper->pCompIdx, tsizeof(pHelper->pCompIdx)) < tsizeof(pHelper->pCompIdx))
-    return -1;
+  void *buf = pHelper->blockBuffer;
+  for (uint32_t i = 0; i < pHelper->config.maxTables; i++) {
+    SCompIdx *pCompIdx = pHelper->pCompIdx + i;
+    if (pCompIdx->offset > 0) {
+      buf = taosEncodeVariant32(buf, i);
+      buf = tsdbEncodeSCompIdx(buf, pCompIdx);
+    }
+  }
+
+  int tsize = (char *)buf - (char *)pHelper->blockBuffer + sizeof(TSCKSUM);
+  taosCalcChecksumAppend(0, (uint8_t *)pHelper->blockBuffer, tsize);
+
+  if (twrite(pHelper->files.nHeadF.fd, (void *)pHelper->blockBuffer, tsize) < tsize) return -1;
+  pFile->info.len = tsize;
   return 0;
 }
 
@@ -441,14 +457,34 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
 
   if (!helperHasState(pHelper, TSDB_HELPER_IDX_LOAD)) {
     // If not load from file, just load it in object
-    int fd = pHelper->files.headF.fd;
+    SFile *pFile = &(pHelper->files.headF);
+    int fd = pFile->fd;
 
-    if (lseek(fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) return -1;
-    if (tread(fd, (void *)(pHelper->pCompIdx), tsizeof((void *)pHelper->pCompIdx)) < tsizeof(pHelper->pCompIdx)) return -1;
-    if (!taosCheckChecksumWhole((uint8_t *)(pHelper->pCompIdx), tsizeof((void *)pHelper->pCompIdx))) {
-      // TODO: File is broken, try to deal with it
-      return -1;
+    memset(pHelper->pCompIdx, 0, tsizeof(pHelper->pCompIdx));
+    if (pFile->info.offset > 0) {
+      ASSERT(pFile->info.offset > TSDB_FILE_HEAD_SIZE);
+
+      if (lseek(fd, pFile->info.offset, SEEK_SET) < 0) return -1;
+      if (tread(fd, (void *)(pHelper->blockBuffer), pFile->info.len) < pFile->info.len)
+        return -1;
+      if (!taosCheckChecksumWhole((uint8_t *)(pHelper->blockBuffer), pFile->info.len)) {
+        // TODO: File is broken, try to deal with it
+        return -1;
+      }
+
+      // Decode it
+      void *ptr = pHelper->blockBuffer;
+      while ((char *)ptr - (char *)pHelper->blockBuffer >= pFile->info.len - sizeof(TSCKSUM)) {
+        uint32_t tid = 0;
+        if ((ptr = taosDecodeVariant32(ptr, &tid)) == NULL) return -1;
+        ASSERT(tid > 0 && tid < pHelper->config.maxTables);
+
+        if ((ptr = tsdbDecodeSCompIdx(ptr, pHelper->pCompIdx + tid)) == NULL) return -1;
+
+        ASSERT((char *)ptr - (char *)pHelper->blockBuffer <= pFile->info.len - sizeof(TSCKSUM));
+      }
     }
+
   }
   helperSetState(pHelper, TSDB_HELPER_IDX_LOAD);
 
@@ -1168,4 +1204,76 @@ static int tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey) 
   if ((TSKEY *)ptr2 - (TSKEY *)ptr1 < 0) return 0;
 
   return ((TSKEY *)ptr2 - (TSKEY *)ptr1) + 1;
+}
+
+void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx) {
+  buf = taosEncodeVariant32(buf, pIdx->len);
+  buf = taosEncodeVariant32(buf, pIdx->offset);
+  buf = taosEncodeFixed8(buf, pIdx->hasLast);
+  buf = taosEncodeVariant32(buf, pIdx->numOfBlocks);
+  buf = taosEncodeFixed64(buf, pIdx->uid);
+  buf = taosEncodeFixed64(buf, pIdx->maxKey);
+
+  return buf;
+}
+
+void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx) {
+  uint8_t  hasLast = 0;
+  uint32_t numOfBlocks = 0;
+  uint64_t value = 0;
+
+  if ((buf = taosDecodeVariant32(buf, &(pIdx->len))) == NULL) return NULL;
+  if ((buf = taosDecodeVariant32(buf, &(pIdx->offset))) == NULL) return NULL;
+  if ((buf = taosDecodeFixed8(buf, &(hasLast))) == NULL) return NULL;
+  pIdx->hasLast = hasLast;
+  if ((buf = taosDecodeVariant32(buf, &(numOfBlocks))) == NULL) return NULL;
+  pIdx->numOfBlocks = numOfBlocks;
+  if ((buf = taosDecodeFixed64(buf, &value)) == NULL) return NULL;
+  pIdx->uid = (int64_t)value;
+  if ((buf = taosDecodeFixed64(buf, &value)) == NULL) return NULL;
+  pIdx->maxKey = (TSKEY)value;
+
+  return buf;
+}
+
+int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  void *pBuf = (void *)buf;
+  pBuf = taosEncodeFixed32(pBuf, version);
+  pBuf = tsdbEncodeSFileInfo(pBuf, &(pFile->info));
+  int tsize = (char *)pBuf - buf + sizeof(TSCKSUM);
+
+  ASSERT(tsize <= TSDB_FILE_HEAD_SIZE);
+
+  taosCalcChecksumAppend(0, (uint8_t *)buf, tsize);
+
+  if (lseek(pFile->fd, 0, SEEK_SET) < 0) return -1;
+  if (twrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) return -1;
+
+  return 0;
+}
+
+
+
+void *tsdbEncodeSFileInfo(void *buf, const SFileInfo *pInfo) {
+  buf = taosEncodeFixed32(buf, pInfo->offset);
+  buf = taosEncodeFixed32(buf, pInfo->len);
+  buf = taosEncodeFixed64(buf, pInfo->size);
+  buf = taosEncodeFixed64(buf, pInfo->tombSize);
+  buf = taosEncodeFixed32(buf, pInfo->totalBlocks);
+  buf = taosEncodeFixed32(buf, pInfo->totalSubBlocks);
+
+  return buf;
+}
+
+void *tsdbDecodeSFileInfo(void *buf, SFileInfo *pInfo) {
+  buf = taosDecodeFixed32(buf, &(pInfo->offset));
+  buf = taosDecodeFixed32(buf, &(pInfo->len));
+  buf = taosDecodeFixed64(buf, &(pInfo->size));
+  buf = taosDecodeFixed64(buf, &(pInfo->tombSize));
+  buf = taosDecodeFixed32(buf, &(pInfo->totalBlocks));
+  buf = taosDecodeFixed32(buf, &(pInfo->totalSubBlocks));
+
+  return buf;
 }

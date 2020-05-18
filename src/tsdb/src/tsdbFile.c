@@ -38,7 +38,6 @@ const char *tsdbFileSuffix[] = {
 static int compFGroupKey(const void *key, const void *fgroup);
 static int compFGroup(const void *arg1, const void *arg2);
 static int tsdbWriteFileHead(SFile *pFile);
-static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables);
 static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid);
 
 STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg) {
@@ -121,8 +120,7 @@ SFileGroup *tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int max
   if (pGroup == NULL) {  // if not exists, create one
     pFGroup->fileId = fid;
     for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-      if (tsdbCreateFile(dataDir, fid, tsdbFileSuffix[type], maxTables, &(pFGroup->files[type]),
-                         type == TSDB_FILE_TYPE_HEAD ? 1 : 0, 1) < 0)
+      if (tsdbCreateFile(dataDir, fid, tsdbFileSuffix[type], &(pFGroup->files[type])) < 0)
         goto _err;
     }
 
@@ -298,29 +296,6 @@ static int tsdbWriteFileHead(SFile *pFile) {
   return 0;
 }
 
-static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables) {
-  int   size = sizeof(SCompIdx) * maxTables + sizeof(TSCKSUM);
-  void *buf = calloc(1, size);
-  if (buf == NULL) return -1;
-
-  if (lseek(pFile->fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) {
-    free(buf);
-    return -1;
-  }
-
-  taosCalcChecksumAppend(0, (uint8_t *)buf, size);
-
-  if (write(pFile->fd, buf, size) < 0) {
-    free(buf);
-    return -1;
-  }
-
-  pFile->info.size += size;
-
-  free(buf);
-  return 0;
-}
-
 int tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname) {
   if (dataDir == NULL || fname == NULL) return -1;
 
@@ -354,7 +329,7 @@ SFileGroup * tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid) {
   return pGroup;
 }
 
-int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose) {
+int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, SFile *pFile) {
   memset((void *)pFile, 0, sizeof(SFile));
   pFile->fd = -1;
 
@@ -370,19 +345,12 @@ int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables,
     return -1;
   }
 
-  if (writeHeader) {
-    if (tsdbWriteHeadFileIdx(pFile, maxTables) < 0) {
-      tsdbCloseFile(pFile);
-      return -1;
-    }
-  }
-
   if (tsdbWriteFileHead(pFile) < 0) {
     tsdbCloseFile(pFile);
     return -1;
   }
 
-  if (toClose) tsdbCloseFile(pFile);
+  tsdbCloseFile(pFile);
 
   return 0;
 }

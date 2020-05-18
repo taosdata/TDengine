@@ -210,11 +210,16 @@ typedef enum {
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
-  int64_t size;      // total size of the file
-  int64_t tombSize;  // unused file size
-  int32_t totalBlocks;
-  int32_t totalSubBlocks;
+  uint32_t offset;
+  uint32_t len;
+  uint64_t size;      // total size of the file
+  uint64_t tombSize;  // unused file size
+  uint32_t totalBlocks;
+  uint32_t totalSubBlocks;
 } SFileInfo;
+
+void *tsdbEncodeSFileInfo(void *buf, const SFileInfo *pInfo);
+void *tsdbDecodeSFileInfo(void *buf, SFileInfo *pInfo);
 
 typedef struct {
   int       fd;
@@ -242,8 +247,7 @@ typedef struct {
 
 STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
-int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader,
-                           int toClose);
+int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, SFile *pFile);
 SFileGroup *tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
 int         tsdbCloseFile(SFile *pFile);
@@ -266,14 +270,17 @@ void        tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid);
 SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter);
 
 typedef struct {
-  int32_t len;
-  int32_t offset;
-  int32_t padding; // For padding purpose
-  int32_t hasLast : 1;
-  int32_t numOfBlocks : 31;
+  uint32_t len;
+  uint32_t offset;
+  uint32_t padding;  // For padding purpose
+  uint32_t hasLast : 2;
+  uint32_t numOfBlocks : 30;
   int64_t uid;
   TSKEY   maxKey;
 } SCompIdx; /* sizeof(SCompIdx) = 28 */
+
+void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx);
+void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx);
 
 /**
  * if numOfSubBlocks == 0, then the SCompBlock is a sub-block
