@@ -218,7 +218,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_LOCALE_LEN           64
 #define TSDB_TIMEZONE_LEN         64
 
-#define TSDB_FQDN_LEN             256
+#define TSDB_FQDN_LEN             128
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_METER_VNODE_BITS     20

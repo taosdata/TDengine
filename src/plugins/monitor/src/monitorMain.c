@@ -68,7 +68,7 @@ typedef enum {
 typedef struct {
   void * conn;
   void * timer;
-  char   ep[TSDB_FQDN_LEN];
+  char   ep[TSDB_EP_LEN];
   int8_t cmdIndex;
   int8_t state;
   char   sql[SQL_LENGTH];
