@@ -21,7 +21,7 @@ class TDTestCase:
         tableNameMaxLen = int(
             subprocess.check_output(
                 getTableNameLen, shell=True))
-        tdLog.notice("table name max length is %d" % tableNameMaxLen)
+        tdLog.info("table name max length is %d" % tableNameMaxLen)
         chars = string.ascii_uppercase + string.ascii_lowercase
         tb_name = ''.join(random.choices(chars, k=tableNameMaxLen))
         tdLog.info('tb_name length %d' % len(tb_name))

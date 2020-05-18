@@ -80,7 +80,7 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   T_READ_MEMBER(ptr, int8_t, pTable->type);
   int len = *(int *)ptr;
   ptr = (char *)ptr + sizeof(int);
-  pTable->name = calloc(1, len + VARSTR_HEADER_SIZE);
+  pTable->name = calloc(1, len + VARSTR_HEADER_SIZE + 1);
   if (pTable->name == NULL) return NULL;
   
   varDataSetLen(pTable->name, len);

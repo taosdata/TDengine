@@ -58,6 +58,14 @@ class TDTestCase:
         tdSql.query('select * from tb order by ts desc')
         tdLog.info('tdSql.checkRow(6)')
         tdSql.checkRows(6)
+        tdLog.info('=============== step7')
+        tdLog.info("insert into tb values (now+6m, true)")
+        tdSql.execute("insert into tb values (now+5m, true)")
+        tdLog.info('select * from tb order by ts desc')
+        tdSql.query('select * from tb order by ts desc')
+        tdLog.info('tdSql.checkRow(7)')
+        tdSql.checkRows(7)
+# convert end
 # convert end
 
     def stop(self):

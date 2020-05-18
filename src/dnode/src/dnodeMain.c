@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taos.h"
-#include "tglobal.h"
-#include "trpc.h"
 #include "tutil.h"
 #include "tconfig.h"
 #include "tglobal.h"
@@ -29,112 +27,14 @@
 #include "dnodeVRead.h"
 #include "dnodeShell.h"
 #include "dnodeVWrite.h"
-#include "tgrant.h"
 
-static int32_t dnodeInitSystem();
 static int32_t dnodeInitStorage();
-extern void grantParseParameter();
 static void dnodeCleanupStorage();
-static void dnodeCleanUpSystem();
 static void dnodeSetRunStatus(SDnodeRunStatus status);
-static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static void dnodeCheckDataDirOpenned(char *dir);
 static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
 
-int32_t main(int32_t argc, char *argv[]) {
-  // Set global configuration file
-  for (int32_t i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {
-        strcpy(configDir, argv[++i]);
-      } else {
-        printf("'-c' requires a parameter, default:%s\n", configDir);
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-V") == 0) {
-#ifdef _SYNC      
-      char *versionStr = "enterprise";
-#else      
-      char *versionStr = "community";
-#endif      
-      printf("%s version: %s compatible_version: %s\n", versionStr, version, compatible_version);
-      printf("gitinfo: %s\n", gitinfo);
-      printf("gitinfoI: %s\n", gitinfoOfInternal);
-      printf("buildinfo: %s\n", buildinfo);
-      exit(EXIT_SUCCESS);
-    } else if (strcmp(argv[i], "-k") == 0) {
-      grantParseParameter();
-      exit(EXIT_SUCCESS);
-    }
-#ifdef TAOS_MEM_CHECK
-    else if (strcmp(argv[i], "--alloc-random-fail") == 0) {
-      if ((i < argc - 1) && (argv[i + 1][0] != '-')) {
-        taosSetAllocMode(TAOS_ALLOC_MODE_RANDOM_FAIL, argv[++i], true);
-      } else {
-        taosSetAllocMode(TAOS_ALLOC_MODE_RANDOM_FAIL, NULL, true);
-      }
-    } else if (strcmp(argv[i], "--detect-mem-leak") == 0) {
-      if ((i < argc - 1) && (argv[i + 1][0] != '-')) {
-        taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, argv[++i], true);
-      } else {
-        taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, NULL, true);
-      }
-    }
-#endif
-  }
-
-  /* Set termination handler. */
-  struct sigaction act = {{0}};
-  act.sa_flags = SA_SIGINFO;
-  act.sa_sigaction = signal_handler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
-  sigaction(SIGUSR1, &act, NULL);
-  sigaction(SIGUSR2, &act, NULL);
-
-  // Open /var/log/syslog file to record information.
-  openlog("TDengine:", LOG_PID | LOG_CONS | LOG_NDELAY, LOG_LOCAL1);
-  syslog(LOG_INFO, "Starting TDengine service...");
-
-  // Initialize the system
-  if (dnodeInitSystem() < 0) {
-    syslog(LOG_ERR, "Error initialize TDengine system");
-    closelog();
-
-    dnodeCleanUpSystem();
-    exit(EXIT_FAILURE);
-  }
-
-  syslog(LOG_INFO, "Started TDengine service successfully.");
-
-  while (1) {
-    sleep(1000);
-  }
-}
-
-static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
-  if (signum == SIGUSR1) {
-    taosCfgDynamicOptions("debugFlag 135");
-    return;
-  }
-  if (signum == SIGUSR2) {
-    taosCfgDynamicOptions("resetlog");
-    return;
-  }
-  syslog(LOG_INFO, "Shut down signal is %d", signum);
-  syslog(LOG_INFO, "Shutting down TDengine service...");
-  // clean the system.
-  dPrint("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
-  dnodeCleanUpSystem();
-  // close the syslog
-  syslog(LOG_INFO, "Shut down TDengine service successfully");
-  dPrint("TDengine is shut down!");
-  closelog();
-  exit(EXIT_SUCCESS);
-}
-
-static int32_t dnodeInitSystem() {
+int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
   taosResolveCRC();
@@ -180,7 +80,7 @@ static int32_t dnodeInitSystem() {
   return 0;
 }
 
-static void dnodeCleanUpSystem() {
+void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
     dnodeCleanupShell();
