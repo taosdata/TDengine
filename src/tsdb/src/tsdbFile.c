@@ -37,7 +37,6 @@ const char *tsdbFileSuffix[] = {
 
 static int compFGroupKey(const void *key, const void *fgroup);
 static int compFGroup(const void *arg1, const void *arg2);
-static int tsdbWriteFileHead(SFile *pFile);
 static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid);
 
 STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg) {
@@ -83,11 +82,21 @@ void tsdbCloseFileH(STsdbFileH *pFileH) {
 }
 
 static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile) {
+  uint32_t version;
+  char buf[512] = "\0";
+
   tsdbGetFileName(dataDir, fid, suffix, pFile->fname);
   if (access(pFile->fname, F_OK|R_OK|W_OK) < 0) return -1;
   pFile->fd = -1;
-  // TODO: recover the file info
-  // pFile->info = {0};
+  if (tsdbOpenFile(pFile, O_RDONLY) < 0) return -1;
+
+  if (tread(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) return -1;
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) return -1;
+
+  void *pBuf = buf;
+  pBuf = taosDecodeFixed32(pBuf, &version);
+  pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
+
   return 0;
 }
 
@@ -284,18 +293,6 @@ static int compFGroup(const void *arg1, const void *arg2) {
   return ((SFileGroup *)arg1)->fileId - ((SFileGroup *)arg2)->fileId;
 }
 
-static int tsdbWriteFileHead(SFile *pFile) {
-  char head[TSDB_FILE_HEAD_SIZE] = "\0";
-
-  pFile->info.size += TSDB_FILE_HEAD_SIZE;
-
-  // TODO: write version and File statistic to the head
-  lseek(pFile->fd, 0, SEEK_SET);
-  if (write(pFile->fd, head, TSDB_FILE_HEAD_SIZE) < 0) return -1;
-
-  return 0;
-}
-
 int tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname) {
   if (dataDir == NULL || fname == NULL) return -1;
 
@@ -345,7 +342,9 @@ int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, SFile *pFile) 
     return -1;
   }
 
-  if (tsdbWriteFileHead(pFile) < 0) {
+  pFile->info.size = TSDB_FILE_HEAD_SIZE;
+
+  if (tsdbUpdateFileHeader(pFile, 0) < 0) {
     tsdbCloseFile(pFile);
     return -1;
   }

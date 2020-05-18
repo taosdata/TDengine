@@ -465,7 +465,7 @@ typedef struct {
   SCompData *pCompData;
   SDataCols *pDataCols[2];
 
-  void *blockBuffer;  // Buffer to hold the whole data block
+  void *pBuffer;  // Buffer to hold the whole data block
   void *compBuffer;   // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
@@ -512,6 +512,7 @@ void    tsdbFitRetention(STsdbRepo *pRepo);
 int     tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
 void    tsdbAdjustCacheBlocks(STsdbCache *pCache);
 int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
+int     tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
 
 #ifdef __cplusplus
 }
