@@ -29,6 +29,11 @@ extern "C" {
 static const int32_t TNUMBER = 1;
 #define IS_LITTLE_ENDIAN() (*(uint8_t *)(&TNUMBER) != 0)
 
+static FORCE_INLINE void *taosEncodeFixed8(void *buf, uint8_t value) {
+  ((uint8_t *)buf)[0] = value;
+  return POINTER_SHIFT(buf, sizeof(value));
+}
+
 static FORCE_INLINE void *taosEncodeFixed16(void *buf, uint16_t value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(buf, &value, sizeof(value));
@@ -68,6 +73,11 @@ static FORCE_INLINE void *taosEncodeFixed64(void *buf, uint64_t value) {
   }
 
   return POINTER_SHIFT(buf, sizeof(value));
+}
+
+static FORCE_INLINE void *taosDecodeFixed8(void *buf, uint8_t *value) {
+  *value = ((uint8_t *)buf)[0];
+  return POINTER_SHIFT(buf, sizeof(*value));
 }
 
 static FORCE_INLINE void *taosDecodeFixed16(void *buf, uint16_t *value) {

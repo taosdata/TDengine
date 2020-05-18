@@ -72,8 +72,8 @@ sql import into tb values (now - 10d , -10 )
 sql import into tb values (now - 11d , -11 )
 
 sql select * from tb order by ts desc
-print ===> rows $rows
-print ===> last $data01
+print ===> rows $rows expect $num
+print ===> last $data01 expect  $data01
 
 if $rows != $num then
 	return -1

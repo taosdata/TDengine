@@ -43,9 +43,6 @@ endi
 if $data01 != 4 then 
   return -1
 endi
-if $data02 != ready then 
-  return -1
-endi
 
 print =============== drop database
 sql drop database d1

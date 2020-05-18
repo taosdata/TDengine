@@ -43,7 +43,7 @@ class TDTestCase:
                 "This test failed: insert wrong data error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("insert wrong data error catched")
+            tdLog.info("insert wrong data error catched")
 
         cmd = 'select * from tb order by ts desc'
         tdLog.info(cmd)
@@ -82,7 +82,7 @@ class TDTestCase:
                        insert wrong data error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("insert wrong data error catched")
+            tdLog.info("insert wrong data error catched")
 
         cmd = "insert into tb values (now+4a, 0)"
         tdLog.info(cmd)
@@ -103,7 +103,7 @@ class TDTestCase:
                 "This test failed: insert wrong data error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("insert wrong data error catched")
+            tdLog.info("insert wrong data error catched")
 
         cmd = "insert into tb values (now+5a, 2)"
         tdLog.info(cmd)
@@ -124,7 +124,7 @@ class TDTestCase:
                 "This test failed: insert wrong data error _not_ catched")
         except Exception as e:
             tdLog.info(repr(e))
-            tdLog.notice("insert wrong data error catched")
+            tdLog.info("insert wrong data error catched")
 
         cmd = "insert into tb values (now+6a, 2)"
         tdLog.info(cmd)

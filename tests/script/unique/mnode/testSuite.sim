@@ -5,5 +5,4 @@ run unique/mnode/mgmt25.sim
 run unique/mnode/mgmt26.sim
 run unique/mnode/mgmt33.sim
 run unique/mnode/mgmt34.sim
-#run unique/mnode/mgmtr2.sim
-#run unique/mnode/secondIp.sim
+run unique/mnode/mgmtr2.sim

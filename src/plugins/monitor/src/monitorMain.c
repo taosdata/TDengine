@@ -68,7 +68,7 @@ typedef enum {
 typedef struct {
   void * conn;
   void * timer;
-  char   ep[TSDB_FQDN_LEN];
+  char   ep[TSDB_EP_LEN];
   int8_t cmdIndex;
   int8_t state;
   char   sql[SQL_LENGTH];
@@ -109,6 +109,11 @@ static void monitorStartSystemRetry() {
 }
 
 static void monitorInitConn(void *para, void *unused) {
+  if (dnodeGetDnodeId() <= 0) {
+    monitorStartSystemRetry();
+    return;
+  }
+  
   monitorPrint("starting to initialize monitor service ..");
   tsMonitorConn.state = MONITOR_STATE_INITIALIZING;
 

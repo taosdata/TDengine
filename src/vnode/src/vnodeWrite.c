@@ -91,17 +91,16 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   // save insert result into item
 
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
-  code = tsdbInsertData(pVnode->tsdb, pCont);
-
+  
   pRet->len = sizeof(SShellSubmitRspMsg);
   pRet->rsp = rpcMallocCont(pRet->len);
   SShellSubmitRspMsg *pRsp = pRet->rsp;
-
+  code = tsdbInsertData(pVnode->tsdb, pCont, pRsp);
+  pRsp->numOfFailedBlocks = 0; //TODO
+  //pRet->len += pRsp->numOfFailedBlocks * sizeof(SShellSubmitRspBlock); //TODO
   pRsp->code              = 0;
   pRsp->numOfRows         = htonl(1);
-  pRsp->affectedRows      = htonl(1);
-  pRsp->numOfFailedBlocks = 0;
-
+  
   return code;
 }
 

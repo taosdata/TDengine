@@ -175,7 +175,7 @@ void taosInitGlobalCfg();
 bool taosCheckGlobalCfg();
 void taosSetAllDebugFlag();
 bool taosCfgDynamicOptions(char *msg);
-int  taosGetFqdnPortFromEp(char *ep, char *fqdn, uint16_t *port);
+int  taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
  
 #ifdef __cplusplus
 }

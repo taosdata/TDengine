@@ -34,6 +34,9 @@ Target/
 *.failed
 *.sql
 sim/
+psim/
+pysim/
+*.out
 *DS_Store
 
 # Doxygen Generated files

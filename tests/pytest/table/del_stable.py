@@ -26,9 +26,7 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute("drop database if exists db")
         print("==============step1")
-        tdSql.execute("create database db")
         tdSql.execute("create table db.st (ts timestamp, i int) tags(j int)")
         tdSql.execute("create table db.tb using st tags(1)")
         tdSql.execute("insert into db.tb values(now, 1)")
