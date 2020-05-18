@@ -68,21 +68,11 @@ void tscPrintMgmtIp() {
   }
 }
 
-void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
+void tscSetMgmtIpList(SRpcIpSet *pIpList) {
   tscMgmtIpSet.numOfIps = pIpList->numOfIps;
   tscMgmtIpSet.inUse = pIpList->inUse;
   for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
     tscMgmtIpSet.port[i] = htons(pIpList->port[i]);
-  }
-}
-
-void tscSetMgmtIpListFromEdge() {
-  if (tscMgmtIpSet.numOfIps != 1) {
-    tscMgmtIpSet.numOfIps = 1;
-    tscMgmtIpSet.inUse = 0;
-    taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
-    tscTrace("edge mgmt IP list:");
-    tscPrintMgmtIp();
   }
 }
 
@@ -91,18 +81,6 @@ void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
   tscTrace("mgmt IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
   for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
     tscTrace("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
-  }
-}
-
-void tscSetMgmtIpList(SRpcIpSet *pIpList) {
-  /*
-    * The iplist returned by the cluster edition is the current management nodes
-    * and the iplist returned by the edge edition is empty
-    */
-  if (pIpList->numOfIps != 0) {
-    tscSetMgmtIpListFromCluster(pIpList);
-  } else {
-    tscSetMgmtIpListFromEdge();
   }
 }
 
@@ -133,7 +111,8 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   if (code == 0) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
     SRpcIpSet *      pIpList = &pRsp->ipList;
-    tscSetMgmtIpList(pIpList);
+    if (pIpList->numOfIps > 0) 
+      tscSetMgmtIpList(pIpList);
 
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
@@ -2225,7 +2204,8 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= tListLen(pObj->db));
   strncpy(pObj->db, temp, tListLen(pObj->db));
   
-  tscSetMgmtIpList(&pConnect->ipList);
+  if (pConnect->ipList.numOfIps > 0) 
+    tscSetMgmtIpList(&pConnect->ipList);
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;

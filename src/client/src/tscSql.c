@@ -65,32 +65,18 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     terrno = TSDB_CODE_INVALID_PASS;
     return NULL;
   }
-  
+
+  if (ip) {
+    if (tscSetMgmtIpListFromCfg(ip, NULL) < 0) return NULL;
+    if (port) tscMgmtIpSet.port[0] = port;
+  } 
+ 
   void *pDnodeConn = NULL;
   if (tscInitRpc(user, pass, &pDnodeConn) != 0) {
     terrno = TSDB_CODE_NETWORK_UNAVAIL;
     return NULL;
   }
-
-  tscMgmtIpSet.numOfIps = 0;
-
-  if (ip && ip[0]) {
-    tscMgmtIpSet.inUse = 0;
-    tscMgmtIpSet.numOfIps = 1;
-    strcpy(tscMgmtIpSet.fqdn[0], ip);
-    tscMgmtIpSet.port[0] = port? port: tsDnodeShellPort;
-  } else {
-    if (tsFirst[0] != 0) {
-      taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
-      tscMgmtIpSet.numOfIps++;
-    }
-
-    if (tsSecond[0] != 0) {
-      taosGetFqdnPortFromEp(tsSecond, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
-      tscMgmtIpSet.numOfIps++;
-    }
-  }
-  
+ 
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
