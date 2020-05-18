@@ -1342,12 +1342,12 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pqHandle) {
     pQueryHandle->checkFiles  = false;
   }
   
-  if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
+//  if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
     return doHasDataInBuffer(pQueryHandle);
-  } else {
+//  } else {
 //    assert(0);
-    return false;
-  }
+//    return false;
+//  }
   
 //  if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
 //    if (pQueryHandle->checkFiles) {
