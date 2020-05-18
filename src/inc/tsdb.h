@@ -278,9 +278,9 @@ SArray *tsdbGetTableList(TsdbQueryHandleT *pQueryHandle);
  * @param stableid. super table sid
  * @param pTagCond. tag query condition
  */
-int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagCond, size_t len,
-  int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo *pGroupList, SColIndex *pColIndex, int32_t numOfCols);
-
+int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, uint64_t uid, const char *pTagCond, size_t len,
+                                 int16_t tagNameRelType, const char *tbnameCond, STableGroupInfo *pGroupList,
+                                 SColIndex *pColIndex, int32_t numOfCols);
 
 /**
  * create the table group result including only one table, used to handle the normal table query
@@ -290,7 +290,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagC
  * @param pGroupInfo  the generated result
  * @return
  */
-int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, int64_t uid, STableGroupInfo *pGroupInfo);
+int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, uint64_t uid, STableGroupInfo *pGroupInfo);
 
 /**
  * clean up the query handle
