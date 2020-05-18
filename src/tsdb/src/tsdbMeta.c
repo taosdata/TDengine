@@ -87,9 +87,9 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   memcpy(pTable->name->data, ptr, len);
   
   ptr = (char *)ptr + len;
-  T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
+  T_READ_MEMBER(ptr, uint64_t, pTable->tableId.uid);
   T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
-  T_READ_MEMBER(ptr, int64_t, pTable->superUid);
+  T_READ_MEMBER(ptr, uint64_t, pTable->superUid);
   T_READ_MEMBER(ptr, int32_t, pTable->sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
@@ -455,7 +455,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
   return 0;
 }
 
-STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   void *ptr = taosHashGet(pMeta->map, (char *)(&uid), sizeof(uid));
 
   if (ptr == NULL) return NULL;

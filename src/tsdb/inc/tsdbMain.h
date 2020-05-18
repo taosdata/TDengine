@@ -63,9 +63,9 @@ typedef struct {
 } SMetaFile;
 
 SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables, iterFunc iFunc, afterFunc aFunc, void *appH);
-int32_t    tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);
-int32_t    tsdbDeleteMetaRecord(SMetaFile *mfh, int64_t uid);
-int32_t    tsdbUpdateMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);
+int32_t    tsdbInsertMetaRecord(SMetaFile *mfh, uint64_t uid, void *cont, int32_t contLen);
+int32_t    tsdbDeleteMetaRecord(SMetaFile *mfh, uint64_t uid);
+int32_t    tsdbUpdateMetaRecord(SMetaFile *mfh, uint64_t uid, void *cont, int32_t contLen);
 void       tsdbCloseMetaFile(SMetaFile *mfh);
 
 // ------------------------------ TSDB META INTERFACES ------------------------------
@@ -82,7 +82,7 @@ typedef struct {
 typedef struct STable {
   int8_t         type;
   STableId       tableId;
-  int64_t        superUid;  // Super table UID
+  uint64_t       superUid;  // Super table UID
   int32_t        sversion;
   STSchema *     schema;
   STSchema *     tagSchema;
@@ -153,7 +153,7 @@ STsdbMeta *tsdbGetMeta(TsdbRepoT *pRepo);
 
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
-STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid);
 char *getTSTupleKey(const void * data);
 
 typedef struct {
@@ -275,8 +275,8 @@ typedef struct {
   uint32_t padding;  // For padding purpose
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
-  int64_t uid;
-  TSKEY   maxKey;
+  uint64_t uid;
+  TSKEY    maxKey;
 } SCompIdx; /* sizeof(SCompIdx) = 28 */
 
 void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx);
@@ -311,7 +311,7 @@ typedef struct {
 typedef struct {
   int32_t    delimiter;  // For recovery usage
   int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
-  int64_t    uid;
+  uint64_t   uid;
   SCompBlock blocks[];
 } SCompInfo;
 
@@ -345,7 +345,7 @@ typedef struct {
 typedef struct {
   int32_t  delimiter;  // For recovery usage
   int32_t  numOfCols;  // For recovery usage
-  int64_t  uid;        // For recovery usage
+  uint64_t uid;        // For recovery usage
   SCompCol cols[];
 } SCompData;
 
@@ -441,9 +441,9 @@ typedef struct {
 } SHelperFile;
 
 typedef struct {
-  int64_t uid;
-  int32_t tid;
-  int32_t sversion;
+  uint64_t uid;
+  int32_t  tid;
+  int32_t  sversion;
 } SHelperTable;
 
 typedef struct {

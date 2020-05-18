@@ -16,7 +16,7 @@ typedef struct {
   TsdbRepoT *pRepo;
   bool       isAscend;
   int        tid;
-  int64_t    uid;
+  uint64_t   uid;
   int        sversion;
   TSKEY      startTime;
   TSKEY      interval;
