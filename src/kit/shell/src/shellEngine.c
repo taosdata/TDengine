@@ -33,12 +33,12 @@ char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
 TAOS_RES *result = NULL;
-History   history;
+SShellHistory   history;
 
 /*
  * FUNCTION: Initialize the shell.
  */
-TAOS *shellInit(struct arguments *args) {
+TAOS *shellInit(SShellArguments *args) {
   printf("\n");
   printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
   fflush(stdout);

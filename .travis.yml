@@ -50,7 +50,7 @@ matrix:
           ./test-all.sh $TRAVIS_EVENT_TYPE || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
-          ./valgrind-test.sh -g 2>&1 > mem-error-out.txt
+          ./valgrind-test.sh 2>&1 > mem-error-out.txt
           sleep 1
 
           # Color setting

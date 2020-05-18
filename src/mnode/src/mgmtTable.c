@@ -763,6 +763,7 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
   pStable->createdTime  = taosGetTimestampMs();
   pStable->uid          = (((uint64_t) pStable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
   pStable->sversion     = 0;
+  pStable->tversion     = 0;
   pStable->numOfColumns = htons(pCreate->numOfColumns);
   pStable->numOfTags    = htons(pCreate->numOfTags);
 
@@ -882,7 +883,7 @@ static int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], i
   }
 
   pStable->numOfTags += ntags;
-  pStable->sversion++;
+  pStable->tversion++;
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -909,7 +910,7 @@ static int32_t mgmtDropSuperTableTag(SSuperTableObj *pStable, char *tagName) {
   memmove(pStable->schema + pStable->numOfColumns + col, pStable->schema + pStable->numOfColumns + col + 1,
           sizeof(SSchema) * (pStable->numOfTags - col - 1));
   pStable->numOfTags--;
-  pStable->sversion++;
+  pStable->tversion++;
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -1235,6 +1236,7 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
   STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sversion     = htons(pTable->sversion);
+  pMeta->tversion     = htons(pTable->tversion);
   pMeta->precision    = pMsg->pDb->cfg.precision;
   pMeta->numOfTags    = (uint8_t)pTable->numOfTags;
   pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
@@ -1358,12 +1360,14 @@ static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableOb
     pCreate->numOfColumns  = htons(pTable->superTable->numOfColumns);
     pCreate->numOfTags     = htons(pTable->superTable->numOfTags);
     pCreate->sversion      = htonl(pTable->superTable->sversion);
+    pCreate->tversion      = htonl(pTable->superTable->tversion);
     pCreate->tagDataLen    = htonl(tagDataLen);
     pCreate->superTableUid = htobe64(pTable->superTable->uid);
   } else {
     pCreate->numOfColumns  = htons(pTable->numOfColumns);
     pCreate->numOfTags     = 0;
     pCreate->sversion      = htonl(pTable->sversion);
+    pCreate->tversion      = 0;
     pCreate->tagDataLen    = 0;
     pCreate->superTableUid = 0;
   }
@@ -1686,15 +1690,17 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->sid       = htonl(pTable->sid);
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
-  strncpy(pMeta->tableId, pTable->info.tableId, tListLen(pTable->info.tableId));
+  strncpy(pMeta->tableId, pTable->info.tableId, strlen(pTable->info.tableId));
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pMeta->sversion     = htons(pTable->superTable->sversion);
+    pMeta->tversion     = htons(pTable->superTable->tversion);
     pMeta->numOfTags    = (int8_t)pTable->superTable->numOfTags;
     pMeta->numOfColumns = htons((int16_t)pTable->superTable->numOfColumns);
     pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
   } else {
     pMeta->sversion     = htons(pTable->sversion);
+    pMeta->tversion     = 0;
     pMeta->numOfTags    = 0;
     pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
     pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromNormalTable(pMeta->schema, pTable); 

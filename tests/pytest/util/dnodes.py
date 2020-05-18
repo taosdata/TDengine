@@ -223,8 +223,8 @@ class TDDnode:
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
-        tdLog.debug("wait 4 seconds for the dnode:%d to start." % (self.index))
-        time.sleep(4)
+        tdLog.debug("wait 5 seconds for the dnode:%d to start." % (self.index))
+        time.sleep(5)
 
     def stop(self):
         if self.valgrind == 0:
@@ -233,16 +233,14 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            killCmd = "ps -ef|grep -w %s| grep '%s' | grep -v grep | awk '{print $2}' | xargs kill -INT" % (
-                toBeKilled, self.cfgDir)
-
             psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
-            processID = subprocess.check_output(psCmd, shell=True)
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
             while(processID):
+                killCmd = "kill -INT %s" % processID
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(psCmd, shell=True)
+                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
@@ -254,15 +252,14 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            killCmd = "ps -ef|grep -w %s| grep '%s' | grep -v grep | awk '{print $2}' | xargs kill -KILL" % (
-                toBeKilled, self.cfgDir)
             psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
-            processID = subprocess.check_output(psCmd, shell=True)
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
             while(processID):
+                killCmd = "kill -KILL %s" % processID
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(psCmd, shell=True)
+                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -KILL" % (self.index))
@@ -307,21 +304,21 @@ class TDDnodes:
         self.dnodes.append(TDDnode(10))
 
     def init(self, path):
-        killCmd = "ps -ef|grep -w taosd | grep -v grep | awk '{print $2}' | xargs kill -KILL"
         psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
+            killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
-        killCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs kill -KILL"
         psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
+            killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
         binPath = os.path.dirname(os.path.realpath(__file__))
         binPath = binPath + "/../../../debug/"
@@ -407,27 +404,27 @@ class TDDnodes:
             self.dnodes[i].stop()
 
         psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         if processID:
             cmd = "sudo systemctl stop taosd"
             os.system(cmd)
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
-        killCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}' | xargs kill -KILL"
         psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
+            killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
-        killCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs kill -KILL"
         psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
+            killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
 
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)

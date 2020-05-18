@@ -214,12 +214,12 @@ typedef struct {
   int64_t tombSize;  // unused file size
   int32_t totalBlocks;
   int32_t totalSubBlocks;
-} SFileInfo;
+} STsdbFileInfo;
 
 typedef struct {
   int       fd;
   char      fname[128];
-  SFileInfo info;
+  STsdbFileInfo info;
 } SFile;
 
 #define TSDB_IS_FILE_OPENED(f) ((f)->fd != -1)
@@ -350,7 +350,7 @@ SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
 void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 
 // TSDB repository definition
-typedef struct _tsdb_repo {
+typedef struct STsdbRepo {
   char *rootDir;
   // TSDB configuration
   STsdbCfg config;
