@@ -286,7 +286,6 @@ static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pD
   pVnodeGid->pDnode = pDestDnode;
   pVgroup->numOfVnodes++;
 
-  pVgroup->status = TSDB_VG_STATUS_READY;
   if (pSrcDnode != NULL) {
     pVgroup->lbDnodeId = pSrcDnode->dnodeId;
   }
@@ -386,20 +385,11 @@ static int32_t balanceMonitorVgroups() {
     int32_t dbReplica = pVgroup->pDb->cfg.replications;
     int32_t vgReplica = pVgroup->numOfVnodes;
     
-    if (vgReplica == dbReplica) {
-      if (pVgroup->status != TSDB_VG_STATUS_READY) {
-        pVgroup->status = TSDB_VG_STATUS_READY;
-        pVgroup->lbTime = tsAccessSquence;
-        pVgroup->lbDnodeId = 0;
-        mgmtUpdateVgroup(pVgroup);
-        hasUpdatingVgroup = true;
-        mPrint("vgId:%d, set to ready state", pVgroup->vgId);
-      }
-    } else if (vgReplica > dbReplica) {
+    if (vgReplica > dbReplica) {
       mPrint("vgId:%d, replica:%d numOfVnodes:%d, try remove one vnode", pVgroup->vgId, dbReplica, vgReplica);
       hasUpdatingVgroup = true;
       balanceRemoveVnode(pVgroup);
-    } else {
+    } else if (vgReplica < dbReplica) {
       mPrint("vgId:%d, replica:%d numOfVnodes:%d, try add one vnode", pVgroup->vgId, dbReplica, vgReplica);
       hasUpdatingVgroup = true;
       balanceAddVnode(pVgroup, NULL, NULL);
