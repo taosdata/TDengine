@@ -62,7 +62,7 @@ int checkVersion() {
 }
 
 // Global configurations
-struct arguments args = {
+SShellArguments args = {
   .host = NULL,
   .password = NULL,
   .user = NULL,
