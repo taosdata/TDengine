@@ -19,6 +19,8 @@ python3 ./test.py $1 -f table/column_num.py
 python3 ./test.py $1 -f table/db_table.py
 python3 ./test.py $1 -f table/tablename-boundary.py
 
+# tag
+python3 ./test.py $1 -f tag_lite/filter.py
 python3 ./test.py $1 -f tag_lite/create-tags-boundary.py
 
 python3 ./test.py $1 -f dbmgmt/database-name-boundary.py
@@ -96,3 +98,4 @@ python3 ./test.py $1 -f user/pass_len.py
 
 # table
 #python3 ./test.py $1 -f table/del_stable.py
+
