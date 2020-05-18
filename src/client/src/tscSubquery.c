@@ -771,7 +771,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         }
     
         SSqlRes* pRes1 = &pParentSql->pSubs[i]->res;
-        pRes1->numOfTotalInCurrentClause += pRes1->numOfRows;
+        pRes1->numOfClauseTotal += pRes1->numOfRows;
       }
   
       // data has retrieved to client, build the join results
@@ -1834,7 +1834,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
         pRes->tsrow[i] = pRes1->tsrow[pIndex->columnIndex];
       }
       
-      pRes->numOfTotalInCurrentClause++;
+      pRes->numOfClauseTotal++;
       break;
     } else {  // continue retrieve data from vnode
       if (!tscHashRemainDataInSubqueryResultSet(pSql)) {

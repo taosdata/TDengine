@@ -892,7 +892,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
     // no interval query, no fill operation
     pRes->data = pLocalReducer->pFinalRes;
     pRes->numOfRows = pFinalDataPage->num;
-    pRes->numOfTotalInCurrentClause += pRes->numOfRows;
+    pRes->numOfClauseTotal += pRes->numOfRows;
 
     if (pQueryInfo->limit.offset > 0) {
       if (pQueryInfo->limit.offset < pRes->numOfRows) {
@@ -903,23 +903,23 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
         tColModelCompact(pLocalReducer->resColModel, pFinalDataPage, prevSize);
 
         pRes->numOfRows -= pQueryInfo->limit.offset;
-        pRes->numOfTotalInCurrentClause -= pQueryInfo->limit.offset;
+        pRes->numOfClauseTotal -= pQueryInfo->limit.offset;
         pQueryInfo->limit.offset = 0;
       } else {
         pQueryInfo->limit.offset -= pRes->numOfRows;
         pRes->numOfRows = 0;
-        pRes->numOfTotalInCurrentClause = 0;
+        pRes->numOfClauseTotal = 0;
       }
     }
 
-    if (pQueryInfo->limit.limit >= 0 && pRes->numOfTotalInCurrentClause > pQueryInfo->limit.limit) {
+    if (pQueryInfo->limit.limit >= 0 && pRes->numOfClauseTotal > pQueryInfo->limit.limit) {
       /* impose the limitation of output rows on the final result */
       int32_t prevSize = pFinalDataPage->num;
-      int32_t overFlow = pRes->numOfTotalInCurrentClause - pQueryInfo->limit.limit;
+      int32_t overFlow = pRes->numOfClauseTotal - pQueryInfo->limit.limit;
 
       assert(overFlow < pRes->numOfRows);
 
-      pRes->numOfTotalInCurrentClause = pQueryInfo->limit.limit;
+      pRes->numOfClauseTotal = pQueryInfo->limit.limit;
       pRes->numOfRows -= overFlow;
       pFinalDataPage->num -= overFlow;
 
@@ -962,7 +962,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
 
       pRes->data = pLocalReducer->pFinalRes;
       pRes->numOfRows = newRows;
-      pRes->numOfTotalInCurrentClause += newRows;
+      pRes->numOfClauseTotal += newRows;
 
       pQueryInfo->limit.offset = 0;
       break;
@@ -987,13 +987,13 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   }
 
   if (pRes->numOfRows > 0) {
-    if (pQueryInfo->limit.limit >= 0 && pRes->numOfTotalInCurrentClause > pQueryInfo->limit.limit) {
-      int32_t overFlow = pRes->numOfTotalInCurrentClause - pQueryInfo->limit.limit;
+    if (pQueryInfo->limit.limit >= 0 && pRes->numOfClauseTotal > pQueryInfo->limit.limit) {
+      int32_t overFlow = pRes->numOfClauseTotal - pQueryInfo->limit.limit;
       pRes->numOfRows -= overFlow;
 
       assert(pRes->numOfRows >= 0);
 
-      pRes->numOfTotalInCurrentClause = pQueryInfo->limit.limit;
+      pRes->numOfClauseTotal = pQueryInfo->limit.limit;
       pFinalDataPage->num -= overFlow;
 
       /* set remain data to be discarded, and reset the interpolation information */
@@ -1214,7 +1214,7 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
 
   //    pRes->pGroupRec = realloc(pRes->pGroupRec, pRes->numOfGroups*sizeof(SResRec));
   //    pRes->pGroupRec[pRes->numOfGroups-1].numOfRows = pRes->numOfRows;
-  //    pRes->pGroupRec[pRes->numOfGroups-1].numOfTotalInCurrentClause = pRes->numOfTotalInCurrentClause;
+  //    pRes->pGroupRec[pRes->numOfGroups-1].numOfClauseTotal = pRes->numOfClauseTotal;
 
   return false;
 }
@@ -1249,7 +1249,6 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
   }
 
   tColModelCompact(pModel, pResBuf, pModel->capacity);
-//  memcpy(pLocalReducer->pBufForInterpo, pResBuf->data, pLocalReducer->nResultBufSize);
 
 #ifdef _DEBUG_VIEW
   printf("final result before interpo:\n");
@@ -1258,15 +1257,16 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
 #endif
   
   SFillInfo* pFillInfo = pLocalReducer->pFillInfo;
+  if (pFillInfo != NULL) {
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+    STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+    TSKEY ekey = taosGetRevisedEndKey(pQueryInfo->window.ekey, pFillInfo->order, pFillInfo->slidingTime,
+                                      pQueryInfo->slidingTimeUnit, tinfo.precision);
   
-  TSKEY ekey = taosGetRevisedEndKey(pQueryInfo->window.ekey, pFillInfo->order, pFillInfo->slidingTime,
-                                    pQueryInfo->slidingTimeUnit, tinfo.precision);
-  
-  taosFillSetStartInfo(pFillInfo, pResBuf->num, ekey);
-  taosFillCopyInputDataFromOneFilePage(pFillInfo, pResBuf);
+    taosFillSetStartInfo(pFillInfo, pResBuf->num, ekey);
+    taosFillCopyInputDataFromOneFilePage(pFillInfo, pResBuf);
+  }
   
   doInterpolateResult(pSql, pLocalReducer, noMoreCurrentGroupRes);
   return true;
@@ -1284,7 +1284,7 @@ void resetOutputBuf(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {  // 
 static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer *pLocalReducer) {
   // In handling data in other groups, we need to reset the interpolation information for a new group data
   pRes->numOfRows = 0;
-  pRes->numOfTotalInCurrentClause = 0;
+  pRes->numOfClauseTotal = 0;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
