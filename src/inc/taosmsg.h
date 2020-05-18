@@ -187,13 +187,13 @@ typedef struct SMsgHead {
 
 // Submit message for one table
 typedef struct SSubmitBlk {
-  int64_t uid;        // table unique id
-  int32_t tid;        // table id
-  int32_t padding;    // TODO just for padding here
-  int32_t sversion;   // data schema version
-  int32_t len;        // data part length, not including the SSubmitBlk head
-  int16_t numOfRows;  // total number of rows in current submit block
-  char    data[];
+  uint64_t uid;        // table unique id
+  int32_t  tid;        // table id
+  int32_t  padding;    // TODO just for padding here
+  int32_t  sversion;   // data schema version
+  int32_t  len;        // data part length, not including the SSubmitBlk head
+  int16_t  numOfRows;  // total number of rows in current submit block
+  char     data[];
 } SSubmitBlk;
 
 // Submit message for this TSDB
@@ -327,9 +327,9 @@ typedef struct {
 } SMDDropTableMsg;
 
 typedef struct {
-  int32_t contLen;
-  int32_t vgId;
-  int64_t uid;
+  int32_t  contLen;
+  int32_t  vgId;
+  uint64_t uid;
   char    tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDDropSTableMsg;
 
@@ -404,9 +404,9 @@ typedef struct SColumnInfo {
 } SColumnInfo;
 
 typedef struct STableIdInfo {
-  int64_t uid;
-  int32_t tid;
-  TSKEY   key;  // last accessed ts, for subscription
+  uint64_t uid;
+  int32_t  tid;
+  TSKEY    key;  // last accessed ts, for subscription
 } STableIdInfo;
 
 typedef struct STimeWindow {
