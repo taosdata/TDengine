@@ -218,7 +218,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_LOCALE_LEN           64
 #define TSDB_TIMEZONE_LEN         64
 
-#define TSDB_FQDN_LEN             72
+#define TSDB_FQDN_LEN             256
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_METER_VNODE_BITS     20
@@ -234,7 +234,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
 
 #define TSDB_PAYLOAD_SIZE         (TSDB_DEFAULT_PKT_SIZE - 100)
-#define TSDB_DEFAULT_PAYLOAD_SIZE 1024   // default payload size
+#define TSDB_DEFAULT_PAYLOAD_SIZE 2048   // default payload size
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MAX_VNODES           256
