@@ -87,9 +87,9 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   memcpy(pTable->name->data, ptr, len);
   
   ptr = (char *)ptr + len;
-  T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
+  T_READ_MEMBER(ptr, uint64_t, pTable->tableId.uid);
   T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
-  T_READ_MEMBER(ptr, int64_t, pTable->superUid);
+  T_READ_MEMBER(ptr, uint64_t, pTable->superUid);
   T_READ_MEMBER(ptr, int32_t, pTable->sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
@@ -154,7 +154,6 @@ STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) return NULL;
 
-  pMeta->maxTables = maxTables;
   pMeta->nTables = 0;
   pMeta->superList = NULL;
   pMeta->tables = (STable **)calloc(maxTables, sizeof(STable *));
@@ -456,7 +455,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
   return 0;
 }
 
-STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   void *ptr = taosHashGet(pMeta->map, (char *)(&uid), sizeof(uid));
 
   if (ptr == NULL) return NULL;
@@ -509,10 +508,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
 
       ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
 
-      pMeta->tables[tTable->tableId.tid] = NULL;
-      taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
-      pMeta->nTables--;
-      tsdbFreeTable(tTable);
+      tsdbRemoveTableFromMeta(pMeta, tTable);
     }
 
     tSkipListDestroyIter(pIter);
@@ -535,8 +531,8 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
     pMeta->nTables--;
   }
 
-  tsdbFreeTable(pTable);
   taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
+  tsdbFreeTable(pTable);
   return 0;
 }
 

@@ -392,7 +392,7 @@ int tsdbAlterTable(TsdbRepoT *pRepo, STableCfg *pCfg) {
   return 0;
 }
 
-TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid) {
+TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, uint64_t uid) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, uid);
@@ -430,7 +430,7 @@ int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg * p
 /**
  * Initialize a table configuration
  */
-int tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t tid) {
+int tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid) {
   if (config == NULL) return -1;
   if (type != TSDB_NORMAL_TABLE && type != TSDB_CHILD_TABLE) return -1;
 
@@ -447,7 +447,7 @@ int tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t ti
 /**
  * Set the super table UID of the created table
  */
-int tsdbTableSetSuperUid(STableCfg *config, int64_t uid) {
+int tsdbTableSetSuperUid(STableCfg *config, uint64_t uid) {
   if (config->type != TSDB_CHILD_TABLE) return -1;
   if (uid == TSDB_INVALID_SUPER_TABLE_ID) return -1;
 
@@ -1148,8 +1148,16 @@ static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
 }
 
 static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
-  // TODO
   int oldMaxTables = pRepo->config.maxTables;
+  if (oldMaxTables < pRepo->config.maxTables) {
+    // TODO
+  }
+
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
+  pMeta->maxTables = maxTables;
+  pMeta->tables = realloc(pMeta->tables, maxTables * sizeof(STable *));
+
   tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
 }
 

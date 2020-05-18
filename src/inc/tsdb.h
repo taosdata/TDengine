@@ -77,8 +77,8 @@ int32_t    tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg);
 
 // --------- TSDB TABLE DEFINITION
 typedef struct {
-  int64_t uid;  // the unique table ID
-  int32_t tid;  // the table ID in the repository.
+  uint64_t uid;  // the unique table ID
+  int32_t  tid;  // the table ID in the repository.
 } STableId;
 
 // --------- TSDB TABLE configuration
@@ -88,14 +88,14 @@ typedef struct {
   STableId   tableId;
   int32_t    sversion;
   char *     sname;  // super table name
-  int64_t    superUid;
+  uint64_t   superUid;
   STSchema * schema;
   STSchema * tagSchema;
   SDataRow   tagValues;
 } STableCfg;
 
-int  tsdbInitTableCfg(STableCfg *config, ETableType type, int64_t uid, int32_t tid);
-int  tsdbTableSetSuperUid(STableCfg *config, int64_t uid);
+int  tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid);
+int  tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
 int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
@@ -109,7 +109,7 @@ char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes);
 int   tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
 int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
 int   tsdbAlterTable(TsdbRepoT *repo, STableCfg *pCfg);
-TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid);
+TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, uint64_t uid);
 
 uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size);
 
@@ -278,9 +278,9 @@ SArray *tsdbGetTableList(TsdbQueryHandleT *pQueryHandle);
  * @param stableid. super table sid
  * @param pTagCond. tag query condition
  */
-int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagCond, size_t len,
-  int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo *pGroupList, SColIndex *pColIndex, int32_t numOfCols);
-
+int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, uint64_t uid, const char *pTagCond, size_t len,
+                                 int16_t tagNameRelType, const char *tbnameCond, STableGroupInfo *pGroupList,
+                                 SColIndex *pColIndex, int32_t numOfCols);
 
 /**
  * create the table group result including only one table, used to handle the normal table query
@@ -290,7 +290,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagC
  * @param pGroupInfo  the generated result
  * @return
  */
-int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, int64_t uid, STableGroupInfo *pGroupInfo);
+int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, uint64_t uid, STableGroupInfo *pGroupInfo);
 
 /**
  * clean up the query handle
