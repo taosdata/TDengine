@@ -508,10 +508,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
 
       ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
 
-      pMeta->tables[tTable->tableId.tid] = NULL;
-      taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
-      pMeta->nTables--;
-      tsdbFreeTable(tTable);
+      tsdbRemoveTableFromMeta(pMeta, tTable);
     }
 
     tSkipListDestroyIter(pIter);
@@ -534,8 +531,8 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
     pMeta->nTables--;
   }
 
-  tsdbFreeTable(pTable);
   taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
+  tsdbFreeTable(pTable);
   return 0;
 }
 
