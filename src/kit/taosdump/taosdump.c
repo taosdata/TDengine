@@ -168,7 +168,7 @@ static struct argp_option options[] = {
   {0}};
 
 /* Used by main to communicate with parse_opt. */
-struct arguments {
+typedef struct SDumpArguments {
   // connection option
   char *host;
   char *user;
@@ -193,13 +193,13 @@ struct arguments {
   char **arg_list;
   int arg_list_len;
   bool isDumpIn;
-};
+} SDumpArguments;
 
 /* Parse a single option. */
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   /* Get the input argument from argp_parse, which we
      know is a pointer to our arguments structure. */
-  struct arguments *arguments = state->input;
+  SDumpArguments *arguments = state->input;
   wordexp_t full_path;
 
   switch (key) {
@@ -296,31 +296,31 @@ char *command = NULL;
 char *lcommand = NULL;
 char *buffer = NULL;
 
-int taosDumpOut(struct arguments *arguments);
+int taosDumpOut(SDumpArguments *arguments);
 
-int taosDumpIn(struct arguments *arguments);
+int taosDumpIn(SDumpArguments *arguments);
 
 void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty, FILE *fp);
 
-int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp);
+int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp);
 
-void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, struct arguments *arguments, FILE *fp);
+void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, SDumpArguments *arguments, FILE *fp);
 
-void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, struct arguments *arguments,
+void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, SDumpArguments *arguments,
                                    FILE *fp);
 
-int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FILE *fp);
+int32_t taosDumpTable(char *table, char *metric, SDumpArguments *arguments, FILE *fp);
 
-int32_t taosDumpMetric(char *metric, struct arguments *arguments, FILE *fp);
+int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp);
 
-int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments);
+int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments);
 
-int taosCheckParam(struct arguments *arguments);
+int taosCheckParam(SDumpArguments *arguments);
 
 void taosFreeDbInfos();
 
 int main(int argc, char *argv[]) {
-  struct arguments arguments = {
+  SDumpArguments arguments = {
     // connection option
     NULL, "root", "taosdata", 0,
     // output file
@@ -424,7 +424,7 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo) {
   return -1;
 }
 
-int taosDumpOut(struct arguments *arguments) {
+int taosDumpOut(SDumpArguments *arguments) {
   TAOS_ROW row;
   char *temp = NULL;
   FILE *fp = NULL;
@@ -602,7 +602,7 @@ void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty, FILE *fp) {
   fprintf(fp, "%s\n\n", buffer);
 }
 
-int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp) {
+int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   TAOS_ROW row;
   int fd = -1;
   STableRecord tableRecord;
@@ -660,7 +660,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp) {
   return 0;
 }
 
-void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, struct arguments *arguments, FILE *fp) {
+void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, SDumpArguments *arguments, FILE *fp) {
   char *pstr = NULL;
   pstr = buffer;
   int counter = 0;
@@ -703,7 +703,7 @@ void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, struct argume
   fprintf(fp, "%s\n\n", buffer);
 }
 
-void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, struct arguments *arguments,
+void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, SDumpArguments *arguments,
                                 FILE *fp) {
   char *pstr = NULL;
   pstr = buffer;
@@ -786,7 +786,7 @@ int taosGetTableDes(char *table, STableDef *tableDes) {
   return count;
 }
 
-int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FILE *fp) {
+int32_t taosDumpTable(char *table, char *metric, SDumpArguments *arguments, FILE *fp) {
   int count = 0;
 
   STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
@@ -828,7 +828,7 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
   return taosDumpTableData(fp, table, arguments);
 }
 
-int32_t taosDumpMetric(char *metric, struct arguments *arguments, FILE *fp) {
+int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   TAOS_ROW row = NULL;
   int fd = -1;
   STableRecord tableRecord;
@@ -877,7 +877,7 @@ int32_t taosDumpMetric(char *metric, struct arguments *arguments, FILE *fp) {
   return 0;
 }
 
-int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments) {
+int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
   /* char       temp[MAX_COMMAND_SIZE] = "\0"; */
   int count = 0;
   char *pstr = NULL;
@@ -987,7 +987,7 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments) {
   return 0;
 }
 
-int taosCheckParam(struct arguments *arguments) {
+int taosCheckParam(SDumpArguments *arguments) {
   if (arguments->all_databases && arguments->databases) {
     fprintf(stderr, "conflict option --all-databases and --databases\n");
     return -1;
@@ -1072,7 +1072,7 @@ void taosReplaceCtrlChar(char *str) {
   *pstr = '\0';
 }
 
-int taosDumpIn(struct arguments *arguments) {
+int taosDumpIn(SDumpArguments *arguments) {
   assert(arguments->isDumpIn);
 
   int     tsize = 0;

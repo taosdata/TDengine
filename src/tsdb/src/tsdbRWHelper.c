@@ -1256,7 +1256,7 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
 
 
 
-void *tsdbEncodeSFileInfo(void *buf, const SFileInfo *pInfo) {
+void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo) {
   buf = taosEncodeFixed32(buf, pInfo->offset);
   buf = taosEncodeFixed32(buf, pInfo->len);
   buf = taosEncodeFixed64(buf, pInfo->size);
@@ -1267,7 +1267,7 @@ void *tsdbEncodeSFileInfo(void *buf, const SFileInfo *pInfo) {
   return buf;
 }
 
-void *tsdbDecodeSFileInfo(void *buf, SFileInfo *pInfo) {
+void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
   buf = taosDecodeFixed32(buf, &(pInfo->offset));
   buf = taosDecodeFixed32(buf, &(pInfo->len));
   buf = taosDecodeFixed64(buf, &(pInfo->size));
