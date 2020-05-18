@@ -149,6 +149,7 @@ func main() {
 	}
 
 	http.HandleFunc("/telegraf", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
 		addr := strings.Split(r.RemoteAddr, ":")
 		idx := TAOShashID([]byte(addr[0]))
 
@@ -157,7 +158,7 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
+		r.Body.Close()
 		var req Metrics
 		if err := json.Unmarshal(reqBuf, &req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -166,7 +167,7 @@ func main() {
 		req.HostIP = addr[0]
 
 		nodeChans[idx%httpworkers] <- req
-		w.WriteHeader(http.StatusAccepted)
+		//w.WriteHeader(http.StatusAccepted)
 	})
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
