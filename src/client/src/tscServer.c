@@ -27,6 +27,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tscLog.h"
+#include "qsqltype.h"
 
 #define TSC_MGMT_VNODE 999
 
@@ -186,7 +187,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
   }
 
-  tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
+  // tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
 
   SRpcMsg rpcMsg = {
       .msgType = pSql->cmd.msgType,
@@ -214,7 +215,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
-  tscTrace("%p msg:%s is received from server", pSql, taosMsg[rpcMsg->msgType]);
+  // tscTrace("%p msg:%s is received from server", pSql, taosMsg[rpcMsg->msgType]);
 
   if (pSql->freed || pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
@@ -319,10 +320,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
       pMsg->numOfFailedBlocks = htonl(pMsg->numOfFailedBlocks);
 
       pRes->numOfRows += pMsg->affectedRows;
-      tscTrace("%p cmd:%d code:%s, inserted rows:%d, rsp len:%d", pSql, pCmd->command, tstrerror(pRes->code),
-          pMsg->affectedRows, pRes->rspLen);
+      tscTrace("%p SQL cmd:%s, code:%s inserted rows:%d rspLen:%d", pSql, sqlCmd[pCmd->command], 
+          tstrerror(pRes->code), pMsg->affectedRows, pRes->rspLen);
     } else {
-      tscTrace("%p cmd:%d code:%s rsp len:%d", pSql, pCmd->command, tstrerror(pRes->code), pRes->rspLen);
+      tscTrace("%p SQL cmd:%s, code:%s rspLen:%d", pSql, sqlCmd[pCmd->command], tstrerror(pRes->code), pRes->rspLen);
     }
   }
   
@@ -405,7 +406,7 @@ int tscProcessSql(SSqlObj *pSql) {
     assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) || pQueryInfo->numOfTables > 0);
   }
 
-  tscTrace("%p SQL cmd:%d will be processed, name:%s, type:%d", pSql, pCmd->command, name, type);
+  tscTrace("%p SQL cmd:%s will be processed, name:%s, type:%d", pSql, sqlCmd[pCmd->command], name, type);
   if (pCmd->command < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
     if (pTableMetaInfo == NULL) {
       pSql->res.code = TSDB_CODE_OTHERS;
