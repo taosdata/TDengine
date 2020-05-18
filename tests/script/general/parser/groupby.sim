@@ -407,3 +407,5 @@ endi
 if $data97 != @group_tb0@ then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

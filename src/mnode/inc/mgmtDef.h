@@ -68,7 +68,7 @@ typedef struct SMnodeObj {
 
 // todo use dynamic length string
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN + 1];
+  char  *tableId;
   int8_t type;
 } STableObj;
 
@@ -77,6 +77,7 @@ typedef struct SSuperTableObj {
   uint64_t   uid;
   int64_t    createdTime;
   int32_t    sversion;
+  int32_t    tversion;
   int32_t    numOfColumns;
   int32_t    numOfTags;
   int8_t     reserved[15];
@@ -223,7 +224,7 @@ typedef struct SAcctObj {
 typedef struct {
   int8_t   type;
   char     db[TSDB_DB_NAME_LEN + 1];
-  void *   pNode;
+  void *   pIter;
   int16_t  numOfColumns;
   int32_t  rowSize;
   int32_t  numOfRows;

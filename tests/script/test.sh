@@ -93,7 +93,7 @@ echo "numOfLogLines    100000000"            >> $TAOS_CFG
 echo "dDebugFlag       135"                  >> $TAOS_CFG
 echo "mDebugFlag       135"                  >> $TAOS_CFG
 echo "sdbDebugFlag     135"                  >> $TAOS_CFG
-echo "rpcDebugFlag     135"                  >> $TAOS_CFG
+echo "rpcDebugFlag     151"                  >> $TAOS_CFG
 echo "tmrDebugFlag     131"                  >> $TAOS_CFG
 echo "cDebugFlag       135"                  >> $TAOS_CFG
 echo "httpDebugFlag    135"                  >> $TAOS_CFG

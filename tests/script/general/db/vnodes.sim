@@ -33,6 +33,8 @@ endw
 
 print ========== step2
 sql select * from mt
+print $rows
+print $totalRows
 if $rows != $totalRows then
   return -1
 endi  

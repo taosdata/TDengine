@@ -31,19 +31,19 @@ extern "C" {
 #include "tscSecondaryMerge.h"
 #include "tsclient.h"
 
-#define UTIL_TABLE_IS_SUPERTABLE(metaInfo)  \
+#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
 #define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
   
-#define UTIL_TABLE_IS_NOMRAL_TABLE(metaInfo)\
-  (!(UTIL_TABLE_IS_SUPERTABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
+#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
+  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 
 typedef struct SParsedColElem {
   int16_t colIndex;
-  int16_t offset;
+  uint16_t offset;
 } SParsedColElem;
 
 typedef struct SParsedDataColInfo {
@@ -183,7 +183,7 @@ void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
 SColumn* tscColumnClone(const SColumn* src);
 SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
-void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex);
+SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
@@ -264,6 +264,11 @@ bool hasMoreVnodesToTry(SSqlObj *pSql);
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)());
+int  tscSetMgmtIpListFromCfg(const char *first, const char *second);
+
+void* malloc_throw(size_t size);
+void* calloc_throw(size_t nmemb, size_t size);
+char* strdup_throw(const char* str);
 
 #ifdef __cplusplus
 }

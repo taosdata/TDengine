@@ -9,8 +9,8 @@ system sh/cfg.sh -n dnode3 -c numOfMPeers -v 2
 
 print ============== step1
 system sh/exec_up.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 sql show mnodes
 $dnode1Role = $data2_1
@@ -23,16 +23,15 @@ print dnode3 ==> $dnode3Role
 if $dnode1Role != master then
   return -1
 endi
-if $dnode2Role != NULL then
+if $dnode2Role != null then
   return -1
 endi
-if $dnode3Role != NULL then
+if $dnode3Role != null then
   return -1
 endi
 
 print ============== step2
 sql create dnode $hostname2 
-sleep 1700
 sql create dnode $hostname3
 
 print ============== step3
@@ -68,10 +67,10 @@ print dnode3 ==> $dnode3Role
 if $dnode1Role != master then
   return -1
 endi
-if $rows != 2 then
+if $dnode2Role != slave then
   return -1
 endi
-if $dnode3Role != NULL then
+if $dnode3Role != null then
   return -1
 endi
 

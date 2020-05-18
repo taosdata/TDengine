@@ -54,12 +54,12 @@ typedef struct SQueryFilePos {
 typedef struct SDataBlockLoadInfo {
   SFileGroup* fileGroup;
   int32_t     slot;
-  int32_t     sid;
+  int32_t     tid;
   SArray*     pLoadedCols;
 } SDataBlockLoadInfo;
 
 typedef struct SLoadCompBlockInfo {
-  int32_t sid; /* table sid */
+  int32_t tid; /* table tid */
   int32_t fileId;
   int32_t fileListIndex;
 } SLoadCompBlockInfo;
@@ -127,12 +127,12 @@ static void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle);
 
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
-  pBlockLoadInfo->sid = -1;
+  pBlockLoadInfo->tid = -1;
   pBlockLoadInfo->fileGroup = NULL;
 }
 
 static void tsdbInitCompBlockLoadInfo(SLoadCompBlockInfo* pCompBlockLoadInfo) {
-  pCompBlockLoadInfo->sid = -1;
+  pCompBlockLoadInfo->tid = -1;
   pCompBlockLoadInfo->fileId = -1;
   pCompBlockLoadInfo->fileListIndex = -1;
 }
@@ -414,6 +414,7 @@ static void    filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheck
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 
 static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo) {
+  STsdbRepo *pRepo = pQueryHandle->pTsdb;
   SCompData* data = calloc(1, sizeof(SCompData) + sizeof(SCompCol) * pBlock->numOfCols);
 
   data->numOfCols = pBlock->numOfCols;
@@ -422,8 +423,8 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   bool    blockLoaded = false;
   SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
 
-  if (pCheckInfo->pDataCols == NULL) {
-    pCheckInfo->pDataCols = tdNewDataCols(1000, 100, 4096);  //todo fix me
+  if (pCheckInfo->pDataCols == NULL) { // todo: why not the real data?
+    pCheckInfo->pDataCols = tdNewDataCols(pRepo->tsdbMeta->maxRowBytes, pRepo->tsdbMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   }
 
   tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(tsdbGetMeta(pQueryHandle->pTsdb), pCheckInfo->pTableObj));
@@ -433,7 +434,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
     pBlockLoadInfo->fileGroup = pQueryHandle->pFileGroup;
     pBlockLoadInfo->slot = pQueryHandle->cur.slot;
-    pBlockLoadInfo->sid = pCheckInfo->pTableObj->tableId.tid;
+    pBlockLoadInfo->tid = pCheckInfo->pTableObj->tableId.tid;
 
     blockLoaded = true;
   }
@@ -613,7 +614,7 @@ static void filterDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInf
     SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
     int32_t bytes = pCol->info.bytes;
 
-    for (int32_t j = 0; j < numOfCols; ++j) {
+    for (int32_t j = 0; j < numOfCols; ++j) {  //todo opt performance
       SDataCol* src = &pQueryHandle->rhelper.pDataCols[0]->cols[j];
 
       if (pCol->info.colId == src->colId) {
@@ -1196,7 +1197,9 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
     } else {
       // data block has been loaded, todo extract method
       SDataBlockLoadInfo* pBlockLoadInfo = &pHandle->dataBlockLoadInfo;
-      if (pBlockLoadInfo->slot == pHandle->cur.slot && pBlockLoadInfo->sid == pCheckInfo->pTableObj->tableId.tid) {
+      
+      if (pBlockLoadInfo->slot == pHandle->cur.slot && pBlockLoadInfo->fileGroup->fileId == pHandle->cur.fid &&
+          pBlockLoadInfo->tid == pCheckInfo->pTableObj->tableId.tid) {
         return pHandle->pColumns;
       } else {
         SCompBlock* pBlock = pBlockInfoEx->pBlock.compBlock;
@@ -1346,7 +1349,7 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     int32_t type = 0;
     int32_t bytes = 0;
     
-    if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {  // todo refactor extract method , to queryExecutor to generate tags values
       f1 = (char*) pTable1->name;
       f2 = (char*) pTable2->name;
       type = TSDB_DATA_TYPE_BINARY;
@@ -1354,7 +1357,8 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     } else {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;
-  
+      type = pCol->type;
+      
       f1 = tdGetRowDataOfCol(pTable1->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
       f2 = tdGetRowDataOfCol(pTable2->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
     }
@@ -1432,7 +1436,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   return pTableGroup;
 }
 
-bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
+bool indexedNodeFilterFp(const void* pNode, void* param) {
   tQueryInfo* pInfo = (tQueryInfo*) param;
   
   STableIndexElem* elem = (STableIndexElem*)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
@@ -1497,7 +1501,7 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr) {
   // query according to the expression tree
   SExprTraverseSupp supp = {
-      .fp = (__result_filter_fn_t) tSkipListNodeFilterCallback,
+      .nodeFilterFn = (__result_filter_fn_t) indexedNodeFilterFp,
       .setupInfoFn = filterPrepare,
       .pExtInfo = pSTable->tagSchema,
       };
@@ -1521,7 +1525,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT *tsdb, int64_t uid, const char *pTagC
   }
   
   if (pTable->type != TSDB_SUPER_TABLE) {
-    uError("%p query normal tag not allowed, uid:%, tid:%d, name:%s" PRIu64,
+    uError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s",
            tsdb, uid, pTable->tableId.tid, pTable->name);
     
     return TSDB_CODE_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client

@@ -28,7 +28,7 @@ typedef struct {
   int64_t uid;
 } SRecordInfo;
 
-static int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
+// static int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
 // static int32_t tsdbCheckMetaHeader(int fd);
 static int32_t tsdbWriteMetaHeader(int fd);
 static int     tsdbCreateMetaFile(char *fname);
@@ -180,7 +180,7 @@ void tsdbCloseMetaFile(SMetaFile *mfh) {
   tfree(mfh);
 }
 
-static int32_t tsdbGetMetaFileName(char *rootDir, char *fname) {
+int32_t tsdbGetMetaFileName(char *rootDir, char *fname) {
   if (rootDir == NULL) return -1;
   sprintf(fname, "%s/%s", rootDir, TSDB_META_FILE_NAME);
   return 0;

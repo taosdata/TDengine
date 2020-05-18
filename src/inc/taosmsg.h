@@ -100,6 +100,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_CONFIG_TABLE, "config-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_CONFIG_VNODE, "config-vnode" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_STATUS, "status" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_GRANT, "grant" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_AUTH, "auth" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY12, "dummy12" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
@@ -186,13 +187,13 @@ typedef struct SMsgHead {
 
 // Submit message for one table
 typedef struct SSubmitBlk {
-  int64_t uid;        // table unique id
-  int32_t tid;        // table id
-  int32_t padding;    // TODO just for padding here
-  int32_t sversion;   // data schema version
-  int32_t len;        // data part length, not including the SSubmitBlk head
-  int16_t numOfRows;  // total number of rows in current submit block
-  char    data[];
+  uint64_t uid;        // table unique id
+  int32_t  tid;        // table id
+  int32_t  padding;    // TODO just for padding here
+  int32_t  sversion;   // data schema version
+  int32_t  len;        // data part length, not including the SSubmitBlk head
+  int16_t  numOfRows;  // total number of rows in current submit block
+  char     data[];
 } SSubmitBlk;
 
 // Submit message for this TSDB
@@ -326,9 +327,9 @@ typedef struct {
 } SMDDropTableMsg;
 
 typedef struct {
-  int32_t contLen;
-  int32_t vgId;
-  int64_t uid;
+  int32_t  contLen;
+  int32_t  vgId;
+  uint64_t uid;
   char    tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDDropSTableMsg;
 
@@ -403,9 +404,9 @@ typedef struct SColumnInfo {
 } SColumnInfo;
 
 typedef struct STableIdInfo {
-  int64_t uid;
-  int32_t tid;
-  TSKEY   key;  // last accessed ts, for subscription
+  uint64_t uid;
+  int32_t  tid;
+  TSKEY    key;  // last accessed ts, for subscription
 } STableIdInfo;
 
 typedef struct STimeWindow {
@@ -626,7 +627,6 @@ typedef struct {
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableId[TSDB_TABLE_ID_LEN + 1];   // table id
-  char          stableId[TSDB_TABLE_ID_LEN + 1];  // stable name if it is created according to super table
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
@@ -736,6 +736,14 @@ typedef struct {
   int32_t  status;
   char     tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDAlterStreamMsg;
+
+typedef struct {
+  char user[TSDB_USER_LEN + 1];
+  char spi;
+  char encrypt;
+  char secret[TSDB_KEY_LEN + 1];
+  char ckey[TSDB_KEY_LEN + 1];
+} SDMAuthMsg, SDMAuthRsp;
 
 #pragma pack(pop)
 

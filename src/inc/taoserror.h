@@ -74,6 +74,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_OPTION,             0, 26, "invalid option")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_CONFIGURED,             0, 27, "not configured")
 TAOS_DEFINE_ERROR(TSDB_CODE_NODE_OFFLINE,               0, 28, "node offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_NETWORK_UNAVAIL,            0, 29, "network unavailable")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUTH_REQUIRED,              0, 30, "auth required")
 
 // db
 TAOS_DEFINE_ERROR(TSDB_CODE_DB_NOT_SELECTED,            0, 100, "db not selected")
@@ -169,6 +170,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_QHANDLE,            0, 459, "invalid handle"
 TAOS_DEFINE_ERROR(TSDB_CODE_QUERY_CANCELLED,            0, 460, "query cancelled")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_IE,                 0, 461, "invalid ie")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VALUE,              0, 462, "invalid value")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_FQDN,               0, 463, "invalid FQDN")
 
 // others
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_FILE_FORMAT,        0, 500, "invalid file format")

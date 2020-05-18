@@ -37,7 +37,8 @@ typedef struct {
   int32_t      refCount;  // reference count
   int          status; 
   int8_t       role;   
-  int64_t      version;
+  int64_t      version;   // current version 
+  int64_t      fversion;  // version on saved data file
   void        *wqueue;
   void        *rqueue;
   void        *wal;
@@ -45,10 +46,11 @@ typedef struct {
   void        *sync;
   void        *events;
   void        *cq;  // continuous query
-  int32_t     cfgVersion;
-  STsdbCfg    tsdbCfg;
-  SSyncCfg    syncCfg;
-  SWalCfg     walCfg;
+  int32_t      cfgVersion;
+  STsdbCfg     tsdbCfg;
+  SSyncCfg     syncCfg;
+  SWalCfg      walCfg;
+  char        *rootDir;
 } SVnodeObj;
 
 int  vnodeWriteToQueue(void *param, void *pHead, int type);

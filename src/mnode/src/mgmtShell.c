@@ -41,7 +41,6 @@
 typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-//static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static bool mgmtCheckMsgReadOnly(SQueuedMsg *pMsg);
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
 static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
@@ -49,6 +48,7 @@ static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
 static void mgmtProcessUseMsg(SQueuedMsg *queuedMsg);
+static void mgmtFreeShowObj(void *data);
 
 void *tsMgmtTmr;
 static void *tsMgmtTranQhandle = NULL;
@@ -66,7 +66,7 @@ int32_t mgmtInitShell() {
   
   tsMgmtTmr = taosTmrInit((tsMaxShellConns) * 3, 200, 3600000, "MND");
   tsMgmtTranQhandle = taosInitScheduler(tsMaxShellConns, 1, "mnodeT");
-  tsQhandleCache = taosCacheInit(tsMgmtTmr, 10);
+  tsQhandleCache = taosCacheInitWithCb(tsMgmtTmr, 10, mgmtFreeShowObj);
 
   return 0;
 }
@@ -123,6 +123,8 @@ void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
+
+  mTrace("%p, msg:%s will be processed", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
 
   if (rpcMsg->pCont == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_LEN);
@@ -343,29 +345,6 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
-/*
-static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  *spi = 1;
-  *encrypt = 0;
-  *ckey = 0;
-
-  if (!sdbIsMaster()) {
-    *secret = 0;
-    return TSDB_CODE_NOT_READY;
-  }
-
-  SUserObj *pUser = mgmtGetUser(user);
-  if (pUser == NULL) {
-    *secret = 0;
-    return TSDB_CODE_INVALID_USER;
-  } else {
-    memcpy(secret, pUser->pass, TSDB_KEY_LEN);
-    mgmtDecUserRef(pUser);
-    return TSDB_CODE_SUCCESS;
-  }
-}
-*/
-
 static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   SCMConnectMsg *pConnectMsg = pMsg->pCont;
@@ -500,10 +479,10 @@ void mgmtSendSimpleResp(void *thandle, int32_t code) {
 bool mgmtCheckQhandle(uint64_t qhandle) {
   void *pSaved = taosCacheAcquireByData(tsQhandleCache, (void *)qhandle);
   if (pSaved == (void *)qhandle) {
-    mTrace("qhandle:%p is retrived", qhandle);
+    mTrace("show:%p, is retrieved", qhandle);
     return true;
   } else {
-    mTrace("qhandle:%p is already freed", qhandle);
+    mTrace("show:%p, is already released", qhandle);
     return false;
   }
 }
@@ -515,15 +494,21 @@ void* mgmtSaveQhandle(void *qhandle, int32_t size) {
     void *newQhandle = taosCachePut(tsQhandleCache, key, qhandle, size, 60);
     free(qhandle);
     
-    mTrace("qhandle:%p is saved", newQhandle);
+    mTrace("show:%p, is saved", newQhandle);
     return newQhandle;
   }
   
   return NULL;
 }
 
+static void mgmtFreeShowObj(void *data) {
+  SShowObj *pShow = data;
+  sdbFreeIter(pShow->pIter);
+  mTrace("show:%p, is destroyed", pShow);
+}
+
 void mgmtFreeQhandle(void *qhandle, bool forceRemove) {
-  mTrace("qhandle:%p is freed", qhandle);
+  mTrace("show:%p, is released, force:%s", qhandle, forceRemove ? "true" : "false");
   taosCacheRelease(tsQhandleCache, &qhandle, forceRemove);
 }
 

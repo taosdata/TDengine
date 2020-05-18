@@ -272,3 +272,5 @@ sql select * from tb_where_NULL where c2 <> "nUll"
 if $rows != 2 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

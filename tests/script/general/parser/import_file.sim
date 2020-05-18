@@ -35,3 +35,5 @@ endi
 
 #system rm -f $inFileName     # invalid shell
 system rm -f ~/data.csv
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

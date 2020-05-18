@@ -50,7 +50,7 @@ $x = 0
 show2: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 		return -1
 	endi
 	
@@ -77,7 +77,7 @@ $x = 0
 show3: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 sql show dnodes
@@ -122,7 +122,7 @@ $x = 0
 show5: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 sql show dnodes
@@ -132,7 +132,7 @@ print dnode3 openVnodes $data2_3
 if $data2_1 != 1 then
 	goto show5
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
 	goto show5
 endi
 if $data2_3 != 3 then

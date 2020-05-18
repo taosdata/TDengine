@@ -30,6 +30,7 @@ sleep 2000
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
+sql reset query cache
 
 print ======== step1 
 sql create database d1 replica 1

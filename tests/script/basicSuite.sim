@@ -9,7 +9,6 @@ run general/import/basic.sim
 run general/import/commit.sim
 run general/insert/query_file_memory.sim
 run general/parser/binary_escapeCharacter.sim
-run general/parser/columnValue_bigint.sim
 run general/parser/select_from_cache_disk.sim
 run general/table/autocreate.sim
 run general/table/column_name.sim
@@ -18,3 +17,5 @@ run general/table/vgroup.sim
 run general/user/basic1.sim
 run general/user/pass_alter.sim
 run general/vector/single.sim
+#run general/connection/connection.sim
+run general/user/authority.sim

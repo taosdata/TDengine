@@ -29,23 +29,23 @@ extern "C" {
 
 extern int tsdbDebugFlag;
 
-#define tsdbError(...)                                       \
-  if (tsdbDebugFlag & DEBUG_ERROR) {                         \
-    taosPrintLog("ERROR TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+#define tsdbError(...)                                      \
+  if (tsdbDebugFlag & DEBUG_ERROR) {                        \
+    taosPrintLog("ERROR TDB ", tsdbDebugFlag, __VA_ARGS__); \
   }
-#define tsdbWarn(...)                                       \
-  if (tsdbDebugFlag & DEBUG_WARN) {                         \
-    taosPrintLog("WARN TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+#define tsdbWarn(...)                                      \
+  if (tsdbDebugFlag & DEBUG_WARN) {                        \
+    taosPrintLog("WARN TDB ", tsdbDebugFlag, __VA_ARGS__); \
   }
-#define tsdbTrace(...)                                 \
-  if (tsdbDebugFlag & DEBUG_TRACE) {                   \
-    taosPrintLog("TSDB ", tsdbDebugFlag, __VA_ARGS__); \
+#define tsdbTrace(...)                                \
+  if (tsdbDebugFlag & DEBUG_TRACE) {                  \
+    taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); \
   }
 #define tsdbPrint(...) \
-  { taosPrintLog("TSDB ", 255, __VA_ARGS__); }
+  { taosPrintLog("TDB ", 255, __VA_ARGS__); }
 
 // ------------------------------ TSDB META FILE INTERFACES ------------------------------
-#define TSDB_META_FILE_NAME "META"
+#define TSDB_META_FILE_NAME "meta"
 #define TSDB_META_HASH_FRACTION 1.1
 
 typedef int (*iterFunc)(void *, void *cont, int contLen);
@@ -151,8 +151,6 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
 
 STsdbMeta *tsdbGetMeta(TsdbRepoT *pRepo);
 
-int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
-int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
@@ -216,12 +214,12 @@ typedef struct {
   int64_t tombSize;  // unused file size
   int32_t totalBlocks;
   int32_t totalSubBlocks;
-} SFileInfo;
+} STsdbFileInfo;
 
 typedef struct {
   int       fd;
   char      fname[128];
-  SFileInfo info;
+  STsdbFileInfo info;
 } SFile;
 
 #define TSDB_IS_FILE_OPENED(f) ((f)->fd != -1)
@@ -327,6 +325,13 @@ typedef struct {
   int16_t len;    // Column length // TODO: int16_t is not enough
   int32_t type : 8;
   int32_t offset : 24;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+  char    padding[2];
 } SCompCol;
 
 // TODO: Take recover into account
@@ -345,7 +350,7 @@ SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
 void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 
 // TSDB repository definition
-typedef struct _tsdb_repo {
+typedef struct STsdbRepo {
   char *rootDir;
   // TSDB configuration
   STsdbCfg config;
@@ -496,9 +501,10 @@ int tsdbWriteCompInfo(SRWHelper *pHelper);
 int tsdbWriteCompIdx(SRWHelper *pHelper);
 
 // --------- Other functions need to further organize
-void tsdbFitRetention(STsdbRepo *pRepo);
-int  tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
-void tsdbAdjustCacheBlocks(STsdbCache *pCache);
+void    tsdbFitRetention(STsdbRepo *pRepo);
+int     tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
+void    tsdbAdjustCacheBlocks(STsdbCache *pCache);
+int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
 
 #ifdef __cplusplus
 }

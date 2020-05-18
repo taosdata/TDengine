@@ -49,7 +49,7 @@ typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
   int16_t numOfColumns;
-  int16_t rowSize;
+  int32_t rowSize;
 } STableComInfo;
 
 typedef struct STableMeta {
@@ -437,6 +437,9 @@ extern SRpcIpSet tscMgmtIpSet;
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
+
+int32_t tscCompareTidTags(const void* p1, const void* p2);
+void tscBuildVgroupTableInfo(STableMetaInfo* pTableMetaInfo, SArray* tables);
 
 #ifdef __cplusplus
 }

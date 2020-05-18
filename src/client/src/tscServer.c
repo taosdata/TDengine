@@ -27,6 +27,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tscLog.h"
+#include "qsqltype.h"
 
 #define TSC_MGMT_VNODE 999
 
@@ -39,7 +40,7 @@ int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
 void tscProcessActivityTimer(void *handle, void *tmrId);
 int tscKeepConn[TSDB_SQL_MAX] = {0};
 
-TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid);
+TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt);
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
 void tscSaveSubscriptionProgress(void* sub);
 
@@ -67,21 +68,11 @@ void tscPrintMgmtIp() {
   }
 }
 
-void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
+void tscSetMgmtIpList(SRpcIpSet *pIpList) {
   tscMgmtIpSet.numOfIps = pIpList->numOfIps;
   tscMgmtIpSet.inUse = pIpList->inUse;
   for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
     tscMgmtIpSet.port[i] = htons(pIpList->port[i]);
-  }
-}
-
-void tscSetMgmtIpListFromEdge() {
-  if (tscMgmtIpSet.numOfIps != 1) {
-    tscMgmtIpSet.numOfIps = 1;
-    tscMgmtIpSet.inUse = 0;
-    taosGetFqdnPortFromEp(tsFirst, tscMgmtIpSet.fqdn[0], &tscMgmtIpSet.port[0]);
-    tscTrace("edge mgmt IP list:");
-    tscPrintMgmtIp();
   }
 }
 
@@ -90,18 +81,6 @@ void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
   tscTrace("mgmt IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
   for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
     tscTrace("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
-  }
-}
-
-void tscSetMgmtIpList(SRpcIpSet *pIpList) {
-  /*
-    * The iplist returned by the cluster edition is the current management nodes
-    * and the iplist returned by the edge edition is empty
-    */
-  if (pIpList->numOfIps != 0) {
-    tscSetMgmtIpListFromCluster(pIpList);
-  } else {
-    tscSetMgmtIpListFromEdge();
   }
 }
 
@@ -132,7 +111,8 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   if (code == 0) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
     SRpcIpSet *      pIpList = &pRsp->ipList;
-    tscSetMgmtIpList(pIpList);
+    if (pIpList->numOfIps > 0) 
+      tscSetMgmtIpList(pIpList);
 
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
@@ -207,7 +187,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
   }
 
-  tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
+  // tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
 
   SRpcMsg rpcMsg = {
       .msgType = pSql->cmd.msgType,
@@ -235,7 +215,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
-  tscTrace("%p msg:%p is received from server", pSql, rpcMsg->pCont);
+  // tscTrace("%p msg:%s is received from server", pSql, taosMsg[rpcMsg->msgType]);
 
   if (pSql->freed || pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
@@ -340,10 +320,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
       pMsg->numOfFailedBlocks = htonl(pMsg->numOfFailedBlocks);
 
       pRes->numOfRows += pMsg->affectedRows;
-      tscTrace("%p cmd:%d code:%s, inserted rows:%d, rsp len:%d", pSql, pCmd->command, tstrerror(pRes->code),
-          pMsg->affectedRows, pRes->rspLen);
+      tscTrace("%p SQL cmd:%s, code:%s inserted rows:%d rspLen:%d", pSql, sqlCmd[pCmd->command], 
+          tstrerror(pRes->code), pMsg->affectedRows, pRes->rspLen);
     } else {
-      tscTrace("%p cmd:%d code:%s rsp len:%d", pSql, pCmd->command, tstrerror(pRes->code), pRes->rspLen);
+      tscTrace("%p SQL cmd:%s, code:%s rspLen:%d", pSql, sqlCmd[pCmd->command], tstrerror(pRes->code), pRes->rspLen);
     }
   }
   
@@ -426,7 +406,7 @@ int tscProcessSql(SSqlObj *pSql) {
     assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) || pQueryInfo->numOfTables > 0);
   }
 
-  tscTrace("%p SQL cmd:%d will be processed, name:%s, type:%d", pSql, pCmd->command, name, type);
+  tscTrace("%p SQL cmd:%s will be processed, name:%s, type:%d", pSql, sqlCmd[pCmd->command], name, type);
   if (pCmd->command < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
     if (pTableMetaInfo == NULL) {
       pSql->res.code = TSDB_CODE_OTHERS;
@@ -500,7 +480,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // todo valid the vgroupId at the client side
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     int32_t vgIndex = pTableMetaInfo->vgroupIndex;
     
     SVgroupsInfo* pVgroupInfo = pTableMetaInfo->vgroupList;
@@ -550,8 +530,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 /*
- * for meter query, simply return the size <= 1k
- * for metric query, estimate size according to meter tags
+ * for table query, simply return the size <= 1k
  */
 static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
@@ -562,25 +541,18 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   int32_t exprSize = sizeof(SSqlFuncMsg) * numOfExprs;
   
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  // meter query without tags values
-  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize;
-  }
-  
-  int32_t size = 4096;
-  return size;
+  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
+  TSKEY dfltKey = htobe64(pQueryMsg->window.skey);
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
+  if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
     
     SCMVgroupInfo* pVgroupInfo = NULL;
-    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       int32_t index = pTableMetaInfo->vgroupIndex;
       assert(index >= 0);
   
@@ -589,25 +561,25 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     } else {
       pVgroupInfo = &pTableMeta->vgroupInfo;
     }
-    
+
     tscSetDnodeIpList(pSql, pVgroupInfo);
     pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
-    
+
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
     pTableIdInfo->tid = htonl(pTableMeta->sid);
     pTableIdInfo->uid = htobe64(pTableMeta->uid);
-    pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
-  
+    pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid, dfltKey));
+
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
-    
+
     pMsg += sizeof(STableIdInfo);
   } else {
     int32_t index = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     assert(index >= 0 && index < numOfVgroups);
-  
+
     tscTrace("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, numOfVgroups);
-    
+
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
     
     // set the vgroup info
@@ -624,7 +596,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
       STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
       pTableIdInfo->tid = htonl(pItem->tid);
       pTableIdInfo->uid = htobe64(pItem->uid);
-//      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
+      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pItem->uid, dfltKey));
       pMsg += sizeof(STableIdInfo);
     }
   }
@@ -1453,8 +1425,9 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
+  pRes->completed = (pRes->numOfRows == 0);
 
-  uint8_t code = pRes->code;
+  int32_t code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
   } else {
@@ -2231,7 +2204,8 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= tListLen(pObj->db));
   strncpy(pObj->db, temp, tListLen(pObj->db));
   
-  tscSetMgmtIpList(&pConnect->ipList);
+  if (pConnect->ipList.numOfIps > 0) 
+    tscSetMgmtIpList(&pConnect->ipList);
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
@@ -2292,7 +2266,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   taosCacheRelease(tscCacheHandle, (void **)&pTableMeta, true);
 
   if (pTableMetaInfo->pTableMeta) {
-    bool isSuperTable = UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
+    bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
 
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
 //    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pMetricMeta), true);
@@ -2354,6 +2328,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     for (int i = 0; i < numOfTables; i++) {
       int64_t uid = htobe64(*(int64_t*)p);
       p += sizeof(int64_t);
+      p += sizeof(int32_t); // skip tid
       TSKEY key = htobe64(*(TSKEY*)p);
       p += sizeof(TSKEY);
       tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);

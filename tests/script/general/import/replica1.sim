@@ -111,7 +111,8 @@ sql import into tb values(1520000034001, 34001)
 sql import into tb values(1520000050001, 50001)
 sql select * from tb;
 print $rows
-if $rows != 19 then 
+if $rows != 19 then
+  print expect 19, actual: $rows
   return -1
 endi
 

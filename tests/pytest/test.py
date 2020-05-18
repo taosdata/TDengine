@@ -70,8 +70,6 @@ if __name__ == "__main__":
             toBeKilled = "valgrind.bin"
 
         killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -HUP " % toBeKilled
-#        os.system(killCmd)
-#        time.sleep(1)
 
         psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
         processID = subprocess.check_output(psCmd, shell=True)
@@ -81,7 +79,8 @@ if __name__ == "__main__":
             time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True)
 
-        tdLog.exit('stop All dnodes')
+        tdLog.info('stop All dnodes')
+        sys.exit(0)
 
     tdDnodes.init(deployPath)
     tdDnodes.setTestCluster(testCluster)

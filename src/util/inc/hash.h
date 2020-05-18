@@ -94,7 +94,7 @@ size_t taosHashGetSize(const SHashObj *pHashObj);
  * @param size
  * @return
  */
-int32_t taosHashPut(SHashObj *pHashObj, const char *key, size_t keyLen, void *data, size_t size);
+int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size);
 
 /**
  * return the payload data with the specified key
@@ -104,7 +104,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const char *key, size_t keyLen, void *da
  * @param keyLen
  * @return
  */
-void *taosHashGet(SHashObj *pHashObj, const char *key, size_t keyLen);
+void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
 
 /**
  * remove item with the specified key
@@ -112,7 +112,7 @@ void *taosHashGet(SHashObj *pHashObj, const char *key, size_t keyLen);
  * @param key
  * @param keyLen
  */
-void taosHashRemove(SHashObj *pHashObj, const char *key, size_t keyLen);
+void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
 
 /**
  * clean up hash table

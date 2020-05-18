@@ -488,3 +488,4 @@ sql_error alter table st51 set tag tag_tinyint = abc379
 #sql drop database $db
 
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

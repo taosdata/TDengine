@@ -34,12 +34,14 @@ extern "C" {
 
 #define TSDB_INVALID_SUPER_TABLE_ID -1
 
+#define TSDB_STATUS_COMMIT_START 1
+#define TSDB_STATUS_COMMIT_OVER  2
+
 // --------- TSDB APPLICATION HANDLE DEFINITION
 typedef struct {
-  // WAL handle
   void *appH;
   void *cqH;
-  int (*walCallBack)(void *);
+  int (*notifyStatus)(void *, int status);
   int (*eventCallBack)(void *);
 } STsdbAppH;
 
@@ -70,7 +72,7 @@ typedef void TsdbRepoT;  // use void to hide implementation details from outside
 int        tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 int32_t    tsdbDropRepo(TsdbRepoT *repo);
 TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH);
-int32_t    tsdbCloseRepo(TsdbRepoT *repo);
+int32_t    tsdbCloseRepo(TsdbRepoT *repo, int toCommit);
 int32_t    tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg);
 
 // --------- TSDB TABLE DEFINITION
@@ -109,6 +111,8 @@ int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
 int   tsdbAlterTable(TsdbRepoT *repo, STableCfg *pCfg);
 TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, int64_t uid);
 
+uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size);
+
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
   STsdbCfg tsdbCfg;
@@ -136,7 +140,7 @@ STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tid);
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(TsdbRepoT *pRepo, SSubmitMsg *pMsg);
+int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg * pRsp) ;
 
 // -- FOR QUERY TIME SERIES DATA
 

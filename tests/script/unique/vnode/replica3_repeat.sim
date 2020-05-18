@@ -36,7 +36,7 @@ sql select count(*) from db.tb
 $lastRows = $rows
 
 print ======== step2
-run_back cluster/vnode/back_insert.sim
+run_back unique/vnode/back_insert.sim
 sleep 3000
 
 print ======== step3
@@ -75,7 +75,7 @@ print ======== step8
 $lastRows = $data00
 print ======== loop Times $x
 
-if $x < 5 then
+if $x < 2 then
   $x = $x + 1
   goto loop
 endi
