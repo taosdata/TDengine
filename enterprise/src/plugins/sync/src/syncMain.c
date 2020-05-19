@@ -67,6 +67,7 @@ static void  syncRemoveConfirmedFwdInfo(SSyncNode *pNode);
 static void  syncMonitorFwdInfos(void *param, void *tmrId);
 static void  syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code);
 static void  syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle); 
+static void  syncRestartPeer(SSyncPeer *pPeer);
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo);
 
 char* syncRole[] = {
@@ -577,6 +578,25 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
   return pMaster;
 }
 
+static int syncValidateMaster(SSyncPeer *pPeer) {
+  SSyncNode *pNode = pPeer->pSyncNode;
+  int code = 0;
+
+  if (nodeRole == TAOS_SYNC_ROLE_MASTER && nodeVersion < pPeer->version) {
+    sTrace("%s, slave has higher version, restart all connections!!!",  pPeer->id);
+    nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
+    (*pNode->notifyRole)(pNode->ahandle, nodeRole);
+    code = -1;
+
+    for (int i = 0; i < pNode->replica; ++i) {
+      if ( i == pNode->selfIndex ) continue;
+      syncRestartPeer(pNode->peerInfo[i]);
+    }
+  } 
+
+  return code;
+}
+
 static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t newRole)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
@@ -596,8 +616,10 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
     // master is there
     pNode->pMaster = pMaster;
     sTrace("%s, it is the master, ver:%d",  pMaster->id, pMaster->version);
-    
-    if ( nodeRole == TAOS_SYNC_ROLE_UNSYNCED ) {
+     
+    if (syncValidateMaster(pPeer) < 0) return;
+
+    if (nodeRole == TAOS_SYNC_ROLE_UNSYNCED) {
       if ( nodeVersion < pMaster->version) {
         syncRequired = 1;
       } else {
@@ -606,7 +628,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
         (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       }
     } else if ( nodeRole == TAOS_SYNC_ROLE_SLAVE && pMaster == pPeer) {
-      nodeVersion = pMaster->version;
+      // nodeVersion = pMaster->version;
     }
   } else {
     // master not there, if all peer's state and version are consistent, choose the master
@@ -633,10 +655,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
     syncBroadcastStatus(pNode);
 }
 
-void syncRestartConnection(SSyncPeer *pPeer)
-{
-  if (pPeer->ip == 0) return;
-
+static void syncRestartPeer(SSyncPeer *pPeer) {
   sTrace("%s, restart connection", pPeer->id);
   tclose(pPeer->peerFd);
   tclose(pPeer->syncFd);
@@ -647,7 +666,13 @@ void syncRestartConnection(SSyncPeer *pPeer)
   int ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (ret > 0 || (ret == 0 && pPeer->port > tsSyncPort) )
     taosTmrReset(syncCheckPeerConnection, tsSyncTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
+}
 
+void syncRestartConnection(SSyncPeer *pPeer)
+{
+  if (pPeer->ip == 0) return;
+
+  syncRestartPeer(pPeer);
   syncCheckRole(pPeer, NULL, TAOS_SYNC_ROLE_OFFLINE);
 }
 
@@ -800,8 +825,6 @@ static int syncProcessPeerMsg(void *param, void *buffer)
   SSyncHead   head;
   int         bytes = 0;
   char       *cont = (char *)buffer;
-
-  //if (pPeer->ip == 0) return;
 
   int hlen = taosReadMsg(pPeer->peerFd, &head, sizeof(head));
   if (hlen != sizeof(head)) {
