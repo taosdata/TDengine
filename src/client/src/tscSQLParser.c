@@ -4823,7 +4823,7 @@ static int32_t setTimePrecision(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBIn
 static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->maxTables = htonl(pCreateDb->maxTablesPerVnode);
   pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
-  pMsg->numOfBlocks = htonl(pCreateDb->numOfBlocks);
+  pMsg->totalBlocks = htonl(pCreateDb->numOfBlocks);
   pMsg->daysPerFile = htonl(pCreateDb->daysPerFile);
   pMsg->commitTime = htonl(pCreateDb->commitTime);
   pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
