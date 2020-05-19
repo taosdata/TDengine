@@ -11,6 +11,7 @@ debs/
 rpms/
 mac/
 *.pyc
+.mypy_cache
 *.tmp
 *.swp
 src/connector/nodejs/node_modules/
@@ -38,3 +39,5 @@ pysim/
 *.out
 *DS_Store
 
+# Doxygen Generated files
+html/
