@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "qextbuffer.h"
-#include "qinterpolation.h"
+#include "qfill.h"
 #include "taosmsg.h"
 #include "tlosertree.h"
 #include "tsclient.h"

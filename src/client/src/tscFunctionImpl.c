@@ -16,8 +16,8 @@
 #include "os.h"
 #include "qast.h"
 #include "qextbuffer.h"
+#include "qfill.h"
 #include "qhistogram.h"
-#include "qinterpolation.h"
 #include "qpercentile.h"
 #include "qsyntaxtreefunction.h"
 #include "qtsbuf.h"
@@ -3418,6 +3418,7 @@ static void spread_function(SQLFunctionCtx *pCtx) {
   
   int32_t numOfElems = pCtx->size;
   
+  // todo : opt with pre-calculated result
   // column missing cause the hasNull to be true
   if (usePreVal(pCtx)) {
     numOfElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
@@ -3446,13 +3447,13 @@ static void spread_function(SQLFunctionCtx *pCtx) {
       }
     }
   } else {
-    if (pInfo->min > pCtx->param[1].dKey) {
-      pInfo->min = pCtx->param[1].dKey;
-    }
-    
-    if (pInfo->max < pCtx->param[2].dKey) {
-      pInfo->max = pCtx->param[2].dKey;
-    }
+//    if (pInfo->min > pCtx->param[1].dKey) {
+//      pInfo->min = pCtx->param[1].dKey;
+//    }
+//
+//    if (pInfo->max < pCtx->param[2].dKey) {
+//      pInfo->max = pCtx->param[2].dKey;
+//    }
   }
   
   void *pData = GET_INPUT_CHAR(pCtx);

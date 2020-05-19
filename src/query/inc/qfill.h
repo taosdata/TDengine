@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TINTERPOLATION_H
-#define TDENGINE_TINTERPOLATION_H
+#ifndef TDENGINE_QFILL_H
+#define TDENGINE_QFILL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +58,7 @@ typedef struct SPoint {
   void *  val;
 } SPoint;
 
-int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit, int16_t precision);
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, char timeUnit, int16_t precision);
 
 SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity,
                             int32_t numOfCols, int64_t slidingTime, int32_t fillType, SFillColInfo* pFillCol);
@@ -89,4 +89,4 @@ void taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int64_t* ou
 }
 #endif
 
-#endif  // TDENGINE_TINTERPOLATION_H
+#endif  // TDENGINE_QFILL_H

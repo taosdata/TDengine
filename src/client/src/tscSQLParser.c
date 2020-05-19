@@ -5562,7 +5562,15 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       }
       
       ret = tVariantDump(&(pList->a[i].pVar), varDataVal(tagVal), pTagSchema[i].type);
-      varDataSetLen(tagVal, pList->a[i].pVar.nLen);
+      if (pList->a[i].pVar.nType == TSDB_DATA_TYPE_NULL) {
+        if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY) {
+          varDataSetLen(tagVal, sizeof(uint8_t));
+        } else {
+          varDataSetLen(tagVal, sizeof(uint32_t));
+        }
+      } else { // todo refactor
+        varDataSetLen(tagVal, pList->a[i].pVar.nLen);
+      }
     } else {
       ret = tVariantDump(&(pList->a[i].pVar), tagVal, pTagSchema[i].type);
     }

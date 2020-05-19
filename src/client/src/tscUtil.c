@@ -2126,16 +2126,26 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
     int32_t realLen = varDataLen(pData);
     assert(realLen <= bytes - VARSTR_HEADER_SIZE);
     
+    if (isNull(pData, type)) {
+      pRes->tsrow[columnIndex] = NULL;
+    } else {
+      pRes->tsrow[columnIndex] = pData + VARSTR_HEADER_SIZE;
+    }
+  
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
       *(char*) (pData + realLen + VARSTR_HEADER_SIZE) = 0;
     }
     
-    pRes->tsrow[columnIndex] = pData + VARSTR_HEADER_SIZE;
     pRes->length[columnIndex] = realLen;
   } else {
     assert(bytes == tDataTypeDesc[type].nSize);
     
-    pRes->tsrow[columnIndex] = pData;
+    if (isNull(pData, type)) {
+      pRes->tsrow[columnIndex] = NULL;
+    } else {
+      pRes->tsrow[columnIndex] = pData;
+    }
+    
     pRes->length[columnIndex] = bytes;
   }
 }

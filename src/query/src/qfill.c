@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "qinterpolation.h"
+#include "qfill.h"
 #include "os.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
@@ -22,13 +22,13 @@
 
 #define FILL_IS_ASC_FILL(_f) ((_f)->order == TSDB_ORDER_ASC)
 
-int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit, int16_t precision) {
-  if (timeRange == 0) {
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, char timeUnit, int16_t precision) {
+  if (slidingTime == 0) {
     return startTime;
   }
 
-  if (intervalTimeUnit == 'a' || intervalTimeUnit == 'm' || intervalTimeUnit == 's' || intervalTimeUnit == 'h') {
-    return (startTime / timeRange) * timeRange;
+  if (timeUnit == 'a' || timeUnit == 'm' || timeUnit == 's' || timeUnit == 'h') {
+    return (startTime / slidingTime) * slidingTime;
   } else {
     /*
      * here we revised the start time of day according to the local time zone,
@@ -47,10 +47,10 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char
 
     int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
 
-    int64_t revStartime = (startTime / timeRange) * timeRange + timezone * t;
-    int64_t revEndtime = revStartime + timeRange - 1;
+    int64_t revStartime = (startTime / slidingTime) * slidingTime + timezone * t;
+    int64_t revEndtime = revStartime + slidingTime - 1;
     if (revEndtime < startTime) {
-      revStartime += timeRange;
+      revStartime += slidingTime;
     }
 
     return revStartime;

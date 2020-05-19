@@ -18,15 +18,15 @@
 #include "os.h"
 
 #include "hash.h"
-#include "tsdb.h"
-#include "qinterpolation.h"
+#include "qfill.h"
 #include "qresultBuf.h"
 #include "qsqlparser.h"
 #include "qtsbuf.h"
 #include "taosdef.h"
-#include "tref.h"
-#include "tsqlfunction.h"
 #include "tarray.h"
+#include "tref.h"
+#include "tsdb.h"
+#include "tsqlfunction.h"
 
 //typedef struct tFilePage {
 //  int64_t num;
@@ -154,7 +154,7 @@ typedef struct SQueryRuntimeEnv {
   int16_t            numOfRowsPerPage;
   int16_t            offset[TSDB_MAX_COLUMNS];
   uint16_t           scanFlag;  // denotes reversed scan of data or not
-  SFillInfo* pFillInfo;
+  SFillInfo*         pFillInfo;
   SWindowResInfo     windowResInfo;
   STSBuf*            pTSBuf;
   STSCursor          cur;
