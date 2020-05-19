@@ -1252,7 +1252,7 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
   pMeta->contLen = htons(pMeta->contLen);
   rpcSendResponse(&rpcRsp);
 
-  mTrace("stable:%%s, uid:%" PRIu64 " table meta is retrieved", pTable->info.tableId, pTable->uid);
+  mTrace("stable:%s, uid:%" PRIu64 " table meta is retrieved", pTable->info.tableId, pTable->uid);
 }
 
 static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
@@ -1759,7 +1759,7 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
   newMsg->msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
   newMsg->pCont = pCreateMsg;
 
-  mTrace("table:%s, start to create on demand", pInfo->tableId);
+  mTrace("table:%s, start to create on demand, stable:%s", pInfo->tableId, pInfo->tags);
   mgmtAddToShellQueue(newMsg);
 }
 

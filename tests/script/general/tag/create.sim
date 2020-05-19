@@ -579,7 +579,7 @@ $i = 30
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(250), tgcol2 binary(250), tgcol3 binary(30)) -x step30
-  return -1
+#  return -1
 step30: 
 
 print =============== step31

@@ -1,6 +1,8 @@
 from .cinterface import CTaosInterface
 from .error import *
 
+# querySeqNum = 0
+
 class TDengineCursor(object):
     """Database cursor which is used to manage the context of a fetch operation.
 
@@ -109,7 +111,14 @@ class TDengineCursor(object):
         if params is not None:
             pass
         
+
+        # global querySeqNum
+        # querySeqNum += 1
+        # localSeqNum = querySeqNum # avoid raice condition
+        # print("   >> Exec Query ({}): {}".format(localSeqNum, str(stmt)))
         res = CTaosInterface.query(self._connection._conn, stmt)
+        # print("   << Query ({}) Exec Done".format(localSeqNum))
+
         if res == 0:
             if CTaosInterface.fieldsCount(self._connection._conn) == 0:
                 self._affected_rows += CTaosInterface.affectedRows(self._connection._conn)
