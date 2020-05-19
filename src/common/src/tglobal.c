@@ -61,10 +61,10 @@ int32_t tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
-char  tsFirst[TSDB_FQDN_LEN] = {0};  
-char  tsSecond[TSDB_FQDN_LEN] = {0};
-char  tsArbitrator[TSDB_FQDN_LEN] = {0};
-char  tsLocalEp[TSDB_FQDN_LEN] = {0};  // Local End Point, hostname:port
+char  tsFirst[TSDB_EP_LEN] = {0};  
+char  tsSecond[TSDB_EP_LEN] = {0};
+char  tsArbitrator[TSDB_EP_LEN] = {0};
+char  tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
 uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
 uint16_t tsDnodeDnodePort = 6035;   // udp/tcp
@@ -284,7 +284,7 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FQDN_LEN;
+  cfg.ptrLength = TSDB_EP_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -294,7 +294,7 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FQDN_LEN;
+  cfg.ptrLength = TSDB_EP_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -356,7 +356,7 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FQDN_LEN;
+  cfg.ptrLength = TSDB_EP_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 

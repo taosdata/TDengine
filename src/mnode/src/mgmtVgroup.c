@@ -371,12 +371,6 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "vgroup_status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   int32_t maxReplica = 0;
   SVgObj  *pVgroup   = NULL;
   STableObj *pTable = NULL;
@@ -471,11 +465,6 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
     *(int32_t *) pWrite = pVgroup->numOfTables;
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char* status = pVgroup->status? "updating" : "ready";
-    STR_TO_VARSTR(pWrite, status);
-    cols++;
-
     for (int32_t i = 0; i < maxReplica; ++i) {
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int16_t *) pWrite = pVgroup->vnodeGid[i].dnodeId;
@@ -489,8 +478,8 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
         cols++;
 
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        status = mgmtGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
-        STR_TO_VARSTR(pWrite, status);
+        char *role = mgmtGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
+        STR_TO_VARSTR(pWrite, role);
         cols++;
       } else {
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

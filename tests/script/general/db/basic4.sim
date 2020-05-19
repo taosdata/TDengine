@@ -43,9 +43,6 @@ endi
 if $data01 != 4 then 
   return -1
 endi
-if $data02 != ready then 
-  return -1
-endi
 
 print =============== drop table 
 sql drop table d1.t1
@@ -80,9 +77,6 @@ if $data00 != 2 then
   return -1
 endi
 if $data01 != 3 then 
-  return -1
-endi
-if $data02 != ready then 
   return -1
 endi
 

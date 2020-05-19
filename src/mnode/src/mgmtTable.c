@@ -1415,7 +1415,7 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
     char *pTagData = (char *) pCreate->schema;  // it is a tag key
     SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData);
     if (pSuperTable == NULL) {
-      mError("table:%s, corresponding super table does not exist", pCreate->tableId);
+      mError("table:%s, corresponding super table:%s does not exist", pCreate->tableId, pTagData);
       free(pTable);
       terrno = TSDB_CODE_INVALID_TABLE;
       return NULL;
@@ -1505,6 +1505,11 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
       }
 
       pMsg->pTable = (STableObj *)mgmtDoCreateChildTable(pCreate, pVgroup, sid);
+      if (pMsg->pTable == NULL) {
+        mgmtSendSimpleResp(pMsg->thandle, terrno);
+        return;
+      }
+
       mgmtIncTableRef(pMsg->pTable);
     }
   } else {
@@ -1742,7 +1747,12 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
   pCreateMsg->igExists = 1;
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);
-  memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
+
+  contLen = sizeof(STagData);
+  if (contLen > pMsg->contLen - sizeof(SCMTableInfoMsg)) {
+    contLen = pMsg->contLen - sizeof(SCMTableInfoMsg);
+  }
+  memcpy(pCreateMsg->schema, pInfo->tags, contLen);
 
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   pMsg->pCont = newMsg->pCont;

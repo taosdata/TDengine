@@ -33,7 +33,7 @@ typedef struct SDnodeObj {
   int32_t    dnodeId;
   uint16_t   dnodePort;
   char       dnodeFqdn[TSDB_FQDN_LEN + 1];
-  char       dnodeEp[TSDB_FQDN_LEN + 1];
+  char       dnodeEp[TSDB_EP_LEN + 1];
   int64_t    createdTime;
   uint32_t   lastAccess;
   int32_t    openVnodes;
@@ -123,7 +123,6 @@ typedef struct SVgObj {
   int32_t        numOfVnodes;
   int32_t        lbDnodeId;
   int32_t        lbTime;
-  int8_t         status;
   int8_t         inUse;
   int8_t         reserved[13];
   int8_t         updateEnd[1];

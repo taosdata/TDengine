@@ -530,7 +530,7 @@ typedef struct {
 
 typedef struct {
   int32_t   nodeId;
-  char      nodeEp[TSDB_FQDN_LEN];
+  char      nodeEp[TSDB_EP_LEN];
 } SDMMnodeInfo;
 
 typedef struct {
@@ -542,7 +542,7 @@ typedef struct {
 typedef struct {
   uint32_t   version;
   int32_t    dnodeId;
-  char       dnodeEp[TSDB_FQDN_LEN];
+  char       dnodeEp[TSDB_EP_LEN];
   uint32_t   moduleStatus;
   uint32_t   lastReboot;        // time stamp for last reboot
   uint16_t   numOfTotalVnodes;  // from config file
@@ -584,7 +584,7 @@ typedef struct {
 
 typedef struct {
   int32_t  nodeId;
-  char     nodeEp[TSDB_FQDN_LEN];
+  char     nodeEp[TSDB_EP_LEN];
 } SMDVnodeDesc;
 
 typedef struct {
@@ -669,7 +669,7 @@ typedef struct SCMShowRsp {
 } SCMShowRsp;
 
 typedef struct {
-  char     ep[TSDB_FQDN_LEN];  // end point, hostname:port
+  char     ep[TSDB_EP_LEN];  // end point, hostname:port
 } SCMCreateDnodeMsg, SCMDropDnodeMsg;
 
 typedef struct {
@@ -684,7 +684,7 @@ typedef struct {
 } SDMConfigVnodeMsg;
 
 typedef struct {
-  char ep[TSDB_FQDN_LEN];  // end point, hostname:port
+  char ep[TSDB_EP_LEN];  // end point, hostname:port
   char config[64];
 } SMDCfgDnodeMsg, SCMCfgDnodeMsg;
 
