@@ -44,7 +44,7 @@ typedef struct {
   char     pversion;    // protocol version
   char     reserved[6]; // not used
   int32_t  vgId;        // vg ID
-  int32_t  len;         // content length
+  int32_t  len;         // content length, does not include head
   char     cont[];      // message content starts from here
 } SSyncHead;
 

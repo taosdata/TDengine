@@ -274,8 +274,8 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   pSyncHead = (SSyncHead *) ( ((char *)pWalHead) - sizeof(SSyncHead));
   pSyncHead->type = TAOS_SMSG_FORWARD;
   pSyncHead->pversion = 0;
-  pSyncHead->len = sizeof(SWalHead) + pWalHead->len;
-  fwdLen = pSyncHead->len + sizeof(SSyncHead);
+  pSyncHead->len = sizeof(SWalHead) + pWalHead->len; 
+  fwdLen = pSyncHead->len + sizeof(SSyncHead);  //include the WAL and SYNC head 
 
   pthread_mutex_lock(&(pNode->mutex));
 
@@ -291,7 +291,7 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   
     int retLen = write(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
-      sTrace("%s, forward is sent, ver:%d len:%d", 
+      sTrace("%s, forward is sent, ver:%d contLen:%d", 
               pPeer->id, pWalHead->version, pWalHead->len);
     } else {
       sError("%s, failed to forward, ver:%d retLen:%d", 
@@ -810,7 +810,7 @@ static int syncProcessPeerMsg(void *param, void *buffer)
   }
 
   // head.len = htonl(head.len);
-  if (head.len > TSDB_DEFAULT_PKT_SIZE || head.len <0) {
+  if (head.len <0) {
     sError("%s, invalid pkt length, len:%d", pPeer->id, head.len);
     return -1;
   } 
