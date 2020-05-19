@@ -22,6 +22,7 @@
 #include "dnodeMain.h"
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
+static sem_t exitSem;
 
 int32_t main(int32_t argc, char *argv[]) {
   // Set global configuration file
@@ -65,6 +66,11 @@ int32_t main(int32_t argc, char *argv[]) {
 #endif
   }
 
+  if (sem_init(&exitSem, 0, 0) != 0) {
+    printf("failed to create exit semphore\n");
+    exit(EXIT_FAILURE);
+  }
+
   /* Set termination handler. */
   struct sigaction act = {{0}};
   act.sa_flags = SA_SIGINFO;
@@ -90,9 +96,19 @@ int32_t main(int32_t argc, char *argv[]) {
 
   syslog(LOG_INFO, "Started TDengine service successfully.");
 
-  while (1) {
-    sleep(1000);
+  for (int res = sem_wait(&exitSem); res != 0; res = sem_wait(&exitSem)) {
+    if (res != EINTR) {
+      syslog(LOG_ERR, "failed to wait exit semphore: %d", res);
+      break;
+    }
   }
+
+  dnodeCleanUpSystem();
+  // close the syslog
+  syslog(LOG_INFO, "Shut down TDengine service successfully");
+  dPrint("TDengine is shut down!");
+  closelog();
+  return EXIT_SUCCESS;
 }
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
@@ -104,14 +120,21 @@ static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
     taosCfgDynamicOptions("resetlog");
     return;
   }
+
   syslog(LOG_INFO, "Shut down signal is %d", signum);
   syslog(LOG_INFO, "Shutting down TDengine service...");
   // clean the system.
   dPrint("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
-  dnodeCleanUpSystem();
-  // close the syslog
-  syslog(LOG_INFO, "Shut down TDengine service successfully");
-  dPrint("TDengine is shut down!");
-  closelog();
-  exit(EXIT_SUCCESS);
+
+  // protect the application from receive another signal
+  struct sigaction act = {{0}};
+  act.sa_handler = SIG_IGN;
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
+  sigaction(SIGUSR1, &act, NULL);
+  sigaction(SIGUSR2, &act, NULL);
+
+  // inform main thread to exit
+  sem_post(&exitSem);
 }
