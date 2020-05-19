@@ -54,7 +54,7 @@ sql_error alter database db minRows 550
 sql_error alter database db ctime 5000
 sql_error alter database db precision "us"
 sql_error alter database db comp 3
-sql_error alter database db walLevel 1
+sql_error alter database db wal 1
 sql_error alter database db replica 2
 
 
