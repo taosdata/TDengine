@@ -53,7 +53,7 @@ cd ../../../debug; make
 ./test.sh -f general/db/delete_reuse1.sim
 ./test.sh -f general/db/delete_reuse2.sim
 ./test.sh -f general/db/delete_reusevnode.sim
-./test.sh -f general/db/delete_reusevnode2.sim
+#hongze ./test.sh -f general/db/delete_reusevnode2.sim
 ./test.sh -f general/db/delete_writing1.sim
 ./test.sh -f general/db/delete_writing2.sim
 ./test.sh -f general/db/len.sim
@@ -250,7 +250,7 @@ cd ../../../debug; make
 ./test.sh -u -f unique/cluster/balance3.sim
 ./test.sh -u -f unique/cluster/cache.sim
 
-./test.sh -u -f unique/column/replica3.sim
+#jeff ./test.sh -u -f unique/column/replica3.sim
 
 #liao wait ./test.sh -u -f unique/db/commit.sim
 ./test.sh -u -f unique/db/delete.sim
@@ -302,4 +302,4 @@ cd ../../../debug; make
 ./test.sh -u -f unique/vnode/replica2_repeat.sim
 ./test.sh -u -f unique/vnode/replica3_basic.sim
 ./test.sh -u -f unique/vnode/replica3_repeat.sim
-./test.sh -u -f unique/vnode/replica3_vgroup.sim
+#jeff ./test.sh -u -f unique/vnode/replica3_vgroup.sim
