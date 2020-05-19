@@ -233,9 +233,15 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCfg->minRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
+  if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
     mError("invalid db option minRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->minRowsPerFileBlock,
-           TSDB_MIN_MAX_ROW_FBLOCK, pCfg->maxRowsPerFileBlock);
+           TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+    return TSDB_CODE_INVALID_OPTION;
+  }
+
+  if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
+    mError("invalid db option minRowsPerFileBlock:%d should smaller than maxRowsPerFileBlock:%d",
+           pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock);
     return TSDB_CODE_INVALID_OPTION;
   }
 
