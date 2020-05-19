@@ -131,7 +131,7 @@ print dnode3 $dnode3Vnodes
 if $dnode1Vnodes != 3 then
   goto show2
 endi
-if $dnode2Vnodes != NULL then
+if $dnode2Vnodes != null then
   goto show2
 endi
 if $dnode3Vnodes != 3 then
@@ -194,7 +194,7 @@ print dnode4 ==> $dnode4Role
 if $dnode1Role != master then
   return -1
 endi
-if $dnode2Role != NULL then
+if $dnode2Role != null then
   return -1
 endi
 if $dnode3Role != slave then
@@ -231,7 +231,7 @@ endi
 if $dnode4Vnodes != 3 then
   goto show4
 endi
-if $dnode3Vnodes != NULL then
+if $dnode3Vnodes != null then
   goto show4
 endi
 
@@ -248,10 +248,10 @@ print dnode4 ==> $dnode4Role
 if $dnode1Role != master then
   return -1
 endi
-if $dnode2Role != NULL then
+if $dnode2Role != null then
   return -1
 endi
-if $dnode3Role != NULL then
+if $dnode3Role != null then
   return -1
 endi
 
@@ -339,7 +339,7 @@ print dnode4 $dnode4Vnodes
 $dnode5Vnodes = $data2_5
 print dnode5 $dnode5Vnodes
 
-if $dnode1Vnodes != NULL then
+if $dnode1Vnodes != null then
   goto show6
 endi
 if $dnode4Vnodes != 3 then

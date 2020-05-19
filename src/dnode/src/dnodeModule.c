@@ -33,7 +33,7 @@ typedef struct {
   void    (*stopFp)();
 } SModule;
 
-static SModule  tsModule[TSDB_MOD_MAX] = {0};
+static SModule  tsModule[TSDB_MOD_MAX] = {{0}};
 static uint32_t tsModuleStatus = 0;
 
 static void dnodeSetModuleStatus(int32_t module) {

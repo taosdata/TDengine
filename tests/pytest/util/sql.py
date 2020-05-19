@@ -15,6 +15,7 @@ import sys
 import os
 import time
 import datetime
+import inspect
 from util.log import *
 
 
@@ -44,9 +45,14 @@ class TDSql:
         except BaseException:
             expectErrNotOccured = False
         if expectErrNotOccured:
-            tdLog.exit("failed: sql:%.40s, expect error not occured" % (sql))
+            frame = inspect.stack()[1]
+            callerModule = inspect.getmodule(frame[0])
+            callerFilename = callerModule.__file__
+            tdLog.exit(
+                "%s failed: sql:%s, expect error not occured" %
+                (callerFilename, sql))
         else:
-            tdLog.info("sql:%.40s, expect error occured" % (sql))
+            tdLog.info("sql:%s, expect error occured" % (sql))
 
     def query(self, sql):
         self.sql = sql
@@ -62,64 +68,74 @@ class TDSql:
 
     def checkRows(self, expectRows):
         if self.queryRows != expectRows:
+            frame = inspect.stack()[1]
+            callerModule = inspect.getmodule(frame[0])
+            callerFilename = callerModule.__file__
             tdLog.exit(
-                "failed: sql:%.40s, queryRows:%d != expect:%d" %
-                (self.sql, self.queryRows, expectRows))
-        tdLog.info("sql:%.40s, queryRows:%d == expect:%d" %
+                "%s failed: sql:%s, queryRows:%d != expect:%d" %
+                (callerFilename, self.sql, self.queryRows, expectRows))
+        tdLog.info("sql:%s, queryRows:%d == expect:%d" %
                    (self.sql, self.queryRows, expectRows))
 
     def checkData(self, row, col, data):
+        frame = inspect.stack()[1]
+        callerModule = inspect.getmodule(frame[0])
+        callerFilename = callerModule.__file__
+
         if row < 0:
             tdLog.exit(
-                "failed: sql:%.40s, row:%d is smaller than zero" %
-                (self.sql, row))
+                "%s failed: sql:%s, row:%d is smaller than zero" %
+                (callerFilename, self.sql, row))
         if col < 0:
             tdLog.exit(
-                "failed: sql:%.40s, col:%d is smaller than zero" %
-                (self.sql, col))
-        if row >= self.queryRows:
+                "%s failed: sql:%s, col:%d is smaller than zero" %
+                (callerFilename, self.sql, col))
+        if row > self.queryRows:
             tdLog.exit(
-                "failed: sql:%.40s, row:%d is larger than queryRows:%d" %
-                (self.sql, row, self.queryRows))
-        if col >= self.queryCols:
+                "%s failed: sql:%s, row:%d is larger than queryRows:%d" %
+                (callerFilename, self.sql, row, self.queryRows))
+        if col > self.queryCols:
             tdLog.exit(
-                "failed: sql:%.40s, col:%d is larger than queryRows:%d" %
-                (self.sql, col, self.queryCols))
+                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
+                (callerFilename, self.sql, col, self.queryCols))
         if self.queryResult[row][col] != data:
-            tdLog.exit(
-                "failed: sql:%.40s row:%d col:%d data:%s != expect:%s" %
-                (self.sql, row, col, self.queryResult[row][col], data))
+            tdLog.exit("%s failed: sql:%s row:%d col:%d data:%s != expect:%s" % (
+                callerFilename, self.sql, row, col, self.queryResult[row][col], data))
 
         if data is None:
-            tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))
         elif isinstance(data, str):
-            tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))
         elif isinstance(data, datetime.date):
-            tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%s" %
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))
         else:
-            tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%d" %
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
                        (self.sql, row, col, self.queryResult[row][col], data))
 
     def getData(self, row, col):
+        frame = inspect.stack()[1]
+        callerModule = inspect.getmodule(frame[0])
+        callerFilename = callerModule.__file__
+
         if row < 0:
             tdLog.exit(
-                "failed: sql:%.40s, row:%d is smaller than zero" %
-                (self.sql, row))
+                "%s failed: sql:%s, row:%d is smaller than zero" %
+                (callerFilename, self.sql, row))
         if col < 0:
             tdLog.exit(
-                "failed: sql:%.40s, col:%d is smaller than zero" %
-                (self.sql, col))
-        if row >= self.queryRows:
+                "%s failed: sql:%s, col:%d is smaller than zero" %
+                (callerFilename, self.sql, col))
+        if row > self.queryRows:
             tdLog.exit(
-                "failed: sql:%.40s, row:%d is larger than queryRows:%d" %
-                (self.sql, row, self.queryRows))
-        if col >= self.queryCols:
+                "%s failed: sql:%s, row:%d is larger than queryRows:%d" %
+                (callerFilename, self.sql, row, self.queryRows))
+        if col > self.queryCols:
             tdLog.exit(
-                "failed: sql:%.40s, col:%d is larger than queryRows:%d" %
-                (self.sql, col, self.queryCols))
+                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
+                (callerFilename, self.sql, col, self.queryCols))
         return self.queryResult[row][col]
 
     def executeTimes(self, sql, times):
@@ -137,9 +153,13 @@ class TDSql:
 
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
-            tdLog.exit("failed: sql:%.40s, affectedRows:%d != expect:%d" %
-                       (self.sql, self.affectedRows, expectAffectedRows))
-        tdLog.info("sql:%.40s, affectedRows:%d == expect:%d" %
+            frame = inspect.stack()[1]
+            callerModule = inspect.getmodule(frame[0])
+            callerFilename = callerModule.__file__
+
+            tdLog.exit("%s failed: sql:%s, affectedRows:%d != expect:%d" % (
+                callerFilename, self.sql, self.affectedRows, expectAffectedRows))
+        tdLog.info("sql:%s, affectedRows:%d == expect:%d" %
                    (self.sql, self.affectedRows, expectAffectedRows))
 
 

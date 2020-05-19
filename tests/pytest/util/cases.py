@@ -57,7 +57,7 @@ class TDCases:
                 runNum += 1
                 continue
 
-        tdLog.notice("total %d Linux test case(s) executed" % (runNum))
+        tdLog.info("total %d Linux test case(s) executed" % (runNum))
 
     def runOneLinux(self, conn, fileName):
         testModule = self.__dynamicLoadModule(fileName)
@@ -71,12 +71,10 @@ class TDCases:
                     case.run()
                 except Exception as e:
                     tdLog.notice(repr(e))
-                    tdLog.exit("%s failed: %s" % (__file__, fileName))
+                    tdLog.exit("%s failed" % (fileName))
                 case.stop()
                 runNum += 1
                 continue
-
-        tdLog.success("total %d Linux test case(s) executed" % (runNum))
 
     def runAllWindows(self, conn):
         # TODO: load all Windows cases here

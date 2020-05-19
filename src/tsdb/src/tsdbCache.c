@@ -154,7 +154,7 @@ int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
     for (int i = 0; i < blocksToAdd; i++) {
       if (tsdbAddCacheBlockToPool(pCache) < 0) {
         tsdbUnLockRepo((TsdbRepoT *)pRepo);
-        tsdbError("tsdbId %d: failed to add cache block to cache pool", pRepo->config.tsdbId);
+        tsdbError("tsdbId:%d, failed to add cache block to cache pool", pRepo->config.tsdbId);
         return -1;
       }
     }
@@ -164,7 +164,7 @@ int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
   }
 
   tsdbUnLockRepo((TsdbRepoT *)pRepo);
-  tsdbTrace("vgId: %d tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks, totalBlocks);
+  tsdbTrace("vgId:%d, tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks, totalBlocks);
   return 0;
 }
 

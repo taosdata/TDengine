@@ -147,6 +147,8 @@ typedef struct tDataTypeDescriptor {
                   char algorithm, char *const buffer, int bufferSize);
   int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
                     int outputSize, char algorithm, char *const buffer, int bufferSize);
+  void (*getStatisFunc)(const TSKEY *primaryKey, const void *pData, int32_t numofrow, int64_t *min, int64_t *max,
+                         int64_t *sum, int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypeDesc[11];
@@ -191,20 +193,20 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_ACCT_LEN             TSDB_UNI_LEN
 #define TSDB_PASSWORD_LEN         TSDB_UNI_LEN
 
-#define TSDB_MAX_COLUMNS          256
+#define TSDB_MAX_COLUMNS          1024
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       192
 #define TSDB_DB_NAME_LEN          32
 #define TSDB_COL_NAME_LEN         64
-#define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 16
+#define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 6mb
 
-#define TSDB_MAX_BYTES_PER_ROW    TSDB_MAX_COLUMNS * 16
-#define TSDB_MAX_TAGS_LEN         512
-#define TSDB_MAX_TAGS             32
+#define TSDB_MAX_BYTES_PER_ROW    TSDB_MAX_COLUMNS * 64
+#define TSDB_MAX_TAGS_LEN         65536
+#define TSDB_MAX_TAGS             128
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16
@@ -216,7 +218,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_LOCALE_LEN           64
 #define TSDB_TIMEZONE_LEN         64
 
-#define TSDB_FQDN_LEN             72
+#define TSDB_FQDN_LEN             128
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_METER_VNODE_BITS     20
@@ -232,9 +235,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
 
 #define TSDB_PAYLOAD_SIZE         (TSDB_DEFAULT_PKT_SIZE - 100)
-#define TSDB_DEFAULT_PAYLOAD_SIZE 1024   // default payload size
+#define TSDB_DEFAULT_PAYLOAD_SIZE 2048   // default payload size
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
-#define TSDB_SQLCMD_SIZE          1024
+#define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MAX_VNODES           256
 #define TSDB_MIN_VNODES           50
 #define TSDB_INVALID_VNODE_NUM    0

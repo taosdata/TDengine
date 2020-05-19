@@ -194,7 +194,7 @@ static int normalStmtPrepare(STscStmt* stmt) {
 
 static char* normalStmtBuildSql(STscStmt* stmt) {
   SNormalStmt* normal = &stmt->normal;
-  SStringBuilder sb = {0};
+  SStringBuilder sb; memset(&sb, 0, sizeof(sb));
 
   if (taosStringBuilderSetJmp(&sb) != 0) {
     taosStringBuilderDestroy(&sb);

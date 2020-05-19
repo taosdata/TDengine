@@ -67,6 +67,7 @@ typedef struct {
   void *       pTimer;
   SCacheStatis statistics;
   SHashObj *   pHashTable;
+  _hash_free_fn_t freeFp;
   int          numOfElemsInTrash;  // number of element in trash
   int16_t      deleting;           // set the deleting flag to stop refreshing ASAP.
   T_REF_DECLARE()
@@ -88,6 +89,7 @@ typedef struct {
  * @return
  */
 SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTimeInSeconds);
+SCacheObj *taosCacheInitWithCb(void *tmrCtrl, int64_t refreshTimeInSeconds, void (*freeCb)(void *data));
 
 /**
  * add data into cache

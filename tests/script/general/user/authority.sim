@@ -30,7 +30,7 @@ sleep 2000
 
 sql create database dwrite
 sql show databases
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
 
@@ -48,25 +48,19 @@ print ============ step5
 sql close
 sql connect read
 sleep 2000
-
 sql drop database dread
-sql drop database dwrite -x step51
+sql drop database dwrite
 
-step51:
 
 sql close
 sql connect
 sql show databases
-if $rows != 1 then
+if $rows != 0 then
   return -1
 endi
 
 sql close
 sql connect
 sleep 2000
-sql drop database d1
-sql drop database d2
-sql drop database d3
-sql drop database d4
 
 system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT

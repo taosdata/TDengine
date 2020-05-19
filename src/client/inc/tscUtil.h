@@ -43,7 +43,7 @@ extern "C" {
 
 typedef struct SParsedColElem {
   int16_t colIndex;
-  int16_t offset;
+  uint16_t offset;
 } SParsedColElem;
 
 typedef struct SParsedDataColInfo {
@@ -264,6 +264,7 @@ bool hasMoreVnodesToTry(SSqlObj *pSql);
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)());
+int  tscSetMgmtIpListFromCfg(const char *first, const char *second);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

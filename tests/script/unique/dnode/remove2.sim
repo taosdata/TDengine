@@ -10,15 +10,15 @@ system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c wallevel -v 1
-system sh/cfg.sh -n dnode2 -c wallevel -v 1
-system sh/cfg.sh -n dnode3 -c wallevel -v 1
-system sh/cfg.sh -n dnode4 -c wallevel -v 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
+system sh/cfg.sh -n dnode4 -c wallevel -v 2
 
 print ========== step1
 system sh/exec_up.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 sql create database d1 maxTables 4
 sql create table d1.t1 (t timestamp, i int)
@@ -59,46 +59,51 @@ $x = 0
 show2: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 	
 sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
-if $data2_1 != 3 then
+if $data2_1 != 1 then
 	goto show2
 endi
-if $data2_2 != 1 then
+if $data2_2 != 3 then
 	goto show2
 endi
 
 print ========== step3
 system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
 sql drop dnode $hostname2
-sleep 7001
+sleep 4000
 
-$x = 0
-show3: 
-	$x = $x + 1
-	sleep 2000
-	if $x == 30 then
-	  return -1
-	endi
-	
 sql show dnodes
 print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2 $data5_192.168.0.2
+print dnode2 openVnodes $data2_2
 
 print ========== step4
 sql create dnode $hostname3
 system sh/exec_up.sh -n dnode3 -s start
 
+sleep 5000
+
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+if $data2_3 != 0 then
+	return -1
+endi
+
+print ============ step 4.1
+system sh/exec_up.sh -n dnode2 -s start
+
 $x = 0
 show4: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 
@@ -106,13 +111,13 @@ sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
 print dnode3 openVnodes $data2_3
-if $data2_2 != NULL then
+if $data2_2 != null then
 	goto show4
 endi
-if $data2_1 != 3 then
+if $data2_1 != 1 then
 	goto show4
 endi
-if $data2_3 != 1 then
+if $data2_3 != 3 then
 	goto show4
 endi
 

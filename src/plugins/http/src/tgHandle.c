@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
-#include "shash.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tgHandle.h"

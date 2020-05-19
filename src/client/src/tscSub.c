@@ -14,8 +14,6 @@
  */
 
 #include "os.h"
-
-#include "shash.h"
 #include "taos.h"
 #include "trpc.h"
 #include "tsclient.h"

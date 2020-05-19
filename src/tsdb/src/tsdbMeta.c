@@ -6,7 +6,7 @@
 #include "tsdbMain.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
-#define TSDB_META_FILE_NAME "META"
+// #define TSDB_META_FILE_NAME "META"
 
 const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;   // skip list built based on the first column of tags
 
@@ -80,16 +80,16 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   T_READ_MEMBER(ptr, int8_t, pTable->type);
   int len = *(int *)ptr;
   ptr = (char *)ptr + sizeof(int);
-  pTable->name = calloc(1, len + VARSTR_HEADER_SIZE);
+  pTable->name = calloc(1, len + VARSTR_HEADER_SIZE + 1);
   if (pTable->name == NULL) return NULL;
   
   varDataSetLen(pTable->name, len);
   memcpy(pTable->name->data, ptr, len);
   
   ptr = (char *)ptr + len;
-  T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
+  T_READ_MEMBER(ptr, uint64_t, pTable->tableId.uid);
   T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
-  T_READ_MEMBER(ptr, int64_t, pTable->superUid);
+  T_READ_MEMBER(ptr, uint64_t, pTable->superUid);
   T_READ_MEMBER(ptr, int32_t, pTable->sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
@@ -310,7 +310,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
       
       // todo refactor extract method
       size_t size = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
-      super->name = malloc(size + VARSTR_HEADER_SIZE);
+      super->name = calloc(1, size + VARSTR_HEADER_SIZE + 1);
       STR_WITH_SIZE_TO_VARSTR(super->name, pCfg->sname, size);
 
       // index the first tag column
@@ -339,7 +339,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
   table->tableId = pCfg->tableId;
   
   size_t size = strnlen(pCfg->name, TSDB_TABLE_NAME_LEN);
-  table->name = malloc(size + VARSTR_HEADER_SIZE);
+  table->name = calloc(1, size + VARSTR_HEADER_SIZE + 1);
   STR_WITH_SIZE_TO_VARSTR(table->name, pCfg->name, size);
   
   table->lastKey = 0;
@@ -356,12 +356,12 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
   // Register to meta
   if (newSuper) {
     tsdbAddTableToMeta(pMeta, super, true);
-    tsdbTrace("vgId: %d super table is created! uid " PRId64, pRepo->config.tsdbId,
+    tsdbTrace("vgId:%d, super table %s is created! uid:%" PRId64, pRepo->config.tsdbId, varDataVal(super->name),
               super->tableId.uid);
   }
   tsdbAddTableToMeta(pMeta, table, true);
-  tsdbTrace("vgId: %d table is created! tid %d, uid " PRId64, pRepo->config.tsdbId, table->tableId.tid,
-            table->tableId.uid);
+  tsdbTrace("vgId:%d, table %s is created! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(table->name),
+            table->tableId.tid, table->tableId.uid);
 
   // Write to meta file
   int bufLen = 0;
@@ -404,12 +404,13 @@ int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
 
   STable *pTable = tsdbGetTableByUid(pMeta, tableId.uid);
   if (pTable == NULL) {
-    tsdbError("vgId %d: failed to drop table since table not exists! tid %d, uid " PRId64, pRepo->config.tsdbId,
+    tsdbError("vgId:%d, failed to drop table since table not exists! tid:%d, uid:" PRId64, pRepo->config.tsdbId,
               tableId.tid, tableId.uid);
     return -1;
   }
 
-  tsdbTrace("vgId: %d table is dropped! tid %d, uid " PRId64, pRepo->config.tsdbId, tableId.tid, tableId.uid);
+  tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
+            tableId.tid, tableId.uid);
   if (tsdbRemoveTableFromMeta(pMeta, pTable) < 0) return -1;
 
   return 0;
@@ -455,7 +456,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
   return 0;
 }
 
-STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   void *ptr = taosHashGet(pMeta->map, (char *)(&uid), sizeof(uid));
 
   if (ptr == NULL) return NULL;
@@ -508,10 +509,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
 
       ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
 
-      pMeta->tables[tTable->tableId.tid] = NULL;
-      taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
-      pMeta->nTables--;
-      tsdbFreeTable(tTable);
+      tsdbRemoveTableFromMeta(pMeta, tTable);
     }
 
     tSkipListDestroyIter(pIter);
@@ -534,8 +532,8 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
     pMeta->nTables--;
   }
 
-  tsdbFreeTable(pTable);
   taosHashRemove(pMeta->map, (char *)(&(pTable->tableId.uid)), sizeof(pTable->tableId.uid));
+  tsdbFreeTable(pTable);
   return 0;
 }
 

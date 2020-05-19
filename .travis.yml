@@ -6,6 +6,7 @@
 #
 matrix:
   - os: linux
+    dist: bionic
     language: c
 
     git:
@@ -49,7 +50,7 @@ matrix:
           ./test-all.sh $TRAVIS_EVENT_TYPE || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
-          ./valgrind-test.sh -g 2>&1 | tee mem-error-out.txt
+          ./valgrind-test.sh 2>&1 > mem-error-out.txt
           sleep 1
 
           # Color setting
@@ -59,9 +60,9 @@ matrix:
           GREEN_UNDERLINE='\033[4;32m'
           NC='\033[0m'
 
-          grep 'ERROR SUMMARY' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-mem-error-out.txt
+          grep 'start to execute\|ERROR SUMMARY' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-mem-error-out.txt
 
-          for memError in `cat uniq-mem-error-out.txt | awk '{print $4}'` 
+          for memError in `grep 'ERROR SUMMARY' uniq-mem-error-out.txt | awk '{print $4}'` 
           do
             if [ -n "$memError" ]; then
               if [ "$memError" -gt 12 ]; then
@@ -72,8 +73,8 @@ matrix:
             fi
           done
 
-          grep 'definitely lost:' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-definitely-lost-out.txt
-          for defiMemError in `cat uniq-definitely-lost-out.txt | awk '{print $7}'`
+          grep 'start to execute\|definitely lost:' mem-error-out.txt|grep -v 'grep'|uniq|tee uniq-definitely-lost-out.txt
+          for defiMemError in `grep 'definitely lost:' uniq-definitely-lost-out.txt | awk '{print $7}'`
           do
             if [ -n "$defiMemError" ]; then
               if [ "$defiMemError" -gt 13 ]; then
@@ -202,6 +203,29 @@ matrix:
           fi
           ;;
         esac
+
+  - os: linux
+    dist: trusty
+    language: c
+    git:
+      - depth: 1
+
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+    env: 
+      - DESC="trusty/gcc-4.8 build"
+
+    before_script:
+      - cd ${TRAVIS_BUILD_DIR}
+      - mkdir debug
+      - cd debug
+
+    script:
+      - cmake .. > /dev/null
+      - make > /dev/null
 
   - os: linux
     language: c

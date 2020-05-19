@@ -1,19 +1,18 @@
 system sh/stop_dnodes.sh
 
 $totalVnodes = 100
-$minVnodes = 48
-$maxVnodes = 52
+$minVnodes = 50
+$maxVnodes = 50
 $maxTables = 4
 $totalRows = $totalVnodes * $maxTables
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel            -v 0
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode   -v $maxTables
+system sh/cfg.sh -n dnode1 -c walLevel            -v 2
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v $totalVnodes
-system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 100000
-system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 100000
-system sh/cfg.sh -n dnode1 -c maxShellConns       -v 100000
-system sh/cfg.sh -n dnode1 -c maxMgmtConnections  -v 100000
+system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode2 -c walLevel            -v 2
+system sh/cfg.sh -n dnode2 -c numOfTotalVnodes    -v $totalVnodes
+
 
 print ==========  prepare data
 system sh/exec_up.sh -n dnode1 -s start
@@ -44,16 +43,7 @@ if $data00 != $totalRows then
   return -1
 endi  
 
-system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode2 -c walLevel            -v 0
-system sh/cfg.sh -n dnode2 -c maxtablesPerVnode   -v 100
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes    -v 256
-system sh/cfg.sh -n dnode2 -c maxVnodeConnections -v 100000
-system sh/cfg.sh -n dnode2 -c maxMeterConnections -v 100000
-system sh/cfg.sh -n dnode2 -c maxShellConns       -v 100000
-system sh/cfg.sh -n dnode2 -c maxMgmtConnections  -v 100000
-
-print ==========  step2
+print ==========  step3
 sql create dnode $hostname2
 system sh/exec_up.sh -n dnode2 -s start
 
@@ -85,6 +75,8 @@ sql select count(*) from mt
 if $data00 != $totalRows then
   return -1
 endi  
+
+return
 
 system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT

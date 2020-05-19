@@ -49,7 +49,7 @@ typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
   int16_t numOfColumns;
-  int16_t rowSize;
+  int32_t rowSize;
 } STableComInfo;
 
 typedef struct STableMeta {

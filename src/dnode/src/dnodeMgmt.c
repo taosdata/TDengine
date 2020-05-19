@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "ihash.h"
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "ttime.h"
@@ -412,7 +411,7 @@ static bool dnodeReadMnodeInfos() {
       dError("failed to read mnode mgmtIpList.json, nodeName not found");
       goto PARSE_OVER;
     }
-    strncpy(tsMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_FQDN_LEN);
+    strncpy(tsMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
  }
 
   ret = true;

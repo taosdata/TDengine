@@ -11,6 +11,7 @@ debs/
 rpms/
 mac/
 *.pyc
+.mypy_cache
 *.tmp
 *.swp
 src/connector/nodejs/node_modules/
@@ -33,5 +34,10 @@ Target/
 *.failed
 *.sql
 sim/
+psim/
+pysim/
+*.out
 *DS_Store
 
+# Doxygen Generated files
+html/

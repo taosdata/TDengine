@@ -26,9 +26,7 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute("drop database if exists db")
         print("==============step1")
-        tdSql.execute("create database db")
         tdSql.execute("create table db.st (ts timestamp, i int) tags(j int)")
         tdSql.execute("create table db.tb using st tags(1)")
         tdSql.execute("insert into db.tb values(now, 1)")
@@ -38,8 +36,18 @@ class TDTestCase:
             tdSql.execute("drop table db.st")
         except Exception as e:
             tdLog.exit(e)
-        tdSql.execute("select * from db.st")
-        tdSql.checkRows(1)
+
+        try:
+            tdSql.execute("select * from db.st")
+        except Exception as e:
+            if e.args[0] != 'invalid table name':
+                tdLog.exit(e)
+
+        try:
+            tdSql.execute("select * from db.tb")
+        except Exception as e:
+            if e.args[0] != 'invalid table name':
+                tdLog.exit(e)
 
     def stop(self):
         tdSql.close()
