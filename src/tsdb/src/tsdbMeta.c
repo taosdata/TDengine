@@ -154,6 +154,7 @@ STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) return NULL;
 
+  pMeta->maxTables = maxTables;
   pMeta->nTables = 0;
   pMeta->superList = NULL;
   pMeta->tables = (STable **)calloc(maxTables, sizeof(STable *));
