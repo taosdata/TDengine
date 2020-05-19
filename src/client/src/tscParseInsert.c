@@ -779,6 +779,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
     STagData *pTag = (STagData *)pCmd->payload;
     memset(pTag, 0, sizeof(STagData));
+    pCmd->payloadLen = sizeof(STagData);
     
     /*
      * the source super table is moved to the secondary position of the pTableMetaInfo list
