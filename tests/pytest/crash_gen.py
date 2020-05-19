@@ -45,6 +45,14 @@ logger = None
 def runThread(wt: WorkerThread):    
     wt.run()
 
+class CrashGenError(Exception):
+    def __init__(self, msg=None, errno=None):
+        self.msg = msg    
+        self.errno = errno
+    
+    def __str__(self):
+        return self.msg
+
 class WorkerThread:
     def __init__(self, pool: ThreadPool, tid, 
             tc: ThreadCoordinator,
@@ -493,6 +501,9 @@ class DbState():
     def transition(self, tasks):
         if ( len(tasks) == 0 ): # before 1st step, or otherwise empty
             return # do nothing
+
+        self.execSql("show dnodes") # this should show up in the server log, separating steps
+
         if ( self._state == self.STATE_EMPTY ):
             # self.assertNoSuccess(tasks, ReadFixedDataTask) # some read may be successful, since we might be creating a table
             if ( self.hasSuccess(tasks, CreateDbTask) ):
@@ -531,10 +542,14 @@ class DbState():
             if ( self.hasSuccess(tasks, DropFixedTableTask) ):
                 self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
                 self._state = self.STATE_DB_ONLY
-            elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table
+            elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table, but added data
                 self.assertNoTask(tasks, DropFixedTableTask)
                 self._state = self.STATE_HAS_DATA
-            else: # did not drop table, did not insert data, that is impossible
+            elif ( self.hasSuccess(tasks, ReadFixedDataTask) ): # no success in prev cases, but was able to read data
+                self.assertNoTask(tasks, DropFixedTableTask)
+                self.assertNoTask(tasks, AddFixedDataTask)
+                self._state = self.STATE_TABLE_ONLY # no change
+            else: # did not drop table, did not insert data, did not read successfully, that is impossible
                 raise RuntimeError("Unexpected no-success scenarios")
 
         elif ( self._state == self.STATE_HAS_DATA ): # Same as above, TODO: adjust
@@ -577,7 +592,7 @@ class DbState():
     def assertNoTask(self, tasks, cls):
         for task in tasks :
             if isinstance(task, cls):
-                raise RuntimeError("Unexpected task: {}".format(cls))
+                raise CrashGenError("This task: {}, is not expected to be present, given the success/failure of others".format(cls.__name__))
 
     def assertNoSuccess(self, tasks, cls):
         for task in tasks :
@@ -592,6 +607,8 @@ class DbState():
             if task.isSuccess():
                 return True
         return False
+
+
 
 class TaskExecutor():
     def __init__(self, curStep):
