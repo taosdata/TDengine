@@ -418,7 +418,7 @@ static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 
 static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
-  vPrint("vgId:%d, sync role changed from %s to %s", pVnode->vgId, syncRole[pVnode->role], syncRole[role]);
+  vPrint("vgId:%d, sync role changed from %d to %d", pVnode->vgId, pVnode->role, role);
   pVnode->role = role;
 
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
