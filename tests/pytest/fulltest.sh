@@ -22,6 +22,32 @@ python3 ./test.py $1 -f table/tablename-boundary.py
 # tag
 python3 ./test.py $1 -f tag_lite/filter.py
 python3 ./test.py $1 -f tag_lite/create-tags-boundary.py
+python3 ./test.py $1 -f tag_lite/3.py
+python3 ./test.py $1 -f tag_lite/4.py
+python3 ./test.py $1 -f tag_lite/5.py
+python3 ./test.py $1 -f tag_lite/6.py
+python3 ./test.py $1 -f tag_lite/add.py
+python3 ./test.py $1 -f tag_lite/bigint.py
+python3 ./test.py $1 -f tag_lite/binary_binary.py
+python3 ./test.py $1 -f tag_lite/binary.py
+python3 ./test.py $1 -f tag_lite/bool_binary.py
+python3 ./test.py $1 -f tag_lite/bool_int.py
+python3 ./test.py $1 -f tag_lite/bool.py
+python3 ./test.py $1 -f tag_lite/change.py
+python3 ./test.py $1 -f tag_lite/column.py
+python3 ./test.py $1 -f tag_lite/commit.py
+python3 ./test.py $1 -f tag_lite/create.py
+python3 ./test.py $1 -f tag_lite/datatype.py
+python3 ./test.py $1 -f tag_lite/datatype-without-alter.py
+python3 ./test.py $1 -f tag_lite/delete.py
+python3 ./test.py $1 -f tag_lite/double.py
+python3 ./test.py $1 -f tag_lite/float.py
+python3 ./test.py $1 -f tag_lite/int_binary.py
+python3 ./test.py $1 -f tag_lite/int_float.py
+python3 ./test.py $1 -f tag_lite/int.py
+python3 ./test.py $1 -f tag_lite/set.py
+python3 ./test.py $1 -f tag_lite/smallint.py
+python3 ./test.py $1 -f tag_lite/tinyint.py
 
 python3 ./test.py $1 -f dbmgmt/database-name-boundary.py
 

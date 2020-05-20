@@ -1,5 +1,7 @@
 from .cinterface import CTaosInterface
 from .error import *
+from .constants import FieldType
+
 
 class TDengineCursor(object):
     """Database cursor which is used to manage the context of a fetch operation.
@@ -19,7 +21,7 @@ class TDengineCursor(object):
             if the cursor has not had an operation invoked via the .execute*() method yet.
 
         .rowcount:This read-only attribute specifies the number of rows that the last
-            .execute*() produced (for DQL statements like SELECT) or affected 
+            .execute*() produced (for DQL statements like SELECT) or affected
     """
 
     def __init__(self, connection=None):
@@ -44,13 +46,14 @@ class TDengineCursor(object):
             raise OperationalError("Invalid use of fetch iterator")
 
         if self._block_rows <= self._block_iter:
-            block, self._block_rows = CTaosInterface.fetchBlock(self._result, self._fields)
+            block, self._block_rows = CTaosInterface.fetchBlock(
+                self._result, self._fields)
             if self._block_rows == 0:
                 raise StopIteration
             self._block = list(map(tuple, zip(*block)))
             self._block_iter = 0
 
-        data =  self._block[self._block_iter]
+        data = self._block[self._block_iter]
         self._block_iter += 1
 
         return data
@@ -85,7 +88,7 @@ class TDengineCursor(object):
         """
         if self._connection is None:
             return False
-        
+
         self._connection.clear_result_set()
         self._reset_result()
         self._connection = None
@@ -101,24 +104,28 @@ class TDengineCursor(object):
         if not self._connection:
             # TODO : change the exception raised here
             raise ProgrammingError("Cursor is not connected")
-        
+
         self._connection.clear_result_set()
         self._reset_result()
 
         stmt = operation
         if params is not None:
             pass
-        
+
         res = CTaosInterface.query(self._connection._conn, stmt)
         if res == 0:
             if CTaosInterface.fieldsCount(self._connection._conn) == 0:
-                self._affected_rows += CTaosInterface.affectedRows(self._connection._conn)
+                self._affected_rows += CTaosInterface.affectedRows(
+                    self._connection._conn)
                 return CTaosInterface.affectedRows(self._connection._conn)
             else:
-                self._result, self._fields = CTaosInterface.useResult(self._connection._conn)
+                self._result, self._fields = CTaosInterface.useResult(
+                    self._connection._conn)
                 return self._handle_result()
         else:
-            raise ProgrammingError(CTaosInterface.errStr(self._connection._conn))
+            raise ProgrammingError(
+                CTaosInterface.errStr(
+                    self._connection._conn))
 
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.
@@ -130,6 +137,37 @@ class TDengineCursor(object):
         """
         pass
 
+    def istype(self, col, dataType):
+        if (dataType.upper() == "BOOL"):
+            if (self._description[col][1] == FieldType.C_BOOL):
+                return True
+        if (dataType.upper() == "TINYINT"):
+            if (self._description[col][1] == FieldType.C_TINYINT):
+                return True
+        if (dataType.upper() == "INT"):
+            if (self._description[col][1] == FieldType.C_INT):
+                return True
+        if (dataType.upper() == "BIGINT"):
+            if (self._description[col][1] == FieldType.C_INT):
+                return True
+        if (dataType.upper() == "FLOAT"):
+            if (self._description[col][1] == FieldType.C_FLOAT):
+                return True
+        if (dataType.upper() == "DOUBLE"):
+            if (self._description[col][1] == FieldType.C_DOUBLE):
+                return True
+        if (dataType.upper() == "BINARY"):
+            if (self._description[col][1] == FieldType.C_BINARY):
+                return True
+        if (dataType.upper() == "TIMESTAMP"):
+            if (self._description[col][1] == FieldType.C_TIMESTAMP):
+                return True
+        if (dataType.upper() == "NCHAR"):
+            if (self._description[col][1] == FieldType.C_NCHAR):
+                return True
+
+        return False
+
     def fetchmany(self):
         pass
 
@@ -138,21 +176,21 @@ class TDengineCursor(object):
         """
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetchall")
-        
+
         buffer = [[] for i in range(len(self._fields))]
         self._rowcount = 0
         while True:
-            block, num_of_fields = CTaosInterface.fetchBlock(self._result, self._fields)
-            if num_of_fields == 0: break
+            block, num_of_fields = CTaosInterface.fetchBlock(
+                self._result, self._fields)
+            if num_of_fields == 0:
+                break
             self._rowcount += num_of_fields
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
 
         self._connection.clear_result_set()
-        
+
         return list(map(tuple, zip(*buffer)))
-
-
 
     def nextset(self):
         """
@@ -176,12 +214,13 @@ class TDengineCursor(object):
         self._block_rows = -1
         self._block_iter = 0
         self._affected_rows = 0
-    
+
     def _handle_result(self):
         """Handle the return result from query.
         """
         self._description = []
         for ele in self._fields:
-            self._description.append((ele['name'], ele['type'], None, None, None, None, False))
-        
+            self._description.append(
+                (ele['name'], ele['type'], None, None, None, None, False))
+
         return self._result
