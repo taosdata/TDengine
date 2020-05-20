@@ -812,7 +812,9 @@ static void syncProcessPeersStatusMsg(char *cont, SSyncPeer *pPeer)
          pPeer->id, syncRole[nodeRole], nodeVersion,
          syncRole[pPeersStatus->role], pPeersStatus->version, pPeersStatus->ack);
 
-  pPeer->version = pPeersStatus->version;
+  if (pPeersStatus->version > pPeer->version)
+    pPeer->version = pPeersStatus->version;
+
   syncCheckRole(pPeer, pPeersStatus->peersStatus, pPeersStatus->role);
 
   if (pPeersStatus->ack)
