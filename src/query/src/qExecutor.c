@@ -3986,7 +3986,7 @@ void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
       pTableQueryInfo->lastKey = (QUERY_IS_ASC_QUERY(pQuery)) ? blockInfo.window.ekey : blockInfo.window.skey;
       pTableQueryInfo->lastKey += step;
 
-      qTrace("QInfo:%p skip rows:%d, offset:%" PRId64 "", GET_QINFO_ADDR(pRuntimeEnv), blockInfo.rows,
+      qTrace("QInfo:%p skip rows:%d, offset:%" PRId64, GET_QINFO_ADDR(pRuntimeEnv), blockInfo.rows,
              pQuery->limit.offset);
     } else {  // find the appropriated start position in current block
       updateOffsetVal(pRuntimeEnv, &blockInfo);
@@ -5106,7 +5106,7 @@ bool validateExprColumnInfo(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pExprMsg, SC
 
 static bool validateQueryMsg(SQueryTableMsg *pQueryMsg) {
   if (pQueryMsg->intervalTime < 0) {
-    qError("qmsg:%p illegal value of interval time %" PRId64 "", pQueryMsg, pQueryMsg->intervalTime);
+    qError("qmsg:%p illegal value of interval time %" PRId64, pQueryMsg, pQueryMsg->intervalTime);
     return false;
   }
 

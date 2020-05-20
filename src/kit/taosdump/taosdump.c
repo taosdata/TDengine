@@ -941,7 +941,7 @@ int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
           pstr += sprintf(pstr, "%d", *((int *)row[col]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          pstr += sprintf(pstr, "%" PRId64 "", *((int64_t *)row[col]));
+          pstr += sprintf(pstr, "%" PRId64, *((int64_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
           pstr += sprintf(pstr, "%f", GET_FLOAT_VAL(row[col]));
@@ -960,7 +960,7 @@ int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
           pstr += sprintf(pstr, "\'%s\'", tbuf);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          pstr += sprintf(pstr, "%" PRId64 "", *(int64_t *)row[col]);
+          pstr += sprintf(pstr, "%" PRId64, *(int64_t *)row[col]);
           break;
         default:
           break;
