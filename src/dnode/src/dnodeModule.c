@@ -114,7 +114,7 @@ void dnodeStartModules() {
 }
 
 void dnodeProcessModuleStatus(uint32_t moduleStatus) {
-  for (int32_t module = 0; module < TSDB_MOD_MAX; ++module) {
+  for (int32_t module = TSDB_MOD_MGMT; module < TSDB_MOD_HTTP; ++module) {
     bool enableModule = moduleStatus & (1 << module);
     if (!tsModule[module].enable && enableModule) {
       dPrint("module status:%u is received, start %s module", tsModuleStatus, tsModule[module].name);
