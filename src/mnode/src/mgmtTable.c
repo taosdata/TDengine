@@ -1538,7 +1538,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
-  newMsg->maxRetry = 5;
+  newMsg->maxRetry = 10;
   SRpcMsg rpcMsg = {
       .handle  = newMsg,
       .pCont   = pMDCreate,
