@@ -41,11 +41,13 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   char *tmpDir = "/tmp/";
 #endif
 
+  int64_t ts = taosGetTimestampUs();
+
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
   strcat(tmpPath, fileNamePrefix);
-  strcat(tmpPath, "-%llu-%u");
-  snprintf(dstPath, MAX_TMPFILE_PATH_LENGTH, tmpPath, taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1));
+  strcat(tmpPath, "-%d-%llu-%u-%llu");
+  snprintf(dstPath, MAX_TMPFILE_PATH_LENGTH, tmpPath, getpid(), taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1), ts);
 }
 
 /*
