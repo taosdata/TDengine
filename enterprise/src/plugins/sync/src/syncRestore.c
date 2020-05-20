@@ -183,23 +183,28 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
   return pRecv->code;
 }
 
-static void syncCloseRecvBuffer(SRecvBuffer *pRecv)
+static void syncCloseRecvBuffer(SSyncNode *pNode)
 {
-  if (pRecv) {
-    tfree(pRecv->buffer);
+  if (pNode->pRecv) {
+    tfree(pNode->pRecv->buffer);
   }
+
+  tfree(pNode->pRecv);
 }
 
 static int syncOpenRecvBuffer(SSyncNode *pNode) 
 {
-  syncCloseRecvBuffer(pNode->pRecv);
+  syncCloseRecvBuffer(pNode);
 
   SRecvBuffer *pRecv = calloc(sizeof(SRecvBuffer), 1);
   if (pRecv == NULL) return -1;
 
   pRecv->bufferSize = 5000000;
   pRecv->buffer = malloc(pRecv->bufferSize);
-  if (pRecv->buffer == NULL) return -1;
+  if (pRecv->buffer == NULL) {
+    free(pRecv);
+    return -1;
+  }
 
   pRecv->offset = pRecv->buffer;
   pRecv->forwards = 0;
@@ -243,31 +248,29 @@ void *syncRestoreData(void *param)
   SSyncPeer  *pPeer = (SSyncPeer *)param;
   SSyncNode  *pNode = pPeer->pSyncNode;
 
-  if (syncOpenRecvBuffer(pNode) < 0) {
-    sError("%s, failed to allocate recv buffer", pPeer->id);
-    tclose(pPeer->syncFd)
-    return NULL;
-  } 
-
   taosBlockSIGPIPE();
   __sync_fetch_and_add(&tsSyncNum, 1);
 
-  if ( syncRestoreDataStepByStep(pPeer) == 0) {
-    sPrint("%s, it is synced successfully", pPeer->id);
-    nodeRole = TAOS_SYNC_ROLE_SLAVE;
-    syncBroadcastStatus(pNode);
-    (*pNode->notifyRole)(pNode->ahandle, nodeRole);
-  } else {
-    sError("%s, failed to restore data, restart connection", pPeer->id);
-    nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
-    syncRestartConnection(pPeer);
+  if (syncOpenRecvBuffer(pNode) < 0) {
+    sError("%s, failed to allocate recv buffer", pPeer->id);
+  } else { 
+    if ( syncRestoreDataStepByStep(pPeer) == 0) {
+      sPrint("%s, it is synced successfully", pPeer->id);
+      nodeRole = TAOS_SYNC_ROLE_SLAVE;
+      syncBroadcastStatus(pNode);
+      (*pNode->notifyRole)(pNode->ahandle, nodeRole);
+    } else {
+      sError("%s, failed to restore data, restart connection", pPeer->id);
+      nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
+      syncRestartConnection(pPeer);
+    }
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
   tclose(pPeer->syncFd)
-  syncCloseRecvBuffer(pNode->pRecv);
-
+  syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
+  syncDecPeerRef(pPeer);
 
   return NULL;
 }

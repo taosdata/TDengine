@@ -448,27 +448,25 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
 void *syncRetrieveData(void *param)
 {
   SSyncPeer   *pPeer = (SSyncPeer *)param;
-
-  assert(pPeer->syncFd < 0);
   taosBlockSIGPIPE();
 
   pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
     sError("%s, failed to open socket to sync", pPeer->id);
-    return NULL;    
   } else {
     sPrint("%s, sync tcp is setup", pPeer->id);
-  }
   
-  if (syncRetrieveDataStepByStep(pPeer) == 0) {
-    sTrace("%s, sync retrieve process is successful", pPeer->id);
-  } else {
-    sError("%s, failed to retrieve data, restart connection", pPeer->id);
-    syncRestartConnection(pPeer);
+    if (syncRetrieveDataStepByStep(pPeer) == 0) {
+      sTrace("%s, sync retrieve process is successful", pPeer->id);
+    } else {
+      sError("%s, failed to retrieve data, restart connection", pPeer->id);
+      syncRestartConnection(pPeer);
+    }
   }
 
   tclose(pPeer->notifyFd);
   tclose(pPeer->syncFd);
+  syncDecPeerRef(pPeer);
 
   return NULL;
 }

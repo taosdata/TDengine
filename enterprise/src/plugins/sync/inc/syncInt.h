@@ -160,6 +160,8 @@ void *syncRestoreData(void *param);
 int   syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
 void  syncRestartConnection(SSyncPeer *pPeer);
 void  syncBroadcastStatus(SSyncNode *pNode);
+void  syncAddPeerRef(SSyncPeer *pPeer);
+int   syncDecPeerRef(SSyncPeer *pPeer);
 
 
 #ifdef __cplusplus
