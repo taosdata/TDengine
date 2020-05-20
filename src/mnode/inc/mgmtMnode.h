@@ -44,7 +44,7 @@ void    mgmtDecMnodeRef(struct SMnodeObj *pMnode);
 char *  mgmtGetMnodeRoleStr();
 void    mgmtGetMnodeIpSet(SRpcIpSet *ipSet);
 void    mgmtGetMnodeInfos(void *mnodes);
-
+void    mgmtUpdateMnodeIpSet();
 
 #ifdef __cplusplus
 }

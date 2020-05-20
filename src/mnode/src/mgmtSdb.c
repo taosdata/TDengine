@@ -196,6 +196,8 @@ void sdbUpdateMnodeRoles() {
       mgmtDecMnodeRef(pMnode);
     }
   }
+
+  mgmtUpdateMnodeIpSet();
 }
 
 static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) {
