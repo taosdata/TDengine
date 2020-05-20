@@ -26,6 +26,7 @@ matrix:
           - python3-pip
           - python3-setuptools
           - valgrind
+          - psmisc
 
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
@@ -142,6 +143,7 @@ matrix:
           - python3-pip
           - python3-setuptools
           - lcov
+          - psmisc
 
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
