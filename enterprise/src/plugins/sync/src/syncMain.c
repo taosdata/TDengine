@@ -60,9 +60,7 @@ static void  syncProcessIncommingConnection(int connFd, uint32_t sourceIp);
 static void  syncRemovePeer(SSyncPeer *pPeer);
 static void  syncAddArbitrator(SSyncNode *pNode);
 static void  syncAddNodeRef(SSyncNode *pNode);
-static void  syncAddPeerRef(SSyncPeer *pPeer);
 static int   syncDecNodeRef(SSyncNode *pNode);
-static int   syncDecPeerRef(SSyncPeer *pPeer);
 static void  syncRemoveConfirmedFwdInfo(SSyncNode *pNode);
 static void  syncMonitorFwdInfos(void *param, void *tmrId);
 static void  syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code);
@@ -409,12 +407,12 @@ static int syncDecNodeRef(SSyncNode *pNode)
   return 1;
 }
 
-static void syncAddPeerRef(SSyncPeer *pPeer)
+void syncAddPeerRef(SSyncPeer *pPeer)
 {
    atomic_add_fetch_8(&pPeer->refCount, 1);
 }
 
-static int syncDecPeerRef(SSyncPeer *pPeer)
+int syncDecPeerRef(SSyncPeer *pPeer)
 {
   if (atomic_sub_fetch_8(&pPeer->refCount, 1) == 0) {
     syncDecNodeRef(pPeer->pSyncNode);
@@ -698,6 +696,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
   }
 
   // start a new thread to retrieve the data
+  syncAddPeerRef(pPeer);
   pthread_attr_t  thattr;
   pthread_t       thread;
   pthread_attr_init(&thattr);
@@ -707,6 +706,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
 
   if (ret != 0) {
     sError("%s, failed to create sync thread(%s)", pPeer->id, strerror(errno));
+    syncDecPeerRef(pPeer);
   } else {
     pPeer->sstatus = TAOS_SYNC_STATUS_START;
     sTrace("%s, thread is created to retrieve data", pPeer->id);
@@ -955,12 +955,14 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer)
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
 
+  syncAddPeerRef(pPeer);
   int ret = pthread_create(&(thread), &thattr, (void *)syncRestoreData, pPeer);
   pthread_attr_destroy(&thattr);
 
   if (ret < 0) {
     sError("%s, failed to create sync thread(%s)", pPeer->id);
     tclose(pPeer->syncFd);
+    syncDecPeerRef(pPeer);
   } else { 
     sPrint("%s, sync connection is up", pPeer->id);
   }
@@ -1038,15 +1040,16 @@ static void syncProcessBrokenLink(void *param) {
   SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  sTrace("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
+  pthread_mutex_lock(&(pNode->mutex));
 
+  sTrace("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
   taosFreeTcpThread(pPeer->pThread, &pPeer->peerFd);
 
   if (syncDecPeerRef(pPeer) != 0) {
-    pthread_mutex_lock(&(pNode->mutex));
     syncRestartConnection(pPeer);
-    pthread_mutex_unlock(&(pNode->mutex));
   }
+
+  pthread_mutex_unlock(&(pNode->mutex));
 }
 
 static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) 
