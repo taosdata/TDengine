@@ -46,7 +46,7 @@ static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
 #ifndef _SYNC
 tsync_h syncStart(const SSyncInfo *info) { return NULL; }
-int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle) { return 0; }
+int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype) { return 0; }
 void    syncStop(tsync_h shandle) {}
 int     syncReconfig(tsync_h shandle, const SSyncCfg * cfg) { return 0; }
 int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
