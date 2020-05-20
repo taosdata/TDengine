@@ -586,6 +586,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
     }
   }
   
+  taosArrayDestroy(res);
   return 0;
 }
 
