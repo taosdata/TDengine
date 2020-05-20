@@ -1040,15 +1040,16 @@ static void syncProcessBrokenLink(void *param) {
   SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  sTrace("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
+  pthread_mutex_lock(&(pNode->mutex));
 
+  sTrace("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
   taosFreeTcpThread(pPeer->pThread, &pPeer->peerFd);
 
   if (syncDecPeerRef(pPeer) != 0) {
-    pthread_mutex_lock(&(pNode->mutex));
     syncRestartConnection(pPeer);
-    pthread_mutex_unlock(&(pNode->mutex));
   }
+
+  pthread_mutex_unlock(&(pNode->mutex));
 }
 
 static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) 
