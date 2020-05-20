@@ -573,6 +573,7 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
     pthread_rwlock_unlock(pSkipList->lock);
   }
   
+  iter->step += 1;
   return (iter->order == TSDB_ORDER_ASC)? (iter->cur != pSkipList->pTail) : (iter->cur != pSkipList->pHead);
 }
 

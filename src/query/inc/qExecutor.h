@@ -18,20 +18,20 @@
 #include "os.h"
 
 #include "hash.h"
-#include "tsdb.h"
-#include "qinterpolation.h"
+#include "qfill.h"
 #include "qresultBuf.h"
 #include "qsqlparser.h"
 #include "qtsbuf.h"
 #include "taosdef.h"
-#include "tref.h"
-#include "tsqlfunction.h"
 #include "tarray.h"
+#include "tref.h"
+#include "tsdb.h"
+#include "tsqlfunction.h"
 
-typedef struct SData {
-  int32_t num;
-  char    data[];
-} SData;
+//typedef struct tFilePage {
+//  int64_t num;
+//  char    data[];
+//} tFilePage;
 
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
@@ -129,7 +129,7 @@ typedef struct SQuery {
   char              slidingTimeUnit;  // interval data type, used for daytime revise
   int8_t            precision;
   int16_t           numOfOutput;
-  int16_t           interpoType;
+  int16_t           fillType;
   int16_t           checkBuffer;  // check if the buffer is full during scan each block
   SLimitVal         limit;
   int32_t           rowSize;
@@ -139,11 +139,10 @@ typedef struct SQuery {
   SColumnInfo*      tagColList;
   int32_t           numOfFilterCols;
   int64_t*          defaultVal;
-//  TSKEY             lastKey;
   uint32_t          status;  // query status
   SResultRec        rec;
   int32_t           pos;
-  SData**           sdata;
+  tFilePage**       sdata;
   STableQueryInfo*  current;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
@@ -151,12 +150,11 @@ typedef struct SQuery {
 typedef struct SQueryRuntimeEnv {
   SResultInfo*       resultInfo;  // todo refactor to merge with SWindowResInfo
   SQuery*            pQuery;
-  SData**            pInterpoBuf;
   SQLFunctionCtx*    pCtx;
   int16_t            numOfRowsPerPage;
   int16_t            offset[TSDB_MAX_COLUMNS];
   uint16_t           scanFlag;  // denotes reversed scan of data or not
-  SInterpolationInfo interpoInfo;
+  SFillInfo*         pFillInfo;
   SWindowResInfo     windowResInfo;
   STSBuf*            pTSBuf;
   STSCursor          cur;

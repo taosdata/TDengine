@@ -68,7 +68,7 @@ typedef struct SExtFileInfo {
 } SExtFileInfo;
 
 typedef struct tFilePage {
-  uint64_t numOfElems;
+  uint64_t num;
   char     data[];
 } tFilePage;
 

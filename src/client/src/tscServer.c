@@ -652,7 +652,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pQueryMsg->order          = htons(pQueryInfo->order.order);
   pQueryMsg->orderColId     = htons(pQueryInfo->order.orderColId);
-  pQueryMsg->interpoType    = htons(pQueryInfo->interpoType);
+  pQueryMsg->fillType    = htons(pQueryInfo->fillType);
   pQueryMsg->limit          = htobe64(pQueryInfo->limit.limit);
   pQueryMsg->offset         = htobe64(pQueryInfo->limit.offset);
   pQueryMsg->numOfCols      = htons(taosArrayGetSize(pQueryInfo->colList));
@@ -780,7 +780,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
+  if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
       *((int64_t *)pMsg) = htobe64(pQueryInfo->defaultVal[i]);
       pMsg += sizeof(pQueryInfo->defaultVal[0]);

@@ -30,10 +30,10 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
+#include "qExecutor.h"
 #include "qsqlparser.h"
 #include "qsqltype.h"
 #include "qtsbuf.h"
-#include "queryExecutor.h"
 
 // forward declaration
 struct SSqlInfo;
@@ -210,7 +210,7 @@ typedef struct SQueryInfo {
   SLimitVal        slimit;
   STagCond         tagCond;
   SOrderVal        order;
-  int16_t          interpoType;  // interpolate type
+  int16_t          fillType;  // interpolate type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
@@ -263,7 +263,7 @@ typedef struct SResRec {
 typedef struct {
   int64_t               numOfRows;                  // num of results in current retrieved
   int64_t               numOfTotal;                 // num of total results
-  int64_t               numOfTotalInCurrentClause;  // num of total result in current subclause
+  int64_t               numOfClauseTotal;           // num of total result in current subclause
   char *                pRsp;
   int32_t               rspType;
   int32_t               rspLen;
