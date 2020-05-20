@@ -989,6 +989,7 @@ static void rpcSendQuickRsp(SRpcConn *pConn, int32_t code) {
   pHead->sourceId = pConn->ownId;
   pHead->destId = pConn->peerId;
   pHead->linkUid = pConn->linkUid;
+  pHead->ahandle = (uint64_t)pConn->ahandle;
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = htonl(code);
 
@@ -1011,6 +1012,7 @@ static void rpcSendReqHead(SRpcConn *pConn) {
   pHead->sourceId = pConn->ownId;
   pHead->destId = pConn->peerId;
   pHead->linkUid = pConn->linkUid;
+  pHead->ahandle = (uint64_t)pConn->ahandle;
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = 1;
 

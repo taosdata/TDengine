@@ -147,7 +147,7 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
   
   // local merge has handle this situation during super table non-projection query.
   if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
-    pRes->numOfTotalInCurrentClause += pRes->numOfRows;
+    pRes->numOfClauseTotal += pRes->numOfRows;
   }
 
   (*pSql->fetchFp)(param, tres, numOfRows);

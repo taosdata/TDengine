@@ -234,13 +234,15 @@ class TDDnode:
 
         if self.running != 0:
             psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
 
             while(processID):
                 killCmd = "kill -INT %s" % processID
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8")
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
@@ -253,13 +255,15 @@ class TDDnode:
 
         if self.running != 0:
             psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
 
             while(processID):
                 killCmd = "kill -KILL %s" % processID
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8")
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -KILL" % (self.index))
@@ -310,7 +314,8 @@ class TDDnodes:
             killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
 
         psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
@@ -318,7 +323,8 @@ class TDDnodes:
             killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
 
         binPath = os.path.dirname(os.path.realpath(__file__))
         binPath = binPath + "/../../../debug/"
@@ -416,7 +422,8 @@ class TDDnodes:
             killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
 
         psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
@@ -424,7 +431,8 @@ class TDDnodes:
             killCmd = "kill -KILL %s" % processID
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
 
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)

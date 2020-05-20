@@ -16,8 +16,8 @@
 #include "os.h"
 #include "qast.h"
 #include "qextbuffer.h"
+#include "qfill.h"
 #include "qhistogram.h"
-#include "qinterpolation.h"
 #include "qpercentile.h"
 #include "qsyntaxtreefunction.h"
 #include "qtsbuf.h"
@@ -3418,6 +3418,7 @@ static void spread_function(SQLFunctionCtx *pCtx) {
   
   int32_t numOfElems = pCtx->size;
   
+  // todo : opt with pre-calculated result
   // column missing cause the hasNull to be true
   if (usePreVal(pCtx)) {
     numOfElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
@@ -3446,13 +3447,13 @@ static void spread_function(SQLFunctionCtx *pCtx) {
       }
     }
   } else {
-    if (pInfo->min > pCtx->param[1].dKey) {
-      pInfo->min = pCtx->param[1].dKey;
-    }
-    
-    if (pInfo->max < pCtx->param[2].dKey) {
-      pInfo->max = pCtx->param[2].dKey;
-    }
+//    if (pInfo->min > pCtx->param[1].dKey) {
+//      pInfo->min = pCtx->param[1].dKey;
+//    }
+//
+//    if (pInfo->max < pCtx->param[2].dKey) {
+//      pInfo->max = pCtx->param[2].dKey;
+//    }
   }
   
   void *pData = GET_INPUT_CHAR(pCtx);
@@ -3866,16 +3867,16 @@ static void interp_function(SQLFunctionCtx *pCtx) {
     SInterpInfoDetail *pInfoDetail = interpInfo.pInterpDetail;
     
     /* set no output result */
-    if (pInfoDetail->type == TSDB_INTERPO_NONE) {
+    if (pInfoDetail->type == TSDB_FILL_NONE) {
       pCtx->param[3].i64Key = 0;
     } else if (pInfoDetail->primaryCol == 1) {
       *(TSKEY *)pCtx->aOutputBuf = pInfoDetail->ts;
     } else {
-      if (pInfoDetail->type == TSDB_INTERPO_NULL) {
+      if (pInfoDetail->type == TSDB_FILL_NULL) {
         setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      } else if (pInfoDetail->type == TSDB_INTERPO_SET_VALUE) {
+      } else if (pInfoDetail->type == TSDB_FILL_SET_VALUE) {
         tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType);
-      } else if (pInfoDetail->type == TSDB_INTERPO_PREV) {
+      } else if (pInfoDetail->type == TSDB_FILL_PREV) {
         char *data = pCtx->param[1].pz;
         char *pVal = data + TSDB_KEYSIZE;
         
@@ -3886,7 +3887,7 @@ static void interp_function(SQLFunctionCtx *pCtx) {
           assignVal(pCtx->aOutputBuf, pVal, pCtx->outputBytes, pCtx->outputType);
         }
         
-      } else if (pInfoDetail->type == TSDB_INTERPO_LINEAR) {
+      } else if (pInfoDetail->type == TSDB_FILL_LINEAR) {
         char *data1 = pCtx->param[1].pz;
         char *data2 = pCtx->param[2].pz;
         

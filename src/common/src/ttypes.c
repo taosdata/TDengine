@@ -402,7 +402,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
         *(uint64_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_DOUBLE_NULL;
       }
       break;
-    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_NCHAR: // todo : without length?
       for (int32_t i = 0; i < numOfElems; ++i) {
         *(uint32_t *)(val + i * bytes) = TSDB_DATA_NCHAR_NULL;
       }

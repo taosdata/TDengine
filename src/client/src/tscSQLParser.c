@@ -4020,19 +4020,19 @@ int32_t parseFillClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL) {
   }
 
   if (strncasecmp(pItem->pVar.pz, "none", 4) == 0 && pItem->pVar.nLen == 4) {
-    pQueryInfo->interpoType = TSDB_INTERPO_NONE;
+    pQueryInfo->fillType = TSDB_FILL_NONE;
   } else if (strncasecmp(pItem->pVar.pz, "null", 4) == 0 && pItem->pVar.nLen == 4) {
-    pQueryInfo->interpoType = TSDB_INTERPO_NULL;
+    pQueryInfo->fillType = TSDB_FILL_NULL;
     for (int32_t i = START_INTERPO_COL_IDX; i < size; ++i) {
       TAOS_FIELD* pFields = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
       setNull((char*)&pQueryInfo->defaultVal[i], pFields->type, pFields->bytes);
     }
   } else if (strncasecmp(pItem->pVar.pz, "prev", 4) == 0 && pItem->pVar.nLen == 4) {
-    pQueryInfo->interpoType = TSDB_INTERPO_PREV;
+    pQueryInfo->fillType = TSDB_FILL_PREV;
   } else if (strncasecmp(pItem->pVar.pz, "linear", 6) == 0 && pItem->pVar.nLen == 6) {
-    pQueryInfo->interpoType = TSDB_INTERPO_LINEAR;
+    pQueryInfo->fillType = TSDB_FILL_LINEAR;
   } else if (strncasecmp(pItem->pVar.pz, "value", 5) == 0 && pItem->pVar.nLen == 5) {
-    pQueryInfo->interpoType = TSDB_INTERPO_SET_VALUE;
+    pQueryInfo->fillType = TSDB_FILL_SET_VALUE;
 
     if (pFillToken->nExpr == 1) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
@@ -4823,7 +4823,7 @@ static int32_t setTimePrecision(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBIn
 static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->maxTables = htonl(pCreateDb->maxTablesPerVnode);
   pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
-  pMsg->numOfBlocks = htonl(pCreateDb->numOfBlocks);
+  pMsg->totalBlocks = htonl(pCreateDb->numOfBlocks);
   pMsg->daysPerFile = htonl(pCreateDb->daysPerFile);
   pMsg->commitTime = htonl(pCreateDb->commitTime);
   pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
@@ -5562,7 +5562,15 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       }
       
       ret = tVariantDump(&(pList->a[i].pVar), varDataVal(tagVal), pTagSchema[i].type);
-      varDataSetLen(tagVal, pList->a[i].pVar.nLen);
+      if (pList->a[i].pVar.nType == TSDB_DATA_TYPE_NULL) {
+        if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY) {
+          varDataSetLen(tagVal, sizeof(uint8_t));
+        } else {
+          varDataSetLen(tagVal, sizeof(uint32_t));
+        }
+      } else { // todo refactor
+        varDataSetLen(tagVal, pList->a[i].pVar.nLen);
+      }
     } else {
       ret = tVariantDump(&(pList->a[i].pVar), tagVal, pTagSchema[i].type);
     }

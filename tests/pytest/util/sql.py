@@ -157,8 +157,9 @@ class TDSql:
             callerModule = inspect.getmodule(frame[0])
             callerFilename = callerModule.__file__
 
-            tdLog.exit("%s failed: sql:%s, affectedRows:%d != expect:%d" % (
-                callerFilename, self.sql, self.affectedRows, expectAffectedRows))
+            tdLog.exit(
+                "%s failed: sql:%s, affectedRows:%d != expect:%d" %
+                (callerFilename, self.sql, self.affectedRows, expectAffectedRows))
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" %
                    (self.sql, self.affectedRows, expectAffectedRows))
 

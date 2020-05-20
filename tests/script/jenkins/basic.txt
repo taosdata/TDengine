@@ -43,23 +43,24 @@ cd ../../../debug; make
 ./test.sh -f general/compute/sum.sim
 ./test.sh -f general/compute/top.sim
 
+./test.sh -f general/db/alter_option.sim
 ./test.sh -f general/db/basic.sim
 ./test.sh -f general/db/basic1.sim
 ./test.sh -f general/db/basic2.sim
 ./test.sh -f general/db/basic3.sim
 ./test.sh -f general/db/basic4.sim
 ./test.sh -f general/db/basic5.sim
-./test.sh -f general/db/delete.sim
 ./test.sh -f general/db/delete_reuse1.sim
 ./test.sh -f general/db/delete_reuse2.sim
 ./test.sh -f general/db/delete_reusevnode.sim
 #hongze ./test.sh -f general/db/delete_reusevnode2.sim
 ./test.sh -f general/db/delete_writing1.sim
 ./test.sh -f general/db/delete_writing2.sim
+./test.sh -f general/db/delete.sim
 ./test.sh -f general/db/len.sim
-#liao ./test.sh -f general/db/vnodes.sim
 ./test.sh -f general/db/repeat.sim
 ./test.sh -f general/db/tables.sim
+#liao ./test.sh -f general/db/vnodes.sim
 
 ./test.sh -f general/field/2.sim
 ./test.sh -f general/field/3.sim
@@ -250,17 +251,17 @@ cd ../../../debug; make
 ./test.sh -u -f unique/cluster/balance3.sim
 ./test.sh -u -f unique/cluster/cache.sim
 
-#jeff ./test.sh -u -f unique/column/replica3.sim
+./test.sh -u -f unique/column/replica3.sim
 
 #liao wait ./test.sh -u -f unique/db/commit.sim
 ./test.sh -u -f unique/db/delete.sim
 ./test.sh -u -f unique/db/delete_part.sim
 ./test.sh -u -f unique/db/replica_add12.sim
-#hongze ./test.sh -u -f unique/db/replica_add13.sim
+./test.sh -u -f unique/db/replica_add13.sim
 #hongze wait ./test.sh -u -f unique/db/replica_add23.sim
-#hongze wait ./test.sh -u -f unique/db/replica_reduce21.sim
+./test.sh -u -f unique/db/replica_reduce21.sim
 ./test.sh -u -f unique/db/replica_reduce32.sim
-#hongze wait /test.sh -u -f unique/db/replica_reduce31.sim
+./test.sh -u -f unique/db/replica_reduce31.sim
 ./test.sh -u -f unique/db/replica_part.sim
 
 ./test.sh -u -f unique/dnode/balance1.sim
@@ -302,4 +303,4 @@ cd ../../../debug; make
 ./test.sh -u -f unique/vnode/replica2_repeat.sim
 ./test.sh -u -f unique/vnode/replica3_basic.sim
 ./test.sh -u -f unique/vnode/replica3_repeat.sim
-#jeff ./test.sh -u -f unique/vnode/replica3_vgroup.sim
+./test.sh -u -f unique/vnode/replica3_vgroup.sim
