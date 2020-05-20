@@ -80,7 +80,7 @@ if __name__ == "__main__":
             processID = subprocess.check_output(psCmd, shell=True)
 
         fuserCmd = "fuser -k -n tcp 6030"
-        subprocess.check_output(fuserCmd, shell=True)
+        os.system(fuserCmd)
 
         tdLog.info('stop All dnodes')
         sys.exit(0)
