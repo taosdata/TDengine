@@ -572,9 +572,21 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
   
   char* key = tdGetRowDataOfCol(pTable->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
-  bool ret = tSkipListRemove(pSTable->pIndex, key);
+  SArray* res = tSkipListGet(pSTable->pIndex, key);
   
-  assert(ret);
+  size_t size = taosArrayGetSize(res);
+  assert(size > 0);
+  
+  for(int32_t i = 0; i < size; ++i) {
+    SSkipListNode* pNode = taosArrayGetP(res, i);
+    
+    STableIndexElem* pElem = (STableIndexElem*) SL_GET_NODE_DATA(pNode);
+    if (pElem->pTable == pTable) {  // this is the exact what we need
+      tSkipListRemoveNode(pSTable->pIndex, pNode);
+    }
+  }
+  
+  taosArrayDestroy(res);
   return 0;
 }
 

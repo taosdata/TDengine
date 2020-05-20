@@ -140,19 +140,19 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 };
 
-#define TSDB_ALTER_TABLE_ADD_TAG_COLUMN 1
-#define TSDB_ALTER_TABLE_DROP_TAG_COLUMN 2
+#define TSDB_ALTER_TABLE_ADD_TAG_COLUMN    1
+#define TSDB_ALTER_TABLE_DROP_TAG_COLUMN   2
 #define TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL 4
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL    4
 
-#define TSDB_ALTER_TABLE_ADD_COLUMN 5
-#define TSDB_ALTER_TABLE_DROP_COLUMN 6
+#define TSDB_ALTER_TABLE_ADD_COLUMN        5
+#define TSDB_ALTER_TABLE_DROP_COLUMN       6
 
-#define TSDB_INTERPO_NONE 0
-#define TSDB_INTERPO_NULL 1
-#define TSDB_INTERPO_SET_VALUE 2
-#define TSDB_INTERPO_LINEAR 3
-#define TSDB_INTERPO_PREV 4
+#define TSDB_FILL_NONE      0
+#define TSDB_FILL_NULL      1
+#define TSDB_FILL_SET_VALUE 2
+#define TSDB_FILL_LINEAR    3
+#define TSDB_FILL_PREV      4
 
 #define TSDB_ALTER_USER_PASSWD 0x1
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
@@ -164,8 +164,8 @@ enum _mgmt_table {
 #define TSDB_VN_ALL_ACCCESS (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
 
 #define TSDB_COL_NORMAL 0x0u
-#define TSDB_COL_TAG 0x1u
-#define TSDB_COL_JOIN 0x2u
+#define TSDB_COL_TAG    0x1u
+#define TSDB_COL_JOIN   0x2u
 
 extern char *taosMsg[];
 
@@ -440,7 +440,7 @@ typedef struct {
   uint16_t    queryType;        // denote another query process
   int16_t     numOfOutput;  // final output columns numbers
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
-  int16_t     interpoType;      // interpolate type
+  int16_t     fillType;      // interpolate type
   uint64_t    defaultVal;       // default value array list
   int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;          // total length of ts comp block
@@ -485,20 +485,20 @@ typedef struct {
 typedef struct {
   char     acct[TSDB_USER_LEN + 1];
   char     db[TSDB_DB_NAME_LEN + 1];
-  int32_t  maxTables;
   int32_t  cacheBlockSize; //MB
-  int32_t  numOfBlocks;
+  int32_t  totalBlocks;
+  int32_t  maxTables;
   int32_t  daysPerFile;
+  int32_t  daysToKeep;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
-  int32_t  daysToKeep;
-  int32_t  commitTime;
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
+  int32_t  commitTime;
+  uint8_t  precision;   // time resolution
   int8_t   compression;
   int8_t   walLevel;
   int8_t   replications;
-  uint8_t  precision;   // time resolution
   int8_t   ignoreExist;
 } SCMCreateDbMsg, SCMAlterDbMsg;
 
@@ -563,9 +563,9 @@ typedef struct {
 typedef struct {
   uint32_t vgId;
   int32_t  cfgVersion;
+  int32_t  maxTables;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
-  int32_t  maxTables;
   int32_t  daysPerFile;
   int32_t  daysToKeep;
   int32_t  daysToKeep1;

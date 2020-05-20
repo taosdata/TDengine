@@ -54,7 +54,7 @@ uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* pa
   (*pTree)->numOfEntries = numOfEntries;
   (*pTree)->totalEntries = totalEntries;
   (*pTree)->param = param;
-  (*pTree)->comparaFn = compareFn;
+  (*pTree)->comparFn = compareFn;
 
   // set initial value for loser tree
   tLoserTreeInit(*pTree);
@@ -95,7 +95,7 @@ void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {
       return;
     }
 
-    int32_t ret = pTree->comparaFn(&pTree->pNode[parentId], &kLeaf, pTree->param);
+    int32_t ret = pTree->comparFn(&pTree->pNode[parentId], &kLeaf, pTree->param);
     if (ret < 0) {
       SLoserTreeNode t = pTree->pNode[parentId];
       pTree->pNode[parentId] = kLeaf;

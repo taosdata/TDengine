@@ -16,10 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
+#include "qExecutor.h"
 #include "taosmsg.h"
-#include "tsqlfunction.h"
-#include "queryExecutor.h"
 #include "tcompare.h"
+#include "tsqlfunction.h"
 
 bool less_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   return (*(int8_t *)minval < pFilter->filterInfo.upperBndi);

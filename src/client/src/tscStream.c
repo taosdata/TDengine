@@ -208,7 +208,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
     
     if (pStream->numOfRes == 0) {
-      if (pQueryInfo->interpoType == TSDB_INTERPO_SET_VALUE || pQueryInfo->interpoType == TSDB_INTERPO_NULL) {
+      if (pQueryInfo->fillType == TSDB_FILL_SET_VALUE || pQueryInfo->fillType == TSDB_FILL_NULL) {
         SSqlRes *pRes = &pSql->res;
 
         /* failed to retrieve any result in this retrieve */

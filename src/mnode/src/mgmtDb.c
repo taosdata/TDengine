@@ -187,11 +187,13 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
   if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) {
     mError("invalid db option cacheBlockSize:%d valid range: [%d, %d]", pCfg->cacheBlockSize, TSDB_MIN_CACHE_BLOCK_SIZE,
            TSDB_MAX_CACHE_BLOCK_SIZE);
+    return TSDB_CODE_INVALID_OPTION;
   }
 
   if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) {
     mError("invalid db option totalBlocks:%d valid range: [%d, %d]", pCfg->totalBlocks, TSDB_MIN_TOTAL_BLOCKS,
            TSDB_MAX_TOTAL_BLOCKS);
+    return TSDB_CODE_INVALID_OPTION;
   }
 
   if (pCfg->maxTables < TSDB_MIN_TABLES || pCfg->maxTables > TSDB_MAX_TABLES) {
@@ -206,18 +208,22 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
   }
 
   if (pCfg->daysToKeep < TSDB_MIN_KEEP || pCfg->daysToKeep > TSDB_MAX_KEEP) {
-    mError("invalid db option daysToKeep:%d", pCfg->daysToKeep);
+    mError("invalid db option daysToKeep:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
     return TSDB_CODE_INVALID_OPTION;
   }
 
   if (pCfg->daysToKeep < pCfg->daysPerFile) {
-    mError("invalid db option daysToKeep:%d daysPerFile:%d", pCfg->daysToKeep, pCfg->daysPerFile);
+    mError("invalid db option daysToKeep:%d should larger than daysPerFile:%d", pCfg->daysToKeep, pCfg->daysPerFile);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
-    mError("invalid db option minRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->minRowsPerFileBlock,
-           TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+  if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
+    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, pCfg->daysToKeep);
+    return TSDB_CODE_INVALID_OPTION;
+  }
+
+  if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > pCfg->daysToKeep2) {
+    mError("invalid db option daysToKeep1:%d valid range: [%d, %d]", pCfg->daysToKeep1, TSDB_MIN_KEEP, pCfg->daysToKeep2);
     return TSDB_CODE_INVALID_OPTION;
   }
 
@@ -227,9 +233,15 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_INVALID_OPTION;
   }
 
+  if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
+    mError("invalid db option minRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->minRowsPerFileBlock,
+           TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+    return TSDB_CODE_INVALID_OPTION;
+  }
+
   if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
-    mError("invalid db option minRowsPerFileBlock:%d maxRowsPerFileBlock:%d", pCfg->minRowsPerFileBlock,
-           pCfg->maxRowsPerFileBlock);
+    mError("invalid db option minRowsPerFileBlock:%d should smaller than maxRowsPerFileBlock:%d",
+           pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock);
     return TSDB_CODE_INVALID_OPTION;
   }
 
@@ -252,13 +264,18 @@ static int32_t mgmtCheckDbCfg(SDbCfg *pCfg) {
   }
 
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) {
-    mError("invalid db option walLevel:%d, only 0-2 allowed", pCfg->walLevel);
+    mError("invalid db option walLevel:%d, valid range: [%d, %d]", pCfg->walLevel, TSDB_MIN_WAL_LEVEL, TSDB_MAX_WAL_LEVEL);
     return TSDB_CODE_INVALID_OPTION;
   }
 
   if (pCfg->replications < TSDB_MIN_REPLICA_NUM || pCfg->replications > TSDB_MAX_REPLICA_NUM) {
     mError("invalid db option replications:%d valid range: [%d, %d]", pCfg->replications, TSDB_MIN_REPLICA_NUM,
            TSDB_MAX_REPLICA_NUM);
+    return TSDB_CODE_INVALID_OPTION;
+  }
+
+  if (pCfg->replications > 1 && pCfg->walLevel <= TSDB_MIN_WAL_LEVEL) {
+    mError("invalid db option walLevel:%d must > 0, while replica:%d > 1", pCfg->walLevel, pCfg->replications);
     return TSDB_CODE_INVALID_OPTION;
   }
 
@@ -314,13 +331,13 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   pDb->createdTime = taosGetTimestampMs(); 
   pDb->cfg = (SDbCfg) {
     .cacheBlockSize      = pCreate->cacheBlockSize,
-    .totalBlocks         = pCreate->numOfBlocks,
+    .totalBlocks         = pCreate->totalBlocks,
     .maxTables           = pCreate->maxTables,
     .daysPerFile         = pCreate->daysPerFile,
     .daysToKeep          = pCreate->daysToKeep,
     .daysToKeep1         = pCreate->daysToKeep1,
     .daysToKeep2         = pCreate->daysToKeep2,
-    .minRowsPerFileBlock = pCreate->maxRowsPerFileBlock,
+    .minRowsPerFileBlock = pCreate->minRowsPerFileBlock,
     .maxRowsPerFileBlock = pCreate->maxRowsPerFileBlock,
     .commitTime          = pCreate->commitTime,
     .precision           = pCreate->precision,
@@ -735,7 +752,7 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
   
   pCreate->maxTables       = htonl(pCreate->maxTables);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
-  pCreate->numOfBlocks     = htonl(pCreate->numOfBlocks);
+  pCreate->totalBlocks     = htonl(pCreate->totalBlocks);
   pCreate->daysPerFile     = htonl(pCreate->daysPerFile);
   pCreate->daysToKeep      = htonl(pCreate->daysToKeep);
   pCreate->daysToKeep1     = htonl(pCreate->daysToKeep1);
@@ -763,35 +780,45 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
 
 static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   SDbCfg  newCfg = pDb->cfg;
-  int32_t cacheBlockSize = htonl(pAlter->daysToKeep);
-  int32_t totalBlocks = htonl(pAlter->numOfBlocks);
-  int32_t maxTables   = htonl(pAlter->maxTables);
-  int32_t daysToKeep  = htonl(pAlter->daysToKeep);
-  int32_t daysToKeep1 = htonl(pAlter->daysToKeep1);
-  int32_t daysToKeep2 = htonl(pAlter->daysToKeep2);
-  int8_t  compression = pAlter->compression;
-  int8_t  replications = pAlter->replications;
-  int8_t  walLevel   = pAlter->walLevel;
+  int32_t maxTables      = htonl(pAlter->maxTables);
+  int32_t cacheBlockSize = htonl(pAlter->cacheBlockSize);
+  int32_t totalBlocks    = htonl(pAlter->totalBlocks);
+  int32_t daysPerFile    = htonl(pAlter->daysPerFile);
+  int32_t daysToKeep     = htonl(pAlter->daysToKeep);
+  int32_t daysToKeep1    = htonl(pAlter->daysToKeep1);
+  int32_t daysToKeep2    = htonl(pAlter->daysToKeep2);
+  int32_t minRows        = htonl(pAlter->minRowsPerFileBlock);
+  int32_t maxRows        = htonl(pAlter->maxRowsPerFileBlock);
+  int32_t commitTime     = htonl(pAlter->commitTime);
+  int8_t  compression    = pAlter->compression;
+  int8_t  walLevel       = pAlter->walLevel;
+  int8_t  replications   = pAlter->replications;
+  int8_t  precision      = pAlter->precision;
   
   terrno = TSDB_CODE_SUCCESS;
 
   if (cacheBlockSize > 0 && cacheBlockSize != pDb->cfg.cacheBlockSize) {
-    mTrace("db:%s, cache:%d change to %d", pDb->name, pDb->cfg.cacheBlockSize, cacheBlockSize);
-    newCfg.cacheBlockSize = cacheBlockSize;
+    mError("db:%s, can't alter cache option", pDb->name);
+    terrno = TSDB_CODE_INVALID_OPTION;
   }
 
   if (totalBlocks > 0 && totalBlocks != pDb->cfg.totalBlocks) {
-    mTrace("db:%s, blocks:%d change to %d", pDb->name, pDb->cfg.totalBlocks, totalBlocks);
+    mPrint("db:%s, blocks:%d change to %d", pDb->name, pDb->cfg.totalBlocks, totalBlocks);
     newCfg.totalBlocks = totalBlocks;
   }
 
-  if (maxTables > 0 && maxTables != pDb->cfg.maxTables) {
-    mTrace("db:%s, tables:%d change to %d", pDb->name, pDb->cfg.maxTables, maxTables);
+  if (maxTables > 0) {
+    mPrint("db:%s, maxTables:%d change to %d", pDb->name, pDb->cfg.maxTables, maxTables);
     newCfg.maxTables = maxTables;
     if (newCfg.maxTables < pDb->cfg.maxTables) {
-      mTrace("db:%s, tables:%d should larger than origin:%d", pDb->name, newCfg.maxTables, pDb->cfg.maxTables);
+      mError("db:%s, tables:%d should larger than origin:%d", pDb->name, newCfg.maxTables, pDb->cfg.maxTables);
       terrno = TSDB_CODE_INVALID_OPTION;
     }
+  }
+
+  if (daysPerFile > 0 && daysPerFile != pDb->cfg.daysPerFile) {
+    mError("db:%s, can't alter days option", pDb->name);
+    terrno = TSDB_CODE_INVALID_OPTION;
   }
 
   if (daysToKeep > 0 && daysToKeep != pDb->cfg.daysToKeep) {
@@ -809,14 +836,44 @@ static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     newCfg.daysToKeep2 = daysToKeep2;
   }
 
+  if (minRows > 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
+    mError("db:%s, can't alter minRows option", pDb->name);
+    terrno = TSDB_CODE_INVALID_OPTION;
+  }
+
+  if (maxRows > 0 && maxRows != pDb->cfg.maxRowsPerFileBlock) {
+    mError("db:%s, can't alter maxRows option", pDb->name);
+    terrno = TSDB_CODE_INVALID_OPTION;
+  }
+
+  if (commitTime > 0 && commitTime != pDb->cfg.commitTime) {
+    mError("db:%s, can't alter commitTime option", pDb->name);
+    terrno = TSDB_CODE_INVALID_OPTION;
+  }
+
+  if (precision > 0 && precision != pDb->cfg.precision) {
+    mError("db:%s, can't alter precision option", pDb->name);
+    terrno = TSDB_CODE_INVALID_OPTION;
+  }
+
   if (compression >= 0 && compression != pDb->cfg.compression) {
     mTrace("db:%s, compression:%d change to %d", pDb->name, pDb->cfg.compression, compression);
     newCfg.compression = compression;
   }
 
+  if (walLevel > 0 && walLevel != pDb->cfg.walLevel) {
+    mError("db:%s, can't alter walLevel option", pDb->name);
+    terrno = TSDB_CODE_INVALID_OPTION;
+  }
+
   if (replications > 0 && replications != pDb->cfg.replications) {
     mTrace("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
     newCfg.replications = replications;
+
+    if (replications > 1 && pDb->cfg.walLevel <= TSDB_MIN_WAL_LEVEL) {
+      mError("db:%s, walLevel:%d must > 0, while replica:%d > 1", pDb->name, pDb->cfg.walLevel, replications);
+      terrno = TSDB_CODE_INVALID_OPTION;
+    }
 
     if (replications > mgmtGetDnodesNum()) {
       mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
@@ -827,11 +884,6 @@ static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
       mError("db:%s, replica number can't change from 3 to 1", pDb->name, replications);
       terrno = TSDB_CODE_INVALID_OPTION;
     }
-  }
-
-  if (walLevel >= 0 && (walLevel < TSDB_MIN_WAL_LEVEL || walLevel > TSDB_MAX_WAL_LEVEL)) {
-    mError("db:%s, wal level %d should be between 0-2, origin:%d", pDb->name, walLevel, pDb->cfg.walLevel);
-    terrno = TSDB_CODE_INVALID_OPTION;
   }
 
   return newCfg;

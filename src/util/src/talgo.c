@@ -23,8 +23,6 @@
   memcpy((__right), (__buf), (__size));\
 } while (0);
 
-#define elePtrAt(base, size, idx) (void *)((char *)(base) + (size) * (idx))
-
 static void median(void *src, size_t size, size_t s, size_t e, const void *param, __ext_compar_fn_t comparFn, void* buf) {
   int32_t mid = ((e - s) >> 1u) + s;
   

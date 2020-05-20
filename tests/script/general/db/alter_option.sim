@@ -1,0 +1,69 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 1000
+
+system sh/exec.sh -n dnode1 -s start
+
+sleep 3000
+sql connect
+print ============================ dnode1 start
+
+sql create database db maxTables 500 cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
+sql show databases
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09 
+if $data00 != db then 
+  return -1
+endi
+if $data02 != 0 then 
+  return -1
+endi
+if $data03 != 0 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+if $data05 != 10 then 
+  return -1
+endi
+if $data06 != 20,20,20 then 
+  return -1
+endi
+if $data07 != 500 then 
+  return -1
+endi
+if $data08 != 2 then 
+  return -1
+endi
+if $data09 != 4 then 
+  return -1
+endi
+
+print =============== step2
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+return
+sql_error alter database db cache 256
+sql_error alter database db blocks 1
+sql_error alter database db maxTables 10
+sql_error alter database db days 10
+sql_error alter database db keep 10
+sql_error alter database db minRows 350
+sql_error alter database db minRows 550
+sql_error alter database db ctime 5000
+sql_error alter database db precision "us"
+sql_error alter database db comp 3
+sql_error alter database db wal 1
+sql_error alter database db replica 2
+
+
+print ============== step3
+sql alter database db maxTables 1000
+sql alter database db comp 1
+sql alter database db blocks 40
+sql alter database db keep 30
+
+
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
