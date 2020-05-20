@@ -729,6 +729,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
+#if 0
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
@@ -768,6 +769,11 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   }
 
   return nRows;
+#endif
+
+  (*rows) = taos_fetch_row(res);
+  return ((*rows) != NULL)? 1:0;
+
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
