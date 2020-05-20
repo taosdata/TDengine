@@ -1466,8 +1466,8 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, STable* pTable, TSKEY
       }
     }
 
-    numOfRows++;
-    if (numOfRows >= maxRowsToRead) {
+    if (++numOfRows >= maxRowsToRead) {
+      tSkipListIterNext(pIter);
       break;
     }
     
