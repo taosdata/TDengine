@@ -258,28 +258,45 @@ void httpCloseContextByServerForExpired(void *param, void *tmrId) {
   httpCloseContextByServer(pContext->pThread, pContext);
 }
 
-void httpCleanUpConnect(HttpServer *pServer) {
-  int         i;
-  HttpThread *pThread;
 
+static void httpStopThread(HttpThread* pThread) {
+  pThread->stop = true;
+
+  // signal the thread to stop, try graceful method first,
+  // and use pthread_cancel when failed
+  struct epoll_event event = { .events = EPOLLIN };
+  eventfd_t fd = eventfd(1, 0);
+  if (fd == -1) {
+    pthread_cancel(pThread->thread);
+  } else if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
+    pthread_cancel(pThread->thread);
+  }
+
+  pthread_join(pThread->thread, NULL);
+  if (fd != -1) {
+    close(fd);
+  }
+
+  close(pThread->pollFd);
+  pthread_mutex_destroy(&(pThread->threadMutex));
+
+  //while (pThread->pHead) {
+  //  httpCleanUpContext(pThread->pHead, 0);
+  //}
+}
+
+
+void httpCleanUpConnect(HttpServer *pServer) {
   if (pServer == NULL) return;
 
-  pthread_cancel(pServer->thread);
+  shutdown(pServer->fd, SHUT_RD);
   pthread_join(pServer->thread, NULL);
 
-  for (i = 0; i < pServer->numOfThreads; ++i) {
-    pThread = pServer->pThreads + i;
-    if (pThread == NULL) continue;
-    //taosCloseSocket(pThread->pollFd);
-
-    //while (pThread->pHead) {
-    //  httpCleanUpContext(pThread->pHead, 0);
-    //}
-
-    pthread_cancel(pThread->thread);
-    pthread_join(pThread->thread, NULL);
-    pthread_cond_destroy(&(pThread->fdReady));
-    pthread_mutex_destroy(&(pThread->threadMutex));
+  for (int i = 0; i < pServer->numOfThreads; ++i) {
+    HttpThread* pThread = pServer->pThreads + i;
+    if (pThread != NULL) {
+      httpStopThread(pThread);
+    }
   }
 
   tfree(pServer->pThreads);
@@ -412,15 +429,13 @@ void httpProcessHttpData(void *param) {
   pthread_sigmask(SIG_SETMASK, &set, NULL);
 
   while (1) {
-    pthread_mutex_lock(&pThread->threadMutex);
-    if (pThread->numOfFds < 1) {
-      pthread_cond_wait(&pThread->fdReady, &pThread->threadMutex);
-    }
-    pthread_mutex_unlock(&pThread->threadMutex);
-
     struct epoll_event events[HTTP_MAX_EVENTS];
     //-1 means uncertainty, 0-nowait, 1-wait 1 ms, set it from -1 to 1
     fdNum = epoll_wait(pThread->pollFd, events, HTTP_MAX_EVENTS, 1);
+    if (pThread->stop) {
+      httpTrace("%p, http thread get stop event, exiting...", pThread);
+      break;
+    }
     if (fdNum <= 0) continue;
 
     for (int i = 0; i < fdNum; ++i) {
@@ -485,10 +500,9 @@ void httpProcessHttpData(void *param) {
   }
 }
 
-void httpAcceptHttpConnection(void *arg) {
+void* httpAcceptHttpConnection(void *arg) {
   int                connFd = -1;
   struct sockaddr_in clientAddr;
-  int                sockFd;
   int                threadId = 0;
   HttpThread *       pThread;
   HttpServer *       pServer;
@@ -502,12 +516,12 @@ void httpAcceptHttpConnection(void *arg) {
   sigaddset(&set, SIGPIPE);
   pthread_sigmask(SIG_SETMASK, &set, NULL);
 
-  sockFd = taosOpenTcpServerSocket(pServer->serverIp, pServer->serverPort);
+  pServer->fd = taosOpenTcpServerSocket(pServer->serverIp, pServer->serverPort);
 
-  if (sockFd < 0) {
+  if (pServer->fd < 0) {
     httpError("http server:%s, failed to open http socket, ip:%s:%u error:%s", pServer->label, taosIpStr(pServer->serverIp),
               pServer->serverPort, strerror(errno));
-    return;
+    return NULL;
   } else {
     httpPrint("http service init success at %u", pServer->serverPort);
     pServer->online = true;
@@ -515,9 +529,12 @@ void httpAcceptHttpConnection(void *arg) {
 
   while (1) {
     socklen_t addrlen = sizeof(clientAddr);
-    connFd = (int)accept(sockFd, (struct sockaddr *)&clientAddr, &addrlen);
-
-    if (connFd < 3) {
+    connFd = (int)accept(pServer->fd, (struct sockaddr *)&clientAddr, &addrlen);
+    if (connFd == -1) {
+      if (errno == EINVAL) {
+        httpTrace("%s HTTP server socket was shutdown, exiting...", pServer->label);
+        break;
+      }
       httpError("http server:%s, accept connect failure, errno:%d, reason:%s", pServer->label, errno, strerror(errno));
       continue;
     }
@@ -579,7 +596,6 @@ void httpAcceptHttpConnection(void *arg) {
     pThread->pHead = pContext;
 
     pThread->numOfFds++;
-    pthread_cond_signal(&pThread->fdReady);
 
     pthread_mutex_unlock(&(pThread->threadMutex));
 
@@ -587,6 +603,9 @@ void httpAcceptHttpConnection(void *arg) {
     threadId++;
     threadId = threadId % pServer->numOfThreads;
   }
+
+  close(pServer->fd);
+  return NULL;
 }
 
 bool httpInitConnect(HttpServer *pServer) {
@@ -609,11 +628,6 @@ bool httpInitConnect(HttpServer *pServer) {
 
     if (pthread_mutex_init(&(pThread->threadMutex), NULL) < 0) {
       httpError("http thread:%s, failed to init HTTP process data mutex, reason:%s", pThread->label, strerror(errno));
-      return false;
-    }
-
-    if (pthread_cond_init(&(pThread->fdReady), NULL) != 0) {
-      httpError("http thread:%s, init HTTP condition variable failed, reason:%s", pThread->label, strerror(errno));
       return false;
     }
 

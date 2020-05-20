@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
+#include "tutil.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tsdb.h"
@@ -67,11 +68,16 @@ int32_t dnodeInitWrite() {
 }
 
 void dnodeCleanupWrite() {
+  for (int32_t i = 0; i < wWorkerPool.max; ++i) {
+    SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
+    if (pWorker->thread) {
+      taosQsetThreadResume(pWorker->qset);
+    }
+  }
   
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
-      pthread_cancel(pWorker->thread);
       pthread_join(pWorker->thread, NULL);
       taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
@@ -186,9 +192,9 @@ static void *dnodeProcessWriteQueue(void *param) {
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
-    if (numOfMsgs <=0) { 
-      dnodeHandleIdleWorker(pWorker);  // thread exit if no queues anymore
-      continue;
+    if (numOfMsgs ==0) { 
+      dTrace("dnodeProcessWriteQueee: got no message from qset, exiting...");
+      break;
     }
 
     for (int32_t i = 0; i < numOfMsgs; ++i) {
@@ -228,6 +234,7 @@ static void *dnodeProcessWriteQueue(void *param) {
   return NULL;
 }
 
+UNUSED_FUNC
 static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   int32_t num = taosGetQueueNumber(pWorker->qset);
 

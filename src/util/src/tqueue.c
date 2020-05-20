@@ -230,6 +230,14 @@ void taosCloseQset(taos_qset param) {
   free(qset);
 }
 
+// tsem_post 'qset->sem', so that reader threads waiting for it
+// resumes execution and return, should only be used to signal the
+// thread to exit.
+void taosQsetThreadResume(taos_qset param) {
+  STaosQset *qset = (STaosQset *)param;
+  tsem_post(&qset->sem);
+}
+
 int taosAddIntoQset(taos_qset p1, taos_queue p2, void *ahandle) {
   STaosQueue *queue = (STaosQueue *)p2;
   STaosQset  *qset = (STaosQset *)p1;

@@ -135,14 +135,15 @@ void taosCleanUpUdpConnection(void *handle) {
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     pConn->signature = NULL;
-    free(pConn->buffer);
-    pthread_cancel(pConn->thread);
-    taosCloseSocket(pConn->fd);
+    // shutdown to signal the thread to exit
+    shutdown(pConn->fd, SHUT_RD);
   }
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     pthread_join(pConn->thread, NULL);
+    free(pConn->buffer);
+    taosCloseSocket(pConn->fd);
     tTrace("chandle:%p is closed", pConn);
   }
 
@@ -177,6 +178,11 @@ static void *taosRecvUdpData(void *param) {
 
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
+    if(dataLen == 0) {
+      tTrace("data length is 0, socket was closed, exiting");
+      break;
+    }
+
     port = ntohs(sourceAdd.sin_port);
 
     if (dataLen < sizeof(SRpcHead)) {
