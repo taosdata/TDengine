@@ -44,7 +44,7 @@ typedef struct {
   char     pversion;    // protocol version
   char     reserved[6]; // not used
   int32_t  vgId;        // vg ID
-  int32_t  len;         // content length
+  int32_t  len;         // content length, does not include head
   char     cont[];      // message content starts from here
 } SSyncHead;
 
@@ -70,6 +70,7 @@ typedef struct {
   char      name[TSDB_FILENAME_LEN];
   uint32_t  magic;
   uint32_t  index;
+  uint64_t  fversion;
   int32_t   size;
 } SFileInfo;
 
@@ -114,7 +115,7 @@ typedef struct SsyncPeer {
   uint32_t    ip;
   uint16_t    port;
   char        fqdn[TSDB_FQDN_LEN];  // peer ip string
-  char        id[TSDB_FQDN_LEN+16]; // peer vgId + end point
+  char        id[TSDB_EP_LEN+16];   // peer vgId + end point
   int8_t      role;
   int8_t      sstatus;    // sync status
   uint64_t    version;

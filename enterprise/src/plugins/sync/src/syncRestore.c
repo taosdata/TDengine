@@ -23,7 +23,7 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static int syncRestoreFile(SSyncPeer *pPeer) 
+static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
   SFileInfo  minfo;   // master file info
@@ -32,14 +32,30 @@ static int syncRestoreFile(SSyncPeer *pPeer)
   int        code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
 
+  *fversion = 0;
+  sinfo.index = 0;
   while (1) {
     // read file info
     int ret = taosReadMsg(pPeer->syncFd, &(minfo), sizeof(minfo));
     if (ret < 0 ) break;
 
-    // if no more file, break;
+    // if no more file from master, break;
     if (minfo.name[0] == 0 || minfo.magic == 0) {
       sTrace("%s, no more files to restore", pPeer->id);
+     
+      // remove extra files on slave
+      sinfo.index = minfo.index;
+      while (1) {
+        sinfo.name[0] = 0;
+        sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size, &sinfo.fversion);
+        if (sinfo.magic == 0) break;
+
+        sprintf(name, "%s/%s", pNode->path, sinfo.name);
+        remove(name);
+        sTrace("%s, %s is removed", pPeer->id, name);
+        sinfo.index++;
+      }        
+
       code = 0; 
       break;
     }
@@ -52,7 +68,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
 
     // check the file info
     strcpy(sinfo.name, minfo.name);
-    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size);
+    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size, &sinfo.fversion);
 
     // if file not there or magic is not the same, file shall be synced
     if (sinfo.magic != minfo.magic || sinfo.name[0] == 0) fileAck.sync =1;
@@ -82,6 +98,12 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     if (ret<0) break;
 
     sTrace("%s, %s is received, size:%d", pPeer->id, minfo.name, minfo.size);
+  }
+
+  if (code == 0 && (minfo.fversion != sinfo.fversion)) {
+   // data file is changed, code shall be set to 1 
+    *fversion = minfo.fversion;
+    code = 1;  
   }
 
   if (code < 0) {
@@ -218,14 +240,18 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
+  uint64_t fversion = 0;
 
   sTrace("%s, start to restore file", pPeer->id);
-  if (syncRestoreFile(pPeer) < 0) {
+  int code = syncRestoreFile(pPeer, &fversion);
+  if (code < 0) {
     sError("%s, failed to restore file", pPeer->id);
     return -1;
   }
 
-  if (pNode->notifyFileSynced) (*pNode->notifyFileSynced)(pNode->ahandle);
+  // if code > 0, data file is changed, notify app, and pass the version 
+  if (code > 0 && pNode->notifyFileSynced) 
+    (*pNode->notifyFileSynced)(pNode->ahandle, fversion);
 
   sTrace("%s, start to restore wal", pPeer->id);
   if (syncRestoreWal(pPeer) < 0) {

@@ -68,15 +68,16 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
 static void acctDoStatistic(void *handle, void *tmrId) {  
   if (tsAcctSdb != NULL) {
     SAcctObj *pAcct = NULL;
-    void *    pNode = NULL;
+    void *    pIter = NULL;
     int64_t   totalStorage = 0;
 
     while (1) {
-      pNode = mgmtGetNextAcct(pNode, &pAcct);
+      pIter = mgmtGetNextAcct(pIter, &pAcct);
       if (pAcct == NULL) break;
       totalStorage += acctGetStatistic(pAcct);
       mgmtDecAcctRef(pAcct);
     }
+    sdbFreeIter(pIter);
 
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
   }
@@ -360,7 +361,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
   char      tmp[24];
 
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextAcct(pShow->pNode, &pAcct);
+    pShow->pIter = mgmtGetNextAcct(pShow->pIter, &pAcct);
     if (pAcct == NULL) break;
 
     cols = 0;
@@ -560,14 +561,14 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
 static int64_t acctGetStatistic(SAcctObj *pAcct) {
   if (pAcct == NULL) return 0;
   
-  void   *pNode = NULL;
+  void   *pIter = NULL;
   SVgObj *pVgroup;
   int64_t totalStorage = 0;
   int64_t pointsWritten = 0;
   TSKEY   sKey = taosGetTimestampMs();
 
   while (1) {
-    pNode = mgmtGetNextVgroup(pNode, &pVgroup);
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb != NULL && pVgroup->pDb->pAcct == pAcct) {
       totalStorage += pVgroup->totalStorage;
@@ -575,6 +576,8 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
     }
     mgmtDecVgroupRef(pVgroup);
   }
+
+  sdbFreeIter(pIter);
 
   pAcct->acctInfo.totalStorage = totalStorage;
   pAcct->acctInfo.numOfPointsPerSecond =
