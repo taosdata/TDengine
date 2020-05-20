@@ -256,7 +256,7 @@ int syncReconfig(void *param, const SSyncCfg *pNewCfg)
   return 0;
 }
 
-int syncForwardToPeer(void *param, void *data, void *mhandle)
+int syncForwardToPeer(void *param, void *data, void *mhandle, int qtype)
 {
   SSyncNode  *pNode = param;
   SSyncPeer  *pPeer;
@@ -265,11 +265,14 @@ int syncForwardToPeer(void *param, void *data, void *mhandle)
   int         fwdLen;
   int         code = 0;
 
-  if (pNode == NULL || nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
+  if (pNode == NULL) return 0;
 
   // always update version
   nodeVersion = pWalHead->version;
-  if (pNode->replica == 1) return 0;
+  if (pNode->replica == 1 || nodeRole != TAOS_SYNC_ROLE_MASTER ) return 0;
+
+  // only pkt from RPC or CQ can be forwarded
+  if (qtype != TAOS_QTYPE_RPC && qtype != TAOS_QTYPE_CQ) return 0;
 
   // a hacker way to improve the performance
   pSyncHead = (SSyncHead *) ( ((char *)pWalHead) - sizeof(SSyncHead));
@@ -790,7 +793,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer)
   sTrace("%s, forward is received, ver:%d ", pPeer->id, pHead->version);
 
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
-    nodeVersion = pHead->version;
+    //nodeVersion = pHead->version;
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
   } else { 
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
