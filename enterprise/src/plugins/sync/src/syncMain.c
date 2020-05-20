@@ -404,12 +404,12 @@ static int syncDecNodeRef(SSyncNode *pNode)
   return 1;
 }
 
-static void syncAddPeerRef(SSyncPeer *pPeer)
+void syncAddPeerRef(SSyncPeer *pPeer)
 {
    atomic_add_fetch_8(&pPeer->refCount, 1);
 }
 
-static int syncDecPeerRef(SSyncPeer *pPeer)
+int syncDecPeerRef(SSyncPeer *pPeer)
 {
   if (atomic_sub_fetch_8(&pPeer->refCount, 1) == 0) {
     syncDecNodeRef(pPeer->pSyncNode);
