@@ -416,12 +416,12 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
 #else
   char *tmpDir = "/tmp/";
 #endif
-  
+  int64_t ts = taosGetTimestampUs();
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
   strcat(tmpPath, fileNamePrefix);
-  strcat(tmpPath, "-%llu-%u");
-  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1));
+  strcat(tmpPath, "-%d-%"PRIu64"-%u-%"PRIu64);
+  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1), ts);
 }
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
