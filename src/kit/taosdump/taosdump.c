@@ -531,7 +531,7 @@ int taosDumpOut(SDumpArguments *arguments) {
     }
   }
 
-  taos_free_result(result);
+  // taos_free_result(result);
 
   if (count == 0) {
     fprintf(stderr, "No databases valid to dump\n");
