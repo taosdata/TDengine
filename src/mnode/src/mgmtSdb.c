@@ -227,7 +227,7 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
 static int32_t sdbForwardToPeer(SWalHead *pHead) {
   if (tsSdbObj.sync == NULL) return TSDB_CODE_SUCCESS;
 
-  int32_t code = syncForwardToPeer(tsSdbObj.sync, pHead, (void*)pHead->version);
+  int32_t code = syncForwardToPeer(tsSdbObj.sync, pHead, (void*)pHead->version, TAOS_QTYPE_RPC);
   if (code > 0) {
     sdbTrace("forward request is sent, version:%" PRIu64 ", code:%d", pHead->version, code);
     sem_wait(&tsSdbObj.sem);
