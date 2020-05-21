@@ -130,6 +130,7 @@ static void mgmtVgroupUpdateIdPool(SVgObj *pVgroup) {
       taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxTables);
       int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
       pVgroup->tableList = (SChildTableObj **)realloc(pVgroup->tableList, size);
+      memset(pVgroup->tableList + oldTables, 0, (pDb->cfg.maxTables - oldTables) * sizeof(SChildTableObj **));
     }
   }
 }

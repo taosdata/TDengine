@@ -239,6 +239,10 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
 
+#ifndef _SYNC
+  pVnode->role = TAOS_SYNC_ROLE_MASTER;
+#endif
+
   // start continuous query
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
     cqStart(pVnode->cq);
