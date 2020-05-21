@@ -590,31 +590,28 @@ SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
   while (1) {
     *i += t0.n;
 
-    bool hasComma = false;
-    while ((str[*i] == ' ' || str[*i] == '\n' || str[*i] == '\r' || str[*i] == '\t' || str[*i] == '\f')
-        || str[*i] == ',') {
-      if (str[*i] == ',') {
-        if (false == hasComma) {
-          hasComma = true;
-        } else {  // comma only allowed once
-          t0.n = 0;
-          return t0;
-        }
+    int32_t numOfComma = 0;
+    char t = str[*i];
+    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
+      if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
+        t0.n = 0;
+        return t0;
       }
+    
       (*i)++;
     }
 
     t0.n = tSQLGetToken(&str[*i], &t0.type);
 
-    bool ignoreFlag = false;
+    bool ignore = false;
     for (uint32_t k = 0; k < numOfIgnoreToken; k++) {
       if (t0.type == ignoreTokenTypes[k]) {
-        ignoreFlag = true;
+        ignore = true;
         break;
       }
     }
 
-    if (!ignoreFlag) {
+    if (!ignore) {
       break;
     }
   }
