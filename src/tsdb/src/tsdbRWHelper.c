@@ -409,7 +409,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
     if (pIdx->offset > 0) {
       pIdx->offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
       if (pIdx->offset < 0) return -1;
-      ASSERT(pIdx->offset >= tsizeof(pHelper->pCompIdx));
+      ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
 
       if (tsendfile(pHelper->files.nHeadF.fd, pHelper->files.headF.fd, NULL, pIdx->len) < pIdx->len) return -1;
     }

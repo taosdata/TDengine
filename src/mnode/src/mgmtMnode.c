@@ -121,6 +121,9 @@ static int32_t mgmtMnodeActionRestored() {
     }
     sdbFreeIter(pIter);
   }
+
+  mgmtUpdateMnodeIpSet();
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -203,6 +206,8 @@ void mgmtUpdateMnodeIpSet() {
   SRpcIpSet *ipSet = &tsMnodeRpcIpSet;
   SDMMnodeInfos *mnodes = &tsMnodeInfos;
 
+  mPrint("update mnodes ipset, numOfIps:%d ", mgmtGetMnodesNum());
+
   mgmtMnodeWrLock();
 
   int32_t index = 0;
@@ -223,13 +228,16 @@ void mgmtUpdateMnodeIpSet() {
       mnodes->inUse = index;
     }
 
+    mPrint("mnode:%d, ep:%s %s", index, pMnode->pDnode->dnodeFqdn, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
+
     ipSet->numOfIps++;
     index++;
-
+    
     mgmtDecMnodeRef(pMnode);
   }
 
   mnodes->nodeNum = index;
+
   sdbFreeIter(pIter);
 
   mgmtMnodeUnLock();
