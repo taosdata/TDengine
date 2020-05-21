@@ -105,7 +105,6 @@ if $rows != 30 then
   return -1
 endi
 
-
 sql insert into db.t20 values(now, 1)
 sql insert into db.t21 values(now, 1)
 sql insert into db.t22 values(now, 1)
@@ -198,6 +197,18 @@ sql create table db.t36 using db.st tags(6)
 sql create table db.t37 using db.st tags(7)
 sql create table db.t38 using db.st tags(8)
 sql create table db.t39 using db.st tags(9)
+
+sql insert into db.t30 values(now, 1)
+sql insert into db.t31 values(now, 1)
+sql insert into db.t32 values(now, 1)
+sql insert into db.t33 values(now, 1)
+sql insert into db.t34 values(now, 1)
+sql insert into db.t35 values(now, 1)
+sql insert into db.t36 values(now, 1)
+sql insert into db.t37 values(now, 1)
+sql insert into db.t38 values(now, 1)
+sql insert into db.t39 values(now, 1)
+
 sql show db.tables
 if $rows != 40 then 
   return -1
@@ -232,4 +243,110 @@ if $rows != 40 then
 endi
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print ============================ step10
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 1000
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+
+sql reset query cache
+sleep 1000
+
+sql show db.tables
+if $rows != 40 then 
+  return -1
+endi
+
+sql select * from db.t0
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t10
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t20
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.st
+if $rows != 40 then 
+  return -1
+endi
+
+print ============================ step11
+sql_error create table db.t40 using db.st tags(10)
+sql show db.tables
+if $rows != 40 then 
+  return -1
+endi
+
+print ============================ step12
+
+sql alter database db maxTables 50
+sleep 1000
+
+sql create table db.t40 using db.st tags(0)
+sql create table db.t41 using db.st tags(1)
+sql create table db.t42 using db.st tags(2)
+sql create table db.t43 using db.st tags(3)
+sql create table db.t44 using db.st tags(4)
+sql create table db.t45 using db.st tags(5)
+sql create table db.t46 using db.st tags(6)
+sql create table db.t47 using db.st tags(7)
+sql create table db.t48 using db.st tags(8)
+sql create table db.t49 using db.st tags(9)
+
+sql insert into db.t40 values(now, 1)
+sql insert into db.t41 values(now, 1)
+sql insert into db.t42 values(now, 1)
+sql insert into db.t43 values(now, 1)
+sql insert into db.t44 values(now, 1)
+sql insert into db.t45 values(now, 1)
+sql insert into db.t46 values(now, 1)
+sql insert into db.t47 values(now, 1)
+sql insert into db.t48 values(now, 1)
+sql insert into db.t49 values(now, 1)
+
+sql show db.tables
+if $rows != 50 then 
+  return -1
+endi
+
+sql reset query cache
+sleep 1000
+
+sql select * from db.t0
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t10
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t20
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t30
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t40
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.st
+if $rows != 50 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -44,7 +44,10 @@ cd ../../../debug; make
 ./test.sh -f general/compute/top.sim
 
 ./test.sh -f general/db/alter_option.sim
-./test.sh -f general/db/alter_tables.sim
+#./test.sh -f general/db/alter_tables_d2.sim
+./test.sh -f general/db/alter_tables_v1.sim
+./test.sh -f general/db/alter_tables_v4.sim
+./test.sh -f general/db/alter_vgroups.sim
 ./test.sh -f general/db/basic.sim
 ./test.sh -f general/db/basic1.sim
 ./test.sh -f general/db/basic2.sim
