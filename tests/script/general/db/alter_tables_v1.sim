@@ -49,7 +49,7 @@ endi
 
 print ============================ step3
 
-sql create database db maxTables 20
+sql alter database db maxTables 20
 sleep 1000
 
 sql create table db.t10 using db.st tags(0)
@@ -87,7 +87,7 @@ endi
 
 print ============================ step5
 
-sql create database db maxTables 30
+sql alter database db maxTables 30
 sleep 1000
 
 sql create table db.t20 using db.st tags(0)
@@ -185,7 +185,7 @@ endi
 
 print ============================ step9
 
-sql create database db maxTables 40
+sql alter database db maxTables 40
 sleep 1000
 
 sql create table db.t30 using db.st tags(0)

@@ -96,6 +96,7 @@ static int32_t mgmtDbActionUpdate(SSdbOper *pOper) {
     memcpy(pSaved, pDb, pOper->rowSize);
     free(pDb);
   }
+  mgmtUpdateAllDbVgroups(pSaved);
   mgmtDecDbRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
