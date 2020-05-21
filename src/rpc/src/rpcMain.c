@@ -889,12 +889,12 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         rpcSendErrorMsgToPeer(pRecv, code);
         tTrace("%s %p %p, %s is sent with error code:%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
-    } else { // parsing OK
+    } else { // msg is passed to app only parsing is ok 
       rpcProcessIncomingMsg(pConn, pHead);
     }
   }
 
-  if (code) rpcFreeMsg(pRecv->msg);
+  if (code) rpcFreeMsg(pRecv->msg); // parsing failed, msg shall be freed
   return pConn;
 }
 

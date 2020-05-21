@@ -31,7 +31,7 @@ typedef struct {
   int             numOfThreads;
   pthread_t *     qthread;
   SSchedMsg *     queue;
-  
+  bool            stop;
   void*           pTmrCtrl;
   void*           pTimer;
 } SSchedQueue;
@@ -85,6 +85,7 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
     return NULL;
   }
 
+  pSched->stop = false;
   for (int i = 0; i < numOfThreads; ++i) {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
@@ -127,6 +128,9 @@ void *taosProcessSchedQueue(void *param) {
         continue;
       }
       uError("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
+    }
+    if (pSched->stop) {
+      break;
     }
 
     if (pthread_mutex_lock(&pSched->queueMutex) != 0)
@@ -185,13 +189,16 @@ void taosCleanUpScheduler(void *param) {
   SSchedQueue *pSched = (SSchedQueue *)param;
   if (pSched == NULL) return;
 
+  pSched->stop = true;
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    if (pSched->qthread[i])
-      pthread_cancel(pSched->qthread[i]);
+    if (pSched->qthread[i]) {
+      tsem_post(&pSched->fullSem);
+    }
   }
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    if (pSched->qthread[i]) 
+    if (pSched->qthread[i]) {
       pthread_join(pSched->qthread[i], NULL);
+    }
   }
 
   tsem_destroy(&pSched->emptySem);
