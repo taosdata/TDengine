@@ -200,7 +200,7 @@ int32_t mgmtInitVgroups() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_VGROUP,
     .tableName    = "vgroups",
-    .hashSessions = TSDB_MAX_VGROUPS,
+    .hashSessions = TSDB_DEFAULT_VGROUPS_HASH_SIZE,
     .maxRowSize   = tsVgUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_AUTO,

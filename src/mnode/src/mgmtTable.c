@@ -507,7 +507,7 @@ static int32_t mgmtInitSuperTables() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_STABLE,
     .tableName    = "stables",
-    .hashSessions = TSDB_MAX_SUPER_TABLES,
+    .hashSessions = TSDB_DEFAULT_STABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SSuperTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_ID_LEN,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_VAR_STRING,

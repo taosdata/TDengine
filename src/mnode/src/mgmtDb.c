@@ -128,7 +128,7 @@ int32_t mgmtInitDbs() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_DB,
     .tableName    = "dbs",
-    .hashSessions = TSDB_MAX_DBS,
+    .hashSessions = TSDB_DEFAULT_DBS_HASH_SIZE,
     .maxRowSize   = tsDbUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,

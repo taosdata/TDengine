@@ -130,7 +130,7 @@ int32_t mgmtInitDnodes() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_DNODE,
     .tableName    = "dnodes",
-    .hashSessions = TSDB_MAX_DNODES,
+    .hashSessions = TSDB_DEFAULT_DNODES_HASH_SIZE,
     .maxRowSize   = tsDnodeUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_AUTO,
