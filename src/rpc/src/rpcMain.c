@@ -869,7 +869,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 
   if (pRecv->ip==0 && pConn) {
     rpcProcessBrokenLink(pConn); 
-    tfree(pRecv->msg);
+    rpcFreeMsg(pRecv->msg);
     return NULL;
   }
 
