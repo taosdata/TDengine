@@ -108,7 +108,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/auto_create_tb.sim
 ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f general/parser/col_arithmetic_operation.sim
-./test.sh -f general/parser/columnValue.sim
+#/test.sh -f general/parser/columnValue.sim
 ./test.sh -f general/parser/commit.sim
 # ./test.sh -f general/parser/create_db.sim
 ./test.sh -f general/parser/create_mt.sim
