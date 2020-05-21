@@ -23,8 +23,6 @@
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
 void *tscSlowQueryConn = NULL;
 bool  tscSlowQueryConnInitialized = false;
-TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
-                     void *param, void **taos);
 
 void tscInitConnCb(void *param, TAOS_RES *result, int code) {
   char *sql = param;
