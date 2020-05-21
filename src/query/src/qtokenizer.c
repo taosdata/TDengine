@@ -282,11 +282,7 @@ int tSQLKeywordCode(const char* z, int n) {
   }
 
   SKeyword** pKey = (SKeyword**)taosHashGet(KeywordHashTable, key, n);
-  if (pKey != NULL) {
-    return (*pKey)->type;
-  } else {
-    return TK_ID;
-  }
+  return (pKey != NULL)? (*pKey)->type:TK_ID;
 }
 
 /*
@@ -594,31 +590,28 @@ SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
   while (1) {
     *i += t0.n;
 
-    bool hasComma = false;
-    while ((str[*i] == ' ' || str[*i] == '\n' || str[*i] == '\r' || str[*i] == '\t' || str[*i] == '\f')
-        || str[*i] == ',') {
-      if (str[*i] == ',') {
-        if (false == hasComma) {
-          hasComma = true;
-        } else {  // comma only allowed once
-          t0.n = 0;
-          return t0;
-        }
+    int32_t numOfComma = 0;
+    char t = str[*i];
+    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
+      if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
+        t0.n = 0;
+        return t0;
       }
-      (*i)++;
+    
+      t = str[++(*i)];
     }
 
     t0.n = tSQLGetToken(&str[*i], &t0.type);
 
-    bool ignoreFlag = false;
+    bool ignore = false;
     for (uint32_t k = 0; k < numOfIgnoreToken; k++) {
       if (t0.type == ignoreTokenTypes[k]) {
-        ignoreFlag = true;
+        ignore = true;
         break;
       }
     }
 
-    if (!ignoreFlag) {
+    if (!ignore) {
       break;
     }
   }
@@ -662,114 +655,4 @@ SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
   return t0;
 }
 
-FORCE_INLINE bool isKeyWord(const char* z, int32_t len) { return (tSQLKeywordCode((char*)z, len) != TK_ID); }
-
-FORCE_INLINE bool isNumber(const SSQLToken* pToken) {
-  return (pToken->type == TK_INTEGER || pToken->type == TK_FLOAT || pToken->type == TK_HEX || pToken->type == TK_BIN);
-}
-
-int32_t isValidNumber(const SSQLToken* pToken) {
-  const char* z = pToken->z;
-  int32_t type = TK_ILLEGAL;
-
-  int32_t i = 0;
-  for(; i < pToken->n; ++i) {
-    switch (z[i]) {
-      case '+':
-      case '-': {
-        break;
-      }
-      case '.': {
-          /*
-           * handle the the float number with out integer part
-           * .123
-           * .123e4
-           */
-          if (!isdigit(z[i+1])) {
-            return TK_ILLEGAL;
-          }
-
-          for (i += 2; isdigit(z[i]); i++) {
-          }
-
-          if ((z[i] == 'e' || z[i] == 'E') &&
-              (isdigit(z[i + 1]) || ((z[i + 1] == '+' || z[i + 1] == '-') && isdigit(z[i + 2])))) {
-            i += 2;
-            while (isdigit(z[i])) {
-              i++;
-            }
-          }
-
-          type = TK_FLOAT;
-          goto _end;
-      }
-
-      case '0': {
-        char next = z[i + 1];
-        if (next == 'b') { // bin number
-          type = TK_BIN;
-          for (i += 2; (z[i] == '0' || z[i] == '1'); ++i) {
-          }
-
-          goto _end;
-        } else if (next == 'x') {  //hex number
-          type = TK_HEX;
-          for (i += 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
-          }
-
-          goto _end;
-        }
-      }
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9': {
-        type = TK_INTEGER;
-        for (; isdigit(z[i]); i++) {
-        }
-
-        int32_t seg = 0;
-        while (z[i] == '.' && isdigit(z[i + 1])) {
-          i += 2;
-
-          while (isdigit(z[i])) {
-            i++;
-          }
-
-          seg++;
-          type = TK_FLOAT;
-        }
-
-        if (seg > 1) {
-          return TK_ILLEGAL;
-        }
-
-        if ((z[i] == 'e' || z[i] == 'E') &&
-            (isdigit(z[i + 1]) || ((z[i + 1] == '+' || z[i + 1] == '-') && isdigit(z[i + 2])))) {
-          i += 2;
-          while (isdigit(z[i])) {
-            i++;
-          }
-
-          type = TK_FLOAT;
-        }
-
-        goto _end;
-      }
-      default:
-        return TK_ILLEGAL;
-    }
-  }
-
-  _end:
-  if (i < pToken->n) {
-    return TK_ILLEGAL;
-  } else {
-    return type;
-  }
-}
+bool isKeyWord(const char* z, int32_t len) { return (tSQLKeywordCode((char*)z, len) != TK_ID); }
