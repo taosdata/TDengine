@@ -123,7 +123,7 @@ sql insert into tb values(1520000025002, 25002)
 sql insert into tb values(1520000060000, 60000)
 sql select * from tb;
 print $rows
-if $rows != 24 then 
+if $rows != 23 then 
   return -1
 endi
 
@@ -156,7 +156,7 @@ sql import into tb values(1523110400000, 50001)
 sql import into tb values(1521382400000, 500051)
 sql select * from tb;
 print $rows
-if $rows != 36 then 
+if $rows != 35 then 
   return -1
 endi
 
@@ -169,7 +169,7 @@ sleep 5000
 sql use ir1db
 sql select * from tb;
 print $rows
-if $rows != 36 then 
+if $rows != 35 then 
   return -1
 endi
 
@@ -178,7 +178,7 @@ print ================= step11
 #sql import into tb values(now-50d, 7003) (now-48d, 7003) (now-46d, 7003) (now-44d, 7003) (now-42d, 7003)
 sql import into tb values(1515680000000, 7003) (1515852800000, 7003) (1516025600000, 7003) (1516198400000, 7003) (1516371200000, 7003)
 sql select * from tb;
-if $rows != 41 then 
+if $rows != 40 then 
   return -1
 endi
 
@@ -188,7 +188,7 @@ print ================= step12
 sql import into tb values(1518358400000, 7003) (1518444800000, 7003) (1518531200000, 7003) (1518617600000, 7003) (1518704000000, 7003) (1518790400000, 7003) (1518876800000, 7003) (1518963200000, 7003) (1519049600000, 7003)
 sql select * from tb;
 print $rows
-if $rows != 50 then 
+if $rows != 49 then 
   return -1
 endi
 
@@ -204,7 +204,7 @@ sql import into tb values(1516716800000, 50001)
 sql import into tb values(1517580800000, 50001)
 
 sql select * from tb;
-if $rows != 50 then 
+if $rows != 52 then 
   return -1
 endi
 

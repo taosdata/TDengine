@@ -29,6 +29,10 @@ while $x < 1010
   $x = $x + 1
 endw 
 
+sql_error create database d1 replica 2 wal 0
+sql create database d2 replica 1 wal 0
+sql_error alter database d2 replica 2
+
 system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
 system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT

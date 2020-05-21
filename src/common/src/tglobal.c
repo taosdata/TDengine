@@ -141,6 +141,7 @@ int32_t rpcDebugFlag = 135;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
 int32_t sDebugFlag = 135;
+int32_t tsdbDebugFlag = 135;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -216,7 +217,8 @@ void taosSetAllDebugFlag() {
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
     sDebugFlag = debugFlag;
-    //qDebugFlag = debugFlag;    
+    tsdbDebugFlag = debugFlag;
+    qDebugFlag = debugFlag;    
   }
   uPrint("all debug flag are set to %d", debugFlag);
 }
@@ -1123,6 +1125,16 @@ static void doInitGlobalConfig() {
 
   cfg.option = "qDebugFlag";
   cfg.ptr = &qDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "tsdbDebugFlag";
+  cfg.ptr = &tsdbDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;

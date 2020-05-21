@@ -252,12 +252,12 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
 
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
-#define TSDB_MAX_CACHE_BLOCK_SIZE       10240   // 10GB for each vnode
+#define TSDB_MAX_CACHE_BLOCK_SIZE       128     // 128MB for each vnode
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16
 
 #define TSDB_MIN_TOTAL_BLOCKS           2
 #define TSDB_MAX_TOTAL_BLOCKS           10000
-#define TSDB_DEFAULT_TOTAL_BLOCKS       2
+#define TSDB_DEFAULT_TOTAL_BLOCKS       4
 
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 200000
