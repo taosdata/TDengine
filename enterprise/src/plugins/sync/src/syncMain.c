@@ -51,7 +51,7 @@ static pthread_once_t syncModuleInit = PTHREAD_ONCE_INIT;
 
 // local functions
 static void  syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
-static void  syncRecoverFromMaster(void *, void *);
+static void  syncRecoverFromMaster(SSyncPeer *pPeer);
 static void  syncCheckPeerConnection(void *param, void *tmrId);
 static void  syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack);
 static void  syncProcessBrokenLink(void *param);
@@ -428,7 +428,6 @@ int syncDecPeerRef(SSyncPeer *pPeer)
 
 static void syncRemovePeer(SSyncPeer *pPeer)
 {
-  if (pPeer->ip == 0) return;
   sPrint("%s, it is removed", pPeer->id);
 
   pPeer->ip = 0;
@@ -649,7 +648,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
   }
 
   if (syncRequired) {
-    syncRecoverFromMaster(pMaster, NULL);
+    syncRecoverFromMaster(pMaster);
   }
 
   if (peerOldRole != newRole || nodeRole != selfOldRole)
@@ -716,17 +715,26 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
 static void syncNotStarted(void *param, void *tmrId)
 {
   SSyncPeer *pPeer = param;
-  if (pPeer->ip == 0) return;
+  SSyncNode *pNode = pPeer->pSyncNode;
 
+  pthread_mutex_lock(&(pNode->mutex));
   pPeer->timer = NULL;
   sPrint("%s, sync connection is still not up, restart", pPeer->id);
   syncRestartConnection(pPeer);
+  pthread_mutex_unlock(&(pNode->mutex));
 }
 
-static void syncRecoverFromMaster(void *param, void *tmrId)
-{
+static void syncTryRecoverFromMaster(void *param, void *tmrId) {
   SSyncPeer   *pPeer = param;
-  if (pPeer->ip == 0) return;
+  SSyncNode   *pNode = pPeer->pSyncNode;
+
+  pthread_mutex_lock(&(pNode->mutex));
+  syncRecoverFromMaster(pPeer);
+  pthread_mutex_unlock(&(pNode->mutex));
+}
+
+static void syncRecoverFromMaster(SSyncPeer *pPeer)
+{
   SSyncNode   *pNode = pPeer->pSyncNode;
 
   if ( nodeSStatus != TAOS_SYNC_STATUS_INIT) {
@@ -737,7 +745,7 @@ static void syncRecoverFromMaster(void *param, void *tmrId)
   taosTmrStopA(&pPeer->timer);
   if (tsSyncNum >= tsMaxSyncNum) {
     sPrint("%s, %d syncs are in process, try later", pPeer->id, tsSyncNum);
-    taosTmrReset(syncRecoverFromMaster, 500, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncTryRecoverFromMaster, 500, pPeer, syncTmrCtrl, &pPeer->timer);
     return;
   }
 
@@ -902,13 +910,8 @@ static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack)
   return;
 }
 
-static void syncCheckPeerConnection(void *param, void *tmrId) 
-{
-  SSyncPeer *pPeer = param;
-  if (pPeer->ip == 0 ) return;
-
+static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  sTrace("%s, check peer connection", pPeer->id);
 
   taosTmrStopA(&pPeer->timer);
   if (pPeer->peerFd >= 0) {
@@ -944,6 +947,19 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
     close(connFd);
     taosTmrReset(syncCheckPeerConnection, tsSyncTimer *1000, pPeer, syncTmrCtrl, &pPeer->timer);
   }
+}
+
+static void syncCheckPeerConnection(void *param, void *tmrId) 
+{
+  SSyncPeer *pPeer = param;
+  SSyncNode *pNode = pPeer->pSyncNode;
+
+  pthread_mutex_lock(&(pNode->mutex));
+
+  sTrace("%s, check peer connection", pPeer->id);
+  syncSetupPeerConnection(pPeer); 
+
+  pthread_mutex_unlock(&(pNode->mutex));
 }
 
 static void syncCreateRestoreDataThread(SSyncPeer *pPeer) 

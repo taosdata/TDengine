@@ -189,6 +189,7 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
   SSyncNode   *pNode = pPeer->pSyncNode;
   SRecvBuffer *pRecv = pNode->pRecv;
 
+  if (pRecv == NULL) return -1;
   int len = pHead->len + sizeof(SWalHead);
 
   if (pRecv->bufferSize - (pRecv->offset - pRecv->buffer) >= len) {
