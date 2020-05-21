@@ -808,18 +808,19 @@ void adjustLoserTreeFromNewData(SLocalReducer *pLocalReducer, SLocalDataSource *
   }
 }
 
-void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo *pQueryInfo,
-                                       SFillInfo *pFillInfo) {
+void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo *pQueryInfo, SFillInfo *pFillInfo) {
   // discard following dataset in the same group and reset the interpolation information
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
-  int16_t prec = tinfo.precision;
-  int64_t stime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.skey : pQueryInfo->window.ekey;
-  int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
-  taosResetFillInfo(pFillInfo, revisedSTime);
+  if (pFillInfo != NULL) {
+    int64_t stime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.skey : pQueryInfo->window.ekey;
+    int64_t revisedSTime =
+        taosGetIntervalStartTimestamp(stime, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
+  
+    taosResetFillInfo(pFillInfo, revisedSTime);
+  }
 
   pLocalReducer->discard = true;
   pLocalReducer->discardData->num = 0;
@@ -915,13 +916,12 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
     if (pQueryInfo->limit.limit >= 0 && pRes->numOfClauseTotal > pQueryInfo->limit.limit) {
       /* impose the limitation of output rows on the final result */
       int32_t prevSize = pFinalDataPage->num;
-      int32_t overFlow = pRes->numOfClauseTotal - pQueryInfo->limit.limit;
-
-      assert(overFlow < pRes->numOfRows);
+      int32_t overflow = pRes->numOfClauseTotal - pQueryInfo->limit.limit;
+      assert(overflow < pRes->numOfRows);
 
       pRes->numOfClauseTotal = pQueryInfo->limit.limit;
-      pRes->numOfRows -= overFlow;
-      pFinalDataPage->num -= overFlow;
+      pRes->numOfRows -= overflow;
+      pFinalDataPage->num -= overflow;
 
       tColModelCompact(pLocalReducer->resColModel, pFinalDataPage, prevSize);
 
@@ -988,13 +988,13 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
 
   if (pRes->numOfRows > 0) {
     if (pQueryInfo->limit.limit >= 0 && pRes->numOfClauseTotal > pQueryInfo->limit.limit) {
-      int32_t overFlow = pRes->numOfClauseTotal - pQueryInfo->limit.limit;
-      pRes->numOfRows -= overFlow;
+      int32_t overflow = pRes->numOfClauseTotal - pQueryInfo->limit.limit;
+      pRes->numOfRows -= overflow;
 
       assert(pRes->numOfRows >= 0);
 
       pRes->numOfClauseTotal = pQueryInfo->limit.limit;
-      pFinalDataPage->num -= overFlow;
+      pFinalDataPage->num -= overflow;
 
       /* set remain data to be discarded, and reset the interpolation information */
       savePrevRecordAndSetupInterpoInfo(pLocalReducer, pQueryInfo, pFillInfo);
