@@ -288,8 +288,14 @@ void updateNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOfRes) {
   
   for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
     SResultInfo *pResInfo = GET_RES_INFO(&pRuntimeEnv->pCtx[j]);
-    assert(pResInfo->numOfRes > numOfRes);
     
+    int16_t functionId = pRuntimeEnv->pCtx[j].functionId;
+    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ ||
+        functionId == TSDB_FUNC_TS_DUMMY) {
+      continue;
+    }
+    
+    assert(pResInfo->numOfRes > numOfRes);
     pResInfo->numOfRes = numOfRes;
   }
 }
@@ -1317,6 +1323,10 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
 
     if (numOfRes >= pQuery->rec.threshold) {
       setQueryStatus(pQuery, QUERY_RESBUF_FULL);
+    }
+    
+    if (numOfRes >= pQuery->limit.limit + pQuery->limit.offset) {
+      setQueryStatus(pQuery, QUERY_COMPLETED);
     }
   }
 
@@ -3197,7 +3207,7 @@ void skipResults(SQueryRuntimeEnv *pRuntimeEnv) {
 
     resetCtxOutputBuf(pRuntimeEnv);
 
-    // clear the buffer is full flag if exists
+    // clear the buffer full flag if exists
     CLEAR_QUERY_STATUS(pQuery, QUERY_RESBUF_FULL);
   } else {
     int64_t numOfSkip = pQuery->limit.offset;
@@ -3211,14 +3221,15 @@ void skipResults(SQueryRuntimeEnv *pRuntimeEnv) {
       int32_t functionId = pQuery->pSelectExpr[i].base.functionId;
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
       
-      memmove(pQuery->sdata[i]->data, pQuery->sdata[i]->data + bytes * numOfSkip, pQuery->rec.rows * bytes);
-      pRuntimeEnv->pCtx[i].aOutputBuf = pQuery->sdata[i]->data + pQuery->rec.rows;
+      memmove(pQuery->sdata[i]->data, (char*) pQuery->sdata[i]->data + bytes * numOfSkip, pQuery->rec.rows * bytes);
+      pRuntimeEnv->pCtx[i].aOutputBuf = ((char*) pQuery->sdata[i]->data) + pQuery->rec.rows * bytes;
 
       if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
         pRuntimeEnv->pCtx[i].ptsOutputBuf = pRuntimeEnv->pCtx[0].aOutputBuf;
       }
     }
   
+    
     updateNumOfResult(pRuntimeEnv, pQuery->rec.rows);
   }
 }
@@ -4649,10 +4660,8 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
     copyFromWindowResToSData(pQInfo, pWindowResInfo->pResult);
   }
 
-  pQuery->rec.total += pQuery->rec.rows;
-
   qTrace(
-      "QInfo %p, numOfTables:%d, index:%d, numOfGroups:%d, %d points returned, total:%"PRId64", offset:%" PRId64,
+      "QInfo %p numOfTables:%d, index:%d, numOfGroups:%d, %d points returned, total:%"PRId64", offset:%" PRId64,
       pQInfo, pQInfo->groupInfo.numOfTables, pQInfo->tableIndex, numOfGroups, pQuery->rec.rows, pQuery->rec.total,
       pQuery->limit.offset);
 }

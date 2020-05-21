@@ -102,7 +102,32 @@ static void doUpdateHashTable(SHashObj *pHashObj, SHashNode *pNode);
  * @param hashVal   hash value by hash function
  * @return
  */
-static SHashNode *doGetNodeFromHashTable(SHashObj *pHashObj, const void *key, uint32_t keyLen, uint32_t *hashVal);
+FORCE_INLINE SHashNode *doGetNodeFromHashTable(SHashObj *pHashObj, const void *key, uint32_t keyLen, uint32_t *hashVal) {
+  uint32_t hash = (*pHashObj->hashFp)(key, keyLen);
+  
+  int32_t     slot = HASH_INDEX(hash, pHashObj->capacity);
+  SHashEntry *pEntry = pHashObj->hashList[slot];
+  
+  SHashNode *pNode = pEntry->next;
+  while (pNode) {
+    if ((pNode->keyLen == keyLen) && (memcmp(pNode->key, key, keyLen) == 0)) {
+      break;
+    }
+    
+    pNode = pNode->next;
+  }
+  
+  if (pNode) {
+    assert(HASH_INDEX(pNode->hashVal, pHashObj->capacity) == slot);
+  }
+  
+  // return the calculated hash value, to avoid calculating it again in other functions
+  if (hashVal != NULL) {
+    *hashVal = hash;
+  }
+  
+  return pNode;
+}
 
 /**
  * Resize the hash list if the threshold is reached
@@ -436,33 +461,6 @@ void doUpdateHashTable(SHashObj *pHashObj, SHashNode *pNode) {
   if (pNode->next) {
     (pNode->next)->prev = pNode;
   }
-}
-
-SHashNode *doGetNodeFromHashTable(SHashObj *pHashObj, const void *key, uint32_t keyLen, uint32_t *hashVal) {
-  uint32_t hash = (*pHashObj->hashFp)(key, keyLen);
-  
-  int32_t     slot = HASH_INDEX(hash, pHashObj->capacity);
-  SHashEntry *pEntry = pHashObj->hashList[slot];
-  
-  SHashNode *pNode = pEntry->next;
-  while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(pNode->key, key, keyLen) == 0)) {
-      break;
-    }
-    
-    pNode = pNode->next;
-  }
-  
-  if (pNode) {
-    assert(HASH_INDEX(pNode->hashVal, pHashObj->capacity) == slot);
-  }
-  
-  // return the calculated hash value, to avoid calculating it again in other functions
-  if (hashVal != NULL) {
-    *hashVal = hash;
-  }
-  
-  return pNode;
 }
 
 void taosHashTableResize(SHashObj *pHashObj) {
