@@ -10,147 +10,139 @@ from util.sql import *
 
 
 class TDTestCase:
-    def init( self, conn ):
+    def init(self, conn):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
-
-    def getLimitFromSourceCode( self, name ):
+    def getLimitFromSourceCode(self, name):
         cmd = "grep -w '#define %s' ../../src/inc/taosdef.h|awk '{print $3}'" % name
         return int(subprocess.check_output(cmd, shell=True))
 
-
-    def generateString( self, length ):
+    def generateString(self, length):
         chars = string.ascii_uppercase + string.ascii_lowercase
         v = ""
-        for i in range( length ):
-            v += random.choice( chars )
+        for i in range(length):
+            v += random.choice(chars)
         return v
 
-
-    def checkTagBoundaries( self ):
-        tdLog.debug( "checking tag boundaries" )
+    def checkTagBoundaries(self):
+        tdLog.debug("checking tag boundaries")
         tdSql.prepare()
 
-        maxTags = self.getLimitFromSourceCode( 'TSDB_MAX_TAGS' )
-        totalTagsLen = self.getLimitFromSourceCode( 'TSDB_MAX_TAGS_LEN' )
-        tdLog.notice( "max tags is %d" % maxTags )
-        tdLog.notice( "max total tag length is %d" % totalTagsLen )
+        maxTags = self.getLimitFromSourceCode('TSDB_MAX_TAGS')
+        totalTagsLen = self.getLimitFromSourceCode('TSDB_MAX_TAGS_LEN')
+        tdLog.notice("max tags is %d" % maxTags)
+        tdLog.notice("max total tag length is %d" % totalTagsLen)
 
         # for binary tags, 2 bytes are used for length
         tagLen = (totalTagsLen - maxTags * 2) // maxTags
         firstTagLen = totalTagsLen - 2 * maxTags - tagLen * (maxTags - 1)
 
         sql = "create table cars(ts timestamp, f int) tags(t0 binary(%d)" % firstTagLen
-        for i in range( 1, maxTags ):
+        for i in range(1, maxTags):
             sql += ", t%d binary(%d)" % (i, tagLen)
         sql += ");"
 
-        tdLog.debug( "creating super table: " + sql )
-        tdSql.execute( sql )
-        tdSql.query( 'show stables' )
-        tdSql.checkRows( 1 )
+        tdLog.debug("creating super table: " + sql)
+        tdSql.execute(sql)
+        tdSql.query('show stables')
+        tdSql.checkRows(1)
 
-        for i in range( 10 ):
+        for i in range(10):
             sql = "create table car%d using cars tags('%d'" % (i, i)
             sql += ", '0'" * (maxTags - 1) + ");"
-            tdLog.debug( "creating table: " + sql )
-            tdSql.execute( sql )
+            tdLog.debug("creating table: " + sql)
+            tdSql.execute(sql)
 
             sql = "insert into car%d values(now, 0);" % i
-            tdLog.debug( "inserting data: " + sql )
-            tdSql.execute( sql )
+            tdLog.debug("inserting data: " + sql)
+            tdSql.execute(sql)
 
-        tdSql.query( 'show tables' )
-        tdLog.info( 'tdSql.checkRow(10)' )
-        tdSql.checkRows( 10 )
+        tdSql.query('show tables')
+        tdLog.info('tdSql.checkRow(10)')
+        tdSql.checkRows(10)
 
-        tdSql.query( 'select * from cars;' )
-        tdSql.checkRows( 10 )
+        tdSql.query('select * from cars;')
+        tdSql.checkRows(10)
 
-
-    def checkColumnBoundaries( self ):
-        tdLog.debug( "checking column boundaries" )
+    def checkColumnBoundaries(self):
+        tdLog.debug("checking column boundaries")
         tdSql.prepare()
 
         # one column is for timestamp
-        maxCols = self.getLimitFromSourceCode( 'TSDB_MAX_COLUMNS' ) - 1
+        maxCols = self.getLimitFromSourceCode('TSDB_MAX_COLUMNS') - 1
 
         sql = "create table cars (ts timestamp"
-        for i in range( maxCols ):
+        for i in range(maxCols):
             sql += ", c%d int" % i
         sql += ");"
-        tdSql.execute( sql )
-        tdSql.query( 'show tables' )
-        tdSql.checkRows( 1 )
+        tdSql.execute(sql)
+        tdSql.query('show tables')
+        tdSql.checkRows(1)
 
         sql = "insert into cars values (now"
-        for i in range( maxCols ):
+        for i in range(maxCols):
             sql += ", %d" % i
         sql += ");"
-        tdSql.execute( sql )
-        tdSql.query( 'select * from cars' )
-        tdSql.checkRows( 1 )
+        tdSql.execute(sql)
+        tdSql.query('select * from cars')
+        tdSql.checkRows(1)
 
-
-    def checkTableNameBoundaries( self ):
-        tdLog.debug( "checking table name boundaries" )
+    def checkTableNameBoundaries(self):
+        tdLog.debug("checking table name boundaries")
         tdSql.prepare()
 
-        maxTableNameLen = self.getLimitFromSourceCode( 'TSDB_TABLE_NAME_LEN' )
-        tdLog.notice( "table name max length is %d" % maxTableNameLen )
+        maxTableNameLen = self.getLimitFromSourceCode('TSDB_TABLE_NAME_LEN')
+        tdLog.notice("table name max length is %d" % maxTableNameLen)
 
-        name = self.generateString( maxTableNameLen - 1)
-        tdLog.info( "table name is '%s'" % name )
+        name = self.generateString(maxTableNameLen - 1)
+        tdLog.info("table name is '%s'" % name)
 
-        tdSql.execute( "create table %s (ts timestamp, value int)" % name )
-        tdSql.execute( "insert into %s values(now, 0)" % name )
+        tdSql.execute("create table %s (ts timestamp, value int)" % name)
+        tdSql.execute("insert into %s values(now, 0)" % name)
 
-        tdSql.query( 'show tables' )
-        tdSql.checkRows( 1 )
+        tdSql.query('show tables')
+        tdSql.checkRows(1)
 
-        tdSql.query( 'select * from %s' % name )
-        tdSql.checkRows( 1 )
+        tdSql.query('select * from %s' % name)
+        tdSql.checkRows(1)
 
-
-    def checkRowBoundaries( self ):
-        tdLog.debug( "checking row boundaries" )
+    def checkRowBoundaries(self):
+        tdLog.debug("checking row boundaries")
         tdSql.prepare()
 
         # 8 bytes for timestamp
         maxRowSize = 65536 - 8
-        maxCols = self.getLimitFromSourceCode( 'TSDB_MAX_COLUMNS' ) - 1
+        maxCols = self.getLimitFromSourceCode('TSDB_MAX_COLUMNS') - 1
 
         # for binary cols, 2 bytes are used for length
         colLen = (maxRowSize - maxCols * 2) // maxCols
         firstColLen = maxRowSize - 2 * maxCols - colLen * (maxCols - 1)
 
         sql = "create table cars (ts timestamp, c0 binary(%d)" % firstColLen
-        for i in range( 1, maxCols ):
+        for i in range(1, maxCols):
             sql += ", c%d binary(%d)" % (i, colLen)
         sql += ");"
-        tdSql.execute( sql )
-        tdSql.query( 'show tables' )
-        tdSql.checkRows( 1 )
+        tdSql.execute(sql)
+        tdSql.query('show tables')
+        tdSql.checkRows(1)
 
-        col = self.generateString( firstColLen )
+        col = self.generateString(firstColLen)
         sql = "insert into cars values (now, '%s'" % col
-        col = self.generateString( colLen )
-        for i in range( 1, maxCols ):
-            sql += ", '%s'" % col 
+        col = self.generateString(colLen)
+        for i in range(1, maxCols):
+            sql += ", '%s'" % col
         sql += ");"
-        tdLog.info( sql );
-        tdSql.execute( sql )
-        tdSql.query( "select * from cars" )
-        tdSql.checkRows( 1 )
-
+        tdLog.info(sql)
+        tdSql.execute(sql)
+        tdSql.query("select * from cars")
+        tdSql.checkRows(1)
 
     def run(self):
         self.checkTagBoundaries()
         self.checkColumnBoundaries()
         self.checkTableNameBoundaries()
         self.checkRowBoundaries()
-
 
     def stop(self):
         tdSql.close()

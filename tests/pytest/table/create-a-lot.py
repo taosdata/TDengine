@@ -24,35 +24,17 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
+        tdSql.prepare()
+
         print("==============step1")
-        try:
-            tdSql.execute("create user abc pass '123456'")
-        except Exception as e:
-            tdLog.exit(e)
-        print("create user abc pass '123456'")
+        print("prepare data")
 
-        print("==============step2")
-        try:
-            tdSql.execute("alter user abc pass 'taosdata'")
-        except Exception as e:
-            tdLog.exit(e)
-        print("alter user abc pass 'taosdata'")
-
-        print("==============step3")
-        try:
-            tdSql.execute("alter user abc pass ''")
-        except Exception as e:
-            print("alter user abc pass ''")
-        else:
-            tdLog.exit("Error: alert user abc pass''")
-
-        print("==============step4")
-        try:
-            tdSql.execute("alter user abc pass null")
-        except Exception as e:
-            print("alter user abc pass null")
-        else:
-            tdLog.exit("Error: alter user abc pass null")
+        for x in range(0, 1000000):
+            tb_name = "tb%d" % x
+            tdLog.info("create table %s (ts timestamp, i int)" % tb_name)
+            tdSql.execute("create table %s (ts timestamp, i int)" % tb_name)
+            tdLog.info("insert into %s values(now, 1)" % tb_name)
+            tdSql.execute("insert into %s values(now, 1)" % tb_name)
 
     def stop(self):
         tdSql.close()
