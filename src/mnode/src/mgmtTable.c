@@ -340,7 +340,7 @@ static int32_t mgmtInitChildTables() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_CTABLE,
     .tableName    = "ctables",
-    .hashSessions = tsMaxTables,
+    .hashSessions = TSDB_DEFAULT_CTABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_ID_LEN + TSDB_CQ_SQL_SIZE,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_VAR_STRING,
