@@ -598,7 +598,7 @@ SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
         return t0;
       }
     
-      (*i)++;
+      t = str[++(*i)];
     }
 
     t0.n = tSQLGetToken(&str[*i], &t0.type);
