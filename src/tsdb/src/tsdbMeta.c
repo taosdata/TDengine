@@ -127,7 +127,7 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     STColumn* pColSchema = schemaColAt(pTable->tagSchema, 0);
     pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
-                                    1, 0, 0, getTagIndexKey);
+                                    1, 0, 1, getTagIndexKey);
   }
 
   tsdbAddTableToMeta(pMeta, pTable, false);
