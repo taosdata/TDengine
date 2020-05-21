@@ -779,7 +779,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
     STagData *pTag = (STagData *)pCmd->payload;
     memset(pTag, 0, sizeof(STagData));
-    pCmd->payloadLen = sizeof(STagData);
     
     /*
      * the source super table is moved to the secondary position of the pTableMetaInfo list
@@ -926,6 +925,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
         ptr += pTagSchema[i].bytes;
       }
+    }
+
+    // 3. calculate the actual data size of STagData
+    pCmd->payloadLen = sizeof(pTag->name);
+    for (int32_t t = 0; t < numOfTags; ++t) {
+      pCmd->payloadLen += pTagSchema[t].bytes;
     }
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
