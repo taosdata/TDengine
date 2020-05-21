@@ -53,6 +53,7 @@ extern "C" {
 #include <string.h>
 #include <strings.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
