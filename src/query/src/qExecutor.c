@@ -1325,7 +1325,7 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
       setQueryStatus(pQuery, QUERY_RESBUF_FULL);
     }
     
-    if (numOfRes >= pQuery->limit.limit + pQuery->limit.offset) {
+    if ((pQuery->limit.limit >= 0) && numOfRes >= (pQuery->limit.limit + pQuery->limit.offset)) {
       setQueryStatus(pQuery, QUERY_COMPLETED);
     }
   }
