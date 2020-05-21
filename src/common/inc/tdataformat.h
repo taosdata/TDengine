@@ -106,8 +106,27 @@ typedef void *SDataRow;
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
-int      tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset);
 SDataRow tdDataRowDup(SDataRow row);
+
+static FORCE_INLINE int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
+  ASSERT(value != NULL);
+  int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
+  char *  ptr = (char *)POINTER_SHIFT(row, dataRowLen(row));
+
+  switch (type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
+      memcpy(ptr, value, varDataTLen(value));
+      dataRowLen(row) += varDataTLen(value);
+      break;
+    default:
+      memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
+      break;
+  }
+
+  return 0;
+}
 
 // NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow row, int8_t type, int32_t offset) {

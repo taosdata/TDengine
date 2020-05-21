@@ -158,32 +158,6 @@ void tdFreeDataRow(SDataRow row) {
   if (row) free(row);
 }
 
-/**
- * Append a column value to the data row
- * @param type: column type
- * @param bytes: column bytes
- * @param offset: offset in the data row tuple, not including the data row header
- */
-int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
-  ASSERT(value != NULL);
-  int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
-  char *  ptr = POINTER_SHIFT(row, dataRowLen(row));
-
-  switch (type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
-      memcpy(ptr, value, varDataTLen(value));
-      dataRowLen(row) += varDataTLen(value);
-      break;
-    default:
-      memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
-      break;
-  }
-
-  return 0;
-}
-
 SDataRow tdDataRowDup(SDataRow row) {
   SDataRow trow = malloc(dataRowLen(row));
   if (trow == NULL) return NULL;
