@@ -11,6 +11,19 @@
 4.  pip install src/connector/python/linux/python2 ; pip3 install
     src/connector/python/linux/python3
 
+>   Note: Both Python2 and Python3 are currently supported by the Python test
+>   framework. Since Python2 is no longer officially supported by Python Software
+>   Foundation since January 1, 2020, it is recommended that subsequent test case
+>   development be guaranteed to run correctly on Python3. 
+
+>   For Python2, please consider being compatible if appropriate without 
+>   additional burden.
+>
+>   If you use some new Linux distribution like Ubuntu 20.04 which already do not
+>   include Python2, please do not install Python2-related packages.
+>
+>   <https://nakedsecurity.sophos.com/2020/01/03/python-is-dead-long-live-python/> 
+
 ### How to run Python test suite
 
 1.  cd \<TDengine\>/tests/pytest
@@ -210,13 +223,6 @@ def executeTimes(self, sql, times):
 def checkAffectedRows(self, expectAffectedRows):
 
 ...
-
->   Note: Both Python2 and Python3 are currently supported by the Python test
->   case. Since Python2 is no longer officially supported by January 1, 2020, it
->   is recommended that subsequent test case development be guaranteed to run
->   correctly on Python3. For Python2, please consider being compatible if
->   appropriate without additional
->   burden. <https://nakedsecurity.sophos.com/2020/01/03/python-is-dead-long-live-python/> 
 
 ### CI submission adoption principle.
 
