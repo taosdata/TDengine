@@ -45,7 +45,8 @@ class TDTestCase:
         tdLog.info("================= step2")
         tdLog.info('insert data until the first commit')
         dnodesDir = tdDnodes.getDnodesRootDir()
-        dataDir = dnodesDir + '/dnode1/data/data'
+        dataDir = dnodesDir + '/dnode1/data/vnode'
+        tdLog.info('CBD: dataDir=%s' % dataDir)
         startTime = self.startTime
         rid0 = 1
         while (True):
