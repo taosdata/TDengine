@@ -228,7 +228,7 @@ void mgmtUpdateMnodeIpSet() {
       mnodes->inUse = index;
     }
 
-    mPrint("mnode:%d, ep:%s %s", index, pMnode->pDnode->dnodeFqdn, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
+    mPrint("mnode:%d, ep:%s %s", index, pMnode->pDnode->dnodeEp, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
 
     ipSet->numOfIps++;
     index++;
