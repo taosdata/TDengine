@@ -545,9 +545,10 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       /*bool hasData = */ initTableMemIterator(pQueryHandle, pCheckInfo);
 
       TSKEY k1 = TSKEY_INITIAL_VAL, k2 = TSKEY_INITIAL_VAL;
-      if (pCheckInfo->iter != NULL) {
+      if (pCheckInfo->iter != NULL && tSkipListIterGet(pCheckInfo->iter) != NULL) {
         SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
-        SDataRow       row = SL_GET_NODE_DATA(node);
+        
+        SDataRow row = SL_GET_NODE_DATA(node);
         k1 = dataRowKey(row);
 
         if (k1 == binfo.window.skey) {
@@ -561,9 +562,10 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         }
       }
 
-      if (pCheckInfo->iiter != NULL) {
+      if (pCheckInfo->iiter != NULL && tSkipListIterGet(pCheckInfo->iiter) != NULL) {
         SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
-        SDataRow       row = SL_GET_NODE_DATA(node);
+        
+        SDataRow row = SL_GET_NODE_DATA(node);
         k2 = dataRowKey(row);
 
         if (k2 == binfo.window.skey) {
@@ -583,6 +585,12 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         mergeDataInDataBlock(pQueryHandle, pCheckInfo, pBlock, sa);
       } else {
         pQueryHandle->realNumOfRows = binfo.rows;
+        
+        cur->rows = binfo.rows;
+        cur->win  = binfo.window;
+        cur->mixBlock = false;
+        cur->blockCompleted = true;
+        cur->lastKey = binfo.window.ekey + (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)? 1:-1);
       }
     }
   } else {  //desc order
