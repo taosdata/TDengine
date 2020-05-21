@@ -869,7 +869,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 
   if (pRecv->ip==0 && pConn) {
     rpcProcessBrokenLink(pConn); 
-    tfree(pRecv->msg);
+    rpcFreeMsg(pRecv->msg);
     return NULL;
   }
 
@@ -894,7 +894,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     }
   }
 
-  if (code) tfree(pRecv->msg); // parsing failed, msg shall be freed
+  if (code) rpcFreeMsg(pRecv->msg); // parsing failed, msg shall be freed
   return pConn;
 }
 
