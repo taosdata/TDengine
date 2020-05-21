@@ -489,6 +489,7 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
       }
 
       ASSERT(((char *)ptr - (char *)pHelper->pBuffer) == (pFile->info.len - sizeof(TSCKSUM)));
+      if (lseek(fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) return -1;
     }
 
   }
