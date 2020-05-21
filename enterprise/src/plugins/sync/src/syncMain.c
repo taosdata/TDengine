@@ -437,7 +437,6 @@ static void syncRemovePeer(SSyncPeer *pPeer)
     syncDecPeerRef(pPeer);
   }
 
-  pPeer->peerFd = -1;
   tclose(pPeer->syncFd);
 
   syncDecPeerRef(pPeer);
@@ -657,7 +656,8 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
 
 static void syncRestartPeer(SSyncPeer *pPeer) {
   sTrace("%s, restart connection", pPeer->id);
-  tclose(pPeer->peerFd);
+
+  taosFreeTcpThread(pPeer->pThread, &pPeer->peerFd);
   tclose(pPeer->syncFd);
   taosTmrStopA(&pPeer->timer);
 
