@@ -914,7 +914,10 @@ static void mergeDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo
 
         int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
         int32_t end = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, key, order);
-
+        if (tsArray[end] == key) { // the value of key in cache equals to the end timestamp value, ignore it
+          tSkipListIterNext(pCheckInfo->iter);
+        }
+        
         int32_t start = -1;
         if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
           int32_t remain = end - pos + 1;
