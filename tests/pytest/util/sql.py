@@ -77,6 +77,31 @@ class TDSql:
         tdLog.info("sql:%s, queryRows:%d == expect:%d" %
                    (self.sql, self.queryRows, expectRows))
 
+    def checkDataType(self, row, col, dataType):
+        frame = inspect.stack()[1]
+        callerModule = inspect.getmodule(frame[0])
+        callerFilename = callerModule.__file__
+
+        if row < 0:
+            tdLog.exit(
+                "%s failed: sql:%s, row:%d is smaller than zero" %
+                (callerFilename, self.sql, row))
+        if col < 0:
+            tdLog.exit(
+                "%s failed: sql:%s, col:%d is smaller than zero" %
+                (callerFilename, self.sql, col))
+        if row > self.queryRows:
+            tdLog.exit(
+                "%s failed: sql:%s, row:%d is larger than queryRows:%d" %
+                (callerFilename, self.sql, row, self.queryRows))
+        if col > self.queryCols:
+            tdLog.exit(
+                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
+                (callerFilename, self.sql, col, self.queryCols))
+
+        return self.cursor.istype(col, dataType)
+
+
     def checkData(self, row, col, data):
         frame = inspect.stack()[1]
         callerModule = inspect.getmodule(frame[0])

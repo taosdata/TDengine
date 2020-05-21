@@ -269,7 +269,6 @@ static int32_t mgmtChildTableActionRestored() {
   SChildTableObj *pTable = NULL;
 
   while (1) {
-    mgmtDecTableRef(pTable);
     pIter = mgmtGetNextChildTable(pIter, &pTable);
     if (pTable == NULL) break;
 
@@ -278,6 +277,7 @@ static int32_t mgmtChildTableActionRestored() {
       mError("ctable:%s, failed to get db, discard it", pTable->info.tableId);
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
+      mgmtDecTableRef(pTable);
       continue;
     }
     mgmtDecDbRef(pDb);
@@ -288,6 +288,7 @@ static int32_t mgmtChildTableActionRestored() {
       pTable->vgId = 0;
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
+      mgmtDecTableRef(pTable);
       continue;
     }
     mgmtDecVgroupRef(pVgroup);
@@ -298,6 +299,7 @@ static int32_t mgmtChildTableActionRestored() {
       pTable->vgId = 0;
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
+      mgmtDecTableRef(pTable);
       continue;
     }
 
@@ -306,6 +308,7 @@ static int32_t mgmtChildTableActionRestored() {
       pTable->vgId = 0;
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
+      mgmtDecTableRef(pTable);
       continue;
     }
 
@@ -316,10 +319,13 @@ static int32_t mgmtChildTableActionRestored() {
         pTable->vgId = 0;
         SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
         sdbDeleteRow(&desc);
+        mgmtDecTableRef(pTable);
         continue;
       }
       mgmtDecTableRef(pSuperTable);
     }
+
+    mgmtDecTableRef(pTable);
   }
 
   sdbFreeIter(pIter);
@@ -1136,19 +1142,20 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
   char stableName[TSDB_TABLE_NAME_LEN] = {0};
 
   while (numOfRows < rows) {    
-    mgmtDecTableRef(pTable);
     pShow->pIter = mgmtGetNextSuperTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
     if (strncmp(pTable->info.tableId, prefix, prefixLen)) {
+      mgmtDecTableRef(pTable);
       continue;
     }
 
     memset(stableName, 0, tListLen(stableName));
     mgmtExtractTableName(pTable->info.tableId, stableName);
 
-    if (pShow->payloadLen > 0 &&
-        patternMatch(pShow->payload, stableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
+    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, stableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+      mgmtDecTableRef(pTable);
       continue;
+    }
 
     cols = 0;
 
@@ -1178,6 +1185,7 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
     cols++;
 
     numOfRows++;
+    mgmtDecTableRef(pTable);
   }
 
   pShow->numOfReads += numOfRows;
@@ -1475,7 +1483,7 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
     return NULL;
   }
 
-  mTrace("table:%s, create table in vgroup, id:%d, uid:%" PRIu64 , pTable->info.tableId, pTable->sid, pTable->uid);
+  mTrace("table:%s, create table in vgroup:%d, id:%d, uid:%" PRIu64 , pTable->info.tableId, pVgroup->vgId, pTable->sid, pTable->uid);
   return pTable;
 }
 
@@ -2106,12 +2114,12 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
   int32_t prefixLen = strlen(prefix);
 
   while (numOfRows < rows) {
-    mgmtDecTableRef(pTable);
     pShow->pIter = mgmtGetNextChildTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
 
     // not belong to current db
     if (strncmp(pTable->info.tableId, prefix, prefixLen)) {
+      mgmtDecTableRef(pTable);
       continue;
     }
 
@@ -2120,8 +2128,8 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     // pattern compare for table name
     mgmtExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 &&
-        patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+      mgmtDecTableRef(pTable);
       continue;
     }
 
@@ -2156,6 +2164,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
     cols++;
 
     numOfRows++;
+    mgmtDecTableRef(pTable);
   }
 
   pShow->numOfReads += numOfRows;
