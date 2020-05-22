@@ -432,6 +432,8 @@ bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
 int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
 
+void mgmtGetDnodeOnlineNum(int32_t *totalDnodes, int32_t *onlineDnodes);
+
 extern int (*mgmtGetMetaFp[])(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 extern int (*mgmtRetrieveFp[])(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 

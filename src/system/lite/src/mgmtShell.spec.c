@@ -46,3 +46,8 @@ int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
 }
+
+void mgmtGetDnodeOnlineNum(int32_t *totalDnodes, int32_t *onlineDnodes) {
+  *totalDnodes = 1;
+  *onlineDnodes = 1;
+}
