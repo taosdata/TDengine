@@ -29,7 +29,6 @@ using namespace std;
 
 // config variables
 static string scriptFileName = "testList.txt";
-static int longestExecTimeInSeconds = 300;
 
 // global variables
 static string outputFileName = "output.tmp";
@@ -39,6 +38,7 @@ static map <string, string> failedMap;
 static string beginTime;
 static string endTime;
 static bool notPrintScreen = true;
+static bool quitOnError = false;
 
 void parseParameter(int argc, char *argv[]) {
   for (int i = 1; i < argc; ++i) {
@@ -46,6 +46,8 @@ void parseParameter(int argc, char *argv[]) {
       scriptFileName = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0) {
       notPrintScreen = false;
+    } else if (strcmp(argv[i], "-q") == 0) {
+      quitOnError = true;
     } else {
       printf("usage: %s [options] \n", argv[0]);
       printf("       [-f script]: script filename\n");
@@ -86,7 +88,7 @@ void outputTestResults() {
   cout << "<font color=\"#0B610B\">|   stopped at " << endTime << "</font><br>\r\n";
   cout << "<font color=\"#0B610B\">| </font><br>\r\n";
   cout << "<font color=\"#CC0000\">| total " << failedList.size() << " tests failed</font><br>\r\n";
-  for (int i = 0; i < failedList.size(); ++i) {
+  for (int i = 0; i < (int)failedList.size(); ++i) {
     cout << "<font color=\"#CC0000\">|   [" << i << "] " << failedList[i] << "</font><br>\r\n";
   }
   cout << "<font color=\"#0B610B\">| </font><br>\r\n";
@@ -138,6 +140,12 @@ void runOneTest(string test) {
     if (!notPrintScreen) {
       printf("%s failed  to execute \033[1;31m %s \033[0m \r\n", getCurrTime().c_str(), test.c_str());
       fflush(stdout);
+    }
+
+    if (quitOnError) {
+      printf("%s quit test \033[1;31m %s \033[0m \r\n", getCurrTime().c_str(), test.c_str());
+      fflush(stdout);
+      exit(0);
     }
   } else {
     successList.push_back(test);
