@@ -4416,6 +4416,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg13);
     }
+    pAlterSQL->tagData.dataLen = pTagsSchema->bytes;
 
     // validate the length of binary
     if ((pTagsSchema->type == TSDB_DATA_TYPE_BINARY || pTagsSchema->type == TSDB_DATA_TYPE_NCHAR) &&
@@ -5550,11 +5551,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   // too long tag values will return invalid sql, not be truncated automatically
   SSchema* pTagSchema = tscGetTableTagSchema(pStableMeterMetaInfo->pTableMeta);
 
-  char* tagVal = pCreateTable->usingInfo.tagdata.data;
+  STagData* pTag = &pCreateTable->usingInfo.tagdata;
+  char* tagVal = pTag->data;
   int32_t ret = TSDB_CODE_SUCCESS;
   
   for (int32_t i = 0; i < pList->nExpr; ++i) {
-    
     if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       // validate the length of binary
       if (pList->a[i].pVar.nLen + VARSTR_HEADER_SIZE > pTagSchema[i].bytes) {
@@ -5593,6 +5594,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     return ret;
   }
 
+  pTag->dataLen = tagVal - pTag->data;
   return TSDB_CODE_SUCCESS;
 }
 
