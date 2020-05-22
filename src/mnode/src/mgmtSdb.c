@@ -196,6 +196,8 @@ void sdbUpdateMnodeRoles() {
       mgmtDecMnodeRef(pMnode);
     }
   }
+
+  mgmtUpdateMnodeIpSet();
 }
 
 static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) {
@@ -442,8 +444,8 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, insert record:%s to hash, numOfRows:%d version:%" PRIu64, pTable->tableName,
-           sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
+  sdbTrace("table:%s, insert record:%s to hash, rowSize:%d vnumOfRows:%d version:%" PRIu64, pTable->tableName,
+           sdbGetKeyStrFromObj(pTable, pOper->pObj), pOper->rowSize, pTable->numOfRows, sdbGetVersion());
 
   (*pTable->insertFp)(pOper);
   return TSDB_CODE_SUCCESS;

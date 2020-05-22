@@ -117,7 +117,7 @@ int32_t mgmtInitUsers() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_USER,
     .tableName    = "users",
-    .hashSessions = TSDB_MAX_USERS,
+    .hashSessions = TSDB_DEFAULT_USERS_HASH_SIZE,
     .maxRowSize   = tsUserUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,

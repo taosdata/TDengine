@@ -340,7 +340,7 @@ static int32_t mgmtInitChildTables() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_CTABLE,
     .tableName    = "ctables",
-    .hashSessions = tsMaxTables,
+    .hashSessions = TSDB_DEFAULT_CTABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SChildTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_ID_LEN + TSDB_CQ_SQL_SIZE,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_VAR_STRING,
@@ -507,7 +507,7 @@ static int32_t mgmtInitSuperTables() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_STABLE,
     .tableName    = "stables",
-    .hashSessions = TSDB_MAX_SUPER_TABLES,
+    .hashSessions = TSDB_DEFAULT_STABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SSuperTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_ID_LEN,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_VAR_STRING,
@@ -1538,7 +1538,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
-  newMsg->maxRetry = 5;
+  newMsg->maxRetry = 10;
   SRpcMsg rpcMsg = {
       .handle  = newMsg,
       .pCont   = pMDCreate,

@@ -56,7 +56,7 @@ static int32_t getToStringLength(const char *pData, int32_t length, int32_t type
     } break;
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
-      len = sprintf(buf, "%" PRId64 "", *(int64_t *)pData);
+      len = sprintf(buf, "%" PRId64, *(int64_t *)pData);
       break;
     case TSDB_DATA_TYPE_BOOL:
       len = MAX_BOOL_TYPE_LENGTH;

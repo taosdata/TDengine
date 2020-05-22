@@ -107,7 +107,6 @@ int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
 int16_t tsAffectedRowsMod = 0;
 int32_t tsNumOfMPeers = 3;
 int32_t tsMaxShellConns = 2000;
-int32_t tsMaxTables = 100000;
 
 char    tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
 char    tsDefaultUser[64] = "root";

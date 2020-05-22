@@ -127,7 +127,7 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     STColumn* pColSchema = schemaColAt(pTable->tagSchema, 0);
     pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
-                                    1, 0, 0, getTagIndexKey);
+                                    1, 0, 1, getTagIndexKey);
   }
 
   tsdbAddTableToMeta(pMeta, pTable, false);
@@ -316,7 +316,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
       // index the first tag column
       STColumn* pColSchema = schemaColAt(super->tagSchema, 0);
       super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
-          1, 0, 0, getTagIndexKey);  // Allow duplicate key, no lock
+          1, 0, 1, getTagIndexKey);  // Allow duplicate key, no lock
 
       if (super->pIndex == NULL) {
         tdFreeSchema(super->schema);
@@ -440,6 +440,7 @@ static int tsdbFreeTable(STable *pTable) {
 
   // Free content
   if (TSDB_TABLE_IS_SUPER_TABLE(pTable)) {
+    tdFreeSchema(pTable->tagSchema);
     tSkipListDestroy(pTable->pIndex);
   }
 
