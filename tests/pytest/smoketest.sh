@@ -46,6 +46,8 @@ python3 ./test.py $1 -f import_merge/importTail.py
 python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f import_merge/importTRestart.py
 python3 ./test.py $1 -s && sleep 1
+python3 ./test.py $1 -f import_merge/importInsertThenImport.py
+python3 ./test.py $1 -s && sleep 1
 
 #tag 
 python3 ./test.py $1 -f tag_lite/filter.py

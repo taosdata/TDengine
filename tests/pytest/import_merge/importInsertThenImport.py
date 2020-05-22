@@ -20,7 +20,7 @@ from util.dnodes import *
 
 
 class TDTestCase:
-    def init(self, conn):
+    def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
@@ -59,7 +59,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 1)
 
         tdLog.info("================= step5")
-        tdDnodes.forcestop(1)
+        tdDnodes.stop(1)
         tdDnodes.start(1)
         tdLog.sleep(10)
 
