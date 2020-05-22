@@ -545,9 +545,10 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       /*bool hasData = */ initTableMemIterator(pQueryHandle, pCheckInfo);
 
       TSKEY k1 = TSKEY_INITIAL_VAL, k2 = TSKEY_INITIAL_VAL;
-      if (pCheckInfo->iter != NULL) {
+      if (pCheckInfo->iter != NULL && tSkipListIterGet(pCheckInfo->iter) != NULL) {
         SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
-        SDataRow       row = SL_GET_NODE_DATA(node);
+        
+        SDataRow row = SL_GET_NODE_DATA(node);
         k1 = dataRowKey(row);
 
         if (k1 == binfo.window.skey) {
@@ -561,9 +562,10 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         }
       }
 
-      if (pCheckInfo->iiter != NULL) {
+      if (pCheckInfo->iiter != NULL && tSkipListIterGet(pCheckInfo->iiter) != NULL) {
         SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
-        SDataRow       row = SL_GET_NODE_DATA(node);
+        
+        SDataRow row = SL_GET_NODE_DATA(node);
         k2 = dataRowKey(row);
 
         if (k2 == binfo.window.skey) {
@@ -583,6 +585,12 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         mergeDataInDataBlock(pQueryHandle, pCheckInfo, pBlock, sa);
       } else {
         pQueryHandle->realNumOfRows = binfo.rows;
+        
+        cur->rows = binfo.rows;
+        cur->win  = binfo.window;
+        cur->mixBlock = false;
+        cur->blockCompleted = true;
+        cur->lastKey = binfo.window.ekey + (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)? 1:-1);
       }
     }
   } else {  //desc order
@@ -914,7 +922,10 @@ static void mergeDataInDataBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo
 
         int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
         int32_t end = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, key, order);
-
+        if (tsArray[end] == key) { // the value of key in cache equals to the end timestamp value, ignore it
+          tSkipListIterNext(pCheckInfo->iter);
+        }
+        
         int32_t start = -1;
         if (ASCENDING_ORDER_TRAVERSE(pQueryHandle->order)) {
           int32_t remain = end - pos + 1;
