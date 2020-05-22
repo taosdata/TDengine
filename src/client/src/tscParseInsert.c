@@ -928,10 +928,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     // 3. calculate the actual data size of STagData
-    pCmd->payloadLen = sizeof(pTag->name);
+    pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen);
     for (int32_t t = 0; t < numOfTags; ++t) {
+      pTag->dataLen += pTagSchema[t].bytes;
       pCmd->payloadLen += pTagSchema[t].bytes;
     }
+    pTag->dataLen = htonl(pTag->dataLen);
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);

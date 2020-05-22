@@ -1334,13 +1334,13 @@ static void mgmtProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
 }
 
 static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
-  char *  pTagData = NULL;
+  STagData *  pTagData = NULL;
   int32_t tagDataLen = 0;
   int32_t totalCols = 0;
   int32_t contLen = 0;
   if (pTable->info.type == TSDB_CHILD_TABLE && pMsg != NULL) {
-    pTagData = pMsg->schema + TSDB_TABLE_ID_LEN + 1;
-    tagDataLen = htonl(pMsg->contLen) - sizeof(SCMCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
+    pTagData = (STagData*)pMsg->schema;
+    tagDataLen = ntohl(pTagData->dataLen);
     totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
     contLen = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen + pTable->sqlLen;
   } else {
@@ -1393,7 +1393,7 @@ static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableOb
   }
 
   if (pTable->info.type == TSDB_CHILD_TABLE && pMsg != NULL) {
-    memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData, tagDataLen);
+    memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData->data, tagDataLen);
     memcpy(pCreate->data + totalCols * sizeof(SSchema) + tagDataLen, pTable->sql, pTable->sqlLen);
   }
 
@@ -1420,10 +1420,10 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
   pTable->vgId         = pVgroup->vgId;
     
   if (pTable->info.type == TSDB_CHILD_TABLE) {
-    char *pTagData = (char *) pCreate->schema;  // it is a tag key
-    SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData);
+    STagData *pTagData = (STagData *) pCreate->schema;  // it is a tag key
+    SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData->name);
     if (pSuperTable == NULL) {
-      mError("table:%s, corresponding super table:%s does not exist", pCreate->tableId, pTagData);
+      mError("table:%s, corresponding super table:%s does not exist", pCreate->tableId, pTagData->name);
       free(pTable);
       terrno = TSDB_CODE_INVALID_TABLE;
       return NULL;
@@ -1742,7 +1742,9 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
 
 static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->pCont;
-  int32_t contLen = sizeof(SCMCreateTableMsg) + sizeof(STagData);
+  STagData* pTag = (STagData*)pInfo->tags;
+
+  int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + ntohl(pTag->dataLen);
   SCMCreateTableMsg *pCreateMsg = rpcMallocCont(contLen);
   if (pCreateMsg == NULL) {
     mError("table:%s, failed to create table while get meta info, no enough memory", pInfo->tableId);
@@ -1756,14 +1758,9 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);
 
-  contLen = sizeof(STagData);
-  if (contLen > pMsg->contLen - sizeof(SCMTableInfoMsg)) {
-    contLen = pMsg->contLen - sizeof(SCMTableInfoMsg);
-  }
-  memcpy(pCreateMsg->schema, pInfo->tags, contLen);
+  memcpy(pCreateMsg->schema, pInfo->tags, contLen - sizeof(SCMCreateTableMsg));
 
   SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
-  pMsg->pCont = newMsg->pCont;
   newMsg->msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
   newMsg->pCont = pCreateMsg;
 
@@ -2201,6 +2198,8 @@ static void mgmtProcessAlterTableMsg(SQueuedMsg *pMsg) {
   }
 
   pAlter->type = htons(pAlter->type);
+  pAlter->numOfCols = htons(pAlter->numOfCols);
+  pAlter->tagValLen = htonl(pAlter->tagValLen);
 
   if (pAlter->numOfCols > 2) {
     mError("table:%s, error numOfCols:%d in alter table", pAlter->tableId, pAlter->numOfCols);
@@ -2232,7 +2231,8 @@ static void mgmtProcessAlterTableMsg(SQueuedMsg *pMsg) {
     mTrace("table:%s, start to alter ctable", pAlter->tableId);
     SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
     if (pAlter->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
-      code = mgmtModifyChildTableTagValue(pTable, pAlter->schema[0].name, pAlter->tagVal);
+      char *tagVal = (char*)(pAlter->schema + pAlter->numOfCols);
+      code = mgmtModifyChildTableTagValue(pTable, pAlter->schema[0].name, tagVal);
     } else if (pAlter->type == TSDB_ALTER_TABLE_ADD_COLUMN) {
       code = mgmtAddNormalTableColumn(pMsg->pDb, pTable, pAlter->schema, 1);
     } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
