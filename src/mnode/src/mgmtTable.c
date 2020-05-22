@@ -1305,7 +1305,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
         if (pDnode == NULL) break;
 
         strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
-        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(tsDnodeShellPort);
+        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
 
         pVgroupInfo->vgroups[vgSize].numOfIps++;
       }
@@ -1785,6 +1785,34 @@ static void mgmtGetChildTableMeta(SQueuedMsg *pMsg) {
   };
   pMeta->contLen = htons(pMeta->contLen);
   rpcSendResponse(&rpcRsp);
+}
+
+void mgmtDropAllChildTablesInVgroups(SVgObj *pVgroup) {
+  void *  pIter = NULL;
+  int32_t numOfTables = 0;
+  SChildTableObj *pTable = NULL;
+
+  mPrint("vgId:%d, all child tables will be dropped from sdb", pVgroup->vgId);
+
+  while (1) {
+    pIter = mgmtGetNextChildTable(pIter, &pTable);
+    if (pTable == NULL) break;
+
+    if (pTable->vgId == pVgroup->vgId) {
+      SSdbOper oper = {
+        .type = SDB_OPER_LOCAL,
+        .table = tsChildTableSdb,
+        .pObj = pTable,
+      };
+      sdbDeleteRow(&oper);
+      numOfTables++;
+    }
+    mgmtDecTableRef(pTable);
+  }
+
+  sdbFreeIter(pIter);
+
+  mPrint("vgId:%d, all child tables is dropped from sdb", pVgroup->vgId);
 }
 
 void mgmtDropAllChildTables(SDbObj *pDropDb) {

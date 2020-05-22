@@ -747,11 +747,14 @@ void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
   SVgObj *pVgroup = NULL;
   int32_t numOfVgroups = 0;
 
+  mPrint("dnode:%d, all vgroups will be dropped from sdb", pDropDnode->dnodeId);
+
   while (1) {
     pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     if (pVgroup->vnodeGid[0].dnodeId == pDropDnode->dnodeId) {
+      mgmtDropAllChildTablesInVgroups(pVgroup);
       SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
@@ -759,12 +762,13 @@ void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
       };
       sdbDeleteRow(&oper);
       numOfVgroups++;
-      continue;
     }
     mgmtDecVgroupRef(pVgroup);
   }
 
   sdbFreeIter(pIter);
+
+  mPrint("dnode:%d, all vgroups is dropped from sdb", pDropDnode->dnodeId);
 }
 
 void mgmtUpdateAllDbVgroups(SDbObj *pAlterDb) {
