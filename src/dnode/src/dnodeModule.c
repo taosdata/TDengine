@@ -20,6 +20,7 @@
 #include "trpc.h"
 #include "mnode.h"
 #include "http.h"
+#include "mqtt.h"
 #include "monitor.h"
 #include "dnodeInt.h"
 #include "dnodeModule.h"
@@ -60,6 +61,16 @@ static void dnodeAllocModules() {
   tsModule[TSDB_MOD_HTTP].stopFp       = httpStopSystem;
   if (tsEnableHttpModule) {
     dnodeSetModuleStatus(TSDB_MOD_HTTP);
+  }
+
+  tsModule[TSDB_MOD_MQTT].enable = (tsEnableMqttModule == 1);
+  tsModule[TSDB_MOD_MQTT].name = "mqtt";
+  tsModule[TSDB_MOD_MQTT].initFp = mqttInitSystem;
+  tsModule[TSDB_MOD_MQTT].cleanUpFp = mqttCleanUpSystem;
+  tsModule[TSDB_MOD_MQTT].startFp = mqttStartSystem;
+  tsModule[TSDB_MOD_MQTT].stopFp = mqttStopSystem;
+  if (tsEnableMqttModule) {
+    dnodeSetModuleStatus(TSDB_MOD_MQTT);
   }
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);

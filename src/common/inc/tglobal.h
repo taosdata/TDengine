@@ -103,6 +103,7 @@ extern int32_t tsOfflineThreshold;
 extern int32_t tsMgmtEqualVnodeNum;
 
 extern int32_t tsEnableHttpModule;
+extern int32_t tsEnableMqttModule;
 extern int32_t tsEnableMonitorModule;
 
 extern int32_t tsRestRowLimit;
@@ -147,6 +148,7 @@ extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
 extern int32_t httpDebugFlag;
+extern int32_t mqttDebugFlag;
 extern int32_t monitorDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
