@@ -125,3 +125,6 @@ python3 ./test.py $1 -f user/pass_len.py
 # table
 #python3 ./test.py $1 -f table/del_stable.py
 
+#query
+python3 ./test.py $1 -f query/filter.py
+
