@@ -500,6 +500,7 @@ int tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
 int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target);
 int tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, int16_t *colIds, int numOfColIds);
 int tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *target);
+// void tsdbGetDataStatis(SRWHelper *pHelper, SDataStatis *pStatis, int numOfCols);
 
 // --------- For write operations
 int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols);
