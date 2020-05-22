@@ -375,7 +375,7 @@ endi
 print ============================ step11
 sql_error create table db.t400 using db.st tags(10)
 sql show db.tables
-if $rows != 50 then 
+if $rows != 80 then 
   return -1
 endi
 
@@ -427,7 +427,7 @@ sql insert into db.t418 values(now, 1)
 sql insert into db.t419 values(now, 1)
 
 sql show db.tables
-if $rows != 50 then 
+if $rows != 100 then 
   return -1
 endi
 
