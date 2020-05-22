@@ -289,6 +289,13 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
 
   if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 
+  STable *pTable = tsdbGetTableByUid(pMeta, pCfg->tableId.uid);
+  if (pTable != NULL) {
+    tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
+              pTable->tableId.tid, pTable->tableId.uid);
+    return TSDB_CODE_TABLE_ALREADY_EXIST;
+  }
+
   STable *super = NULL;
   int newSuper = 0;
 
