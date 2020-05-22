@@ -190,7 +190,7 @@ void setResultInfo(ResultInfo* pRes, int32_t col, int32_t row) {
 void displayData(void* result, int32_t num_fields, TAOS_FIELD* fields, char* temp, ResultInfo* pRes) {
     TAOS_ROW row = NULL;
     int64_t numOfRows = 0;
-    uint64_t start = taosGetTimestampMs();
+//    uint64_t start = taosGetTimestampMs();
 
     char field[4024] = {0};
     int32_t c = 0;
@@ -207,7 +207,7 @@ void displayData(void* result, int32_t num_fields, TAOS_FIELD* fields, char* tem
       numOfRows++;
 
       taos_print_row(temp, row, fields, num_fields);
-      printf("%d: %s, \t len:%ld\n", numOfRows, temp, strlen(temp));
+      printf("%"PRId64": %s, \t len:%ld\n", numOfRows, temp, strlen(temp));
 
       if (pRes != NULL) {
         validateData(fields, num_fields, row, pRes);
@@ -217,14 +217,13 @@ void displayData(void* result, int32_t num_fields, TAOS_FIELD* fields, char* tem
 //      break;
     }
 
-    printf("total elapsed time:%lld ms, %lld rows\n", taosGetTimestampMs() - start, numOfRows);
+//    printf("total elapsed time:%"PRId64" ms, %"PRId64" rows\n", taosGetTimestampMs() - start, numOfRows);
 }
 
 TAOS* connectdb() {
-    strcpy(configDir, "/etc/taos");
     taos_init();
 
-    TAOS* conn = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, 0, 0);
+    TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
     if (conn == NULL) {
         printf("Failed to connect to DB, reason:%s\n", taos_errstr(conn));
         exit(-1);

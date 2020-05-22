@@ -1,9 +1,9 @@
 #ifndef TBASE_TESTCOMMON_H_H
 #define TBASE_TESTCOMMON_H_H
 
-#include "../../../../../community/src/inc/ttypes.h"
-#include "../../../../../community/src/inc/taosmsg.h"
-#include "../../../../../community/src/inc/taos.h"
+#include "taosmsg.h"
+#include "taos.h"
+#include "tvariant.h"
 
 typedef struct {
     int32_t     numOfCols;
