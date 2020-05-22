@@ -334,6 +334,7 @@ static bool balanceMonitorBalance() {
                  srcScore, pDestDnode->score, destScore);
           balanceAddVnode(pVgroup, pSrcDnode, pDestDnode);
           mgmtDecVgroupRef(pVgroup);
+          sdbFreeIter(pIter);
           return true;
         }
       }
@@ -450,12 +451,14 @@ static bool balanceMontiorDropping() {
       pDnode->status = TAOS_DN_STATUS_DROPPING;
       mgmtUpdateDnode(pDnode);
       mgmtDecDnodeRef(pDnode);
+      sdbFreeIter(pIter);
       return true;
     }
 
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
       bool ret = balanceMonitorDnodeDropping(pDnode);
       mgmtDecDnodeRef(pDnode);
+      sdbFreeIter(pIter);
       return ret;
     }
   }
