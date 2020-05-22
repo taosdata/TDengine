@@ -821,6 +821,8 @@ typedef struct {
 typedef struct {
   uint32_t queryId;
   uint32_t streamId;
+  uint32_t totalDnodes;
+  uint32_t onlineDnodes;
   char     killConnection;
   SIpList  ipList;
 } SHeartBeatRsp;
