@@ -571,7 +571,6 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid, dfltKey));
 
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
-
     pMsg += sizeof(STableIdInfo);
   } else {
     int32_t index = pTableMetaInfo->vgroupIndex;
@@ -601,8 +600,8 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     }
   }
   
-  tscTrace("%p vgId:%d, query on table:%s, uid:%" PRIu64, pSql, htonl(pQueryMsg->head.vgId), pTableMetaInfo->name,
-      pTableMeta->uid);
+  tscTrace("%p vgId:%d, query on table:%s, tid:%d, uid:%" PRIu64, pSql, htonl(pQueryMsg->head.vgId), pTableMetaInfo->name,
+      pTableMeta->sid, pTableMeta->uid);
   
   return pMsg;
 }
@@ -1869,6 +1868,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   }
 
   free(pTableMeta);
+  tscTrace("%p recv table meta: %"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
   
   return TSDB_CODE_SUCCESS;
 }
