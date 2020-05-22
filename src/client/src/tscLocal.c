@@ -436,15 +436,17 @@ static void tscProcessServStatus(SSqlObj *pSql) {
       return;
     } else {
       int32_t* data = (int32_t*) pObj->pHb->res.data;
-      
-      int32_t totalDnode = data[0];
-      int32_t onlineDnode = data[1];
-      assert(onlineDnode <= totalDnode);
-      
-      if (onlineDnode < totalDnode) {
-        pSql->res.code = TSDB_CODE_NETWORK_UNAVAIL;
-        return;
+      if (data != NULL) {
+        int32_t totalDnode = data[0];
+        int32_t onlineDnode = data[1];
+        assert(onlineDnode <= totalDnode);
+  
+        if (onlineDnode < totalDnode) {
+          pSql->res.code = TSDB_CODE_NETWORK_UNAVAIL;
+          return;
+        }
       }
+      
     }
   } else {
     if (pSql->res.code == TSDB_CODE_NETWORK_UNAVAIL) {
