@@ -956,7 +956,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     } else {
       sql = sToken.z;
     }
-    code = tscGetTableMeta(pSql, pTableMetaInfo);
+    code = tscGetMeterMetaEx(pSql, pTableMetaInfo, false);
     
     if (pCmd->curSql == NULL) {
       assert(code == TSDB_CODE_ACTION_IN_PROGRESS);
