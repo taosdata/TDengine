@@ -16,7 +16,7 @@ static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx)
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbEstimateTableEncodeSize(STable *pTable);
-static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable);
+static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx);
 
 /**
  * Encode a TSDB table object as a binary content
@@ -411,7 +411,7 @@ int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
 
   tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
             tableId.tid, tableId.uid);
-  if (tsdbRemoveTableFromMeta(pMeta, pTable) < 0) return -1;
+  if (tsdbRemoveTableFromMeta(pMeta, pTable, true) < 0) return -1;
 
   return 0;
 
@@ -501,7 +501,7 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   return 0;
 }
 
-static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
+static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     SSkipListIterator  *pIter = tSkipListCreateIter(pTable->pIndex);
     while (tSkipListIterNext(pIter)) {
@@ -510,7 +510,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
 
       ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
 
-      tsdbRemoveTableFromMeta(pMeta, tTable);
+      tsdbRemoveTableFromMeta(pMeta, tTable, false);
     }
 
     tSkipListDestroyIter(pIter);
@@ -526,7 +526,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
     }
   } else {
     pMeta->tables[pTable->tableId.tid] = NULL;
-    if (pTable->type == TSDB_CHILD_TABLE) {
+    if (pTable->type == TSDB_CHILD_TABLE && rmFromIdx) {
       tsdbRemoveTableFromIndex(pMeta, pTable);
     }
 

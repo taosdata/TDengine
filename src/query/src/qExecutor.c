@@ -3030,11 +3030,13 @@ static void updateTableQueryInfoForReverseScan(SQuery *pQuery, STableQueryInfo *
   
   // order has change already!
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-  if (!QUERY_IS_ASC_QUERY(pQuery)) {
-    assert(pTableQueryInfo->win.ekey >= pTableQueryInfo->lastKey + step);
-  } else {
-    assert(pTableQueryInfo->win.ekey <= pTableQueryInfo->lastKey + step);
-  }
+  
+  // TODO validate the assertion
+//  if (!QUERY_IS_ASC_QUERY(pQuery)) {
+//    assert(pTableQueryInfo->win.ekey >= pTableQueryInfo->lastKey + step);
+//  } else {
+//    assert(pTableQueryInfo->win.ekey <= pTableQueryInfo->lastKey + step);
+//  }
   
   pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
   
@@ -3113,7 +3115,7 @@ void disableFuncInReverseScan(SQInfo *pQInfo) {
 void switchCtxOrder(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    SWITCH_ORDER(pRuntimeEnv->pCtx[i] .order);
+    SWITCH_ORDER(pRuntimeEnv->pCtx[i].order);
   }
 }
 
@@ -4384,10 +4386,11 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
     
     SArray *pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis);
 
-    TSKEY nextKey = blockInfo.window.skey;
     if (!isIntervalQuery(pQuery)) {
-      setExecutionContext(pQInfo, &pTableQueryInfo->id, pTableQueryInfo->groupIdx, nextKey);
+      int32_t step = QUERY_IS_ASC_QUERY(pQuery)? 1:-1;
+      setExecutionContext(pQInfo, &pTableQueryInfo->id, pTableQueryInfo->groupIdx, blockInfo.window.ekey + step);
     } else {  // interval query
+      TSKEY nextKey = blockInfo.window.skey;
       setIntervalQueryRange(pQInfo, nextKey);
       int32_t ret = setAdditionalInfo(pQInfo, &pTableQueryInfo->id, pTableQueryInfo);
 
