@@ -198,6 +198,44 @@ void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop); //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);
 
+
+// ----------------- Tag row structure
+
+/* A tag row, the format is like below:
++----------+-------------------------------------------------------------+---------------------------------+
+|  int16   | int16  | int64   | int16  | int64   | ...| int16  | int64   |              char               |
++----------+-------------------------------------------------------------+---------------------------------+
+|  ncols   | colId1 | offset1 | colId2 | offset2 | ...| colIdN | offsetN |              values             |
++----------+-------------------------------------------------------------+---------------------------------+
+ */
+typedef void *STagRowRaw;
+
+#define TD_TAG_ROW_HEAD_SIZE sizeof(int16_t)
+
+#define tagRowNum(r) (*(int16_t *)(r))
+#define tagRowArray(r) POINTER_SHIFT(r, TD_TAG_ROW_HEAD_SIZE)
+//#define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
+//#define dataRowSetLen(r, l) (dataRowLen(r) = (l))
+//#define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
+//#define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
+
+typedef struct {
+  int16_t colId;   // column ID
+  union{
+    int64_t tagOffset;
+    int64_t tagValue;
+  };
+} STagCol;
+
+typedef struct {
+  int16_t    nCols;  // Total columns allocated
+  STagCol tagCols[];
+} STagRow;
+
+
+
+
+
 #ifdef __cplusplus
 }
 #endif
