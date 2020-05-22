@@ -25,8 +25,14 @@ class TDSql:
         self.queryCols = 0
         self.affectedRows = 0
 
-    def init(self, cursor):
+    def init(self, cursor, log=True):
         self.cursor = cursor
+
+        if (log):
+            frame = inspect.stack()[1]
+            callerModule = inspect.getmodule(frame[0])
+            callerFilename = callerModule.__file__
+            self.cursor.log(callerFilename + ".sql")
 
     def close(self):
         self.cursor.close()
@@ -100,7 +106,6 @@ class TDSql:
                 (callerFilename, self.sql, col, self.queryCols))
 
         return self.cursor.istype(col, dataType)
-
 
     def checkData(self, row, col, data):
         frame = inspect.stack()[1]

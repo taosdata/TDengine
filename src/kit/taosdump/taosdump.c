@@ -37,6 +37,8 @@
 #define COMMAND_SIZE 65536
 #define DEFAULT_DUMP_FILE "taosdump.sql"
 
+#define MAX_DBS  100
+
 int  converStringToReadable(char *str, int size, char *buf, int bufsize);
 int  convertNCharToReadable(char *str, int size, char *buf, int bufsize);
 void taosDumpCharset(FILE *fp);
@@ -359,7 +361,7 @@ int main(int argc, char *argv[]) {
 
 void taosFreeDbInfos() {
   if (dbInfos == NULL) return;
-  for (int i = 0; i < TSDB_MAX_DBS; i++) tfree(dbInfos[i]);
+  for (int i = 0; i < MAX_DBS; i++) tfree(dbInfos[i]);
   tfree(dbInfos);
 }
 
@@ -437,7 +439,7 @@ int taosDumpOut(SDumpArguments *arguments) {
     return -1;
   }
 
-  dbInfos = (SDbInfo **)calloc(TSDB_MAX_DBS, sizeof(SDbInfo *));
+  dbInfos = (SDbInfo **)calloc(MAX_DBS, sizeof(SDbInfo *));
   if (dbInfos == NULL) {
     fprintf(stderr, "failed to allocate memory\n");
     goto _exit_failure;
@@ -941,7 +943,7 @@ int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
           pstr += sprintf(pstr, "%d", *((int *)row[col]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          pstr += sprintf(pstr, "%" PRId64 "", *((int64_t *)row[col]));
+          pstr += sprintf(pstr, "%" PRId64, *((int64_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
           pstr += sprintf(pstr, "%f", GET_FLOAT_VAL(row[col]));
@@ -960,7 +962,7 @@ int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
           pstr += sprintf(pstr, "\'%s\'", tbuf);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          pstr += sprintf(pstr, "%" PRId64 "", *(int64_t *)row[col]);
+          pstr += sprintf(pstr, "%" PRId64, *(int64_t *)row[col]);
           break;
         default:
           break;

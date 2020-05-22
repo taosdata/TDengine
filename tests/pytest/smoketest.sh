@@ -50,3 +50,8 @@ python3 ./test.py $1 -s && sleep 1
 #tag 
 python3 ./test.py $1 -f tag_lite/filter.py
 python3 ./test.py $1 -s && sleep 1
+
+#query
+python3 ./test.py $1 -f query/filter.py
+python3 ./test.py $1 -s && sleep 1
+

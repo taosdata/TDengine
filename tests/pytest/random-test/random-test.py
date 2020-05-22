@@ -108,11 +108,23 @@ class Test:
         tdDnodes.start(1)
         tdSql.prepare()
 
+    def delete_datafiles(self):
+        tdLog.info("delete data files")
+        dnodesDir = tdDnodes.getDnodesRootDir()
+        dataDir = dnodesDir + '/dnode1/*'
+        deleteCmd = 'rm -rf %s' % dataDir
+        os.system(deleteCmd)
+
+        self.current_tb = ""
+        self.last_tb = ""
+        self.written = 0
+        tdDnodes.start(1)
+        tdSql.prepare()
 
 class TDTestCase:
-    def init(self, conn):
+    def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
     def run(self):
         tdSql.prepare()
@@ -129,10 +141,11 @@ class TDTestCase:
             7: test.drop_table,
             8: test.reset_query_cache,
             9: test.reset_database,
+            10: test.delete_datafiles,
         }
 
         for x in range(1, 100):
-            r = random.randint(1, 9)
+            r = random.randint(1, 10)
             tdLog.notice("iteration %d run func %d" % (x, r))
             switch.get(r, lambda: "ERROR")()
 

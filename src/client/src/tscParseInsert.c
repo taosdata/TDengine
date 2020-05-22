@@ -42,35 +42,35 @@ enum {
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 
 static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
-  int32_t numType = isValidNumber(pToken);
-  if (TK_ILLEGAL == numType) {
-    return numType;
-  }
+//  int32_t numType = isValidNumber(pToken);
+//  if (TK_ILLEGAL == numType) {
+//    return numType;
+//  }
 
   int32_t radix = 10;
-  if (numType == TK_HEX) {
+  if (pToken->type == TK_HEX) {
     radix = 16;
-  } else if (numType == TK_OCT) {
+  } else if (pToken->type == TK_OCT) {
     radix = 8;
-  } else if (numType == TK_BIN) {
+  } else if (pToken->type == TK_BIN) {
     radix = 2;
   }
 
   errno = 0;
   *value = strtoll(pToken->z, endPtr, radix);
 
-  return numType;
+  return pToken->type;
 }
 
 static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
-  int32_t numType = isValidNumber(pToken);
-  if (TK_ILLEGAL == numType) {
-    return numType;
-  }
+//  int32_t numType = isValidNumber(pToken);
+//  if (TK_ILLEGAL == numType) {
+//    return numType;
+//  }
 
   errno = 0;
   *value = strtod(pToken->z, endPtr);
-  return numType;
+  return pToken->type;
 }
 
 int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
@@ -779,7 +779,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
     STagData *pTag = (STagData *)pCmd->payload;
     memset(pTag, 0, sizeof(STagData));
-    pCmd->payloadLen = sizeof(STagData);
     
     /*
      * the source super table is moved to the secondary position of the pTableMetaInfo list
@@ -927,6 +926,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
         ptr += pTagSchema[i].bytes;
       }
     }
+
+    // 3. calculate the actual data size of STagData
+    pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen);
+    for (int32_t t = 0; t < numOfTags; ++t) {
+      pTag->dataLen += pTagSchema[t].bytes;
+      pCmd->payloadLen += pTagSchema[t].bytes;
+    }
+    pTag->dataLen = htonl(pTag->dataLen);
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);

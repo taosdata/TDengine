@@ -44,6 +44,10 @@ cd ../../../debug; make
 ./test.sh -f general/compute/top.sim
 
 ./test.sh -f general/db/alter_option.sim
+#./test.sh -f general/db/alter_tables_d2.sim
+./test.sh -f general/db/alter_tables_v1.sim
+./test.sh -f general/db/alter_tables_v4.sim
+./test.sh -f general/db/alter_vgroups.sim
 ./test.sh -f general/db/basic.sim
 ./test.sh -f general/db/basic1.sim
 ./test.sh -f general/db/basic2.sim
@@ -103,18 +107,18 @@ cd ../../../debug; make
 #unsupport ./test.sh -f general/parser/alter_stable.sim
 ./test.sh -f general/parser/auto_create_tb.sim
 ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
-#liao ./test.sh -f general/parser/col_arithmetic_operation.sim
-./test.sh -f general/parser/columnValue.sim
-#liao ./test.sh -f general/parser/commit.sim
+./test.sh -f general/parser/col_arithmetic_operation.sim
+#/test.sh -f general/parser/columnValue.sim
+./test.sh -f general/parser/commit.sim
 # ./test.sh -f general/parser/create_db.sim
-# ./test.sh -f general/parser/create_mt.sim
-# ./test.sh -f general/parser/create_tb.sim
-# ./test.sh -f general/parser/dbtbnameValidate.sim
+./test.sh -f general/parser/create_mt.sim
+./test.sh -f general/parser/create_tb.sim
+./test.sh -f general/parser/dbtbnameValidate.sim
 ./test.sh -f general/parser/import_commit1.sim
 ./test.sh -f general/parser/import_commit2.sim
 ./test.sh -f general/parser/import_commit3.sim
-# ./test.sh -f general/parser/insert_tb.sim
-# ./test.sh -f general/parser/first_last.sim
+./test.sh -f general/parser/insert_tb.sim
+./test.sh -f general/parser/first_last.sim
 # ./test.sh -f general/parser/import_file.sim
 # ./test.sh -f general/parser/lastrow.sim
 # ./test.sh -f general/parser/nchar.sim
@@ -271,7 +275,7 @@ cd ../../../debug; make
 ./test.sh -u -f unique/dnode/offline1.sim
 #jeff ./test.sh -u -f unique/dnode/offline2.sim
 ./test.sh -u -f unique/dnode/remove1.sim
-#hongze ./test.sh -u -f unique/dnode/remove2.sim
+#jeff ./test.sh -u -f unique/dnode/remove2.sim
 ./test.sh -u -f unique/dnode/vnode_clean.sim
 
 ./test.sh -u -f unique/http/admin.sim

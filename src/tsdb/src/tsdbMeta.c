@@ -16,7 +16,7 @@ static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx)
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbEstimateTableEncodeSize(STable *pTable);
-static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable);
+static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx);
 
 /**
  * Encode a TSDB table object as a binary content
@@ -127,7 +127,7 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     STColumn* pColSchema = schemaColAt(pTable->tagSchema, 0);
     pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
-                                    1, 0, 0, getTagIndexKey);
+                                    1, 0, 1, getTagIndexKey);
   }
 
   tsdbAddTableToMeta(pMeta, pTable, false);
@@ -289,6 +289,13 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
 
   if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 
+  STable *pTable = tsdbGetTableByUid(pMeta, pCfg->tableId.uid);
+  if (pTable != NULL) {
+    tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
+              pTable->tableId.tid, pTable->tableId.uid);
+    return TSDB_CODE_TABLE_ALREADY_EXIST;
+  }
+
   STable *super = NULL;
   int newSuper = 0;
 
@@ -316,7 +323,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
       // index the first tag column
       STColumn* pColSchema = schemaColAt(super->tagSchema, 0);
       super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
-          1, 0, 0, getTagIndexKey);  // Allow duplicate key, no lock
+          1, 0, 1, getTagIndexKey);  // Allow duplicate key, no lock
 
       if (super->pIndex == NULL) {
         tdFreeSchema(super->schema);
@@ -411,7 +418,7 @@ int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
 
   tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
             tableId.tid, tableId.uid);
-  if (tsdbRemoveTableFromMeta(pMeta, pTable) < 0) return -1;
+  if (tsdbRemoveTableFromMeta(pMeta, pTable, true) < 0) return -1;
 
   return 0;
 
@@ -440,6 +447,7 @@ static int tsdbFreeTable(STable *pTable) {
 
   // Free content
   if (TSDB_TABLE_IS_SUPER_TABLE(pTable)) {
+    tdFreeSchema(pTable->tagSchema);
     tSkipListDestroy(pTable->pIndex);
   }
 
@@ -500,7 +508,7 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   return 0;
 }
 
-static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
+static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     SSkipListIterator  *pIter = tSkipListCreateIter(pTable->pIndex);
     while (tSkipListIterNext(pIter)) {
@@ -509,7 +517,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
 
       ASSERT(tTable != NULL && tTable->type == TSDB_CHILD_TABLE);
 
-      tsdbRemoveTableFromMeta(pMeta, tTable);
+      tsdbRemoveTableFromMeta(pMeta, tTable, false);
     }
 
     tSkipListDestroyIter(pIter);
@@ -525,7 +533,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
     }
   } else {
     pMeta->tables[pTable->tableId.tid] = NULL;
-    if (pTable->type == TSDB_CHILD_TABLE) {
+    if (pTable->type == TSDB_CHILD_TABLE && rmFromIdx) {
       tsdbRemoveTableFromIndex(pMeta, pTable);
     }
 

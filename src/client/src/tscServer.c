@@ -1213,8 +1213,13 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int8_t type = pInfo->pCreateTableInfo->type;
   if (type == TSQL_CREATE_TABLE_FROM_STABLE) {  // create by using super table, tags value
-    memcpy(pMsg, &pInfo->pCreateTableInfo->usingInfo.tagdata, sizeof(STagData));
-    pMsg += sizeof(STagData);
+    STagData* pTag = &pInfo->pCreateTableInfo->usingInfo.tagdata;
+    *(int32_t*)pMsg = htonl(pTag->dataLen);
+    pMsg += sizeof(int32_t);
+    memcpy(pMsg, pTag->name, sizeof(pTag->name));
+    pMsg += sizeof(pTag->name);
+    memcpy(pMsg, pTag->data, pTag->dataLen);
+    pMsg += pTag->dataLen;
   } else {  // create (super) table
     pSchema = (SSchema *)pCreateTableMsg->schema;
 
@@ -1281,9 +1286,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   strcpy(pAlterTableMsg->tableId, pTableMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
 
-  pAlterTableMsg->numOfCols = tscNumOfFields(pQueryInfo);
-  memcpy(pAlterTableMsg->tagVal, pAlterInfo->tagData.data, TSDB_MAX_TAGS_LEN);
-
+  pAlterTableMsg->numOfCols = htons(tscNumOfFields(pQueryInfo));
   SSchema *pSchema = pAlterTableMsg->schema;
   for (int i = 0; i < pAlterTableMsg->numOfCols; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
@@ -1295,6 +1298,9 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   pMsg = (char *)pSchema;
+  pAlterTableMsg->tagValLen = htonl(pAlterInfo->tagData.dataLen);
+  memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
+  pMsg += pAlterInfo->tagData.dataLen;
 
   msgLen = pMsg - (char*)pAlterTableMsg;
   pCmd->payloadLen = msgLen;

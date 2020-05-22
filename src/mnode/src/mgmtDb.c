@@ -96,6 +96,7 @@ static int32_t mgmtDbActionUpdate(SSdbOper *pOper) {
     memcpy(pSaved, pDb, pOper->rowSize);
     free(pDb);
   }
+  mgmtUpdateAllDbVgroups(pSaved);
   mgmtDecDbRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
@@ -127,7 +128,7 @@ int32_t mgmtInitDbs() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_DB,
     .tableName    = "dbs",
-    .hashSessions = TSDB_MAX_DBS,
+    .hashSessions = TSDB_DEFAULT_DBS_HASH_SIZE,
     .maxRowSize   = tsDbUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,

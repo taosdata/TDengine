@@ -107,7 +107,6 @@ int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
 int16_t tsAffectedRowsMod = 0;
 int32_t tsNumOfMPeers = 3;
 int32_t tsMaxShellConns = 2000;
-int32_t tsMaxTables = 100000;
 
 char    tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
 char    tsDefaultUser[64] = "root";
@@ -141,7 +140,7 @@ int32_t rpcDebugFlag = 135;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
 int32_t sDebugFlag = 135;
-int32_t tsdbDebugFlag = 135;
+int32_t tsdbDebugFlag = 131;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
