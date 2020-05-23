@@ -208,7 +208,7 @@ void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SD
 |  ncols   | colId1 | offset1 | colId2 | offset2 | ...| colIdN | offsetN |              values             |
 +----------+-------------------------------------------------------------+---------------------------------+
  */
-typedef void *STagRowRaw;
+
 
 #define TD_TAG_ROW_HEAD_SIZE sizeof(int16_t)
 
@@ -221,20 +221,20 @@ typedef void *STagRowRaw;
 
 typedef struct {
   int16_t colId;   // column ID
-  union{
-    int64_t tagOffset;
-    int64_t tagValue;
-  };
+  int16_t colLen;  // if col type is binary/Nchar, this is the length of binary/Nchar
+  int64_t valueOrOffset;  //to store value for numeric col or offset for binary/Nchar
 } STagCol;
 
 typedef struct {
-  int16_t    nCols;  // Total columns allocated
-  STagCol tagCols[];
+  int32_t    len;  
+  void *     pBinaryData;  // Space to store the binary and Nchar value   
+  int16_t    ncols;  // Total columns allocated
+  STagCol    tagCols[];
 } STagRow;
 
-
-
-
+int tdInsertTagCol(SDataRow *row, void *value, int32_t bytes, int16_t colId);
+int tdQuerTagByID(SDataRow row, void *value, int16_t colId);
+SDataRow tdNewTagRowFromSchema(STSchema *pSchema);
 
 #ifdef __cplusplus
 }
