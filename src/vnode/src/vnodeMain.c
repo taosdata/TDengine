@@ -252,7 +252,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
 #ifndef _SYNC
   pVnode->role = TAOS_SYNC_ROLE_MASTER;
-#elif
+#else
   if (pVnode->sync == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
