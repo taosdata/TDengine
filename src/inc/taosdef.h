@@ -326,8 +326,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_QUERY_TYPE_TAG_FILTER_QUERY              0x400u
 #define TSDB_QUERY_TYPE_INSERT                        0x100u    // insert type
-#define TSDB_QUERY_TYPE_IMPORT                        0x200u    // import data
-#define TSDB_QUERY_TYPE_MULTITABLE_QUERY              0x800u
+#define TSDB_QUERY_TYPE_MULTITABLE_QUERY              0x200u
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)         (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))

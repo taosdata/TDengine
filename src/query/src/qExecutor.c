@@ -403,23 +403,24 @@ static bool isTopBottomQuery(SQuery *pQuery) {
   return false;
 }
 
-static SDataStatis *getStatisInfo(SQuery *pQuery, SDataStatis *pStatis, SDataBlockInfo *pDataBlockInfo, int32_t index) {
+static SDataStatis *getStatisInfo(SQuery *pQuery, SDataStatis *pStatis, int32_t numOfCols, int32_t index) {
   // for a tag column, no corresponding field info
-  SColIndex *pColIndexEx = &pQuery->pSelectExpr[index].base.colInfo;
-  if (TSDB_COL_IS_TAG(pColIndexEx->flag)) {
+  SColIndex *pColIndex = &pQuery->pSelectExpr[index].base.colInfo;
+  if (TSDB_COL_IS_TAG(pColIndex->flag)) {
     return NULL;
   }
-
+  
   /*
    * Choose the right column field info by field id, since the file block may be out of date,
    * which means the newest table schema is not equalled to the schema of this block.
+   * TODO: speedup by using bsearch
    */
-  for (int32_t i = 0; i < pDataBlockInfo->numOfCols; ++i) {
-    if (pColIndexEx->colId == pStatis[i].colId) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    if (pColIndex->colId == pStatis[i].colId) {
       return &pStatis[i];
     }
   }
-
+  
   return NULL;
 }
 
@@ -431,8 +432,7 @@ static SDataStatis *getStatisInfo(SQuery *pQuery, SDataStatis *pStatis, SDataBlo
  * @param pColStatis
  * @return
  */
-static bool hasNullValue(SQuery *pQuery, int32_t col, SDataBlockInfo *pDataBlockInfo, SDataStatis *pStatis,
-                         SDataStatis **pColStatis) {
+static bool hasNullValue(SQuery *pQuery, int32_t col, int32_t numOfCols, SDataStatis *pStatis, SDataStatis **pColStatis) {
   SColIndex *pColIndex = &pQuery->pSelectExpr[col].base.colInfo;
   if (TSDB_COL_IS_TAG(pColIndex->flag)) {
     return false;
@@ -444,7 +444,7 @@ static bool hasNullValue(SQuery *pQuery, int32_t col, SDataBlockInfo *pDataBlock
   }
 
   if (pStatis != NULL) {
-    *pColStatis = getStatisInfo(pQuery, pStatis, pDataBlockInfo, col);
+    *pColStatis = getStatisInfo(pQuery, pStatis, numOfCols, col);
   } else {
     *pColStatis = NULL;
   }
@@ -936,7 +936,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
 
     SDataStatis *tpField = NULL;
 
-    bool  hasNull = hasNullValue(pQuery, k, pDataBlockInfo, pStatis, &tpField);
+    bool  hasNull = hasNullValue(pQuery, k, pDataBlockInfo->numOfCols, pStatis, &tpField);
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
 
     setExecParams(pQuery, &pCtx[k], dataBlock, primaryKeyCol, pDataBlockInfo->rows, functionId, tpField, hasNull,
@@ -1157,7 +1157,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
 
     SDataStatis *pColStatis = NULL;
 
-    bool  hasNull = hasNullValue(pQuery, k, pDataBlockInfo, pStatis, &pColStatis);
+    bool  hasNull = hasNullValue(pQuery, k, pDataBlockInfo->numOfCols, pStatis, &pColStatis);
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
 
     setExecParams(pQuery, &pCtx[k], dataBlock, primaryKeyCol, pDataBlockInfo->rows, functionId, pColStatis, hasNull,
@@ -2455,9 +2455,9 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     }
 
     SDataStatis *pStatis = NULL;
-    SArray *     pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis);
-
     pQuery->pos = QUERY_IS_ASC_QUERY(pQuery) ? 0 : blockInfo.rows - 1;
+    
+    SArray *pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis);
     int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, pStatis, binarySearchForKey, pDataBlock);
 
     qTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", rows:%d, numOfRes:%d", GET_QINFO_ADDR(pRuntimeEnv),
@@ -5610,18 +5610,18 @@ static void doUpdateExprColumnIndex(SQuery *pQuery) {
       continue;
     }
 
-    SColIndex *pColIndexEx = &pSqlExprMsg->colInfo;
-    if (!TSDB_COL_IS_TAG(pColIndexEx->flag)) {
+    SColIndex *pColIndex = &pSqlExprMsg->colInfo;
+    if (!TSDB_COL_IS_TAG(pColIndex->flag)) {
       for (int32_t f = 0; f < pQuery->numOfCols; ++f) {
-        if (pColIndexEx->colId == pQuery->colList[f].colId) {
-          pColIndexEx->colIndex = f;
+        if (pColIndex->colId == pQuery->colList[f].colId) {
+          pColIndex->colIndex = f;
           break;
         }
       }
     } else {
       for (int32_t f = 0; f < pQuery->numOfTags; ++f) {
-        if (pColIndexEx->colId == pQuery->tagColList[f].colId) {
-          pColIndexEx->colIndex = f;
+        if (pColIndex->colId == pQuery->tagColList[f].colId) {
+          pColIndex->colIndex = f;
           break;
         }
       }
