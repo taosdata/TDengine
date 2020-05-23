@@ -468,7 +468,7 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   pFdObj->signature = NULL;
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
-  taosCloseTcpSocket(pFdObj->fd);
+  taosCloseSocket(pFdObj->fd);
 
   pThreadObj->numOfFds--;
 

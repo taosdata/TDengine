@@ -1139,7 +1139,7 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
   prefixLen = strlen(prefix);
 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-  char stableName[TSDB_TABLE_NAME_LEN] = {0};
+  char stableName[TSDB_TABLE_NAME_LEN + 1] = {0};
 
   while (numOfRows < rows) {    
     pShow->pIter = mgmtGetNextSuperTable(pShow->pIter, &pTable);
@@ -2024,7 +2024,7 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
   SCMMultiTableInfoMsg *pInfo = pMsg->pCont;
   pInfo->numOfTables = htonl(pInfo->numOfTables);
 
-  int32_t totalMallocLen = 4*1024*1024; // first malloc 4 MB, subsequent reallocation as twice
+  int32_t totalMallocLen = 4 * 1024 * 1024;  // first malloc 4 MB, subsequent reallocation as twice
   SMultiTableMeta *pMultiMeta = rpcMallocCont(totalMallocLen);
   if (pMultiMeta == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
@@ -2034,26 +2034,30 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
   pMultiMeta->contLen = sizeof(SMultiTableMeta);
   pMultiMeta->numOfTables = 0;
 
-  for (int t = 0; t < pInfo->numOfTables; ++t) {
-    char *tableId = (char*)(pInfo->tableIds + t * TSDB_TABLE_ID_LEN);
+  for (int32_t t = 0; t < pInfo->numOfTables; ++t) {
+    char * tableId = (char *)(pInfo->tableIds + t * TSDB_TABLE_ID_LEN + 1);
     SChildTableObj *pTable = mgmtGetChildTable(tableId);
     if (pTable == NULL) continue;
 
     if (pMsg->pDb == NULL) pMsg->pDb = mgmtGetDbByTableId(tableId);
-    if (pMsg->pDb == NULL) continue;
+    if (pMsg->pDb == NULL) {
+      mgmtDecTableRef(pTable);
+      continue;
+    }
 
     int availLen = totalMallocLen - pMultiMeta->contLen;
     if (availLen <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
-      //TODO realloc
-      //totalMallocLen *= 2;
-      //pMultiMeta = rpcReMalloc(pMultiMeta, totalMallocLen);
-      //if (pMultiMeta == NULL) {
-      ///  rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-      //  return TSDB_CODE_SERV_OUT_OF_MEMORY;
-      //} else {
-      //  t--;
-      //  continue;
-      //}
+      totalMallocLen *= 2;
+      pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
+      if (pMultiMeta == NULL) {
+        mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
+        mgmtDecTableRef(pTable);
+        return;
+      } else {
+        t--;
+        mgmtDecTableRef(pTable);
+        continue;
+      }
     }
 
     STableMetaMsg *pMeta = (STableMetaMsg *)(pMultiMeta->metas + pMultiMeta->contLen);
@@ -2062,6 +2066,8 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
       pMultiMeta->numOfTables ++;
       pMultiMeta->contLen += pMeta->contLen;
     }
+
+    mgmtDecTableRef(pTable);
   }
 
   SRpcMsg rpcRsp = {0};
@@ -2148,7 +2154,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
       continue;
     }
 
-    char tableName[TSDB_TABLE_NAME_LEN] = {0};
+    char tableName[TSDB_TABLE_NAME_LEN + 1] = {0};
     
     // pattern compare for table name
     mgmtExtractTableName(pTable->info.tableId, tableName);

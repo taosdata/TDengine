@@ -58,6 +58,9 @@ class TDSql:
                 "%s failed: sql:%s, expect error not occured" %
                 (callerFilename, sql))
         else:
+            self.queryRows = 0
+            self.queryCols = 0
+            self.queryResult = None
             tdLog.info("sql:%s, expect error occured" % (sql))
 
     def query(self, sql):
