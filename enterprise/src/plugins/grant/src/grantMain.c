@@ -73,10 +73,11 @@ static SGrantStatus grantStatus = {
 };
 
 int32_t grantInit() {
+  grantActiveSystem("/etc/taos/taos.cfg");
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
-  taosTmrReset(grantSendMsgToMgmt, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantSendTimer);
+  taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMgmtTmr, &grantSendTimer);
 
   uTrace("grant data is initialized");
   return TSDB_CODE_SUCCESS;
@@ -626,7 +627,7 @@ static void grantCheckGrantInfo() {
 }
 
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  grantActiveSystem(NULL);
+  grantActiveSystem("/etc/taos/taos.cfg");
   grantSendMsgToMgmt();
   usleep(10000);
 
