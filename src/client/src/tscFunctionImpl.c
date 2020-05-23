@@ -396,10 +396,6 @@ static void function_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
-static bool usePreVal(SQLFunctionCtx *pCtx) {
-  return pCtx->preAggVals.isSet && pCtx->size == pCtx->preAggVals.size;
-}
-
 /*
  * count function does need the finalize, if data is missing, the default value, which is 0, is used
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
@@ -412,7 +408,7 @@ static void count_function(SQLFunctionCtx *pCtx) {
    * 2. for general non-primary key columns, pCtx->hasNull may be true or false, pCtx->preAggVals.isSet == true;
    * 3. for primary key column, pCtx->hasNull always be false, pCtx->preAggVals.isSet == false;
    */
-  if (usePreVal(pCtx)) {
+  if (pCtx->preAggVals.isSet) {
     numOfElem = pCtx->size - pCtx->preAggVals.statis.numOfNull;
   } else {
     if (pCtx->hasNull) {
@@ -537,7 +533,7 @@ static void do_sum(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
   // Only the pre-computing information loaded and actual data does not loaded
-  if (pCtx->preAggVals.isSet && pCtx->preAggVals.size == pCtx->size) {
+  if (pCtx->preAggVals.isSet) {
     notNullElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
     assert(pCtx->size >= pCtx->preAggVals.statis.numOfNull);
     
@@ -768,7 +764,7 @@ static void avg_function(SQLFunctionCtx *pCtx) {
   SAvgInfo *pAvgInfo = (SAvgInfo *)pResInfo->interResultBuf;
   double *  pVal = &pAvgInfo->sum;
   
-  if (usePreVal(pCtx)) {
+  if (pCtx->preAggVals.isSet) {
     // Pre-aggregation
     notNullElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
     assert(notNullElems >= 0);
@@ -932,7 +928,7 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
 
 static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, int32_t *notNullElems) {
   // data in current data block are qualified to the query
-  if (usePreVal(pCtx)) {
+  if (pCtx->preAggVals.isSet) {
     *notNullElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
     assert(*notNullElems >= 0);
     
@@ -2916,7 +2912,7 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 static void date_col_output_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->scanFlag == REVERSE_SCAN) {
+  if (pCtx->scanFlag == REVERSE_SCAN) {  // todo : remove it
     return;
   }
   
@@ -3423,7 +3419,7 @@ static void spread_function(SQLFunctionCtx *pCtx) {
   
   // todo : opt with pre-calculated result
   // column missing cause the hasNull to be true
-  if (usePreVal(pCtx)) {
+  if (pCtx->preAggVals.isSet) {
     numOfElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
     
     // all data are null in current data block, ignore current data block

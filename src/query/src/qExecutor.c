@@ -1342,14 +1342,13 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void *inputData, TSKEY 
 
   if (pStatis != NULL) {
     pCtx->preAggVals.isSet = true;
-    pCtx->preAggVals.size = size;
     pCtx->preAggVals.statis = *pStatis;
   } else {
     pCtx->preAggVals.isSet = false;
   }
 
   pCtx->startOffset = QUERY_IS_ASC_QUERY(pQuery) ? pQuery->pos : 0;
-  pCtx->size = QUERY_IS_ASC_QUERY(pQuery) ? size - pQuery->pos : pQuery->pos + 1;
+  pCtx->size = size;
 
   uint32_t status = aAggs[functionId].nStatus;
   if (((status & (TSDB_FUNCSTATE_SELECTIVITY | TSDB_FUNCSTATE_NEED_TS)) != 0) && (tsCol != NULL)) {
@@ -1377,6 +1376,8 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void *inputData, TSKEY 
 
   } else if (functionId == TSDB_FUNC_ARITHM) {
     pCtx->param[1].pz = param;
+  } else if (functionId == TSDB_FUNC_SPREAD) {
+    pCtx->
   }
 
 #if defined(_DEBUG_VIEW)
