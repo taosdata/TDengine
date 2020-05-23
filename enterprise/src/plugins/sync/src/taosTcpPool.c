@@ -117,7 +117,7 @@ void taosFreeTcpThread(void *param, int *pfd)
   SThreadObj *pThread = (SThreadObj *)param;
 
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, *pfd, NULL);
-  taosCloseTcpSocket(*pfd);
+  taosCloseSocket(*pfd);
   pThread->numOfFds--;
   //uTrace("fd:%d is removed, num:%d", *pfd, pThread->numOfFds);
   
