@@ -5606,7 +5606,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg3 = "fill only available for interval query";
   const char* msg4 = "fill option not supported in stream computing";
   const char* msg5 = "sql too long";  // todo ADD support
-
+  const char* msg6 = "from missing in subclause";
+  
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   assert(pQueryInfo->numOfTables == 1);
@@ -5621,10 +5622,13 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   if (tscValidateName(pzTableName) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
-
+  
   tVariantList* pSrcMeterName = pInfo->pCreateTableInfo->pSelect->from;
-  tVariant*     pVar = &pSrcMeterName->a[0].pVar;
-
+  if (pSrcMeterName == NULL || pSrcMeterName->nExpr == 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
+  }
+  
+  tVariant* pVar = &pSrcMeterName->a[0].pVar;
   SSQLToken srcToken = {.z = pVar->pz, .n = pVar->nLen, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
