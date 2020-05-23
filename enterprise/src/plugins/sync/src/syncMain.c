@@ -927,8 +927,6 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     return;
   }
 
-  taosKeepTcpAlive(connFd);
-
   SFirstPkt firstPkt;
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.vgId = pPeer->nodeId ? pNode->vgId:0;
@@ -995,7 +993,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   SFirstPkt firstPkt;
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
     sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
-    taosCloseTcpSocket(connFd);
+    taosCloseSocket(connFd);
     return;;
   }
 
@@ -1009,7 +1007,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   SSyncNode **ppNode = (SSyncNode **)taosHashGet(vgIdHash, (const char *)&vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
-    taosCloseTcpSocket(connFd);
+    taosCloseSocket(connFd);
     return;
   }
 
@@ -1026,7 +1024,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   if (pPeer == NULL) {
     sError("vgId:%d, peer:%s not configured", pNode->vgId, firstPkt.fqdn);
     // syncSendVpeerCfgMsg(sync);
-    taosCloseTcpSocket(connFd);
+    taosCloseSocket(connFd);
     return; 
   }
 
