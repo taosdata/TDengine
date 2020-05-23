@@ -947,17 +947,20 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
       index = pCtx->preAggVals.statis.maxIndex;
     }
     
-    /**
-     * NOTE: work around the bug caused by invalid pre-calculated function.
-     * Here the selectivity + ts will not return correct value.
-     *
-     * The following codes of 3 lines will be removed later.
-     */
-    if (index < 0 || index >= pCtx->size + pCtx->startOffset) {
-      index = 0;
+    TSKEY key = TSKEY_INITIAL_VAL;
+    if (pCtx->ptsList != NULL) {
+      /**
+       * NOTE: work around the bug caused by invalid pre-calculated function.
+       * Here the selectivity + ts will not return correct value.
+       *
+       * The following codes of 3 lines will be removed later.
+       */
+      if (index < 0 || index >= pCtx->size + pCtx->startOffset) {
+        index = 0;
+      }
+      
+      key = pCtx->ptsList[index];
     }
-    
-    TSKEY key = pCtx->ptsList[index];
     
     if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
       int64_t val = GET_INT64_VAL(tval);
