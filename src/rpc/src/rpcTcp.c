@@ -418,6 +418,7 @@ static void *taosProcessTcpData(void *param) {
       recvInfo.connType = RPC_CONN_TCP;
 
       pFdObj->thandle = (*(pThreadObj->processData))(&recvInfo);
+      if (pFdObj->thandle == NULL) taosFreeFdObj(pFdObj);
     }
   }
 
