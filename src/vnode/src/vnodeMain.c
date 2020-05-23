@@ -148,35 +148,20 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   pVnode->status = TAOS_VN_STATUS_UPDATING;
 
   int32_t code = vnodeSaveCfg(pVnodeCfg);
-  if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to save vnode cfg, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code; 
 
   code = vnodeReadCfg(pVnode);
-  if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to read cfg file", pVnode->vgId);
-    taosHashRemove(tsDnodeVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t));
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code; 
 
   code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
-  if (code != TSDB_CODE_SUCCESS) {
-    vTrace("vgId:%d, failed to alter vnode, canot reconfig sync, result:%s", pVnode->vgId,
-           tstrerror(code));
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code; 
 
   code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
-  if (code != TSDB_CODE_SUCCESS) {
-    vTrace("vgId:%d, failed to alter vnode, canot reconfig tsdb, result:%s", pVnode->vgId,
-           tstrerror(code));
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code; 
 
   pVnode->status = TAOS_VN_STATUS_READY;
-
   vTrace("vgId:%d, vnode is altered", pVnode->vgId);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -491,7 +476,8 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   if (!fp) {
     vError("vgId:%d, failed to open vnode cfg file for write, file:%s error:%s", pVnodeCfg->cfg.vgId, cfgFile,
            strerror(errno));
-    return errno;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   int32_t len = 0;
@@ -545,7 +531,6 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   char   *content = NULL;
   char    cfgFile[TSDB_FILENAME_LEN + 30] = {0};
   int     maxLen = 1000;
-  int32_t code = TSDB_CODE_OTHERS;
 
   terrno = TSDB_CODE_OTHERS;
   sprintf(cfgFile, "%s/vnode%d/config.json", tsVnodeDir, pVnode->vgId);
@@ -553,7 +538,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   if (!fp) {
     vError("vgId:%d, failed to open vnode cfg file:%s to read, error:%s", pVnode->vgId,
            cfgFile, strerror(errno));
-    code = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     goto PARSE_OVER;
   }
 
@@ -724,7 +709,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     pVnode->syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
   }
 
-  code = TSDB_CODE_SUCCESS;
+  terrno = TSDB_CODE_SUCCESS;
 
   vPrint("vgId:%d, read vnode cfg successfully, replcia:%d", pVnode->vgId, pVnode->syncCfg.replica);
   for (int32_t i = 0; i < pVnode->syncCfg.replica; i++) {
@@ -736,7 +721,7 @@ PARSE_OVER:
   tfree(content);
   cJSON_Delete(root);
   if (fp) fclose(fp);
-  return code;
+  return terrno;
 }
 
 static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
@@ -771,16 +756,16 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   char   *content = NULL;
   cJSON  *root = NULL;
   int     maxLen = 100;
-  int32_t code = TSDB_CODE_OTHERS;
 
+  terrno = TSDB_CODE_OTHERS;
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "r");
   if (!fp) {
     if (errno != ENOENT) {
       vError("vgId:%d, failed to open version file:%s error:%s", pVnode->vgId, versionFile, strerror(errno));
-      code = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
-      code = TSDB_CODE_SUCCESS;
+      terrno = TSDB_CODE_SUCCESS;
     }
     goto PARSE_OVER;
   }
@@ -805,13 +790,12 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   }
   pVnode->version = version->valueint;
 
-  code = TSDB_CODE_SUCCESS;
-
+  terrno = TSDB_CODE_SUCCESS;
   vPrint("vgId:%d, read vnode version successfully, version:%" PRId64, pVnode->vgId, pVnode->version);
 
 PARSE_OVER:
   tfree(content);
   cJSON_Delete(root);
   if(fp) fclose(fp);
-  return code;
+  return terrno;
 }
