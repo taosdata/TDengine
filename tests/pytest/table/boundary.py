@@ -10,7 +10,7 @@ from util.sql import *
 
 
 class TDTestCase:
-    def init(self, conn):
+    def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -95,17 +95,42 @@ class TDTestCase:
         maxTableNameLen = self.getLimitFromSourceCode('TSDB_TABLE_NAME_LEN')
         tdLog.notice("table name max length is %d" % maxTableNameLen)
 
-        name = self.generateString(maxTableNameLen - 1)
-        tdLog.info("table name is '%s'" % name)
+        # create a super table with name exceed max length
+        sname = self.generateString(maxTableNameLen + 1)
+        tdLog.info("create a super table with length %d" % len(sname))
+        tdSql.error("create table %s (ts timestamp, value int) tags(id int)" % sname)
 
-        tdSql.execute("create table %s (ts timestamp, value int)" % name)
-        tdSql.execute("insert into %s values(now, 0)" % name)
+        # create a super table with name of max length
+        sname = self.generateString(maxTableNameLen)
+        tdLog.info("create a super table with length %d" % len(sname))
+        tdSql.execute("create table %s (ts timestamp, value int) tags(id int)" % sname)
+        tdLog.info("check table count, should be one")
+        tdSql.query('show stables')
+        tdSql.checkRows(1)
 
+        # create a child table with name exceed max length
+        name = self.generateString(maxTableNameLen + 1)
+        tdLog.info("create a child table with length %d" % len(name))
+        tdSql.error("create table %s using %s tags(0)" % (name, sname))
+
+        # create a child table with name of max length
+        name = self.generateString(maxTableNameLen)
+        tdLog.info("create a child table with length %d" % len(name))
+        tdSql.execute("create table %s using %s tags(0)" % (name, sname))
         tdSql.query('show tables')
         tdSql.checkRows(1)
 
-        tdSql.query('select * from %s' % name)
+        # insert one row
+        tdLog.info("insert one row of data")
+        tdSql.execute("insert into %s values(now, 0)" % name)
+        tdSql.query("select * from " + name)
         tdSql.checkRows(1)
+        tdSql.query("select * from " + sname)
+        tdSql.checkRows(1)
+
+        name = name[:len(name) - 1]
+        tdSql.error("select * from " + name)
+        tdSql.checkRows(0)
 
     def checkRowBoundaries(self):
         tdLog.debug("checking row boundaries")
