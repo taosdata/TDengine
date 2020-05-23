@@ -302,11 +302,11 @@ int main(int argc, char *argv[]) {
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
   // For demo use, change default values for some parameters;
-  arguments.num_of_tables = 10;
+  arguments.num_of_tables = 10000;
   arguments.num_of_CPR = 3; 
   arguments.num_of_connections = 10;
-  arguments.num_of_DPT = 100;
-  arguments.num_of_RPR = 100;
+  arguments.num_of_DPT = 100000;
+  arguments.num_of_RPR = 1000;
   arguments.use_metric = true;
   arguments.insert_only = true;
   // end change
