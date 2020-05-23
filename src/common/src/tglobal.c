@@ -120,7 +120,7 @@ int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
 int32_t tsMgmtEqualVnodeNum = 4;
 
 int32_t tsEnableHttpModule = 1;
-int32_t tsEnableMqttModule = 1;
+int32_t tsEnableMqttModule = 0;   // not finished yet, not started it by default
 int32_t tsEnableMonitorModule = 0;
 
 int32_t tsRestRowLimit = 10240;
