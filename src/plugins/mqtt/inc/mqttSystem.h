@@ -20,13 +20,26 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-
+#include "MQTTAsync.h"
+#include "os.h"
+#include "taos.h"
+#include "tglobal.h"
+#include "tsocket.h"
+#include "ttimer.h"
+#include "tsclient.h"
 int32_t mqttGetReqCount();
 int32_t mqttInitSystem();
 int32_t mqttStartSystem();
 void    mqttStopSystem();
 void    mqttCleanUpSystem();
- 
+void    connlost(void* context, char* cause);
+int     msgarrvd(void* context, char* topicName, int topicLen, MQTTAsync_message* message);
+void    mqtt_query_insert_callback(void* param, TAOS_RES* result, int32_t code);
+void    onDisconnectFailure(void* context, MQTTAsync_failureData* response);
+void    onDisconnect(void* context, MQTTAsync_successData* response);
+void    onSubscribe(void* context, MQTTAsync_successData* response);
+void    onSubscribeFailure(void* context, MQTTAsync_failureData* response);
+void    mqttInitConnCb(void* param, TAOS_RES* result, int32_t code);
 #ifdef __cplusplus
 }
 #endif
