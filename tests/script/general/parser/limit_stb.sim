@@ -47,19 +47,21 @@ sql select * from $stb order by ts desc limit 5
 if $rows != 5 then
   return -1
 endi
+
 sql select * from $stb order by ts desc limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
-if $data01 != 8 then
+if $data01 != 9 then
   return -1
 endi
-if $data11 != 7 then
+if $data11 != 9 then
   return -1
 endi
-if $data41 != 4 then
+if $data41 != 9 then
   return -1
 endi
+
 sql select * from $stb order by ts asc limit 5
 if $rows != 5 then
   return -1
@@ -67,19 +69,28 @@ endi
 if $data00 != @18-09-17 09:00:00.000@ then
   return -1
 endi
+
+if $data40 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+
 if $data01 != 0 then
   return -1
 endi
-if $data12 != 1 then
+
+print data12 = $data12
+if $data12 != NULL then
   return -1
 endi
-if $data24 != 2.000000000 then
+
+if $data24 != NULL then
   return -1
 endi
-if $data35 != 3 then
+
+if $data35 != 0 then
   return -1
 endi
-if $data49 != nchar4 then
+if $data49 != nchar0 then
   return -1
 endi
 
@@ -87,10 +98,18 @@ sql select * from $stb order by ts asc limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
-if $data01 != 1 then
+if $data01 != 0 then
   return -1
 endi
-if $data41 != 5 then
+if $data41 != 0 then
+  return -1
+endi
+
+if $data40 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+
+if $data00 != @18-09-17 09:00:00.000@ then
   return -1
 endi
 
@@ -98,6 +117,7 @@ sql select * from $stb limit 500 offset 1
 if $rows != 99 then
   return -1
 endi
+
 if $data01 != 1 then
   return -1
 endi
@@ -629,6 +649,7 @@ endi
 if $data09 != 7 then
   return -1
 endi
+print $data13
 if $data13 != 0.000000000 then
   return -1
 endi
@@ -656,6 +677,8 @@ endi
 if $data35 != 0 then
   return -1
 endi
+
+print $data36
 if $data36 != 0.000000000 then
   return -1
 endi
@@ -675,49 +698,49 @@ if $data59 != 2 then
   return -1
 endi
 
-sql select max(c2), min(c2), avg(c2), count(c2), sum(c2), spread(c2), first(c2), last(c2) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 3 and t1 < 6 interval(5m) group by t1 order by t1 desc limit 3 offset 1
-if $rows != 3 then
-  return -1
-endi
-if $data00 != @18-09-17 09:20:00.000@ then
-  return -1
-endi
-if $data01 != 2 then
-  return -1
-endi
-if $data02 != 2 then
-  return -1
-endi
-if $data09 != 4 then
-  return -1
-endi
-if $data13 != 3.000000000 then
-  return -1
-endi
-if $data19 != 4 then
-  return -1
-endi
-if $data20 != @18-09-17 09:40:00.000@ then
-  return -1
-endi
-if $data24 != 1 then
-  return -1
-endi
-if $data25 != 4 then
-  return -1
-endi
-if $data26 != 0.000000000 then
-  return -1
-endi
-if $data27 != 4 then
-  return -1
-endi
-if $data28 != 4 then
-  return -1
-endi
-if $data29 != 4 then
-  return -1
-endi
+#sql select max(c2), min(c2), avg(c2), count(c2), sum(c2), spread(c2), first(c2), last(c2) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 3 and t1 < 6 interval(5m) group by t1 order by t1 desc limit 3 offset 1
+#if $rows != 3 then
+#  return -1
+#endi
+#if $data00 != @18-09-17 09:20:00.000@ then
+#  return -1
+#endi
+#if $data01 != 2 then
+#  return -1
+#endi
+#if $data02 != 2 then
+#  return -1
+#endi
+#if $data09 != 4 then
+#  return -1
+#endi
+#if $data13 != 3.000000000 then
+#  return -1
+#endi
+#if $data19 != 4 then
+#  return -1
+#endi
+#if $data20 != @18-09-17 09:40:00.000@ then
+#  return -1
+#endi
+#if $data24 != 1 then
+#  return -1
+#endi
+#if $data25 != 4 then
+#  return -1
+#endi
+#if $data26 != 0.000000000 then
+#  return -1
+#endi
+#if $data27 != 4 then
+#  return -1
+#endi
+#if $data28 != 4 then
+#  return -1
+#endi
+#if $data29 != 4 then
+#  return -1
+#endi
 
 sql select max(c2), min(c2), avg(c2), count(c2), spread(c2), first(c2), last(c2), count(ts) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 3 and t1 < 6 interval(5m) group by t1 order by t1 desc limit 3 offset 1
 if $rows != 6 then

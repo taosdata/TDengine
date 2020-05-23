@@ -269,9 +269,11 @@ typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
   char    db[TSDB_DB_NAME_LEN + 1];
   int16_t type; /* operation type   */
-  char    tagVal[TSDB_MAX_BYTES_PER_ROW];
-  int8_t  numOfCols; /* number of schema */
+  int16_t numOfCols; /* number of schema */
+  int32_t tagValLen;
   SSchema schema[];
+  // tagVal is padded after schema
+  // char    tagVal[];
 } SCMAlterTableMsg;
 
 typedef struct {
@@ -647,6 +649,7 @@ typedef struct SMultiTableMeta {
 } SMultiTableMeta;
 
 typedef struct {
+  int32_t dataLen;
   char name[TSDB_TABLE_ID_LEN + 1];
   char data[TSDB_MAX_TAGS_LEN];
 } STagData;
@@ -722,6 +725,8 @@ typedef struct {
 typedef struct {
   uint32_t  queryId;
   uint32_t  streamId;
+  uint32_t  totalDnodes;
+  uint32_t  onlineDnodes;
   int8_t    killConnection;
   SRpcIpSet ipList;
 } SCMHeartBeatRsp;

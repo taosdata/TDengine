@@ -20,9 +20,9 @@ from util.sql import tdSql
 
 class TDTestCase:
 
-    def init(self, conn):
+    def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
     def run(self):
         tdSql.prepare()

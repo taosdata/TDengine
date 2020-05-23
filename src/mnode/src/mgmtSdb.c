@@ -196,6 +196,8 @@ void sdbUpdateMnodeRoles() {
       mgmtDecMnodeRef(pMnode);
     }
   }
+
+  mgmtUpdateMnodeIpSet();
 }
 
 static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) {
@@ -352,7 +354,7 @@ void sdbIncRef(void *handle, void *pObj) {
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
   atomic_add_fetch_32(pRefCount, 1);
   if (0 && (pTable->tableId == SDB_TABLE_MNODE || pTable->tableId == SDB_TABLE_DNODE)) {
-    sdbTrace("table:%s, add ref to record:%s:%d", pTable->tableName, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
+    sdbTrace("add ref to table:%s record:%s:%d", pTable->tableName, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
   }
 }
 
@@ -363,7 +365,7 @@ void sdbDecRef(void *handle, void *pObj) {
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
   int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
   if (0 && (pTable->tableId == SDB_TABLE_MNODE || pTable->tableId == SDB_TABLE_DNODE)) {
-    sdbTrace("table:%s, def ref of record:%s:%d", pTable->tableName, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
+    sdbTrace("def ref of table:%s record:%s:%d", pTable->tableName, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
   }
 
   int8_t *updateEnd = pObj + pTable->refCountPos - 1;
@@ -442,8 +444,8 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, insert record:%s to hash, numOfRows:%d version:%" PRIu64, pTable->tableName,
-           sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
+  sdbTrace("table:%s, insert record:%s to hash, rowSize:%d vnumOfRows:%d version:%" PRIu64, pTable->tableName,
+           sdbGetKeyStrFromObj(pTable, pOper->pObj), pOper->rowSize, pTable->numOfRows, sdbGetVersion());
 
   (*pTable->insertFp)(pOper);
   return TSDB_CODE_SUCCESS;

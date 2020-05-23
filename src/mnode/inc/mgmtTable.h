@@ -31,6 +31,7 @@ void *  mgmtGetNextChildTable(void *pIter, SChildTableObj **pTable);
 void *  mgmtGetNextSuperTable(void *pIter, SSuperTableObj **pTable);
 void    mgmtDropAllChildTables(SDbObj *pDropDb);
 void    mgmtDropAllSuperTables(SDbObj *pDropDb);
+void    mgmtDropAllChildTablesInVgroups(SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

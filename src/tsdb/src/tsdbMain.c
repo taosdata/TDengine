@@ -37,7 +37,8 @@ static TSKEY   tsdbNextIterKey(SSkipListIterator *pIter);
 static int     tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey);
 static void    tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
 static void    tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
-static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
+static void    tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
+static int32_t tsdbSaveConfig(STsdbRepo *pRepo);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -319,10 +320,25 @@ int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
   ASSERT(pRCfg->maxRowsPerFileBlock == pCfg->maxRowsPerFileBlock);
   ASSERT(pRCfg->precision == pCfg->precision);
 
-  if (pRCfg->compression != pCfg->compression) tsdbAlterCompression(pRepo, pCfg->compression);
-  if (pRCfg->keep != pCfg->keep) tsdbAlterKeep(pRepo, pCfg->keep);
-  if (pRCfg->totalBlocks != pCfg->totalBlocks) tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
-  if (pRCfg->maxTables != pCfg->maxTables) tsdbAlterMaxTables(pRepo, pCfg->maxTables);
+  bool configChanged = false;
+  if (pRCfg->compression != pCfg->compression) {
+    configChanged = true;
+    tsdbAlterCompression(pRepo, pCfg->compression);
+  }
+  if (pRCfg->keep != pCfg->keep) {
+    configChanged = true;
+    tsdbAlterKeep(pRepo, pCfg->keep);
+  }
+  if (pRCfg->totalBlocks != pCfg->totalBlocks) {
+    configChanged = true;
+    tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
+  }
+  if (pRCfg->maxTables != pCfg->maxTables) {
+    configChanged = true;
+    tsdbAlterMaxTables(pRepo, pCfg->maxTables);
+  }
+
+  if (configChanged) tsdbSaveConfig(pRepo);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1134,8 +1150,10 @@ static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
 
   int maxFiles = keep / pCfg->maxTables + 3;
   if (pRepo->config.keep > keep) {
+    pRepo->config.keep = keep;
     pRepo->tsdbFileH->maxFGroups = maxFiles;
   } else {
+    pRepo->config.keep = keep;
     pRepo->tsdbFileH->fGroup = realloc(pRepo->tsdbFileH->fGroup, sizeof(SFileGroup));
     if (pRepo->tsdbFileH->fGroup == NULL) {
       // TODO: deal with the error
@@ -1155,6 +1173,8 @@ static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
 
   pMeta->maxTables = maxTables;
   pMeta->tables = realloc(pMeta->tables, maxTables * sizeof(STable *));
+  memset(&pMeta->tables[oldMaxTables], 0, sizeof(STable *) * (maxTables-oldMaxTables));
+  pRepo->config.maxTables = maxTables;
 
   tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
 }

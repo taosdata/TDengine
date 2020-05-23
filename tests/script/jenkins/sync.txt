@@ -1,0 +1,23 @@
+cd ../../debug; cmake ..
+cd ../../debug; make
+cd ../../../debug; cmake ..
+cd ../../../debug; make
+
+./test.sh -u -f unique/cluster/balance1.sim
+./test.sh -u -f unique/cluster/balance2.sim
+./test.sh -u -f unique/cluster/balance3.sim
+./test.sh -u -f unique/cluster/cache.sim
+
+./test.sh -u -f unique/dnode/balance1.sim
+./test.sh -u -f unique/dnode/balance2.sim
+./test.sh -u -f unique/dnode/balance3.sim
+./test.sh -u -f unique/dnode/balancex.sim
+
+./test.sh -u -f unique/mnode/mgmt22.sim
+./test.sh -u -f unique/mnode/mgmt23.sim
+./test.sh -u -f unique/mnode/mgmt24.sim
+./test.sh -u -f unique/mnode/mgmt25.sim
+./test.sh -u -f unique/mnode/mgmt26.sim
+./test.sh -u -f unique/mnode/mgmt33.sim
+./test.sh -u -f unique/mnode/mgmt34.sim
+./test.sh -u -f unique/mnode/mgmtr2.sim

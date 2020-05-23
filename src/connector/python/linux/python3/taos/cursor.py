@@ -36,6 +36,7 @@ class TDengineCursor(object):
         self._block_rows = -1
         self._block_iter = 0
         self._affected_rows = 0
+        self._logfile = ""
 
         if connection is not None:
             self._connection = connection
@@ -85,6 +86,9 @@ class TDengineCursor(object):
         """
         pass
 
+    def log(self, logfile):
+        self._logfile = logfile
+
     def close(self):
         """Close the cursor.
         """
@@ -120,6 +124,10 @@ class TDengineCursor(object):
         # print("   >> Exec Query ({}): {}".format(localSeqNum, str(stmt)))
         res = CTaosInterface.query(self._connection._conn, stmt)
         # print("   << Query ({}) Exec Done".format(localSeqNum))
+
+        if (self._logfile):
+            with open(self._logfile, "a") as logfile:
+                logfile.write("%s;\n" % operation)
 
         if res == 0:
             if CTaosInterface.fieldsCount(self._connection._conn) == 0:

@@ -73,13 +73,18 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_SUCCESS;
   }
 
+  mkdir(tsVnodeDir, 0755);
+
   char rootDir[TSDB_FILENAME_LEN] = {0};
   sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
   if (mkdir(rootDir, 0755) != 0) {
+    vPrint("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
     if (errno == EACCES) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
       return TSDB_CODE_SERV_NO_DISKSPACE;
+    } else if (errno == ENOENT) {
+      return TSDB_CODE_NOT_SUCH_FILE_OR_DIR;
     } else if (errno == EEXIST) {
     } else {
       return TSDB_CODE_VG_INIT_FAILED;
@@ -238,6 +243,10 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.notifyRole = vnodeNotifyRole;
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
+
+#ifndef _SYNC
+  pVnode->role = TAOS_SYNC_ROLE_MASTER;
+#endif
 
   // start continuous query
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER) 
@@ -429,7 +438,7 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
 
 static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   SVnodeObj *pVnode = ahandle;
-  vTrace("vgId:%d, data file is synced, fversion:%" PRId64 "", pVnode->vgId, fversion);
+  vTrace("vgId:%d, data file is synced, fversion:%" PRId64, pVnode->vgId, fversion);
 
   pVnode->fversion = fversion;
   pVnode->version = fversion;

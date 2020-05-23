@@ -4416,6 +4416,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg13);
     }
+    pAlterSQL->tagData.dataLen = pTagsSchema->bytes;
 
     // validate the length of binary
     if ((pTagsSchema->type == TSDB_DATA_TYPE_BINARY || pTagsSchema->type == TSDB_DATA_TYPE_NCHAR) &&
@@ -4539,11 +4540,13 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  const SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[14] = {
-      {"resetLog", 8},      {"resetQueryCache", 15}, {"dDebugFlag", 10},       {"rpcDebugFlag", 12},
-      {"tmrDebugFlag", 12}, {"cDebugFlag", 10},      {"uDebugFlag", 10},       {"mDebugFlag", 10},
-      {"sdbDebugFlag", 12}, {"httpDebugFlag", 13},   {"monitorDebugFlag", 16}, {"qDebugflag", 10},
-      {"debugFlag", 9},     {"monitor", 7}};
+  const int DNODE_DYNAMIC_CFG_OPTIONS_SIZE = 17;
+  const SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[] = {
+      {"resetLog", 8},       {"resetQueryCache", 15},  {"debugFlag", 9},     {"mDebugFlag", 10},
+      {"dDebugFlag", 10},    {"sdbDebugFlag", 12},     {"vDebugFlag", 10},   {"cDebugFlag", 10},
+      {"httpDebugFlag", 13}, {"monitorDebugFlag", 16}, {"rpcDebugFlag", 12}, {"uDebugFlag", 10},
+      {"tmrDebugFlag", 12},  {"qDebugflag", 10},       {"sDebugflag", 10},   {"tsdbDebugFlag", 13},
+      {"monitor", 7}};
 
   SSQLToken* pOptionToken = &pOptions->a[1];
 
@@ -4555,8 +4558,8 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
         return TSDB_CODE_SUCCESS;
       }
     }
-  } else if ((strncasecmp(DNODE_DYNAMIC_CFG_OPTIONS[13].name, pOptionToken->z, pOptionToken->n) == 0) &&
-             (DNODE_DYNAMIC_CFG_OPTIONS[13].len == pOptionToken->n)) {
+  } else if ((strncasecmp(DNODE_DYNAMIC_CFG_OPTIONS[DNODE_DYNAMIC_CFG_OPTIONS_SIZE - 1].name, pOptionToken->z, pOptionToken->n) == 0) &&
+             (DNODE_DYNAMIC_CFG_OPTIONS[DNODE_DYNAMIC_CFG_OPTIONS_SIZE - 1].len == pOptionToken->n)) {
     SSQLToken* pValToken = &pOptions->a[2];
     int32_t    val = strtol(pValToken->z, NULL, 10);
     if (val != 0 && val != 1) {
@@ -4572,7 +4575,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
       return TSDB_CODE_INVALID_SQL;
     }
 
-    for (int32_t i = 2; i < tListLen(DNODE_DYNAMIC_CFG_OPTIONS) - 1; ++i) {
+    for (int32_t i = 2; i < DNODE_DYNAMIC_CFG_OPTIONS_SIZE - 1; ++i) {
       const SDNodeDynConfOption* pOption = &DNODE_DYNAMIC_CFG_OPTIONS[i];
 
       if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
@@ -5550,11 +5553,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   // too long tag values will return invalid sql, not be truncated automatically
   SSchema* pTagSchema = tscGetTableTagSchema(pStableMeterMetaInfo->pTableMeta);
 
-  char* tagVal = pCreateTable->usingInfo.tagdata.data;
+  STagData* pTag = &pCreateTable->usingInfo.tagdata;
+  char* tagVal = pTag->data;
   int32_t ret = TSDB_CODE_SUCCESS;
   
   for (int32_t i = 0; i < pList->nExpr; ++i) {
-    
     if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       // validate the length of binary
       if (pList->a[i].pVar.nLen + VARSTR_HEADER_SIZE > pTagSchema[i].bytes) {
@@ -5593,6 +5596,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     return ret;
   }
 
+  pTag->dataLen = tagVal - pTag->data;
   return TSDB_CODE_SUCCESS;
 }
 

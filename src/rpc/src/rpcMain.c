@@ -867,9 +867,8 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   // underlying UDP layer does not know it is server or client
   pRecv->connType = pRecv->connType | pRpc->connType;  
 
-  if (pRecv->ip==0 && pConn) {
-    rpcProcessBrokenLink(pConn); 
-    tfree(pRecv->msg);
+  if (pRecv->ip == 0 && pConn) {
+    rpcProcessBrokenLink(pConn);
     return NULL;
   }
 
@@ -894,7 +893,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     }
   }
 
-  if (code) tfree(pRecv->msg); // parsing failed, msg shall be freed
+  if (code) rpcFreeMsg(pRecv->msg); // parsing failed, msg shall be freed
   return pConn;
 }
 

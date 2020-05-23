@@ -165,7 +165,7 @@ static void tscSetTimestampForRes(SSqlStream *pStream, SSqlObj *pSql) {
   if (timestamp != actualTimestamp) {
     // reset the timestamp of each agg point by using start time of each interval
     *((int64_t *)pRes->data) = actualTimestamp;
-    tscWarn("%p stream:%p, timestamp of points is:%" PRId64 ", reset to %" PRId64 "", pSql, pStream, timestamp, actualTimestamp);
+    tscWarn("%p stream:%p, timestamp of points is:%" PRId64 ", reset to %" PRId64, pSql, pStream, timestamp, actualTimestamp);
   }
 }
 
@@ -287,10 +287,10 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
       return;
     }
   
-    tscTrace("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64 "", pStream->pSql, pStream,
+    tscTrace("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql, pStream,
              now + timer, timer, delay, pStream->stime, etime);
   } else {
-    tscTrace("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64 "", pStream->pSql, pStream,
+    tscTrace("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql, pStream,
              pStream->stime, timer, delay, pStream->stime - pStream->interval, pStream->stime - 1);
   }
 
@@ -380,7 +380,7 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
   if (pQueryInfo->intervalTime < minIntervalTime) {
-    tscWarn("%p stream:%p, original sample interval:%ld too small, reset to:%" PRId64 "", pSql, pStream,
+    tscWarn("%p stream:%p, original sample interval:%ld too small, reset to:%" PRId64, pSql, pStream,
             pQueryInfo->intervalTime, minIntervalTime);
     pQueryInfo->intervalTime = minIntervalTime;
   }
@@ -397,14 +397,14 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   if (pQueryInfo->slidingTime == -1) {
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
   } else if (pQueryInfo->slidingTime < minSlidingTime) {
-    tscWarn("%p stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64 "", pSql, pStream,
+    tscWarn("%p stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64, pSql, pStream,
         pQueryInfo->slidingTime, minSlidingTime);
 
     pQueryInfo->slidingTime = minSlidingTime;
   }
 
   if (pQueryInfo->slidingTime > pQueryInfo->intervalTime) {
-    tscWarn("%p stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64 "", pSql, pStream,
+    tscWarn("%p stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64, pSql, pStream,
             pQueryInfo->slidingTime, pQueryInfo->intervalTime);
 
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
@@ -433,11 +433,11 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
   } else {             // timewindow based aggregation stream
     if (stime == 0) {  // no data in meter till now
       stime = ((int64_t)taosGetTimestamp(pStream->precision) / pStream->interval) * pStream->interval;
-      tscWarn("%p stream:%p, last timestamp:0, reset to:%" PRId64 "", pSql, pStream, stime);
+      tscWarn("%p stream:%p, last timestamp:0, reset to:%" PRId64, pSql, pStream, stime);
     } else {
       int64_t newStime = (stime / pStream->interval) * pStream->interval;
       if (newStime != stime) {
-        tscWarn("%p stream:%p, last timestamp:%" PRId64 ", reset to:%" PRId64 "", pSql, pStream, stime, newStime);
+        tscWarn("%p stream:%p, last timestamp:%" PRId64 ", reset to:%" PRId64, pSql, pStream, stime, newStime);
         stime = newStime;
       }
     }

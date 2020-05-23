@@ -1,8 +1,8 @@
 system sh/stop_dnodes.sh
 
-$totalVnodes = 100
-$minVnodes = 50
-$maxVnodes = 50
+$totalVnodes = 20
+$minVnodes = 10
+$maxVnodes = 10
 $maxTables = 4
 $totalRows = $totalVnodes * $maxTables
 

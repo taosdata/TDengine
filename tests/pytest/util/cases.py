@@ -24,6 +24,7 @@ class TDCase:
     def __init__(self, name, case):
         self.name = name
         self.case = case
+        self._logSql = True
 
 
 class TDCases:
@@ -35,6 +36,9 @@ class TDCases:
     def __dynamicLoadModule(self, fileName):
         moduleName = fileName.replace(".py", "").replace("/", ".")
         return importlib.import_module(moduleName, package='..')
+
+    def logSql(self, logSql):
+        self._logSql = logSql
 
     def addWindows(self, name, case):
         self.windowsCases.append(TDCase(name, case))
@@ -66,7 +70,7 @@ class TDCases:
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
                 case = testModule.TDTestCase()
-                case.init(conn)
+                case.init(conn, self._logSql)
                 try:
                     case.run()
                 except Exception as e:

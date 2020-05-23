@@ -147,8 +147,10 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
   struct epoll_event event = { .events = EPOLLIN };
   eventfd_t fd = eventfd(1, 0);
   if (fd == -1) {
+    tError("%s, failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s", pThreadObj->label, strerror(errno));
     pthread_cancel(pThreadObj->thread);
   } else if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
+    tError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s", pThreadObj->label, strerror(errno));
     pthread_cancel(pThreadObj->thread);
   }
 
@@ -213,7 +215,6 @@ static void* taosAcceptTcpConnection(void *arg) {
       continue;
     }
 
-    tTrace("%s TCP connection from ip:%s:%hu", pServerObj->label, inet_ntoa(caddr.sin_addr), caddr.sin_port);
     taosKeepTcpAlive(connFd);
 
     // pick up the thread to handle this connection
@@ -227,7 +228,8 @@ static void* taosAcceptTcpConnection(void *arg) {
               inet_ntoa(caddr.sin_addr), pFdObj->port, pFdObj, pThreadObj->numOfFds);
     } else {
       close(connFd);
-      tError("%s failed to malloc FdObj(%s)", pServerObj->label, strerror(errno));
+      tError("%s failed to malloc FdObj(%s) for connection from:%s:%hu", pServerObj->label, strerror(errno),
+             inet_ntoa(caddr.sin_addr), caddr.sin_port);
     }  
 
     // pick up next thread for next connection
@@ -339,7 +341,9 @@ static void taosReportBrokenLink(SFdObj *pFdObj) {
     recvInfo.chandle = NULL;
     recvInfo.connType = RPC_CONN_TCP;
     (*(pThreadObj->processData))(&recvInfo);
-  } 
+  } else {
+    taosFreeFdObj(pFdObj);
+  }
 }
 
 #define maxEvents 10
@@ -350,7 +354,7 @@ static void *taosProcessTcpData(void *param) {
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
   SRpcHead           rpcHead;
-
+ 
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, -1);
     if (pThreadObj->stop) {
@@ -464,7 +468,7 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   pFdObj->signature = NULL;
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
-  close(pFdObj->fd);
+  taosCloseTcpSocket(pFdObj->fd);
 
   pThreadObj->numOfFds--;
 

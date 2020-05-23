@@ -7,8 +7,8 @@ system sh/cfg.sh -n dnode1 -c statusInterval -v 1
 system sh/cfg.sh -n dnode2 -c statusInterval -v 1
 system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode2 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
+system sh/cfg.sh -n dnode2 -c walLevel -v 2
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
@@ -60,20 +60,20 @@ print =============== step2
 $x = 0
 show1: 
 	$x = $x + 1
-	sleep 1000
-	if $x == 20 then 
+	sleep 2000
+	if $x == 10 then 
 	  return -1
 	endi
 sql show dnodes -x show1
-$dnode1Vnodes = $data3_192.168.0.1
+$dnode1Vnodes = $data2_1
 print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
 
-if $dnode1Vnodes != 0 then
+if $dnode1Vnodes != 4 then
   goto show1
 endi
-if $dnode2Vnodes != NULL then
+if $dnode2Vnodes != null then
   goto show1
 endi
 print =============== step3 start dnode2
@@ -89,9 +89,9 @@ show2:
 	  return -1
 	endi
 sql show dnodes -x show2
-$dnode1Vnodes = $data3_192.168.0.1
+$dnode1Vnodes = $data2_1
 print dnode1 $dnode1Vnodes
-$dnode2Vnodes = $data3_192.168.0.2
+$dnode2Vnodes = $data2_2
 print dnode2 $dnode2Vnodes
 
 if $dnode1Vnodes != 2 then
