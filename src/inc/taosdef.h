@@ -376,6 +376,7 @@ typedef enum {
   TSDB_MOD_MGMT,
   TSDB_MOD_HTTP,
   TSDB_MOD_MONITOR,
+  TSDB_MOD_MQTT,
   TSDB_MOD_MAX
 } EModuleType;
 
