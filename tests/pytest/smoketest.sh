@@ -2,10 +2,14 @@
 # insert
 python3 ./test.py $1 -f insert/basic.py
 python3 ./test.py $1 -s && sleep 1
+python3 ./test.py $1 -f query/filterCombo.py
+python3 ./test.py $1 -s && sleep 1
+
+:<<!
 python3 ./test.py $1 -f insert/int.py
 python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f insert/float.py
-python3 ./test.py $1 -s && sleep 1
+python3 ./test.py $1 -s && sleep 1sss
 python3 ./test.py $1 -f insert/bigint.py
 python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f insert/bool.py
@@ -54,4 +58,4 @@ python3 ./test.py $1 -s && sleep 1
 #query
 python3 ./test.py $1 -f query/filter.py
 python3 ./test.py $1 -s && sleep 1
-
+!
