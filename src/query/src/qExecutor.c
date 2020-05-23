@@ -5745,7 +5745,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
       SGroupItem item = { .id = id };
       // NOTE: compare STableIdInfo with STableId
       // not a problem at present because we only use their 1st int64_t field
-      STableIdInfo* pTableId = taosArraySearch( pTableIdList, compareTableIdInfo, &id );
+      STableIdInfo* pTableId = taosArraySearch( pTableIdList, &id, compareTableIdInfo);
       if (pTableId != NULL ) {
         window.skey = pTableId->key;
       } else {

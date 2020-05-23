@@ -1678,7 +1678,7 @@ void filterPrepare(void* expr, void* param) {
   tVariant*   pCond = pExpr->_node.pRight->pVal;
   SSchema*    pSchema = pExpr->_node.pLeft->pSchema;
 
-  // todo : if current super table does not change schema yet, this function may failed, add test case
+  // todo : if current super table does not change schema yet, this function may fail to get correct schema, test case
   int32_t index = getTagColumnIndex(pTSSchema, pSchema);
   assert((index >= 0 && i < TSDB_MAX_TAGS) || (index == TSDB_TBNAME_COLUMN_INDEX));
 
