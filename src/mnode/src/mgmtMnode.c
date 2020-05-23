@@ -210,6 +210,9 @@ void mgmtUpdateMnodeIpSet() {
 
   mgmtMnodeWrLock();
 
+  memset(ipSet, 0, sizeof(tsMnodeRpcIpSet));
+  memset(mnodes, 0, sizeof(SDMMnodeInfos));
+
   int32_t index = 0;
   void *  pIter = NULL;
   while (1) {
