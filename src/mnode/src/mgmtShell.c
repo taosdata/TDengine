@@ -325,6 +325,8 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
     return;
   }
 
+  pHBRsp->onlineDnodes = htonl(mgmtGetOnlinDnodesNum());
+  pHBRsp->totalDnodes = htonl(mgmtGetDnodesNum());
   mgmtGetMnodeIpSet(&pHBRsp->ipList);
   
   /*

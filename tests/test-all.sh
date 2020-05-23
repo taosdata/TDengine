@@ -40,7 +40,6 @@ fi
 totalPySuccess=`grep 'successfully executed' pytest-out.txt | wc -l`
 
 if [ "$totalPySuccess" -gt "0" ]; then
-  grep 'successfully executed' pytest-out.txt
   echo -e "${GREEN} ### Total $totalPySuccess python case(s) succeed! ### ${NC}"
 fi
 

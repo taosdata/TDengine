@@ -725,6 +725,8 @@ typedef struct {
 typedef struct {
   uint32_t  queryId;
   uint32_t  streamId;
+  uint32_t  totalDnodes;
+  uint32_t  onlineDnodes;
   int8_t    killConnection;
   SRpcIpSet ipList;
 } SCMHeartBeatRsp;

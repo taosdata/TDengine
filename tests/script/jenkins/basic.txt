@@ -44,7 +44,7 @@ cd ../../../debug; make
 ./test.sh -f general/compute/top.sim
 
 ./test.sh -f general/db/alter_option.sim
-#./test.sh -f general/db/alter_tables_d2.sim
+./test.sh -f general/db/alter_tables_d2.sim
 ./test.sh -f general/db/alter_tables_v1.sim
 ./test.sh -f general/db/alter_tables_v4.sim
 ./test.sh -f general/db/alter_vgroups.sim
@@ -61,10 +61,11 @@ cd ../../../debug; make
 ./test.sh -f general/db/delete_writing1.sim
 ./test.sh -f general/db/delete_writing2.sim
 ./test.sh -f general/db/delete.sim
+./test.sh -f general/db/dropdnodes.sim
 ./test.sh -f general/db/len.sim
 ./test.sh -f general/db/repeat.sim
 ./test.sh -f general/db/tables.sim
-#liao ./test.sh -f general/db/vnodes.sim
+./test.sh -f general/db/vnodes.sim
 
 ./test.sh -f general/field/2.sim
 ./test.sh -f general/field/3.sim
@@ -90,10 +91,10 @@ cd ../../../debug; make
 ./test.sh -f general/import/basic.sim
 ./test.sh -f general/import/commit.sim
 ./test.sh -f general/import/large.sim
-#liao ./test.sh -f general/import/replica1.sim
+./test.sh -f general/import/replica1.sim
 
 ./test.sh -f general/insert/basic.sim
-#liao ./test.sh -f general/insert/insert_drop.sim
+./test.sh -f general/insert/insert_drop.sim
 ./test.sh -f general/insert/query_block1_memory.sim
 ./test.sh -f general/insert/query_block2_memory.sim
 ./test.sh -f general/insert/query_block1_file.sim
@@ -120,22 +121,22 @@ cd ../../../debug; make
 ./test.sh -f general/parser/insert_tb.sim
 ./test.sh -f general/parser/first_last.sim
 # ./test.sh -f general/parser/import_file.sim
-# ./test.sh -f general/parser/lastrow.sim
+./test.sh -f general/parser/lastrow.sim
 # ./test.sh -f general/parser/nchar.sim
 # ./test.sh -f general/parser/null_char.sim
-# ./test.sh -f general/parser/single_row_in_tb.sim
+./test.sh -f general/parser/single_row_in_tb.sim
 ./test.sh -f general/parser/select_from_cache_disk.sim
-# ./test.sh -f general/parser/limit.sim
+./test.sh -f general/parser/limit.sim
 # ./test.sh -f general/parser/fill.sim
 # ./test.sh -f general/parser/fill_stb.sim
 # ./test.sh -f general/parser/tags_dynamically_specifiy.sim
 # ./test.sh -f general/parser/interp.sim
-# ./test.sh -f general/parser/limit1.sim
-# ./test.sh -f general/parser/limit1_tblocks100.sim
+./test.sh -f general/parser/limit1.sim
+./test.sh -f general/parser/limit1_tblocks100.sim
 # ./test.sh -f general/parser/limit2.sim
-# ./test.sh -f general/parser/mixed_blocks.sim
+./test.sh -f general/parser/mixed_blocks.sim
 ./test.sh -f general/parser/selectResNum.sim
-# ./test.sh -f general/parser/select_across_vnodes.sim
+./test.sh -f general/parser/select_across_vnodes.sim
 # ./test.sh -f general/parser/set_tag_vals.sim
 # ./test.sh -f general/parser/slimit.sim
 ./test.sh -f general/parser/slimit1.sim
@@ -155,7 +156,7 @@ cd ../../../debug; make
 #./test.sh -f general/parser/bug.sim
 
 ./test.sh -f general/stable/disk.sim
-#liao ./test.sh -f general/stable/dnode3.sim
+./test.sh -f general/stable/dnode3.sim
 ./test.sh -f general/stable/metrics.sim
 ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
@@ -246,8 +247,8 @@ cd ../../../debug; make
 ./test.sh -u -f unique/account/user_create.sim
 ./test.sh -u -f unique/account/user_len.sim
 
-#liao wait ./test.sh -u -f unique/big/balance.sim
-#liao wait ./test.sh -u -f unique/big/maxvnodes.sim
+./test.sh -u -f unique/big/balance.sim
+./test.sh -u -f unique/big/maxvnodes.sim
 ./test.sh -u -f unique/big/tcp.sim
 
 ./test.sh -u -f unique/cluster/balance1.sim
@@ -273,25 +274,25 @@ cd ../../../debug; make
 ./test.sh -u -f unique/dnode/balance3.sim
 ./test.sh -u -f unique/dnode/balancex.sim
 ./test.sh -u -f unique/dnode/offline1.sim
-#jeff ./test.sh -u -f unique/dnode/offline2.sim
+./test.sh -u -f unique/dnode/offline2.sim
 ./test.sh -u -f unique/dnode/remove1.sim
-#jeff ./test.sh -u -f unique/dnode/remove2.sim
+./test.sh -u -f unique/dnode/remove2.sim
 ./test.sh -u -f unique/dnode/vnode_clean.sim
 
 ./test.sh -u -f unique/http/admin.sim
 ./test.sh -u -f unique/http/opentsdb.sim
 
-#liao wait ./test.sh -u -f unique/import/replica2.sim
-#liao wait ./test.sh -u -f unique/import/replica3.sim
+./test.sh -u -f unique/import/replica2.sim
+./test.sh -u -f unique/import/replica3.sim
 
-#liao wait ./test.sh -u -f unique/stable/balance_replica1.sim
-#liao wait ./test.sh -u -f unique/stable/dnode2_stop.sim
-#liao wait ./test.sh -u -f unique/stable/dnode2.sim
-#liao wait ./test.sh -u -f unique/stable/dnode3.sim
-#liao wait ./test.sh -u -f unique/stable/replica2_dnode4.sim
-#liao wait ./test.sh -u -f unique/stable/replica2_vnode3.sim
-#liao wait ./test.sh -u -f unique/stable/replica3_dnode6.sim
-#liao wait ./test.sh -u -f unique/stable/replica3_vnode3.sim
+./test.sh -u -f unique/stable/balance_replica1.sim
+./test.sh -u -f unique/stable/dnode2_stop.sim
+./test.sh -u -f unique/stable/dnode2.sim
+./test.sh -u -f unique/stable/dnode3.sim
+./test.sh -u -f unique/stable/replica2_dnode4.sim
+./test.sh -u -f unique/stable/replica2_vnode3.sim
+./test.sh -u -f unique/stable/replica3_dnode6.sim
+./test.sh -u -f unique/stable/replica3_vnode3.sim
 
 ./test.sh -u -f unique/mnode/mgmt22.sim
 ./test.sh -u -f unique/mnode/mgmt23.sim

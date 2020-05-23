@@ -1305,7 +1305,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
         if (pDnode == NULL) break;
 
         strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
-        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(tsDnodeShellPort);
+        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
 
         pVgroupInfo->vgroups[vgSize].numOfIps++;
       }
@@ -1787,6 +1787,34 @@ static void mgmtGetChildTableMeta(SQueuedMsg *pMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
+void mgmtDropAllChildTablesInVgroups(SVgObj *pVgroup) {
+  void *  pIter = NULL;
+  int32_t numOfTables = 0;
+  SChildTableObj *pTable = NULL;
+
+  mPrint("vgId:%d, all child tables will be dropped from sdb", pVgroup->vgId);
+
+  while (1) {
+    pIter = mgmtGetNextChildTable(pIter, &pTable);
+    if (pTable == NULL) break;
+
+    if (pTable->vgId == pVgroup->vgId) {
+      SSdbOper oper = {
+        .type = SDB_OPER_LOCAL,
+        .table = tsChildTableSdb,
+        .pObj = pTable,
+      };
+      sdbDeleteRow(&oper);
+      numOfTables++;
+    }
+    mgmtDecTableRef(pTable);
+  }
+
+  sdbFreeIter(pIter);
+
+  mPrint("vgId:%d, all child tables is dropped from sdb", pVgroup->vgId);
+}
+
 void mgmtDropAllChildTables(SDbObj *pDropDb) {
   void *  pIter = NULL;
   int32_t numOfTables = 0;
@@ -1996,7 +2024,7 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
   SCMMultiTableInfoMsg *pInfo = pMsg->pCont;
   pInfo->numOfTables = htonl(pInfo->numOfTables);
 
-  int32_t totalMallocLen = 4*1024*1024; // first malloc 4 MB, subsequent reallocation as twice
+  int32_t totalMallocLen = 4 * 1024 * 1024;  // first malloc 4 MB, subsequent reallocation as twice
   SMultiTableMeta *pMultiMeta = rpcMallocCont(totalMallocLen);
   if (pMultiMeta == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
@@ -2006,26 +2034,30 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
   pMultiMeta->contLen = sizeof(SMultiTableMeta);
   pMultiMeta->numOfTables = 0;
 
-  for (int t = 0; t < pInfo->numOfTables; ++t) {
-    char *tableId = (char*)(pInfo->tableIds + t * TSDB_TABLE_ID_LEN);
+  for (int32_t t = 0; t < pInfo->numOfTables; ++t) {
+    char * tableId = (char *)(pInfo->tableIds + t * TSDB_TABLE_ID_LEN + 1);
     SChildTableObj *pTable = mgmtGetChildTable(tableId);
     if (pTable == NULL) continue;
 
     if (pMsg->pDb == NULL) pMsg->pDb = mgmtGetDbByTableId(tableId);
-    if (pMsg->pDb == NULL) continue;
+    if (pMsg->pDb == NULL) {
+      mgmtDecTableRef(pTable);
+      continue;
+    }
 
     int availLen = totalMallocLen - pMultiMeta->contLen;
     if (availLen <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
-      //TODO realloc
-      //totalMallocLen *= 2;
-      //pMultiMeta = rpcReMalloc(pMultiMeta, totalMallocLen);
-      //if (pMultiMeta == NULL) {
-      ///  rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-      //  return TSDB_CODE_SERV_OUT_OF_MEMORY;
-      //} else {
-      //  t--;
-      //  continue;
-      //}
+      totalMallocLen *= 2;
+      pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
+      if (pMultiMeta == NULL) {
+        mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
+        mgmtDecTableRef(pTable);
+        return;
+      } else {
+        t--;
+        mgmtDecTableRef(pTable);
+        continue;
+      }
     }
 
     STableMetaMsg *pMeta = (STableMetaMsg *)(pMultiMeta->metas + pMultiMeta->contLen);
@@ -2034,6 +2066,8 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
       pMultiMeta->numOfTables ++;
       pMultiMeta->contLen += pMeta->contLen;
     }
+
+    mgmtDecTableRef(pTable);
   }
 
   SRpcMsg rpcRsp = {0};

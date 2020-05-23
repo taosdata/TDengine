@@ -13,25 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_MNODE_TABLE_H
-#define TBASE_MNODE_TABLE_H
+#ifndef TDENGINE_MQTT_H
+#define TDENGINE_MQTT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "mgmtDef.h"
+#include <stdint.h>
 
-int32_t mgmtInitTables();
-void    mgmtCleanUpTables();
-void *  mgmtGetTable(char *tableId);
-void    mgmtIncTableRef(void *pTable);
-void    mgmtDecTableRef(void *pTable);
-void *  mgmtGetNextChildTable(void *pIter, SChildTableObj **pTable);
-void *  mgmtGetNextSuperTable(void *pIter, SSuperTableObj **pTable);
-void    mgmtDropAllChildTables(SDbObj *pDropDb);
-void    mgmtDropAllSuperTables(SDbObj *pDropDb);
-void    mgmtDropAllChildTablesInVgroups(SVgObj *pVgroup);
+int32_t mqttGetReqCount();
+int32_t mqttInitSystem();
+int32_t mqttStartSystem();
+void mqttStopSystem();
+void mqttCleanUpSystem();
 
 #ifdef __cplusplus
 }

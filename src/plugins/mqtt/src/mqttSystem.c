@@ -13,28 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_MNODE_TABLE_H
-#define TBASE_MNODE_TABLE_H
+#define _DEFAULT_SOURCE
+#include "mqttSystem.h"
+#include "mqtt.h"
+#include "mqttLog.h"
+#include "os.h"
+#include "taos.h"
+#include "tglobal.h"
+#include "tsocket.h"
+#include "ttimer.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "mgmtDef.h"
-
-int32_t mgmtInitTables();
-void    mgmtCleanUpTables();
-void *  mgmtGetTable(char *tableId);
-void    mgmtIncTableRef(void *pTable);
-void    mgmtDecTableRef(void *pTable);
-void *  mgmtGetNextChildTable(void *pIter, SChildTableObj **pTable);
-void *  mgmtGetNextSuperTable(void *pIter, SSuperTableObj **pTable);
-void    mgmtDropAllChildTables(SDbObj *pDropDb);
-void    mgmtDropAllSuperTables(SDbObj *pDropDb);
-void    mgmtDropAllChildTablesInVgroups(SVgObj *pVgroup);
-
-#ifdef __cplusplus
+int32_t mqttGetReqCount() { return 0; }
+int     mqttInitSystem() {
+  mqttPrint("mqttInitSystem");
+  return 0;
 }
-#endif
 
-#endif
+int mqttStartSystem() {
+  mqttPrint("mqttStartSystem");
+  return 0;
+}
+
+void mqttStopSystem() {
+	mqttPrint("mqttStopSystem");
+}
+
+void mqttCleanUpSystem() { 
+	mqttPrint("mqttCleanUpSystem");
+}

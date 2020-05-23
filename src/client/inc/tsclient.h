@@ -226,11 +226,8 @@ typedef struct {
   int     command;
   uint8_t msgType;
 
-  union {
-    bool   existsCheck;     // check if the table exists or not
-    bool   autoCreated;     // if the table is missing, on-the-fly create it. during getmeterMeta
-    int8_t dataSourceType;  // load data from file or not
-  };
+  bool   autoCreated;        // if the table is missing, on-the-fly create it. during getmeterMeta
+  int8_t dataSourceType;     // load data from file or not
 
   union {
     int32_t count;

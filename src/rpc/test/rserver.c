@@ -127,6 +127,8 @@ int main(int argc, char *argv[]) {
   SRpcInit rpcInit;
   char     dataName[20] = "server.data";
 
+  taosBlockSIGPIPE();
+
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort    = 7000;
   rpcInit.label        = "SER";

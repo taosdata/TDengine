@@ -216,14 +216,14 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-static UNUSED_FUNC int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
+static int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
   
-  const char* pattern = pRight;
-  const char* str = pLeft;
+  char pattern[128] = {0};
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+  assert(varDataLen(pRight) < 128);
   
-  int32_t ret = patternMatch(pattern, str, strlen(str), &pInfo);
-  
+  int32_t ret = patternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft), &pInfo);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
@@ -232,14 +232,14 @@ static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
   return taosArraySearchString(arr, pLeft) == NULL ? 0 : 1;
 }
 
-static UNUSED_FUNC int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
+static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
   
-  const wchar_t* pattern = pRight;
-  const wchar_t* str = pLeft;
+  wchar_t pattern[128] = {0};
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight)/TSDB_NCHAR_SIZE);
+  assert(varDataLen(pRight) < 128);
   
-  int32_t ret = WCSPatternMatch(pattern, str, wcslen(str), &pInfo);
-  
+  int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 

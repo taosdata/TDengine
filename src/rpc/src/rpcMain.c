@@ -867,9 +867,8 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   // underlying UDP layer does not know it is server or client
   pRecv->connType = pRecv->connType | pRpc->connType;  
 
-  if (pRecv->ip==0 && pConn) {
-    rpcProcessBrokenLink(pConn); 
-    rpcFreeMsg(pRecv->msg);
+  if (pRecv->ip == 0 && pConn) {
+    rpcProcessBrokenLink(pConn);
     return NULL;
   }
 
