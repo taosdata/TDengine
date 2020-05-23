@@ -94,6 +94,7 @@ extern int32_t tsMaxTables;
 extern char tsDefaultDB[];
 extern char tsDefaultUser[];
 extern char tsDefaultPass[];
+extern char tsMqttBrokerAddress[];
 extern int32_t tsMaxMeterConnections;
 extern int32_t tsMaxVnodeConnections;
 extern int32_t tsMaxMgmtConnections;

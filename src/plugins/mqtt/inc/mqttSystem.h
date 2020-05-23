@@ -27,11 +27,11 @@ extern "C" {
 #include "tsocket.h"
 #include "ttimer.h"
 #include "tsclient.h"
-int32_t mqttGetReqCount();
 int32_t mqttInitSystem();
 int32_t mqttStartSystem();
 void    mqttStopSystem();
 void    mqttCleanUpSystem();
+char    split(char str[], char delims[], char** p_p_cmd_part, int max);
 void    connlost(void* context, char* cause);
 int     msgarrvd(void* context, char* topicName, int topicLen, MQTTAsync_message* message);
 void    mqtt_query_insert_callback(void* param, TAOS_RES* result, int32_t code);
