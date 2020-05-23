@@ -31,7 +31,6 @@ int  taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 int  taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
 int  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int  taosKeepTcpAlive(int sockFd);
-void taosCloseTcpSocket(int sockFd);
 
 int      taosGetFqdn(char *);
 uint32_t taosGetIpFromFqdn(const char *);
