@@ -221,20 +221,28 @@ void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SD
 
 typedef struct {
   int16_t colId;   // column ID
-  int16_t colLen;  // if col type is binary/Nchar, this is the length of binary/Nchar
-  int64_t valueOrOffset;  //to store value for numeric col or offset for binary/Nchar
+  int8_t colType;
+  int8_t colLen;  // if col type is binary/Nchar, this is the length of binary/Nchar
+  int16_t offset;  //to store value for numeric col or offset for binary/Nchar
 } STagCol;
 
 typedef struct {
   int32_t    len;  
-  void *     pBinaryData;  // Space to store the binary and Nchar value   
+  void *     pData;  // Space to store the tag value   
   int16_t    ncols;  // Total columns allocated
   STagCol    tagCols[];
 } STagRow;
 
-int tdInsertTagCol(SDataRow *row, void *value, int32_t bytes, int16_t colId);
-int tdQuerTagByID(SDataRow row, void *value, int16_t colId);
+
+#define tagColSize(r) (sizeof(STagCol) + r.colLen)
+
+int tdInsertTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId);  //insert tag value and update all the information
+int tdDeleteTagCol(SDataRow row, int16_t colId);  // delete tag value and update all the information
+int tdQuerTagByID(SDataRow row, int16_t colId, void *value);   //if find tag, return value length, else return -1;
+int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes);  
+
 SDataRow tdNewTagRowFromSchema(STSchema *pSchema);
+STSchema *tdGetSchemaFromData(SDataRow *row);
 
 #ifdef __cplusplus
 }
