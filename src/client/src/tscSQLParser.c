@@ -5337,13 +5337,6 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
     }
   }
 
-  SColumnIndex ind = {0};
-  SSqlExpr* pExpr1 = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG_DUMMY, &ind, TSDB_DATA_TYPE_INT,
-      tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, false);
-  
-  const char* name = (pExprList->a[0].aliasName != NULL)? pExprList->a[0].aliasName:functionsInfo[index].name;
-  strncpy(pExpr1->aliasName, name, tListLen(pExpr1->aliasName));
-
   switch (index) {
     case 0:
       pQueryInfo->command = TSDB_SQL_CURRENT_DB;
@@ -5362,6 +5355,13 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
       return TSDB_CODE_SUCCESS;
     default: { return invalidSqlErrMsg(pQueryInfo->msg, msg3); }
   }
+  
+  SColumnIndex ind = {0};
+  SSqlExpr* pExpr1 = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG_DUMMY, &ind, TSDB_DATA_TYPE_INT,
+                                      tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, false);
+  
+  const char* name = (pExprList->a[0].aliasName != NULL)? pExprList->a[0].aliasName:functionsInfo[index].name;
+  strncpy(pExpr1->aliasName, name, tListLen(pExpr1->aliasName));
 }
 
 // can only perform the parameters based on the macro definitation
