@@ -230,8 +230,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
         pzName->n = strdequote(pzName->z);
-        strncpy(pTableMetaInfo->name, pzName->z, tListLen(pTableMetaInfo->name));
-        pTableMetaInfo->name[tListLen(pTableMetaInfo->name)-1] = 0;
+        assert(pzName->n < tListLen(pTableMetaInfo->name));
+        strncpy(pTableMetaInfo->name, pzName->z, pzName->n);
+        pTableMetaInfo->name[pzName->n] = 0;
       } else {  // drop user
         if (pzName->n > TSDB_USER_LEN) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -377,17 +378,19 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       SCMCfgDnodeMsg* pCfg = (SCMCfgDnodeMsg*)pMsg;
       pDCL->a[0].n = strdequote(pDCL->a[0].z);
       
-      strncpy(pCfg->ep, pDCL->a[0].z, tListLen(pCfg->ep));
-      pCfg->ep[tListLen(pCfg->ep)-1] = 0;
+      assert(pDCL->a[0].n < tListLen(pCfg->ep));
+      strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
+      pCfg->ep[pDCL->a[0].n] = 0;
 
-      strncpy(pCfg->config, pDCL->a[1].z, tListLen(pCfg->config));
-      pCfg->config[tListLen(pCfg->config)-1] = 0;
+      assert(pDCL->a[1].n < tListLen(pCfg->config));
+      strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);
+      pCfg->config[pDCL->a[1].n] = 0;
 
       if (pDCL->nTokens == 3) {
         assert(pDCL->a[1].n + 1 + pDCL->a[2].n + 1 <= tListLen(pCfg->config));
         pCfg->config[pDCL->a[1].n] = ' ';  // add sep
-        strncpy(&pCfg->config[pDCL->a[1].n + 1], pDCL->a[2].z, tListLen(pCfg->config) - pDCL->a[1].n - 1);
-        pCfg->config[tListLen(pCfg->config)-1] = 0;
+        strncpy(&pCfg->config[pDCL->a[1].n + 1], pDCL->a[2].z, pDCL->a[2].n);
+        pCfg->config[pDCL->a[1].n + 1 + pDCL->a[2].n] = 0;
       }
 
       break;
@@ -2279,8 +2282,7 @@ bool validateIpAddress(const char* ip, size_t size) {
   char tmp[128] = {0};  // buffer to build null-terminated string
   assert(size < 128);
 
-  strncpy(tmp, ip, tListLen(tmp));
-  tmp[tListLen(tmp)-1] = 0;
+  strncpy(tmp, ip, size);
 
   in_addr_t ipAddr = inet_addr(tmp);
 
@@ -4363,8 +4365,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     char name1[128] = {0};
-    strncpy(name1, pItem->pVar.pz, tListLen(name1));
-    name1[tListLen(name1)-1] = 0;
+    assert(pItem->pVar.nLen < sizeof(name1));
+    strncpy(name1, pItem->pVar.pz, pItem->pVar.nLen);
+    name1[pItem->pVar.nLen] = 0;
   
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
@@ -4399,14 +4402,16 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     char name[TSDB_COL_NAME_LEN + 1] = {0};
-    strncpy(name, pVarList->a[0].pVar.pz, tListLen(name));
-    name[tListLen(name)-1] = 0;
+    assert(pVarList->a[0].pVar.nLen < sizeof(name));
+    strncpy(name, pVarList->a[0].pVar.pz, pVarList->a[0].pVar.nLen);
+    name[pVarList->a[0].pVar.nLen] = 0;
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
     memset(name, 0, tListLen(name));
-    strncpy(name, pVarList->a[1].pVar.pz, tListLen(name));
-    name[tListLen(name)-1] = 0;
+    assert(pVarList->a[1].pVar.nLen < sizeof(name));
+    strncpy(name, pVarList->a[1].pVar.pz, pVarList->a[1].pVar.nLen):
+    name[pVarList->a[1].pVar.nLen] = 0;
     f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
@@ -4439,8 +4444,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     char name1[128] = {0};
-    strncpy(name1, pTagName->pz, tListLen(name1));
-    name1[tListLen(name1)-1] = 0;
+    assert(pTagName->nLen < sizeof(name1));
+    strncpy(name1, pTagName->pz, pTagName->nLen);
+    name1[pTagName->nLen] = 0;
   
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
@@ -4479,8 +4485,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     char name1[TSDB_COL_NAME_LEN + 1] = {0};
-    strncpy(name1, pItem->pVar.pz, tListLen(name1));
-    name1[tListLen(name1)-1] = 0;
+    assert(pItem->pVar.nLen < sizeof(name1));
+    strncpy(name1, pItem->pVar.pz, pItem->pVar.nLen);
+    name1[pItem->pVar.nLen] = 0;
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }
@@ -5952,8 +5959,9 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray*
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_COL;
       (*pExpr)->pSchema = calloc(1, sizeof(SSchema));
-      strncpy((*pExpr)->pSchema->name, pSqlExpr->operand.z, tListLen((*pExpr)->pSchema->name));
-      (*pExpr)->pSchema->name[tListLen((*pExpr)->pSchema->name)-1] = 0;
+      assert(pSqlExpr->operand.n < sizeof((*pExpr)->pSchema->name));
+      strncpy((*pExpr)->pSchema->name, pSqlExpr->operand.z, pSqlExpr->operand.n);
+      (*pExpr)->pSchema->name[pSqlExpr->operand.n] = 0;
       
       // set the input column data byte and type.
       size_t size = taosArrayGetSize(pExprInfo);
