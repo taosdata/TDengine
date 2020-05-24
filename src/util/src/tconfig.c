@@ -135,6 +135,7 @@ static void taosReadIpStrConfig(SGlobalCfg *cfg, char *input_value) {
   } else {
     if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
       strncpy(option, input_value, cfg->ptrLength);
+      option[cfg->ptrLength-1] = 0;
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
       uWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, input_value,
@@ -152,6 +153,7 @@ static void taosReadStringConfig(SGlobalCfg *cfg, char *input_value) {
   } else {
     if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
       strncpy(option, input_value, cfg->ptrLength);
+      option[cfg->ptrLength-1] = 0;
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
       uWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, input_value,

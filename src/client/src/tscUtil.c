@@ -589,7 +589,8 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->tableId, name, TSDB_TABLE_ID_LEN);
+  strncpy(dataBuf->tableId, name, tListLen(dataBuf->tableId));
+  dataBuf->tableId[tListLen(dataBuf->tableId)-1] = 0;
 
   /*
    * The table meta may be released since the table meta cache are completed clean by other thread
@@ -809,7 +810,8 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
   TAOS_FIELD f = { .type = type, .bytes = bytes, };
-  strncpy(f.name, name, TSDB_COL_NAME_LEN);
+  strncpy(f.name, name, tListLen(f.name));
+  f.name[tListLen(f.name)-1] = 0;
   return f;
 }
 
@@ -974,11 +976,13 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
     if (isTagCol) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
-      strncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, TSDB_COL_NAME_LEN);
+      strncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, tListLen(pExpr->colInfo.name));
+      pExpr->colInfo.name[tListLen(pExpr->colInfo.name)-1] = 0;
     } else {
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       pExpr->colInfo.colId = pSchema->colId;
-      strncpy(pExpr->colInfo.name, pSchema->name, TSDB_COL_NAME_LEN);
+      strncpy(pExpr->colInfo.name, pSchema->name, tListLen(pExpr->colInfo.name));
+      pExpr->colInfo.name[tListLen(pExpr->colInfo.name)-1] = 0;
     }
   }
   
@@ -1671,7 +1675,8 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   assert(pTableMetaInfo != NULL);
 
   if (name != NULL) {
-    strncpy(pTableMetaInfo->name, name, TSDB_TABLE_ID_LEN);
+    strncpy(pTableMetaInfo->name, name, tListLen(pTableMetaInfo->name));
+    pTableMetaInfo->name[tListLen(pTableMetaInfo->name)-1] = 0;
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
@@ -1976,7 +1981,8 @@ int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* s
   }
 
   char buf[64] = {0};  // only extract part of sql string
-  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
+  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf));
+  buf[tListLen(buf)-1] = 0;
 
   if (additionalInfo != NULL) {
     sprintf(msg, msgFormat2, buf, additionalInfo);

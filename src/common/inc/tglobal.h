@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 extern char configDir[];
+extern int  configDirLen;
 extern char tsVnodeDir[];
 extern char tsDnodeDir[];
 extern char tsMnodeDir[];

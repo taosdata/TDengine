@@ -952,7 +952,8 @@ static int32_t mgmtModifySuperTableTagName(SSuperTableObj *pStable, char *oldTag
 
   // update
   SSchema *schema = (SSchema *) (pStable->schema + pStable->numOfColumns + col);
-  strncpy(schema->name, newTagName, TSDB_COL_NAME_LEN);
+  strncpy(schema->name, newTagName, tListLen(schema->name));
+  schema->name[tListLen(schema->name)-1] = 0;
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -1229,7 +1230,8 @@ static int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTa
   assert(numOfCols <= TSDB_MAX_COLUMNS);
   
   for (int32_t i = 0; i < numOfCols; ++i) {
-    strncpy(pSchema->name, pTable->schema[i].name, TSDB_COL_NAME_LEN);
+    strncpy(pSchema->name, pTable->schema[i].name, tListLen(pSchema->name));
+    pSchema->name[tListLen(pSchema->name)-1] = 0;
     pSchema->type  = pTable->schema[i].type;
     pSchema->bytes = htons(pTable->schema[i].bytes);
     pSchema->colId = htons(pTable->schema[i].colId);
@@ -1250,7 +1252,8 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
   pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
   pMeta->tableType    = pTable->info.type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
-  strncpy(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_ID_LEN);
+  strncpy(pMeta->tableId, pTable->info.tableId, tListLen(pMeta->tableId));
+  pMeta->tableId[tListLen(pMeta->tableId)-1] = 0;
 
   SRpcMsg rpcRsp = {
     .handle = pMsg->thandle, 
@@ -1304,7 +1307,7 @@ static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
         SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
         if (pDnode == NULL) break;
 
-        strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
+        strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn));
         pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
 
         pVgroupInfo->vgroups[vgSize].numOfIps++;
@@ -1703,7 +1706,8 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->sid       = htonl(pTable->sid);
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
-  strncpy(pMeta->tableId, pTable->info.tableId, strlen(pTable->info.tableId));
+  strncpy(pMeta->tableId, pTable->info.tableId, tListLen(pMeta->tableId));
+  pMeta->tableId[tListLen(pMeta->tableId)-1] = 0;
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pMeta->sversion     = htons(pTable->superTable->sversion);
@@ -1752,7 +1756,8 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
     return;
   }
 
-  strncpy(pCreateMsg->tableId, pInfo->tableId, tListLen(pInfo->tableId));
+  strncpy(pCreateMsg->tableId, pInfo->tableId, tListLen(pCreateMsg->tableId));
+  pCreateMsg->tableId[tListLen(pCreateMsg->tableId)-1] = 0;
   strcpy(pCreateMsg->db, pMsg->pDb->name);
   pCreateMsg->igExists = 1;
   pCreateMsg->getMeta = 1;

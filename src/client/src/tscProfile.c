@@ -228,8 +228,8 @@ char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
       continue;
     }
 
-    strncpy(pQdesc->sql, pSql->sqlstr, TSDB_SHOW_SQL_LEN - 1);
-    pQdesc->sql[TSDB_SHOW_SQL_LEN - 1] = 0;
+    strncpy(pQdesc->sql, pSql->sqlstr, tListLen(pQdesc->sql));
+    pQdesc->sql[tListLen(pQdesc->sql)-1] = 0;
     pQdesc->stime = pSql->stime;
     pQdesc->queryId = pSql->queryId;
     pQdesc->useconds = pSql->res.useconds;
@@ -249,8 +249,8 @@ char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
   pMsg += sizeof(SStreamList);
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
-    strncpy(pSdesc->sql, pStream->pSql->sqlstr, TSDB_SHOW_SQL_LEN - 1);
-    pSdesc->sql[TSDB_SHOW_SQL_LEN - 1] = 0;
+    strncpy(pSdesc->sql, pStream->pSql->sqlstr, tListLen(pSdesc->sql));
+    pSdesc->sql[tListLen(pSdesc->sql)-1] = 0;
     pSdesc->streamId = pStream->streamId;
     pSdesc->num = pStream->num;
 

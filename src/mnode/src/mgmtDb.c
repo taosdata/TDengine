@@ -179,7 +179,10 @@ SDbObj *mgmtGetDbByTableId(char *tableId) {
   pos = strstr(tableId, TS_PATH_DELIMITER);
   pos = strstr(pos + 1, TS_PATH_DELIMITER);
   memset(db, 0, sizeof(db));
-  strncpy(db, tableId, pos - tableId);
+  int n = pos - tableId;
+  if (n>=sizeof(db)) n = sizeof(db);
+  strncpy(db, tableId, n);
+  db[sizeof(db)-1] = 0;
 
   return mgmtGetDb(db);
 }
@@ -327,8 +330,10 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   if (code != 0) return code;
 
   pDb = calloc(1, sizeof(SDbObj));
-  strncpy(pDb->name, pCreate->db, TSDB_DB_NAME_LEN);
-  strncpy(pDb->acct, pAcct->user, TSDB_USER_LEN); 
+  strncpy(pDb->name, pCreate->db, tListLen(pDb->name));
+  pDb->name[tListLen(pDb->name)-1] = 0;
+  strncpy(pDb->acct, pAcct->user, tListLen(pDb->acct));
+  pDb->acct[tListLen(pDb->acct)-1] = 0;
   pDb->createdTime = taosGetTimestampMs(); 
   pDb->cfg = (SDbCfg) {
     .cacheBlockSize      = pCreate->cacheBlockSize,

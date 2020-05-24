@@ -790,7 +790,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
     tscSetTableId(pSTableMeterMetaInfo, &sToken, pSql);
 
-    strncpy(pTag->name, pSTableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
+    strncpy(pTag->name, pSTableMeterMetaInfo->name, tListLen(pTag->name));
+    pTag->name[tListLen(pTag->name)-1] = 0;
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -981,7 +982,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
 int validateTableName(char *tblName, int len) {
   char buf[TSDB_TABLE_ID_LEN] = {0};
-  strncpy(buf, tblName, len);
+  strncpy(buf, tblName, tListLen(buf));
+  buf[tListLen(buf)-1] = 0;
 
   SSQLToken token = {.n = len, .type = TK_ID, .z = buf};
   tSQLGetToken(buf, &token.type);
@@ -1155,7 +1157,8 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       }
 
       char fname[PATH_MAX] = {0};
-      strncpy(fname, sToken.z, sToken.n);
+      strncpy(fname, sToken.z, tListLen(fname));
+      fname[tListLen(fname)-1] = 0;
       strdequote(fname);
 
       wordexp_t full_path;
@@ -1507,7 +1510,8 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
     }
     pCmd->count = 1;
 
-    strncpy(path, pDataBlock->filename, PATH_MAX);
+    strncpy(path, pDataBlock->filename, tListLen(path));
+    path[tListLen(path)-1] = 0;
 
     FILE *fp = fopen(path, "r");
     if (fp == NULL) {
@@ -1515,7 +1519,8 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
       continue;
     }
 
-    strncpy(pTableMetaInfo->name, pDataBlock->tableId, TSDB_TABLE_ID_LEN);
+    strncpy(pTableMetaInfo->name, pDataBlock->tableId, tListLen(pTableMetaInfo->name));
+    pTableMetaInfo->name[tListLen(pTableMetaInfo->name)-1] = 0;
     memset(pDataBlock->pData, 0, pDataBlock->nAllocSize);
 
     int32_t ret = tscGetTableMeta(pSql, pTableMetaInfo);

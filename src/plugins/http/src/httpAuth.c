@@ -47,8 +47,8 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
     free(base64);
     return false;
   }
-  strncpy(pContext->user, base64, (size_t)user_len);
-  pContext->user[user_len] = 0;
+  strncpy(pContext->user, base64, tListLen(pContext->user));
+  pContext->user[tListLen(pContext->user)-1] = 0;
 
   char *password = user + 1;
   int   pass_len = (int)((base64 + outlen) - password);
@@ -58,8 +58,8 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
     free(base64);
     return false;
   }
-  strncpy(pContext->pass, password, (size_t)pass_len);
-  pContext->pass[pass_len] = 0;
+  strncpy(pContext->pass, password, tListLen(pContext->pass));
+  pContext->pass[tListLen(pContext->pass)-1] = 0;
 
   free(base64);
   httpTrace("context:%p, fd:%d, ip:%s, basic token parsed success, user:%s", pContext, pContext->fd, pContext->ipstr,
@@ -88,8 +88,10 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
     free(base64);
     return false;
   } else {
-    strncpy(pContext->user, descrypt, TSDB_USER_LEN);
-    strncpy(pContext->pass, descrypt + TSDB_USER_LEN, TSDB_PASSWORD_LEN);
+    strncpy(pContext->user, descrypt, tListLen(pContext->user));
+    pContext->user[tListLen(pContext->user)-1] = 0;
+    strncpy(pContext->pass, descrypt + tListLen(pContext->user), tListLen(pContext->pass));
+    pContext->pass[tListLen(pContext->pass)-1] = 0;
 
     httpTrace("context:%p, fd:%d, ip:%s, taosd token:%s parsed success, user:%s", pContext, pContext->fd,
               pContext->ipstr, token, pContext->user);
@@ -107,7 +109,10 @@ bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
   char *encrypt = taosDesEncode(KEY_DES_4, buffer, TSDB_USER_LEN + TSDB_PASSWORD_LEN);
   char *base64 = base64_encode((const unsigned char *)encrypt, TSDB_USER_LEN + TSDB_PASSWORD_LEN);
 
-  strncpy(token, base64, (size_t)strlen(base64));
+  int len = strlen(base64);
+  if (len>=maxLen) len = maxLen;
+  strncpy(token, base64, len);
+  token[len-1] = 0;
   free(encrypt);
   free(base64);
 

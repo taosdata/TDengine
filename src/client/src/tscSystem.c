@@ -179,7 +179,8 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
     
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        strncpy(configDir, pStr, TSDB_FILENAME_LEN);
+        strncpy(configDir, pStr, configDirLen);
+        configDir[configDirLen-1] = 0;
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("set config file directory:%s", pStr);
       } else {
@@ -234,6 +235,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         }
 
         strncpy(tsLocale, locale, tListLen(tsLocale));
+        tsLocale[tListLen(tsLocale)-1] = 0;
 
         char *charset = strrchr(tsLocale, sep);
         if (charset != NULL) {
@@ -249,6 +251,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
             }
 
             strncpy(tsCharset, charset, tListLen(tsCharset));
+            tsCharset[tListLen(tsCharset)-1] = 0;
             cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
 
           } else {
@@ -286,6 +289,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           }
 
           strncpy(tsCharset, pStr, tListLen(tsCharset));
+          tsCharset[tListLen(tsCharset)-1] = 0;
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
           tscPrint("charset:%s not valid", pStr);
@@ -324,6 +328,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 //        }
 
         strncpy(tsSocketType, pStr, tListLen(tsSocketType));
+        tsSocketType[tListLen(tsSocketType)-1] = 0;
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("socket type is set:%s", tsSocketType);
       }

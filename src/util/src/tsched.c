@@ -62,7 +62,7 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
 
   pSched->queueSize = queueSize;
   strncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
-  pSched->label[sizeof(pSched->label)-1] = '\0';
+  pSched->label[sizeof(pSched->label)-1] = 0;
 
   pSched->fullSlot = 0;
   pSched->emptySlot = 0;

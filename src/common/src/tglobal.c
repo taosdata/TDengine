@@ -28,6 +28,7 @@
 #include "tsync.h"
 
 char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
+int  configDirLen = tListLen(configDir);
 char tsVnodeDir[TSDB_FILENAME_LEN] = {0};
 char tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char tsMnodeDir[TSDB_FILENAME_LEN] = {0};
