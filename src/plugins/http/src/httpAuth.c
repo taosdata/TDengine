@@ -47,8 +47,8 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
     free(base64);
     return false;
   }
-  strncpy(pContext->user, base64, tListLen(pContext->user));
-  pContext->user[tListLen(pContext->user)-1] = 0;
+  strncpy(pContext->user, base64, (size_t)user_len);
+  pContext->user[user_len] = 0;
 
   char *password = user + 1;
   int   pass_len = (int)((base64 + outlen) - password);
@@ -58,8 +58,8 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
     free(base64);
     return false;
   }
-  strncpy(pContext->pass, password, tListLen(pContext->pass));
-  pContext->pass[tListLen(pContext->pass)-1] = 0;
+  strncpy(pContext->pass, password, (size_t)pass_len);
+  pContext->pass[pass_len] = 0;
 
   free(base64);
   httpTrace("context:%p, fd:%d, ip:%s, basic token parsed success, user:%s", pContext, pContext->fd, pContext->ipstr,
