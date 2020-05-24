@@ -4410,7 +4410,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     memset(name, 0, tListLen(name));
     assert(pVarList->a[1].pVar.nLen < sizeof(name));
-    strncpy(name, pVarList->a[1].pVar.pz, pVarList->a[1].pVar.nLen):
+    strncpy(name, pVarList->a[1].pVar.pz, pVarList->a[1].pVar.nLen);
     name[pVarList->a[1].pVar.nLen] = 0;
     f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
