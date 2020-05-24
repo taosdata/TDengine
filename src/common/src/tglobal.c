@@ -120,6 +120,7 @@ int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
 int32_t tsMgmtEqualVnodeNum = 4;
 
 int32_t tsEnableHttpModule = 1;
+int32_t tsEnableMqttModule = 0;   // not finished yet, not started it by default
 int32_t tsEnableMonitorModule = 0;
 
 int32_t tsRestRowLimit = 10240;
@@ -134,6 +135,7 @@ int32_t cDebugFlag = 135;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
+int32_t mqttDebugFlag = 131;
 int32_t monitorDebugFlag = 131;
 int32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 135;
@@ -212,6 +214,7 @@ void taosSetAllDebugFlag() {
     jniDebugFlag = debugFlag;
     odbcDebugFlag = debugFlag;
     httpDebugFlag = debugFlag;
+    mqttDebugFlag = debugFlag;
     monitorDebugFlag = debugFlag;
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
@@ -890,6 +893,17 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  
+  cfg.option = "mqtt";
+  cfg.ptr = &tsEnableMqttModule;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "monitor";
   cfg.ptr = &tsEnableMonitorModule;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1111,6 +1125,17 @@ static void doInitGlobalConfig() {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+  cfg.option = "mqttDebugFlag";
+  cfg.ptr = &mqttDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
 
   cfg.option = "monitorDebugFlag";
   cfg.ptr = &monitorDebugFlag;

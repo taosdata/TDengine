@@ -305,18 +305,9 @@ int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientI
     sockFd = -1;
   }
 
+  // taosKeepTcpAlive(sockFd);
+
   return sockFd;
-}
-
-void taosCloseTcpSocket(int sockFd) {
-  struct linger linger;
-  linger.l_onoff = 1;
-  linger.l_linger = 0;
-  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_LINGER, (void *)&linger, sizeof(linger)) < 0) {
-    uError("setsockopt SO_LINGER failed: %d (%s)", errno, strerror(errno));
-  }
-
-  taosCloseSocket(sockFd);
 }
 
 int taosKeepTcpAlive(int sockFd) {
@@ -351,6 +342,15 @@ int taosKeepTcpAlive(int sockFd) {
   int nodelay = 1;
   if (taosSetSockOpt(sockFd, IPPROTO_TCP, TCP_NODELAY, (void *)&nodelay, sizeof(nodelay)) < 0) {
     uError("fd:%d setsockopt TCP_NODELAY failed %d (%s)", sockFd, errno, strerror(errno));
+    close(sockFd);
+    return -1;
+  }
+
+  struct linger linger = {0};
+  linger.l_onoff = 1;
+  //linger.l_linger = 0;
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_LINGER, (void *)&linger, sizeof(linger)) < 0) {
+    uError("setsockopt SO_LINGER failed: %d (%s)", errno, strerror(errno));
     close(sockFd);
     return -1;
   }
