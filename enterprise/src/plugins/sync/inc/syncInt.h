@@ -119,6 +119,7 @@ typedef struct SsyncPeer {
   int8_t      role;
   int8_t      sstatus;    // sync status
   uint64_t    version;
+  uint64_t    sversion;   // track the peer version in retrieve process 
   int         syncFd;
   int         peerFd;     // forward FD
   void       *timer;
