@@ -94,8 +94,8 @@ typedef void* tsync_h;
 
 tsync_h syncStart(const SSyncInfo *);
 void    syncStop(tsync_h shandle);
-int     syncReconfig(tsync_h shandle, const SSyncCfg *);
-int     syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype);
+int32_t syncReconfig(tsync_h shandle, const SSyncCfg *);
+int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype);
 void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code);
 void    syncRecover(tsync_h shandle);      // recover from other nodes:
 int     syncGetNodesRole(tsync_h shandle, SNodesRole *);
