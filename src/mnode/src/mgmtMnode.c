@@ -65,7 +65,6 @@ static int32_t mgmtMnodeActionInsert(SSdbOper *pOper) {
   SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
   if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
 
-  pMnode->pDnode = pDnode;
   pDnode->isMgmt = true;
   mgmtDecDnodeRef(pDnode);
   
@@ -220,22 +219,27 @@ void mgmtUpdateMnodeIpSet() {
     pIter = mgmtGetNextMnode(pIter, &pMnode);
     if (pMnode == NULL) break;
 
-    strcpy(ipSet->fqdn[ipSet->numOfIps], pMnode->pDnode->dnodeFqdn);
-    ipSet->port[ipSet->numOfIps] = htons(pMnode->pDnode->dnodePort);
+    SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
+    if (pDnode != NULL) {
+      strcpy(ipSet->fqdn[ipSet->numOfIps], pDnode->dnodeFqdn);
+      ipSet->port[ipSet->numOfIps] = htons(pDnode->dnodePort);
 
-    mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
-    strcpy(mnodes->nodeInfos[index].nodeEp, pMnode->pDnode->dnodeEp);
+      mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
+      strcpy(mnodes->nodeInfos[index].nodeEp, pDnode->dnodeEp);
 
-    if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
-      ipSet->inUse = ipSet->numOfIps;
-      mnodes->inUse = index;
+      if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
+        ipSet->inUse = ipSet->numOfIps;
+        mnodes->inUse = index;
+      }
+
+      mPrint("mnode:%d, ep:%s %s", index, pDnode->dnodeEp,
+             pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
+
+      ipSet->numOfIps++;
+      index++;
     }
 
-    mPrint("mnode:%d, ep:%s %s", index, pMnode->pDnode->dnodeEp, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
-
-    ipSet->numOfIps++;
-    index++;
-    
+    mgmtDecDnodeRef(pDnode);
     mgmtDecMnodeRef(pMnode);
   }
 
@@ -385,7 +389,15 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pMnode->pDnode->dnodeEp, pShow->bytes[cols] - VARSTR_HEADER_SIZE);
+    
+    SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
+    if (pDnode != NULL) {
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols] - VARSTR_HEADER_SIZE);
+    } else {
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, "invalid ep", pShow->bytes[cols] - VARSTR_HEADER_SIZE);
+    }
+    mgmtDecDnodeRef(pDnode);
+
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
