@@ -5,7 +5,7 @@
     "waitTime": 0,
 	"tableDesc": "ts timestamp, i int",
 	"tablePrefix": "t",
-	"tablePerConn": 2000,
+	"tablePerConn": 200,
 	"tableCreate": true,
 	"tableStart": 1,
 	"dbName": "db",
