@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mqttSystem.h"
 #include "MQTTAsync.h"
-#include "cJson.h"
+#include "cJSON.h"
 #include "mqtt.h"
 #include "mqttLog.h"
 #include "os.h"
