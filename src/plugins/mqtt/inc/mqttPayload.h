@@ -13,16 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MQTT_SYSTEM_H
-#define TDENGINE_MQTT_SYSTEM_H
+#ifndef TDENGINE_MQTT_PLYLOAD_H
+#define TDENGINE_MQTT_PLYLOAD_H
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <stdint.h>
-int32_t mqttInitSystem();
-int32_t mqttStartSystem();
-void    mqttStopSystem();
-void    mqttCleanUpSystem();
+char  split(char str[], char delims[], char** p_p_cmd_part, int max);
+char* converJsonToSql(char* json, char* _dbname, char* _tablename);
 #ifdef __cplusplus
 }
 #endif

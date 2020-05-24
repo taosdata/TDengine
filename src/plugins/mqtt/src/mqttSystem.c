@@ -26,12 +26,8 @@
 #include "tsclient.h"
 #include "tsocket.h"
 #include "ttimer.h"
-
-#define CLIENTID "taos"
-#define TOPIC "/taos/+/+/+/"  // taos/<token>/<db name>/<table name>/
-#define PAYLOAD "Hello World!"
-#define QOS 1
-#define TIMEOUT 10000L
+#include "mqttInit.h"
+#include "mqttPlyload.h"
 
 MQTTAsync                   client;
 MQTTAsync_connectOptions    conn_opts = MQTTAsync_connectOptions_initializer;
@@ -42,7 +38,7 @@ int                         subscribed = 0;
 int                         finished = 0;
 int                         can_exit = 0;
 
-void connlost(void* context, char* cause) {
+void mqttConnnectLost(void* context, char* cause) {
   MQTTAsync                client = (MQTTAsync)context;
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   int                      rc;
@@ -58,20 +54,9 @@ void connlost(void* context, char* cause) {
     finished = 1;
   }
 }
-char split(char str[], char delims[], char** p_p_cmd_part, int max) {
-  char*  token = strtok(str, delims);
-  char   part_index = 0;
-  char** tmp_part = p_p_cmd_part;
-  while (token) {
-    *tmp_part++ = token;
-    token = strtok(NULL, delims);
-    part_index++;
-    if (part_index >= max) break;
-  }
-  return part_index;
-}
 
-int msgarrvd(void* context, char* topicName, int topicLen, MQTTAsync_message* message) {
+
+int mqttMessageArrived(void* context, char* topicName, int topicLen, MQTTAsync_message* message) {
   mqttTrace("Message arrived,topic is %s,message is  %.*s", topicName, message->payloadlen, (char*)message->payload);
   char _token[128] = {0};
   char _dbname[128] = {0};
@@ -93,36 +78,10 @@ int msgarrvd(void* context, char* topicName, int topicLen, MQTTAsync_message* me
       strncpy(_tablename, p_p_cmd_part[3], 127);
       mqttPrint("part count=%d,access token:%s,database name:%s, table name:%s", part_index, _token, _dbname,
                 _tablename);
-      cJSON* jPlayload = cJSON_Parse((char*)message->payload);
-      char   _names[102400] = {0};
-      char   _values[102400] = {0};
-      int    i = 0;
-      int    count = cJSON_GetArraySize(jPlayload);
-      for (; i < count; i++)  //遍历最外层json键值对
-      {
-        cJSON* item = cJSON_GetArrayItem(jPlayload, i);
-        if (cJSON_Object == item->type) {
-          mqttPrint("The item '%s' is not supported", item->string);
-        } else {
-          strcat(_names, item->string);
-          if (i < count - 1) {
-            strcat(_names, ",");
-          }
-          char* __value_json = cJSON_Print(item);
-          strcat(_values, __value_json);
-          free(__value_json);
-          if (i < count - 1) {
-            strcat(_values, ",");
-          }
-        }
-      }
-      cJSON_free(jPlayload);
-      char _sql[102400] = {0};
-      sprintf(_sql, "INSERT INTO %s.%s (%s) VALUES(%s);", _dbname, _tablename, _names, _values);
-
+      char* sql = converJsonToSql((char*)message->payload, _dbname, _tablename);
       if (mqtt_conn != NULL) {
         mqttPrint("query:%s", _sql);
-        taos_query_a(mqtt_conn, _sql, mqtt_query_insert_callback, &client);
+        taos_query_a(mqtt_conn, _sql, mqttQueryInsertCallback, &client);
       }
     }
   }
@@ -130,7 +89,7 @@ int msgarrvd(void* context, char* topicName, int topicLen, MQTTAsync_message* me
   MQTTAsync_free(topicName);
   return 1;
 }
-void mqtt_query_insert_callback(void* param, TAOS_RES* result, int32_t code) {
+void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code) {
   if (code < 0) {
     mqttError("mqtt:%d, save data failed, code:%s", code, tstrerror(code));
   } else if (code == 0) {
@@ -198,7 +157,7 @@ int32_t mqttInitSystem() {
       rc = EXIT_FAILURE;
 
     } else {
-      if ((rc = MQTTAsync_setCallbacks(client, client, connlost, msgarrvd, NULL)) != MQTTASYNC_SUCCESS) {
+      if ((rc = MQTTAsync_setCallbacks(client, client, mqttConnnectLost, mqttMessageArrived, NULL)) != MQTTASYNC_SUCCESS) {
         mqttError("Failed to set callbacks, return code %d", rc);
         rc = EXIT_FAILURE;
       } else {
