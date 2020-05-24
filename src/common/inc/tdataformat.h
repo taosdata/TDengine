@@ -202,11 +202,15 @@ void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SD
 // ----------------- Tag row structure
 
 /* A tag row, the format is like below:
-+----------+-------------------------------------------------------------+---------------------------------+
-|  int16   | int16  | int64   | int16  | int64   | ...| int16  | int64   |              char               |
-+----------+-------------------------------------------------------------+---------------------------------+
-|  ncols   | colId1 | offset1 | colId2 | offset2 | ...| colIdN | offsetN |              values             |
-+----------+-------------------------------------------------------------+---------------------------------+
++----------+----------------------------------------------------------------+
+| STagRow  | STagCol | STagCol | STagCol | STagCol | ...| STagCol | STagCol | 
++----------+----------------------------------------------------------------+
+
+pData
++----------+----------------------------------------------------------------+
+| value 1     | value 2 |  value 3     | value 4       | ....|value n       |
++----------+----------------------------------------------------------------+
+
  */
 
 
@@ -221,8 +225,8 @@ void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SD
 
 typedef struct {
   int16_t colId;   // column ID
-  int8_t colType;
-  int8_t colLen;  // if col type is binary/Nchar, this is the length of binary/Nchar
+  int16_t colType;
+  int16_t colLen;  // if col type is binary/Nchar, this is the length of binary/Nchar
   int16_t offset;  //to store value for numeric col or offset for binary/Nchar
 } STagCol;
 
@@ -238,7 +242,7 @@ typedef struct {
 
 int tdInsertTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId);  //insert tag value and update all the information
 int tdDeleteTagCol(SDataRow row, int16_t colId);  // delete tag value and update all the information
-int tdQuerTagByID(SDataRow row, int16_t colId, void *value);   //if find tag, return value length, else return -1;
+int tdQuerTagByID(SDataRow row, int16_t colId, void *value, int16_t *type, int16_t *len);   //if find tag, 0, else return -1;
 int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes);  
 
 SDataRow tdNewTagRowFromSchema(STSchema *pSchema);

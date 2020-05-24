@@ -151,6 +151,26 @@ SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
   return row;
 }
 
+int tdInsertTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId){ //insert tag value and update all the information
+  return 0;
+};  
+
+int tdDeleteTagCol(SDataRow row, int16_t colId){   // delete tag value and update all the information
+  return o;
+};  
+
+int tdQuerTagByID(SDataRow row, int16_t colId, void *value, int16_t *type, int16_t *len){  //if find tag, 0, else return -1; 
+  return 0;
+};   
+
+int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes){
+  return 0;
+};  
+
+SDataRow tdNewTagRowFromSchema(STSchema *pSchema) {
+   //todo
+}
+
 /**
  * Free the SDataRow object
  */
@@ -164,6 +184,25 @@ void tdFreeDataRow(SDataRow row) {
  * @param bytes: column bytes
  * @param offset: offset in the data row tuple, not including the data row header
  */
+int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
+  ASSERT(value != NULL);
+  int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
+  char *  ptr = POINTER_SHIFT(row, dataRowLen(row));
+
+  switch (type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
+      memcpy(ptr, value, varDataTLen(value));
+      dataRowLen(row) += varDataTLen(value);
+      break;
+    default:
+      memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
+      break;
+  }
+
+  return 0;
+}
 int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
