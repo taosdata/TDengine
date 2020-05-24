@@ -30,7 +30,7 @@ extern "C" {
 char    split(char str[], char delims[], char** p_p_cmd_part, int max);
 void    mqttConnnectLost(void* context, char* cause);
 int     mqttMessageArrived(void* context, char* topicName, int topicLen, MQTTAsync_message* message);
-void    mqtt_query_insert_callback(void* param, TAOS_RES* result, int32_t code);
+void    mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code);
 void    onDisconnectFailure(void* context, MQTTAsync_failureData* response);
 void    onDisconnect(void* context, MQTTAsync_successData* response);
 void    onSubscribe(void* context, MQTTAsync_successData* response);

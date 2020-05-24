@@ -27,7 +27,7 @@
 #include "tsocket.h"
 #include "ttimer.h"
 #include "mqttInit.h"
-#include "mqttPlyload.h"
+#include "mqttPayload.h"
 
 MQTTAsync                   client;
 MQTTAsync_connectOptions    conn_opts = MQTTAsync_connectOptions_initializer;
@@ -78,10 +78,12 @@ int mqttMessageArrived(void* context, char* topicName, int topicLen, MQTTAsync_m
       strncpy(_tablename, p_p_cmd_part[3], 127);
       mqttPrint("part count=%d,access token:%s,database name:%s, table name:%s", part_index, _token, _dbname,
                 _tablename);
-      char* sql = converJsonToSql((char*)message->payload, _dbname, _tablename);
+   
       if (mqtt_conn != NULL) {
+        char* _sql = converJsonToSql((char*)message->payload, _dbname, _tablename);
         mqttPrint("query:%s", _sql);
         taos_query_a(mqtt_conn, _sql, mqttQueryInsertCallback, &client);
+        free(_sql);
       }
     }
   }
@@ -100,12 +102,12 @@ void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code) {
 }
 
 void onDisconnectFailure(void* context, MQTTAsync_failureData* response) {
-  mqttError("Disconnect failed, rc %d\n", response->code);
+  mqttError("Disconnect failed, rc %d", response->code);
   disc_finished = 1;
 }
 
 void onDisconnect(void* context, MQTTAsync_successData* response) {
-  mqttError("Successful disconnection\n");
+  mqttError("Successful disconnection");
   if (mqtt_conn != NULL) {
     taos_close(mqtt_conn);
     mqtt_conn = NULL;
@@ -114,18 +116,24 @@ void onDisconnect(void* context, MQTTAsync_successData* response) {
 }
 
 void onSubscribe(void* context, MQTTAsync_successData* response) {
-  mqttPrint("Subscribe succeeded\n");
+  mqttPrint("Subscribe succeeded");
   subscribed = 1;
 }
 
 void onSubscribeFailure(void* context, MQTTAsync_failureData* response) {
-  mqttError("Subscribe failed, rc %d\n", response->code);
+  mqttError("Subscribe failed, rc %d", response->code);
   finished = 1;
 }
 
 void onConnectFailure(void* context, MQTTAsync_failureData* response) {
-  mqttError("Connect failed, rc %d\n", response->code);
+  mqttError("Connect failed, rc %d,,Retry later", response->code);
   finished = 1;
+  taosMsleep(1000);
+  int rc = 0;
+  if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
+    mqttError("Failed to start connect, return code %d", rc);
+    finished = 1;
+  }
 }
 
 void onConnect(void* context, MQTTAsync_successData* response) {

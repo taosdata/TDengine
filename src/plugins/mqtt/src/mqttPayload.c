@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mqttUitl.h"
+#include "mqttPayload.h"
 #include "cJSON.h"
 #include "string.h"
 #include "taos.h"
@@ -58,7 +58,7 @@ char* converJsonToSql(char* json, char* _dbname, char* _tablename) {
     }
   }
   cJSON_free(jPlayload);
-  char _sql[102400] = {0};
+  char* _sql = calloc(0, strlen(_names) + strlen(_values) + strlen(_dbname) + strlen(_tablename) + 1024);
   sprintf(_sql, "INSERT INTO %s.%s (%s) VALUES(%s);", _dbname, _tablename, _names, _values);
   return _sql;
 }
