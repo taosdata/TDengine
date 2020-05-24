@@ -2912,10 +2912,6 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 static void date_col_output_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->scanFlag == REVERSE_SCAN) {  // todo : remove it
-    return;
-  }
-  
   SET_VAL(pCtx, pCtx->size, 1);
   *(int64_t *)(pCtx->aOutputBuf) = pCtx->nStartQueryTimestamp;
 }
@@ -3080,7 +3076,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - step];
+          *pOutput = pData[i] - pCtx->param[1].i64Key;  // direct previous may be null
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3112,7 +3108,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - step];
+          *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3143,7 +3139,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - step];
+          *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           pOutput += 1;
           pTimestamp += 1;
@@ -3174,7 +3170,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - step];
+          *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3206,7 +3202,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - step];
+          *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3238,7 +3234,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - step];
+          *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3445,14 +3441,8 @@ static void spread_function(SQLFunctionCtx *pCtx) {
         pInfo->max = GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.max));
       }
     }
-  } else {
-//    if (pInfo->min > pCtx->param[1].dKey) {
-//      pInfo->min = pCtx->param[1].dKey;
-//    }
-//
-//    if (pInfo->max < pCtx->param[2].dKey) {
-//      pInfo->max = pCtx->param[2].dKey;
-//    }
+    
+    goto _spread_over;
   }
   
   void *pData = GET_INPUT_CHAR(pCtx);
