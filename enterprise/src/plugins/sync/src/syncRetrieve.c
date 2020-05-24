@@ -120,6 +120,9 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
     if (ret <0)  break;
 
+    // set the peer sync version
+    pPeer->sversion = fileInfo.fversion;
+
     // get the full path to file
     sprintf(name, "%s/%s", pNode->path, fileInfo.name);
     
