@@ -344,17 +344,26 @@ if $data11 != 1 then
    return -1
 endi
 
-if $data12 != null then
+if $data12 != NULL then
    return -1
 endi
 
-if $data13 != null then
+if $data13 != NULL then
    return -1
 endi
 
 print =============tbase-1324
 sql select a, k-k from m1
 if $row != 8 then
+   return -1
+endi
+
+sql select diff(k) from tm0
+if $row != 3 then
+   return -1
+endi
+
+if $data21 != -1 then
    return -1
 endi
 
