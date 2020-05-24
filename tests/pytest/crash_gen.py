@@ -480,7 +480,7 @@ class DbState():
 
     def getTasksAtState(self):
         tasks = []
-        tasks.append(ReadFixedDataTask(self)) # always
+        tasks.append(ReadFixedDataTask(self)) # always for everybody
         if ( self._state == self.STATE_EMPTY ):
             tasks.append(CreateDbTask(self))
             tasks.append(CreateFixedTableTask(self))
@@ -535,11 +535,15 @@ class DbState():
                     self._state = self.STATE_TABLE_ONLY
                 else:                    
                     self._state = self.STATE_HAS_DATA
-            else: # no success in dropping db tasks, no success in create fixed table, not acceptable
-                raise RuntimeError("Unexpected no-success scenario")
+            # What about AddFixedData?
+            elif ( self.hasSuccess(tasks, AddFixedDataTask) ):
+                self._state = self.STATE_HAS_DATA
+            else: # no success in dropping db tasks, no success in create fixed table? read data should also fail
+                # raise RuntimeError("Unexpected no-success scenario")   # We might just landed all failure tasks, 
+                self._state = self.STATE_DB_ONLY  # no change
 
         elif ( self._state == self.STATE_TABLE_ONLY ):            
-            if ( self.hasSuccess(tasks, DropFixedTableTask) ):
+            if ( self.hasSuccess(tasks, DropFixedTableTask) ): # we are able to drop the table
                 self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
                 self._state = self.STATE_DB_ONLY
             elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table, but added data
@@ -556,11 +560,19 @@ class DbState():
             if ( self.hasSuccess(tasks, DropFixedTableTask) ):
                 self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
                 self._state = self.STATE_DB_ONLY
-            elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table
-                self.assertNoTask(tasks, DropFixedTableTask)
-                self._state = self.STATE_HAS_DATA
-            else: # did not drop table, did not insert data, that is impossible
-                raise RuntimeError("Unexpected no-success scenarios")
+            else: # no success dropping the table, table remains intact in this step
+                self.assertNoTask(tasks, DropFixedTableTask) # we should not have had such a task
+
+                if ( self.hasSuccess(tasks, AddFixedDataTask) ): # added data
+                    self._state = self.STATE_HAS_DATA
+                else:
+                    self.assertNoTask(tasks, AddFixedDataTask)
+
+                    if ( self.hasSuccess(tasks, ReadFixedDataTask) ): # simple able to read some data
+                        # which is ok, then no state change
+                        self._state = self.STATE_HAS_DATA # no change
+                    else: # did not drop table, did not insert data, that is impossible? yeah, we might only had ReadData task
+                        raise RuntimeError("Unexpected no-success scenarios")
 
         else:
             raise RuntimeError("Unexpected DbState state: {}".format(self._state))
@@ -741,7 +753,7 @@ class AddDataTask(Task):
 class AddFixedDataTask(Task):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         ds = self._dbState
-        sql = "insert into db.table_{} values ('{}', {});".format(ds.getFixedTableName(), ds.getNextTick(), ds.getNextInt())
+        sql = "insert into db.{} values ('{}', {});".format(ds.getFixedTableName(), ds.getNextTick(), ds.getNextInt())
         wt.execSql(sql) 
 
 # Deterministic random number generator
