@@ -305,7 +305,7 @@ int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientI
     sockFd = -1;
   }
 
-  taosKeepTcpAlive(sockFd);
+  // taosKeepTcpAlive(sockFd);
 
   return sockFd;
 }
