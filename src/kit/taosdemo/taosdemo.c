@@ -362,6 +362,26 @@ int main(int argc, char *argv[]) {
   
   time_t tTime = time(NULL);
   struct tm tm = *localtime(&tTime);
+  printf("###################################################################\n");
+  printf("# Server IP:                         %s:%hu\n", ip_addr == NULL ? "localhost" : ip_addr, port);
+  printf("# User:                              %s\n", user);
+  printf("# Password:                          %s\n", pass);
+  printf("# Use metric:                        %s\n", use_metric ? "true" : "false");
+  printf("# Datatype of Columns:               %s\n", dataString);
+  printf("# Binary Length(If applicable):      %d\n",
+          (strcasestr(dataString, "BINARY") != NULL) ? len_of_binary : -1);
+  printf("# Number of Columns per record:      %d\n", ncols_per_record);
+  printf("# Number of Connections:             %d\n", nconnections);
+  printf("# Number of Tables:                  %d\n", ntables);
+  printf("# Number of Data per Table:          %d\n", nrecords_per_table);
+  printf("# Records/Request:                   %d\n", nrecords_per_request);
+  printf("# Database name:                     %s\n", db_name);
+  printf("# Table prefix:                      %s\n", tb_prefix);
+  printf("# Test time:                         %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
+          tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  printf("###################################################################\n\n");
+  printf("Press enter key to continue");
+  getchar();
 
   fprintf(fp, "###################################################################\n");
   fprintf(fp, "# Server IP:                         %s:%hu\n", ip_addr == NULL ? "localhost" : ip_addr, port);
@@ -858,15 +878,16 @@ void generateData(char *res, char **data_type, int num_of_cols, int64_t timestam
   pstr += sprintf(pstr, ")");
 }
 
+static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJK1234567890";
 void rand_string(char *str, int size) {
-  memset(str, 0, size);
-  const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJK1234567890";
-  char *sptr = str;
-  if (size) {
+  str[0] = 0;
+  if (size > 0) {
     --size;
-    for (size_t n = 0; n < size; n++) {
+    int n;
+    for (n = 0; n < size; n++) {
       int key = rand() % (int)(sizeof charset - 1);
-      sptr += sprintf(sptr, "%c", charset[key]);
+      str[n] = charset[key];
     }
+    str[n] = 0;
   }
 }

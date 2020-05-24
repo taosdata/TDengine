@@ -37,6 +37,8 @@
 #define COMMAND_SIZE 65536
 #define DEFAULT_DUMP_FILE "taosdump.sql"
 
+#define MAX_DBS  100
+
 int  converStringToReadable(char *str, int size, char *buf, int bufsize);
 int  convertNCharToReadable(char *str, int size, char *buf, int bufsize);
 void taosDumpCharset(FILE *fp);
@@ -359,7 +361,7 @@ int main(int argc, char *argv[]) {
 
 void taosFreeDbInfos() {
   if (dbInfos == NULL) return;
-  for (int i = 0; i < TSDB_MAX_DBS; i++) tfree(dbInfos[i]);
+  for (int i = 0; i < MAX_DBS; i++) tfree(dbInfos[i]);
   tfree(dbInfos);
 }
 
@@ -437,7 +439,7 @@ int taosDumpOut(SDumpArguments *arguments) {
     return -1;
   }
 
-  dbInfos = (SDbInfo **)calloc(TSDB_MAX_DBS, sizeof(SDbInfo *));
+  dbInfos = (SDbInfo **)calloc(MAX_DBS, sizeof(SDbInfo *));
   if (dbInfos == NULL) {
     fprintf(stderr, "failed to allocate memory\n");
     goto _exit_failure;
@@ -531,7 +533,7 @@ int taosDumpOut(SDumpArguments *arguments) {
     }
   }
 
-  taos_free_result(result);
+  // taos_free_result(result);
 
   if (count == 0) {
     fprintf(stderr, "No databases valid to dump\n");
@@ -720,6 +722,57 @@ void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols
   count_temp = counter;
 
   for (; counter < numOfCols; counter++) {
+    TAOS_ROW row = NULL;
+
+    sprintf(command, "select %s from %s limit 1", tableDes->cols[counter].field, tableDes->name);
+    if (taos_query(taos, command) != 0) {
+      fprintf(stderr, "failed to run command %s\n", command);
+      return;
+    }
+
+    result = taos_use_result(taos);
+    if (result == NULL) {
+      fprintf(stderr, "failed to use result\n");
+      return;
+    }
+
+    TAOS_FIELD *fields = taos_fetch_fields(result);
+
+    row = taos_fetch_row(result);
+    switch (fields[0].type) {
+      case TSDB_DATA_TYPE_BOOL:
+        sprintf(tableDes->cols[counter].note, "%d", ((((int)(*((char *)row[0]))) == 1) ? 1 : 0));
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        sprintf(tableDes->cols[counter].note, "%d", (int)(*((char *)row[0])));
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        sprintf(tableDes->cols[counter].note, "%d", (int)(*((short *)row[0])));
+        break;
+      case TSDB_DATA_TYPE_INT:
+        sprintf(tableDes->cols[counter].note, "%d", *((int *)row[0]));
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        sprintf(tableDes->cols[counter].note, "%" PRId64 "", *((int64_t *)row[0]));
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        sprintf(tableDes->cols[counter].note, "%f", GET_FLOAT_VAL(row[0]));
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        sprintf(tableDes->cols[counter].note, "%f", GET_DOUBLE_VAL(row[0]));
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        sprintf(tableDes->cols[counter].note, "%" PRId64 "", *(int64_t *)row[0]);
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:
+      default:
+        strncpy(tableDes->cols[counter].note, (char *)row[0], fields[0].bytes);
+        break;
+    }
+
+    taos_free_result(result);
+
     if (counter != count_temp) {
       if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
           strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
@@ -941,7 +994,7 @@ int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
           pstr += sprintf(pstr, "%d", *((int *)row[col]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          pstr += sprintf(pstr, "%" PRId64 "", *((int64_t *)row[col]));
+          pstr += sprintf(pstr, "%" PRId64, *((int64_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
           pstr += sprintf(pstr, "%f", GET_FLOAT_VAL(row[col]));
@@ -960,7 +1013,7 @@ int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
           pstr += sprintf(pstr, "\'%s\'", tbuf);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          pstr += sprintf(pstr, "%" PRId64 "", *(int64_t *)row[col]);
+          pstr += sprintf(pstr, "%" PRId64, *(int64_t *)row[col]);
           break;
         default:
           break;

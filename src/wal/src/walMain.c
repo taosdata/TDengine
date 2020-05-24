@@ -25,6 +25,7 @@
 #include "tlog.h"
 #include "tchecksum.h"
 #include "tutil.h"
+#include "taoserror.h"
 #include "twal.h"
 #include "tqueue.h"
 
@@ -56,7 +57,10 @@ static int walRemoveWalFiles(const char *path);
 
 void *walOpen(const char *path, const SWalCfg *pCfg) {
   SWal *pWal = calloc(sizeof(SWal), 1);
-  if (pWal == NULL) return NULL;
+  if (pWal == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return NULL;
+  }
 
   pWal->fd = -1;
   pWal->max = pCfg->wals;
@@ -75,6 +79,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
     walRenew(pWal);
 
   if (pWal->fd <0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     wError("wal:%s, failed to open", path);
     pthread_mutex_destroy(&pWal->mutex);
     free(pWal);
@@ -112,9 +117,10 @@ void walClose(void *handle) {
 }
 
 int walRenew(void *handle) {
+  if (handle == NULL) return 0;
   SWal *pWal = handle;
   int   code = 0;
-  
+
   pthread_mutex_lock(&pWal->mutex);
 
   if (pWal->fd >=0) {
@@ -156,6 +162,7 @@ int walRenew(void *handle) {
 int walWrite(void *handle, SWalHead *pHead) {
   SWal *pWal = handle;
   int   code = 0;
+  if (pWal == NULL) return -1;
 
   // no wal  
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
@@ -178,6 +185,7 @@ int walWrite(void *handle, SWalHead *pHead) {
 void walFsync(void *handle) {
 
   SWal *pWal = handle;
+  if (pWal == NULL) return;
 
   if (pWal->level == TAOS_WAL_FSYNC && pWal->fd >=0) {
     if (fsync(pWal->fd) < 0) {

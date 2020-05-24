@@ -26,6 +26,8 @@ extern "C" {
 #define TD_GE (TD_EQ | TD_GT)
 #define TD_LE (TD_EQ | TD_LT)
 
+#define elePtrAt(base, size, idx) (void *)((char *)(base) + (size) * (idx))
+
 typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void *param);
 
 /**

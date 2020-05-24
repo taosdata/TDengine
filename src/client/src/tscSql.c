@@ -228,7 +228,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   
   pRes->numOfRows  = 1;
   pRes->numOfTotal = 0;
-  pRes->numOfTotalInCurrentClause = 0;
+  pRes->numOfClauseTotal = 0;
 
   pCmd->curSql = NULL;
   if (NULL != pCmd->pTableList) {
@@ -407,7 +407,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
   // secondary merge has handle this situation
   if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
-    pRes->numOfTotalInCurrentClause += pRes->numOfRows;
+    pRes->numOfClauseTotal += pRes->numOfRows;
   }
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -490,8 +490,8 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     pSql->cmd.command = pQueryInfo->command;
     pCmd->clauseIndex++;
 
-    pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
-    pRes->numOfTotalInCurrentClause = 0;
+    pRes->numOfTotal += pRes->numOfClauseTotal;
+    pRes->numOfClauseTotal = 0;
     pRes->rspType = 0;
 
     pSql->numOfSubs = 0;
@@ -790,7 +790,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   
   pRes->numOfRows  = 1;
   pRes->numOfTotal = 0;
-  pRes->numOfTotalInCurrentClause = 0;
+  pRes->numOfClauseTotal = 0;
 
   tscTrace("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
 
@@ -921,7 +921,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   SSqlRes *pRes = &pSql->res;
 
   pRes->numOfTotal = 0;  // the number of getting table meta from server
-  pRes->numOfTotalInCurrentClause = 0;
+  pRes->numOfClauseTotal = 0;
 
   pRes->code = 0;
 

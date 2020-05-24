@@ -74,7 +74,6 @@ static int32_t mgmtDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
  
 #ifndef _SYNC 
-  //TODO: drop dnode local
   mgmtDropAllDnodeVgroups(pDnode);
 #endif  
   mgmtDropMnodeLocal(pDnode->dnodeId);
@@ -130,7 +129,7 @@ int32_t mgmtInitDnodes() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_DNODE,
     .tableName    = "dnodes",
-    .hashSessions = TSDB_MAX_DNODES,
+    .hashSessions = TSDB_DEFAULT_DNODES_HASH_SIZE,
     .maxRowSize   = tsDnodeUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_AUTO,
@@ -177,6 +176,23 @@ void *mgmtGetNextDnode(void *pIter, SDnodeObj **pDnode) {
 
 int32_t mgmtGetDnodesNum() {
   return sdbGetNumOfRows(tsDnodeSdb);
+}
+
+int32_t mgmtGetOnlinDnodesNum(char *ep) {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+  int32_t    onlineDnodes = 0;
+
+  while (1) {
+    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->status != TAOS_DN_STATUS_OFFLINE) onlineDnodes++;
+    mgmtDecDnodeRef(pDnode);
+  }
+
+  sdbFreeIter(pIter);
+
+  return onlineDnodes;
 }
 
 void *mgmtGetDnode(int32_t dnodeId) {
@@ -397,7 +413,6 @@ static int32_t mgmtCreateDnode(char *ep) {
   return code;
 }
 
-//TODO drop others tables
 int32_t mgmtDropDnode(SDnodeObj *pDnode) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -410,7 +425,7 @@ int32_t mgmtDropDnode(SDnodeObj *pDnode) {
     code = TSDB_CODE_SDB_ERROR;
   }
 
-  mLPrint("dnode:%d is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
+  mLPrint("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
   return code;
 }
 

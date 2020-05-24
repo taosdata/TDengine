@@ -20,6 +20,7 @@
 #include "trpc.h"
 #include "mnode.h"
 #include "http.h"
+#include "mqtt.h"
 #include "monitor.h"
 #include "dnodeInt.h"
 #include "dnodeModule.h"
@@ -60,6 +61,16 @@ static void dnodeAllocModules() {
   tsModule[TSDB_MOD_HTTP].stopFp       = httpStopSystem;
   if (tsEnableHttpModule) {
     dnodeSetModuleStatus(TSDB_MOD_HTTP);
+  }
+
+  tsModule[TSDB_MOD_MQTT].enable = (tsEnableMqttModule == 1);
+  tsModule[TSDB_MOD_MQTT].name = "mqtt";
+  tsModule[TSDB_MOD_MQTT].initFp = mqttInitSystem;
+  tsModule[TSDB_MOD_MQTT].cleanUpFp = mqttCleanUpSystem;
+  tsModule[TSDB_MOD_MQTT].startFp = mqttStartSystem;
+  tsModule[TSDB_MOD_MQTT].stopFp = mqttStopSystem;
+  if (tsEnableMqttModule) {
+    dnodeSetModuleStatus(TSDB_MOD_MQTT);
   }
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
@@ -114,18 +125,20 @@ void dnodeStartModules() {
 }
 
 void dnodeProcessModuleStatus(uint32_t moduleStatus) {
-  bool enableMgmtModule = moduleStatus & (1 << TSDB_MOD_MGMT);
-  if (!tsModule[TSDB_MOD_MGMT].enable && enableMgmtModule) {
-    dPrint("module status is received, start mgmt module", tsModuleStatus, moduleStatus);
-    tsModule[TSDB_MOD_MGMT].enable = true;
-    dnodeSetModuleStatus(TSDB_MOD_MGMT);
-    (*tsModule[TSDB_MOD_MGMT].startFp)();
-  }
+  for (int32_t module = TSDB_MOD_MGMT; module < TSDB_MOD_HTTP; ++module) {
+    bool enableModule = moduleStatus & (1 << module);
+    if (!tsModule[module].enable && enableModule) {
+      dPrint("module status:%u is received, start %s module", tsModuleStatus, tsModule[module].name);
+      tsModule[module].enable = true;
+      dnodeSetModuleStatus(module);
+      (*tsModule[module].startFp)();
+    }
 
-  if (tsModule[TSDB_MOD_MGMT].enable && !enableMgmtModule) {
-    dPrint("module status is received, stop mgmt module", tsModuleStatus, moduleStatus);
-    tsModule[TSDB_MOD_MGMT].enable = false;
-    dnodeUnSetModuleStatus(TSDB_MOD_MGMT);
-    (*tsModule[TSDB_MOD_MGMT].stopFp)();
+    if (tsModule[module].enable && !enableModule) {
+      dPrint("module status:%u is received, stop %s module", tsModuleStatus, tsModule[module].name);
+      tsModule[module].enable = false;
+      dnodeUnSetModuleStatus(module);
+      (*tsModule[module].stopFp)();
+    }
   }
 }

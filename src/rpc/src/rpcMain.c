@@ -867,9 +867,8 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   // underlying UDP layer does not know it is server or client
   pRecv->connType = pRecv->connType | pRpc->connType;  
 
-  if (pRecv->ip==0 && pConn) {
-    rpcProcessBrokenLink(pConn); 
-    tfree(pRecv->msg);
+  if (pRecv->ip == 0 && pConn) {
+    rpcProcessBrokenLink(pConn);
     return NULL;
   }
 
@@ -889,12 +888,12 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         rpcSendErrorMsgToPeer(pRecv, code);
         tTrace("%s %p %p, %s is sent with error code:%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
-    } else { // parsing OK
+    } else { // msg is passed to app only parsing is ok 
       rpcProcessIncomingMsg(pConn, pHead);
     }
   }
 
-  if (code) rpcFreeMsg(pRecv->msg);
+  if (code) rpcFreeMsg(pRecv->msg); // parsing failed, msg shall be freed
   return pConn;
 }
 
@@ -989,6 +988,7 @@ static void rpcSendQuickRsp(SRpcConn *pConn, int32_t code) {
   pHead->sourceId = pConn->ownId;
   pHead->destId = pConn->peerId;
   pHead->linkUid = pConn->linkUid;
+  pHead->ahandle = (uint64_t)pConn->ahandle;
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = htonl(code);
 
@@ -1011,6 +1011,7 @@ static void rpcSendReqHead(SRpcConn *pConn) {
   pHead->sourceId = pConn->ownId;
   pHead->destId = pConn->peerId;
   pHead->linkUid = pConn->linkUid;
+  pHead->ahandle = (uint64_t)pConn->ahandle;
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = 1;
 

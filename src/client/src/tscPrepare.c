@@ -447,7 +447,7 @@ static int insertStmtExecute(STscStmt* stmt) {
   SSqlRes *pRes = &pSql->res;
   pRes->numOfRows = 0;
   pRes->numOfTotal = 0;
-  pRes->numOfTotalInCurrentClause = 0;
+  pRes->numOfClauseTotal = 0;
   
   pRes->qhandle = 0;
 

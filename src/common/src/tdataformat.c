@@ -158,32 +158,6 @@ void tdFreeDataRow(SDataRow row) {
   if (row) free(row);
 }
 
-/**
- * Append a column value to the data row
- * @param type: column type
- * @param bytes: column bytes
- * @param offset: offset in the data row tuple, not including the data row header
- */
-int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
-  ASSERT(value != NULL);
-  int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
-  char *  ptr = POINTER_SHIFT(row, dataRowLen(row));
-
-  switch (type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
-      memcpy(ptr, value, varDataTLen(value));
-      dataRowLen(row) += varDataTLen(value);
-      break;
-    default:
-      memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
-      break;
-  }
-
-  return 0;
-}
-
 SDataRow tdDataRowDup(SDataRow row) {
   SDataRow trow = malloc(dataRowLen(row));
   if (trow == NULL) return NULL;
@@ -453,27 +427,25 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCol
     TSKEY key1 = (*iter1 >= src1->numOfPoints) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
     TSKEY key2 = (*iter2 >= src2->numOfPoints) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
 
-    if (key1 < key2) {
+    if (key1 <= key2) {
       for (int i = 0; i < src1->numOfCols; i++) {
         ASSERT(target->cols[i].type == src1->cols[i].type);
-        dataColAppendVal(target->cols[i].pData, tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfPoints,
+        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfPoints,
                          target->maxPoints);
       }
 
       target->numOfPoints++;
       (*iter1)++;
-    } else if (key1 > key2) {
+      if (key1 == key2) (*iter2)++;
+    } else {
       for (int i = 0; i < src2->numOfCols; i++) {
         ASSERT(target->cols[i].type == src2->cols[i].type);
-        dataColAppendVal(target->cols[i].pData, tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfPoints,
+        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfPoints,
                          target->maxPoints);
       }
 
       target->numOfPoints++;
       (*iter2)++;
-    } else {
-      // TODO: deal with duplicate keys
-      ASSERT(false);
     }
   }
 }

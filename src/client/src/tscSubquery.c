@@ -771,7 +771,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         }
     
         SSqlRes* pRes1 = &pParentSql->pSubs[i]->res;
-        pRes1->numOfTotalInCurrentClause += pRes1->numOfRows;
+        pRes1->numOfClauseTotal += pRes1->numOfRows;
       }
   
       // data has retrieved to client, build the join results
@@ -1390,7 +1390,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       tExtMemBufferClear(trsupport->pExtMemBuffer[subqueryIndex]);
       
       // clear local saved number of results
-      trsupport->localBuffer->numOfElems = 0;
+      trsupport->localBuffer->num = 0;
       pthread_mutex_unlock(&trsupport->queryMutex);
       
       tscTrace("%p sub:%p retrieve failed, code:%s, orderOfSub:%d, retry:%d", trsupport->pParentSqlObj, pSql,
@@ -1457,7 +1457,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
   
   // data in from current vnode is stored in cache and disk
-  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
+  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num;
     tscTrace("%p sub:%p all data retrieved from ip:%u,vgId:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql,
         pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
@@ -1465,11 +1465,11 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
 
 #ifdef _DEBUG_VIEW
-  printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
+  printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->num);
     SSrcColumnInfo colInfo[256] = {0};
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
-    tColModelDisplayEx(pDesc->pColumnModel, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
-                       trsupport->localBuffer->numOfElems, colInfo);
+    tColModelDisplayEx(pDesc->pColumnModel, trsupport->localBuffer->data, trsupport->localBuffer->num,
+                       trsupport->localBuffer->num, colInfo);
 #endif
   
   if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
@@ -1834,7 +1834,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
         pRes->tsrow[i] = pRes1->tsrow[pIndex->columnIndex];
       }
       
-      pRes->numOfTotalInCurrentClause++;
+      pRes->numOfClauseTotal++;
       break;
     } else {  // continue retrieve data from vnode
       if (!tscHashRemainDataInSubqueryResultSet(pSql)) {
@@ -1879,9 +1879,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
   SSqlRes *pRes = &pSql->res;
   
-  if (pRes->tsrow[columnIndex] != NULL && isNull(pRes->tsrow[columnIndex], pField->type)) {
-    pRes->tsrow[columnIndex] = NULL;
-  } else if (pField->type == TSDB_DATA_TYPE_NCHAR) {
+  if (pRes->tsrow[columnIndex] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
     // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
     if (pRes->buffer[columnIndex] == NULL) {
       pRes->buffer[columnIndex] = malloc(pField->bytes + TSDB_NCHAR_SIZE);
@@ -1893,7 +1891,7 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
     if (taosUcs4ToMbs(pRes->tsrow[columnIndex], pField->bytes - VARSTR_HEADER_SIZE, pRes->buffer[columnIndex])) {
       pRes->tsrow[columnIndex] = pRes->buffer[columnIndex];
     } else {
-      tscError("%p charset:%s to %s. val:%ls convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, pRes->tsrow);
+      tscError("%p charset:%s to %s. val:%ls convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, pRes->tsrow[columnIndex]);
       pRes->tsrow[columnIndex] = NULL;
     }
   }

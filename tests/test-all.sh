@@ -33,14 +33,13 @@ echo "### run Python script ###"
 cd ../pytest
 
 if [ "$1" == "cron" ]; then
-  ./fulltest.sh > /dev/null | tee pytest-out.txt
+  ./fulltest.sh 2>&1 | grep 'successfully executed\|failed\|fault' | grep -v 'default'| tee pytest-out.txt
 else
-  ./smoketest.sh > /dev/null | tee pytest-out.txt
+  ./smoketest.sh 2>&1 | grep 'successfully executed\|failed\|fault' | grep -v 'default'| tee pytest-out.txt
 fi
 totalPySuccess=`grep 'successfully executed' pytest-out.txt | wc -l`
 
 if [ "$totalPySuccess" -gt "0" ]; then
-  grep 'successfully executed' pytest-out.txt
   echo -e "${GREEN} ### Total $totalPySuccess python case(s) succeed! ### ${NC}"
 fi
 

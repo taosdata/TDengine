@@ -409,7 +409,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
     if (pIdx->offset > 0) {
       pIdx->offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
       if (pIdx->offset < 0) return -1;
-      ASSERT(pIdx->offset >= tsizeof(pHelper->pCompIdx));
+      ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
 
       if (tsendfile(pHelper->files.nHeadF.fd, pHelper->files.headF.fd, NULL, pIdx->len) < pIdx->len) return -1;
     }
@@ -489,6 +489,7 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
       }
 
       ASSERT(((char *)ptr - (char *)pHelper->pBuffer) == (pFile->info.len - sizeof(TSCKSUM)));
+      if (lseek(fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) return -1;
     }
 
   }
@@ -540,6 +541,34 @@ int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target) {
   if (target) memcpy(target, pHelper->pCompData, tsize);
 
   return 0;
+}
+
+void tsdbGetDataStatis(SRWHelper *pHelper, SDataStatis *pStatis, int numOfCols) {
+  SCompData *pCompData = pHelper->pCompData;
+
+  for (int i = 0, j = 0; i < numOfCols;) {
+    if (j >= pCompData->numOfCols) {
+      pStatis[i].numOfNull = -1;
+      i++;
+      continue;
+    }
+
+    if (pStatis[i].colId == pCompData->cols[j].colId) {
+      pStatis[i].sum = pCompData->cols[j].sum;
+      pStatis[i].max = pCompData->cols[j].max;
+      pStatis[i].min = pCompData->cols[j].min;
+      pStatis[i].maxIndex = pCompData->cols[j].maxIndex;
+      pStatis[i].minIndex = pCompData->cols[j].minIndex;
+      pStatis[i].numOfNull = pCompData->cols[j].numOfNull;
+      i++;
+      j++;
+    } else if (pStatis[i].colId < pCompData->cols[j].colId) {
+      pStatis[i].numOfNull = -1;
+      i++;
+    } else {
+      j++;
+    }
+  }
 }
 
 static int comparColIdCompCol(const void *arg1, const void *arg2) {
@@ -747,7 +776,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
 
     pCompCol->colId = pDataCol->colId;
     pCompCol->type = pDataCol->type;
-    if (tDataTypeDesc[pDataCol->type].getStatisFunc) {
+    if (tDataTypeDesc[pDataCol->type].getStatisFunc && ncol != 0) {
       (*tDataTypeDesc[pDataCol->type].getStatisFunc)(
           (TSKEY *)(pDataCols->cols[0].pData), pDataCol->pData, rowsToWrite, &(pCompCol->min), &(pCompCol->max),
           &(pCompCol->sum), &(pCompCol->minIndex), &(pCompCol->maxIndex), &(pCompCol->numOfNull));

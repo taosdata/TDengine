@@ -24,3 +24,7 @@ system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
+
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode2 -c http -v 1
+system sh/cfg.sh -n dnode3 -c http -v 1

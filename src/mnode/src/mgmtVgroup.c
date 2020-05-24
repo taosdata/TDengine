@@ -121,6 +121,20 @@ static int32_t mgmtVgroupActionDelete(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void mgmtVgroupUpdateIdPool(SVgObj *pVgroup) {
+  int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
+  SDbObj *pDb = pVgroup->pDb;
+  if (pDb != NULL) {
+    if (pDb->cfg.maxTables != oldTables) {
+      mPrint("vgId:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxTables);
+      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxTables);
+      int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
+      pVgroup->tableList = (SChildTableObj **)realloc(pVgroup->tableList, size);
+      memset(pVgroup->tableList + oldTables, 0, (pDb->cfg.maxTables - oldTables) * sizeof(SChildTableObj **));
+    }
+  }
+}
+
 static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
   SVgObj *pNew = pOper->pObj;
   SVgObj *pVgroup = mgmtGetVgroup(pNew->vgId);
@@ -146,20 +160,11 @@ static int32_t mgmtVgroupActionUpdate(SSdbOper *pOper) {
     }
   }
 
-  int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
-  SDbObj *pDb = pVgroup->pDb;
-  if (pDb != NULL) {
-    if (pDb->cfg.maxTables != oldTables) {
-      mPrint("vgId:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxTables);
-      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxTables);
-      int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
-      pVgroup->tableList = (SChildTableObj **)realloc(pVgroup->tableList, size);
-    }
-  }
+  mgmtVgroupUpdateIdPool(pVgroup);
 
   mgmtDecVgroupRef(pVgroup);
 
-  mTrace("vgId:%d, is updated, numOfVnode:%d tables:%d", pVgroup->vgId, pVgroup->numOfVnodes, pDb == NULL ? 0 : pDb->cfg.maxTables);
+  mTrace("vgId:%d, is updated, numOfVnode:%d", pVgroup->vgId, pVgroup->numOfVnodes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -196,7 +201,7 @@ int32_t mgmtInitVgroups() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_VGROUP,
     .tableName    = "vgroups",
-    .hashSessions = TSDB_MAX_VGROUPS,
+    .hashSessions = TSDB_DEFAULT_VGROUPS_HASH_SIZE,
     .maxRowSize   = tsVgUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_AUTO,
@@ -742,11 +747,14 @@ void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
   SVgObj *pVgroup = NULL;
   int32_t numOfVgroups = 0;
 
+  mPrint("dnode:%d, all vgroups will be dropped from sdb", pDropDnode->dnodeId);
+
   while (1) {
     pIter = mgmtGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     if (pVgroup->vnodeGid[0].dnodeId == pDropDnode->dnodeId) {
+      mgmtDropAllChildTablesInVgroups(pVgroup);
       SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsVgroupSdb,
@@ -754,12 +762,35 @@ void mgmtDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
       };
       sdbDeleteRow(&oper);
       numOfVgroups++;
-      continue;
     }
     mgmtDecVgroupRef(pVgroup);
   }
 
   sdbFreeIter(pIter);
+
+  mPrint("dnode:%d, all vgroups is dropped from sdb", pDropDnode->dnodeId);
+}
+
+void mgmtUpdateAllDbVgroups(SDbObj *pAlterDb) {
+  void *  pIter = NULL;
+  SVgObj *pVgroup = NULL;
+
+  mPrint("db:%s, all vgroups will be update in sdb", pAlterDb->name);
+
+  while (1) {
+    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    if (pVgroup->pDb == pAlterDb) {
+      mgmtVgroupUpdateIdPool(pVgroup);
+    }
+
+    mgmtDecVgroupRef(pVgroup);
+  }
+
+  sdbFreeIter(pIter);
+
+  mPrint("db:%s, all vgroups is updated in sdb", pAlterDb->name);
 }
 
 void mgmtDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {

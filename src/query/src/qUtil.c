@@ -20,11 +20,11 @@
 #include "qextbuffer.h"
 #include "ttime.h"
 
-#include "qinterpolation.h"
+#include "qfill.h"
 #include "ttime.h"
 
-#include "queryExecutor.h"
-#include "queryUtil.h"
+#include "qExecutor.h"
+#include "qUtil.h"
 
 int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type) {
@@ -37,7 +37,8 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
   
   pWindowResInfo->curIndex = -1;
-  pWindowResInfo->size = 0;
+  pWindowResInfo->size     = 0;
+  pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
   
   // use the pointer arraylist
   pWindowResInfo->pResult = calloc(threshold, sizeof(SWindowResult));
@@ -96,8 +97,8 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
   _hash_fn_t fn = taosGetDefaultHashFunction(pWindowResInfo->type);
   pWindowResInfo->hashList = taosHashInit(pWindowResInfo->capacity, fn, false);
   
-  pWindowResInfo->startTime = 0;
-  pWindowResInfo->prevSKey = 0;
+  pWindowResInfo->startTime = TSKEY_INITIAL_VAL;
+  pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
 }
 
 void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {

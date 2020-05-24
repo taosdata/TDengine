@@ -94,7 +94,7 @@ int32_t mgmtInitAccts() {
   SSdbTableDesc tableDesc = {
     .tableId      = SDB_TABLE_ACCOUNT,
     .tableName    = "accounts",
-    .hashSessions = TSDB_MAX_ACCOUNTS,
+    .hashSessions = TSDB_DEFAULT_ACCOUNTS_HASH_SIZE,
     .maxRowSize   = tsAcctUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,

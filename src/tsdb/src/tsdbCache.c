@@ -162,6 +162,7 @@ int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
     pCache->totalCacheBlocks = totalBlocks;
     tsdbAdjustCacheBlocks(pCache);
   }
+  pRepo->config.totalBlocks = totalBlocks;
 
   tsdbUnLockRepo((TsdbRepoT *)pRepo);
   tsdbTrace("vgId:%d, tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks, totalBlocks);

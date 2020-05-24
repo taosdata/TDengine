@@ -26,6 +26,7 @@ matrix:
           - python3-pip
           - python3-setuptools
           - valgrind
+          - psmisc
 
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
@@ -89,6 +90,7 @@ matrix:
         esac
 
   - os: linux
+    dist: bionic
     language: c
     compiler: gcc
     env: COVERITY_SCAN=true
@@ -124,6 +126,7 @@ matrix:
         branch_pattern: coverity_scan
 
   - os: linux
+    dist: bionic
     language: c
     compiler: gcc
     env: ENV_COVER=true
@@ -142,6 +145,7 @@ matrix:
           - python3-pip
           - python3-setuptools
           - lcov
+          - psmisc
 
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
@@ -228,6 +232,7 @@ matrix:
       - make > /dev/null
 
   - os: linux
+    dist: bionic
     language: c
     compiler: clang
     env: DESC="linux/clang build"

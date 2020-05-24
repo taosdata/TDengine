@@ -84,13 +84,13 @@ print dnode2 $dnode2Vnodes
 $dnode3Vnodes = $data2_3
 print dnode3 $dnode3Vnodes
 
-if $dnode1Vnodes != 3 then
+if $dnode1Vnodes != 1 then
   return -1
 endi
-if $dnode2Vnodes != 3 then
+if $dnode2Vnodes != 1 then
   return -1
 endi
-if $dnode3Vnodes != 3 then
+if $dnode3Vnodes != 1 then
   return -1
 endi
 

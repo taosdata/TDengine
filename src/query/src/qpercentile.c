@@ -64,26 +64,26 @@ static tFilePage *loadIntoBucketFromDisk(tMemBucket *pMemBucket, int32_t segIdx,
       for (uint32_t j = 0; j < pFlushInfo->numOfPages; ++j) {
         ret = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
         UNUSED(ret);
-        assert(pPage->numOfElems > 0);
+        assert(pPage->num > 0);
         
-        tColModelAppend(pDesc->pColumnModel, buffer, pPage->data, 0, pPage->numOfElems, pPage->numOfElems);
-        printf("id: %d  count: %" PRIu64 "\n", j, buffer->numOfElems);
+        tColModelAppend(pDesc->pColumnModel, buffer, pPage->data, 0, pPage->num, pPage->num);
+        printf("id: %d  count: %" PRIu64 "\n", j, buffer->num);
       }
     }
     tfree(pPage);
     
-    assert(buffer->numOfElems == pMemBuffer->fileMeta.numOfElemsInFile);
+    assert(buffer->num == pMemBuffer->fileMeta.numOfElemsInFile);
   }
   
   // load data in pMemBuffer to buffer
   tFilePagesItem *pListItem = pMemBuffer->pHead;
   while (pListItem != NULL) {
-    tColModelAppend(pDesc->pColumnModel, buffer, pListItem->item.data, 0, pListItem->item.numOfElems,
-                    pListItem->item.numOfElems);
+    tColModelAppend(pDesc->pColumnModel, buffer, pListItem->item.data, 0, pListItem->item.num,
+                    pListItem->item.num);
     pListItem = pListItem->pNext;
   }
   
-  tColDataQSort(pDesc, buffer->numOfElems, 0, buffer->numOfElems - 1, buffer->data, TSDB_ORDER_ASC);
+  tColDataQSort(pDesc, buffer->num, 0, buffer->num - 1, buffer->data, TSDB_ORDER_ASC);
   
   pDesc->pColumnModel->capacity = oldCapacity;  // restore value
   return buffer;
@@ -881,7 +881,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
           for (uint32_t jx = 0; jx < pFlushInfo->numOfPages; ++jx) {
             ret = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
             UNUSED(ret);
-            tMemBucketPut(pMemBucket, pPage->data, pPage->numOfElems);
+            tMemBucketPut(pMemBucket, pPage->data, pPage->num);
           }
 
           fclose(pMemBuffer->file);

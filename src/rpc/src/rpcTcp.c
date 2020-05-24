@@ -39,8 +39,8 @@ typedef struct SThreadObj {
   pthread_t       thread;
   SFdObj *        pHead;
   pthread_mutex_t mutex;
-  pthread_cond_t  fdReady;
   uint32_t        ip;
+  bool            stop;
   int             pollFd;
   int             numOfFds;
   int             threadId;
@@ -50,6 +50,7 @@ typedef struct SThreadObj {
 } SThreadObj;
 
 typedef struct {
+  int         fd;
   uint32_t    ip;
   uint16_t    port;
   char        label[12];
@@ -63,7 +64,7 @@ static void   *taosProcessTcpData(void *param);
 static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, int fd);
 static void    taosFreeFdObj(SFdObj *pFdObj);
 static void    taosReportBrokenLink(SFdObj *pFdObj);
-static void    taosAcceptTcpConnection(void *arg);
+static void*   taosAcceptTcpConnection(void *arg);
 
 void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle) {
   SServerObj *pServerObj;
@@ -93,12 +94,6 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     if (code < 0) {
       tError("%s failed to init TCP process data mutex(%s)", label, strerror(errno));
       break;;
-    }
-
-    code = pthread_cond_init(&(pThreadObj->fdReady), NULL);
-    if (code != 0) {
-      tError("%s init TCP condition variable failed(%s)", label, strerror(errno));
-      break;
     }
 
     pThreadObj->pollFd = epoll_create(10);  // size does not matter
@@ -144,28 +139,47 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   return (void *)pServerObj;
 }
 
+static void taosStopTcpThread(SThreadObj* pThreadObj) {
+  pThreadObj->stop = true;
+
+  // signal the thread to stop, try graceful method first,
+  // and use pthread_cancel when failed
+  struct epoll_event event = { .events = EPOLLIN };
+  eventfd_t fd = eventfd(1, 0);
+  if (fd == -1) {
+    tError("%s, failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s", pThreadObj->label, strerror(errno));
+    pthread_cancel(pThreadObj->thread);
+  } else if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
+    tError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s", pThreadObj->label, strerror(errno));
+    pthread_cancel(pThreadObj->thread);
+  }
+
+  pthread_join(pThreadObj->thread, NULL);
+  close(pThreadObj->pollFd);
+  if (fd != -1) {
+    close(fd);
+  }
+
+  while (pThreadObj->pHead) {
+    SFdObj *pFdObj = pThreadObj->pHead;
+    pThreadObj->pHead = pFdObj->next;
+    taosFreeFdObj(pFdObj);
+  }
+}
+
+
 void taosCleanUpTcpServer(void *handle) {
   SServerObj *pServerObj = handle;
   SThreadObj *pThreadObj;
 
   if (pServerObj == NULL) return;
 
-  pthread_cancel(pServerObj->thread);
+  shutdown(pServerObj->fd, SHUT_RD);
   pthread_join(pServerObj->thread, NULL);
 
   for (int i = 0; i < pServerObj->numOfThreads; ++i) {
     pThreadObj = pServerObj->pThreadObj + i;
-
-    while (pThreadObj->pHead) {
-      SFdObj *pFdObj = pThreadObj->pHead;
-      pThreadObj->pHead = pFdObj->next;
-      taosFreeFdObj(pFdObj);
-    }
-
-    close(pThreadObj->pollFd);
-    pthread_cancel(pThreadObj->thread);
-    pthread_join(pThreadObj->thread, NULL);
-    pthread_cond_destroy(&(pThreadObj->fdReady));
+    taosStopTcpThread(pThreadObj);
     pthread_mutex_destroy(&(pThreadObj->mutex));
   }
 
@@ -175,31 +189,32 @@ void taosCleanUpTcpServer(void *handle) {
   tfree(pServerObj);
 }
 
-static void taosAcceptTcpConnection(void *arg) {
+static void* taosAcceptTcpConnection(void *arg) {
   int                connFd = -1;
   struct sockaddr_in caddr;
-  int                sockFd;
   int                threadId = 0;
   SThreadObj        *pThreadObj;
   SServerObj        *pServerObj;
 
   pServerObj = (SServerObj *)arg;
 
-  sockFd = taosOpenTcpServerSocket(pServerObj->ip, pServerObj->port);
-  if (sockFd < 0) return; 
+  pServerObj->fd = taosOpenTcpServerSocket(pServerObj->ip, pServerObj->port);
+  if (pServerObj->fd < 0) return NULL; 
 
   tTrace("%s TCP server is ready, ip:0x%x:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
 
   while (1) {
     socklen_t addrlen = sizeof(caddr);
-    connFd = accept(sockFd, (struct sockaddr *)&caddr, &addrlen);
-
-    if (connFd < 0) {
+    connFd = accept(pServerObj->fd, (struct sockaddr *)&caddr, &addrlen);
+    if (connFd == -1) {
+      if (errno == EINVAL) {
+        tTrace("%s TCP server socket was shutdown, exiting...", pServerObj->label);
+        break;
+      }
       tError("%s TCP accept failure(%s)", pServerObj->label, errno, strerror(errno));
       continue;
     }
 
-    tTrace("%s TCP connection from ip:%s:%hu", pServerObj->label, inet_ntoa(caddr.sin_addr), caddr.sin_port);
     taosKeepTcpAlive(connFd);
 
     // pick up the thread to handle this connection
@@ -213,13 +228,17 @@ static void taosAcceptTcpConnection(void *arg) {
               inet_ntoa(caddr.sin_addr), pFdObj->port, pFdObj, pThreadObj->numOfFds);
     } else {
       close(connFd);
-      tError("%s failed to malloc FdObj(%s)", pServerObj->label, strerror(errno));
+      tError("%s failed to malloc FdObj(%s) for connection from:%s:%hu", pServerObj->label, strerror(errno),
+             inet_ntoa(caddr.sin_addr), caddr.sin_port);
     }  
 
     // pick up next thread for next connection
     threadId++;
     threadId = threadId % pServerObj->numOfThreads;
   }
+
+  close(pServerObj->fd);
+  return NULL;
 }
 
 void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *fp, void *shandle) {
@@ -234,11 +253,6 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
 
   if (pthread_mutex_init(&(pThreadObj->mutex), NULL) < 0) {
     tError("%s failed to init TCP client mutex(%s)", label, strerror(errno));
-    return NULL;
-  }
-
-  if (pthread_cond_init(&(pThreadObj->fdReady), NULL) != 0) {
-    tError("%s init TCP condition variable failed(%s)", label, strerror(errno));
     return NULL;
   }
 
@@ -268,17 +282,7 @@ void taosCleanUpTcpClient(void *chandle) {
   SThreadObj *pThreadObj = chandle;
   if (pThreadObj == NULL) return;
 
-  while (pThreadObj->pHead) {
-    SFdObj *pFdObj = pThreadObj->pHead;
-    pThreadObj->pHead = pFdObj->next;
-    taosFreeFdObj(pFdObj);
-  }
-
-  close(pThreadObj->pollFd);
-
-  pthread_cancel(pThreadObj->thread);
-  pthread_join(pThreadObj->thread, NULL);
-
+  taosStopTcpThread(pThreadObj);
   tTrace (":%s, all connections are cleaned up", pThreadObj->label);
 
   tfree(pThreadObj);
@@ -337,7 +341,9 @@ static void taosReportBrokenLink(SFdObj *pFdObj) {
     recvInfo.chandle = NULL;
     recvInfo.connType = RPC_CONN_TCP;
     (*(pThreadObj->processData))(&recvInfo);
-  } 
+  } else {
+    taosFreeFdObj(pFdObj);
+  }
 }
 
 #define maxEvents 10
@@ -348,15 +354,13 @@ static void *taosProcessTcpData(void *param) {
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
   SRpcHead           rpcHead;
-
+ 
   while (1) {
-    pthread_mutex_lock(&pThreadObj->mutex);
-    if (pThreadObj->numOfFds < 1) {
-      pthread_cond_wait(&pThreadObj->fdReady, &pThreadObj->mutex);
-    }
-    pthread_mutex_unlock(&pThreadObj->mutex);
-
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, -1);
+    if (pThreadObj->stop) {
+      tTrace("%s, tcp thread get stop event, exiting...", pThreadObj->label);
+      break;
+    }
     if (fdNum < 0) continue;
 
     for (int i = 0; i < fdNum; ++i) {
@@ -444,7 +448,6 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, int fd) {
   if (pThreadObj->pHead) (pThreadObj->pHead)->prev = pFdObj;
   pThreadObj->pHead = pFdObj;
   pThreadObj->numOfFds++;
-  pthread_cond_signal(&pThreadObj->fdReady);
   pthread_mutex_unlock(&(pThreadObj->mutex));
 
   return pFdObj;
@@ -465,7 +468,7 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   pFdObj->signature = NULL;
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
-  close(pFdObj->fd);
+  taosCloseSocket(pFdObj->fd);
 
   pThreadObj->numOfFds--;
 
@@ -492,5 +495,3 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   tfree(pFdObj);
 }
-
-

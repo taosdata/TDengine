@@ -20,9 +20,9 @@ from util.dnodes import *
 
 
 class TDTestCase:
-    def init(self, conn):
+    def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
     def run(self):
         self.ntables = 1
@@ -34,7 +34,7 @@ class TDTestCase:
 
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db cache 512')
+        tdSql.execute('create database db cache 128')
         tdSql.execute('use db')
 
         tdLog.info("================= step1")

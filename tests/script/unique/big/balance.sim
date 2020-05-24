@@ -93,7 +93,7 @@ $x = 0
 show1: 
 	$x = $x + 1
 	sleep 3000
-	if $x == 100 then 
+	if $x == 10 then 
 		return -1
 	endi
 	
@@ -106,6 +106,9 @@ endi
 if $data2_2 != 2 then
 	goto show1
 endi
+
+sql reset query cache
+sleep 1000
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -149,7 +152,7 @@ $x = 0
 show3: 
 	$x = $x + 1
 	sleep 3000
-	if $x == 100 then 
+	if $x == 10 then 
 		return -1
 	endi
 	
@@ -160,7 +163,7 @@ print dnode3 freeVnodes $data2_3
 if $data2_1 != 2 then
 	goto show3
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
 	goto show3
 endi
 if $data2_3 != 2 then
@@ -168,6 +171,9 @@ if $data2_3 != 2 then
 endi
 
 system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+
+sql reset query cache
+sleep 1000
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -206,21 +212,24 @@ $x = 0
 show4: 
 	$x = $x + 1
 	sleep 3000
-	if $x == 100 then 
+	if $x == 10 then 
 		return -1
 	endi
 	
 sql show dnodes
 print dnode1 freeVnodes $data2_1
 print dnode3 freeVnodes $data2_3
-if $data2_1 != 0 then
+if $data2_1 != 4 then
 	goto show4
 endi
-if $data2_3 != NULL then
+if $data2_3 != null then
 	goto show4
 endi
 
 system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+
+sql reset query cache
+sleep 1000
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -253,27 +262,32 @@ if $data00 != $totalNum then
 endi
 
 print ========== step5
-sql alter database db replica 2
-sql create dnode $hostname4
 system sh/exec_up.sh -n dnode4 -s start
+sql create dnode $hostname4
+
+sleep 3000
+sql alter database db replica 2
 
 $x = 0
 show5: 
 	$x = $x + 1
 	sleep 3000
-	if $x == 100 then 
+	if $x == 10 then 
 		return -1
 	endi
 	
 sql show dnodes
 print dnode1 freeVnodes $data2_1
 print dnode4 freeVnodes $data2_4
-if $data2_1 != 0 then
+if $data2_1 != 4 then
 	goto show5
 endi
-if $data2_4 != 0 then
+if $data2_4 != 4 then
 	goto show5
 endi
+
+sql reset query cache
+sleep 1000
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 

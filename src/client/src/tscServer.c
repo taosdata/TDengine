@@ -571,7 +571,6 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid, dfltKey));
 
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
-
     pMsg += sizeof(STableIdInfo);
   } else {
     int32_t index = pTableMetaInfo->vgroupIndex;
@@ -601,8 +600,8 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     }
   }
   
-  tscTrace("%p vgId:%d, query on table:%s, uid:%" PRIu64, pSql, htonl(pQueryMsg->head.vgId), pTableMetaInfo->name,
-      pTableMeta->uid);
+  tscTrace("%p vgId:%d, query on table:%s, tid:%d, uid:%" PRIu64, pSql, htonl(pQueryMsg->head.vgId), pTableMetaInfo->name,
+      pTableMeta->sid, pTableMeta->uid);
   
   return pMsg;
 }
@@ -652,7 +651,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pQueryMsg->order          = htons(pQueryInfo->order.order);
   pQueryMsg->orderColId     = htons(pQueryInfo->order.orderColId);
-  pQueryMsg->interpoType    = htons(pQueryInfo->interpoType);
+  pQueryMsg->fillType    = htons(pQueryInfo->fillType);
   pQueryMsg->limit          = htobe64(pQueryInfo->limit.limit);
   pQueryMsg->offset         = htobe64(pQueryInfo->limit.offset);
   pQueryMsg->numOfCols      = htons(taosArrayGetSize(pQueryInfo->colList));
@@ -780,7 +779,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
+  if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
       *((int64_t *)pMsg) = htobe64(pQueryInfo->defaultVal[i]);
       pMsg += sizeof(pQueryInfo->defaultVal[0]);
@@ -1213,8 +1212,13 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int8_t type = pInfo->pCreateTableInfo->type;
   if (type == TSQL_CREATE_TABLE_FROM_STABLE) {  // create by using super table, tags value
-    memcpy(pMsg, &pInfo->pCreateTableInfo->usingInfo.tagdata, sizeof(STagData));
-    pMsg += sizeof(STagData);
+    STagData* pTag = &pInfo->pCreateTableInfo->usingInfo.tagdata;
+    *(int32_t*)pMsg = htonl(pTag->dataLen);
+    pMsg += sizeof(int32_t);
+    memcpy(pMsg, pTag->name, sizeof(pTag->name));
+    pMsg += sizeof(pTag->name);
+    memcpy(pMsg, pTag->data, pTag->dataLen);
+    pMsg += pTag->dataLen;
   } else {  // create (super) table
     pSchema = (SSchema *)pCreateTableMsg->schema;
 
@@ -1281,9 +1285,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   strcpy(pAlterTableMsg->tableId, pTableMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
 
-  pAlterTableMsg->numOfCols = tscNumOfFields(pQueryInfo);
-  memcpy(pAlterTableMsg->tagVal, pAlterInfo->tagData.data, TSDB_MAX_TAGS_LEN);
-
+  pAlterTableMsg->numOfCols = htons(tscNumOfFields(pQueryInfo));
   SSchema *pSchema = pAlterTableMsg->schema;
   for (int i = 0; i < pAlterTableMsg->numOfCols; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
@@ -1295,6 +1297,9 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   pMsg = (char *)pSchema;
+  pAlterTableMsg->tagValLen = htonl(pAlterInfo->tagData.dataLen);
+  memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
+  pMsg += pAlterInfo->tagData.dataLen;
 
   msgLen = pMsg - (char*)pAlterTableMsg;
   pCmd->payloadLen = msgLen;
@@ -1863,6 +1868,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   }
 
   free(pTableMeta);
+  tscTrace("%p recv table meta: %"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
   
   return TSDB_CODE_SUCCESS;
 }
