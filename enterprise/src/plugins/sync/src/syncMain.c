@@ -128,6 +128,7 @@ void *syncStart(const SSyncInfo *pInfo)
 
   if (pNode->selfIndex < 0) {
     sPrint("vgId:%d, this node is not configured", pNode->vgId);
+    terrno = TSDB_CODE_INVALID_CONFIG;
     free (pNode);
     return NULL;
   }
@@ -188,11 +189,12 @@ void syncStop(void *param)
   }
 }
 
-int syncReconfig(void *param, const SSyncCfg *pNewCfg) 
+int32_t syncReconfig(void *param, const SSyncCfg *pNewCfg) 
 {
   SSyncNode  *pNode = param;
   int         i, j;
 
+  if (pNode == NULL) return TSDB_CODE_INVALID_CONFIG;
   sPrint("vgId:%d, reconfig, role:%s replica:%d old:%d", pNode->vgId, syncRole[nodeRole], 
          pNewCfg->replica, pNode->replica);
 
@@ -254,7 +256,7 @@ int syncReconfig(void *param, const SSyncCfg *pNewCfg)
   return 0;
 }
 
-int syncForwardToPeer(void *param, void *data, void *mhandle, int qtype)
+int32_t syncForwardToPeer(void *param, void *data, void *mhandle, int qtype)
 {
   SSyncNode  *pNode = param;
   SSyncPeer  *pPeer;
@@ -313,6 +315,7 @@ void syncConfirmForward(void *param, uint64_t version, int32_t code)
   SSyncPeer  *pPeer = pNode->pMaster;
   char        msg[sizeof(SSyncHead) + sizeof(SFwdRsp)] = {0};
 
+  if (pNode == NULL) return;
   if (pNode->quorum <= 1) return;
   if (pPeer == NULL) return;
 
