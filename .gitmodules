@@ -1,3 +1,7 @@
 [submodule "src/connector/go"]
 	path = src/connector/go
 	url = https://github.com/taosdata/driver-go
+[submodule "deps/MQTT-C"]
+	path = deps/MQTT-C
+	url = https://github.com/LiamBindle/MQTT-C.git
+	branch = master

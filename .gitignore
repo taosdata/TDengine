@@ -46,7 +46,6 @@ html/
 /CMakeCache.txt
 /Makefile
 /*.cmake
-/deps
 /src/cq/test/CMakeFiles/cqtest.dir/*.cmake
 *.cmake
 /src/cq/test/CMakeFiles/cqtest.dir/*.make

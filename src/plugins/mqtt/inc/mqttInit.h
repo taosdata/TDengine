@@ -19,25 +19,62 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include "MQTTAsync.h"
-#include "os.h"
+
+/**
+ * @file
+ * A simple subscriber program that performs automatic reconnections.
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "mqtt.h"
 #include "taos.h"
-#include "tglobal.h"
-#include "tsocket.h"
-#include "ttimer.h"
-#include "tsclient.h"
-char    split(char str[], char delims[], char** p_p_cmd_part, int max);
-void    mqttConnnectLost(void* context, char* cause);
-int     mqttMessageArrived(void* context, char* topicName, int topicLen, MQTTAsync_message* message);
-void    mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code);
-void    onDisconnectFailure(void* context, MQTTAsync_failureData* response);
-void    onDisconnect(void* context, MQTTAsync_successData* response);
-void    onSubscribe(void* context, MQTTAsync_successData* response);
-void    onSubscribeFailure(void* context, MQTTAsync_failureData* response);
-void    mqttInitConnCb(void* param, TAOS_RES* result, int32_t code);
 
+/**
+ * @brief A structure that I will use to keep track of some data needed
+ *        to setup the connection to the broker.
+ *
+ * An instance of this struct will be created in my \c main(). Then, whenever
+ * \ref mqttReconnectClient is called, this instance will be passed.
+ */
+struct reconnect_state_t {
+  const char* hostname;
+  const char* port;
+  const char* topic;
+  uint8_t*    sendbuf;
+  size_t      sendbufsz;
+  uint8_t*    recvbuf;
+  size_t      recvbufsz;
+};
 
+/**
+ * @brief My reconnect callback. It will reestablish the connection whenever
+ *        an error occurs.
+ */
+void mqttReconnectClient(struct mqtt_client* client, void** reconnect_state_vptr);
+
+/**
+ * @brief The function will be called whenever a PUBLISH message is received.
+ */
+void mqtt_PublishCallback(void** unused, struct mqtt_response_publish* published);
+
+/**
+ * @brief The client's refresher. This function triggers back-end routines to
+ *        handle ingress/egress traffic to the broker.
+ *
+ * @note All this function needs to do is call \ref __mqtt_recv and
+ *       \ref __mqtt_send every so often. I've picked 100 ms meaning that
+ *       client ingress/egress traffic will be handled every 100 ms.
+ */
+void* mqttClientRefresher(void* client);
+
+/**
+ * @brief Safelty closes the \p sockfd and cancels the \p client_daemon before \c exit.
+ */
+
+void mqttCleanup(int status, int sockfd, pthread_t* client_daemon);
+void mqttInitConnCb(void* param, TAOS_RES* result, int32_t code);
+void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code);
 #define CLIENTID "taos"
 #define TOPIC "/taos/+/+/+/"  // taos/<token>/<db name>/<table name>/
 #define PAYLOAD "Hello World!"

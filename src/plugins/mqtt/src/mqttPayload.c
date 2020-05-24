@@ -39,7 +39,7 @@ char* converJsonToSql(char* json, char* _dbname, char* _tablename) {
   char   _values[102400] = {0};
   int    i = 0;
   int    count = cJSON_GetArraySize(jPlayload);
-  for (; i < count; i++)  //遍历最外层json键值对
+  for (; i < count; i++)  
   {
     cJSON* item = cJSON_GetArrayItem(jPlayload, i);
     if (cJSON_Object == item->type) {
@@ -58,7 +58,8 @@ char* converJsonToSql(char* json, char* _dbname, char* _tablename) {
     }
   }
   cJSON_free(jPlayload);
-  char* _sql = calloc(0, strlen(_names) + strlen(_values) + strlen(_dbname) + strlen(_tablename) + 1024);
+  int   sqllen = strlen(_names) + strlen(_values) + strlen(_dbname) + strlen(_tablename) + 1024;
+  char* _sql = calloc(1, sqllen);
   sprintf(_sql, "INSERT INTO %s.%s (%s) VALUES(%s);", _dbname, _tablename, _names, _values);
   return _sql;
 }
