@@ -237,8 +237,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
         }
 
-        strncpy(pTableMetaInfo->name, pzName->z, tListLen(pTableMetaInfo->name));
-        pTableMetaInfo->name[tListLen(pTableMetaInfo->name)-1] = 0;
+        strncpy(pTableMetaInfo->name, pzName->z, pzName->n);
+        pTableMetaInfo->name[pzName->n] = 0;
       }
 
       break;
