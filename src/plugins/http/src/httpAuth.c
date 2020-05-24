@@ -110,9 +110,9 @@ bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
   char *base64 = base64_encode((const unsigned char *)encrypt, TSDB_USER_LEN + TSDB_PASSWORD_LEN);
 
   int len = strlen(base64);
-  if (len>=maxLen) len = maxLen;
+  if (len>=maxLen) len = maxLen-1;
   strncpy(token, base64, len);
-  token[len-1] = 0;
+  token[len] = 0;
   free(encrypt);
   free(base64);
 
