@@ -200,7 +200,7 @@ bool getNeighborPoints(SQInfo *pQInfo, void *pMeterObj, SPointInterpoSupporter *
       return false;
     } else {  // prev has been located
       if (pQuery->fileId >= 0) {
-        pQuery->pos = pQuery->pBlock[pQuery->slot].numOfPoints - 1;
+        pQuery->pos = pQuery->pBlock[pQuery->slot].numOfRows - 1;
         getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, pQuery->pos);
 
         qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
@@ -210,11 +210,11 @@ bool getNeighborPoints(SQInfo *pQInfo, void *pMeterObj, SPointInterpoSupporter *
         assert(vnodeIsDatablockLoaded(pRuntimeEnv, pMeterObj, -1, true) == DISK_BLOCK_NO_NEED_TO_LOAD);
         pBlock = &pRuntimeEnv->cacheBlock;
 
-        pQuery->pos = pBlock->numOfPoints - 1;
+        pQuery->pos = pBlock->numOfRows - 1;
         getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, pQuery->pos);
 
         qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
-               pQuery->fileId, pQuery->slot, pBlock->numOfPoints - 1, pQuery->pos);
+               pQuery->fileId, pQuery->slot, pBlock->numOfRows - 1, pQuery->pos);
       }
     }
   }
@@ -603,9 +603,9 @@ static SWindowStatus *getTimeWindowResStatus(SWindowResInfo *pWindowResInfo, int
   return &pWindowResInfo->pResult[slot].status;
 }
 
-static int32_t getForwardStepsInBlock(int32_t numOfPoints, __block_search_fn_t searchFn, TSKEY ekey, int16_t pos,
+static int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int16_t pos,
                                       int16_t order, int64_t *pData) {
-  int32_t endPos = searchFn((char *)pData, numOfPoints, ekey, order);
+  int32_t endPos = searchFn((char *)pData, numOfRows, ekey, order);
   int32_t forwardStep = 0;
 
   if (endPos >= 0) {
@@ -2329,7 +2329,7 @@ SArray *loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, void* pQueryHandle,
 
 int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
   int32_t midPos = -1;
-  int32_t numOfPoints;
+  int32_t numOfRows;
 
   if (num <= 0) {
     return -1;
@@ -2348,8 +2348,8 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
       if (key == keyList[firstPos]) return firstPos;
       if (key < keyList[firstPos]) return firstPos - 1;
 
-      numOfPoints = lastPos - firstPos + 1;
-      midPos = (numOfPoints >> 1) + firstPos;
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
 
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
@@ -2374,8 +2374,8 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
           return lastPos;
       }
 
-      numOfPoints = lastPos - firstPos + 1;
-      midPos = (numOfPoints >> 1) + firstPos;
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
 
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
