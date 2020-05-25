@@ -66,22 +66,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt change tag tagcx tgcol3 -x step21
         # TSIM: return -1
@@ -123,22 +123,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt change tag tgcol1 tgcol3
         # TSIM: sql alter table $mt change tag tgcol2 tgcol4
@@ -167,22 +167,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2.00000 then
         tdLog.info('tdSql.checkData(0, 3, 2.00000)')
         tdSql.checkData(0, 3, 2.00000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt change tag tgcol1 tgcol3
         # TSIM: sql alter table $mt change tag tgcol2 tgcol4
@@ -211,22 +211,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1.000000000 then
         tdLog.info('tdSql.checkData(0, 2, 1.000000000)')
         tdSql.checkData(0, 2, 1.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt change tag tgcol1 tgcol3
         # TSIM: sql alter table $mt change tag tgcol2 tgcol4
@@ -255,42 +255,42 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data04 != 3 then
         tdLog.info('tdSql.checkData(0, 4, 3)')
         tdSql.checkData(0, 4, 3)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data05 != 4 then
         tdLog.info('tdSql.checkData(0, 5, 4)')
         tdSql.checkData(0, 5, 4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data06 != 5.000000000 then
         tdLog.info('tdSql.checkData(0, 6, 5.000000000)')
         tdSql.checkData(0, 6, 5.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data07 != 6 then
         tdLog.info('tdSql.checkData(0, 7, 6)')
         tdSql.checkData(0, 7, 6)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt drop tag tgcol3
         # TSIM: sql reset query cache
@@ -331,22 +331,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol4 = 2
         tdLog.info('select * from $mt where tgcol4 = 2')
@@ -357,22 +357,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step3
         tdLog.info('=============== step3')
@@ -400,22 +400,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol4 = 2
         tdLog.info('select * from $mt where tgcol4 = 2')
@@ -426,22 +426,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step4
         tdLog.info('=============== step4')
@@ -469,22 +469,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2.00000 then
         tdLog.info('tdSql.checkData(0, 3, 2.00000)')
         tdSql.checkData(0, 3, 2.00000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol4 = 2
         tdLog.info('select * from $mt where tgcol4 = 2')
@@ -495,22 +495,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2.00000 then
         tdLog.info('tdSql.checkData(0, 3, 2.00000)')
         tdSql.checkData(0, 3, 2.00000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step5
         tdLog.info('=============== step5')
@@ -538,22 +538,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1.000000000 then
         tdLog.info('tdSql.checkData(0, 2, 1.000000000)')
         tdSql.checkData(0, 2, 1.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol4 = '2'
         tdLog.info('select * from $mt where tgcol4 = '2'')
@@ -564,22 +564,22 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1.000000000 then
         tdLog.info('tdSql.checkData(0, 2, 1.000000000)')
         tdSql.checkData(0, 2, 1.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step6
         tdLog.info('=============== step6')
@@ -627,42 +627,42 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data04 != 4 then
         tdLog.info('tdSql.checkData(0, 4, 4)')
         tdSql.checkData(0, 4, 4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data05 != 5.000000000 then
         tdLog.info('tdSql.checkData(0, 5, 5.000000000)')
         tdSql.checkData(0, 5, 5.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data06 != 6 then
         tdLog.info('tdSql.checkData(0, 6, 6)')
         tdSql.checkData(0, 6, 6)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data07 != NULL then
         tdLog.info('tdSql.checkData(0, 7, NULL)')
         tdSql.checkData(0, 7, None)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol8 = 2
         tdLog.info('select * from $mt where tgcol8 = 2')
@@ -673,42 +673,42 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data04 != 4 then
         tdLog.info('tdSql.checkData(0, 4, 4)')
         tdSql.checkData(0, 4, 4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data05 != 5.000000000 then
         tdLog.info('tdSql.checkData(0, 5, 5.000000000)')
         tdSql.checkData(0, 5, 5.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data06 != 6 then
         tdLog.info('tdSql.checkData(0, 6, 6)')
         tdSql.checkData(0, 6, 6)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data07 != NULL then
         tdLog.info('tdSql.checkData(0, 7, NULL)')
         tdSql.checkData(0, 7, None)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol9 = '4'
         tdLog.info('select * from $mt where tgcol9 = '4'')
@@ -719,42 +719,42 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data04 != 4 then
         tdLog.info('tdSql.checkData(0, 4, 4)')
         tdSql.checkData(0, 4, 4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data05 != 5.000000000 then
         tdLog.info('tdSql.checkData(0, 5, 5.000000000)')
         tdSql.checkData(0, 5, 5.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data06 != 6 then
         tdLog.info('tdSql.checkData(0, 6, 6)')
         tdSql.checkData(0, 6, 6)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data07 != NULL then
         tdLog.info('tdSql.checkData(0, 7, NULL)')
         tdSql.checkData(0, 7, None)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol10 = 5
         tdLog.info('select * from $mt where tgcol10 = 5')
@@ -765,42 +765,42 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data04 != 4 then
         tdLog.info('tdSql.checkData(0, 4, 4)')
         tdSql.checkData(0, 4, 4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data05 != 5.000000000 then
         tdLog.info('tdSql.checkData(0, 5, 5.000000000)')
         tdSql.checkData(0, 5, 5.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data06 != 6 then
         tdLog.info('tdSql.checkData(0, 6, 6)')
         tdSql.checkData(0, 6, 6)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data07 != NULL then
         tdLog.info('tdSql.checkData(0, 7, NULL)')
         tdSql.checkData(0, 7, None)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol11 = '6'
         tdLog.info('select * from $mt where tgcol11 = '6'')
@@ -811,42 +811,42 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
         tdSql.checkData(0, 2, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
         tdSql.checkData(0, 3, 2)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data04 != 4 then
         tdLog.info('tdSql.checkData(0, 4, 4)')
         tdSql.checkData(0, 4, 4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data05 != 5.000000000 then
         tdLog.info('tdSql.checkData(0, 5, 5.000000000)')
         tdSql.checkData(0, 5, 5.000000000)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data06 != 6 then
         tdLog.info('tdSql.checkData(0, 6, 6)')
         tdSql.checkData(0, 6, 6)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data07 != NULL then
         tdLog.info('tdSql.checkData(0, 7, NULL)')
         tdSql.checkData(0, 7, None)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== clear
         tdLog.info('=============== clear')
@@ -860,7 +860,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: system sh/exec.sh -n dnode1 -s stop -x SIGINT
 # convert end

@@ -126,7 +126,6 @@ typedef struct SArithmeticSupport {
 
 typedef struct SQLPreAggVal {
   bool    isSet;
-  int32_t size;
   SDataStatis statis;
 } SQLPreAggVal;
 
@@ -174,7 +173,6 @@ typedef struct SQLFunctionCtx {
   int16_t  outputBytes;  // size of results, determined by function and input column data type
   bool     hasNull;      // null value exist in current block
   int16_t  functionId;   // function id
-  int32_t  blockStatus;  // Indicate if data is loaded, it is first/last/internal block. Only for file blocks
   void *   aInputElemBuf;
   char *   aOutputBuf;            // final result output buffer, point to sdata->data
   uint8_t  currentStage;          // record current running step, default: 0

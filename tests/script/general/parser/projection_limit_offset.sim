@@ -133,7 +133,7 @@ if $rows != 4007 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.499@ then
+if $data00 != @70-01-01 08:01:43.500@ then
    return -1
 endi
 
@@ -143,7 +143,7 @@ if $rows != 3907 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.399@ then
+if $data00 != @70-01-01 08:01:43.488@ then
    return -1
 endi
 
@@ -152,7 +152,7 @@ if $rows != 3106 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.099@ then
+if $data00 != @70-01-01 08:01:43.388@ then
    return -1
 endi
 
@@ -161,7 +161,7 @@ if $rows != 3608 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.100@ then
+if $data00 != @70-01-01 08:01:43.450@ then
    return -1
 endi
 
@@ -358,6 +358,15 @@ if $row != 8 then
    return -1
 endi
 
+sql select diff(k) from tm0
+if $row != 3 then
+   return -1
+endi
+
+if $data21 != -1 then
+   return -1
+endi
+
 #error sql
 sql_error select * from 1;
 sql_error select 1;
@@ -371,8 +380,11 @@ sql_error select 1 interval(1h);
 sql_error select count(*);
 sql_error select sum(k);
 sql_error select 'abc';
+sql_error select k+1,sum(k) from tm0;
+sql_error select k, sum(k) from tm0;
+sql_error select k, sum(k)+1 from tm0;
 
 #=============================tbase-1205
 sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
 
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

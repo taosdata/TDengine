@@ -188,7 +188,7 @@ public class TSDBDriver implements java.sql.Driver {
 	}
 
 	public boolean acceptsURL(String url) throws SQLException {
-		return true;
+		return StringUtils.isNotBlank(url) && url.startsWith(URL_PREFIX);
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {

@@ -177,7 +177,7 @@ sql_error insert into st34 using mt3 tags ('NULL', '123aBc', 105, NULL)   values
 #### case 3: set tag value
 sql create table mt4 (ts timestamp, c1 int) tags (tag_binary binary(16), tag_nchar nchar(16), tag_int int, tag_bool bool, tag_float float, tag_double double)
 sql create table st41 using mt4 tags ("beijing", 'nchar_tag', 100, false, 9.12345, 7.123456789)
-sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double st41
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from st41
 if $rows != 1 then
   return -1
 endi
@@ -190,13 +190,17 @@ endi
 if $data02 != 100 then
   return -1
 endi
-if $data03 != false then
+if $data03 != 0 then
   return -1
 endi
-if $dat04 != 9.123450 then
+
+if $data04 != 9.12345 then
+  print expect 9.12345 , actual: $data04
   return -1
 endi
-if $data05 != 7.123457 then
+
+if $data05 != 7.123456789 then
+  print expect 7.123456789 , actual: $data05
   return -1
 endi
 

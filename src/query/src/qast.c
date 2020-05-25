@@ -773,9 +773,6 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
 
     // todo refactor:
     tstr *name = ((STableIndexElem *)pData)->pTable->name;
-    //    char* name = NULL;
-//        tsdbGetTableName(pQueryInfo->, pTable, &name);
-
     // todo speed up by using hash
     if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
@@ -1051,7 +1048,7 @@ static void* exception_malloc(size_t size) {
   return p;
 }
 
-static char* exception_strdup(const char* str) {
+static UNUSED_FUNC char* exception_strdup(const char* str) {
   char* p = strdup(str);
   if (p == NULL) {
     THROW(TSDB_CODE_SERV_OUT_OF_MEMORY);
@@ -1154,28 +1151,33 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     tVariant* pVal = exception_calloc(1, sizeof(tVariant));
     right->pVal = pVal;
     pVal->nType = TSDB_DATA_TYPE_ARRAY;
-    pVal->arr = taosArrayInit(2, sizeof(char*));
+    pVal->arr = taosArrayInit(2, POINTER_BYTES);
 
     const char* cond = tbnameCond + QUERY_COND_REL_PREFIX_IN_LEN;
     for (const char *e = cond; *e != 0; e++) {
       if (*e == TS_PATH_DELIMITER[0]) {
         cond = e + 1;
       } else if (*e == ',') {
-        size_t len = e - cond + 1;
-        char* p = exception_malloc( len );
-        memcpy(p, cond, len);
-        p[len - 1] = 0;
+        size_t len = e - cond + VARSTR_HEADER_SIZE;
+        char* p = exception_malloc(len);
+        varDataSetLen(p, len - VARSTR_HEADER_SIZE);
+        memcpy(varDataVal(p), cond, len);
         cond += len;
         taosArrayPush(pVal->arr, &p);
       }
     }
 
     if (*cond != 0) {
-        char* p = exception_strdup( cond );
-        taosArrayPush(pVal->arr, &p);
+      size_t len = strlen(cond) + VARSTR_HEADER_SIZE;
+      
+      char* p = exception_malloc(len);
+      varDataSetLen(p, len - VARSTR_HEADER_SIZE);
+      memcpy(varDataVal(p), cond, len);
+      
+      taosArrayPush(pVal->arr, &p);
     }
 
-    taosArraySortString(pVal->arr);
+    taosArraySortString(pVal->arr, taosArrayCompareString);
   }
 
   CLEANUP_EXECUTE_TO(anchor, false);
