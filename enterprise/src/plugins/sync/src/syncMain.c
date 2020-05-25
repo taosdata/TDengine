@@ -643,7 +643,9 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
       }
  
       if (i >= pNode->replica) consistent = 1;
-    } 
+    } else {
+      if (pNode->replica == 2) consistent = 1;
+    }
 
     if (consistent)
       syncChooseMaster(pNode);
