@@ -68,7 +68,7 @@ void get_history_path(char* history);
 void cleanup_handler(void* arg);
 void exitShell();
 int shellDumpResult(TAOS* con, char* fname, int* error_no, bool printMode);
-int shellPrintNChar(const char* str, int length, int width);
+void shellPrintNChar(const char* str, int length, int width);
 void shellGetGrantInfo(void *con);
 int isCommentLine(char *line);
 

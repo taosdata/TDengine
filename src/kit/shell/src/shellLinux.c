@@ -329,7 +329,7 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-int shellPrintNChar(const char *str, int length, int width) {
+void shellPrintNChar(const char *str, int length, int width) {
   int pos = 0, cols = 0;
   while (pos < length) {
     wchar_t wc;
@@ -348,7 +348,9 @@ int shellPrintNChar(const char *str, int length, int width) {
     }
   }
 
-  return cols;
+  for (; cols < width; cols++) {
+    putchar(' ');
+  }
 }
 
 int get_old_terminal_mode(struct termios *tio) {
