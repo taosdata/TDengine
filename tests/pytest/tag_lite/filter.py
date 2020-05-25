@@ -120,7 +120,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkData(0, 0, 100)')
         tdSql.checkData(0, 0, 100)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol),
         # max(tbcol), first(tbcol), last(tbcol) from $mt where tg = '1' -x
@@ -162,12 +162,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data00 != 10 then
         tdLog.info('tdSql.checkData(0, 0, 10)')
         tdSql.checkData(0, 0, 10)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step5
         tdLog.info('=============== step5')
@@ -194,7 +194,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkData(0, 0, 200)')
         tdSql.checkData(0, 0, 200)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step6
         tdLog.info('=============== step6')
@@ -263,7 +263,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkData(0, 0, 100)')
         tdSql.checkData(0, 0, 100)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step11
         tdLog.info('=============== step11')
@@ -293,7 +293,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkData(0, 0, 100)')
         tdSql.checkData(0, 0, 100)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step14
         tdLog.info('=============== step14')
@@ -313,7 +313,7 @@ class TDTestCase:
         # TSIM: print expect 100, actual $data00
         tdLog.info('expect 100, actual $data00')
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step15
         tdLog.info('=============== step15')
@@ -344,7 +344,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkData(0, 0, 100)')
         tdSql.checkData(0, 0, 100)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== clear
         tdLog.info('=============== clear')
@@ -358,7 +358,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: system sh/exec.sh -n dnode1 -s stop -x SIGINT
 # convert end
