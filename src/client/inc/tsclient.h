@@ -53,11 +53,7 @@ typedef struct STableComInfo {
 } STableComInfo;
 
 typedef struct STableMeta {
-  // super table if it is created according to super table, otherwise, tableInfo is used
-  union {
-    struct STableMeta *pSTable;
-    STableComInfo      tableInfo;
-  };
+  STableComInfo tableInfo;
   uint8_t       tableType;
   int16_t       sversion;
   SCMVgroupInfo vgroupInfo;
