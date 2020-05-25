@@ -53,7 +53,7 @@ static void  dnodeHandleIdleReadWorker(SReadWorker *);
 static SReadWorkerPool readPool;
 static taos_qset       readQset;
 
-int32_t dnodeInitRead() {
+int32_t dnodeInitVnodeRead() {
   readQset = taosOpenQset();
 
   readPool.min = 2;
@@ -71,7 +71,7 @@ int32_t dnodeInitRead() {
   return 0;
 }
 
-void dnodeCleanupRead() {
+void dnodeCleanupVnodeRead() {
   for (int i=0; i < readPool.max; ++i) {
     SReadWorker *pWorker = readPool.readWorker + i;
     if (pWorker->thread) {

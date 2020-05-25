@@ -13,17 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_WRITE_H
-#define TDENGINE_DNODE_WRITE_H
+#ifndef TDENGINE_DNODE_VWRITE_H
+#define TDENGINE_DNODE_VWRITE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dnodeInitWrite();
-void    dnodeCleanupWrite();
+int32_t dnodeInitVnodeWrite();
+void    dnodeCleanupVnodeWrite();
 void    dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg);
-void    dnodeSendWriteResponse(void *pVnode, void *param, int32_t code);
 
 #ifdef __cplusplus
 }

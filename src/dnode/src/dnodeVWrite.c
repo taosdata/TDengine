@@ -54,7 +54,7 @@ static void  dnodeHandleIdleWorker(SWriteWorker *pWorker);
 
 SWriteWorkerPool wWorkerPool;
 
-int32_t dnodeInitWrite() {
+int32_t dnodeInitVnodeWrite() {
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
   if (wWorkerPool.writeWorker == NULL) return -1;
@@ -67,7 +67,7 @@ int32_t dnodeInitWrite() {
   return 0;
 }
 
-void dnodeCleanupWrite() {
+void dnodeCleanupVnodeWrite() {
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
