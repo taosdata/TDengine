@@ -390,7 +390,11 @@ static void function_finalizer(SQLFunctionCtx *pCtx) {
   
   if (pResInfo->hasResult != DATA_SET_FLAG) {
     tscTrace("no result generated, result is set to NULL");
-    setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+    if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+    } else {
+      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+    }
   }
   
   doFinalizer(pCtx);
@@ -1864,12 +1868,22 @@ static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
     if (pResInfo->hasResult != DATA_SET_FLAG) {
-      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+      } else {
+        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+      }
+      
       return;
     }
   } else {
     if (pResInfo->hasResult != DATA_SET_FLAG) {
-      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+      } else {
+        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+      }
+      
       return;
     }
   }
@@ -2885,7 +2899,12 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
   SLeastsquareInfo *pInfo = pResInfo->interResultBuf;
   
   if (pInfo->num == 0) {
-    setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+    if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+    } else {
+      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+    }
+    
     return;
   }
   
@@ -3139,7 +3158,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
           pOutput += 1;
           pTimestamp += 1;
@@ -3170,7 +3189,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3862,7 +3881,11 @@ static void interp_function(SQLFunctionCtx *pCtx) {
       *(TSKEY *)pCtx->aOutputBuf = pInfoDetail->ts;
     } else {
       if (pInfoDetail->type == TSDB_FILL_NULL) {
-        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+        if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+          setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+        } else {
+          setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+        }
       } else if (pInfoDetail->type == TSDB_FILL_SET_VALUE) {
         tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType);
       } else if (pInfoDetail->type == TSDB_FILL_PREV) {
@@ -3914,7 +3937,11 @@ static void interp_function(SQLFunctionCtx *pCtx) {
           }
           
         } else {
-          setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
+          if (srcType == TSDB_DATA_TYPE_BINARY || srcType == TSDB_DATA_TYPE_NCHAR) {
+            setVardataNull(pCtx->aOutputBuf, pCtx->inputBytes);
+          } else {
+            setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
+          }
         }
       }
     }

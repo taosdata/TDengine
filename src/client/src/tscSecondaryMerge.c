@@ -145,7 +145,7 @@ static SFillColInfo* createFillColInfo(SQueryInfo* pQueryInfo) {
     pFillCol[i].flag       = pExpr->colInfo.flag;
     pFillCol[i].col.offset = offset;
     pFillCol[i].functionId = pExpr->functionId;
-    pFillCol[i].defaultVal.i = pQueryInfo->defaultVal[i];
+    pFillCol[i].fillVal.i  = pQueryInfo->fillVal[i];
     offset += pExpr->resBytes;
   }
   
@@ -946,8 +946,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   }
   
   while (1) {
-    int64_t newRows = -1;
-    taosGenerateDataBlock(pFillInfo, pResPages, &newRows, pLocalReducer->resColModel->capacity);
+    int64_t newRows = taosGenerateDataBlock(pFillInfo, pResPages, pLocalReducer->resColModel->capacity);
 
     if (pQueryInfo->limit.offset < newRows) {
       newRows -= pQueryInfo->limit.offset;

@@ -36,6 +36,7 @@ if $data01 != 2 then
   return -1
 endi
 if $data02 != tb2 then
+  print expect tb2, actual: $data02
   return -1
 endi
 if $data03 != tb2 then
