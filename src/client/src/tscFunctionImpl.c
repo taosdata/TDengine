@@ -3158,7 +3158,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
           pOutput += 1;
           pTimestamp += 1;
@@ -3189,7 +3189,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
