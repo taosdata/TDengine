@@ -90,7 +90,7 @@ static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     mgmtDecDnodeRef(pDnode);
   }
 
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA] = {0};
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA]; memset(vnodeGid, 0, sizeof(vnodeGid)); /* = {0}; */
   int32_t   numOfVnodes = 0;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pTmpVodeGid = pVgroup->vnodeGid + i;
