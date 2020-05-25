@@ -105,7 +105,7 @@ int processRpcMsg(void *item) {
  
     uTrace("ver:%d, pkt from client processed", pHead->version);
     writeIntoWal(pHead); 
-    syncForwardToPeer(syncHandle, pHead, item);
+    syncForwardToPeer(syncHandle, pHead, item, TAOS_QTYPE_RPC);
 
     code = 0;
   }

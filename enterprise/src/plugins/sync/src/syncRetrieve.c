@@ -120,6 +120,9 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
     if (ret <0)  break;
 
+    // set the peer sync version
+    pPeer->sversion = fileInfo.fversion;
+
     // get the full path to file
     sprintf(name, "%s/%s", pNode->path, fileInfo.name);
     
@@ -255,7 +258,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
     sTrace("%s, last wal is forwarded, ver:%d ", pPeer->id, pHead->version);
     int ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if ( ret != wsize ) break;
-    pPeer->version = pHead->version;
+    pPeer->sversion = pHead->version;
 
     bytes += wsize;
  
@@ -310,7 +313,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
       }
 
       // if all data up to fversion is read out, it is over
-      if (pPeer->version >= fversion && fversion > 0) {
+      if (pPeer->sversion >= fversion && fversion > 0) {
         code = 0; 
         sTrace("%s, data up to fversion:%ld has been read out, bytes:%d", pPeer->id, fversion, bytes);
         break;
@@ -337,7 +340,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     }
 
     if (code < 0) break;
-    if (pPeer->version >= fversion && fversion > 0) break;  
+    if (pPeer->sversion >= fversion && fversion > 0) break;  
 
     index++;  wname[0] = 0;
     code = (*pNode->getWalInfo)(pNode->ahandle, wname, &index);
@@ -428,13 +431,17 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
-  pPeer->version = 0;  
+  pPeer->sversion = 0;  
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
   sTrace("%s, start to retrieve file", pPeer->id);
   if (syncRetrieveFile(pPeer) < 0) {
     sError("%s, failed to retrieve file", pPeer->id);
     return -1;
   }
+
+  // if no files are synced, there must be wal to sync, sversion must be larger than one
+  if (pPeer->sversion == 0) 
+    pPeer->sversion = 1;
 
   sTrace("%s, start to retrieve wal", pPeer->id);
   if (syncRetrieveWal(pPeer) < 0) {
@@ -448,27 +455,25 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
 void *syncRetrieveData(void *param)
 {
   SSyncPeer   *pPeer = (SSyncPeer *)param;
-
-  assert(pPeer->syncFd < 0);
   taosBlockSIGPIPE();
 
   pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
     sError("%s, failed to open socket to sync", pPeer->id);
-    return NULL;    
   } else {
     sPrint("%s, sync tcp is setup", pPeer->id);
-  }
   
-  if (syncRetrieveDataStepByStep(pPeer) == 0) {
-    sTrace("%s, sync retrieve process is successful", pPeer->id);
-  } else {
-    sError("%s, failed to retrieve data, restart connection", pPeer->id);
-    syncRestartConnection(pPeer);
+    if (syncRetrieveDataStepByStep(pPeer) == 0) {
+      sTrace("%s, sync retrieve process is successful", pPeer->id);
+    } else {
+      sError("%s, failed to retrieve data, restart connection", pPeer->id);
+      syncRestartConnection(pPeer);
+    }
   }
 
   tclose(pPeer->notifyFd);
   tclose(pPeer->syncFd);
+  syncDecPeerRef(pPeer);
 
   return NULL;
 }

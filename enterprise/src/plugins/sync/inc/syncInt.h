@@ -44,7 +44,7 @@ typedef struct {
   char     pversion;    // protocol version
   char     reserved[6]; // not used
   int32_t  vgId;        // vg ID
-  int32_t  len;         // content length
+  int32_t  len;         // content length, does not include head
   char     cont[];      // message content starts from here
 } SSyncHead;
 
@@ -115,10 +115,11 @@ typedef struct SsyncPeer {
   uint32_t    ip;
   uint16_t    port;
   char        fqdn[TSDB_FQDN_LEN];  // peer ip string
-  char        id[TSDB_FQDN_LEN+16]; // peer vgId + end point
+  char        id[TSDB_EP_LEN+16];   // peer vgId + end point
   int8_t      role;
   int8_t      sstatus;    // sync status
   uint64_t    version;
+  uint64_t    sversion;   // track the peer version in retrieve process 
   int         syncFd;
   int         peerFd;     // forward FD
   void       *timer;
@@ -161,6 +162,8 @@ void *syncRestoreData(void *param);
 int   syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
 void  syncRestartConnection(SSyncPeer *pPeer);
 void  syncBroadcastStatus(SSyncNode *pNode);
+void  syncAddPeerRef(SSyncPeer *pPeer);
+int   syncDecPeerRef(SSyncPeer *pPeer);
 
 
 #ifdef __cplusplus
