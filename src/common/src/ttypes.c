@@ -273,6 +273,46 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
 #endif
 }
 
+static void getStatics_bin(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
+                         int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  const char* data = pData;
+  ASSERT(numOfRow <= INT16_MAX);
+  
+  for (int32_t i = 0; i < numOfRow; ++i) {
+    if (isNull((const char*) varDataVal(data), TSDB_DATA_TYPE_BINARY)) {
+      (*numOfNull) += 1;
+    }
+    
+    data += varDataLen(data);
+  }
+  
+  *sum = 0;
+  *max = 0;
+  *min = 0;
+  *minIndex = 0;
+  *maxIndex = 0;
+}
+
+static void getStatics_nchr(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
+                           int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  const char* data = pData;
+  ASSERT(numOfRow <= INT16_MAX);
+  
+  for (int32_t i = 0; i < numOfRow; ++i) {
+    if (isNull((const char*) varDataVal(data), TSDB_DATA_TYPE_NCHAR)) {
+      (*numOfNull) += 1;
+    }
+    
+    data += varDataLen(data);
+  }
+  
+  *sum = 0;
+  *max = 0;
+  *min = 0;
+  *minIndex = 0;
+  *maxIndex = 0;
+}
+
 tDataTypeDescriptor tDataTypeDesc[11] = {
   {TSDB_DATA_TYPE_NULL,      6, 1,            "NOTYPE",    NULL,                NULL,                  NULL},
   {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool,      getStatics_i8},
@@ -282,9 +322,9 @@ tDataTypeDescriptor tDataTypeDesc[11] = {
   {TSDB_DATA_TYPE_BIGINT,    6, LONG_BYTES,   "BIGINT",    tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
   {TSDB_DATA_TYPE_FLOAT,     5, FLOAT_BYTES,  "FLOAT",     tsCompressFloat,     tsDecompressFloat,     getStatics_f},
   {TSDB_DATA_TYPE_DOUBLE,    6, DOUBLE_BYTES, "DOUBLE",    tsCompressDouble,    tsDecompressDouble,    getStatics_d},
-  {TSDB_DATA_TYPE_BINARY,    6, 0,            "BINARY",    tsCompressString,    tsDecompressString,    NULL},
+  {TSDB_DATA_TYPE_BINARY,    6, 0,            "BINARY",    tsCompressString,    tsDecompressString,    getStatics_bin},
   {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES,   "TIMESTAMP", tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
-  {TSDB_DATA_TYPE_NCHAR,     5, 8,            "NCHAR",     tsCompressString,    tsDecompressString,    NULL},
+  {TSDB_DATA_TYPE_NCHAR,     5, 8,            "NCHAR",     tsCompressString,    tsDecompressString,    getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {

@@ -187,29 +187,29 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
 
 }
 
-void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoints) {
+void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints) {
   ASSERT(pCol != NULL && value != NULL);
 
   switch (pCol->type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       // set offset
-      pCol->dataOff[numOfPoints] = pCol->len;
+      pCol->dataOff[numOfRows] = pCol->len;
       // Copy data
       memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
       // Update the length
       pCol->len += varDataTLen(value);
       break;
     default:
-      ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfPoints);
+      ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
       memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
       pCol->len += pCol->bytes;
       break;
   }
 }
 
-void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfPoints) {
-  int pointsLeft = numOfPoints - pointsToPop;
+void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfRows) {
+  int pointsLeft = numOfRows - pointsToPop;
 
   ASSERT(pointsLeft > 0);
 
@@ -221,7 +221,7 @@ void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfPoints) {
     memmove(pCol->pData, POINTER_SHIFT(pCol->pData, toffset), pCol->len);
     dataColSetOffset(pCol, pointsLeft);
   } else {
-    ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfPoints);
+    ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
     pCol->len = TYPE_BYTES[pCol->type] * pointsLeft;
     memmove(pCol->pData, POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * pointsToPop), pCol->len);
   }
@@ -322,7 +322,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 
   pRet->numOfCols = pDataCols->numOfCols;
   pRet->sversion = pDataCols->sversion;
-  if (keepData) pRet->numOfPoints = pDataCols->numOfPoints;
+  if (keepData) pRet->numOfRows = pDataCols->numOfRows;
 
   for (int i = 0; i < pDataCols->numOfCols; i++) {
     pRet->cols[i].type = pDataCols->cols[i].type;
@@ -352,7 +352,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 }
 
 void tdResetDataCols(SDataCols *pCols) {
-  pCols->numOfPoints = 0;
+  pCols->numOfRows = 0;
   for (int i = 0; i < pCols->maxCols; i++) {
     dataColReset(pCols->cols + i);
   }
@@ -365,14 +365,14 @@ void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
     SDataCol *pCol = pCols->cols + i;
     void *    value = tdGetRowDataOfCol(row, pCol->type, pCol->offset);
 
-    dataColAppendVal(pCol, value, pCols->numOfPoints, pCols->maxPoints);
+    dataColAppendVal(pCol, value, pCols->numOfRows, pCols->maxPoints);
   }
-  pCols->numOfPoints++;
+  pCols->numOfRows++;
 }
 
 // Pop pointsToPop points from the SDataCols
 void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
-  int pointsLeft = pCols->numOfPoints - pointsToPop;
+  int pointsLeft = pCols->numOfRows - pointsToPop;
   if (pointsLeft <= 0) {
     tdResetDataCols(pCols);
     return;
@@ -380,14 +380,14 @@ void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
 
   for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
     SDataCol *pCol = pCols->cols + iCol;
-    dataColPopPoints(pCol, pointsToPop, pCols->numOfPoints);
+    dataColPopPoints(pCol, pointsToPop, pCols->numOfRows);
   }
-  pCols->numOfPoints = pointsLeft;
+  pCols->numOfRows = pointsLeft;
 }
 
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
-  ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfPoints);
-  ASSERT(target->numOfPoints + rowsToMerge <= target->maxPoints);
+  ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfRows);
+  ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
   ASSERT(target->numOfCols == source->numOfCols);
 
   SDataCols *pTarget = NULL;
@@ -395,10 +395,10 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
   if (dataColsKeyLast(target) < dataColsKeyFirst(source)) {  // No overlap
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
-        dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i), target->numOfPoints,
+        dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i), target->numOfRows,
                          target->maxPoints);
       }
-      target->numOfPoints++;
+      target->numOfRows++;
     }
   } else {
     pTarget = tdDupDataCols(target, true);
@@ -406,7 +406,7 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
 
     int iter1 = 0;
     int iter2 = 0;
-    tdMergeTwoDataCols(target, pTarget, &iter1, source, &iter2, pTarget->numOfPoints + rowsToMerge);
+    tdMergeTwoDataCols(target, pTarget, &iter1, source, &iter2, pTarget->numOfRows + rowsToMerge);
   }
 
   tdFreeDataCols(pTarget);
@@ -421,30 +421,30 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCol
   // TODO: add resolve duplicate key here
   tdResetDataCols(target);
 
-  while (target->numOfPoints < tRows) {
-    if (*iter1 >= src1->numOfPoints && *iter2 >= src2->numOfPoints) break;
+  while (target->numOfRows < tRows) {
+    if (*iter1 >= src1->numOfRows && *iter2 >= src2->numOfRows) break;
 
-    TSKEY key1 = (*iter1 >= src1->numOfPoints) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
-    TSKEY key2 = (*iter2 >= src2->numOfPoints) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
+    TSKEY key1 = (*iter1 >= src1->numOfRows) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
+    TSKEY key2 = (*iter2 >= src2->numOfRows) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
 
     if (key1 <= key2) {
       for (int i = 0; i < src1->numOfCols; i++) {
         ASSERT(target->cols[i].type == src1->cols[i].type);
-        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfPoints,
+        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
                          target->maxPoints);
       }
 
-      target->numOfPoints++;
+      target->numOfRows++;
       (*iter1)++;
       if (key1 == key2) (*iter2)++;
     } else {
       for (int i = 0; i < src2->numOfCols; i++) {
         ASSERT(target->cols[i].type == src2->cols[i].type);
-        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfPoints,
+        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfRows,
                          target->maxPoints);
       }
 
-      target->numOfPoints++;
+      target->numOfRows++;
       (*iter2)++;
     }
   }

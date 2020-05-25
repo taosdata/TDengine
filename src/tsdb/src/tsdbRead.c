@@ -436,7 +436,7 @@ static SDataBlockInfo getTrueDataBlockInfo(STableCheckInfo* pCheckInfo, SCompBlo
   SDataBlockInfo info = {
       .window = {.skey = pBlock->keyFirst, .ekey = pBlock->keyLast},
       .numOfCols = pBlock->numOfCols,
-      .rows = pBlock->numOfPoints,
+      .rows = pBlock->numOfRows,
       .tid = pCheckInfo->tableId.tid,
       .uid = pCheckInfo->tableId.uid,
   };
@@ -608,11 +608,11 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       }
   
       SDataCols* pTSCol = pQueryHandle->rhelper.pDataCols[0];
-      assert(pTSCol->cols->type == TSDB_DATA_TYPE_TIMESTAMP && pTSCol->numOfPoints == pBlock->numOfPoints);
+      assert(pTSCol->cols->type == TSDB_DATA_TYPE_TIMESTAMP && pTSCol->numOfRows == pBlock->numOfRows);
       
       if (pCheckInfo->lastKey > pBlock->keyFirst) {
         cur->pos =
-            binarySearchForKey(pTSCol->cols[0].pData, pBlock->numOfPoints, pCheckInfo->lastKey, pQueryHandle->order);
+            binarySearchForKey(pTSCol->cols[0].pData, pBlock->numOfRows, pCheckInfo->lastKey, pQueryHandle->order);
       } else {
         cur->pos = 0;
       }
@@ -630,9 +630,9 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       SDataCols* pDataCols = pCheckInfo->pDataCols;
       if (pCheckInfo->lastKey < pBlock->keyLast) {
         cur->pos =
-            binarySearchForKey(pDataCols->cols[0].pData, pBlock->numOfPoints, pCheckInfo->lastKey, pQueryHandle->order);
+            binarySearchForKey(pDataCols->cols[0].pData, pBlock->numOfRows, pCheckInfo->lastKey, pQueryHandle->order);
       } else {
-        cur->pos = pBlock->numOfPoints - 1;
+        cur->pos = pBlock->numOfRows - 1;
       }
       
       doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock, sa);
@@ -647,7 +647,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
 
 static int vnodeBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
   int    firstPos, lastPos, midPos = -1;
-  int    numOfPoints;
+  int    numOfRows;
   TSKEY* keyList;
 
   assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
@@ -665,8 +665,8 @@ static int vnodeBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
       if (key == keyList[firstPos]) return firstPos;
       if (key < keyList[firstPos]) return firstPos - 1;
 
-      numOfPoints = lastPos - firstPos + 1;
-      midPos = (numOfPoints >> 1) + firstPos;
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
 
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
@@ -691,8 +691,8 @@ static int vnodeBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
           return lastPos;
       }
 
-      numOfPoints = lastPos - firstPos + 1;
-      midPos = (numOfPoints >> 1) + firstPos;
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
 
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
@@ -810,7 +810,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
     cur->mixBlock = (cur->pos != blockInfo.rows - 1);
   } else {
     int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
-    endPos = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, pQueryHandle->window.ekey, order);
+    endPos = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pQueryHandle->window.ekey, order);
     cur->mixBlock = true;
   }
   
@@ -904,7 +904,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         }
 
         int32_t order = ASCENDING_TRAVERSE(pQueryHandle->order) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
-        int32_t end = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfPoints, key, order);
+        int32_t end = vnodeBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, key, order);
         if (tsArray[end] == key) { // the value of key in cache equals to the end timestamp value, ignore it
           tSkipListIterNext(pCheckInfo->iter);
         }
@@ -1002,7 +1002,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
 
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   int    firstPos, lastPos, midPos = -1;
-  int    numOfPoints;
+  int    numOfRows;
   TSKEY* keyList;
 
   if (num <= 0) return -1;
@@ -1018,8 +1018,8 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
       if (key == keyList[firstPos]) return firstPos;
       if (key < keyList[firstPos]) return firstPos - 1;
 
-      numOfPoints = lastPos - firstPos + 1;
-      midPos = (numOfPoints >> 1) + firstPos;
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
 
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
@@ -1044,8 +1044,8 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
           return lastPos;
       }
 
-      numOfPoints = lastPos - firstPos + 1;
-      midPos = (numOfPoints >> 1) + firstPos;
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
 
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
@@ -1066,7 +1066,6 @@ static void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t n
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockInfo* pBlockInfo = pSupporter->pDataBlockInfo[i];
-//    tfree(pBlockInfo->statis);
     tfree(pBlockInfo);
   }
 
@@ -1539,8 +1538,18 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   STableBlockInfo* pBlockInfo = &pHandle->pDataBlockInfo[cur->slot];
   tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
   
-  tsdbGetDataStatis(&pHandle->rhelper, pHandle->statis, QH_GET_NUM_OF_COLS(pHandle));
+  size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);
+  memset(pHandle->statis, 0, sizeof(SDataStatis) * numOfCols);
+  tsdbGetDataStatis(&pHandle->rhelper, pHandle->statis, numOfCols);
+  
   *pBlockStatis = pHandle->statis;
+  
+  //update the number of NULL data rows
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    if (pHandle->statis[i].numOfNull == -1) {
+      pHandle->statis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
+    }
+  }
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1575,7 +1584,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
         doLoadFileDataBlock(pHandle, pBlock, pCheckInfo);
   
         // todo refactor
-        int32_t numOfRows = copyDataFromFileBlock(pHandle, pHandle->outputCapacity, 0, 0, pBlock->numOfPoints - 1);
+        int32_t numOfRows = copyDataFromFileBlock(pHandle, pHandle->outputCapacity, 0, 0, pBlock->numOfRows - 1);
   
         // if the buffer is not full in case of descending order query, move the data in the front of the buffer
         if (!ASCENDING_TRAVERSE(pHandle->order) && numOfRows < pHandle->outputCapacity) {
