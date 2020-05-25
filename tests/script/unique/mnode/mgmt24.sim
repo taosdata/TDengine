@@ -42,6 +42,7 @@ endi
 
 print ============== step3
 system sh/exec_up.sh -n dnode1 -s stop
+sleep 2000
 sql_error show mnodes
 
 print ============== step4
