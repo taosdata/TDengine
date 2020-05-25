@@ -56,7 +56,7 @@ static void  syncCheckPeerConnection(void *param, void *tmrId);
 static void  syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack);
 static void  syncProcessBrokenLink(void *param);
 static int   syncProcessPeerMsg(void *param, void *buffer);
-static void  syncProcessIncommingConnection(int connFd, uint32_t sourceIp); 
+static void  syncProcessIncommingConnection(int connFd, struct sockaddr_in sockAddr); 
 static void  syncRemovePeer(SSyncPeer *pPeer);
 static void  syncAddArbitrator(SSyncNode *pNode);
 static void  syncAddNodeRef(SSyncNode *pNode);
@@ -983,24 +983,24 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer)
   }
 }
 
-static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp) 
+static void syncProcessIncommingConnection(int connFd, struct sockaddr_in sockAddr) 
 {
   char  ipstr[24];
   int   i;
    
-  tinet_ntoa(ipstr, sourceIp);
-  sTrace("peer TCP connection from ip:%s", ipstr);
+  tinet_ntoa(ipstr, sockAddr.sin_addr.s_addr);
+  sTrace("peer TCP connection from ip:%s:%d", ipstr, sockAddr.sin_port);
 
   SFirstPkt firstPkt;
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
     sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
     taosCloseSocket(connFd);
-    return;;
+    return;
   }
 
   int32_t vgId = firstPkt.syncHead.vgId;
   if (vgId == 0) {  // work as arbitrator
-    sTrace("work as arbitrator for ip:%s", ipstr);
+    sTrace("work as arbitrator for ip:%s:%d", ipstr, sockAddr.sin_port);
     taosAllocateTcpThread(tsTcpPool, NULL, connFd);
     return;
   }

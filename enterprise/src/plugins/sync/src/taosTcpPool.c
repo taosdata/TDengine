@@ -190,7 +190,7 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
     }
 
     taosKeepTcpAlive(connFd);
-    (*pInfo->processIncomingConn)(connFd, clientAddr.sin_addr.s_addr);
+    (*pInfo->processIncomingConn)(connFd, clientAddr);
   }
 
   return NULL;
