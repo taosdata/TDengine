@@ -1196,7 +1196,7 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *
     // Map index to the file name
     int fid = (*index) / 3;
 
-    if (fid > pFileH->numOfFGroups) {
+    if (fid >= pFileH->numOfFGroups) {
       // return meta data file
       if ((*index) % 3 > 0) { // it is finished
         tfree(spath);
