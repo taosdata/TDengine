@@ -997,7 +997,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
     sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
     taosCloseSocket(connFd);
-    return;;
+    return;
   }
 
   int32_t vgId = firstPkt.syncHead.vgId;
