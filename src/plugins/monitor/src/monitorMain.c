@@ -27,20 +27,10 @@
 #include "dnode.h"
 #include "monitor.h"
 
-#define monitorError(...)                         \
-  if (monitorDebugFlag & DEBUG_ERROR) {           \
-    taosPrintLog("ERROR MON ", 255, __VA_ARGS__); \
-  }
-#define monitorWarn(...)                                       \
-  if (monitorDebugFlag & DEBUG_WARN) {                         \
-    taosPrintLog("WARN  MON ", monitorDebugFlag, __VA_ARGS__); \
-  }
-#define monitorTrace(...)                                \
-  if (monitorDebugFlag & DEBUG_TRACE) {                  \
-    taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); \
-  }
-#define monitorPrint(...) \
-  { taosPrintLog("MON ", 255, __VA_ARGS__); }
+#define monitorError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR MON ", 255, __VA_ARGS__); }}
+#define monitorWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN  MON ", monitorDebugFlag, __VA_ARGS__); }}
+#define monitorTrace(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); }}
+#define monitorPrint(...) { taosPrintLog("MON ", 255, __VA_ARGS__); }
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    100
