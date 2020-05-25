@@ -30,7 +30,7 @@ extern int32_t cDebugFlag;
   }
 #define tscWarn(...)                                \
   if (cDebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  TSC ", cDebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN TSC ", cDebugFlag, __VA_ARGS__); \
   }
 #define tscTrace(...)                         \
   if (cDebugFlag & DEBUG_TRACE) {             \

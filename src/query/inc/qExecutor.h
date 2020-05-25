@@ -138,7 +138,7 @@ typedef struct SQuery {
   SColumnInfo*      colList;
   SColumnInfo*      tagColList;
   int32_t           numOfFilterCols;
-  int64_t*          defaultVal;
+  int64_t*          fillVal;
   uint32_t          status;  // query status
   SResultRec        rec;
   int32_t           pos;

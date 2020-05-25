@@ -28,7 +28,7 @@ typedef struct {
   STColumn col;             // column info
   int16_t  functionId;      // sql function id
   int16_t  flag;            // column flag: TAG COLUMN|NORMAL COLUMN
-  union {int64_t i; double d;} defaultVal;
+  union {int64_t i; double d;} fillVal;
 } SFillColInfo;
   
 typedef struct SFillInfo {
@@ -75,15 +75,13 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInpu
 
 TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int64_t timeInterval, int8_t slidingTimeUnit, int8_t precision);
 
-int32_t taosGetNumOfResultWithFill(SFillInfo* pFillInfo, int32_t numOfRows, int64_t ekey, int32_t maxNumOfRows);
+int64_t taosGetNumOfResultWithFill(SFillInfo* pFillInfo, int32_t numOfRows, int64_t ekey, int32_t maxNumOfRows);
 
 int32_t taosNumOfRemainRows(SFillInfo *pFillInfo);
 
-int32_t taosDoInterpoResult(SFillInfo* pFillInfo, tFilePage** data, int32_t numOfRows, int32_t outputRows, char** srcData);
-  
 int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
 
-void taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int64_t* outputRows, int32_t capacity);
+int64_t taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity);
 
 #ifdef __cplusplus
 }

@@ -53,11 +53,7 @@ typedef struct STableComInfo {
 } STableComInfo;
 
 typedef struct STableMeta {
-  // super table if it is created according to super table, otherwise, tableInfo is used
-  union {
-    struct STableMeta *pSTable;
-    STableComInfo      tableInfo;
-  };
+  STableComInfo tableInfo;
   uint8_t       tableType;
   int16_t       sversion;
   SCMVgroupInfo vgroupInfo;
@@ -214,7 +210,7 @@ typedef struct SQueryInfo {
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
-  int64_t *        defaultVal;   // default value for interpolation
+  int64_t *        fillVal;      // default value for interpolation
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;  // limit for current sub clause
 

@@ -443,7 +443,7 @@ typedef struct {
   int16_t     numOfOutput;  // final output columns numbers
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     fillType;      // interpolate type
-  uint64_t    defaultVal;       // default value array list
+  uint64_t    fillVal;       // default value array list
   int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;          // total length of ts comp block
   int32_t     tsNumOfBlocks;  // ts comp block numbers
