@@ -142,7 +142,7 @@ int32_t rpcDebugFlag = 135;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
 int32_t sDebugFlag = 135;
-int32_t tsdbDebugFlag = 131;
+int32_t tsdbDebugFlag = 135;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
