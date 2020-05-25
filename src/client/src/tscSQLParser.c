@@ -3290,14 +3290,15 @@ static int32_t setExprToCond(tSQLExpr** parent, tSQLExpr* pExpr, const char* msg
 
 static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SCondExpr* pCondExpr, int32_t* type,
                                      int32_t parentOptr) {
-  const char* msg1 = "meter query cannot use tags filter";
+  const char* msg1 = "table query cannot use tags filter";
   const char* msg2 = "illegal column name";
   const char* msg3 = "only one query time range allowed";
   const char* msg4 = "only one join condition allowed";
   const char* msg5 = "not support ordinary column join";
   const char* msg6 = "only one query condition on tbname allowed";
   const char* msg7 = "only in/like allowed in filter table name";
-
+  const char* msg8 = "wildcard string should be less than 20 characters";
+  
   tSQLExpr* pLeft = (*pExpr)->pLeft;
   tSQLExpr* pRight = (*pExpr)->pRight;
 
@@ -3344,7 +3345,7 @@ static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, S
     // check for like expression
     if ((*pExpr)->nSQLOptr == TK_LIKE) {
       if (pRight->val.nLen > TSDB_PATTERN_STRING_MAX_LEN) {
-        return TSDB_CODE_INVALID_SQL;
+        return invalidSqlErrMsg(pQueryInfo->msg, msg8);
       }
 
       SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
@@ -3359,6 +3360,10 @@ static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, S
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (!validTableNameOptr(*pExpr)) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg7);
+      }
+  
+      if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg1);
       }
 
       if (pCondExpr->pTableCond == NULL) {
@@ -3808,9 +3813,7 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql
   const char* msg2 = "invalid filter expression";
 
   int32_t ret = TSDB_CODE_SUCCESS;
-
-  pQueryInfo->window.skey = 0;
-  pQueryInfo->window.ekey = INT64_MAX;
+  pQueryInfo->window = TSWINDOW_INITIALIZER;
 
   // tags query condition may be larger than 512bytes, therefore, we need to prepare enough large space
   SStringBuilder sb; memset(&sb, 0, sizeof(sb));
@@ -5334,13 +5337,6 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
     }
   }
 
-  SColumnIndex ind = {0};
-  SSqlExpr* pExpr1 = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG_DUMMY, &ind, TSDB_DATA_TYPE_INT,
-      tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, false);
-  
-  const char* name = (pExprList->a[0].aliasName != NULL)? pExprList->a[0].aliasName:functionsInfo[index].name;
-  strncpy(pExpr1->aliasName, name, tListLen(pExpr1->aliasName));
-
   switch (index) {
     case 0:
       pQueryInfo->command = TSDB_SQL_CURRENT_DB;
@@ -5359,6 +5355,13 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
       return TSDB_CODE_SUCCESS;
     default: { return invalidSqlErrMsg(pQueryInfo->msg, msg3); }
   }
+  
+  SColumnIndex ind = {0};
+  SSqlExpr* pExpr1 = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG_DUMMY, &ind, TSDB_DATA_TYPE_INT,
+                                      tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, false);
+  
+  const char* name = (pExprList->a[0].aliasName != NULL)? pExprList->a[0].aliasName:functionsInfo[index].name;
+  strncpy(pExpr1->aliasName, name, tListLen(pExpr1->aliasName));
 }
 
 // can only perform the parameters based on the macro definitation
@@ -5606,7 +5609,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg3 = "fill only available for interval query";
   const char* msg4 = "fill option not supported in stream computing";
   const char* msg5 = "sql too long";  // todo ADD support
-
+  const char* msg6 = "from missing in subclause";
+  
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   assert(pQueryInfo->numOfTables == 1);
@@ -5621,10 +5625,13 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   if (tscValidateName(pzTableName) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
-
+  
   tVariantList* pSrcMeterName = pInfo->pCreateTableInfo->pSelect->from;
-  tVariant*     pVar = &pSrcMeterName->a[0].pVar;
-
+  if (pSrcMeterName == NULL || pSrcMeterName->nExpr == 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
+  }
+  
+  tVariant* pVar = &pSrcMeterName->a[0].pVar;
   SSQLToken srcToken = {.z = pVar->pz, .n = pVar->nLen, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);

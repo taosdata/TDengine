@@ -42,9 +42,6 @@ static void getStatics_i8(const TSKEY *primaryKey, const void *pData, int32_t nu
   
   ASSERT(numOfRow <= INT16_MAX);
   
-  //  int64_t lastKey = 0;
-  //  int8_t  lastVal = TSDB_DATA_TINYINT_NULL;
-  
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull((char *)&data[i], TSDB_DATA_TYPE_TINYINT)) {
       (*numOfNull) += 1;
@@ -213,15 +210,6 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
       fmax = fv;
       *maxIndex = i;
     }
-    
-    //    if (isNull(&lastVal, TSDB_DATA_TYPE_FLOAT)) {
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    } else {
-    //      *wsum = lastVal * (primaryKey[i] - lastKey);
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    }
   }
   
   double csum = 0;
@@ -232,9 +220,9 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
   SET_DOUBLE_VAL_ALIGN(max, &fmax);
   SET_DOUBLE_VAL_ALIGN(min, &fmin);
 #else
-  *sum = csum;
-  *max = fmax;
-  *min = fmin;
+  *(double*)sum = csum;
+  *(double*)max = fmax;
+  *(double*)min = fmin;
 #endif
 }
 
@@ -267,15 +255,6 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
       dmax = dv;
       *maxIndex = i;
     }
-    
-    //    if (isNull(&lastVal, TSDB_DATA_TYPE_DOUBLE)) {
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    } else {
-    //      *wsum = lastVal * (primaryKey[i] - lastKey);
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    }
   }
   
   double csum = 0;
@@ -285,18 +264,18 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
 
 #ifdef _TD_ARM_32_
   SET_DOUBLE_VAL_ALIGN(sum, &csum);
-    SET_DOUBLE_VAL_ALIGN(max, &dmax);
-    SET_DOUBLE_VAL_ALIGN(min, &dmin);
+  SET_DOUBLE_VAL_ALIGN(max, &dmax);
+  SET_DOUBLE_VAL_ALIGN(min, &dmin);
 #else
-  *sum = csum;
-  *max = dmax;
-  *min = dmin;
+  *(double*) sum = csum;
+  *(double*) max = dmax;
+  *(double*) min = dmin;
 #endif
 }
 
 tDataTypeDescriptor tDataTypeDesc[11] = {
   {TSDB_DATA_TYPE_NULL,      6, 1,            "NOTYPE",    NULL,                NULL,                  NULL},
-  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool,      NULL},
+  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool,      getStatics_i8},
   {TSDB_DATA_TYPE_TINYINT,   7, CHAR_BYTES,   "TINYINT",   tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
   {TSDB_DATA_TYPE_SMALLINT,  8, SHORT_BYTES,  "SMALLINT",  tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
   {TSDB_DATA_TYPE_INT,       3, INT_BYTES,    "INT",       tsCompressInt,       tsDecompressInt,       getStatics_i32},
