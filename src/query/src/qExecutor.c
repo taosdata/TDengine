@@ -4234,7 +4234,6 @@ static void setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
   }
 }
 
-
 static SFillColInfo* taosCreateFillColInfo(SQuery* pQuery) {
   int32_t numOfCols = pQuery->numOfOutput;
   int32_t offset = 0;
@@ -5875,6 +5874,14 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
     sem_post(&pQInfo->dataReady);
     return TSDB_CODE_SUCCESS;
   }
+  
+  if (pQInfo->groupInfo.numOfTables == 0) {
+    qTrace("QInfo:%p no table qualified for tag filter, abort query", pQInfo);
+    setQueryStatus(pQuery, QUERY_COMPLETED);
+  
+    sem_post(&pQInfo->dataReady);
+    return TSDB_CODE_SUCCESS;
+  }
 
   // filter the qualified
   if ((code = doInitQInfo(pQInfo, pTSBuf, tsdb, vgId, isSTable)) != TSDB_CODE_SUCCESS) {
@@ -6108,12 +6115,14 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
       // todo handle the error
       /*int32_t ret =*/tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &groupInfo, pGroupColIndex,
                                           numOfGroupByCols);
-      if (groupInfo.numOfTables == 0) {  // no qualified tables no need to do query
-        code = TSDB_CODE_SUCCESS;
-        goto _over;
-      }
+//      if (groupInfo.numOfTables == 0) {  // no qualified tables no need to do query
+//        code = TSDB_CODE_SUCCESS;
+//        qTrace("qmsg:%p no results to produce by tag filters, return directly", pQueryMsg);
+
+//        goto _over;
+//      }
     } else {
-      groupInfo.numOfTables = taosArrayGetSize(pTableIdList);
+//      groupInfo.numOfTables = taosArrayGetSize(pTableIdList);
       SArray* pTableGroup = taosArrayInit(1, POINTER_BYTES);
 
       SArray* sa = taosArrayInit(groupInfo.numOfTables, sizeof(STableId));
@@ -6142,7 +6151,6 @@ _over:
   taosArrayDestroy(pTableIdList);
   
   // if failed to add ref for all meters in this query, abort current query
-  //  atomic_fetch_add_32(&vnodeSelectReqNum, 1);
   return code;
 }
 
@@ -6155,7 +6163,7 @@ void qTableQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || pQInfo->signature != pQInfo) {
-    qTrace("%p freed abort query", pQInfo);
+    qTrace("QInfo:%p has been freed, no need to execute", pQInfo);
     return;
   }
 
@@ -6268,7 +6276,10 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
   SQuery *          pQuery = pRuntimeEnv->pQuery;
   
   size_t num = taosArrayGetSize(pQInfo->groupInfo.pGroupList);
-  assert(num == 1);   // only one group
+  assert(num == 0 || num == 1);
+  if (num == 0) {
+    return;
+  }
   
   SArray* pa = taosArrayGetP(pQInfo->groupInfo.pGroupList, 0);
   num = taosArrayGetSize(pa);
