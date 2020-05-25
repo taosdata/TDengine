@@ -212,8 +212,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   pQueryInfo->order.order = TSDB_ORDER_ASC;
 
   TAOS_FIELD f = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE};
-  strncpy(f.name, "Field", tListLen(f.name));
-  f.name[tListLen(f.name)-1] = 0;
+  STRNCPY(f.name, "Field", TSDB_COL_NAME_LEN);
   
   SFieldSupInfo* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY,
@@ -223,8 +222,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
 
   f.bytes = typeColLength;
   f.type = TSDB_DATA_TYPE_BINARY;
-  strncpy(f.name, "Type", tListLen(f.name));
-  f.name[tListLen(f.name)-1] = 0;
+  STRNCPY(f.name, "Type", TSDB_COL_NAME_LEN);
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, typeColLength,
@@ -234,8 +232,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
 
   f.bytes = sizeof(int32_t);
   f.type = TSDB_DATA_TYPE_INT;
-  strncpy(f.name, "Length", tListLen(f.name));
-  f.name[tListLen(f.name)-1] = 0;
+  STRNCPY(f.name, "Length", TSDB_COL_NAME_LEN);
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_INT, sizeof(int32_t),
@@ -245,8 +242,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
 
   f.bytes = noteColLength;
   f.type = TSDB_DATA_TYPE_BINARY;
-  strncpy(f.name, "Note", tListLen(f.name));
-  f.name[tListLen(f.name)-1] = 0;
+  STRNCPY(f.name, "Note", TSDB_COL_NAME_LEN);
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, noteColLength,

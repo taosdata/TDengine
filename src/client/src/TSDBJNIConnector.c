@@ -495,11 +495,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
       }
         break;
       case TSDB_DATA_TYPE_BINARY: {
-        strncpy(tmp, row[i], tListLen(tmp));  // handle the case that terminated does not exist
-        tmp[tListLen(tmp)-1] = 0;
+        STRNCPY(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, tmp));
 
-        memset(tmp, 0, tListLen(tmp));
+        memset(tmp, 0, (size_t) fields[i].bytes);
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
@@ -602,11 +601,10 @@ static jobject convert_one_row(JNIEnv *env, TAOS_ROW row, TAOS_FIELD* fields, in
         break;
       case TSDB_DATA_TYPE_BINARY: {
         char tmp[TSDB_MAX_BYTES_PER_ROW] = {0};
-        strncpy(tmp, row[i], tListLen(tmp));  // handle the case that terminated does not exist
-        tmp[tListLen(tmp)-1] = 0;
+        STRNCPY(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, tmp));
 
-        memset(tmp, 0, tListLen(tmp));
+        memset(tmp, 0, (size_t) fields[i].bytes);
         break;
       }
       case TSDB_DATA_TYPE_NCHAR:

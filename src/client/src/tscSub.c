@@ -144,7 +144,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     pSql->pSubscription = pSub;
     pSub->pSql = pSql;
     pSub->signature = pSub;
-    strncpy(pSub->topic, topic, sizeof(pSub->topic));
+    STRNCPY(pSub->topic, topic, sizeof(pSub->topic));
     pSub->topic[sizeof(pSub->topic) - 1] = 0;
     pSub->progress = taosArrayInit(32, sizeof(SSubscriptionProgress));
     if (pSub->progress == NULL) {

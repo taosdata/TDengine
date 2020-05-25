@@ -883,8 +883,7 @@ int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   assert(pCmd->numOfClause == 1);
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strncpy(pCreateDbMsg->db, pTableMetaInfo->name, tListLen(pCreateDbMsg->db));
-  pCreateDbMsg->db[tListLen(pCreateDbMsg->db)-1] = 0;
+  STRNCPY(pCreateDbMsg->db, pTableMetaInfo->name, sizeof(pCreateDbMsg->db));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -898,8 +897,7 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SCMCreateDnodeMsg *pCreate = (SCMCreateDnodeMsg *)pCmd->payload;
-  strncpy(pCreate->ep, pInfo->pDCLInfo->a[0].z, tListLen(pCreate->ep));
-  pCreate->ep[tListLen(pCreate->ep)-1] = 0;
+  STRNCPY(pCreate->ep, pInfo->pDCLInfo->a[0].z, pInfo->pDCLInfo->a[0].n);
   
   pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_DNODE;
 
@@ -919,10 +917,8 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSQLToken *pName = &pInfo->pDCLInfo->user.user;
   SSQLToken *pPwd = &pInfo->pDCLInfo->user.passwd;
 
-  strncpy(pAlterMsg->user, pName->z, tListLen(pAlterMsg->user));
-  pAlterMsg->user[tListLen(pAlterMsg->user)-1] = 0;
-  strncpy(pAlterMsg->pass, pPwd->z, tListLen(pAlterMsg->pass));
-  pAlterMsg->pass[tListLen(pAlterMsg->pass)-1] = 0;
+  STRNCPY(pAlterMsg->user, pName->z, pName->n);
+  STRNCPY(pAlterMsg->pass, pPwd->z, pPwd->n);
 
   SCreateAcctSQL *pAcctOpt = &pInfo->pDCLInfo->acctOpt;
 
@@ -965,18 +961,15 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCMCreateUserMsg *pAlterMsg = (SCMCreateUserMsg*)pCmd->payload;
 
   SUserInfo *pUser = &pInfo->pDCLInfo->user;
-  strncpy(pAlterMsg->user, pUser->user.z, tListLen(pAlterMsg->user));
-  pAlterMsg->user[tListLen(pAlterMsg->user)-1] = 0;
+  STRNCPY(pAlterMsg->user, pUser->user.z, pUser->user.n);
   pAlterMsg->flag = pUser->type;
 
   if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
     pAlterMsg->privilege = (char)pCmd->count;
   } else if (pUser->type == TSDB_ALTER_USER_PASSWD) {
-    strncpy(pAlterMsg->pass, pUser->passwd.z, tListLen(pAlterMsg->pass));
-    pAlterMsg->pass[tListLen(pAlterMsg->pass)-1] = 0;
+    STRNCPY(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
   } else { // create user password info
-    strncpy(pAlterMsg->pass, pUser->passwd.z, tListLen(pAlterMsg->pass));
-    pAlterMsg->pass[tListLen(pAlterMsg->pass)-1] = 0;
+    STRNCPY(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
   }
 
   if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
@@ -1007,8 +1000,7 @@ int32_t tscBuildDropDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCMDropDbMsg *pDropDbMsg = (SCMDropDbMsg*)pCmd->payload;
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strncpy(pDropDbMsg->db, pTableMetaInfo->name, tListLen(pDropDbMsg->db));
-  pDropDbMsg->db[tListLen(pDropDbMsg->db)-1] = 0;
+  STRNCPY(pDropDbMsg->db, pTableMetaInfo->name, sizeof(pDropDbMsg->db));
   pDropDbMsg->ignoreNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_DB;
@@ -1152,8 +1144,7 @@ int32_t tscBuildKillMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SCMKillQueryMsg *pKill = (SCMKillQueryMsg*)pCmd->payload;
-  strncpy(pKill->queryId, pInfo->pDCLInfo->ip.z, tListLen(pKill->queryId));
-  pKill->queryId[tListLen(pKill->queryId)-1] = 0;
+  STRNCPY(pKill->queryId, pInfo->pDCLInfo->ip.z, pInfo->pDCLInfo->ip.n);
   switch (pCmd->command) {
     case TSDB_SQL_KILL_QUERY:
       pCmd->msgType = TSDB_MSG_TYPE_CM_KILL_QUERY;
@@ -1713,8 +1704,7 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
           pDestCol->colIndex = htons(pCol->colIndex);
           pDestCol->colId = htons(pDestCol->colId);
           pDestCol->flag = htons(pDestCol->flag);
-          strncpy(pDestCol->name, pCol->name, tListLen(pDestCol->name));
-          pDestCol->name[tListLen(pDestCol->name)-1] = 0;
+          STRNCPY(pDestCol->name, pCol->name, sizeof(pCol->name));
 
           pMsg += sizeof(SColIndex);
         }
@@ -2218,9 +2208,8 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 
-  assert(len <= tListLen(pObj->db));
-  strncpy(pObj->db, temp, tListLen(pObj->db));
-  pObj->db[tListLen(pObj->db)-1] = 0;
+  assert(len <= sizeof(pObj->db));
+  STRNCPY(pObj->db, temp, sizeof(pObj->db));
   
   if (pConnect->ipList.numOfIps > 0) 
     tscSetMgmtIpList(&pConnect->ipList);
@@ -2403,8 +2392,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   STableMetaInfo *pNewMeterMetaInfo = tscAddEmptyMetaInfo(pNewQueryInfo);
   assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
 
-  strncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, tListLen(pNewMeterMetaInfo->name));
-  pNewMeterMetaInfo->name[tListLen(pNewMeterMetaInfo->name)-1] = 0;
+  STRNCPY(pNewMeterMetaInfo->name, pTableMetaInfo->name, sizeof(pNewMeterMetaInfo->name));
   memcpy(pNew->cmd.payload, pSql->cmd.payload, pSql->cmd.payloadLen);  // tag information if table does not exists.
   pNew->cmd.payloadLen = pSql->cmd.payloadLen;
   tscTrace("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);

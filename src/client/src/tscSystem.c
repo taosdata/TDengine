@@ -179,6 +179,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
     
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
+        // strncpy(configDir, pStr, TSDB_FILENAME_LEN);
         strncpy(configDir, pStr, configDirLen);
         configDir[configDirLen-1] = 0;
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
@@ -234,8 +235,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           tscPrint("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
 
-        strncpy(tsLocale, locale, tListLen(tsLocale));
-        tsLocale[tListLen(tsLocale)-1] = 0;
+        STRNCPY(tsLocale, locale, sizeof(tsLocale));
 
         char *charset = strrchr(tsLocale, sep);
         if (charset != NULL) {
@@ -250,8 +250,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
               tscPrint("charset changed from %s to %s", tsCharset, charset);
             }
 
-            strncpy(tsCharset, charset, tListLen(tsCharset));
-            tsCharset[tListLen(tsCharset)-1] = 0;
+            STRNCPY(tsCharset, charset, sizeof(tsCharset));
             cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
 
           } else {
@@ -288,8 +287,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
             tscPrint("charset changed from %s to %s", tsCharset, pStr);
           }
 
-          strncpy(tsCharset, pStr, tListLen(tsCharset));
-          tsCharset[tListLen(tsCharset)-1] = 0;
+          STRNCPY(tsCharset, pStr, sizeof(tsCharset));
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
           tscPrint("charset:%s not valid", pStr);
@@ -327,8 +325,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 //          return -1;
 //        }
 
-        strncpy(tsSocketType, pStr, tListLen(tsSocketType));
-        tsSocketType[tListLen(tsSocketType)-1] = 0;
+        STRNCPY(tsSocketType, pStr, sizeof(tsSocketType));
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("socket type is set:%s", tsSocketType);
       }

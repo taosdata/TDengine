@@ -86,8 +86,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   pObj->signature = pObj;
 
-  strncpy(pObj->user, user, tListLen(pObj->user));
-  pObj->user[tListLen(pObj->user)-1] = 0;
+  STRNCPY(pObj->user, user, TSDB_USER_LEN);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
   pObj->mgmtPort = port ? port : tsDnodeShellPort;
 

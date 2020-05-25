@@ -226,8 +226,7 @@ void taosGetSystemLocale() {
   if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     char *locale = setlocale(LC_CTYPE, "chs");
     if (locale != NULL) {
-      strncpy(tsLocale, locale, sizeof(tsLocale) / sizeof(tsLocale[0]));
-      tsLocale[sizeof(tsLocale) / sizeof(tsLocale[0])-1] = 0;
+      STRNCPY(tsLocale, locale, sizeof(tsLocale) / sizeof(tsLocale[0]));
       cfg_locale->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
       uPrint("locale not configured, set to default:%s", tsLocale);
     }

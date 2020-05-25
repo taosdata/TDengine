@@ -411,8 +411,7 @@ static bool dnodeReadMnodeInfos() {
       dError("failed to read mnode mgmtIpList.json, nodeName not found");
       goto PARSE_OVER;
     }
-    strncpy(tsMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, tListLen(tsMnodeInfos.nodeInfos[i].nodeEp));
-    tsMnodeInfos.nodeInfos[i].nodeEp[tListLen(tsMnodeInfos.nodeInfos[i].nodeEp)-1] = 0;
+    STRNCPY(tsMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
  }
 
   ret = true;

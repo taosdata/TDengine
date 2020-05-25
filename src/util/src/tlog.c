@@ -323,7 +323,7 @@ void taosPrintLog(const char *const flags, int32_t dflag, const char *const form
   if (writeLen <= 0) {
     char tmp[MAX_LOGLINE_DUMP_BUFFER_SIZE] = {0};
     writeLen = vsnprintf(tmp, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
-    strncpy(buffer + len, tmp, tListLen(buffer)-len);
+    strncpy(buffer + len, tmp, MAX_LOGLINE_CONTENT_SIZE);
     len += MAX_LOGLINE_CONTENT_SIZE;
   } else if (writeLen >= MAX_LOGLINE_CONTENT_SIZE) {
     len += MAX_LOGLINE_CONTENT_SIZE;
@@ -333,7 +333,6 @@ void taosPrintLog(const char *const flags, int32_t dflag, const char *const form
   va_end(argpointer);
 
   if (len > MAX_LOGLINE_SIZE) len = MAX_LOGLINE_SIZE;
-  if (len+2 >= tListLen(buffer)) len = tListLen(buffer) - 2;
 
   buffer[len++] = '\n';
   buffer[len] = 0;

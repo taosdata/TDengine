@@ -384,15 +384,14 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo) {
   }
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  (void)fields;
 
   if ((row = taos_fetch_row(result)) != NULL) {
     isSet = true;
     pTableRecordInfo->isMetric = false;
-    strncpy(pTableRecordInfo->tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], tListLen(pTableRecordInfo->tableRecord.name));
-    pTableRecordInfo->tableRecord.name[tListLen(pTableRecordInfo->tableRecord.name)-1] = 0;
-    strncpy(pTableRecordInfo->tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], tListLen(pTableRecordInfo->tableRecord.metric));
-    pTableRecordInfo->tableRecord.metric[tListLen(pTableRecordInfo->tableRecord.metric)-1] = 0;
+    STRNCPY(pTableRecordInfo->tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
+            fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
+    STRNCPY(pTableRecordInfo->tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
+            fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
   }
 
   taos_free_result(result);
@@ -509,8 +508,7 @@ int taosDumpOut(SDumpArguments *arguments) {
       goto _exit_failure;
     }
 
-    strncpy(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX], tListLen(dbInfos[count]->name));
-    dbInfos[count]->name[tListLen(dbInfos[count]->name)-1] = 0;
+    STRNCPY(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX], fields[TSDB_SHOW_DB_NAME_INDEX].bytes);
     if (strcmp(arguments->user, "root") == 0) {
       dbInfos[count]->replica = (int)(*((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]));
       dbInfos[count]->days = (int)(*((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]));
@@ -634,7 +632,6 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   }
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  (void)fields;
 
   fd = open(".table.tmp", O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
   if (fd == -1) {
@@ -645,10 +642,8 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
 
   while ((row = taos_fetch_row(result)) != NULL) {
     memset(&tableRecord, 0, sizeof(STableRecord));
-    strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], tListLen(tableRecord.name));
-    tableRecord.name[tListLen(tableRecord.name)-1] = 0;
-    strncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], tListLen(tableRecord.metric));
-    tableRecord.metric[tListLen(tableRecord.metric)-1] = 0;
+    STRNCPY(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
+    STRNCPY(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
 
     twrite(fd, &tableRecord, sizeof(STableRecord));
   }
@@ -772,8 +767,7 @@ void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
       default:
-        strncpy(tableDes->cols[counter].note, (char *)row[0], tListLen(tableDes->cols[counter].note));
-        tableDes->cols[counter].note[tListLen(tableDes->cols[counter].note)-1] = 0;
+        STRNCPY(tableDes->cols[counter].note, (char *)row[0], fields[0].bytes);
         break;
     }
 
@@ -824,18 +818,17 @@ int taosGetTableDes(char *table, STableDef *tableDes) {
   }
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  (void)fields;
 
   strcpy(tableDes->name, table);
 
   while ((row = taos_fetch_row(result)) != NULL) {
-    strncpy(tableDes->cols[count].field, (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX], tListLen(tableDes->cols[count].field));
-    tableDes->cols[count].field[tListLen(tableDes->cols[count].field)-1] = 0;
-    strncpy(tableDes->cols[count].type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], tListLen(tableDes->cols[count].type));
-    tableDes->cols[count].type[tListLen(tableDes->cols[count].type)-1] = 0;
+    STRNCPY(tableDes->cols[count].field, (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
+            fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
+    STRNCPY(tableDes->cols[count].type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes);
     tableDes->cols[count].length = *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
-    strncpy(tableDes->cols[count].note, (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX], tListLen(tableDes->cols[count].note));
-    tableDes->cols[count].note[tListLen(tableDes->cols[count].note)-1] = 0;
+    STRNCPY(tableDes->cols[count].note, (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
+            fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes);
 
     count++;
   }
@@ -914,14 +907,11 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   }
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  (void)fields;
 
   while ((row = taos_fetch_row(result)) != NULL) {
     memset(&tableRecord, 0, sizeof(STableRecord));
-    strncpy(tableRecord.name, (char *)row[0], tListLen(tableRecord.name));
-    tableRecord.name[tListLen(tableRecord.name)-1] = 0;
-    strncpy(tableRecord.metric, metric, tListLen(tableRecord.metric));
-    tableRecord.metric[tListLen(tableRecord.metric)-1] = 0;
+    STRNCPY(tableRecord.name, (char *)row[0], fields[0].bytes);
+    STRNCPY(tableRecord.metric, metric, sizeof(tableRecord.metric));
     twrite(fd, &tableRecord, sizeof(STableRecord));
   }
 
