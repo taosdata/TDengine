@@ -41,12 +41,15 @@ class TDTestCase:
             ('2020-05-13 10:00:00.002', 3, 'third') dev_002 VALUES('2020-05-13 10:00:00.003', 1, 'first'), ('2020-05-13 10:00:00.004', 2, 'second'),
             ('2020-05-13 10:00:00.005', 3, 'third')""")
 
+        # query with filter condition A OR condition B
         tdSql.query("select * from db.st where ts > '2020-05-13 10:00:00.002' AND tagtype < 2")
         tdSql.checkRows(1)
 
+        # query with filter condition A OR condition B, error expected
         tdSql.error("select * from db.st where ts > '2020-05-13 10:00:00.002' OR tagtype < 2")
 
-        
+        # illegal condition
+        tdSql.error("select * from db.st where ts != '2020-05-13 10:00:00.002' OR tagtype < 2")
 
     def stop(self):
         tdSql.close()

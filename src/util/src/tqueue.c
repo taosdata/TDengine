@@ -65,6 +65,7 @@ taos_queue taosOpenQueue() {
 }
 
 void taosCloseQueue(taos_queue param) {
+  if (param == NULL) return;
   STaosQueue *queue = (STaosQueue *)param;
   STaosQnode *pTemp;
   STaosQnode *pNode = queue->head;  
@@ -224,6 +225,7 @@ taos_qset taosOpenQset() {
 }
 
 void taosCloseQset(taos_qset param) {
+  if (param == NULL) return;
   STaosQset *qset = (STaosQset *)param;
   pthread_mutex_destroy(&qset->mutex);
   tsem_destroy(&qset->sem);

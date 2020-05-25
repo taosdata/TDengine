@@ -1139,7 +1139,7 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
   prefixLen = strlen(prefix);
 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-  char stableName[TSDB_TABLE_NAME_LEN] = {0};
+  char stableName[TSDB_TABLE_NAME_LEN + 1] = {0};
 
   while (numOfRows < rows) {    
     pShow->pIter = mgmtGetNextSuperTable(pShow->pIter, &pTable);
@@ -2154,7 +2154,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
       continue;
     }
 
-    char tableName[TSDB_TABLE_NAME_LEN] = {0};
+    char tableName[TSDB_TABLE_NAME_LEN + 1] = {0};
     
     // pattern compare for table name
     mgmtExtractTableName(pTable->info.tableId, tableName);
