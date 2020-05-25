@@ -439,6 +439,10 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
+  // if no files are synced, there must be wal to sync, sversion must be larger than one
+  if (pPeer->sversion == 0) 
+    pPeer->sversion = 1;
+
   sTrace("%s, start to retrieve wal", pPeer->id);
   if (syncRetrieveWal(pPeer) < 0) {
     sError("%s, failed to retrieve wal", pPeer->id);
