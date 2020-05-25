@@ -384,13 +384,10 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
 
   // keep the code in local variable in order to avoid invalid read in case of async query
   int32_t code = pSql->res.code;
-
-  if (pSql->fp != NULL) {  // callback function
-    if (code == 0) {
-      (*pSql->fp)(pSql->param, pSql, 0);
-    } else {
-      tscQueueAsyncRes(pSql);
-    }
+  if (code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pSql->param, pSql, 0);
+  } else {
+    tscQueueAsyncRes(pSql);
   }
 
   return code;

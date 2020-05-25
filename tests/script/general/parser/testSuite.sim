@@ -56,15 +56,17 @@ sleep 2000
 run general/parser/limit1_tblocks100.sim
 sleep 2000
 run general/parser/select_across_vnodes.sim
+sleep 2000
+run general/parser/slimit1.sim
+sleep 2000
+run general/parser/tbnameIn.sim
+sleep 2000
+run general/parser/projection_limit_offset.sim
 
 sleep 2000
 run general/parser/limit2.sim
 sleep 2000
-run general/parser/tbnameIn.sim
-sleep 2000
 run general/parser/slimit.sim
-sleep 2000
-run general/parser/slimit1.sim
 
 sleep 2000
 run general/parser/fill.sim
@@ -94,8 +96,7 @@ sleep 2000
 run general/parser/join.sim
 sleep 2000
 run general/parser/join_multivnode.sim
-sleep 2000
-run general/parser/projection_limit_offset.sim
+
 sleep 2000
 run general/parser/select_with_tags.sim
 sleep 2000

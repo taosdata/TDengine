@@ -227,9 +227,16 @@ static int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+int32_t taosArrayCompareString(const void* a, const void* b) {
+  const char* x = *(const char**)a;
+  const char* y = *(const char**)b;
+  
+  return compareLenPrefixedStr(x, y);
+}
+
 static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
   const SArray* arr = (const SArray*) pRight;
-  return taosArraySearchString(arr, pLeft) == NULL ? 0 : 1;
+  return taosArraySearchString(arr, pLeft, taosArrayCompareString) == NULL ? 0 : 1;
 }
 
 static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
@@ -248,25 +255,25 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   
   switch (type) {
     case TSDB_DATA_TYPE_SMALLINT: {
-      comparFn = compareInt16Val; break;
+      comparFn = compareInt16Val;  break;
     }
     
     case TSDB_DATA_TYPE_INT: {
-      comparFn = compareInt32Val; break;
+      comparFn = compareInt32Val;  break;
     }
     
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      comparFn = compareInt64Val; break;
+      comparFn = compareInt64Val;  break;
     }
 
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:{
-      comparFn = compareInt8Val; break;
+      comparFn = compareInt8Val;   break;
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      comparFn = compareFloatVal; break;
+      comparFn = compareFloatVal;  break;
     }
     
     case TSDB_DATA_TYPE_DOUBLE: {

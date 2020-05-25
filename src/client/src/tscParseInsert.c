@@ -42,35 +42,42 @@ enum {
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 
 static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
-//  int32_t numType = isValidNumber(pToken);
-//  if (TK_ILLEGAL == numType) {
-//    return numType;
-//  }
-
+  if (pToken->n == 0) {
+    return TK_ILLEGAL;
+  }
+  
   int32_t radix = 10;
-  if (pToken->type == TK_HEX) {
-    radix = 16;
-  } else if (pToken->type == TK_OCT) {
-    radix = 8;
-  } else if (pToken->type == TK_BIN) {
-    radix = 2;
+  
+  int32_t radixList[3] = {16, 8, 2};
+  if (pToken->type == TK_HEX || pToken->type == TK_OCT || pToken->type == TK_BIN) {
+    radix = radixList[pToken->type - TK_HEX];
   }
 
   errno = 0;
   *value = strtoll(pToken->z, endPtr, radix);
+  
+  // not a valid integer number, return error
+  if ((pToken->type == TK_STRING || pToken->type == TK_ID) && ((*endPtr - pToken->z) != pToken->n)) {
+    return TK_ILLEGAL;
+  }
 
   return pToken->type;
 }
 
 static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
-//  int32_t numType = isValidNumber(pToken);
-//  if (TK_ILLEGAL == numType) {
-//    return numType;
-//  }
-
+  if (pToken->n == 0) {
+    return TK_ILLEGAL;
+  }
+  
   errno = 0;
   *value = strtod(pToken->z, endPtr);
-  return pToken->type;
+  
+  // not a valid integer number, return error
+  if ((pToken->type == TK_STRING || pToken->type == TK_ID) && ((*endPtr - pToken->z) != pToken->n)) {
+    return TK_ILLEGAL;
+  } else {
+    return pToken->type;
+  }
 }
 
 int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
@@ -422,9 +429,9 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       return -1;
     }
 
-    if (((sToken.type != TK_NOW) && (sToken.type != TK_INTEGER) && (sToken.type != TK_STRING) &&
-         (sToken.type != TK_FLOAT) && (sToken.type != TK_BOOL) && (sToken.type != TK_NULL)) ||
-        (sToken.n == 0) || (sToken.type == TK_RP)) {
+    int16_t type = sToken.type;
+    if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
+         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (sToken.n == 0) || (type == TK_RP)) {
       tscInvalidSQLErrMsg(error, "invalid data or symbol", sToken.z);
       *code = TSDB_CODE_INVALID_SQL;
       return -1;
@@ -1306,8 +1313,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
-  uint16_t type = (sToken.type == TK_INSERT)? TSDB_QUERY_TYPE_INSERT:TSDB_QUERY_TYPE_IMPORT;
-  TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
+  TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false, 0, NULL);
   if (sToken.type != TK_INTO) {

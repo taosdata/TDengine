@@ -42,9 +42,6 @@ static void getStatics_i8(const TSKEY *primaryKey, const void *pData, int32_t nu
   
   ASSERT(numOfRow <= INT16_MAX);
   
-  //  int64_t lastKey = 0;
-  //  int8_t  lastVal = TSDB_DATA_TINYINT_NULL;
-  
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull((char *)&data[i], TSDB_DATA_TYPE_TINYINT)) {
       (*numOfNull) += 1;
@@ -213,15 +210,6 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
       fmax = fv;
       *maxIndex = i;
     }
-    
-    //    if (isNull(&lastVal, TSDB_DATA_TYPE_FLOAT)) {
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    } else {
-    //      *wsum = lastVal * (primaryKey[i] - lastKey);
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    }
   }
   
   double csum = 0;
@@ -232,9 +220,9 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
   SET_DOUBLE_VAL_ALIGN(max, &fmax);
   SET_DOUBLE_VAL_ALIGN(min, &fmin);
 #else
-  *sum = csum;
-  *max = fmax;
-  *min = fmin;
+  *(double*)sum = csum;
+  *(double*)max = fmax;
+  *(double*)min = fmin;
 #endif
 }
 
@@ -267,15 +255,6 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
       dmax = dv;
       *maxIndex = i;
     }
-    
-    //    if (isNull(&lastVal, TSDB_DATA_TYPE_DOUBLE)) {
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    } else {
-    //      *wsum = lastVal * (primaryKey[i] - lastKey);
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    }
   }
   
   double csum = 0;
@@ -285,27 +264,67 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
 
 #ifdef _TD_ARM_32_
   SET_DOUBLE_VAL_ALIGN(sum, &csum);
-    SET_DOUBLE_VAL_ALIGN(max, &dmax);
-    SET_DOUBLE_VAL_ALIGN(min, &dmin);
+  SET_DOUBLE_VAL_ALIGN(max, &dmax);
+  SET_DOUBLE_VAL_ALIGN(min, &dmin);
 #else
-  *sum = csum;
-  *max = dmax;
-  *min = dmin;
+  *(double*) sum = csum;
+  *(double*) max = dmax;
+  *(double*) min = dmin;
 #endif
+}
+
+static void getStatics_bin(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
+                         int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  const char* data = pData;
+  ASSERT(numOfRow <= INT16_MAX);
+  
+  for (int32_t i = 0; i < numOfRow; ++i) {
+    if (isNull((const char*) varDataVal(data), TSDB_DATA_TYPE_BINARY)) {
+      (*numOfNull) += 1;
+    }
+    
+    data += varDataLen(data);
+  }
+  
+  *sum = 0;
+  *max = 0;
+  *min = 0;
+  *minIndex = 0;
+  *maxIndex = 0;
+}
+
+static void getStatics_nchr(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
+                           int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  const char* data = pData;
+  ASSERT(numOfRow <= INT16_MAX);
+  
+  for (int32_t i = 0; i < numOfRow; ++i) {
+    if (isNull((const char*) varDataVal(data), TSDB_DATA_TYPE_NCHAR)) {
+      (*numOfNull) += 1;
+    }
+    
+    data += varDataLen(data);
+  }
+  
+  *sum = 0;
+  *max = 0;
+  *min = 0;
+  *minIndex = 0;
+  *maxIndex = 0;
 }
 
 tDataTypeDescriptor tDataTypeDesc[11] = {
   {TSDB_DATA_TYPE_NULL,      6, 1,            "NOTYPE",    NULL,                NULL,                  NULL},
-  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool,      NULL},
+  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool,      getStatics_i8},
   {TSDB_DATA_TYPE_TINYINT,   7, CHAR_BYTES,   "TINYINT",   tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
   {TSDB_DATA_TYPE_SMALLINT,  8, SHORT_BYTES,  "SMALLINT",  tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
   {TSDB_DATA_TYPE_INT,       3, INT_BYTES,    "INT",       tsCompressInt,       tsDecompressInt,       getStatics_i32},
   {TSDB_DATA_TYPE_BIGINT,    6, LONG_BYTES,   "BIGINT",    tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
   {TSDB_DATA_TYPE_FLOAT,     5, FLOAT_BYTES,  "FLOAT",     tsCompressFloat,     tsDecompressFloat,     getStatics_f},
   {TSDB_DATA_TYPE_DOUBLE,    6, DOUBLE_BYTES, "DOUBLE",    tsCompressDouble,    tsDecompressDouble,    getStatics_d},
-  {TSDB_DATA_TYPE_BINARY,    6, 0,            "BINARY",    tsCompressString,    tsDecompressString,    NULL},
+  {TSDB_DATA_TYPE_BINARY,    6, 0,            "BINARY",    tsCompressString,    tsDecompressString,    getStatics_bin},
   {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES,   "TIMESTAMP", tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
-  {TSDB_DATA_TYPE_NCHAR,     5, 8,            "NCHAR",     tsCompressString,    tsDecompressString,    NULL},
+  {TSDB_DATA_TYPE_NCHAR,     5, 8,            "NCHAR",     tsCompressString,    tsDecompressString,    getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {
