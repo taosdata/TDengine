@@ -32,7 +32,7 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eind
   uint32_t   index = sindex;
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  if (eindex < sindex) return;
+  if (sindex < 0 || eindex < sindex) return;
 
   while (1) {
     name[0] = 0;
