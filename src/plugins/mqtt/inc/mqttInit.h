@@ -77,9 +77,6 @@ void* mqttClientRefresher(void* client);
 void mqttCleanup(int status, int sockfd, pthread_t* client_daemon);
 void mqttInitConnCb(void* param, TAOS_RES* result, int32_t code);
 void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code);
-#define CLIENTID "taos"
-#define TOPIC "+/+/+/"  // path/<token>/<db name>/<table name>/
-#define PAYLOAD "Hello World!"
 #define QOS 1
 #define TIMEOUT 10000L
 
