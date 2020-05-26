@@ -24,27 +24,14 @@ extern "C" {
 
 extern int32_t rpcDebugFlag;
 
-#define tError(...)                                   \
-  if (rpcDebugFlag & DEBUG_ERROR) {                   \
-    taosPrintLog("ERROR RPC ", rpcDebugFlag, __VA_ARGS__); \
-  }
-#define tWarn(...)                                    \
-  if (rpcDebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  RPC ", rpcDebugFlag, __VA_ARGS__); \
-  }
-#define tTrace(...)                             \
-  if (rpcDebugFlag & DEBUG_TRACE) {             \
-    taosPrintLog("RPC ", rpcDebugFlag, __VA_ARGS__); \
-  }
-#define tPrint(...) \
-  { taosPrintLog("RPC ", 255, __VA_ARGS__); }
-#define tDump(x, y)                      \
-  if (rpcDebugFlag & DEBUG_DUMP) {       \
-    taosDumpData((unsigned char *)x, y); \
-  }
+#define tError(...) { if (rpcDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR RPC ", rpcDebugFlag, __VA_ARGS__); }}
+#define tWarn(...)  { if (rpcDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN  RPC ", rpcDebugFlag, __VA_ARGS__); }}
+#define tTrace(...) { if (rpcDebugFlag & DEBUG_TRACE) { taosPrintLog("RPC ", rpcDebugFlag, __VA_ARGS__); }}
+#define tDump(x, y) { if (rpcDebugFlag & DEBUG_DUMP)  { taosDumpData((unsigned char *)x, y); }}
+#define tPrint(...) { taosPrintLog("RPC ", 255, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_RPC_CACHE_H
+#endif  // TDENGINE_RPC_LOG_H
