@@ -154,8 +154,8 @@ typedef struct SDataCol {
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
-void dataColAppendVal(SDataCol *pCol, void *value, int numOfPoints, int maxPoints);
-void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfPoints);
+void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints);
+void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfRows);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
@@ -195,7 +195,7 @@ typedef struct {
   int      maxPoints;  // max number of points
   int      bufSize;
 
-  int      numOfPoints;
+  int      numOfRows;
   int      numOfCols;  // Total number of cols
   int      sversion;   // TODO: set sversion
   void *   buf;
@@ -205,7 +205,7 @@ typedef struct {
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
 #define dataColsKeyAt(pCols, idx) ((TSKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyFirst(pCols) dataColsKeyAt(pCols, 0)
-#define dataColsKeyLast(pCols) ((pCols->numOfPoints == 0) ? 0 : dataColsKeyAt(pCols, (pCols)->numOfPoints - 1))
+#define dataColsKeyLast(pCols) ((pCols->numOfRows == 0) ? 0 : dataColsKeyAt(pCols, (pCols)->numOfRows - 1))
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);

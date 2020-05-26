@@ -63,7 +63,6 @@ typedef struct SMnodeObj {
   int8_t     updateEnd[1];
   int32_t    refCount;
   int8_t     role;
-  SDnodeObj *pDnode;
 } SMnodeObj;
 
 typedef struct {

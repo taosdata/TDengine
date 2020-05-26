@@ -28,6 +28,7 @@
 #include "mgmtDef.h"
 #include "mgmtInt.h"
 #include "mgmtMnode.h"
+#include "mgmtDnode.h"
 #include "mgmtSdb.h"
 
 typedef enum {
@@ -259,10 +260,15 @@ void sdbUpdateSync() {
       if (pMnode == NULL) break;
 
       syncCfg.nodeInfo[index].nodeId = pMnode->mnodeId;
-      syncCfg.nodeInfo[index].nodePort = pMnode->pDnode->dnodePort + TSDB_PORT_SYNC;
-      strcpy(syncCfg.nodeInfo[index].nodeFqdn, pMnode->pDnode->dnodeEp);
-      index++;
 
+      SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
+      if (pDnode != NULL) {
+        syncCfg.nodeInfo[index].nodePort = pDnode->dnodePort + TSDB_PORT_SYNC;
+        strcpy(syncCfg.nodeInfo[index].nodeFqdn, pDnode->dnodeEp);
+        index++;
+      }
+
+      mgmtDecDnodeRef(pDnode);
       mgmtDecMnodeRef(pMnode);
     }
     sdbFreeIter(pIter);

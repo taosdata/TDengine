@@ -129,7 +129,7 @@ void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*));
  * sort string array
  * @param pArray
  */
-void taosArraySortString(SArray* pArray);
+void taosArraySortString(SArray* pArray, __compar_fn_t comparFn);
 
 /**
  * search the array
@@ -137,14 +137,14 @@ void taosArraySortString(SArray* pArray);
  * @param compar
  * @param key
  */
-void* taosArraySearch(const SArray* pArray, int (*compar)(const void*, const void*), const void* key);
+void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn);
 
 /**
  * search the array
  * @param pArray
  * @param key
  */
-char* taosArraySearchString(const SArray* pArray, const char* key);
+char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn);
 
 #ifdef __cplusplus
 }

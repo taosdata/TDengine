@@ -99,6 +99,19 @@ class TDDnode:
     def setValgrind(self, value):
         self.valgrind = value
 
+    def getDataSize(self):
+        totalSize = 0
+
+        if (self.deployed == 1):
+            for dirpath, dirnames, filenames in os.walk(self.dataDir):
+                for f in filenames:
+                    fp = os.path.join(dirpath, f)
+
+                    if not os.path.islink(fp):
+                        totalSize = totalSize + os.path.getsize(fp)
+
+        return totalSize
+
     def deploy(self):
         self.logDir = "%s/pysim/dnode%d/log" % (self.path, self.index)
         self.dataDir = "%s/pysim/dnode%d/data" % (self.path, self.index)
@@ -383,6 +396,10 @@ class TDDnodes:
     def stop(self, index):
         self.check(index)
         self.dnodes[index - 1].stop()
+
+    def getDataSize(self, index):
+        self.check(index)
+        return self.dnodes[index - 1].getDataSize()
 
     def forcestop(self, index):
         self.check(index)

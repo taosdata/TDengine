@@ -830,7 +830,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   tSkipListNewNodeInfo(pTable->mem->pData, &level, &headSize);
 
   TSKEY key = dataRowKey(row);
-  // printf("insert:%lld, size:%d\n", key, pTable->mem->numOfPoints);
+  // printf("insert:%lld, size:%d\n", key, pTable->mem->numOfRows);
   
   // Copy row into the memory
   SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row), key);
@@ -854,7 +854,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
   if (key > pTable->lastKey) pTable->lastKey = key;
   
-  pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
+  pTable->mem->numOfRows = tSkipListGetSize(pTable->mem->pData);
 
   tsdbTrace("vgId:%d, tid:%d, uid:%" PRId64 ", table:%s a row is inserted to table! key:%" PRId64, pRepo->config.tsdbId,
             pTable->tableId.tid, pTable->tableId.uid, varDataVal(pTable->name), dataRowKey(row));
@@ -1063,7 +1063,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     while (true) {
       int rowsRead = tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pDataCols);
       assert(rowsRead >= 0);
-      if (pDataCols->numOfPoints == 0) break;
+      if (pDataCols->numOfRows == 0) break;
       nLoop++;
 
       ASSERT(dataColsKeyFirst(pDataCols) >= minKey && dataColsKeyFirst(pDataCols) <= maxKey);
@@ -1072,13 +1072,13 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
       int rowsWritten = tsdbWriteDataBlock(pHelper, pDataCols);
       ASSERT(rowsWritten != 0);
       if (rowsWritten < 0) goto _err;
-      ASSERT(rowsWritten <= pDataCols->numOfPoints);
+      ASSERT(rowsWritten <= pDataCols->numOfRows);
 
       tdPopDataColsPoints(pDataCols, rowsWritten);
-      maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5 - pDataCols->numOfPoints;
+      maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5 - pDataCols->numOfRows;
     }
 
-    ASSERT(pDataCols->numOfPoints == 0);
+    ASSERT(pDataCols->numOfRows == 0);
 
     // Move the last block to the new .l file if neccessary
     if (tsdbMoveLastBlockIfNeccessary(pHelper) < 0) {
@@ -1196,7 +1196,7 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *
     // Map index to the file name
     int fid = (*index) / 3;
 
-    if (fid > pFileH->numOfFGroups) {
+    if (fid >= pFileH->numOfFGroups) {
       // return meta data file
       if ((*index) % 3 > 0) { // it is finished
         tfree(spath);
