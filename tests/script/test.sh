@@ -62,6 +62,11 @@ CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 DATA_DIR=$PRG_DIR/data
 
+
+ARBITRATOR_PRG_DIR=$SIM_DIR/arbitrator
+ARBITRATOR_LOG_DIR=$ARBITRATOR_PRG_DIR/log
+
+
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
 echo "Start TDengine Testing Case ..."
@@ -72,9 +77,12 @@ echo "CFG_DIR  : $CFG_DIR"
 
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
+rm -rf $ARBITRATOR_LOG_DIR
+
 mkdir -p $PRG_DIR
 mkdir -p $LOG_DIR
 mkdir -p $CFG_DIR
+mkdir -p $ARBITRATOR_LOG_DIR
 
 TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG

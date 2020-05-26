@@ -312,8 +312,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
     case TSDB_DATA_TYPE_BINARY:
       // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
       if (pToken->type == TK_NULL) {
-        varDataSetLen(payload, sizeof(int8_t));
-        *(uint8_t*) varDataVal(payload) = TSDB_DATA_BINARY_NULL;
+        setVardataNull(payload, TSDB_DATA_TYPE_BINARY);
       } else { // too long values will return invalid sql, not be truncated automatically
         if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) { //todo refactor
           return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
@@ -326,8 +325,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
 
     case TSDB_DATA_TYPE_NCHAR:
       if (pToken->type == TK_NULL) {
-        varDataSetLen(payload, sizeof(int32_t));
-        *(uint32_t*) varDataVal(payload) = TSDB_DATA_NCHAR_NULL;
+        setVardataNull(payload, TSDB_DATA_TYPE_NCHAR);
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         size_t output = 0;

@@ -129,4 +129,6 @@ python3 ./test.py -f user/pass_len.py
 
 #query
 python3 ./test.py -f query/filter.py
-
+python3 ./test.py $1 -f query/filterCombo.py
+python3 ./test.py $1 -f query/queryNormal.py
+python3 ./test.py $1 -f query/queryError.py

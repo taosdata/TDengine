@@ -217,31 +217,31 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void shellPrintNChar(char *str, int width, bool printMode) {
-  int     col_left = width;
-  wchar_t wc;
-  while (col_left > 0) {
-    if (*str == '\0') break;
-    char *tstr = str;
-    int   byte_width = mbtowc(&wc, tstr, MB_CUR_MAX);
-    int   col_width = byte_width;
-    if (col_left < col_width) break;
-    printf("%lc", wc);
-    str += byte_width;
-    col_left -= col_width;
+void shellPrintNChar(const char *str, int length, int width) {
+  int pos = 0, cols = 0;
+  while (pos < length) {
+    wchar_t wc;
+    int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
+    pos += bytes;
+    if (pos > length) {
+      break;
+    }
+
+    int w = bytes;
+    if (w > 0) {
+      if (width > 0 && cols + w > width) {
+        break;
+      }
+      printf("%lc", wc);
+      cols += w;
+    }
   }
 
-  while (col_left > 0) {
-    printf(" ");
-    col_left--;
-  }
-  
-  if (!printMode) {
-    printf("|");
-  } else {
-    printf("\n");
+  for (; cols < width; cols++) {
+    putchar(' ');
   }
 }
+
 
 void get_history_path(char *history) { sprintf(history, "%s/%s", ".", HISTORY_FILE); }
 

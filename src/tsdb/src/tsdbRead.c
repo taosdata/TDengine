@@ -1539,14 +1539,21 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
   
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);
-  memset(pHandle->statis, 0, sizeof(SDataStatis) * numOfCols);
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SDataStatis* st = &pHandle->statis[i];
+    int32_t colId = st->colId;
+    
+    memset(st, 0, sizeof(SDataStatis));
+    st->colId = colId;
+  }
+  
   tsdbGetDataStatis(&pHandle->rhelper, pHandle->statis, numOfCols);
   
   *pBlockStatis = pHandle->statis;
   
   //update the number of NULL data rows
   for(int32_t i = 0; i < numOfCols; ++i) {
-    if (pHandle->statis[i].numOfNull == -1) {
+    if (pHandle->statis[i].numOfNull == -1) { // set the column data are all NULL
       pHandle->statis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
     }
   }
