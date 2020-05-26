@@ -68,7 +68,7 @@ int32_t                  mqttInitSystem() {
   int _tpsize = strlen(topicPath) + strlen(TOPIC) + 1;
   recnt_status.topic = calloc(1, _tpsize);
   snprintf(recnt_status.topic, _tpsize-1, "/%s/" TOPIC, topicPath);
-  recnt_status.client_id = tsMqttBrokerClientId==NULL || strlen(tsMqttBrokerClientId)<3? tsMqttBrokerClientId:"taos_mqtt";
+  recnt_status.client_id = strlen(tsMqttBrokerClientId)<3? tsMqttBrokerClientId:"taos_mqtt";
 
 
   taos_init();
