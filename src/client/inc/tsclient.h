@@ -210,7 +210,7 @@ typedef struct SQueryInfo {
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
-  int64_t *        defaultVal;   // default value for interpolation
+  int64_t *        fillVal;      // default value for interpolation
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;  // limit for current sub clause
 

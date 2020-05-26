@@ -98,12 +98,16 @@ class TDTestCase:
         # create a super table with name exceed max length
         sname = self.generateString(maxTableNameLen + 1)
         tdLog.info("create a super table with length %d" % len(sname))
-        tdSql.error("create table %s (ts timestamp, value int) tags(id int)" % sname)
+        tdSql.error(
+            "create table %s (ts timestamp, value int) tags(id int)" %
+            sname)
 
         # create a super table with name of max length
         sname = self.generateString(maxTableNameLen)
         tdLog.info("create a super table with length %d" % len(sname))
-        tdSql.execute("create table %s (ts timestamp, value int) tags(id int)" % sname)
+        tdSql.execute(
+            "create table %s (ts timestamp, value int) tags(id int)" %
+            sname)
         tdLog.info("check table count, should be one")
         tdSql.query('show stables')
         tdSql.checkRows(1)

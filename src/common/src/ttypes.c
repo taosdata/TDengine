@@ -381,6 +381,18 @@ bool isNull(const char *val, int32_t type) {
   };
 }
 
+void setVardataNull(char* val, int32_t type) {
+  if (type == TSDB_DATA_TYPE_BINARY) {
+    varDataSetLen(val, sizeof(int8_t));
+    *(uint8_t*) varDataVal(val) = TSDB_DATA_BINARY_NULL;
+  } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    varDataSetLen(val, sizeof(int32_t));
+    *(uint32_t*) varDataVal(val) = TSDB_DATA_NCHAR_NULL;
+  } else {
+    assert(0);
+  }
+}
+
 void setNull(char *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
 
 void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
@@ -483,7 +495,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       break;
     };
     case TSDB_DATA_TYPE_NCHAR: {
-      wcsncpy((wchar_t*)val, (wchar_t*)src, len / TSDB_NCHAR_SIZE);
+      varDataCopy(val, src);
       break;
     };
     default: {
