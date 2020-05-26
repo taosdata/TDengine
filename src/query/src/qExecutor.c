@@ -376,11 +376,16 @@ bool isSelectivityWithTagsQuery(SQuery *pQuery) {
 
 bool isTSCompQuery(SQuery *pQuery) { return pQuery->pSelectExpr[0].base.functionId == TSDB_FUNC_TS_COMP; }
 
-static bool limitResults(SQuery *pQuery) {
+static bool limitResults(SQueryRuntimeEnv* pRuntimeEnv) {
+  SQInfo* pQInfo = GET_QINFO_ADDR(pRuntimeEnv);
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  
   if ((pQuery->limit.limit > 0) && (pQuery->rec.total + pQuery->rec.rows > pQuery->limit.limit)) {
     pQuery->rec.rows = pQuery->limit.limit - pQuery->rec.total;
-    assert(pQuery->rec.rows > 0);
-
+    
+    qTrace("QInfo:%p discard remain data due to result limitation, limit:%"PRId64", current return:%d, total:%"PRId64,
+        pQInfo, pQuery->limit.limit, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
+    assert(pQuery->rec.rows >= 0);
     setQueryStatus(pQuery, QUERY_COMPLETED);
     return true;
   }
@@ -624,15 +629,17 @@ static int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t sea
 /**
  * NOTE: the query status only set for the first scan of master scan.
  */
-static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, SWindowResInfo *pWindowResInfo) {
+static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, SWindowResInfo *pWindowResInfo) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   if (pRuntimeEnv->scanFlag != MASTER_SCAN || (!isIntervalQuery(pQuery))) {
-    return;
+    return pWindowResInfo->size;
   }
 
   // no qualified results exist, abort check
+  int32_t numOfClosed = 0;
+  
   if (pWindowResInfo->size == 0) {
-    return;
+    return pWindowResInfo->size;
   }
 
   // query completed
@@ -646,10 +653,10 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     int32_t i = 0;
     int64_t skey = TSKEY_INITIAL_VAL;
 
-    // TODO opt performance: get the closed time window here
     for (i = 0; i < pWindowResInfo->size; ++i) {
       SWindowResult *pResult = &pWindowResInfo->pResult[i];
       if (pResult->status.closed) {
+        numOfClosed += 1;
         continue;
       }
 
@@ -672,16 +679,26 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
 
     pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex].window.skey;
 
-    // the number of completed slots are larger than the threshold, dump to client immediately.
-    int32_t n = numOfClosedTimeWindow(pWindowResInfo);
-    if (n > pWindowResInfo->threshold) {
+    // the number of completed slots are larger than the threshold, return current generated results to client.
+    if (numOfClosed > pWindowResInfo->threshold) {
+      qTrace("QInfo:%p total result window:%d closed:%d, reached the output threshold %d, return",
+          GET_QINFO_ADDR(pRuntimeEnv), pWindowResInfo->size, numOfClosed, pQuery->rec.threshold);
+      
       setQueryStatus(pQuery, QUERY_RESBUF_FULL);
+    } else {
+      qTrace("QInfo:%p total result window:%d already closed:%d", GET_QINFO_ADDR(pRuntimeEnv), pWindowResInfo->size,
+             numOfClosed);
     }
-
-    qTrace("QInfo:%p total window:%d, closed:%d", GET_QINFO_ADDR(pRuntimeEnv), pWindowResInfo->size, n);
   }
-
+  
+  // output has reached the limitation, set query completed
+  if (pQuery->limit.limit > 0 && (pQuery->limit.limit + pQuery->limit.offset) <= numOfClosed &&
+      pRuntimeEnv->scanFlag == MASTER_SCAN) {
+    setQueryStatus(pQuery, QUERY_COMPLETED);
+  }
+  
   assert(pWindowResInfo->prevSKey != TSKEY_INITIAL_VAL);
+  return numOfClosed;
 }
 
 static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SDataBlockInfo *pDataBlockInfo, TSKEY *pPrimaryColumn,
@@ -1309,28 +1326,27 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
   TSKEY lastKey = QUERY_IS_ASC_QUERY(pQuery) ? pDataBlockInfo->window.ekey : pDataBlockInfo->window.skey;
   pTableQInfo->lastKey = lastKey + GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
-  doCheckQueryCompleted(pRuntimeEnv, lastKey, pWindowResInfo);
 
   // interval query with limit applied
-  if (isIntervalQuery(pQuery) && pQuery->limit.limit > 0 &&
-      (pQuery->limit.limit + pQuery->limit.offset) <= numOfClosedTimeWindow(pWindowResInfo) &&
-      pRuntimeEnv->scanFlag == MASTER_SCAN) {
-    setQueryStatus(pQuery, QUERY_COMPLETED);
-  }
+  int32_t numOfRes = 0;
+  
+  if (isIntervalQuery(pQuery)) {
+    numOfRes = doCheckQueryCompleted(pRuntimeEnv, lastKey, pWindowResInfo);
+  } else {
+    numOfRes = getNumOfResult(pRuntimeEnv);
 
-  int32_t numOfRes = getNumOfResult(pRuntimeEnv);
+    // update the number of output result
+    if (numOfRes > 0 && pQuery->checkBuffer == 1) {
+      assert(numOfRes >= pQuery->rec.rows);
+      pQuery->rec.rows = numOfRes;
 
-  // update the number of output result
-  if (numOfRes > 0 && pQuery->checkBuffer == 1) {
-    assert(numOfRes >= pQuery->rec.rows);
-    pQuery->rec.rows = numOfRes;
+      if (numOfRes >= pQuery->rec.threshold) {
+        setQueryStatus(pQuery, QUERY_RESBUF_FULL);
+      }
 
-    if (numOfRes >= pQuery->rec.threshold) {
-      setQueryStatus(pQuery, QUERY_RESBUF_FULL);
-    }
-    
-    if ((pQuery->limit.limit >= 0) && numOfRes >= (pQuery->limit.limit + pQuery->limit.offset)) {
-      setQueryStatus(pQuery, QUERY_COMPLETED);
+      if ((pQuery->limit.limit >= 0) && (pQuery->limit.limit + pQuery->limit.offset) <= numOfRes) {
+        setQueryStatus(pQuery, QUERY_COMPLETED);
+      }
     }
   }
 
@@ -2026,10 +2042,10 @@ void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointI
 
         tVariantCreateFromBinary(&pCtx->param[3], (char *)&count, sizeof(count), TSDB_DATA_TYPE_INT);
 
-        if (isNull((char *)&pQuery->defaultVal[i], pCtx->inputType)) {
+        if (isNull((char *)&pQuery->fillVal[i], pCtx->inputType)) {
           pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
         } else {
-          tVariantCreateFromBinary(&pCtx->param[1], (char *)&pQuery->defaultVal[i], pCtx->inputBytes, pCtx->inputType);
+          tVariantCreateFromBinary(&pCtx->param[1], (char *)&pQuery->fillVal[i], pCtx->inputBytes, pCtx->inputType);
         }
 
         pInterpDetail->ts = pQuery->window.skey;
@@ -2471,8 +2487,8 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     SArray *pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis);
     int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, pStatis, binarySearchForKey, pDataBlock);
 
-    qTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", rows:%d, numOfRes:%d", GET_QINFO_ADDR(pRuntimeEnv),
-           blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, numOfRes);
+    qTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64, GET_QINFO_ADDR(pRuntimeEnv),
+           blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, numOfRes, pQuery->current->lastKey);
 
     // while the output buffer is full or limit/offset is applied, query may be paused here
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL | QUERY_COMPLETED)) {
@@ -3374,7 +3390,9 @@ static void clearEnvAfterReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus
   // during reverse scan
   pTableQueryInfo->lastKey = pStatus->lastKey;
   pQuery->status = pStatus->status;
+  
   pTableQueryInfo->win = pStatus->w;
+  pQuery->window = pTableQueryInfo->win;
 }
 
 void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
@@ -3396,6 +3414,7 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
     if (pRuntimeEnv->scanFlag == MASTER_SCAN) {
       qstatus.status = pQuery->status;
       qstatus.curWindow.ekey = pTableQueryInfo->lastKey - step;
+      qstatus.lastKey = pTableQueryInfo->lastKey;
     }
 
     if (!needScanDataBlocksAgain(pRuntimeEnv)) {
@@ -3423,6 +3442,9 @@ void scanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
 
     setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
+    
+    qTrace("QInfo:%p start to repeat scan data blocks due to query func required, qrange:%"PRId64"-%"PRId64, pQInfo,
+        cond.twindow.skey, cond.twindow.ekey);
 
     // check if query is killed or not
     if (isQueryKilled(pQInfo)) {
@@ -3707,7 +3729,7 @@ static int32_t doCopyToSData(SQInfo *pQInfo, SWindowResult *result, int32_t orde
   int32_t startIdx = 0;
   int32_t step = -1;
 
-  qTrace("QInfo:%p start to copy data from windowResInfo to query buf", GET_QINFO_ADDR(pQuery));
+  qTrace("QInfo:%p start to copy data from windowResInfo to query buf", pQInfo);
   int32_t totalSubset = getNumOfSubset(pQInfo);
 
   if (orderType == TSDB_ORDER_ASC) {
@@ -3836,7 +3858,7 @@ bool queryHasRemainResults(SQueryRuntimeEnv* pRuntimeEnv) {
   }
   
   /*
-   * There are no results returned to client now.
+   * While the code reaches here, there are no results returned to client now.
    * If query is not completed yet, the gaps between two results blocks need to be handled after next data block
    * is retrieved from TSDB.
    *
@@ -3890,18 +3912,24 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
 }
 
 int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int32_t numOfRows, int32_t *numOfInterpo) {
+  SQInfo* pQInfo = GET_QINFO_ADDR(pRuntimeEnv);
   SQuery *pQuery = pRuntimeEnv->pQuery;
+  SFillInfo* pFillInfo = pRuntimeEnv->pFillInfo;
+  
   while (1) {
-    taosGenerateDataBlock(pRuntimeEnv->pFillInfo, (tFilePage**) pQuery->sdata, &pQuery->rec.rows, pQuery->rec.capacity);
-    int32_t ret = pQuery->rec.rows;
+    int32_t ret = taosGenerateDataBlock(pFillInfo, (tFilePage**) pQuery->sdata, pQuery->rec.capacity);
     
     // todo apply limit output function
     /* reached the start position of according to offset value, return immediately */
     if (pQuery->limit.offset == 0) {
+      qTrace("QInfo:%p initial numOfRows:%d, generate filled result:%d rows", pQInfo, pFillInfo->numOfRows, ret);
       return ret;
     }
 
     if (pQuery->limit.offset < ret) {
+      qTrace("QInfo:%p initial numOfRows:%d, generate filled result:%d rows, offset:%d. Discard due to offset, remain:%d, new offset:%d",
+             pQInfo, pFillInfo->numOfRows, ret, pQuery->limit.offset, ret - pQuery->limit.offset, 0);
+      
       ret -= pQuery->limit.offset;
       // todo !!!!there exactly number of interpo is not valid.
       // todo refactor move to the beginning of buffer
@@ -3909,10 +3937,16 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int
         memmove(pDst[i]->data, pDst[i]->data + pQuery->pSelectExpr[i].bytes * pQuery->limit.offset,
                 ret * pQuery->pSelectExpr[i].bytes);
       }
+      
       pQuery->limit.offset = 0;
       return ret;
     } else {
+      qTrace("QInfo:%p initial numOfRows:%d, generate filled result:%d rows, offset:%d. Discard due to offset, "
+             "remain:%d, new offset:%d", pQInfo, pFillInfo->numOfRows, ret, pQuery->limit.offset, 0,
+          pQuery->limit.offset - ret);
+      
       pQuery->limit.offset -= ret;
+      pQuery->rec.rows = 0;
       ret = 0;
     }
 
@@ -3920,8 +3954,6 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int
       return ret;
     }
   }
-  
-  return 0;
 }
 
 void vnodePrintQueryStatistics(SQInfo *pQInfo) {
@@ -4002,8 +4034,8 @@ static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBloc
 
   int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, pBlockInfo, NULL, binarySearchForKey, pDataBlock);
 
-  qTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", rows:%d, numOfRes:%d", GET_QINFO_ADDR(pRuntimeEnv),
-         pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes);
+  qTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64, GET_QINFO_ADDR(pRuntimeEnv),
+         pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes, pQuery->current->lastKey);
 }
 
 void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -4120,8 +4152,9 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
           int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, NULL, binarySearchForKey, pDataBlock);
           pRuntimeEnv->windowResInfo.curIndex = index;  // restore the window index
           
-          qTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", rows:%d, numOfRes:%d",
-                 GET_QINFO_ADDR(pRuntimeEnv), blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, numOfRes);
+          qTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64,
+                 GET_QINFO_ADDR(pRuntimeEnv), blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, numOfRes, pQuery->current->lastKey);
+          
           return true;
         } else { // do nothing
           *start = tw.skey;
@@ -4215,7 +4248,7 @@ static SFillColInfo* taosCreateFillColInfo(SQuery* pQuery) {
     pFillCol[i].col.offset = offset;
     pFillCol[i].flag       = TSDB_COL_NORMAL;    // always be ta normal column for table query
     pFillCol[i].functionId = pExprInfo->base.functionId;
-    pFillCol[i].defaultVal.i = pQuery->defaultVal[i];
+    pFillCol[i].fillVal.i = pQuery->fillVal[i];
     
     offset += pExprInfo->bytes;
   }
@@ -4591,7 +4624,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       skipResults(pRuntimeEnv);
 
       // the limitation of output result is reached, set the query completed
-      if (limitResults(pQuery)) {
+      if (limitResults(pRuntimeEnv)) {
         pQInfo->tableIndex = pQInfo->groupInfo.numOfTables;
         break;
       }
@@ -4846,7 +4879,7 @@ static void tableFixedOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo)
   pQuery->rec.rows = getNumOfResult(pRuntimeEnv);
 
   skipResults(pRuntimeEnv);
-  limitResults(pQuery);
+  limitResults(pRuntimeEnv);
 }
 
 static void tableMultiOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
@@ -4894,7 +4927,7 @@ static void tableMultiOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo)
     resetCtxOutputBuf(pRuntimeEnv);
   }
 
-  limitResults(pQuery);
+  limitResults(pRuntimeEnv);
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
     qTrace("QInfo:%p query paused due to output limitation, next qrange:%" PRId64 "-%" PRId64, pQInfo,
         pQuery->current->lastKey, pQuery->window.ekey);
@@ -4972,7 +5005,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
 
     // the offset is handled at prepare stage if no interpolation involved
     if (pQuery->fillType == TSDB_FILL_NONE || pQuery->rec.rows == 0) {
-      limitResults(pQuery);
+      limitResults(pRuntimeEnv);
       break;
     } else {
       TSKEY ekey = taosGetRevisedEndKey(pQuery->window.ekey, pQuery->order.order, pQuery->slidingTime,
@@ -4980,11 +5013,10 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
       taosFillSetStartInfo(pRuntimeEnv->pFillInfo, pQuery->rec.rows, ekey);
       taosFillCopyInputDataFromFilePage(pRuntimeEnv->pFillInfo, (tFilePage**) pQuery->sdata);
       numOfInterpo = 0;
+      
       pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata, pQuery->rec.rows, &numOfInterpo);
-
-      qTrace("QInfo: %p fill results completed, final:%d", pQInfo, pQuery->rec.rows);
       if (pQuery->rec.rows > 0 || Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-        limitResults(pQuery);
+        limitResults(pRuntimeEnv);
         break;
       }
 
@@ -5017,9 +5049,8 @@ static void tableQueryImpl(SQInfo *pQInfo) {
     int32_t remain = taosNumOfRemainRows(pRuntimeEnv->pFillInfo);
     pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata, remain, &numOfInterpo);
   
-    qTrace("QInfo: %p fill results completed, final:%d", pQInfo, pQuery->rec.rows);
     if (pQuery->rec.rows > 0) {
-      limitResults(pQuery);
+      limitResults(pRuntimeEnv);
     }
     
     qTrace("QInfo:%p current:%d returned, total:%d", pQInfo, pQuery->rec.rows, pQuery->rec.total);
@@ -5351,7 +5382,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
 
   pQueryMsg->fillType = htons(pQueryMsg->fillType);
   if (pQueryMsg->fillType != TSDB_FILL_NONE) {
-    pQueryMsg->defaultVal = (uint64_t)(pMsg);
+    pQueryMsg->fillVal = (uint64_t)(pMsg);
 
     int64_t *v = (int64_t *)pMsg;
     for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
@@ -5722,13 +5753,13 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   }
 
   if (pQuery->fillType != TSDB_FILL_NONE) {
-    pQuery->defaultVal = malloc(sizeof(int64_t) * pQuery->numOfOutput);
-    if (pQuery->defaultVal == NULL) {
+    pQuery->fillVal = malloc(sizeof(int64_t) * pQuery->numOfOutput);
+    if (pQuery->fillVal == NULL) {
       goto _cleanup;
     }
 
     // the first column is the timestamp
-    memcpy(pQuery->defaultVal, (char *)pQueryMsg->defaultVal, pQuery->numOfOutput * sizeof(int64_t));
+    memcpy(pQuery->fillVal, (char *)pQueryMsg->fillVal, pQuery->numOfOutput * sizeof(int64_t));
   }
 
   // to make sure third party won't overwrite this structure
@@ -5785,7 +5816,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   return pQInfo;
 
 _cleanup:
-  tfree(pQuery->defaultVal);
+  tfree(pQuery->fillVal);
 
   if (pQuery->sdata != NULL) {
     for (int16_t col = 0; col < pQuery->numOfOutput; ++col) {
@@ -5893,8 +5924,8 @@ static void freeQInfo(SQInfo *pQInfo) {
     tfree(pQuery->pSelectExpr);
   }
 
-  if (pQuery->defaultVal != NULL) {
-    tfree(pQuery->defaultVal);
+  if (pQuery->fillVal != NULL) {
+    tfree(pQuery->fillVal);
   }
 
   // todo refactor, extract method to destroytableDataInfo
@@ -5997,8 +6028,13 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   }
 
   pQuery->rec.total += pQuery->rec.rows;
-  qTrace("QInfo:%p current:%d, total:%d", pQInfo, pQuery->rec.rows, pQuery->rec.total);
+  qTrace("QInfo:%p current numOfRes rows:%d, total:%d", pQInfo, pQuery->rec.rows, pQuery->rec.total);
 
+  if (pQuery->limit.limit > 0 && pQuery->limit.limit == pQuery->rec.total) {
+    qTrace("QInfo:%p results limitation reached, limitation:%"PRId64, pQInfo, pQuery->limit.limit);
+    setQueryStatus(pQuery, QUERY_OVER);
+  }
+  
   return TSDB_CODE_SUCCESS;
 
   // todo if interpolation exists, the result may be dump to client by several rounds

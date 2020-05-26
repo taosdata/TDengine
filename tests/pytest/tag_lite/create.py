@@ -76,12 +76,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = 0
         tdLog.info('select * from %s where tgcol = 0' % (mt))
         tdSql.query('select * from %s where tgcol = 0' % (mt))
@@ -89,7 +89,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step3
         tdLog.info('=============== step3')
@@ -120,12 +120,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = 0
         tdLog.info('select * from %s where tgcol = 0' % (mt))
         tdSql.query('select * from %s where tgcol = 0' % (mt))
@@ -133,7 +133,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step4
         tdLog.info('=============== step4')
@@ -164,12 +164,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = 0
         tdLog.info('select * from %s where tgcol = 0' % (mt))
         tdSql.query('select * from %s where tgcol = 0' % (mt))
@@ -177,7 +177,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step5
         tdLog.info('=============== step5')
@@ -207,12 +207,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = 0
         tdLog.info('select * from %s where tgcol = 0' % (mt))
         tdSql.query('select * from %s where tgcol = 0' % (mt))
@@ -220,7 +220,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step6
         tdLog.info('=============== step6')
@@ -251,12 +251,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = 0
         tdLog.info('select * from %s where tgcol = 0' % (mt))
         tdSql.query('select * from %s where tgcol = 0' % (mt))
@@ -264,7 +264,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step7
         tdLog.info('=============== step7')
@@ -295,12 +295,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = 0
         tdLog.info('select * from %s where tgcol = 0' % (mt))
         tdSql.query('select * from %s where tgcol = 0' % (mt))
@@ -310,7 +310,7 @@ class TDTestCase:
         # TSIM: print expect 0, actual: $rows
         tdLog.info('expect 0, actual: $rows')
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step8
         tdLog.info('=============== step8')
@@ -341,12 +341,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = 0
         tdLog.info('select * from %s where tgcol = 0' % (mt))
         tdSql.query('select * from %s where tgcol = 0' % (mt))
@@ -354,7 +354,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step9
         tdLog.info('=============== step9')
@@ -385,12 +385,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol = '0'
         tdLog.info('select * from %s where tgcol = "0"' % (mt))
         tdSql.query('select * from %s where tgcol = "0"' % (mt))
@@ -398,7 +398,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step10
         tdLog.info('=============== step10')
@@ -431,12 +431,12 @@ class TDTestCase:
         # TSIM: print expect 1, actual: $rows
         tdLog.info('expect 1, actual: $rows')
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -444,7 +444,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step11
         tdLog.info('=============== step11')
@@ -475,12 +475,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -488,7 +488,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step12
         tdLog.info('=============== step12')
@@ -519,12 +519,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -532,7 +532,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step13
         tdLog.info('=============== step13')
@@ -563,12 +563,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -576,7 +576,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step14
         tdLog.info('=============== step14')
@@ -607,12 +607,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
@@ -621,7 +621,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: print =============== step15
         tdLog.info('=============== step15')
         # TSIM: $i = 15
@@ -651,12 +651,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -664,7 +664,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step16
         tdLog.info('=============== step16')
@@ -695,12 +695,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -708,7 +708,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step17
         tdLog.info('=============== step17')
@@ -739,12 +739,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -752,7 +752,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step18
         tdLog.info('=============== step18')
@@ -783,12 +783,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -796,7 +796,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step19
         tdLog.info('=============== step19')
@@ -827,12 +827,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -840,7 +840,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step20
         tdLog.info('=============== step20')
@@ -871,12 +871,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -884,7 +884,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step21
         tdLog.info('=============== step21')
@@ -915,12 +915,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -928,7 +928,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step22
         tdLog.info('=============== step22')
@@ -959,12 +959,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -972,7 +972,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step23
         tdLog.info('=============== step23')
@@ -1003,12 +1003,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 0
         tdLog.info('select * from %s where tgcol2 = 0' % (mt))
         tdSql.query('select * from %s where tgcol2 = 0' % (mt))
@@ -1016,7 +1016,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step24
         tdLog.info('=============== step24')
@@ -1052,12 +1052,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol2 = 2
         tdLog.info('select * from %s where tgcol2 = 2' % (mt))
         tdSql.query('select * from %s where tgcol2 = 2' % (mt))
@@ -1065,12 +1065,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol3 = 3
         tdLog.info('select * from %s where tgcol3 = 3' % (mt))
         tdSql.query('select * from %s where tgcol3 = 3' % (mt))
@@ -1078,12 +1078,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol4 = 4
         tdLog.info('select * from %s where tgcol4 = 4' % (mt))
         tdSql.query('select * from %s where tgcol4 = 4' % (mt))
@@ -1091,12 +1091,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol5 = 5
         tdLog.info('select * from %s where tgcol5 = 5' % (mt))
         tdSql.query('select * from %s where tgcol5 = 5' % (mt))
@@ -1104,12 +1104,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol6 = '6'
         tdLog.info('select * from %s where tgcol6 = "6"' % (mt))
         tdSql.query('select * from %s where tgcol6 = "6"' % (mt))
@@ -1117,12 +1117,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol6 = '0'
         tdLog.info('select * from %s where tgcol6 = "0"' % (mt))
         tdSql.query('select * from %s where tgcol6 = "0"' % (mt))
@@ -1130,7 +1130,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step25
         tdLog.info('=============== step25')
@@ -1166,12 +1166,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol6 = '0'
         tdLog.info('select * from %s where tgcol6 = "0"' % (mt))
         tdSql.query('select * from %s where tgcol6 = "0"' % (mt))
@@ -1179,7 +1179,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step26
         tdLog.info('=============== step26')
@@ -1216,12 +1216,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: sql select * from $mt where tgcol3 = '0'
         tdLog.info('select * from %s where tgcol3 = "0"' % (mt))
         tdSql.query('select * from %s where tgcol3 = "0"' % (mt))
@@ -1229,7 +1229,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step27
         tdLog.info('=============== step27')
@@ -1280,12 +1280,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step29
         tdLog.info('=============== step29')
@@ -1316,12 +1316,12 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM: if $data01 != 1 then
         tdLog.info('tdSql.checkData(0, 1, 1)')
         tdSql.checkData(0, 1, 1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step30
         tdLog.info('=============== step30')
@@ -1376,7 +1376,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print $data00 $data01 $data02
         tdLog.info('$data00 $data01 $data02')
@@ -1384,7 +1384,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkData(0, 2, "12345")')
         tdSql.checkData(0, 2, "12345")
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: system sh/exec.sh -n dnode1 -s stop -x SIGINT
 # convert end

@@ -781,8 +781,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-      *((int64_t *)pMsg) = htobe64(pQueryInfo->defaultVal[i]);
-      pMsg += sizeof(pQueryInfo->defaultVal[0]);
+      *((int64_t *)pMsg) = htobe64(pQueryInfo->fillVal[i]);
+      pMsg += sizeof(pQueryInfo->fillVal[0]);
     }
   }
   

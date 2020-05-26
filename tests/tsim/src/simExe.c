@@ -36,10 +36,15 @@ void simLogSql(char *sql) {
   fflush(fp);
 }
 
+char *simParseArbitratorName(char *varName);
 char *simParseHostName(char *varName);
 char *simGetVariable(SScript *script, char *varName, int varLen) {
   if (strncmp(varName, "hostname", 8) == 0) {
     return simParseHostName(varName);
+  }
+
+  if (strncmp(varName, "arbitrator", 10) == 0) {
+      return simParseArbitratorName(varName);
   }
 
   if (strncmp(varName, "error", varLen) == 0) return script->error;
