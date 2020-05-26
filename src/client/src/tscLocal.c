@@ -56,7 +56,7 @@ static int32_t getToStringLength(const char *pData, int32_t length, int32_t type
     } break;
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
-      len = sprintf(buf, "%" PRId64 "", *(int64_t *)pData);
+      len = sprintf(buf, "%" PRId64, *(int64_t *)pData);
       break;
     case TSDB_DATA_TYPE_BOOL:
       len = MAX_BOOL_TYPE_LENGTH;
@@ -384,13 +384,10 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
 
   // keep the code in local variable in order to avoid invalid read in case of async query
   int32_t code = pSql->res.code;
-
-  if (pSql->fp != NULL) {  // callback function
-    if (code == 0) {
-      (*pSql->fp)(pSql->param, pSql, 0);
-    } else {
-      tscQueueAsyncRes(pSql);
-    }
+  if (code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pSql->param, pSql, 0);
+  } else {
+    tscQueueAsyncRes(pSql);
   }
 
   return code;

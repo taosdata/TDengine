@@ -74,7 +74,7 @@ void       tsdbCloseMetaFile(SMetaFile *mfh);
 typedef struct {
   TSKEY   keyFirst;
   TSKEY   keyLast;
-  int32_t numOfPoints;
+  int32_t numOfRows;
   void *  pData;
 } SMemTable;
 
@@ -173,7 +173,7 @@ typedef struct {
 typedef struct {
   TSKEY   keyFirst;
   TSKEY   keyLast;
-  int64_t numOfPoints;
+  int64_t numOfRows;
   SList * list;
 } SCacheMem;
 
@@ -294,7 +294,7 @@ typedef struct {
   int64_t last : 1;          // If the block in data file or last file
   int64_t offset : 63;       // Offset of data block or sub-block index depending on numOfSubBlocks
   int32_t algorithm : 8;     // Compression algorithm
-  int32_t numOfPoints : 24;  // Number of total points
+  int32_t numOfRows : 24;    // Number of total points
   int32_t sversion;          // Schema version
   int32_t len;               // Data block length or nothing
   int16_t numOfSubBlocks;    // Number of sub-blocks;
@@ -495,11 +495,12 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo);
 int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
 
 // --------- For read operations
-int tsdbLoadCompIdx(SRWHelper *pHelper, void *target);
-int tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
-int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target);
-int tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, int16_t *colIds, int numOfColIds);
-int tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *target);
+int  tsdbLoadCompIdx(SRWHelper *pHelper, void *target);
+int  tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
+int  tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target);
+int  tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, int16_t *colIds, int numOfColIds);
+int  tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *target);
+void tsdbGetDataStatis(SRWHelper *pHelper, SDataStatis *pStatis, int numOfCols);
 
 // --------- For write operations
 int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols);

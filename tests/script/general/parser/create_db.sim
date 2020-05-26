@@ -104,14 +104,14 @@ $replica = 1 # max=3
 $days = 10
 $keep = 365
 $rows_db = 1000
-$cache = 4096 # 4 kb
+$cache = 16 # 16MB
 $ablocks = 100 
 $tblocks = 32 # max=512, automatically trimmed when exceeding
 $ctime = 36000 # 10 hours
 $wal = 0 # valid value is 0, 1, 2
 $comp = 1 # max=32, automatically trimmed when exceeding
 
-sql create database $db replica $replica days $days keep $keep maxrows $rows_db cache $cache ablocks $ablocks tblocks $tblocks ctime $ctime wal $wal comp $comp
+sql create database $db replica $replica days $days keep $keep maxrows $rows_db cache $cache ctime $ctime wal $wal comp $comp
 sql show databases
 if $rows != 1 then
   return -1

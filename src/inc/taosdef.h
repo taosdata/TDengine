@@ -157,6 +157,7 @@ extern tDataTypeDescriptor tDataTypeDesc[11];
 bool isValidDataType(int32_t type, int32_t length);
 bool isNull(const char *val, int32_t type);
 
+void setVardataNull(char* val, int32_t type);
 void setNull(char *val, int32_t type, int32_t bytes);
 void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 
@@ -326,8 +327,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_QUERY_TYPE_TAG_FILTER_QUERY              0x400u
 #define TSDB_QUERY_TYPE_INSERT                        0x100u    // insert type
-#define TSDB_QUERY_TYPE_IMPORT                        0x200u    // import data
-#define TSDB_QUERY_TYPE_MULTITABLE_QUERY              0x800u
+#define TSDB_QUERY_TYPE_MULTITABLE_QUERY              0x200u
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)         (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))
@@ -340,13 +340,14 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_SESSIONS_PER_VNODE (300)
 #define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
 
-#define TSDB_MAX_MNODES        5
-#define TSDB_MAX_DNODES        10
-#define TSDB_MAX_ACCOUNTS      10
-#define TSDB_MAX_USERS         20
-#define TSDB_MAX_DBS           100
-#define TSDB_MAX_VGROUPS       1000
-#define TSDB_MAX_SUPER_TABLES  100
+#define TSDB_DEFAULT_MNODES_HASH_SIZE   5
+#define TSDB_DEFAULT_DNODES_HASH_SIZE   10
+#define TSDB_DEFAULT_ACCOUNTS_HASH_SIZE 10
+#define TSDB_DEFAULT_USERS_HASH_SIZE    20
+#define TSDB_DEFAULT_DBS_HASH_SIZE      100
+#define TSDB_DEFAULT_VGROUPS_HASH_SIZE  100
+#define TSDB_DEFAULT_STABLES_HASH_SIZE  100
+#define TSDB_DEFAULT_CTABLES_HASH_SIZE  10000
 
 #define TSDB_PORT_DNODESHELL 0 
 #define TSDB_PORT_DNODEDNODE 5 
@@ -375,6 +376,7 @@ typedef enum {
   TSDB_MOD_MGMT,
   TSDB_MOD_HTTP,
   TSDB_MOD_MONITOR,
+  TSDB_MOD_MQTT,
   TSDB_MOD_MAX
 } EModuleType;
 

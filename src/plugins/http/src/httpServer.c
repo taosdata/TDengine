@@ -267,8 +267,10 @@ static void httpStopThread(HttpThread* pThread) {
   struct epoll_event event = { .events = EPOLLIN };
   eventfd_t fd = eventfd(1, 0);
   if (fd == -1) {
+    httpError("%s, failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s", pThread->label, strerror(errno));
     pthread_cancel(pThread->thread);
   } else if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
+    httpError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s", pThread->label, strerror(errno));
     pthread_cancel(pThread->thread);
   }
 

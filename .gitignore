@@ -41,3 +41,27 @@ pysim/
 
 # Doxygen Generated files
 html/
+/.vs
+/CMakeFiles/3.10.2
+/CMakeCache.txt
+/Makefile
+/*.cmake
+/deps
+/src/cq/test/CMakeFiles/cqtest.dir/*.cmake
+*.cmake
+/src/cq/test/CMakeFiles/cqtest.dir/*.make
+*.make
+link.txt
+*.internal
+*.includecache
+*.marks
+Makefile
+CMakeError.log
+*.log
+/CMakeFiles/CMakeRuleHashes.txt
+/CMakeFiles/Makefile2
+/CMakeFiles/TargetDirectories.txt
+/CMakeFiles/cmake.check_cache
+/out/isenseconfig/WSL-Clang-Debug
+/out/isenseconfig/WSL-GCC-Debug
+/test/cfg

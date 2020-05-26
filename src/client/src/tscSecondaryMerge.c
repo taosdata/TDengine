@@ -145,7 +145,7 @@ static SFillColInfo* createFillColInfo(SQueryInfo* pQueryInfo) {
     pFillCol[i].flag       = pExpr->colInfo.flag;
     pFillCol[i].col.offset = offset;
     pFillCol[i].functionId = pExpr->functionId;
-    pFillCol[i].defaultVal.i = pQueryInfo->defaultVal[i];
+    pFillCol[i].fillVal.i  = pQueryInfo->fillVal[i];
     offset += pExpr->resBytes;
   }
   
@@ -638,7 +638,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * 1);
+  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pSql->numOfSubs);
   if (*pMemBuffer == NULL) {
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -946,8 +946,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   }
   
   while (1) {
-    int64_t newRows = -1;
-    taosGenerateDataBlock(pFillInfo, pResPages, &newRows, pLocalReducer->resColModel->capacity);
+    int64_t newRows = taosGenerateDataBlock(pFillInfo, pResPages, pLocalReducer->resColModel->capacity);
 
     if (pQueryInfo->limit.offset < newRows) {
       newRows -= pQueryInfo->limit.offset;

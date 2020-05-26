@@ -156,6 +156,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SERV_OUT_OF_MEMORY,         0, 405, "server out of m
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISK_PERMISSIONS,        0, 406, "no disk permissions")
 TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,             0, 407, "file corrupted")
 TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,           0, 408, "memory corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUCH_FILE_OR_DIR,       0, 409, "no such file or directory")
 
 // client
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CLIENT_VERSION,     0, 451, "invalid client version")

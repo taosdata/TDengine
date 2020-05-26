@@ -37,6 +37,7 @@ static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
 int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
+  taosBlockSIGPIPE();
   taosResolveCRC();
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();

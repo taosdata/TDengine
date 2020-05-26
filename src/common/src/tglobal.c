@@ -107,7 +107,6 @@ int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
 int16_t tsAffectedRowsMod = 0;
 int32_t tsNumOfMPeers = 3;
 int32_t tsMaxShellConns = 2000;
-int32_t tsMaxTables = 100000;
 
 char    tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
 char    tsDefaultUser[64] = "root";
@@ -121,6 +120,7 @@ int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
 int32_t tsMgmtEqualVnodeNum = 4;
 
 int32_t tsEnableHttpModule = 1;
+int32_t tsEnableMqttModule = 0;   // not finished yet, not started it by default
 int32_t tsEnableMonitorModule = 0;
 
 int32_t tsRestRowLimit = 10240;
@@ -135,13 +135,14 @@ int32_t cDebugFlag = 135;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
+int32_t mqttDebugFlag = 131;
 int32_t monitorDebugFlag = 131;
 int32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 135;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
 int32_t sDebugFlag = 135;
-int32_t tsdbDebugFlag = 131;
+int32_t tsdbDebugFlag = 135;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -201,6 +202,8 @@ char tsTimezone[64] = {0};
 char tsLocale[TSDB_LOCALE_LEN] = {0};
 char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 
+int32_t tsMaxBinaryDisplayWidth = 30;
+
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
@@ -213,6 +216,7 @@ void taosSetAllDebugFlag() {
     jniDebugFlag = debugFlag;
     odbcDebugFlag = debugFlag;
     httpDebugFlag = debugFlag;
+    mqttDebugFlag = debugFlag;
     monitorDebugFlag = debugFlag;
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
@@ -891,6 +895,17 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  
+  cfg.option = "mqtt";
+  cfg.ptr = &tsEnableMqttModule;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "monitor";
   cfg.ptr = &tsEnableMonitorModule;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1113,6 +1128,17 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "mqttDebugFlag";
+  cfg.ptr = &mqttDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+
   cfg.option = "monitorDebugFlag";
   cfg.ptr = &monitorDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1200,6 +1226,16 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxBinaryDisplayWidth";
+  cfg.ptr = &tsMaxBinaryDisplayWidth;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 1;
+  cfg.maxValue = 0x7fffffff;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

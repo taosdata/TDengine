@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tglobal.h"
@@ -64,7 +65,10 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
 void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
   
   SCqContext *pContext = calloc(sizeof(SCqContext), 1);
-  if (pContext == NULL) return NULL;
+  if (pContext == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return NULL;
+  }
 
   strcpy(pContext->user, pCfg->user);
   strcpy(pContext->pass, pCfg->pass);
@@ -82,6 +86,7 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 
 void cqClose(void *handle) {
   SCqContext *pContext = handle;
+  if (handle == NULL) return;
 
   // stop all CQs
   cqStop(pContext);
@@ -106,9 +111,9 @@ void cqClose(void *handle) {
 
 void cqStart(void *handle) {
   SCqContext *pContext = handle;
-  cTrace("vgId:%d, start all CQs", pContext->vgId);
   if (pContext->dbConn || pContext->master) return;
 
+  cTrace("vgId:%d, start all CQs", pContext->vgId);
   pthread_mutex_lock(&pContext->mutex);
 
   pContext->master = 1;
