@@ -31,16 +31,16 @@ void tsSetLocale() {
 
   // default locale or user specified locale is not valid, abort launch
   if (locale == NULL) {
-    uForcePrint("Invalid locale:%s, please set the valid locale in config file", tsLocale);
+    uError("Invalid locale:%s, please set the valid locale in config file", tsLocale);
   }
 
   if (strlen(tsCharset) == 0) {
-    uForcePrint("failed to get charset, please set the valid charset in config file");
+    uError("failed to get charset, please set the valid charset in config file");
     exit(-1);
   }
 
   if (!taosValidateEncodec(tsCharset)) {
-    uForcePrint("Invalid charset:%s, please set the valid charset in config file", tsCharset);
+    uError("Invalid charset:%s, please set the valid charset in config file", tsCharset);
     exit(-1);
   }
 }
