@@ -25,11 +25,11 @@
 #include "tsync.h"
 #include "tglobal.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtMnode.h"
-#include "mgmtDnode.h"
-#include "mgmtSdb.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeMnode.h"
+#include "mnodeDnode.h"
+#include "mnodeSdb.h"
 
 typedef enum {
   SDB_ACTION_INSERT,

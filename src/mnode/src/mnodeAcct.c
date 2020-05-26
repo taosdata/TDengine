@@ -19,12 +19,12 @@
 #include "ttime.h"
 #include "tutil.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtDb.h"
-#include "mgmtSdb.h"
-#include "mgmtUser.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeDb.h"
+#include "mnodeSdb.h"
+#include "mnodeUser.h"
 
 void *  tsAcctSdb = NULL;
 static int32_t tsAcctUpdateSize;

@@ -18,17 +18,17 @@
 #include "taosmsg.h"
 #include "taoserror.h"
 #include "tutil.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtDnode.h"
-#include "mgmtDb.h"
-#include "mgmtMnode.h"
-#include "mgmtProfile.h"
-#include "mgmtShell.h"
-#include "mgmtTable.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeDnode.h"
+#include "mnodeDb.h"
+#include "mnodeMnode.h"
+#include "mnodeProfile.h"
+#include "mnodeShell.h"
+#include "mnodeTable.h"
+#include "mnodeUser.h"
+#include "mnodeVgroup.h"
 
 int32_t mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
 
@@ -745,12 +745,12 @@ void mgmtProcessKillConnectionMsg(SMnodeMsg *pMsg) {
 }
 
 int32_t mgmtInitProfile() {
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mgmtGetQueryMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mgmtRetrieveQueries);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mgmtGetConnsMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mgmtRetrieveConns);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mgmtGetStreamMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mgmtRetrieveStreams);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_QUERIES, mgmtGetQueryMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_QUERIES, mgmtRetrieveQueries);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_CONNS, mgmtGetConnsMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_CONNS, mgmtRetrieveConns);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_STREAMS, mgmtGetStreamMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_STREAMS, mgmtRetrieveStreams);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mgmtProcessKillQueryMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mgmtProcessKillStreamMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mgmtProcessKillConnectionMsg);

@@ -24,18 +24,18 @@
 #include "tname.h"
 #include "tbalance.h"
 #include "tdataformat.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtMnode.h"
-#include "mgmtShell.h"
-#include "mgmtProfile.h"
-#include "mgmtSdb.h"
-#include "mgmtTable.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeDb.h"
+#include "mnodeDnode.h"
+#include "mnodeMnode.h"
+#include "mnodeShell.h"
+#include "mnodeProfile.h"
+#include "mnodeSdb.h"
+#include "mnodeTable.h"
+#include "mnodeUser.h"
+#include "mnodeVgroup.h"
 
 static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
@@ -150,8 +150,8 @@ int32_t mgmtInitDbs() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DB, mgmtProcessCreateDbMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mgmtProcessAlterDbMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mgmtProcessDropDbMsg);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_DB, mgmtGetDbMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_DB, mgmtRetrieveDbs);
   
   mTrace("table:dbs table is created");
   return 0;

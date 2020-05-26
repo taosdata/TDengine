@@ -25,16 +25,16 @@
 #include "tglobal.h"
 #include "dnode.h"
 #include "tdataformat.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtMnode.h"
-#include "mgmtProfile.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtTable.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeDb.h"
+#include "mnodeDnode.h"
+#include "mnodeMnode.h"
+#include "mnodeProfile.h"
+#include "mnodeSdb.h"
+#include "mnodeShell.h"
+#include "mnodeTable.h"
+#include "mnodeVgroup.h"
 
 static void   *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
@@ -220,8 +220,8 @@ int32_t mgmtInitVgroups() {
     return -1;
   }
 
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mgmtGetVgroupMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mgmtRetrieveVgroups);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_VGROUP, mgmtGetVgroupMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_VGROUP, mgmtRetrieveVgroups);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mgmtProcessCreateVnodeRsp);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mgmtProcessDropVnodeRsp);
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mgmtProcessVnodeCfgMsg);

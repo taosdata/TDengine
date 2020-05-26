@@ -18,12 +18,12 @@
 #include "trpc.h"
 #include "tbalance.h"
 #include "tglobal.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtMnode.h"
-#include "mgmtDnode.h"
-#include "mgmtSdb.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeMnode.h"
+#include "mnodeDnode.h"
+#include "mnodeSdb.h"
+#include "mnodeVgroup.h"
 
 #ifndef _SYNC
 

@@ -26,14 +26,14 @@
 #include "tsync.h"
 #include "tdataformat.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtDnode.h"
-#include "mgmtMnode.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeDnode.h"
+#include "mnodeMnode.h"
+#include "mnodeSdb.h"
+#include "mnodeShell.h"
+#include "mnodeUser.h"
+#include "mnodeVgroup.h"
 
 int32_t tsAccessSquence = 0;
 static void   *tsDnodeSdb = NULL;
@@ -153,14 +153,14 @@ int32_t mgmtInitDnodes() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtGetConfigMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtRetrieveConfigs);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mgmtGetVnodeMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mgmtGetDnodeMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mgmtRetrieveDnodes);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_MODULE, mgmtGetModuleMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_MODULE, mgmtRetrieveModules);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_CONFIGS, mgmtGetConfigMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_CONFIGS, mgmtRetrieveConfigs);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_VNODES, mgmtGetVnodeMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_VNODES, mgmtRetrieveVnodes);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_DNODE, mgmtGetDnodeMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_DNODE, mgmtRetrieveDnodes);
  
   mTrace("table:dnodes table is created");
   return 0;

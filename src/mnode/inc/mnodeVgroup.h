@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "mgmtDef.h"
+#include "mnodeDef.h"
 
 int32_t mgmtInitVgroups();
 void    mgmtCleanUpVgroups();

@@ -22,13 +22,13 @@
 #include "tgrant.h"
 #include "tdataformat.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtMnode.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtUser.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeMnode.h"
+#include "mnodeSdb.h"
+#include "mnodeShell.h"
+#include "mnodeUser.h"
 
 static void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
@@ -139,8 +139,8 @@ int32_t mgmtInitUsers() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mgmtProcessDropUserMsg);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_USER, mgmtGetUserMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_USER, mgmtRetrieveUsers);
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mgmtProcessAuthMsg);
    
   mTrace("table:%s, hash is created", tableDesc.tableName);

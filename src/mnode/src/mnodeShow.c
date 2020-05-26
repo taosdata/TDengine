@@ -25,41 +25,41 @@
 #include "tglobal.h"
 #include "tcache.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtMnode.h"
-#include "mgmtProfile.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtTable.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeDb.h"
+#include "mnodeDnode.h"
+#include "mnodeMnode.h"
+#include "mnodeProfile.h"
+#include "mnodeSdb.h"
+#include "mnodeShell.h"
+#include "mnodeTable.h"
+#include "mnodeUser.h"
+#include "mnodeVgroup.h"
 
 typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static void mgmtProcessShowMsg(SMnodeMsg *queuedMsg);
-static void mgmtProcessRetrieveMsg(SMnodeMsg *queuedMsg);
-static void mgmtProcessHeartBeatMsg(SMnodeMsg *queuedMsg);
-static void mgmtProcessConnectMsg(SMnodeMsg *queuedMsg);
-static void mgmtProcessUseMsg(SMnodeMsg *queuedMsg);
-static void mgmtFreeShowObj(void *data);
+static void mnodeProcessShowMsg(SMnodeMsg *queuedMsg);
+static void mnodeProcessRetrieveMsg(SMnodeMsg *queuedMsg);
+static void mnodeProcessHeartBeatMsg(SMnodeMsg *queuedMsg);
+static void mnodeProcessConnectMsg(SMnodeMsg *queuedMsg);
+static void mnodeProcessUseMsg(SMnodeMsg *queuedMsg);
+static void mnodeFreeShowObj(void *data);
 
 static void *tsQhandleCache = NULL;
-static SShowMetaFp     tsMnodeShowMetaFp[TSDB_MGMT_TABLE_MAX]     = {0};
-static SShowRetrieveFp tsMnodeShowRetrieveFp[TSDB_MGMT_TABLE_MAX] = {0};
+static SShowMetaFp     tsMnodeShowMetaFp[TSDB_MNODE_TABLE_MAX]     = {0};
+static SShowRetrieveFp tsMnodeShowRetrieveFp[TSDB_MNODE_TABLE_MAX] = {0};
 
 void mnodeInitShow() {
-  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_SHOW, mgmtProcessShowMsg);
-  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_RETRIEVE, mgmtProcessRetrieveMsg);
-  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mgmtProcessHeartBeatMsg);
-  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mgmtProcessConnectMsg);
-  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mgmtProcessUseMsg);
+  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_SHOW, mnodeProcessShowMsg);
+  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_RETRIEVE, mnodeProcessRetrieveMsg);
+  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mnodeProcessHeartBeatMsg);
+  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
+  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsQhandleCache = taosCacheInitWithCb(tsMgmtTmr, 10, mgmtFreeShowObj);
+  tsQhandleCache = taosCacheInitWithCb(tsMgmtTmr, 10, mnodeFreeShowObj);
 }
 
 void mnodeCleanUpShow() {
@@ -77,48 +77,37 @@ void mnodeAddShowRetrieveHandle(uint8_t msgType, SShowRetrieveFp fp) {
   tsMnodeShowRetrieveFp[msgType] = fp;
 }
 
-int32_t mnodeProcessRead(int msgType, void *pCont, int32_t contLen, SRspRet *ret) {
-  if (vnodeProcessReadMsgFp[msgType] == NULL) 
-    return TSDB_CODE_MSG_NOT_PROCESSED; 
-
-  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
-    return TSDB_CODE_NOT_ACTIVE_VNODE; 
-
-  return (*vnodeProcessReadMsgFp[msgType])(pVnode, pCont, contLen, ret);
-}
-
-
-char *mgmtGetShowTypeStr(int32_t showType) {
+char *mnodeGetShowType(int32_t showType) {
   switch (showType) {
-    case TSDB_MGMT_TABLE_ACCT:    return "show accounts";
-    case TSDB_MGMT_TABLE_USER:    return "show users";
-    case TSDB_MGMT_TABLE_DB:      return "show databases";
-    case TSDB_MGMT_TABLE_TABLE:   return "show tables";
-    case TSDB_MGMT_TABLE_DNODE:   return "show dnodes";
-    case TSDB_MGMT_TABLE_MNODE:   return "show mnodes";
-    case TSDB_MGMT_TABLE_VGROUP:  return "show vgroups";
-    case TSDB_MGMT_TABLE_METRIC:  return "show stables";
-    case TSDB_MGMT_TABLE_MODULE:  return "show modules";
-    case TSDB_MGMT_TABLE_QUERIES: return "show queries";
-    case TSDB_MGMT_TABLE_STREAMS: return "show streams";
-    case TSDB_MGMT_TABLE_CONFIGS: return "show configs";
-    case TSDB_MGMT_TABLE_CONNS:   return "show connections";
-    case TSDB_MGMT_TABLE_SCORES:  return "show scores";
-    case TSDB_MGMT_TABLE_GRANTS:  return "show grants";
-    case TSDB_MGMT_TABLE_VNODES:  return "show vnodes";
+    case TSDB_MNODE_TABLE_ACCT:    return "show accounts";
+    case TSDB_MNODE_TABLE_USER:    return "show users";
+    case TSDB_MNODE_TABLE_DB:      return "show databases";
+    case TSDB_MNODE_TABLE_TABLE:   return "show tables";
+    case TSDB_MNODE_TABLE_DNODE:   return "show dnodes";
+    case TSDB_MNODE_TABLE_MNODE:   return "show mnodes";
+    case TSDB_MNODE_TABLE_VGROUP:  return "show vgroups";
+    case TSDB_MNODE_TABLE_METRIC:  return "show stables";
+    case TSDB_MNODE_TABLE_MODULE:  return "show modules";
+    case TSDB_MNODE_TABLE_QUERIES: return "show queries";
+    case TSDB_MNODE_TABLE_STREAMS: return "show streams";
+    case TSDB_MNODE_TABLE_CONFIGS: return "show configs";
+    case TSDB_MNODE_TABLE_CONNS:   return "show connections";
+    case TSDB_MNODE_TABLE_SCORES:  return "show scores";
+    case TSDB_MNODE_TABLE_GRANTS:  return "show grants";
+    case TSDB_MNODE_TABLE_VNODES:  return "show vnodes";
     default:                      return "undefined";
   }
 }
 
-static void mgmtProcessShowMsg(SMnodeMsg *pMsg) {
+static void mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   SCMShowMsg *pShowMsg = pMsg->pCont;
-  if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
+  if (pShowMsg->type >= TSDB_MNODE_TABLE_MAX) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_MSG_TYPE);
     return;
   }
 
   if (!tsMnodeShowMetaFp[pShowMsg->type] || !tsMnodeShowRetrieveFp[pShowMsg->type]) {
-    mError("show type:%s is not support", mgmtGetShowTypeStr(pShowMsg->type));
+    mError("show type:%s is not support", mnodeGetShowType(pShowMsg->type));
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OPS_NOT_SUPPORT);
     return;
   }
@@ -141,7 +130,7 @@ static void mgmtProcessShowMsg(SMnodeMsg *pMsg) {
   pShow = mgmtSaveQhandle(pShow, showObjSize);
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
-  mTrace("show:%p, type:%s, start to get meta", pShow, mgmtGetShowTypeStr(pShowMsg->type));
+  mTrace("show:%p, type:%s, start to get meta", pShow, mnodeGetShowType(pShowMsg->type));
   int32_t code = (*tsMnodeShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->thandle);
   if (code == 0) {
     SRpcMsg rpcRsp = {
@@ -152,7 +141,7 @@ static void mgmtProcessShowMsg(SMnodeMsg *pMsg) {
     };
     rpcSendResponse(&rpcRsp);
   } else {
-    mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, mgmtGetShowTypeStr(pShowMsg->type), tstrerror(code));
+    mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, mnodeGetShowType(pShowMsg->type), tstrerror(code));
     mgmtFreeQhandle(pShow, false);
     SRpcMsg rpcRsp = {
       .handle = pMsg->thandle,
@@ -162,7 +151,7 @@ static void mgmtProcessShowMsg(SMnodeMsg *pMsg) {
   }
 }
 
-static void mgmtProcessRetrieveMsg(SMnodeMsg *pMsg) {
+static void mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   int32_t rowsToRead = 0;
   int32_t size = 0;
   int32_t rowsRead = 0;
@@ -180,7 +169,7 @@ static void mgmtProcessRetrieveMsg(SMnodeMsg *pMsg) {
   }
 
   SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
-  mTrace("show:%p, type:%s, retrieve data", pShow, mgmtGetShowTypeStr(pShow->type));
+  mTrace("show:%p, type:%s, retrieve data", pShow, mnodeGetShowType(pShow->type));
 
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
     rowsToRead = pShow->numOfRows - pShow->numOfReads;
@@ -228,7 +217,7 @@ static void mgmtProcessRetrieveMsg(SMnodeMsg *pMsg) {
   }
 }
 
-static void mgmtProcessHeartBeatMsg(SMnodeMsg *pMsg) {
+static void mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
   if (pHBRsp == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
@@ -257,7 +246,7 @@ static void mgmtProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
-static void mgmtProcessConnectMsg(SMnodeMsg *pMsg) {
+static void mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   SCMConnectMsg *pConnectMsg = pMsg->pCont;
 
@@ -317,7 +306,7 @@ connect_over:
   rpcSendResponse(&rpcRsp);
 }
 
-static void mgmtProcessUseMsg(SMnodeMsg *pMsg) {
+static void mnodeProcessUseMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMUseDbMsg *pUseDbMsg = pMsg->pCont;
@@ -413,7 +402,7 @@ void* mgmtSaveQhandle(void *qhandle, int32_t size) {
   return NULL;
 }
 
-static void mgmtFreeShowObj(void *data) {
+static void mnodeFreeShowObj(void *data) {
   SShowObj *pShow = data;
   sdbFreeIter(pShow->pIter);
   mTrace("show:%p, is destroyed", pShow);

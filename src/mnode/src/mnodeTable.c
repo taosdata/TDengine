@@ -26,19 +26,19 @@
 #include "tglobal.h"
 #include "hash.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtDb.h"
-#include "mgmtDnode.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeDb.h"
+#include "mnodeDnode.h"
 #include "tgrant.h"
-#include "mgmtMnode.h"
-#include "mgmtProfile.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtTable.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
+#include "mnodeMnode.h"
+#include "mnodeProfile.h"
+#include "mnodeSdb.h"
+#include "mnodeShell.h"
+#include "mnodeTable.h"
+#include "mnodeUser.h"
+#include "mnodeVgroup.h"
 #include "tcompare.h"
 #include "tdataformat.h"
 
@@ -559,10 +559,10 @@ int32_t mgmtInitTables() {
 
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_TABLE, mgmtProcessTableCfgMsg);
 
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mgmtGetShowSuperTableMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mgmtRetrieveShowSuperTables);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_TABLE, mgmtGetShowTableMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_TABLE, mgmtRetrieveShowTables);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_METRIC, mgmtGetShowSuperTableMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_METRIC, mgmtRetrieveShowSuperTables);
   
   return TSDB_CODE_SUCCESS;
 }

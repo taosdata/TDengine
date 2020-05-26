@@ -23,13 +23,13 @@
 #include "ttime.h"
 #include "tsocket.h"
 #include "tdataformat.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtMnode.h"
-#include "mgmtDnode.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtUser.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeMnode.h"
+#include "mnodeDnode.h"
+#include "mnodeSdb.h"
+#include "mnodeShell.h"
+#include "mnodeUser.h"
 
 static void *  tsMnodeSdb = NULL;
 static int32_t tsMnodeUpdateSize = 0;
@@ -154,8 +154,8 @@ int32_t mgmtInitMnodes() {
     return -1;
   }
 
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
+  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_MNODE, mgmtGetMnodeMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_MNODE, mgmtRetrieveMnodes);
 
   mTrace("table:mnodes table is created");
   return TSDB_CODE_SUCCESS;

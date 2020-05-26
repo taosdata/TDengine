@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "mgmtDef.h"
+#include "mnodeDef.h"
 
 enum _TSDB_DB_STATUS {
   TSDB_DB_STATUS_READY,
