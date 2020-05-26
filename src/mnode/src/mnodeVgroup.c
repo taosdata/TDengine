@@ -220,8 +220,8 @@ int32_t mgmtInitVgroups() {
     return -1;
   }
 
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mgmtGetVgroupMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mgmtRetrieveVgroups);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mgmtGetVgroupMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mgmtRetrieveVgroups);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mgmtProcessCreateVnodeRsp);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mgmtProcessDropVnodeRsp);
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mgmtProcessVnodeCfgMsg);
@@ -297,7 +297,7 @@ void *mgmtGetNextVgroup(void *pIter, SVgObj **pVgroup) {
   return sdbFetchRow(tsVgroupSdb, pIter, (void **)pVgroup); 
 }
 
-void mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb) {
+void mgmtCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   SVgObj *pVgroup = (SVgObj *)calloc(1, sizeof(SVgObj));
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
@@ -617,7 +617,7 @@ void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->handle == NULL) return;
 
-  SQueuedMsg *queueMsg = rpcMsg->handle;
+  SMnodeMsg *queueMsg = rpcMsg->handle;
   queueMsg->received++;
   if (rpcMsg->code == TSDB_CODE_SUCCESS) {
     queueMsg->code = rpcMsg->code;
@@ -632,7 +632,7 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   if (queueMsg->received != queueMsg->expected) return;
 
   if (queueMsg->received == queueMsg->successed) {
-    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
+    SMnodeMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
     mgmtAddToShellQueue(newMsg);
   } else {
     SSdbOper oper = {
@@ -684,7 +684,7 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   mTrace("drop vnode rsp is received, handle:%p", rpcMsg->handle);
   if (rpcMsg->handle == NULL) return;
 
-  SQueuedMsg *queueMsg = rpcMsg->handle;
+  SMnodeMsg *queueMsg = rpcMsg->handle;
   queueMsg->received++;
   if (rpcMsg->code == TSDB_CODE_SUCCESS) {
     queueMsg->code = rpcMsg->code;
@@ -708,7 +708,7 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
     code = TSDB_CODE_SDB_ERROR;
   }
 
-  SQueuedMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
+  SMnodeMsg *newMsg = mgmtCloneQueuedMsg(queueMsg);
   mgmtAddToShellQueue(newMsg);
 
   queueMsg->pCont = NULL;

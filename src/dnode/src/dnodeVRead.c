@@ -23,7 +23,7 @@
 #include "twal.h"
 #include "tglobal.h"
 #include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "dnodeVMgmt.h"
 #include "dnodeVRead.h"
 #include "vnode.h"
 

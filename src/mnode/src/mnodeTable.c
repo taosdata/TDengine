@@ -58,27 +58,27 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
 static int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 
-static void mgmtProcessCreateTableMsg(SQueuedMsg *queueMsg);
-static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg);
-static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg);
+static void mgmtProcessCreateTableMsg(SMnodeMsg *queueMsg);
+static void mgmtProcessCreateSuperTableMsg(SMnodeMsg *pMsg);
+static void mgmtProcessCreateChildTableMsg(SMnodeMsg *pMsg);
 static void mgmtProcessCreateChildTableRsp(SRpcMsg *rpcMsg);
 
-static void mgmtProcessDropTableMsg(SQueuedMsg *queueMsg);
-static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg);
+static void mgmtProcessDropTableMsg(SMnodeMsg *queueMsg);
+static void mgmtProcessDropSuperTableMsg(SMnodeMsg *pMsg);
 static void mgmtProcessDropSuperTableRsp(SRpcMsg *rpcMsg);
-static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg);
+static void mgmtProcessDropChildTableMsg(SMnodeMsg *pMsg);
 static void mgmtProcessDropChildTableRsp(SRpcMsg *rpcMsg);
 
-static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *queueMsg);
-static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *queueMsg);
+static void mgmtProcessSuperTableVgroupMsg(SMnodeMsg *queueMsg);
+static void mgmtProcessMultiTableMetaMsg(SMnodeMsg *queueMsg);
 static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg);
 
-static void mgmtProcessTableMetaMsg(SQueuedMsg *queueMsg);
-static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg);
-static void mgmtGetChildTableMeta(SQueuedMsg *pMsg);
-static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg);
+static void mgmtProcessTableMetaMsg(SMnodeMsg *queueMsg);
+static void mgmtGetSuperTableMeta(SMnodeMsg *pMsg);
+static void mgmtGetChildTableMeta(SMnodeMsg *pMsg);
+static void mgmtAutoCreateChildTable(SMnodeMsg *pMsg);
 
-static void mgmtProcessAlterTableMsg(SQueuedMsg *queueMsg);
+static void mgmtProcessAlterTableMsg(SMnodeMsg *queueMsg);
 static void mgmtProcessAlterTableRsp(SRpcMsg *rpcMsg);
 
 static int32_t mgmtFindSuperTableColumnIndex(SSuperTableObj *pStable, char *colName);
@@ -559,10 +559,10 @@ int32_t mgmtInitTables() {
 
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_TABLE, mgmtProcessTableCfgMsg);
 
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mgmtGetShowSuperTableMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mgmtRetrieveShowSuperTables);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mgmtGetShowSuperTableMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mgmtRetrieveShowSuperTables);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -655,7 +655,7 @@ static void mgmtExtractTableName(char* tableId, char* name) {
   }
 }
 
-static void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessCreateTableMsg(SMnodeMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->pCont;
   
   if (pMsg->pDb == NULL) pMsg->pDb = mgmtGetDb(pCreate->db);
@@ -689,7 +689,7 @@ static void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   }
 }
 
-static void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessDropTableMsg(SMnodeMsg *pMsg) {
   SCMDropTableMsg *pDrop = pMsg->pCont;
   if (pMsg->pDb == NULL) pMsg->pDb = mgmtGetDbByTableId(pDrop->tableId);
   if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
@@ -726,7 +726,7 @@ static void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
   }
 }
 
-static void mgmtProcessTableMetaMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessTableMetaMsg(SMnodeMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->pCont;
   pInfo->createFlag = htons(pInfo->createFlag);
   mTrace("table:%s, table meta msg is received from thandle:%p, createFlag:%d", pInfo->tableId, pMsg->thandle, pInfo->createFlag);
@@ -755,7 +755,7 @@ static void mgmtProcessTableMetaMsg(SQueuedMsg *pMsg) {
   }
 }
 
-static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->pCont;
   SSuperTableObj *pStable = calloc(1, sizeof(SSuperTableObj));
   if (pStable == NULL) {
@@ -812,7 +812,7 @@ static void mgmtProcessCreateSuperTableMsg(SQueuedMsg *pMsg) {
   }
 }
 
-static void mgmtProcessDropSuperTableMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   SSuperTableObj *pStable = (SSuperTableObj *)pMsg->pTable;
   if (pStable->numOfTables != 0) {
     SHashMutableIterator *pIter = taosHashCreateIter(pStable->vgHash);
@@ -1239,7 +1239,7 @@ static int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTa
   return (pTable->numOfColumns + pTable->numOfTags) * sizeof(SSchema);
 }
 
-static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
+static void mgmtGetSuperTableMeta(SMnodeMsg *pMsg) {
   SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
   STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
   pMeta->uid          = htobe64(pTable->uid);
@@ -1263,7 +1263,7 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
   mTrace("stable:%s, uid:%" PRIu64 " table meta is retrieved", pTable->info.tableId, pTable->uid);
 }
 
-static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   SCMSTableVgroupMsg *pInfo = pMsg->pCont;
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
@@ -1487,7 +1487,7 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
   return pTable;
 }
 
-static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->pCont;
   int32_t code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1536,7 +1536,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
   }
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
+  SMnodeMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
   newMsg->maxRetry = 10;
   SRpcMsg rpcMsg = {
@@ -1550,7 +1550,7 @@ static void mgmtProcessCreateChildTableMsg(SQueuedMsg *pMsg) {
   dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
-static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessDropChildTableMsg(SMnodeMsg *pMsg) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   if (pMsg->pVgroup == NULL) pMsg->pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pMsg->pVgroup == NULL) {
@@ -1575,7 +1575,7 @@ static void mgmtProcessDropChildTableMsg(SQueuedMsg *pMsg) {
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pMsg->pVgroup);
 
   mPrint("table:%s, send drop ctable msg", pDrop->tableId);
-  SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
+  SMnodeMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->ahandle = pMsg->pTable;
   SRpcMsg rpcMsg = {
     .handle  = newMsg,
@@ -1695,7 +1695,7 @@ static int32_t mgmtSetSchemaFromNormalTable(SSchema *pSchema, SChildTableObj *pT
   return numOfCols * sizeof(SSchema);
 }
 
-static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
+static int32_t mgmtDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   SDbObj *pDb = pMsg->pDb;
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
 
@@ -1740,7 +1740,7 @@ static int32_t mgmtDoGetChildTableMeta(SQueuedMsg *pMsg, STableMetaMsg *pMeta) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
+static void mgmtAutoCreateChildTable(SMnodeMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->pCont;
   STagData* pTag = (STagData*)pInfo->tags;
 
@@ -1760,7 +1760,7 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
 
   memcpy(pCreateMsg->schema, pInfo->tags, contLen - sizeof(SCMCreateTableMsg));
 
-  SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
+  SMnodeMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
   newMsg->msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
   newMsg->pCont = pCreateMsg;
 
@@ -1768,7 +1768,7 @@ static void mgmtAutoCreateChildTable(SQueuedMsg *pMsg) {
   mgmtAddToShellQueue(newMsg);
 }
 
-static void mgmtGetChildTableMeta(SQueuedMsg *pMsg) {
+static void mgmtGetChildTableMeta(SMnodeMsg *pMsg) {
   STableMetaMsg *pMeta = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
   if (pMeta == NULL) {
     mError("table:%s, failed to get table meta, no enough memory", pMsg->pTable->tableId);
@@ -1926,7 +1926,7 @@ static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg) {
 static void mgmtProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->handle == NULL) return;
 
-  SQueuedMsg *queueMsg = rpcMsg->handle;
+  SMnodeMsg *queueMsg = rpcMsg->handle;
   queueMsg->received++;
 
   SChildTableObj *pTable = queueMsg->ahandle;
@@ -1974,7 +1974,7 @@ static void mgmtProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
 static void mgmtProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->handle == NULL) return;
 
-  SQueuedMsg *queueMsg = rpcMsg->handle;
+  SMnodeMsg *queueMsg = rpcMsg->handle;
   queueMsg->received++;
 
   SChildTableObj *pTable = queueMsg->ahandle;
@@ -2020,7 +2020,7 @@ static void mgmtProcessAlterTableRsp(SRpcMsg *rpcMsg) {
   mTrace("alter table rsp received, handle:%p code:%s", rpcMsg->handle, tstrerror(rpcMsg->code));
 }
 
-static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   SCMMultiTableInfoMsg *pInfo = pMsg->pCont;
   pInfo->numOfTables = htonl(pInfo->numOfTables);
 
@@ -2207,7 +2207,7 @@ static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows,
   return numOfRows;
 }
 
-static void mgmtProcessAlterTableMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessAlterTableMsg(SMnodeMsg *pMsg) {
   SCMAlterTableMsg *pAlter = pMsg->pCont;
   mTrace("table:%s, alter table msg is received from thandle:%p", pAlter->tableId, pMsg->thandle);
 

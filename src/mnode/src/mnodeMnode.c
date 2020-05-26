@@ -154,8 +154,8 @@ int32_t mgmtInitMnodes() {
     return -1;
   }
 
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mgmtGetMnodeMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mgmtRetrieveMnodes);
 
   mTrace("table:mnodes table is created");
   return TSDB_CODE_SUCCESS;

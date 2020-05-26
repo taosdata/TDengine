@@ -25,8 +25,10 @@
 #include "trpc.h"
 #include "dnode.h"
 #include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "dnodeVMgmt.h"
 #include "dnodeVWrite.h"
+#include "dnodeMRead.h"
+#include "dnodeMWrite.h"
 #include "mnode.h"
 
 extern void dnodeUpdateIpSet(SRpcIpSet *pIpSet);
@@ -48,11 +50,11 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToDnodeMgmt;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToDnodeMgmt;
 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = mgmtProcessReqMsgFromDnode;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = mgmtProcessReqMsgFromDnode;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = mgmtProcessReqMsgFromDnode;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = mgmtProcessReqMsgFromDnode;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = mgmtProcessReqMsgFromDnode;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMnodeWriteQueue;
   
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -167,6 +169,6 @@ void dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg) {
 
 void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcIpSet ipSet = {0};
-  dnodeGetMnodeDnodeIpSet(&ipSet);
+  dnodeGetMnodeDnodeIpSet(&ipSet, false);
   rpcSendRecv(tsDnodeClientRpc, &ipSet, rpcMsg, rpcRsp);
 }

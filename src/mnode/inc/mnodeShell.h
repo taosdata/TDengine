@@ -23,15 +23,15 @@ extern "C" {
 
 int32_t mgmtInitShell();
 void    mgmtCleanUpShell();
-void    mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SQueuedMsg *queuedMsg));
+void    mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SMnodeMsg *queuedMsg));
 
 typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-void mgmtAddShellShowMetaHandle(uint8_t showType, SShowMetaFp fp);
-void mgmtAddShellShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
+void mnodeAddShowMetaHandle(uint8_t showType, SShowMetaFp fp);
+void mnodeAddShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
 
-void mgmtAddToShellQueue(SQueuedMsg *queuedMsg);
-void mgmtDealyedAddToShellQueue(SQueuedMsg *queuedMsg);
+void mgmtAddToShellQueue(SMnodeMsg *queuedMsg);
+void mgmtDealyedAddToShellQueue(SMnodeMsg *queuedMsg);
 void mgmtSendSimpleResp(void *thandle, int32_t code);
 
 bool  mgmtCheckQhandle(uint64_t qhandle);
@@ -39,8 +39,8 @@ void *mgmtSaveQhandle(void *qhandle, int32_t size);
 void  mgmtFreeQhandle(void *qhandle, bool forceRemove);
 
 void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg);
-void *mgmtCloneQueuedMsg(SQueuedMsg *pSrcMsg);
-void  mgmtFreeQueuedMsg(SQueuedMsg *pMsg);
+void *mgmtCloneQueuedMsg(SMnodeMsg *pSrcMsg);
+void  mgmtFreeQueuedMsg(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

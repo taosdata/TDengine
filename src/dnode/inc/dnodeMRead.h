@@ -13,15 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_DSERVER_H
-#define TDENGINE_MGMT_DSERVER_H
+#ifndef TDENGINE_DNODE_MREAD_H
+#define TDENGINE_DNODE_MREAD_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mgmtInitServer();
-void    mgmtCleanupServer();
+int32_t dnodeInitMnodeRead();
+void    dnodeCleanupMnodeRead();
+void    dnodeDispatchToMnodeReadQueue(SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }

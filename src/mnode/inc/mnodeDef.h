@@ -251,7 +251,7 @@ typedef struct {
   SDbObj   *pDb;
   SVgObj   *pVgroup;
   STableObj *pTable;
-} SQueuedMsg;
+} SMnodeMsg;
 
 #ifdef __cplusplus
 }

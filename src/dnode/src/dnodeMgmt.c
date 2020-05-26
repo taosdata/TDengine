@@ -32,7 +32,7 @@
 #include "vnode.h"
 #include "mnode.h"
 #include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "dnodeVMgmt.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeModule.h"
@@ -274,13 +274,16 @@ void dnodeUpdateIpSet(SRpcIpSet *pIpSet) {
   tsMnodeIpSet = *pIpSet;
 }
 
-void dnodeGetMnodeDnodeIpSet(void *ipSetRaw) {
+void dnodeGetMnodeDnodeIpSet(void *ipSetRaw, bool encode) {
   SRpcIpSet *ipSet = ipSetRaw;
   ipSet->numOfIps = tsMnodeInfos.nodeNum;
   ipSet->inUse = tsMnodeInfos.inUse;
   for (int32_t i = 0; i < tsMnodeInfos.nodeNum; ++i) {
     taosGetFqdnPortFromEp(tsMnodeInfos.nodeInfos[i].nodeEp, ipSet->fqdn[i], &ipSet->port[i]);
     ipSet->port[i] += TSDB_PORT_DNODEDNODE;
+    if (encode) {
+      ipSet->port[i] = htons(ipSet->port[i]);
+    }
   }
 }
 
@@ -590,3 +593,20 @@ int32_t dnodeGetDnodeId() {
   return tsDnodeCfg.dnodeId;
 }
 
+void dnodeSendRediretMsg(SRpcMsg *rpcMsg) {
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(rpcMsg->handle, &connInfo);
+
+  SRpcIpSet ipSet = {0};
+  dnodeGetMnodeDnodeIpSet(&ipSet);
+
+  dTrace("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[rpcMsg->msgType],
+         taosIpStr(connInfo.clientIp), connInfo.user, ipSet.numOfIps, ipSet.inUse);
+
+  for (int i = 0; i < ipSet.numOfIps; ++i) {
+    dTrace("mnode index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
+    ipSet.port[i] = htons(ipSet.port[i]);
+  }
+
+  rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
+}

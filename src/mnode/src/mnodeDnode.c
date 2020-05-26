@@ -42,9 +42,9 @@ extern void *  tsMnodeSdb;
 extern void *  tsVgroupSdb;
 
 static int32_t mgmtCreateDnode(char *ep);
-static void    mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessCreateDnodeMsg(SMnodeMsg *pMsg);
+static void    mgmtProcessDropDnodeMsg(SMnodeMsg *pMsg);
+static void    mgmtProcessCfgDnodeMsg(SMnodeMsg *pMsg);
 static void    mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
 static void    mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg);
 static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -153,14 +153,14 @@ int32_t mgmtInitDnodes() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtGetConfigMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtRetrieveConfigs);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mgmtGetVnodeMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mgmtGetDnodeMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mgmtRetrieveDnodes);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtGetConfigMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtRetrieveConfigs);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mgmtGetVnodeMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mgmtGetDnodeMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mgmtRetrieveDnodes);
  
   mTrace("table:dnodes table is created");
   return 0;
@@ -236,7 +236,7 @@ void mgmtUpdateDnode(SDnodeObj *pDnode) {
   sdbUpdateRow(&oper);
 }
 
-void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
+void mgmtProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMCfgDnodeMsg *pCmCfgDnode = pMsg->pCont;
@@ -451,7 +451,7 @@ static int32_t mgmtDropDnodeByEp(char *ep) {
 #endif
 }
 
-static void mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMCreateDnodeMsg *pCreate = pMsg->pCont;
@@ -472,7 +472,7 @@ static void mgmtProcessCreateDnodeMsg(SQueuedMsg *pMsg) {
 }
 
 
-static void mgmtProcessDropDnodeMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessDropDnodeMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SCMDropDnodeMsg *pDrop = pMsg->pCont;

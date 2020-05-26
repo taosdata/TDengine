@@ -672,7 +672,7 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
   return numOfRows;
 }
 
-void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
+void mgmtProcessKillQueryMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
@@ -696,7 +696,7 @@ void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
   mgmtDecUserRef(pUser);
 }
 
-void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
+void mgmtProcessKillStreamMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
@@ -720,7 +720,7 @@ void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
   mgmtDecUserRef(pUser);
 }
 
-void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
+void mgmtProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
   SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
@@ -745,12 +745,12 @@ void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
 }
 
 int32_t mgmtInitProfile() {
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mgmtGetQueryMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mgmtRetrieveQueries);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mgmtGetConnsMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mgmtRetrieveConns);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mgmtGetStreamMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mgmtRetrieveStreams);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mgmtGetQueryMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mgmtRetrieveQueries);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mgmtGetConnsMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mgmtRetrieveConns);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mgmtGetStreamMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mgmtRetrieveStreams);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mgmtProcessKillQueryMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mgmtProcessKillStreamMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mgmtProcessKillConnectionMsg);

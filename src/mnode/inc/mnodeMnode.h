@@ -42,7 +42,9 @@ void    mgmtIncMnodeRef(struct SMnodeObj *pMnode);
 void    mgmtDecMnodeRef(struct SMnodeObj *pMnode);
 
 char *  mgmtGetMnodeRoleStr();
-void    mgmtGetMnodeIpSet(SRpcIpSet *ipSet);
+void    mgmtGetMnodeIpSetForPeer(SRpcIpSet *ipSet);
+void    mgmtGetMnodeIpSetForShell(SRpcIpSet *ipSet);
+
 void    mgmtGetMnodeInfos(void *mnodes);
 void    mgmtUpdateMnodeIpSet();
 

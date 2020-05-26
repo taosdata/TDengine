@@ -20,16 +20,37 @@
 extern "C" {
 #endif
 
+typedef struct {
+  int   len;
+  int   code;
+  void *rsp;
+} SMnodeRsp;
+
+typedef struct {
+  SRpcMsg   rpcMsg;
+  SMnodeRsp rpcRsp;
+} SMnodeMsg;
+
+SMnodeMsg *mnodeCreateMsg(SRpcMsg *rpcMsg);
+bool       mnodeInitMsg(SMnodeMsg *pMsg);
+void       mnodeRleaseMsg(SMnodeMsg *pMsg);
+
 int32_t mgmtInitSystem();
 int32_t mgmtStartSystem();
 void    mgmtCleanUpSystem();
 void    mgmtStopSystem();
 void    sdbUpdateSync();
 
+void*   mnodeGetRqueue(void *);
+void*   mnodeGetWqueue(int32_t vgId);
+bool    mnodeIsRunning();
+int32_t mnodeProcessRead(SMnodeMsg *pMsg);
+int32_t mnodeProcessWrite(SMnodeMsg *pMsg);
+int32_t mnodeProcessMgmt(SMnodeMsg *pMsg);
+
 int32_t mgmtRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 void    mgmtProcessMsgFromShell(SRpcMsg *rpcMsg);
 void    mgmtProcessReqMsgFromDnode(SRpcMsg *rpcMsg);
-
 
 #ifdef __cplusplus
 }

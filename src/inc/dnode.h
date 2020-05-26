@@ -45,7 +45,7 @@ void  dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code);
 
 bool     dnodeIsFirstDeploy();
 char    *dnodeGetMnodeMasterEp();
-void     dnodeGetMnodeDnodeIpSet(void *ipSet);
+void     dnodeGetMnodeDnodeIpSet(void *ipSet, bool encode);
 void *   dnodeGetMnodeInfos();
 int32_t  dnodeGetDnodeId();
 

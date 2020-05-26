@@ -34,9 +34,9 @@ static void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static void    mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessAlterUserMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessDropUserMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessCreateUserMsg(SMnodeMsg *pMsg);
+static void    mgmtProcessAlterUserMsg(SMnodeMsg *pMsg);
+static void    mgmtProcessDropUserMsg(SMnodeMsg *pMsg);
 static void    mgmtProcessAuthMsg(SRpcMsg *rpcMsg);
 
 static int32_t mgmtUserActionDestroy(SSdbOper *pOper) {
@@ -139,8 +139,8 @@ int32_t mgmtInitUsers() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mgmtProcessDropUserMsg);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
   dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mgmtProcessAuthMsg);
    
   mTrace("table:%s, hash is created", tableDesc.tableName);
@@ -344,7 +344,7 @@ SUserObj *mgmtGetUserFromConn(void *pConn) {
   }
 }
 
-static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessCreateUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
@@ -362,7 +362,7 @@ static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
   mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessAlterUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
@@ -457,7 +457,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
   mgmtDecUserRef(pUser);
 }
 
-static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessDropUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
 

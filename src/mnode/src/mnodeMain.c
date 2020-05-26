@@ -35,8 +35,12 @@
 #include "mgmtTable.h"
 #include "mgmtShell.h"
 
-extern void *tsMgmtTmr;
+static void *tsMgmtTmr;
 static bool tsMgmtIsRunning = false;
+
+static void mnodeInitTimer();
+static void mnodeCleanupTimer();
+static bool mnodeNeedStart() ;
 
 int32_t mgmtStartSystem() {
   if (tsMgmtIsRunning) {
@@ -99,7 +103,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitServer() < 0) {
+  if (mnodeInitMgmt() < 0) {
     return -1;
   }
 
@@ -112,16 +116,11 @@ int32_t mgmtStartSystem() {
 }
 
 int32_t mgmtInitSystem() {
-  if (mgmtInitShell() != 0) {
-    mError("failed to init shell");
-    return -1;
-  }
+  mnodeInitTimer();
+  mnodeInitRead();
+  mnodeInitWrite();
 
-  struct stat dirstat;
-  bool fileExist  = (stat(tsMnodeDir, &dirstat) == 0);
-  bool asMaster = (strcmp(tsFirst, tsLocalEp) == 0);
-
-  if (asMaster || fileExist) {
+  if (mnodeNeedStart()) {
     if (mgmtStartSystem() != 0) {
       return -1;
     }
@@ -133,8 +132,12 @@ int32_t mgmtInitSystem() {
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
   tsMgmtIsRunning = false;
-  mgmtCleanUpShell();
-  mgmtCleanupServer();
+
+  mnodeCleanupTimer();
+  mnodeCleanupRead();
+  mnodeCleanupWrite();
+
+  mgmtCleanupMgmt();
   grantCleanUp();
   balanceCleanUp();
   sdbCleanUp();
@@ -153,9 +156,43 @@ void mgmtStopSystem() {
     mTrace("it is a master mgmt node, it could not be stopped");
     return;
   }
+  
 
   mgmtCleanUpSystem();
 
   mPrint("mgmt file is removed");
   remove(tsMnodeDir);
+}
+
+
+
+void*   mnodeGetWqueue(int32_t vgId) {
+
+}
+
+
+
+static void mnodeInitTimer() {
+  if (tsMgmtTmr != NULL) {
+    tsMgmtTmr = taosTmrInit((tsMaxShellConns)*3, 200, 3600000, "MND");
+  }
+}
+
+static void mnodeCleanupTimer() {
+  if (tsMgmtTmr != NULL) {
+    taosTmrCleanUp(tsMgmtTmr);
+    tsMgmtTmr = NULL;
+  }
+}
+
+static bool mnodeNeedStart() {
+  struct stat dirstat;
+  bool fileExist = (stat(tsMnodeDir, &dirstat) == 0);
+  bool asMaster = (strcmp(tsFirst, tsLocalEp) == 0);
+
+  if (asMaster || fileExist) {
+    return true;
+  }
+
+  return false;
 }

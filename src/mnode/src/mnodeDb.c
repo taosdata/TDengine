@@ -41,13 +41,13 @@ static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
-static void    mgmtDropDb(SQueuedMsg *newMsg);
+static void    mgmtDropDb(SMnodeMsg *newMsg);
 static int32_t mgmtSetDbDropping(SDbObj *pDb);
 static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static void    mgmtProcessCreateDbMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessAlterDbMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessDropDbMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessCreateDbMsg(SMnodeMsg *pMsg);
+static void    mgmtProcessAlterDbMsg(SMnodeMsg *pMsg);
+static void    mgmtProcessDropDbMsg(SMnodeMsg *pMsg);
 
 static int32_t mgmtDbActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
@@ -150,8 +150,8 @@ int32_t mgmtInitDbs() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DB, mgmtProcessCreateDbMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mgmtProcessAlterDbMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mgmtProcessDropDbMsg);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
   
   mTrace("table:dbs table is created");
   return 0;
@@ -748,7 +748,7 @@ static int32_t mgmtSetDbDropping(SDbObj *pDb) {
   return code;
 }
 
-static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessCreateDbMsg(SMnodeMsg *pMsg) {
   SCMCreateDbMsg *pCreate = pMsg->pCont;
   
   pCreate->maxTables       = htonl(pCreate->maxTables);
@@ -935,7 +935,7 @@ static int32_t mgmtAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessAlterDbMsg(SMnodeMsg *pMsg) {
   SCMAlterDbMsg *pAlter = pMsg->pCont;
   mTrace("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->thandle);
 
@@ -963,7 +963,7 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
 }
 
-static void mgmtDropDb(SQueuedMsg *pMsg) {
+static void mgmtDropDb(SMnodeMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
   mPrint("db:%s, drop db from sdb", pDb->name);
 
@@ -980,7 +980,7 @@ static void mgmtDropDb(SQueuedMsg *pMsg) {
   mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
+static void mgmtProcessDropDbMsg(SMnodeMsg *pMsg) {
   SCMDropDbMsg *pDrop = pMsg->pCont;
   mTrace("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->thandle);
 
@@ -1022,7 +1022,7 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   SVgObj *pVgroup = pMsg->pDb->pHead;
   if (pVgroup != NULL) {
     mPrint("vgId:%d, will be dropped", pVgroup->vgId);
-    SQueuedMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
+    SMnodeMsg *newMsg = mgmtCloneQueuedMsg(pMsg);
     newMsg->ahandle = pVgroup;
     newMsg->expected = pVgroup->numOfVnodes;
     mgmtDropVgroup(pVgroup, newMsg);

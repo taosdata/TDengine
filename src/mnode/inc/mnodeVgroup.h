@@ -35,7 +35,7 @@ void *  mgmtGetNextVgroup(void *pIter, SVgObj **pVgroup);
 void    mgmtUpdateVgroup(SVgObj *pVgroup);
 void    mgmtUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *dnodeId, SVnodeLoad *pVload);
 
-void    mgmtCreateVgroup(SQueuedMsg *pMsg, SDbObj *pDb);
+void    mgmtCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb);
 void    mgmtDropVgroup(SVgObj *pVgroup, void *ahandle);
 void    mgmtAlterVgroup(SVgObj *pVgroup, void *ahandle);
 SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb);
