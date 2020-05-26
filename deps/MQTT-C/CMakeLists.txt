@@ -74,8 +74,8 @@ if(MQTT_C_TESTS)
 endif()
 
 # Install includes and library
-install(TARGETS mqttc 
-    DESTINATION lib
-)
-install(DIRECTORY include/
-    DESTINATION include)
+# install(TARGETS mqttc 
+#     DESTINATION lib
+# )
+# install(DIRECTORY include/
+#    DESTINATION include)
