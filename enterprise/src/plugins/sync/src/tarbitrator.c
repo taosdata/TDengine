@@ -21,24 +21,31 @@
 #include "tsocket.h"
 #include "tsync.h"
 
-int main(int argc, char *argv[]) {
+char arbitratorLogFilePath[TSDB_FILENAME_LEN + 16] = {0};
 
+int main(int argc, char *argv[]) {
+  
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       tsServerPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
-      dDebugFlag = atoi(argv[++i]);
+      debugFlag = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
+      if (strlen(argv[++i]) > TSDB_FILENAME_LEN) continue; 
+      strcpy(arbitratorLogFilePath, argv[i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
-      printf("  [-d debugFlag]: debug flag, default:%d\n", dDebugFlag);
+      printf("  [-d debugFlag]: debug flag, default:%d\n", debugFlag);
+      printf("  [-g logFilePath]: log file pathe, default:%s\n", arbitratorLogFilePath);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
   }
  
   tsAsyncLog = 0;
-  taosInitLog("arbitrator.log", 1000000, 10);
+  strcat(arbitratorLogFilePath, "/arbitrator.log");
+  taosInitLog(arbitratorLogFilePath, 1000000, 10);
 
   SSyncInfo syncInfo;
   memset(&syncInfo, 0, sizeof(syncInfo));
@@ -50,6 +57,7 @@ int main(int argc, char *argv[]) {
   syncInfo.syncCfg.nodeInfo[0].nodeId = 1;
   taosGetFqdn(syncInfo.syncCfg.nodeInfo[0].nodeFqdn);
   syncInfo.syncCfg.nodeInfo[0].nodePort = tsServerPort + TSDB_PORT_SYNC;
+  tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
 
   void *syncHandle = syncStart(&syncInfo);
   if (syncHandle == NULL) {
@@ -57,7 +65,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  uPrint("TAOS arbitrator: %s:%d is running\n", syncInfo.syncCfg.nodeInfo[0].nodeFqdn, tsSyncPort);
+  uPrint("TAOS arbitrator: %s:%d is running\n", syncInfo.syncCfg.nodeInfo[0].nodeFqdn, tsServerPort);
 
   while (1) {
     sleep(1);

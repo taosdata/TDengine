@@ -643,7 +643,9 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
       }
  
       if (i >= pNode->replica) consistent = 1;
-    } 
+    } else {
+      if (pNode->replica == 2) consistent = 1;
+    }
 
     if (consistent)
       syncChooseMaster(pNode);
@@ -995,7 +997,7 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
     sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
     taosCloseSocket(connFd);
-    return;;
+    return;
   }
 
   int32_t vgId = firstPkt.syncHead.vgId;
