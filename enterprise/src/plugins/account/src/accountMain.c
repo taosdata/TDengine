@@ -59,9 +59,9 @@ extern void *  tsMgmtTmr;
 static void *  tsMgmtStatisTimer = NULL;
 
 static int64_t acctGetStatistic(SAcctObj *pAcct);
-static void    acctProcessCreateAcctMsg(SQueuedMsg *pMsg);
-static void    acctProcessDropAcctMsg(SQueuedMsg *pMsg);
-static void    acctProcessAlterAcctMsg(SQueuedMsg *pMsg);
+static void    acctProcessCreateAcctMsg(SMnodeMsg *pMsg);
+static void    acctProcessDropAcctMsg(SMnodeMsg *pMsg);
+static void    acctProcessAlterAcctMsg(SMnodeMsg *pMsg);
 static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -89,8 +89,8 @@ int32_t acctInit() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, acctProcessAlterAcctMsg);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
 
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
   
@@ -614,7 +614,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   return totalStorage;
 }
 
-static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
+static void acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
   SCMCreateAcctMsg *pCreate = pMsg->pCont;
   SAcctObj *pAcct = mgmtGetAcct(pCreate->user);
   if (pAcct != NULL) {
@@ -652,7 +652,7 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
   mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
+static void acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
   SCMDropAcctMsg *pDrop = pMsg->pCont;
 
   SUserObj *pUser = pMsg->pUser;
@@ -672,7 +672,7 @@ static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
   mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
+static void acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
   SCMAlterAcctMsg *pAlter = pMsg->pCont;
   pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
   pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);

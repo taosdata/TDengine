@@ -578,8 +578,8 @@ void balanceNotify() {
 }
 
 int32_t balanceInit() {
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_SCORES, balanceGetScoresMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_SCORES, balanceRetrieveScores);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_SCORES, balanceGetScoresMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_SCORES, balanceRetrieveScores);
   
   pthread_mutex_init(&tsBalanceMutex, NULL);
   balanceInitDnodeList();
