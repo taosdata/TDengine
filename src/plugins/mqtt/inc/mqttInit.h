@@ -19,7 +19,6 @@
 extern "C" {
 #endif
 
-
 /**
  * @file
  * A simple subscriber program that performs automatic reconnections.
@@ -38,13 +37,16 @@ extern "C" {
  * \ref mqttReconnectClient is called, this instance will be passed.
  */
 struct reconnect_state_t {
-  const char* hostname;
-  const char* port;
-  const char* topic;
-  uint8_t*    sendbuf;
-  size_t      sendbufsz;
-  uint8_t*    recvbuf;
-  size_t      recvbufsz;
+  char*    hostname;
+  char*    port;
+  char*    topic;
+  char*    client_id;
+  char*    user_name;
+  char*    password;
+  uint8_t* sendbuf;
+  size_t   sendbufsz;
+  uint8_t* recvbuf;
+  size_t   recvbufsz;
 };
 
 /**
@@ -76,7 +78,7 @@ void mqttCleanup(int status, int sockfd, pthread_t* client_daemon);
 void mqttInitConnCb(void* param, TAOS_RES* result, int32_t code);
 void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code);
 #define CLIENTID "taos"
-#define TOPIC "/taos/+/+/+/"  // taos/<token>/<db name>/<table name>/
+#define TOPIC "+/+/+/"  // path/<token>/<db name>/<table name>/
 #define PAYLOAD "Hello World!"
 #define QOS 1
 #define TIMEOUT 10000L

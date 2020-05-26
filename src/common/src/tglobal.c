@@ -202,7 +202,7 @@ char tsTimezone[64] = {0};
 char tsLocale[TSDB_LOCALE_LEN] = {0};
 char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 char tsMqttBrokerAddress[128] = {0}; 
-
+char tsMqttBrokerClientId[128] = {0};
 
 int32_t tsMaxBinaryDisplayWidth = 30;
 
@@ -735,6 +735,16 @@ static void doInitGlobalConfig() {
 
   cfg.option = "mqttBrokerAddress";
   cfg.ptr = tsMqttBrokerAddress;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = 126;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "mqttBrokerClientId";
+  cfg.ptr = tsMqttBrokerClientId;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
   cfg.minValue = 0;

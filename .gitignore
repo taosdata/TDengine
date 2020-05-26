@@ -64,3 +64,4 @@ CMakeError.log
 /out/isenseconfig/WSL-Clang-Debug
 /out/isenseconfig/WSL-GCC-Debug
 /test/cfg
+/src/.vs
