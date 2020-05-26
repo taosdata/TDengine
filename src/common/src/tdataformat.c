@@ -14,6 +14,7 @@
  */
 #include "tdataformat.h"
 #include "wchar.h"
+#include "talgo.h"
 
 /**
  * Create a SSchema object with nCols columns
@@ -152,25 +153,136 @@ SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
 }
 
 int tdInsertTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId){ //insert tag value and update all the information
+  //todo
   return 0;
 };  
 
 int tdDeleteTagCol(SDataRow row, int16_t colId){   // delete tag value and update all the information
-  return o;
-};  
-
-int tdQuerTagByID(SDataRow row, int16_t colId, void *value, int16_t *type, int16_t *len){  //if find tag, 0, else return -1; 
-  return 0;
-};   
-
-int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes){
+  //todo
   return 0;
 };  
 
-SDataRow tdNewTagRowFromSchema(STSchema *pSchema) {
-   //todo
+static int compTagVal(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 > *(int16_t *)key2) {
+    return 1;
+  } else if (*(int16_t *)key1 == *(int16_t *)key2) {
+    return 0;
+  } else {
+    return -1;
+  }
 }
 
+void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type) {  //if find tag, 0, else return -1; 
+  //todo
+  ASSERT(((STagRow *)row)->pData != NULL);
+
+  STagCol *pBase = ((STagRow *)row)->tagCols;
+  int16_t nCols = ((STagRow *)row)->ncols;
+  
+  STagCol * stCol = taosbsearch(&colId, pBase, nCols, sizeof(STagCol), compTagVal, TD_EQ);
+  if (NULL == stCol) {
+    return NULL;
+  }
+  
+  void * pData = ((STagRow *)row)->pData;
+  *type = stCol->colType;
+
+  return pData + stCol->offset;
+};   
+
+int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int16_t colId){
+  ASSERT(value != NULL);
+  //ASSERT(bytes-2 == varDataTLen(value));
+  ASSERT(row != NULL);
+  STagRow *pTagrow = row;
+  
+  pTagrow->tagCols[pTagrow->ncols].colId = colId;
+  pTagrow->tagCols[pTagrow->ncols].colType = type;
+  pTagrow->tagCols[pTagrow->ncols].offset = pTagrow->dataLen;
+  
+  switch (type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      memcpy((char *)pTagrow->pData + pTagrow->dataLen, value, varDataTLen(value));
+      pTagrow->dataLen += varDataTLen(value);
+      break;
+    default:
+      memcpy((char *)pTagrow->pData + pTagrow->dataLen, value, TYPE_BYTES[type]);
+      pTagrow->dataLen += TYPE_BYTES[type];
+      break;
+  } 
+  
+  pTagrow->ncols++;   
+
+  return 0;
+};  
+
+void * tdNewTagRowFromSchema(STSchema *pSchema, int16_t numofTags) {
+  int32_t size = sizeof(STagRow) + numofTags * sizeof(STagCol);
+
+  STagRow *row = malloc(size);
+  if (row == NULL) return NULL;
+
+  int32_t datasize = pSchema->tlen - pSchema->flen;
+  row->pData = malloc(datasize);
+  if (NULL == row->pData) {
+    free(row);
+    return NULL;
+  }
+
+  row->len = size;
+  row->dataLen = 0; 
+  row->ncols = 0; 
+  return row;   
+}
+/**
+ * free tag row 
+ */
+ 
+void tdFreeTagRow(SDataRow row) {
+  if (row) {
+    free(((STagRow *)row)->pData);
+    free(row);
+  }  
+}
+
+SDataRow tdTagRowDup(SDataRow row) {
+  STagRow *trow = malloc(dataRowLen(row));
+  if (trow == NULL) return NULL;
+  
+  dataRowCpy(trow, row);
+  trow->pData = malloc(trow->dataLen);
+  if (NULL == trow->pData) {
+    free(trow);
+    return NULL;
+  }
+  memcpy(trow->pData, ((STagRow *)row)->pData, trow->dataLen);
+  return trow;
+}
+
+SDataRow tdTagRowDecode(SDataRow row) {
+  STagRow *trow = malloc(dataRowLen(row));
+  if (trow == NULL) return NULL;
+  
+  dataRowCpy(trow, row);
+  trow->pData = malloc(trow->dataLen);
+  if (NULL == trow->pData) {
+    free(trow);
+    return NULL;
+  }
+  char * pData = (char *)row + dataRowLen(row) + sizeof(int32_t);
+  memcpy(trow->pData, pData, trow->dataLen);
+  return trow;
+}
+
+int tdTagRowCpy(SDataRow dst, SDataRow src) {
+  if (src == NULL) return -1;
+  
+  dataRowCpy(dst, src);
+  void * pData = dst + dataRowLen(src);
+  memcpy(pData, ((STagRow *)src)->pData, ((STagRow *)src)->dataLen);
+  return 0;
+}
 /**
  * Free the SDataRow object
  */
@@ -184,25 +296,6 @@ void tdFreeDataRow(SDataRow row) {
  * @param bytes: column bytes
  * @param offset: offset in the data row tuple, not including the data row header
  */
-int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
-  ASSERT(value != NULL);
-  int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
-  char *  ptr = POINTER_SHIFT(row, dataRowLen(row));
-
-  switch (type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
-      memcpy(ptr, value, varDataTLen(value));
-      dataRowLen(row) += varDataTLen(value);
-      break;
-    default:
-      memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
-      break;
-  }
-
-  return 0;
-}
 int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
