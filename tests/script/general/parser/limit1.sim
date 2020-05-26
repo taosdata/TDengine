@@ -65,7 +65,7 @@ sleep 2000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
-run general/parser/limit1_tb.sim
+#run general/parser/limit1_tb.sim
 run general/parser/limit1_stb.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

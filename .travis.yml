@@ -90,6 +90,7 @@ matrix:
         esac
 
   - os: linux
+    dist: bionic
     language: c
     compiler: gcc
     env: COVERITY_SCAN=true
@@ -125,6 +126,7 @@ matrix:
         branch_pattern: coverity_scan
 
   - os: linux
+    dist: bionic
     language: c
     compiler: gcc
     env: ENV_COVER=true
@@ -230,6 +232,7 @@ matrix:
       - make > /dev/null
 
   - os: linux
+    dist: bionic
     language: c
     compiler: clang
     env: DESC="linux/clang build"
