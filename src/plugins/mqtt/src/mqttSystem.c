@@ -38,6 +38,12 @@ char*                    topicPath;
 int                      isStop = 1;
 int32_t                  mqttInitSystem() {
   int   rc = 0;
+ 
+  return rc;
+}
+
+int32_t mqttStartSystem() {
+  int rc = 0;
   uint8_t sendbuf[2048];
   uint8_t recvbuf[1024];
   recnt_status.sendbuf = sendbuf;
@@ -54,7 +60,7 @@ int32_t                  mqttInitSystem() {
     recnt_status.hostname = strbetween(url, "//", ":");
 
   } else {
-      recnt_status.hostname = strbetween(url, "//", "/");
+    recnt_status.hostname = strbetween(url, "//", "/");
   }
 
   char* _begin_hostname = strstr(url, recnt_status.hostname);
@@ -65,22 +71,16 @@ int32_t                  mqttInitSystem() {
   }
 
   topicPath = strbetween(strstr(url, strstr(_begin_hostname, ":") != NULL ? recnt_status.port : recnt_status.hostname),
-      "/", "/");
+                         "/", "/");
   char* _topic = "+/+/+/";
   int   _tpsize = strlen(topicPath) + strlen(_topic) + 1;
   recnt_status.topic = calloc(1, _tpsize);
   sprintf(recnt_status.topic, "/%s/%s", topicPath, _topic);
-  recnt_status.client_id = strlen(tsMqttBrokerClientId)<3? tsMqttBrokerClientId:"taos_mqtt";
-
+  recnt_status.client_id = strlen(tsMqttBrokerClientId) < 3 ? tsMqttBrokerClientId : "taos_mqtt";
 
   taos_init();
   mqttPrint("mqttInitSystem mqtt://%s:%s@%s:%s/%s/", recnt_status.user_name, recnt_status.password,
             recnt_status.hostname, recnt_status.port, topicPath);
-  return rc;
-}
-
-int32_t mqttStartSystem() {
-  int rc = 0;
   mqtt_conn = NULL;
   mqtt_init_reconnect(&client, mqttReconnectClient, &recnt_status, mqtt_PublishCallback);
   if (pthread_create(&client_daemon, NULL, mqttClientRefresher, &client)) {
