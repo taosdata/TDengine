@@ -1179,7 +1179,7 @@ static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
 }
 
-uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size) {
+uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, uint32_t eindex, int32_t *size) {
   // TODO: need to refactor this function
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
