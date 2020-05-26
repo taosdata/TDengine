@@ -162,10 +162,10 @@ int tdDeleteTagCol(SDataRow row, int16_t colId){   // delete tag value and updat
   return 0;
 };  
 
-static int compTagVal(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 > *(int16_t *)key2) {
+static int compTagId(const void *key1, const void *key2) {
+  if (((STagCol *)key1)->colId > ((STagCol *)key2)->colId) {
     return 1;
-  } else if (*(int16_t *)key1 == *(int16_t *)key2) {
+  } else if (((STagCol *)key1)->colId == ((STagCol *)key2)->colId) {
     return 0;
   } else {
     return -1;
@@ -178,8 +178,9 @@ void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type) {  //if find t
 
   STagCol *pBase = ((STagRow *)row)->tagCols;
   int16_t nCols = ((STagRow *)row)->ncols;
+  STagCol key = {colId,0,0};
   
-  STagCol * stCol = taosbsearch(&colId, pBase, nCols, sizeof(STagCol), compTagVal, TD_EQ);
+  STagCol * stCol = taosbsearch(&key, pBase, nCols, sizeof(STagCol), compTagId, TD_EQ);
   if (NULL == stCol) {
     return NULL;
   }
@@ -270,7 +271,7 @@ SDataRow tdTagRowDecode(SDataRow row) {
     free(trow);
     return NULL;
   }
-  char * pData = (char *)row + dataRowLen(row) + sizeof(int32_t);
+  char * pData = (char *)row + dataRowLen(row);
   memcpy(trow->pData, pData, trow->dataLen);
   return trow;
 }
