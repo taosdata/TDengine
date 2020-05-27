@@ -27,7 +27,7 @@
 #include "tdataformat.h"
 #include "dnodeInt.h"
 #include "dnodeVWrite.h"
-#include "dnodeVMgmt.h"
+#include "dnodeMgmt.h"
 
 typedef struct {
   taos_qall  qall;

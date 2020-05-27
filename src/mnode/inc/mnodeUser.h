@@ -13,23 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_USER_H
-#define TDENGINE_MGMT_USER_H
+#ifndef TDENGINE_MNODE_USER_H
+#define TDENGINE_MNODE_USER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "mnodeDef.h"
 
-int32_t   mgmtInitUsers();
-void      mgmtCleanUpUsers();
-SUserObj *mgmtGetUser(char *name);
-void *    mgmtGetNextUser(void *pIter, SUserObj **pUser);
-void      mgmtIncUserRef(SUserObj *pUser);
-void      mgmtDecUserRef(SUserObj *pUser);
-SUserObj *mgmtGetUserFromConn(void *pConn);
-int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
-void      mgmtDropAllUsers(SAcctObj *pAcct);
+int32_t   mnodeInitUsers();
+void      mnodeCleanupUsers();
+SUserObj *mnodeGetUser(char *name);
+void *    mnodeGetNextUser(void *pIter, SUserObj **pUser);
+void      mnodeIncUserRef(SUserObj *pUser);
+void      mnodeDecUserRef(SUserObj *pUser);
+SUserObj *mnodeGetUserFromConn(void *pConn);
+int32_t   mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass);
+void      mnodeDropAllUsers(SAcctObj *pAcct);
 
 #ifdef __cplusplus
 }

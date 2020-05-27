@@ -32,12 +32,21 @@
 #include "vnode.h"
 #include "mnode.h"
 #include "dnodeInt.h"
-#include "dnodeVMgmt.h"
+#include "dnodeMgmt.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeModule.h"
 
 #define MPEER_CONTENT_LEN 2000
+
+void *          tsDnodeTmr = NULL;
+static void *   tsStatusTimer = NULL;
+static uint32_t tsRebootTime;
+
+static SRpcIpSet     tsDMnodeIpSetForPeer = {0};
+static SRpcIpSet     tsDMnodeIpSetForShell = {0};
+static SDMMnodeInfos tsDMnodeInfos = {0};
+static SDMDnodeCfg   tsDnodeCfg = {0};
 
 static void   dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes);
 static bool   dnodeReadMnodeInfos();
@@ -47,14 +56,6 @@ static bool   dnodeReadDnodeCfg();
 static void   dnodeSaveDnodeCfg();
 static void   dnodeProcessStatusRsp(SRpcMsg *pMsg);
 static void   dnodeSendStatusMsg(void *handle, void *tmrId);
-
-static void    *tsDnodeTmr = NULL;
-static void    *tsStatusTimer = NULL;
-static uint32_t tsRebootTime;
-
-static SRpcIpSet     tsMnodeIpSet  = {0};
-static SDMMnodeInfos tsMnodeInfos = {0};
-static SDMDnodeCfg   tsDnodeCfg = {0};
 
 static int32_t  dnodeOpenVnodes();
 static void     dnodeCloseVnodes();
@@ -81,22 +82,40 @@ int32_t dnodeInitMgmt() {
   }
   
   if (!dnodeReadMnodeInfos()) {
-    memset(&tsMnodeIpSet, 0, sizeof(SRpcIpSet));
-    memset(&tsMnodeInfos, 0, sizeof(SDMMnodeInfos));
-    tsMnodeIpSet.numOfIps = 1;
-    taosGetFqdnPortFromEp(tsFirst, tsMnodeIpSet.fqdn[0], &tsMnodeIpSet.port[0]);
-    tsMnodeIpSet.port[0] += TSDB_PORT_DNODEDNODE;
+    memset(&tsDMnodeIpSetForPeer, 0, sizeof(SRpcIpSet));
+    memset(&tsDMnodeIpSetForShell, 0, sizeof(SRpcIpSet));
+    memset(&tsDMnodeInfos, 0, sizeof(SDMMnodeInfos));
+
+    tsDMnodeIpSetForPeer.numOfIps = 1;
+    taosGetFqdnPortFromEp(tsFirst, tsDMnodeIpSetForPeer.fqdn[0], &tsDMnodeIpSetForPeer.port[0]);
+    tsDMnodeIpSetForPeer.port[0] += TSDB_PORT_DNODEDNODE;
+    
+    tsDMnodeIpSetForShell.numOfIps = 1;
+    taosGetFqdnPortFromEp(tsFirst, tsDMnodeIpSetForShell.fqdn[0], &tsDMnodeIpSetForShell.port[0]);
+    tsDMnodeIpSetForShell.port[0] += TSDB_PORT_DNODESHELL;
+    
     if (strcmp(tsSecond, tsFirst) != 0) {
-      tsMnodeIpSet.numOfIps = 2;
-      taosGetFqdnPortFromEp(tsSecond, tsMnodeIpSet.fqdn[1], &tsMnodeIpSet.port[1]);
-      tsMnodeIpSet.port[1] += TSDB_PORT_DNODEDNODE;
+      tsDMnodeIpSetForPeer.numOfIps = 2;
+      taosGetFqdnPortFromEp(tsSecond, tsDMnodeIpSetForPeer.fqdn[1], &tsDMnodeIpSetForPeer.port[1]);
+      tsDMnodeIpSetForPeer.port[1] += TSDB_PORT_DNODEDNODE;
+
+      tsDMnodeIpSetForShell.numOfIps = 2;
+      taosGetFqdnPortFromEp(tsSecond, tsDMnodeIpSetForShell.fqdn[1], &tsDMnodeIpSetForShell.port[1]);
+      tsDMnodeIpSetForShell.port[1] += TSDB_PORT_DNODESHELL;
     }
   } else {
-    tsMnodeIpSet.inUse = tsMnodeInfos.inUse;
-    tsMnodeIpSet.numOfIps = tsMnodeInfos.nodeNum;
-    for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
-      taosGetFqdnPortFromEp(tsMnodeInfos.nodeInfos[i].nodeEp, tsMnodeIpSet.fqdn[i], &tsMnodeIpSet.port[i]);
-      tsMnodeIpSet.port[i] += TSDB_PORT_DNODEDNODE;
+    tsDMnodeIpSetForPeer.inUse = tsDMnodeInfos.inUse;
+    tsDMnodeIpSetForPeer.numOfIps = tsDMnodeInfos.nodeNum;
+    for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
+      taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeIpSetForPeer.fqdn[i], &tsDMnodeIpSetForPeer.port[i]);
+      tsDMnodeIpSetForPeer.port[i] += TSDB_PORT_DNODEDNODE;
+    }
+
+    tsDMnodeIpSetForShell.inUse = tsDMnodeInfos.inUse;
+    tsDMnodeIpSetForShell.numOfIps = tsDMnodeInfos.nodeNum;
+    for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
+      taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeIpSetForShell.fqdn[i], &tsDMnodeIpSetForShell.port[i]);
+      tsDMnodeIpSetForShell.port[i] += TSDB_PORT_DNODESHELL;
     }
   }
 
@@ -265,26 +284,23 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
   return taosCfgDynamicOptions(pCfg->config);
 }
 
-void dnodeUpdateIpSet(SRpcIpSet *pIpSet) {
+void dnodeUpdateMnodeIpSetForPeer(SRpcIpSet *pIpSet) {
   dPrint("mnode IP list is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
   for (int i = 0; i < pIpSet->numOfIps; ++i) {
     dPrint("mnode index:%d %s:%u", i, pIpSet->fqdn[i], pIpSet->port[i])
   }
 
-  tsMnodeIpSet = *pIpSet;
+  tsDMnodeIpSetForPeer = *pIpSet;
 }
 
-void dnodeGetMnodeDnodeIpSet(void *ipSetRaw, bool encode) {
+void dnodeGetMnodeIpSetForPeer(void *ipSetRaw) {
   SRpcIpSet *ipSet = ipSetRaw;
-  ipSet->numOfIps = tsMnodeInfos.nodeNum;
-  ipSet->inUse = tsMnodeInfos.inUse;
-  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; ++i) {
-    taosGetFqdnPortFromEp(tsMnodeInfos.nodeInfos[i].nodeEp, ipSet->fqdn[i], &ipSet->port[i]);
-    ipSet->port[i] += TSDB_PORT_DNODEDNODE;
-    if (encode) {
-      ipSet->port[i] = htons(ipSet->port[i]);
-    }
-  }
+  *ipSet = tsDMnodeIpSetForPeer;
+}
+
+void dnodeGetMnodeIpSetForShell(void *ipSetRaw) {
+  SRpcIpSet *ipSet = ipSetRaw;
+  *ipSet = tsDMnodeIpSetForShell;
 }
 
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
@@ -324,22 +340,22 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
 }
 
 static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
-  bool mnodesChanged = (memcmp(&tsMnodeInfos, pMnodes, sizeof(SDMMnodeInfos)) != 0);
-  bool mnodesNotInit = (tsMnodeInfos.nodeNum == 0);
+  bool mnodesChanged = (memcmp(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos)) != 0);
+  bool mnodesNotInit = (tsDMnodeInfos.nodeNum == 0);
   if (!(mnodesChanged || mnodesNotInit)) return;
 
-  memcpy(&tsMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
+  memcpy(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
 
-  tsMnodeIpSet.inUse = tsMnodeInfos.inUse;
-  tsMnodeIpSet.numOfIps = tsMnodeInfos.nodeNum;
-  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
-    taosGetFqdnPortFromEp(tsMnodeInfos.nodeInfos[i].nodeEp, tsMnodeIpSet.fqdn[i], &tsMnodeIpSet.port[i]);
-    tsMnodeIpSet.port[i] += TSDB_PORT_DNODEDNODE;
+  tsDMnodeIpSetForPeer.inUse = tsDMnodeInfos.inUse;
+  tsDMnodeIpSetForPeer.numOfIps = tsDMnodeInfos.nodeNum;
+  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
+    taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeIpSetForPeer.fqdn[i], &tsDMnodeIpSetForPeer.port[i]);
+    tsDMnodeIpSetForPeer.port[i] += TSDB_PORT_DNODEDNODE;
   }
 
-  dPrint("mnodes is changed, nodeNum:%d inUse:%d", tsMnodeInfos.nodeNum, tsMnodeInfos.inUse);
-  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
-    dPrint("mnode:%d, %s", tsMnodeInfos.nodeInfos[i].nodeId, tsMnodeInfos.nodeInfos[i].nodeEp);
+  dPrint("mnodes is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
+    dPrint("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
   }
 
   dnodeSaveMnodeInfos();
@@ -377,14 +393,14 @@ static bool dnodeReadMnodeInfos() {
     dError("failed to read mnode mgmtIpList.json, inUse not found");
     goto PARSE_OVER;
   }
-  tsMnodeInfos.inUse = inUse->valueint;
+  tsDMnodeInfos.inUse = inUse->valueint;
 
   cJSON* nodeNum = cJSON_GetObjectItem(root, "nodeNum");
   if (!nodeNum || nodeNum->type != cJSON_Number) {
     dError("failed to read mnode mgmtIpList.json, nodeNum not found");
     goto PARSE_OVER;
   }
-  tsMnodeInfos.nodeNum = nodeNum->valueint;
+  tsDMnodeInfos.nodeNum = nodeNum->valueint;
 
   cJSON* nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
@@ -393,7 +409,7 @@ static bool dnodeReadMnodeInfos() {
   }
 
   int size = cJSON_GetArraySize(nodeInfos);
-  if (size != tsMnodeInfos.nodeNum) {
+  if (size != tsDMnodeInfos.nodeNum) {
     dError("failed to read mnode mgmtIpList.json, nodeInfos size not matched");
     goto PARSE_OVER;
   }
@@ -407,21 +423,21 @@ static bool dnodeReadMnodeInfos() {
       dError("failed to read mnode mgmtIpList.json, nodeId not found");
       goto PARSE_OVER;
     }
-    tsMnodeInfos.nodeInfos[i].nodeId = nodeId->valueint;
+    tsDMnodeInfos.nodeInfos[i].nodeId = nodeId->valueint;
 
     cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
     if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
       dError("failed to read mnode mgmtIpList.json, nodeName not found");
       goto PARSE_OVER;
     }
-    strncpy(tsMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
+    strncpy(tsDMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
  }
 
   ret = true;
 
-  dPrint("read mnode iplist successed, numOfIps:%d inUse:%d", tsMnodeInfos.nodeNum, tsMnodeInfos.inUse);
-  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
-    dPrint("mnode:%d, %s", tsMnodeInfos.nodeInfos[i].nodeId, tsMnodeInfos.nodeInfos[i].nodeEp);
+  dPrint("read mnode iplist successed, numOfIps:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
+    dPrint("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
   }
 
 PARSE_OVER:
@@ -442,13 +458,13 @@ static void dnodeSaveMnodeInfos() {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"inUse\": %d,\n", tsMnodeInfos.inUse);
-  len += snprintf(content + len, maxLen - len, "  \"nodeNum\": %d,\n", tsMnodeInfos.nodeNum);
+  len += snprintf(content + len, maxLen - len, "  \"inUse\": %d,\n", tsDMnodeInfos.inUse);
+  len += snprintf(content + len, maxLen - len, "  \"nodeNum\": %d,\n", tsDMnodeInfos.nodeNum);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
-  for (int32_t i = 0; i < tsMnodeInfos.nodeNum; i++) {
-    len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", tsMnodeInfos.nodeInfos[i].nodeId);
-    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", tsMnodeInfos.nodeInfos[i].nodeEp);
-    if (i < tsMnodeInfos.nodeNum -1) {
+  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
+    len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", tsDMnodeInfos.nodeInfos[i].nodeId);
+    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", tsDMnodeInfos.nodeInfos[i].nodeEp);
+    if (i < tsDMnodeInfos.nodeNum -1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");  
     } else {
       len += snprintf(content + len, maxLen - len, "  }]\n");  
@@ -464,11 +480,11 @@ static void dnodeSaveMnodeInfos() {
 }
 
 char *dnodeGetMnodeMasterEp() {
-  return tsMnodeInfos.nodeInfos[tsMnodeIpSet.inUse].nodeEp;
+  return tsDMnodeInfos.nodeInfos[tsDMnodeIpSetForPeer.inUse].nodeEp;
 }
 
 void* dnodeGetMnodeInfos() {
-  return &tsMnodeInfos;
+  return &tsDMnodeInfos;
 }
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId) {
@@ -511,7 +527,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     .msgType = TSDB_MSG_TYPE_DM_STATUS
   };
 
-  dnodeSendMsgToDnode(&tsMnodeIpSet, &rpcMsg);
+  dnodeSendMsgToDnode(&tsDMnodeIpSetForPeer, &rpcMsg);
 }
 
 static bool dnodeReadDnodeCfg() {
@@ -593,14 +609,18 @@ int32_t dnodeGetDnodeId() {
   return tsDnodeCfg.dnodeId;
 }
 
-void dnodeSendRediretMsg(SRpcMsg *rpcMsg) {
+void dnodeSendRedirectMsg(int32_t msgType, void *thandle, bool forShell) {
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(rpcMsg->handle, &connInfo);
+  rpcGetConnInfo(thandle, &connInfo);
 
   SRpcIpSet ipSet = {0};
-  dnodeGetMnodeDnodeIpSet(&ipSet);
-
-  dTrace("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[rpcMsg->msgType],
+  if (forShell) {
+    dnodeGetMnodeIpSetForShell(&ipSet);
+  } else {
+    dnodeGetMnodeIpSetForPeer(&ipSet);
+  }
+  
+  dTrace("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[msgType],
          taosIpStr(connInfo.clientIp), connInfo.user, ipSet.numOfIps, ipSet.inUse);
 
   for (int i = 0; i < ipSet.numOfIps; ++i) {
@@ -608,5 +628,5 @@ void dnodeSendRediretMsg(SRpcMsg *rpcMsg) {
     ipSet.port[i] = htons(ipSet.port[i]);
   }
 
-  rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
+  rpcSendRedirectRsp(thandle, &ipSet);
 }

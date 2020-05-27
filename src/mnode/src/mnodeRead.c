@@ -24,39 +24,37 @@
 #include "mnode.h"
 #include "dnode.h"
 #include "mnodeDef.h"
-#include "mgmtInt.h"
-#include "mgmtServer.h"
+#include "mnodeInt.h"
 #include "mnodeAcct.h"
-#include "mgmtDnode.h"
-#include "mgmtMnode.h"
+#include "mnodeDnode.h"
+#include "mnodeMnode.h"
 #include "mnodeDb.h"
-#include "mgmtSdb.h"
-#include "mgmtVgroup.h"
-#include "mgmtUser.h"
-#include "mgmtTable.h"
-#include "mgmtShell.h"
+#include "mnodeSdb.h"
+#include "mnodeVgroup.h"
+#include "mnodeUser.h"
+#include "mnodeTable.h"
+#include "mnodeShow.h"
 
-static void (*tsMnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *);
+static int32_t (*tsMnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *);
 
-void mnodeAddReadMsgHandle(uint8_t msgType, void (*fp)(SMnodeMsg *pMsg)) {
+void mnodeAddReadMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *pMsg)) {
   tsMnodeProcessReadMsgFp[msgType] = fp;
 }
 
 int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
-  SRpcMsg *rpcMsg = &pMsg->rpcMsg;  
-  if (rpcMsg->pCont == NULL) {
-    mError("%p, msg:%s content is null", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
+  if (pMsg->pCont == NULL) {
+    mError("msg:%s content is null", taosMsg[pMsg->msgType]);
     return TSDB_CODE_INVALID_MSG_LEN;
   }
 
   if (!sdbIsMaster()) {
     SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
     SRpcIpSet *ipSet = rpcMallocCont(sizeof(SRpcIpSet));
-    mgmtGetMnodeIpSetForShell(ipSet);
+    mnodeGetMnodeIpSetForShell(ipSet);
     rpcRsp->rsp = ipSet;
     rpcRsp->len = sizeof(SRpcIpSet);
 
-    mTrace("%p, msg:%s will be redireced, inUse:%d", rpcMsg->ahandle, taosMsg[rpcMsg->msgType], ipSet->inUse);
+    mTrace("msg:%s will be redireced, inUse:%d", taosMsg[pMsg->msgType], ipSet->inUse);
     for (int32_t i = 0; i < ipSet->numOfIps; ++i) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
@@ -64,20 +62,15 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
     return TSDB_CODE_REDIRECT;
   }
 
-  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
-    mError("%p, msg:%s not processed, grant time expired", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
-    return TSDB_CODE_GRANT_EXPIRED;
-  }
-
-  if (tsMnodeProcessReadMsgFp[rpcMsg->msgType] == NULL) {
-    mError("%p, msg:%s not processed, no handle exist", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
+  if (tsMnodeProcessReadMsgFp[pMsg->msgType] == NULL) {
+    mError("msg:%s not processed, no handle exist", taosMsg[pMsg->msgType]);
     return TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
   if (!mnodeInitMsg(pMsg)) {
-    mError("%p, msg:%s not processed, reason:%s", rpcMsg->ahandle, taosMsg[rpcMsg->msgType], tstrerror(terrno));
+    mError("msg:%s not processed, reason:%s", taosMsg[pMsg->msgType], tstrerror(terrno));
     return terrno;
   }
 
-  return (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(pMsg);
+  return (*tsMnodeProcessReadMsgFp[pMsg->msgType])(pMsg);
 }

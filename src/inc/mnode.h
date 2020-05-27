@@ -13,44 +13,62 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_H
-#define TDENGINE_MGMT_H
+#ifndef TDENGINE_MNODE_H
+#define TDENGINE_MNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+struct SAcctObj;
+struct SDnodeObj;
+struct SUserObj;
+struct SDbObj;
+struct SVgObj;
+struct STableObj;
+struct SRpcMsg;
+
 typedef struct {
   int   len;
-  int   code;
   void *rsp;
 } SMnodeRsp;
 
-typedef struct {
-  SRpcMsg   rpcMsg;
+typedef struct SMnodeMsg {
   SMnodeRsp rpcRsp;
+  uint8_t   msgType;
+  int8_t    received;
+  int8_t    successed;
+  int8_t    expected;
+  int8_t    retry;
+  int8_t    maxRetry;
+  int32_t   contLen;
+  int32_t   code;
+  void *    ahandle;
+  void *    thandle;
+  void *    pCont;
+  struct SAcctObj * pAcct;
+  struct SDnodeObj *pDnode;
+  struct SUserObj * pUser;
+  struct SDbObj *   pDb;
+  struct SVgObj *   pVgroup;
+  struct STableObj *pTable;
 } SMnodeMsg;
 
-SMnodeMsg *mnodeCreateMsg(SRpcMsg *rpcMsg);
-bool       mnodeInitMsg(SMnodeMsg *pMsg);
-void       mnodeRleaseMsg(SMnodeMsg *pMsg);
+void    mnodeCreateMsg(SMnodeMsg *pMsg, struct SRpcMsg *rpcMsg);
+int32_t mnodeInitMsg(SMnodeMsg *pMsg);
+void    mnodeCleanupMsg(SMnodeMsg *pMsg);
 
-int32_t mgmtInitSystem();
-int32_t mgmtStartSystem();
-void    mgmtCleanUpSystem();
+int32_t mnodeInitSystem();
+int32_t mnodeStartSystem();
+void    mnodeCleanupSystem();
 void    mgmtStopSystem();
 void    sdbUpdateSync();
-
-void*   mnodeGetRqueue(void *);
-void*   mnodeGetWqueue(int32_t vgId);
 bool    mnodeIsRunning();
 int32_t mnodeProcessRead(SMnodeMsg *pMsg);
 int32_t mnodeProcessWrite(SMnodeMsg *pMsg);
-int32_t mnodeProcessMgmt(SMnodeMsg *pMsg);
-
-int32_t mgmtRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
-void    mgmtProcessMsgFromShell(SRpcMsg *rpcMsg);
-void    mgmtProcessReqMsgFromDnode(SRpcMsg *rpcMsg);
+int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg);
+void    mnodeProcessPeerRsp(struct SRpcMsg *pMsg);
+int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 #ifdef __cplusplus
 }

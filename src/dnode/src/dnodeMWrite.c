@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "tutil.h"
+#include "ttimer.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "twal.h"
@@ -25,7 +26,7 @@
 #include "mnode.h"
 #include "dnode.h"
 #include "dnodeInt.h"
-#include "dnodeVMgmt.h"
+#include "dnodeMgmt.h"
 #include "dnodeMWrite.h"
 
 typedef struct {
@@ -41,6 +42,7 @@ typedef struct {
 static SMWriteWorkerPool tsMWritePool;
 static taos_qset         tsMWriteQset;
 static taos_queue        tsMWriteQueue;
+extern void *            tsDnodeTmr;
 
 static void *dnodeProcessMnodeWriteQueue(void *param);
 
@@ -78,7 +80,7 @@ void dnodeCleanupMnodeWrite() {
   dPrint("dnode mwrite is closed");
 }
 
-int32_t dnodeAllocateMnodeRqueue() {
+int32_t dnodeAllocateMnodeWqueue() {
   tsMWriteQueue = taosOpenQueue();
   if (tsMWriteQueue == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -104,34 +106,35 @@ int32_t dnodeAllocateMnodeRqueue() {
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeFreeMnodeRqueue() {
+void dnodeFreeMnodeWqueue() {
   taosCloseQueue(tsMWriteQueue);
   tsMWriteQueue = NULL;
 }
 
 void dnodeDispatchToMnodeWriteQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
-    dnodeSendRediretMsg(pMsg);
+    dnodeSendRedirectMsg(pMsg->msgType, pMsg->handle, true);
     return;
   }
 
   SMnodeMsg *pWrite = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
-  pWrite->rpcMsg = *pMsg;
+  mnodeCreateMsg(pWrite, pMsg);
   taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
 }
 
-static void dnodeSendRpcMnodeWriteRsp(SMnodeMsg *pWrite, int32_t code) {
+void dnodeSendRpcMnodeWriteRsp(void *pRaw, int32_t code) {
+  SMnodeMsg *pWrite = pRaw;
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
   SRpcMsg rpcRsp = {
-    .handle  = pWrite->rpcMsg.handle,
-    .pCont   = pWrite->rspRet.rsp,
-    .contLen = pWrite->rspRet.len,
-    .code    = pWrite->rspRet.code,
+    .handle  = pWrite->thandle,
+    .pCont   = pWrite->rpcRsp.rsp,
+    .contLen = pWrite->rpcRsp.len,
+    .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(pWrite->rpcMsg.pCont);
+  mnodeCleanupMsg(pWrite);
 }
 
 static void *dnodeProcessMnodeWriteQueue(void *param) {
@@ -145,11 +148,38 @@ static void *dnodeProcessMnodeWriteQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pWriteMsg->rpcMsg.ahandle, taosMsg[pWriteMsg->rpcMsg.msgType]);    
+    dTrace("%p, msg:%s will be processed", pWriteMsg->ahandle, taosMsg[pWriteMsg->msgType]);    
     int32_t code = mnodeProcessWrite(pWriteMsg);    
     dnodeSendRpcMnodeWriteRsp(pWriteMsg, code);    
     taosFreeQitem(pWriteMsg);
   }
 
   return NULL;
+}
+
+static void dnodeFreeMnodeWriteMsg(void *pMsg) {
+  SMnodeMsg *pWrite = pMsg;
+  mnodeCleanupMsg(pWrite);
+  taosFreeQitem(pWrite);
+}
+
+void dnodeReprocessMnodeWriteMsg(void *pMsg) {
+  SMnodeMsg *pWrite = pMsg;
+
+  if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
+    dnodeSendRedirectMsg(pWrite->msgType, pWrite->thandle, true);
+    dnodeFreeMnodeWriteMsg(pWrite);
+  } else {    
+    taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
+  }
+}
+
+static void dnodeDoDelayReprocessMnodeWriteMsg(void *param, void *tmrId) {
+  dnodeReprocessMnodeWriteMsg(param);
+}
+
+void dnodeDelayReprocessMnodeWriteMsg(void *pMsg) {
+  SMnodeMsg *mnodeMsg = pMsg;
+  void *unUsed = NULL;
+  taosTmrReset(dnodeDoDelayReprocessMnodeWriteMsg, 300, mnodeMsg, tsDnodeTmr, &unUsed);
 }

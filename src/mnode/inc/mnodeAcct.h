@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_ACCT_H
-#define TDENGINE_MGMT_ACCT_H
+#ifndef TDENGINE_MNODE_ACCT_H
+#define TDENGINE_MNODE_ACCT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,16 +22,16 @@ extern "C" {
 
 #include "tacct.h"
 
-int32_t mgmtInitAccts();
-void    mgmtCleanUpAccts();
-void *  mgmtGetAcct(char *acctName);
-void *  mgmtGetNextAcct(void *pIter, SAcctObj **pAcct);
-void    mgmtIncAcctRef(SAcctObj *pAcct);
-void    mgmtDecAcctRef(SAcctObj *pAcct);
-void    mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);
-void    mgmtDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
-void    mgmtAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
-void    mgmtDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
+int32_t mnodeInitAccts();
+void    mnodeCleanupAccts();
+void *  mnodeGetAcct(char *acctName);
+void *  mnodeGetNextAcct(void *pIter, SAcctObj **pAcct);
+void    mnodeIncAcctRef(SAcctObj *pAcct);
+void    mnodeDecAcctRef(SAcctObj *pAcct);
+void    mnodeAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mnodeDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mnodeAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
+void    mnodeDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
 
 #ifdef __cplusplus
 }

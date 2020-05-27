@@ -23,38 +23,43 @@
 #include "tgrant.h"
 #include "tbalance.h"
 #include "tglobal.h"
+#include "mnode.h"
 #include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeDb.h"
 #include "mnodeMnode.h"
 #include "mnodeProfile.h"
-#include "mnodeShell.h"
+#include "mnodeShow.h"
 #include "mnodeSdb.h"
 #include "mnodeTable.h"
 #include "mnodeVgroup.h"
 
-static void (*tsMnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *);
+static int32_t (*tsMnodeProcessPeerMsgFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *);
+static void (*tsMnodeProcessPeerRspFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 
-void mnodeAddMgmtMsgHandle(uint8_t msgType, void (*fp)(SMnodeMsg *pMsg)) {
-  tsMnodeProcessMgmtMsgFp[msgType] = fp;
+void mnodeAddPeerMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg)) {
+  tsMnodeProcessPeerMsgFp[msgType] = fp;
 }
 
-int32_t mnodeProcessMgmt(SMnodeMsg *pMsg) {
-  SRpcMsg *rpcMsg = &pMsg->rpcMsg;
-  if (rpcMsg->pCont == NULL) {
-    mError("%p, msg:%s content is null", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
+void mnodeAddPeerRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
+  tsMnodeProcessPeerRspFp[msgType] = fp;
+}
+
+int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
+  if (pMsg->pCont == NULL) {
+    mError("msg:%s content is null", taosMsg[pMsg->msgType]);
     return TSDB_CODE_INVALID_MSG_LEN;
   }
 
   if (!sdbIsMaster()) {
     SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
     SRpcIpSet *ipSet = rpcMallocCont(sizeof(SRpcIpSet));
-    mgmtGetMnodeIpSetForPeer(ipSet);
+    mnodeGetMnodeIpSetForPeer(ipSet);
     rpcRsp->rsp = ipSet;
     rpcRsp->len = sizeof(SRpcIpSet);
 
-    mTrace("%p, msg:%s will be redireced, inUse:%d", rpcMsg->ahandle, taosMsg[rpcMsg->msgType], ipSet->inUse);
+    mTrace("msg:%s will be redireced, inUse:%d", taosMsg[pMsg->msgType], ipSet->inUse);
     for (int32_t i = 0; i < ipSet->numOfIps; ++i) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
@@ -62,10 +67,20 @@ int32_t mnodeProcessMgmt(SMnodeMsg *pMsg) {
     return TSDB_CODE_REDIRECT;
   }
 
-  if (tsMnodeProcessMgmtMsgFp[rpcMsg->msgType] == NULL) {
-    mError("%p, msg:%s not processed, no handle exist", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
+  if (tsMnodeProcessPeerMsgFp[pMsg->msgType] == NULL) {
+    mError("msg:%s not processed, no handle exist", taosMsg[pMsg->msgType]);
     return TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
-  return (*tsMnodeProcessMgmtMsgFp[rpcMsg->msgType])(rpcMsg, );
+  return (*tsMnodeProcessPeerMsgFp[pMsg->msgType])(pMsg);
+}
+
+void mnodeProcessPeerRsp(SRpcMsg *pMsg) {
+  if (tsMnodeProcessPeerRspFp[pMsg->msgType]) {
+    (*tsMnodeProcessPeerRspFp[pMsg->msgType])(pMsg);
+  } else {
+    mError("msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
+  }
+
+  rpcFreeCont(pMsg->pCont);
 }

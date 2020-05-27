@@ -22,16 +22,16 @@ extern "C" {
 
 #include "mnodeDef.h"
 
-int32_t mgmtInitTables();
-void    mgmtCleanUpTables();
-void *  mgmtGetTable(char *tableId);
-void    mgmtIncTableRef(void *pTable);
-void    mgmtDecTableRef(void *pTable);
-void *  mgmtGetNextChildTable(void *pIter, SChildTableObj **pTable);
-void *  mgmtGetNextSuperTable(void *pIter, SSuperTableObj **pTable);
-void    mgmtDropAllChildTables(SDbObj *pDropDb);
-void    mgmtDropAllSuperTables(SDbObj *pDropDb);
-void    mgmtDropAllChildTablesInVgroups(SVgObj *pVgroup);
+int32_t mnodeInitTables();
+void    mnodeCleanupTables();
+void *  mnodeGetTable(char *tableId);
+void    mnodeIncTableRef(void *pTable);
+void    mnodeDecTableRef(void *pTable);
+void *  mnodeGetNextChildTable(void *pIter, SChildTableObj **pTable);
+void *  mnodeGetNextSuperTable(void *pIter, SSuperTableObj **pTable);
+void    mnodeDropAllChildTables(SDbObj *pDropDb);
+void    mnodeDropAllSuperTables(SDbObj *pDropDb);
+void    mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

@@ -19,12 +19,11 @@
 #include "tsched.h"
 #include "tbalance.h"
 #include "tgrant.h"
-#include "ttimer.h"
 #include "tglobal.h"
+#include "mnode.h"
 #include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
-#include "mnodeServer.h"
 #include "mnodeAcct.h"
 #include "mnodeDnode.h"
 #include "mnodeMnode.h"
@@ -33,29 +32,28 @@
 #include "mnodeVgroup.h"
 #include "mnodeUser.h"
 #include "mnodeTable.h"
-#include "mnodeShell.h"
+#include "mnodeShow.h"
 
-static void (*tsMnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *);
+static int32_t (*tsMnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *);
 
-void mnodeAddWriteMsgHandle(uint8_t msgType, void (*fp)(SMnodeMsg *pMsg)) {
+void mnodeAddWriteMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg)) {
   tsMnodeProcessWriteMsgFp[msgType] = fp;
 }
 
 int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
-  SRpcMsg *rpcMsg = &pMsg->rpcMsg;
-  if (rpcMsg->pCont == NULL) {
-    mError("%p, msg:%s content is null", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
+  if (pMsg->pCont == NULL) {
+    mError("msg:%s content is null", taosMsg[pMsg->msgType]);
     return TSDB_CODE_INVALID_MSG_LEN;
   }
 
   if (!sdbIsMaster()) {
     SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
     SRpcIpSet *ipSet = rpcMallocCont(sizeof(SRpcIpSet));
-    mgmtGetMnodeIpSetForShell(ipSet);
+    mnodeGetMnodeIpSetForShell(ipSet);
     rpcRsp->rsp = ipSet;
     rpcRsp->len = sizeof(SRpcIpSet);
 
-    mTrace("%p, msg:%s will be redireced, inUse:%d", rpcMsg->ahandle, taosMsg[rpcMsg->msgType], ipSet->inUse);
+    mTrace("msg:%s will be redireced, inUse:%d", taosMsg[pMsg->msgType], ipSet->inUse);
     for (int32_t i = 0; i < ipSet->numOfIps; ++i) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
@@ -63,34 +61,20 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
     return TSDB_CODE_REDIRECT;
   }
 
-   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
-    mError("%p, msg:%s not processed, grant time expired", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
-    return TSDB_CODE_GRANT_EXPIRED;
-  }
-
-  if (tsMnodeProcessReadMsgFp[rpcMsg->msgType] == NULL) {
-    mError("%p, msg:%s not processed, no handle exist", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
+  if (tsMnodeProcessWriteMsgFp[pMsg->msgType] == NULL) {
+    mError("msg:%s not processed, no handle exist", taosMsg[pMsg->msgType]);
     return TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
   if (!mnodeInitMsg(pMsg)) {
-    mError("%p, msg:%s not processed, reason:%s", rpcMsg->ahandle, taosMsg[rpcMsg->msgType], tstrerror(terrno));
+    mError("msg:%s not processed, reason:%s", taosMsg[pMsg->msgType], tstrerror(terrno));
     return terrno;
   }
 
   if (!pMsg->pUser->writeAuth) {
-    mError("%p, msg:%s not processed, no rights", rpcMsg->ahandle, taosMsg[rpcMsg->msgType]);
+    mError("%p, msg:%s not processed, no rights", taosMsg[pMsg->msgType]);
     return TSDB_CODE_NO_RIGHTS;
   }
 
-  return (*tsMnodeProcessWriteMsgFp[rpcMsg->msgType])(pMsg);
-}
-
-static void mgmtDoDealyedAddToShellQueue(void *param, void *tmrId) {
-  mgmtAddToShellQueue(param);
-}
-
-void mgmtDealyedAddToShellQueue(SMnodeMsg *queuedMsg) {
-  void *unUsed = NULL;
-  taosTmrReset(mgmtDoDealyedAddToShellQueue, 300, queuedMsg, tsMgmtTmr, &unUsed);
+  return (*tsMnodeProcessWriteMsgFp[pMsg->msgType])(pMsg);
 }

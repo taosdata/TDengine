@@ -2175,7 +2175,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
    */
   SShowInfo* pShowInfo = &pInfo->pDCLInfo->showOpt;
   int16_t    showType = pShowInfo->showType;
-  if (showType == TSDB_MNODE_TABLE_TABLE || showType == TSDB_MNODE_TABLE_METRIC || showType == TSDB_MNODE_TABLE_VGROUP) {
+  if (showType == TSDB_MGMT_TABLE_TABLE || showType == TSDB_MGMT_TABLE_METRIC || showType == TSDB_MGMT_TABLE_VGROUP) {
     // db prefix in tagCond, show table conds in payload
     SSQLToken* pDbPrefixToken = &pShowInfo->prefix;
     if (pDbPrefixToken->type != 0) {
@@ -2212,7 +2212,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
     }
-  } else if (showType == TSDB_MNODE_TABLE_VNODES) {
+  } else if (showType == TSDB_MGMT_TABLE_VNODES) {
     if (pShowInfo->prefix.type == 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "No specified ip of dnode");
     }

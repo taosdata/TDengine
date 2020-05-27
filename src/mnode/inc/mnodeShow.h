@@ -13,34 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_SHELL_H
-#define TDENGINE_MGMT_SHELL_H
+#ifndef TDENGINE_MNODE_SHELL_H
+#define TDENGINE_MNODE_SHELL_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "mnodeDef.h"
 
-int32_t mgmtInitShell();
-void    mgmtCleanUpShell();
-void    mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SMnodeMsg *queuedMsg));
+int32_t mnodeInitShow();
+void    mnodeCleanUpShow();
 
 typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 void mnodeAddShowMetaHandle(uint8_t showType, SShowMetaFp fp);
 void mnodeAddShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
-
-void mgmtAddToShellQueue(SMnodeMsg *queuedMsg);
-void mgmtDealyedAddToShellQueue(SMnodeMsg *queuedMsg);
-void mgmtSendSimpleResp(void *thandle, int32_t code);
-
-bool  mgmtCheckQhandle(uint64_t qhandle);
-void *mgmtSaveQhandle(void *qhandle, int32_t size);
-void  mgmtFreeQhandle(void *qhandle, bool forceRemove);
-
-void *mgmtMallocQueuedMsg(SRpcMsg *rpcMsg);
-void *mgmtCloneQueuedMsg(SMnodeMsg *pSrcMsg);
-void  mgmtFreeQueuedMsg(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

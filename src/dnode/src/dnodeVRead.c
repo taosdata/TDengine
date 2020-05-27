@@ -23,7 +23,7 @@
 #include "twal.h"
 #include "tglobal.h"
 #include "dnodeInt.h"
-#include "dnodeVMgmt.h"
+#include "dnodeMgmt.h"
 #include "dnodeVRead.h"
 #include "vnode.h"
 
@@ -93,7 +93,7 @@ void dnodeCleanupVnodeRead() {
 }
 
 void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
-  int32_t     queuedMsgNum = 0;
+  int32_t     mnodeMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
   void        *pVnode;  
@@ -125,12 +125,12 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
     // next vnode
     leftLen -= pHead->contLen;
     pCont -= pHead->contLen;
-    queuedMsgNum++;
+    mnodeMsgNum++;
 
     taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
   }
 
-  if (queuedMsgNum == 0) {
+  if (mnodeMsgNum == 0) {
     SRpcMsg rpcRsp = {
         .handle  = pMsg->handle,
         .pCont   = NULL,

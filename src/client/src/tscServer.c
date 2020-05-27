@@ -1116,7 +1116,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SShowInfo *pShowInfo = &pInfo->pDCLInfo->showOpt;
   pShowMsg->type = pShowInfo->showType;
 
-  if (pShowInfo->showType != TSDB_MNODE_TABLE_VNODES) {
+  if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
     SSQLToken *pPattern = &pShowInfo->pattern;
     if (pPattern->type > 0) {  // only show tables support wildcard query
       strncpy(pShowMsg->payload, pPattern->z, pPattern->n);

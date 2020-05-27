@@ -21,14 +21,14 @@
 #include "tglobal.h"
 #include "dnode.h"
 #include "dnodeInt.h"
-#include "dnodeVMgmt.h"
+#include "dnodeMgmt.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeMRead.h"
 #include "dnodeMWrite.h"
-#include "dnodeMMgmt.h"
+#include "dnodeMPeer.h"
 #include "dnodeShell.h"
 
 static int32_t dnodeInitStorage();
@@ -72,7 +72,7 @@ int32_t dnodeInitSystem() {
   if (dnodeInitVnodeWrite() != 0) return -1;
   if (dnodeInitMnodeRead() != 0) return -1;
   if (dnodeInitMnodeWrite() != 0) return -1;
-  if (dnodeInitMnodeMgmt() != 0) return -1;
+  if (dnodeInitMnodePeer() != 0) return -1;
   if (dnodeInitClient() != 0) return -1;
   if (dnodeInitServer() != 0) return -1;
   if (dnodeInitMgmt() != 0) return -1;
@@ -95,7 +95,7 @@ void dnodeCleanUpSystem() {
     dnodeCleanupMgmt();
     dnodeCleanupServer();
     dnodeCleanupClient();
-    dnodeCleanupMnodeMgmt();
+    dnodeCleanupMnodePeer();
     dnodeCleanupMnodeWrite();
     dnodeCleanupMnodeRead();
     dnodeCleanupVnodeWrite();

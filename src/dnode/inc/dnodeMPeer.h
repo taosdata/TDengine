@@ -13,17 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_DCLIENT_H
-#define TDENGINE_MGMT_DCLIENT_H
+#ifndef TDENGINE_DNODE_MMGMT_H
+#define TDENGINE_DNODE_MMGMT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mgmtInitDClient();
-void    mgmtCleanupDClient();
-void    mgmtAddDClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
-void    mgmtSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
+int32_t dnodeInitMnodePeer();
+void    dnodeCleanupMnodePeer();
+void    dnodeDispatchToMnodePeerQueue(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

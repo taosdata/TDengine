@@ -189,16 +189,16 @@ void sdbUpdateMnodeRoles() {
 
   sdbPrint("update mnodes:%d sync roles", tsSdbObj.cfg.replica);
   for (int32_t i = 0; i < tsSdbObj.cfg.replica; ++i) {
-    SMnodeObj *pMnode = mgmtGetMnode(roles.nodeId[i]);
+    SMnodeObj *pMnode = mnodeGetMnode(roles.nodeId[i]);
     if (pMnode != NULL) {
       pMnode->role = roles.role[i];
-      sdbPrint("mnode:%d, role:%s", pMnode->mnodeId, mgmtGetMnodeRoleStr(pMnode->role));
+      sdbPrint("mnode:%d, role:%s", pMnode->mnodeId, mnodeGetMnodeRoleStr(pMnode->role));
       if (pMnode->mnodeId == dnodeGetDnodeId()) tsSdbObj.role = pMnode->role;
-      mgmtDecMnodeRef(pMnode);
+      mnodeDecMnodeRef(pMnode);
     }
   }
 
-  mgmtUpdateMnodeIpSet();
+  mnodeUpdateMnodeIpSet();
 }
 
 static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) {
@@ -211,7 +211,7 @@ static int sdbGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 }
 
 static void sdbNotifyRole(void *ahandle, int8_t role) {
-  sdbPrint("mnode role changed from %s to %s", mgmtGetMnodeRoleStr(tsSdbObj.role), mgmtGetMnodeRoleStr(role));
+  sdbPrint("mnode role changed from %s to %s", mnodeGetMnodeRoleStr(tsSdbObj.role), mnodeGetMnodeRoleStr(role));
 
   if (role == TAOS_SYNC_ROLE_MASTER && tsSdbObj.role != TAOS_SYNC_ROLE_MASTER) {
     balanceReset();
@@ -256,20 +256,20 @@ void sdbUpdateSync() {
     void *pIter = NULL;
     while (1) {
       SMnodeObj *pMnode = NULL;
-      pIter = mgmtGetNextMnode(pIter, &pMnode);
+      pIter = mnodeGetNextMnode(pIter, &pMnode);
       if (pMnode == NULL) break;
 
       syncCfg.nodeInfo[index].nodeId = pMnode->mnodeId;
 
-      SDnodeObj *pDnode = mgmtGetDnode(pMnode->mnodeId);
+      SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
       if (pDnode != NULL) {
         syncCfg.nodeInfo[index].nodePort = pDnode->dnodePort + TSDB_PORT_SYNC;
         strcpy(syncCfg.nodeInfo[index].nodeFqdn, pDnode->dnodeEp);
         index++;
       }
 
-      mgmtDecDnodeRef(pDnode);
-      mgmtDecMnodeRef(pMnode);
+      mnodeDecDnodeRef(pDnode);
+      mnodeDecMnodeRef(pMnode);
     }
     sdbFreeIter(pIter);
   }
@@ -324,7 +324,7 @@ int32_t sdbInit() {
   
   sdbRestoreTables();
 
-  if (mgmtGetMnodesNum() == 1) {
+  if (mnodeGetMnodesNum() == 1) {
     tsSdbObj.role = TAOS_SYNC_ROLE_MASTER;
   }
 

@@ -24,7 +24,6 @@
 #include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
-#include "mnodeServer.h"
 #include "mnodeAcct.h"
 #include "mnodeDnode.h"
 #include "mnodeMnode.h"
@@ -33,16 +32,16 @@
 #include "mnodeVgroup.h"
 #include "mnodeUser.h"
 #include "mnodeTable.h"
-#include "mnodeShell.h"
+#include "mnodeShow.h"
 
-static void *tsMgmtTmr;
+void *tsMnodeTmr;
 static bool tsMgmtIsRunning = false;
 
 static void mnodeInitTimer();
 static void mnodeCleanupTimer();
 static bool mnodeNeedStart() ;
 
-int32_t mgmtStartSystem() {
+int32_t mnodeStartSystem() {
   if (tsMgmtIsRunning) {
     mPrint("TDengine mgmt module already started...");
     return 0;
@@ -54,37 +53,37 @@ int32_t mgmtStartSystem() {
     mkdir(tsMnodeDir, 0755);
   }
 
-  if (mgmtInitAccts() < 0) {
+  if (mnodeInitAccts() < 0) {
     mError("failed to init accts");
     return -1;
   }
 
-  if (mgmtInitUsers() < 0) {
+  if (mnodeInitUsers() < 0) {
     mError("failed to init users");
     return -1;
   }
 
-  if (mgmtInitDnodes() < 0) {
+  if (mnodeInitDnodes() < 0) {
     mError("failed to init dnodes");
     return -1;
   }
 
-  if (mgmtInitDbs() < 0) {
+  if (mnodeInitDbs() < 0) {
     mError("failed to init dbs");
     return -1;
   }
 
-  if (mgmtInitVgroups() < 0) {
+  if (mnodeInitVgroups() < 0) {
     mError("failed to init vgroups");
     return -1;
   }
 
-  if (mgmtInitTables() < 0) {
+  if (mnodeInitTables() < 0) {
     mError("failed to init tables");
     return -1;
   }
 
-  if (mgmtInitMnodes() < 0) {
+  if (mnodeInitMnodes() < 0) {
     mError("failed to init mnodes");
     return -1;
   }
@@ -103,7 +102,8 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mnodeInitMgmt() < 0) {
+  if (mnodeInitShow() < 0) {
+    mError("failed to init show");
     return -1;
   }
 
@@ -115,39 +115,28 @@ int32_t mgmtStartSystem() {
   return 0;
 }
 
-int32_t mgmtInitSystem() {
+int32_t mnodeInitSystem() {
   mnodeInitTimer();
-  mnodeInitRead();
-  mnodeInitWrite();
-
-  if (mnodeNeedStart()) {
-    if (mgmtStartSystem() != 0) {
-      return -1;
-    }
-  }
-
-  return 0;
+  if (!mnodeNeedStart()) return 0;
+  return mnodeStartSystem();
 }
 
-void mgmtCleanUpSystem() {
+void mnodeCleanupSystem() {
   mPrint("starting to clean up mgmt");
   tsMgmtIsRunning = false;
 
   mnodeCleanupTimer();
-  mnodeCleanupRead();
-  mnodeCleanupWrite();
-
-  mgmtCleanupMgmt();
+  mnodeCleanUpShow();
   grantCleanUp();
   balanceCleanUp();
   sdbCleanUp();
   mgmtCleanupMnodes();
-  mgmtCleanUpTables();
-  mgmtCleanUpVgroups();
-  mgmtCleanUpDbs();
+  mnodeCleanupTables();
+  mnodeCleanupVgroups();
+  mnodeCleanupDbs();
   mgmtCleanupDnodes();
-  mgmtCleanUpUsers();
-  mgmtCleanUpAccts();
+  mnodeCleanupUsers();
+  mnodeCleanupAccts();
   mPrint("mgmt is cleaned up");
 }
 
@@ -157,31 +146,21 @@ void mgmtStopSystem() {
     return;
   }
   
-
-  mgmtCleanUpSystem();
-
+  mnodeCleanupSystem();
   mPrint("mgmt file is removed");
   remove(tsMnodeDir);
 }
 
-
-
-void*   mnodeGetWqueue(int32_t vgId) {
-
-}
-
-
-
 static void mnodeInitTimer() {
-  if (tsMgmtTmr != NULL) {
-    tsMgmtTmr = taosTmrInit((tsMaxShellConns)*3, 200, 3600000, "MND");
+  if (tsMnodeTmr != NULL) {
+    tsMnodeTmr = taosTmrInit((tsMaxShellConns)*3, 200, 3600000, "MND");
   }
 }
 
 static void mnodeCleanupTimer() {
-  if (tsMgmtTmr != NULL) {
-    taosTmrCleanUp(tsMgmtTmr);
-    tsMgmtTmr = NULL;
+  if (tsMnodeTmr != NULL) {
+    taosTmrCleanUp(tsMnodeTmr);
+    tsMnodeTmr = NULL;
   }
 }
 
@@ -195,4 +174,8 @@ static bool mnodeNeedStart() {
   }
 
   return false;
+}
+
+bool mnodeIsRunning() {
+  return tsMgmtIsRunning;
 }

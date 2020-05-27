@@ -32,7 +32,9 @@ void*   dnodeGetVnodeWal(void *pVnode);
 void*   dnodeGetVnodeTsdb(void *pVnode);
 void    dnodeReleaseVnode(void *pVnode);
 
-void    dnodeSendRediretMsg(SRpcMsg *pMsg);
+void    dnodeSendRedirectMsg(int32_t msgType, void *thandle, bool forShell);
+void    dnodeGetMnodeIpSetForPeer(void *ipSet);
+void    dnodeGetMnodeIpSetForShell(void *ipSe);
 
 #ifdef __cplusplus
 }

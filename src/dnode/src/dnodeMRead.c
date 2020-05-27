@@ -25,7 +25,7 @@
 #include "mnode.h"
 #include "dnode.h"
 #include "dnodeInt.h"
-#include "dnodeVMgmt.h"
+#include "dnodeMgmt.h"
 #include "dnodeMRead.h"
 
 typedef struct {
@@ -116,12 +116,12 @@ void dnodeFreeMnodeRqueue() {
 
 void dnodeDispatchToMnodeReadQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMReadQueue == NULL) {
-    dnodeSendRediretMsg(pMsg);
+    dnodeSendRedirectMsg(pMsg->msgType, pMsg->handle, true);
     return;
   }
 
   SMnodeMsg *pRead = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
-  pRead->rpcMsg = *pMsg;
+  mnodeCreateMsg(pRead, pMsg);
   taosWriteQitem(tsMReadQueue, TAOS_QTYPE_RPC, pRead);
 }
 
@@ -129,14 +129,14 @@ static void dnodeSendRpcMnodeReadRsp(SMnodeMsg *pRead, int32_t code) {
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
   SRpcMsg rpcRsp = {
-    .handle  = pRead->rpcMsg.handle,
-    .pCont   = pRead->rspRet.rsp,
-    .contLen = pRead->rspRet.len,
-    .code    = pRead->rspRet.code,
+    .handle  = pRead->thandle,
+    .pCont   = pRead->rpcRsp.rsp,
+    .contLen = pRead->rpcRsp.len,
+    .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(pRead->rpcMsg.pCont);
+  mnodeCleanupMsg(pRead);
 }
 
 static void *dnodeProcessMnodeReadQueue(void *param) {
@@ -150,7 +150,7 @@ static void *dnodeProcessMnodeReadQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);    
+    dTrace("%p, msg:%s will be processed", pReadMsg->ahandle, taosMsg[pReadMsg->msgType]);    
     int32_t code = mnodeProcessRead(pReadMsg);    
     dnodeSendRpcMnodeReadRsp(pReadMsg, code);    
     taosFreeQitem(pReadMsg);

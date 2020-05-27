@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_DB_H
-#define TDENGINE_MGMT_DB_H
+#ifndef TDENGINE_MNODE_DB_H
+#define TDENGINE_MNODE_DB_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,26 +28,26 @@ enum _TSDB_DB_STATUS {
 };
 
 // api
-int32_t mgmtInitDbs();
-void    mgmtCleanUpDbs();
-SDbObj *mgmtGetDb(char *db);
-SDbObj *mgmtGetDbByTableId(char *db);
-void *  mgmtGetNextDb(void *pIter, SDbObj **pDb);
-void    mgmtIncDbRef(SDbObj *pDb);
-void    mgmtDecDbRef(SDbObj *pDb);
-bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
-void    mgmtDropAllDbs(SAcctObj *pAcct);
+int32_t mnodeInitDbs();
+void    mnodeCleanupDbs();
+SDbObj *mnodeGetDb(char *db);
+SDbObj *mnodeGetDbByTableId(char *db);
+void *  mnodeGetNextDb(void *pIter, SDbObj **pDb);
+void    mnodeIncDbRef(SDbObj *pDb);
+void    mnodeDecDbRef(SDbObj *pDb);
+bool    mnodeCheckIsMonitorDB(char *db, char *monitordb);
+void    mnodeDropAllDbs(SAcctObj *pAcct);
 
 // util func
-void mgmtAddSuperTableIntoDb(SDbObj *pDb);
-void mgmtRemoveSuperTableFromDb(SDbObj *pDb);
-void mgmtAddTableIntoDb(SDbObj *pDb);
-void mgmtRemoveTableFromDb(SDbObj *pDb);
-void mgmtAddVgroupIntoDb(SVgObj *pVgroup);
-void mgmtAddVgroupIntoDbTail(SVgObj *pVgroup);
-void mgmtRemoveVgroupFromDb(SVgObj *pVgroup);
-void mgmtMoveVgroupToTail(SVgObj *pVgroup);
-void mgmtMoveVgroupToHead(SVgObj *pVgroup);
+void mnodeAddSuperTableIntoDb(SDbObj *pDb);
+void mnodeRemoveSuperTableFromDb(SDbObj *pDb);
+void mnodeAddTableIntoDb(SDbObj *pDb);
+void mnodeRemoveTableFromDb(SDbObj *pDb);
+void mnodeAddVgroupIntoDb(SVgObj *pVgroup);
+void mnodeAddVgroupIntoDbTail(SVgObj *pVgroup);
+void mnodeRemoveVgroupFromDb(SVgObj *pVgroup);
+void mnodeMoveVgroupToTail(SVgObj *pVgroup);
+void mnodeMoveVgroupToHead(SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

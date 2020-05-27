@@ -23,15 +23,15 @@
 #include "taosmsg.h"
 #include "tglobal.h"
 #include "trpc.h"
+#include "mnode.h"
 #include "dnode.h"
 #include "dnodeInt.h"
-#include "dnodeVMgmt.h"
+#include "dnodeMgmt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMRead.h"
 #include "dnodeMWrite.h"
-#include "mnode.h"
 
-extern void dnodeUpdateIpSet(SRpcIpSet *pIpSet);
+extern void dnodeUpdateMnodeIpSetForPeer(SRpcIpSet *pIpSet);
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *);
 static void (*dnodeProcessRspMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
@@ -148,9 +148,10 @@ void dnodeCleanupClient() {
 }
 
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
-
   if (dnodeProcessRspMsgFp[pMsg->msgType]) {
-    if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pIpSet) dnodeUpdateIpSet(pIpSet);
+    if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pIpSet) {
+      dnodeUpdateMnodeIpSetForPeer(pIpSet);
+    }
     (*dnodeProcessRspMsgFp[pMsg->msgType])(pMsg);
   } else {
     dError("RPC %p, msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
@@ -169,6 +170,6 @@ void dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg) {
 
 void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcIpSet ipSet = {0};
-  dnodeGetMnodeDnodeIpSet(&ipSet, false);
+  dnodeGetMnodeIpSetForPeer(&ipSet);
   rpcSendRecv(tsDnodeClientRpc, &ipSet, rpcMsg, rpcRsp);
 }

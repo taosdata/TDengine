@@ -43,16 +43,21 @@ void *dnodeAllocateRqueue(void *pVnode);
 void  dnodeFreeRqueue(void *rqueue);
 void  dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code);
 
-bool     dnodeIsFirstDeploy();
-char    *dnodeGetMnodeMasterEp();
-void     dnodeGetMnodeDnodeIpSet(void *ipSet, bool encode);
-void *   dnodeGetMnodeInfos();
-int32_t  dnodeGetDnodeId();
+bool    dnodeIsFirstDeploy();
+char *  dnodeGetMnodeMasterEp();
+void    dnodeGetMnodeIpSetForPeer(void *ipSet);
+void    dnodeGetMnodeIpSetForShell(void *ipSet);
+void *  dnodeGetMnodeInfos();
+int32_t dnodeGetDnodeId();
 
-void     dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
-void     dnodeAddServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
-void     dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
-void     dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp);
+void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
+void dnodeAddServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
+void dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
+void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp);
+
+void dnodeSendRpcMnodeWriteRsp(void *pMsg, int32_t code);
+void dnodeReprocessMnodeWriteMsg(void *pMsg);
+void dnodeDelayReprocessMnodeWriteMsg(void *pMsg);
 
 #ifdef __cplusplus
 }

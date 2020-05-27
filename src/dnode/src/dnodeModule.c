@@ -48,9 +48,9 @@ static void dnodeUnSetModuleStatus(int32_t module) {
 static void dnodeAllocModules() {
   tsModule[TSDB_MOD_MGMT].enable       = false;
   tsModule[TSDB_MOD_MGMT].name         = "mgmt";
-  tsModule[TSDB_MOD_MGMT].initFp       = mgmtInitSystem;
-  tsModule[TSDB_MOD_MGMT].cleanUpFp    = mgmtCleanUpSystem;
-  tsModule[TSDB_MOD_MGMT].startFp      = mgmtStartSystem;
+  tsModule[TSDB_MOD_MGMT].initFp       = mnodeInitSystem;
+  tsModule[TSDB_MOD_MGMT].cleanUpFp    = mnodeCleanupSystem;
+  tsModule[TSDB_MOD_MGMT].startFp      = mnodeStartSystem;
   tsModule[TSDB_MOD_MGMT].stopFp       = mgmtStopSystem;
 
   tsModule[TSDB_MOD_HTTP].enable       = (tsEnableHttpModule == 1);

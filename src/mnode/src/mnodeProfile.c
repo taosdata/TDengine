@@ -18,6 +18,7 @@
 #include "taosmsg.h"
 #include "taoserror.h"
 #include "tutil.h"
+#include "mnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeAcct.h"
@@ -25,16 +26,17 @@
 #include "mnodeDb.h"
 #include "mnodeMnode.h"
 #include "mnodeProfile.h"
-#include "mnodeShell.h"
+#include "mnodeShow.h"
 #include "mnodeTable.h"
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
+#include "mnodeWrite.h"
 
-int32_t mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
+int32_t mnodeSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
 
-int32_t mgmtKillQuery(char *qidstr, void *pConn);
-int32_t mgmtKillStream(char *qidstr, void *pConn);
-int32_t mgmtKillConnection(char *qidstr, void *pConn);
+int32_t mnodeKillQuery(char *qidstr, void *pConn);
+int32_t mnodeKillStream(char *qidstr, void *pConn);
+int32_t mnodeKillConnection(char *qidstr, void *pConn);
 
 typedef struct {
   char     user[TSDB_TABLE_ID_LEN + 1];
@@ -98,7 +100,7 @@ int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
+int32_t mnodeGetQueries(SShowObj *pShow, void *pConn) {
 //  SAcctObj *  pAcct = pConn->pAcct;
 //  SQueryShow *pQueryShow;
 //
@@ -145,7 +147,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema *pSchema = pMeta->schema;
@@ -190,11 +192,11 @@ int32_t mgmtGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   pShow->pIter = NULL;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtGetQueries(pShow, pConn);
+  mnodeGetQueries(pShow, pConn);
   return 0;
 }
 
-int32_t mgmtKillQuery(char *qidstr, void *pConn) {
+int32_t mnodeKillQuery(char *qidstr, void *pConn) {
 //  char *temp, *chr, idstr[64];
 //  strcpy(idstr, qidstr);
 //
@@ -247,7 +249,7 @@ int32_t mgmtKillQuery(char *qidstr, void *pConn) {
   return TSDB_CODE_INVALID_QUERY_ID;
 }
 
-int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   char *pWrite;
   int32_t   cols = 0;
@@ -297,7 +299,7 @@ int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
+int32_t mnodeGetStreams(SShowObj *pShow, void *pConn) {
 //  SAcctObj *   pAcct = pConn->pAcct;
 //  SStreamShow *pStreamShow;
 //
@@ -344,7 +346,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t      cols = 0;
   SSchema *pSchema = pMeta->schema;
 
@@ -400,11 +402,11 @@ int32_t mgmtGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   pShow->pIter = NULL;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtGetStreams(pShow, pConn);
+  mnodeGetStreams(pShow, pConn);
   return 0;
 }
 
-int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   char *pWrite;
   int32_t   cols = 0;
@@ -462,7 +464,7 @@ int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-int32_t mgmtKillStream(char *qidstr, void *pConn) {
+int32_t mnodeKillStream(char *qidstr, void *pConn) {
 //  char *temp, *chr, idstr[64];
 //  strcpy(idstr, qidstr);
 //
@@ -515,7 +517,7 @@ int32_t mgmtKillStream(char *qidstr, void *pConn) {
   return TSDB_CODE_INVALID_STREAM_ID;
 }
 
-int32_t mgmtKillConnection(char *qidstr, void *pConn) {
+int32_t mnodeKillConnection(char *qidstr, void *pConn) {
 //  void *pConn1 = NULL;
 //  char *    temp, *chr, idstr[64];
 //  strcpy(idstr, qidstr);
@@ -562,7 +564,7 @@ int32_t mgmtKillConnection(char *qidstr, void *pConn) {
 }
 
 
-int mgmtGetConns(SShowObj *pShow, void *pConn) {
+int mnodeGetConns(SShowObj *pShow, void *pConn) {
   //  SAcctObj * pAcct = pConn->pAcct;
   //  SConnShow *pConnShow;
   //
@@ -597,7 +599,7 @@ int mgmtGetConns(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
@@ -630,11 +632,11 @@ int32_t mgmtGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   pShow->pIter = NULL;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtGetConns(pShow, pConn);
+  mnodeGetConns(pShow, pConn);
   return 0;
 }
 
-int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   char      *pWrite;
   int32_t   cols = 0;
@@ -672,91 +674,94 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
   return numOfRows;
 }
 
-void mgmtProcessKillQueryMsg(SMnodeMsg *pMsg) {
-  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
+  // SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
-  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
+  // SUserObj *pUser = mnodeGetUserFromConn(pMsg->thandle);
+  // if (pUser == NULL) {
+  //   rpcRsp.code = TSDB_CODE_INVALID_USER;
+  //   rpcSendResponse(&rpcRsp);
+  //   return;
+  // }
 
-  SCMKillQueryMsg *pKill = pMsg->pCont;
-  int32_t code;
+  // SCMKillQueryMsg *pKill = pMsg->pCont;
+  // int32_t code;
 
-  if (!pUser->writeAuth) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    code = mgmtKillQuery(pKill->queryId, pMsg->thandle);
-  }
+  // if (!pUser->writeAuth) {
+  //   code = TSDB_CODE_NO_RIGHTS;
+  // } else {
+  //   code = mgmtKillQuery(pKill->queryId, pMsg->thandle);
+  // }
 
-  rpcRsp.code = code;
-  rpcSendResponse(&rpcRsp);
-  mgmtDecUserRef(pUser);
+  // rpcRsp.code = code;
+  // rpcSendResponse(&rpcRsp);
+  // mnodeDecUserRef(pUser);
+  return TSDB_CODE_SUCCESS;
 }
 
-void mgmtProcessKillStreamMsg(SMnodeMsg *pMsg) {
-  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
+  // SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
-  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
+  // SUserObj *pUser = mnodeGetUserFromConn(pMsg->thandle);
+  // if (pUser == NULL) {
+  //   rpcRsp.code = TSDB_CODE_INVALID_USER;
+  //   rpcSendResponse(&rpcRsp);
+  //   return;
+  // }
 
-  SCMKillStreamMsg *pKill = pMsg->pCont;
-  int32_t code;
+  // SCMKillStreamMsg *pKill = pMsg->pCont;
+  // int32_t code;
 
-  if (!pUser->writeAuth) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    code = mgmtKillStream(pKill->queryId, pMsg->thandle);
-  }
+  // if (!pUser->writeAuth) {
+  //   code = TSDB_CODE_NO_RIGHTS;
+  // } else {
+  //   code = mgmtKillStream(pKill->queryId, pMsg->thandle);
+  // }
 
-  rpcRsp.code = code;
-  rpcSendResponse(&rpcRsp);
-  mgmtDecUserRef(pUser);
+  // rpcRsp.code = code;
+  // rpcSendResponse(&rpcRsp);
+  // mnodeDecUserRef(pUser);
+  return TSDB_CODE_SUCCESS;
 }
 
-void mgmtProcessKillConnectionMsg(SMnodeMsg *pMsg) {
-  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
+  // SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   
-  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
+  // SUserObj *pUser = mnodeGetUserFromConn(pMsg->thandle);
+  // if (pUser == NULL) {
+  //   rpcRsp.code = TSDB_CODE_INVALID_USER;
+  //   rpcSendResponse(&rpcRsp);
+  //   return;
+  // }
 
-  SCMKillConnMsg *pKill = pMsg->pCont;
-  int32_t code;
+  // SCMKillConnMsg *pKill = pMsg->pCont;
+  // int32_t code;
 
-  if (!pUser->writeAuth) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    code = mgmtKillConnection(pKill->queryId, pMsg->thandle);
-  }
+  // if (!pUser->writeAuth) {
+  //   code = TSDB_CODE_NO_RIGHTS;
+  // } else {
+  //   code = mgmtKillConnection(pKill->queryId, pMsg->thandle);
+  // }
 
-  rpcRsp.code = code;
-  rpcSendResponse(&rpcRsp);
-  mgmtDecUserRef(pUser);
+  // rpcRsp.code = code;
+  // rpcSendResponse(&rpcRsp);
+  // mnodeDecUserRef(pUser);
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtInitProfile() {
-  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_QUERIES, mgmtGetQueryMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_QUERIES, mgmtRetrieveQueries);
-  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_CONNS, mgmtGetConnsMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_CONNS, mgmtRetrieveConns);
-  mnodeAddShowMetaHandle(TSDB_MNODE_TABLE_STREAMS, mgmtGetStreamMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MNODE_TABLE_STREAMS, mgmtRetrieveStreams);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mgmtProcessKillQueryMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mgmtProcessKillStreamMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mgmtProcessKillConnectionMsg);
+int32_t mnodeInitProfile() {
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mnodeGetQueryMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mnodeRetrieveQueries);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mnodeGetConnsMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mnodeRetrieveConns);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mnodeGetStreamMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mnodeRetrieveStreams);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mnodeProcessKillQueryMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mnodeProcessKillStreamMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mnodeProcessKillConnectionMsg);
 
   return 0;
 }
 
-void mgmtCleanUpProfile() {
+void mnodeCleanupProfile() {
 }

@@ -13,16 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MMGMT_H
-#define TDENGINE_DNODE_MMGMT_H
+#ifndef TDENGINE_MNODE_PEER_H
+#define TDENGINE_MNODE_PEER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "mnodeDef.h"
 
-int32_t dnodeInitMnodeMgmt();
-void    dnodeCleanupMnodeMgmt();
-void    dnodeDispatchToMnodeMgmtQueue(SRpcMsg *pMsg);
+void    mnodeAddPeerRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
+void    mnodeAddPeerMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg));
+int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

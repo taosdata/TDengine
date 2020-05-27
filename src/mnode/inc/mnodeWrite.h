@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MNODE_PROFILE_H
-#define TDENGINE_MNODE_PROFILE_H
+#ifndef TDENGINE_MNODE_WRITE_H
+#define TDENGINE_MNODE_WRITE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "mnodeDef.h"
 
-int32_t mnodeInitProfile();
-void    mnodeCleanupProfile();
+void    mnodeAddWriteMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg));
+int32_t mnodeProcessRead(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }
