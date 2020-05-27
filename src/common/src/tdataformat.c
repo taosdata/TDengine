@@ -237,7 +237,7 @@ void * tdNewTagRowFromSchema(STSchema *pSchema, int16_t numofTags) {
   STagRow *row = malloc(size);
   if (row == NULL) return NULL;
 
-  int32_t datasize = pSchema->tlen - pSchema->flen;
+  int32_t datasize = pSchema->tlen;
   row->pData = malloc(datasize);
   if (NULL == row->pData) {
     free(row);
