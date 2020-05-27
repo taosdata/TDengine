@@ -152,8 +152,10 @@ SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
   return row;
 }
 
-int tdInsertTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId){ //insert tag value and update all the information
-  //todo
+int tdSetTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId){ //insert/update tag value and update all the information
+  ASSERT(((STagRow *)row)->pData != NULL);
+  //STagCol * stCol = tdQueryTagColByID()
+
   return 0;
 };  
 
@@ -172,7 +174,22 @@ static int compTagId(const void *key1, const void *key2) {
   }
 }
 
-void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type) {  //if find tag, 0, else return -1; 
+/**
+ * Find tag structure by colId, if find, return tag structure, else return NULL;
+ */
+STagCol * tdQueryTagColByID(SDataRow row, int16_t colId, int flags) {  //if find tag, 0, else return -1; 
+  ASSERT(((STagRow *)row)->pData != NULL);
+  STagCol *pBase = ((STagRow *)row)->tagCols;
+  int16_t nCols = ((STagRow *)row)->ncols;
+  STagCol key = {colId,0,0};
+  STagCol * stCol = taosbsearch(&key, pBase, nCols, sizeof(STagCol), compTagId, flags);
+  return stCol;
+};   
+
+/**
+* Find tag value by colId, if find, return tag value, else return NULL;
+*/
+void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type) {
   ASSERT(((STagRow *)row)->pData != NULL);
   STagCol *pBase = ((STagRow *)row)->tagCols;
   int16_t nCols = ((STagRow *)row)->ncols;

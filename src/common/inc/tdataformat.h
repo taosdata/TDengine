@@ -259,7 +259,7 @@ typedef struct {
 
 #define tagColSize(r) (sizeof(STagCol) + r.colLen)
 
-int tdInsertTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId);  //insert tag value and update all the information
+int tdSetTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId);  //insert tag value and update all the information
 int tdDeleteTagCol(SDataRow row, int16_t colId);  // delete tag value and update all the information
 void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type);   //if find tag, 0, else return -1;
 int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int16_t colId);  
