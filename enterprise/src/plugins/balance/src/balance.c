@@ -23,21 +23,21 @@
 #include "tdataformat.h"
 #include "dnode.h"
 #include "mnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtDnode.h"
-#include "mgmtDb.h"
-#include "mgmtMnode.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeDnode.h"
+#include "mnodeDb.h"
+#include "mnodeMnode.h"
+#include "mnodeSdb.h"
+#include "mnodeShow.h"
+#include "mnodeUser.h"
+#include "mnodeVgroup.h"
 
 /*
  * once sdb work as mater, then tsAccessSquence reset to zero
  * increase tsAccessSquence every balance interval
  */
-extern void *       tsMgmtTmr;
+extern void *       tsMnodeTmr;
 static void *       tsBalanceTimer = NULL;
 static int32_t      tsBalanceDnodeListSize = 0;
 static SDnodeObj ** tsBalanceDnodeList = NULL;
@@ -64,7 +64,7 @@ static void balanceUnLock() {
 
 static bool balanceCheckFree(SDnodeObj *pDnode) {
   if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-    mError("dnode:%d, status:%s not available", pDnode->dnodeId, mgmtGetDnodeStatusStr(pDnode->status));
+    mError("dnode:%d, status:%s not available", pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status));
     return false;
   }
   
@@ -84,10 +84,10 @@ static bool balanceCheckFree(SDnodeObj *pDnode) {
 static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   mTrace("vgId:%d, dnode:%d is dropping", pVgroup->vgId, pVnodeGid->dnodeId);
 
-  SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->dnodeId);
+  SDnodeObj *pDnode = mnodeGetDnode(pVnodeGid->dnodeId);
   if (pDnode != NULL) {
     atomic_sub_fetch_32(&pDnode->openVnodes, 1);
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA] = {0};
@@ -103,7 +103,7 @@ static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   memcpy(pVgroup->vnodeGid, vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   pVgroup->numOfVnodes = numOfVnodes;
 
-  mgmtUpdateVgroup(pVgroup);
+  mnodeUpdateVgroup(pVgroup);
 }
 
 static void balanceSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
@@ -209,7 +209,7 @@ static void balanceRemoveVnode(SVgObj *pVgroup) {
 
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVnode = &(pVgroup->vnodeGid[i]);
-    SDnodeObj *pDnode = mgmtGetDnode(pVnode->dnodeId);
+    SDnodeObj *pDnode = mnodeGetDnode(pVnode->dnodeId);
 
     if (pDnode == NULL) {
       mError("vgId:%d, dnode:%d not exist, remove it", pVgroup->vgId, pVnode->dnodeId);
@@ -235,7 +235,7 @@ static void balanceRemoveVnode(SVgObj *pVgroup) {
       }
     }
 
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   if (pRmVnode != NULL) {
@@ -292,7 +292,7 @@ static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pD
 
   atomic_add_fetch_32(&pDestDnode->openVnodes, 1);
 
-  mgmtUpdateVgroup(pVgroup);
+  mnodeUpdateVgroup(pVgroup);
   return true;
 }
 
@@ -302,7 +302,7 @@ static bool balanceMonitorBalance() {
   for (int32_t src = tsBalanceDnodeListSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = tsBalanceDnodeList[src];
     mTrace("%d-dnode:%d, state:%s, score:%.1f, totalVnodes:%d, openVnodes:%d", tsBalanceDnodeListSize - src - 1,
-           pDnode->dnodeId, mgmtGetDnodeStatusStr(pDnode->status), pDnode->score, pDnode->totalVnodes,
+           pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status), pDnode->score, pDnode->totalVnodes,
            pDnode->openVnodes);
   }
 
@@ -318,7 +318,7 @@ static bool balanceMonitorBalance() {
     void *pIter = NULL;
     while (1) {
       SVgObj *pVgroup;
-      pIter = mgmtGetNextVgroup(pIter, &pVgroup);
+      pIter = mnodeGetNextVgroup(pIter, &pVgroup);
       if (pVgroup == NULL) break;
 
       if (balanceCheckDnodeInVgroup(pSrcDnode, pVgroup)) {
@@ -333,13 +333,13 @@ static bool balanceMonitorBalance() {
                  pVgroup->vgId, pSrcDnode->dnodeId, pDestDnode->dnodeId, pSrcDnode->score,
                  srcScore, pDestDnode->score, destScore);
           balanceAddVnode(pVgroup, pSrcDnode, pDestDnode);
-          mgmtDecVgroupRef(pVgroup);
+          mnodeDecVgroupRef(pVgroup);
           sdbFreeIter(pIter);
           return true;
         }
       }
 
-      mgmtDecVgroupRef(pVgroup);
+      mnodeDecVgroupRef(pVgroup);
     }
 
     sdbFreeIter(pIter);
@@ -356,7 +356,7 @@ void balanceReset() {
   void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   while (1) {
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
 
     // while master change, should reset dnode to offline
@@ -366,7 +366,7 @@ void balanceReset() {
       pDnode->status = TAOS_DN_STATUS_OFFLINE;
     }
 
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   sdbFreeIter(pIter);
@@ -380,7 +380,7 @@ static int32_t balanceMonitorVgroups() {
   bool    hasUpdatingVgroup = false;
 
   while (1) {
-    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     int32_t dbReplica = pVgroup->pDb->cfg.replications;
@@ -396,7 +396,7 @@ static int32_t balanceMonitorVgroups() {
       balanceAddVnode(pVgroup, NULL, NULL);
     }
 
-    mgmtDecVgroupRef(pVgroup);
+    mnodeDecVgroupRef(pVgroup);
   }
 
   sdbFreeIter(pIter);
@@ -411,11 +411,11 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
   bool    hasThisDnode = false;
   while (1) {
     SVgObj *pVgroup = NULL;
-    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     hasThisDnode = balanceCheckDnodeInVgroup(pDnode, pVgroup);
-    mgmtDecVgroupRef(pVgroup);
+    mnodeDecVgroupRef(pVgroup);
 
     if (hasThisDnode) break;
   }
@@ -424,7 +424,7 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
 
   if (!hasThisDnode) {
     mPrint("dnode:%d, dropped for all vnodes are moving to other dnodes", pDnode->dnodeId);
-    mgmtDropDnode(pDnode);
+    mnodeDropDnode(pDnode);
     return true;
   }
 
@@ -436,28 +436,28 @@ static bool balanceMontiorDropping() {
   SDnodeObj *pDnode = NULL;
 
   while (1) {
-    mgmtDecDnodeRef(pDnode);
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    mnodeDecDnodeRef(pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
 
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       if (pDnode->lastAccess + tsOfflineThreshold > tsAccessSquence) continue;
       if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) continue; 
-      if (mgmtGetDnodesNum() <= 1) continue;
+      if (mnodeGetDnodesNum() <= 1) continue;
 
       mLPrint("dnode:%d, set to removing state for it offline:%d seconds", pDnode->dnodeId,
               tsAccessSquence - pDnode->lastAccess);
 
       pDnode->status = TAOS_DN_STATUS_DROPPING;
-      mgmtUpdateDnode(pDnode);
-      mgmtDecDnodeRef(pDnode);
+      mnodeUpdateDnode(pDnode);
+      mnodeDecDnodeRef(pDnode);
       sdbFreeIter(pIter);
       return true;
     }
 
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
       bool ret = balanceMonitorDnodeDropping(pDnode);
-      mgmtDecDnodeRef(pDnode);
+      mnodeDecDnodeRef(pDnode);
       sdbFreeIter(pIter);
       return ret;
     }
@@ -498,7 +498,7 @@ static void balanceSetVgroupOffline(SDnodeObj* pDnode) {
   void *pIter = NULL;
   while (1) {
     SVgObj *pVgroup;
-    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
@@ -506,7 +506,7 @@ static void balanceSetVgroupOffline(SDnodeObj* pDnode) {
         pVgroup->vnodeGid[i].role = TAOS_SYNC_ROLE_OFFLINE;
       }
     }
-    mgmtDecVgroupRef(pVgroup);
+    mnodeDecVgroupRef(pVgroup);
   }
 
   sdbFreeIter(pIter);
@@ -517,7 +517,7 @@ static void balanceCheckDnodeAccess() {
   SDnodeObj *pDnode = NULL;
 
   while (1) {
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     if (tsAccessSquence - pDnode->lastAccess > 3) {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
@@ -526,7 +526,7 @@ static void balanceCheckDnodeAccess() {
         balanceSetVgroupOffline(pDnode);
       }
     }
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   sdbFreeIter(pIter);
@@ -555,15 +555,15 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   if (updateSoon) {
     balanceStartTimer(1000);
   } else {
-    taosTmrReset(balanceProcessBalanceTimer, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsBalanceTimer);
+    taosTmrReset(balanceProcessBalanceTimer, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsBalanceTimer);
   }
 }
 
 static void balanceStartTimer(int64_t mseconds) {
-  taosTmrReset(balanceProcessBalanceTimer, mseconds, (void *)mseconds, tsMgmtTmr, &tsBalanceTimer);
+  taosTmrReset(balanceProcessBalanceTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBalanceTimer);
 }
 
-void balanceUpdateMgmt() {
+void balanceUpdateMnode() {
   if (sdbIsMaster()) {
     balanceLock();
     balanceAccquireDnodeList();
@@ -606,14 +606,14 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
   SDnodeObj *pTempDnode = NULL;
 
   while (1) {
-    pIter = mgmtGetNextDnode(pIter, &pTempDnode);
+    pIter = mnodeGetNextDnode(pIter, &pTempDnode);
     if (pTempDnode == NULL) break;
 
     if (pTempDnode != pDnode && balanceCheckFree(pTempDnode)) {
       totalFreeVnodes += (pTempDnode->totalVnodes - pTempDnode->openVnodes);
     }
 
-    mgmtDecDnodeRef(pTempDnode);
+    mnodeDecDnodeRef(pTempDnode);
   }
 
   sdbFreeIter(pIter);
@@ -624,7 +624,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
   }
 
   pDnode->status = TAOS_DN_STATUS_DROPPING;
-  mgmtUpdateDnode(pDnode);
+  mnodeUpdateDnode(pDnode);
   
   balanceStartTimer(1100);
 
@@ -670,7 +670,7 @@ static int32_t balanceCalcBandwidthScore(SDnodeObj *pDnode) {
 static float balanceCalcModuleScore(SDnodeObj *pDnode) {
   if (pDnode->totalVnodes <= 1) return 0;
   if (pDnode->isMgmt) {
-     return (float)tsMgmtEqualVnodeNum / pDnode->totalVnodes * 100;
+     return (float)tsMnodeEqualVnodeNum / pDnode->totalVnodes * 100;
   }
   return 0;
 }
@@ -722,7 +722,7 @@ static void balanceCheckDnodeListSize(int32_t dnodesNum) {
 }
 
 void balanceAccquireDnodeList() {
-  int32_t dnodesNum = mgmtGetDnodesNum();
+  int32_t dnodesNum = mnodeGetDnodesNum();
   balanceCheckDnodeListSize(dnodesNum);
 
   void *     pIter = NULL;
@@ -731,10 +731,10 @@ void balanceAccquireDnodeList() {
 
   while (1) {  
     if (dnodeIndex >= dnodesNum) break;
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-      mgmtDecDnodeRef(pDnode);
+      mnodeDecDnodeRef(pDnode);
       continue;
     }
 
@@ -760,17 +760,17 @@ void balanceReleaseDnodeList() {
   for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
     SDnodeObj *pDnode = tsBalanceDnodeList[i];
     if (pDnode != NULL) {
-      mgmtDecDnodeRef(pDnode);
+      mnodeDecDnodeRef(pDnode);
     }
   }
 }
 
 static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0)  {
-    mgmtDecUserRef(pUser);
+    mnodeDecUserRef(pUser);
     return TSDB_CODE_NO_RIGHTS;
   }
 
@@ -839,11 +839,11 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = mgmtGetDnodesNum();
+  pShow->numOfRows = mnodeGetDnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pIter = NULL;
 
-  mgmtDecUserRef(pUser);
+  mnodeDecUserRef(pUser);
 
   return 0;
 }
@@ -855,7 +855,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
   int32_t    cols = 0;
   
   while (numOfRows < rows) {
-    pShow->pIter = mgmtGetNextDnode(pShow->pIter, &pDnode);
+    pShow->pIter = mnodeGetNextDnode(pShow->pIter, &pDnode);
     if (pDnode == NULL) break;
 
     int32_t systemScore = balanceCalcCpuScore(pDnode) + balanceCalcMemoryScore(pDnode) + balanceCalcDiskScore(pDnode) +
@@ -898,11 +898,11 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, mgmtGetDnodeStatusStr(pDnode->status));
+    STR_TO_VARSTR(pWrite, mnodeGetDnodeStatusStr(pDnode->status));
     cols++;
 
     numOfRows++;
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   pShow->numOfReads += numOfRows;
@@ -910,7 +910,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
 }
 
 static void balanceMonitorDnodeModule() {
-  int32_t numOfMnodes = mgmtGetMnodesNum();
+  int32_t numOfMnodes = mnodeGetMnodesNum();
   if (numOfMnodes >= tsNumOfMPeers) return;
 
   for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
@@ -922,9 +922,9 @@ static void balanceMonitorDnodeModule() {
     }
 
     mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMPeers);
-    mgmtAddMnode(pDnode->dnodeId);
+    mnodeAddMnode(pDnode->dnodeId);
     
-    numOfMnodes = mgmtGetMnodesNum();
+    numOfMnodes = mnodeGetMnodesNum();
     if (numOfMnodes >= tsNumOfMPeers) return;
   }
 }
