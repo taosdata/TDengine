@@ -936,7 +936,7 @@ static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables)
 
   for (int tid = 1; tid < maxTables; tid++) {
     STable *pTable = pMeta->tables[tid];
-    if (pTable == NULL || pTable->imem == NULL) continue;
+    if (pTable == NULL || pTable->imem == NULL || pTable->imem->numOfRows == 0) continue;
 
     iters[tid] = tSkipListCreateIter(pTable->imem->pData);
     if (iters[tid] == NULL) goto _err;
@@ -968,12 +968,12 @@ static void *tsdbCommitData(void *arg) {
   SRWHelper   whelper = {{0}};
   if (pCache->imem == NULL) return NULL;
 
-  tsdbPrint("vgId: %d, starting to commit....", pRepo->config.tsdbId);
+  tsdbPrint("vgId:%d, starting to commit....", pRepo->config.tsdbId);
 
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
   if (iters == NULL) {
-    // TODO: deal with the error
+    ASSERT(0);
     return NULL;
   }
 
@@ -1015,6 +1015,7 @@ _exit:
     }
   }
   tsdbUnLockRepo(arg);
+  tsdbPrint("vgId:%d, commit over....", pRepo->config.tsdbId);
 
   return NULL;
 }

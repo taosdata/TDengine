@@ -335,17 +335,14 @@ void *shellLoopQuery(void *arg) {
       tscError("failed to malloc command");
       return NULL;
     }
-    while (1) {
-      // Read command from shell.
 
+    do {
+      // Read command from shell.
       memset(command, 0, MAX_COMMAND_SIZE);
       set_terminal_mode();
       shellReadCommand(con, command);
       reset_terminal_mode();
-
-      // Run the command
-      shellRunCommand(con, command);
-    }
+    } while (shellRunCommand(con, command) == 0);
 
   pthread_cleanup_pop(1);
 
