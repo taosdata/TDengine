@@ -82,20 +82,15 @@ TAOS *shellInit(SShellArguments *args) {
   // Check if it is temperory run
   if (args->commands != NULL || args->file[0] != 0) {
     if (args->commands != NULL) {
-      char *token;
-      token = strtok(args->commands, ";");
-      while (token != NULL) {
-        printf("%s%s\n", PROMPT_HEADER, token);
-        shellRunCommand(con, token);
-        token = strtok(NULL, ";");
-      }
+      printf("%s%s\n", PROMPT_HEADER, args->commands);
+      shellRunCommand(con, args->commands);
     }
 
     if (args->file[0] != 0) {
       source_file(con, args->file);
     }
-    taos_close(con);
 
+    taos_close(con);
     write_history();
     exit(EXIT_SUCCESS);
   }
@@ -111,67 +106,66 @@ TAOS *shellInit(SShellArguments *args) {
   return con;
 }
 
-void shellReplaceCtrlChar(char *str) {
-  _Bool ctrlOn = false;
-  char *pstr = NULL;
-  char  quote = 0;
 
-  for (pstr = str; *str != '\0'; ++str) {
-    if (ctrlOn) {
-      switch (*str) {
-        case 'n':
-          *pstr = '\n';
-          pstr++;
-          break;
-        case 'r':
-          *pstr = '\r';
-          pstr++;
-          break;
-        case 't':
-          *pstr = '\t';
-          pstr++;
-          break;
-        case 'G':
-          *pstr++ = '\\';
-          *pstr++ = *str;
-          break;
-        case '\\':
-          *pstr = '\\';
-          pstr++;
-          break;
-        case '\'':
-        case '"':
-          if (quote) {
-            *pstr++ = '\\';
-            *pstr++ = *str;
-          }
-          break;
-        default:
-          *pstr = *str;
-          pstr++;
-          break;
-      }
-      ctrlOn = false;
-    } else {
-      if (*str == '\\') {
-        ctrlOn = true;
-      } else {
-        if (quote == *str) {
-          quote = 0;
-        } else if (*str == '\'' || *str == '"') {
-          quote = *str;
-        }
-        *pstr = *str;
-        pstr++;
-      }
+static bool isEmptyCommand(const char* cmd) {
+  for (char c = *cmd++; c != 0; c = *cmd++) {
+    if (c != ' ' && c != '\t' && c != ';') {
+      return false;
     }
   }
-  *pstr = '\0';
+  return true;
 }
 
-int32_t shellRunCommand(TAOS *con, char *command) {
+
+static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   /* If command is empty just return */
-  if (regex_match(command, "^[ \t;]*$", REG_EXTENDED)) {
+  if (isEmptyCommand(command)) {
+    return 0;
+  }
+
+  // Analyse the command.
+  if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
+    taos_close(con);
+    write_history();
+    return -1;
+  }
+
+  if (regex_match(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
+    // If clear the screen.
+    system("clear");
+    return 0;
+  }
+  
+  if (regex_match(command, "^[\t ]*set[ \t]+max_binary_display_width[ \t]+(default|[1-9][0-9]*)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
+    strtok(command, " \t");
+    strtok(NULL, " \t");
+    char* p = strtok(NULL, " \t");
+    if (strcasecmp(p, "default") == 0) {
+      tsMaxBinaryDisplayWidth = DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
+    } else {
+      tsMaxBinaryDisplayWidth = atoi(p);
+    }
+    return 0;
+  }
+  
+  if (regex_match(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
+    /* If source file. */
+    char *c_ptr = strtok(command, " ;");
+    assert(c_ptr != NULL);
+    c_ptr = strtok(NULL, " ;");
+    assert(c_ptr != NULL);
+    source_file(con, c_ptr);
+    return 0;
+  }
+
+  shellRunCommandOnServer(con, command);
+  return 0;
+}
+
+
+int32_t shellRunCommand(TAOS* con, char* command) {
+  /* If command is empty just return */
+  if (isEmptyCommand(command)) {
     return 0;
   }
 
@@ -190,39 +184,62 @@ int32_t shellRunCommand(TAOS *con, char *command) {
     }
   }
 
-  shellReplaceCtrlChar(command);
-
-  // Analyse the command.
-  if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    taos_close(con);
-    write_history();
-    return -1;
-  } else if (regex_match(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    // If clear the screen.
-    system("clear");
-  } else if (regex_match(command, "^[\t ]*set[ \t]+max_binary_display_width[ \t]+(default|[1-9][0-9]*)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    strtok(command, " \t");
-    strtok(NULL, " \t");
-    char* p = strtok(NULL, " \t");
-    if (strcasecmp(p, "default") == 0) {
-      tsMaxBinaryDisplayWidth = DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
-    } else {
-      tsMaxBinaryDisplayWidth = atoi(p);
+  bool esc = false;
+  char quote = 0, *cmd = command, *p = command;
+  for (char c = *command++; c != 0; c = *command++) {
+    if (esc) {
+      switch (c) {
+        case 'n':
+          c = '\n';
+          break;
+        case 'r':
+          c = '\r';
+          break;
+        case 't':
+          c = '\t';
+          break;
+        case 'G':
+          *p++ = '\\';
+          break;
+        case '\'':
+        case '"':
+          if (quote) {
+            *p++ = '\\';
+          }
+          break;
+      }
+      *p++ = c;
+      esc = false;
+      continue;
     }
-  } else if (regex_match(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    /* If source file. */
-    char *c_ptr = strtok(command, " ;");
-    assert(c_ptr != NULL);
-    c_ptr = strtok(NULL, " ;");
-    assert(c_ptr != NULL);
+    
+    if (c == '\\') {
+      esc = true;
+      continue;
+    }
 
-    source_file(con, c_ptr);
-  } else {
-    shellRunCommandOnServer(con, command);
+    if (quote == c) {
+      quote = 0;
+    } else if (c == '\'' || c == '"') {
+      quote = c;
+    }
+
+    *p++ = c;
+    if (c == ';') {
+      c = *p;
+      *p = 0;
+      if (shellRunSingleCommand(con, cmd) < 0) {
+        return -1;
+      }
+      *p = c;
+      p = cmd;
+    }
   }
-  
-  return 0;
+
+  *p = 0;
+  return shellRunSingleCommand(con, cmd);
 }
+
 
 void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
