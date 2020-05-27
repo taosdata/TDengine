@@ -203,16 +203,13 @@ void *shellLoopQuery(void *arg) {
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL) return NULL;
 
-  while (1) {
+  do {
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
 
     // Read command from shell.
     shellReadCommand(con, command);
-
-    // Run the command
-    shellRunCommand(con, command);
-  }
+  } while (shellRunCommand(con, command) == 0);
 
   return NULL;
 }
