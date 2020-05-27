@@ -1847,10 +1847,10 @@ bool indexedNodeFilterFp(const void* pNode, void* param) {
     int16_t type;
   //  int32_t offset = pTSchema->columns[pInfo->colIndex].offset;
   //  val = tdGetRowDataOfCol(elem->pTable->tagVal, pInfo->sch.type, TD_DATA_ROW_HEAD_SIZE + offset);
-    val = tdQueryTagByID(elem->pTable->tagVal, pInfo->colIndex, &type);
+    val = tdQueryTagByID(elem->pTable->tagVal, pInfo->sch.colId, &type);
   //  ASSERT(pInfo->sch.type == type);    
   }
-
+  //todo :the val is possible to be null, so check it out carefully
   int32_t ret = 0;
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     if (pInfo->optr == TSDB_RELATION_IN) {

@@ -173,13 +173,10 @@ static int compTagId(const void *key1, const void *key2) {
 }
 
 void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type) {  //if find tag, 0, else return -1; 
-  //todo
   ASSERT(((STagRow *)row)->pData != NULL);
-
   STagCol *pBase = ((STagRow *)row)->tagCols;
   int16_t nCols = ((STagRow *)row)->ncols;
   STagCol key = {colId,0,0};
-  
   STagCol * stCol = taosbsearch(&key, pBase, nCols, sizeof(STagCol), compTagId, TD_EQ);
   if (NULL == stCol) {
     return NULL;
@@ -196,7 +193,6 @@ int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int
   //ASSERT(bytes-2 == varDataTLen(value));
   ASSERT(row != NULL);
   STagRow *pTagrow = row;
-  
   pTagrow->tagCols[pTagrow->ncols].colId = colId;
   pTagrow->tagCols[pTagrow->ncols].colType = type;
   pTagrow->tagCols[pTagrow->ncols].offset = pTagrow->dataLen;
