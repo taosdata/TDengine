@@ -307,19 +307,13 @@ void *shellLoopQuery(void *arg) {
     return NULL;
   }
   
-  while (1) {
+  do {
     // Read command from shell.
-
     memset(command, 0, MAX_COMMAND_SIZE);
     set_terminal_mode();
     shellReadCommand(con, command);
     reset_terminal_mode();
-
-    // Run the command
-    if (shellRunCommand(con, command) != 0) {
-      break;
-    }
-  }
+  } while (shellRunCommand(con, command) == 0);
   
   tfree(command);
   exitShell();

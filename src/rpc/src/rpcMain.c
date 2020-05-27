@@ -594,7 +594,10 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   // check if it is already allocated
   SRpcConn **ppConn = (SRpcConn **)(taosHashGet(pRpc->hash, hashstr, size));
   if (ppConn) pConn = *ppConn;
-  if (pConn) return pConn;
+  if (pConn) {
+    pConn->secured = 0;
+    return pConn;
+  }
 
   int sid = taosAllocateId(pRpc->idPool);
   if (sid <= 0) {
