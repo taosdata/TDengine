@@ -74,7 +74,7 @@ class WorkerThread:
             self._dbConn = DbConn()   
 
     def logDebug(self, msg):
-        logger.info("    TRD[{}] {}".format(self._tid, msg))
+        logger.debug("    TRD[{}] {}".format(self._tid, msg))
 
     def logInfo(self, msg):
         logger.info("    TRD[{}] {}".format(self._tid, msg))
@@ -222,7 +222,7 @@ class ThreadCoordinator:
             self.resetExecutedTasks() # clear the tasks after we are done
 
             # Get ready for next step
-            logger.info("<-- Step {} finished".format(self._curStep))
+            logger.debug("<-- Step {} finished".format(self._curStep))
             self._curStep += 1 # we are about to get into next step. TODO: race condition here!                
             logger.debug("\r\n--> Step {} starts with main thread waking up".format(self._curStep)) # Now not all threads had time to go to sleep
 
@@ -244,7 +244,7 @@ class ThreadCoordinator:
 
         logger.debug("Main thread joining all threads")
         self._pool.joinAll() # Get all threads to finish
-        logger.info("All threads finished")
+        logger.info("All worker thread finished")
         self._execStats.endExec()
 
     def logStats(self):
@@ -257,7 +257,7 @@ class ThreadCoordinator:
                 wakeSeq.append(i)
             else:
                 wakeSeq.insert(0, i)
-        logger.info("[TRD] Main thread waking up worker thread: {}".format(str(wakeSeq)))
+        logger.debug("[TRD] Main thread waking up worker thread: {}".format(str(wakeSeq)))
         # TODO: set dice seed to a deterministic value
         for i in wakeSeq:
             self._pool.threadList[i].tapStepGate() # TODO: maybe a bit too deep?!
@@ -482,6 +482,14 @@ class AnyState:
     def getInfo(self):
         raise RuntimeError("Must be overriden by child classes")
 
+    def equals(self, other):
+        if isinstance(other, int):
+            return self.getValIndex() == other
+        elif isinstance(other, AnyState):
+            return self.getValIndex() == other.getValIndex()
+        else:
+            raise RuntimeError("Unexpected comparison, type = {}".format(type(other)))
+
     def verifyTasksToState(self, tasks, newState):
         raise RuntimeError("Must be overriden by child classes")
 
@@ -623,8 +631,9 @@ class StateTableOnly(AnyState):
             self.assertNoTask(tasks, DropFixedTableTask)
             self.assertNoTask(tasks, AddFixedDataTask)
             # self._state = self.STATE_TABLE_ONLY # no change
-        else: # did not drop table, did not insert data, did not read successfully, that is impossible
-            raise RuntimeError("Unexpected no-success scenarios")
+        # else: # did not drop table, did not insert data, did not read successfully, that is impossible
+        #     raise RuntimeError("Unexpected no-success scenarios")
+        # TODO: need to revamp!!
 
 class StateHasData(AnyState):
     def getInfo(self):
@@ -636,21 +645,23 @@ class StateHasData(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
-        if ( self.hasSuccess(tasks, DropFixedTableTask) ):
-                self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
-                # self._state = self.STATE_DB_ONLY
-        else: # no success dropping the table, table remains intact in this step
-            self.assertNoTask(tasks, DropFixedTableTask) # we should not have had such a task
+        if ( newState.equals(AnyState.STATE_EMPTY) ):
+            self.hasSuccess(tasks, DropDbTask)
+            self.assertAtMostOneSuccess(tasks, DropDbTask) # TODO: dicy
+        elif ( newState.equals(AnyState.STATE_DB_ONLY) ):
+            self.assertNoTask(tasks, DropDbTask)
+            self.hasSuccess(tasks, DropFixedTableTask)
+            self.assertAtMostOneSuccess(tasks, DropFixedTableTask) # TODO: dicy
+        elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
+            self.assertNoTask(tasks, DropDbTask)
+            self.assertNoTask(tasks, DropFixedTableTask)
+            self.assertNoTask(tasks, AddFixedDataTask)
+            # self.hasSuccess(tasks, DeleteDataTasks)
+        else:
+            self.assertNoTask(tasks, DropDbTask)
+            self.assertNoTask(tasks, DropFixedTableTask)
+            self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
 
-            if ( not self.hasSuccess(tasks, AddFixedDataTask) ): # added data
-                # self._state = self.STATE_HAS_DATA
-            # else:
-                self.assertNoTask(tasks, AddFixedDataTask)
-                if ( not self.hasSuccess(tasks, ReadFixedDataTask) ): # simple able to read some data
-                    # which is ok, then no state change
-                #     self._state = self.STATE_HAS_DATA # no change
-                # else: # did not drop table, did not insert data, that is impossible? yeah, we might only had ReadData task
-                    raise RuntimeError("Unexpected no-success scenarios")
 
 # State of the database as we believe it to be
 class DbState():
@@ -1190,6 +1201,9 @@ class Dice():
 
 class LoggingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord):
+        if ( record.levelno >= logging.INFO ) :
+            return True # info or above always log
+
         msg = record.msg
         # print("type = {}, value={}".format(type(msg), msg))
         # sys.exit()
@@ -1227,9 +1241,11 @@ def main():
 
     global logger
     logger = logging.getLogger('CrashGen')
-    logger.addFilter(LoggingFilter())
+    # logger.addFilter(LoggingFilter())
     if ( gConfig.debug ):
         logger.setLevel(logging.DEBUG) # default seems to be INFO        
+    else:
+        logger.setLevel(logging.INFO)
     ch = logging.StreamHandler()
     logger.addHandler(ch)
 
@@ -1245,7 +1261,7 @@ def main():
     tc.logStats()
     dbState.cleanUp()    
     
-    logger.info("Finished running thread pool")
+    # logger.info("Crash_Gen execution finished")
 
 if __name__ == "__main__":
     main()
