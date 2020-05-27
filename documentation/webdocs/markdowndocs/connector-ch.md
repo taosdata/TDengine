@@ -30,6 +30,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   该API用来执行SQL语句，可以是DQL语句也可以是DML语句，或者DDL语句。其中的taos参数是通过taos_connect()获得的指针。返回值-1表示失败。
 
+  参数sqlstr中只应包含一条SQL语句，如果多于一条，此API的行为是未定义的。
+
 
 - `TAOS_RES *taos_use_result(TAOS *taos)`
 
@@ -135,6 +137,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 - `void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, int code), void *param);`
 
   异步执行SQL语句。taos是调用taos_connect返回的数据库连接结构体。sqlstr是需要执行的SQL语句。fp是用户定义的回调函数。param是应用提供一个用于回调的参数。回调函数fp的第三个参数code用于指示操作是否成功，0表示成功，负数表示失败(调用taos_errstr获取失败原因)。应用在定义回调函数的时候，主要处理第二个参数TAOS_RES *，该参数是查询返回的结果集。 
+
+  与 taos_query 一样，参数sqlstr中也只应包含一条SQL语句。
 
 
 - `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`

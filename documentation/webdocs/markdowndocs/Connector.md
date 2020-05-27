@@ -28,6 +28,8 @@ Sync APIs are those APIs waiting for responses from the server after sending a r
 - `int taos_query(TAOS *taos, char *sqlstr)`
 
   The API used to run a SQL command. The command can be DQL or DML. The parameter _taos_ is the handle returned by _taos_connect_. Return value _-1_ means failure.
+  
+  There should be only one SQL statement in `sqlstr`, if there's more than one, the behavior of this function is undefined.
 
 
 - `TAOS_RES *taos_use_result(TAOS *taos)`
@@ -137,6 +139,7 @@ The first two parameters of the callback function are the same for all async API
 
   The async query interface. _taos_ is the handle returned by _taos_connect_ interface. _sqlstr_ is the SQL command to run. _fp_ is the callback function. _param_ is the parameter required by the callback function. The third parameter of the callback function _code_ is _0_ (for success) or a negative number (for failure, call taos_errstr to get the error as a string).  Applications mainly handle with the second parameter, the returned result set.
 
+  Same as `taos_query`, there should be only one SQL statement in `sqlstr`.
 
 - `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`
 
