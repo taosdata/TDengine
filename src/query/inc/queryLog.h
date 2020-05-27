@@ -24,23 +24,12 @@ extern "C" {
 
 extern int32_t qDebugFlag;
 
-#define qTrace(...)                                \
-  if (qDebugFlag & DEBUG_TRACE) {                  \
-    taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); \
-  }
-
-#define qError(...)                                      \
-  if (qDebugFlag & DEBUG_ERROR) {                        \
-    taosPrintLog("ERROR QRY ", qDebugFlag, __VA_ARGS__); \
-  }
-
-#define qWarn(...)                                      \
-  if (qDebugFlag & DEBUG_WARN) {                        \
-    taosPrintLog("WARN QRY ", qDebugFlag, __VA_ARGS__); \
-  }
+#define qTrace(...) { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }}
+#define qError(...) { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR QRY ", qDebugFlag, __VA_ARGS__); }}
+#define qWarn(...)  { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN QRY ", qDebugFlag, __VA_ARGS__); }}
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_QUERY_CACHE_H
+#endif  // TDENGINE_QUERY_LOG_H

@@ -22,20 +22,10 @@
 #include "tlog.h"
 #include "ttime.h"
 
-#define jniError(...)                                 \
-  if (jniDebugFlag & DEBUG_ERROR) {                   \
-    taosPrintLog("ERROR JNI ", jniDebugFlag, __VA_ARGS__); \
-  }
-#define jniWarn(...)                                  \
-  if (jniDebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  JNI ", jniDebugFlag, __VA_ARGS__); \
-  }
-#define jniTrace(...)                           \
-  if (jniDebugFlag & DEBUG_TRACE) {             \
-    taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
-  }
-#define jniPrint(...) \
-  { taosPrintLog("JNI ", 255, __VA_ARGS__); }
+#define jniError(...)  { if (jniDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR JNI ", jniDebugFlag, __VA_ARGS__); }}
+#define jniWarn(...)   { if (jniDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN  JNI ", jniDebugFlag, __VA_ARGS__); }}
+#define jniTrace(...)  { if (jniDebugFlag & DEBUG_TRACE) { taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); }}
+#define jniPrint(...)  { taosPrintLog("JNI ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }
 
 int __init = 0;
 

@@ -27,10 +27,10 @@
 #include "tcq.h"
 #include "taos.h"
 
-#define cError(...) if (cqDebugFlag & DEBUG_ERROR) {taosPrintLog("ERROR CQ  ", cqDebugFlag, __VA_ARGS__);}
-#define cWarn(...) if (cqDebugFlag & DEBUG_WARN) {taosPrintLog("WARN CQ  ", cqDebugFlag, __VA_ARGS__);}
-#define cTrace(...) if (cqDebugFlag & DEBUG_TRACE) {taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__);}
-#define cPrint(...) {taosPrintLog("CQ  ", 255, __VA_ARGS__);}
+#define cError(...) { if (cqDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR CQ  ", cqDebugFlag, __VA_ARGS__); }}
+#define cWarn(...)  { if (cqDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN CQ  ", cqDebugFlag, __VA_ARGS__); }}
+#define cTrace(...) { if (cqDebugFlag & DEBUG_TRACE) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
+#define cPrint(...) { taosPrintLog("CQ  ", 255, __VA_ARGS__); }
 
 typedef struct {
   int      vgId;

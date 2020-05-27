@@ -553,7 +553,6 @@ void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* lab
   }
 
   STRNCPY(ctrl->label, label, sizeof(ctrl->label));
-  ctrl->label[sizeof(ctrl->label) - 1] = 0;
   tmrTrace("%s timer controller is initialized, number of timer controllers: %d.", label, numOfTmrCtrl);
   return ctrl;
 }
