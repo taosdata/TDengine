@@ -28,8 +28,7 @@
 #include "dnodeInt.h"
 #include "dnodeMgmt.h"
 #include "dnodeVWrite.h"
-#include "dnodeMRead.h"
-#include "dnodeMWrite.h"
+#include "dnodeMPeer.h"
 
 extern void dnodeUpdateMnodeIpSetForPeer(SRpcIpSet *pIpSet);
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
@@ -50,11 +49,11 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToDnodeMgmt;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToDnodeMgmt;
 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMnodeReadQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMnodeReadQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = dnodeDispatchToMnodeReadQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMnodeWriteQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMnodePeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMnodePeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = dnodeDispatchToMnodePeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMnodePeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMnodePeerQueue;
   
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -103,16 +102,14 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
     rpcSendResponse(&rspMsg);
     return;
   }
- 
+
   if (dnodeProcessReqMsgFp[pMsg->msgType]) {
     (*dnodeProcessReqMsgFp[pMsg->msgType])(pMsg);
   } else {
+    dTrace("RPC %p, message:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
     rspMsg.code = TSDB_CODE_MSG_NOT_PROCESSED;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
-    dTrace("RPC %p, message:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]); 
-    return;
-
   }
 }
 
@@ -148,13 +145,14 @@ void dnodeCleanupClient() {
 }
 
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
-  if (dnodeProcessRspMsgFp[pMsg->msgType]) {
-    if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pIpSet) {
-      dnodeUpdateMnodeIpSetForPeer(pIpSet);
-    }
+  if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pIpSet) {
+    dnodeUpdateMnodeIpSetForPeer(pIpSet);
+  }
+
+  if (dnodeProcessRspMsgFp[pMsg->msgType]) {    
     (*dnodeProcessRspMsgFp[pMsg->msgType])(pMsg);
   } else {
-    dError("RPC %p, msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
+    mnodeProcessPeerRsp(pMsg);
   }
 
   rpcFreeCont(pMsg->pCont);

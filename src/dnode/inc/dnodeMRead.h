@@ -22,6 +22,8 @@ extern "C" {
 
 int32_t dnodeInitMnodeRead();
 void    dnodeCleanupMnodeRead();
+int32_t dnodeAllocateMnodeRqueue();
+void    dnodeFreeMnodeRqueue();
 void    dnodeDispatchToMnodeReadQueue(SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus

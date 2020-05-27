@@ -81,6 +81,4 @@ void mnodeProcessPeerRsp(SRpcMsg *pMsg) {
   } else {
     mError("msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
   }
-
-  rpcFreeCont(pMsg->pCont);
 }
