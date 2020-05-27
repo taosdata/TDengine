@@ -296,13 +296,6 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
   }
 
   pTable->type = pCfg->type;
-  tsize = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
-  pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
-  if (pTable->name == NULL) {
-    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
-    goto _err;
-  }
-  STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, tsize);
 
   if (isSuper) {
     pTable->type = TSDB_SUPER_TABLE;
@@ -312,8 +305,16 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     pTable->schema = tdDupSchema(pCfg->schema);
     pTable->tagSchema = tdDupSchema(pCfg->tagSchema);
 
+    tsize = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
+    pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
+    if (pTable->name == NULL) {
+      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      goto _err;
+    }
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, tsize);
+
     STColumn *pColSchema = schemaColAt(pTable->tagSchema, 0);
-    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes, 1, 0, 1,
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes, 1, 0, 0,
                                      getTagIndexKey);  // Allow duplicate key, no lock
     if (pTable->pIndex == NULL) {
       terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
@@ -324,6 +325,14 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     pTable->tableId.uid = pCfg->tableId.uid;
     pTable->tableId.tid = pCfg->tableId.tid;
     pTable->lastKey = TSKEY_INITIAL_VAL;
+
+    tsize = strnlen(pCfg->name, TSDB_TABLE_NAME_LEN);
+    pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
+    if (pTable->name == NULL) {
+      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      goto _err;
+    }
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->name, tsize);
 
     if (pCfg->type == TSDB_CHILD_TABLE) {
       pTable->superUid = pCfg->superUid;
