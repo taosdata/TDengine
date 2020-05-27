@@ -423,6 +423,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tfree(pCmd->payload);
 
   pCmd->allocSize = 0;
+  
+  tfree(pSql->sqlstr);
   free(pSql);
 }
 
