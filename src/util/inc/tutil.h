@@ -110,21 +110,10 @@ extern "C" {
 
 #define POW2(x) ((x) * (x))
 
-#define MEMNCPY(dst, src, n)       \
-  do {                             \
-    assert((n) <= sizeof(dst));    \
-    strncpy((dst), (src), n);      \
-  } while (0)
-
 #define STRNCPY(dst, src, n)       \
   do {                             \
-    assert((n) <= sizeof(dst));    \
-    int nn = n;                    \
-    if (nn >= sizeof(dst)) {       \
-      nn = sizeof(dst) - 1;        \
-    }                              \
-    strncpy((dst), (src), nn);     \
-    (dst)[nn] = 0;                 \
+    strncpy((dst), (src), (n));    \
+    (dst)[(n)-1] = 0;              \
   } while (0)
 
 int32_t strdequote(char *src);
