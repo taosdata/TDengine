@@ -16,6 +16,6 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   add_executable(importOneRow importOneRow.c)
   target_link_libraries(importOneRow taos_static pthread)
 
-  add_executable(importPerTabe importPerTabe.c)
-  target_link_libraries(importPerTabe taos_static pthread)
+  add_executable(importPerTable importPerTable.c)
+  target_link_libraries(importPerTable taos_static pthread)
 ENDIF()
