@@ -952,7 +952,7 @@ static int32_t mgmtModifySuperTableTagName(SSuperTableObj *pStable, char *oldTag
 
   // update
   SSchema *schema = (SSchema *) (pStable->schema + pStable->numOfColumns + col);
-  STRNCPY(schema->name, newTagName, TSDB_COL_NAME_LEN);
+  STRNCPY(schema->name, newTagName, sizeof(schema->name));
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -1229,7 +1229,7 @@ static int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTa
   assert(numOfCols <= TSDB_MAX_COLUMNS);
   
   for (int32_t i = 0; i < numOfCols; ++i) {
-    STRNCPY(pSchema->name, pTable->schema[i].name, TSDB_COL_NAME_LEN);
+    STRNCPY(pSchema->name, pTable->schema[i].name, sizeof(pSchema->name));
     pSchema->type  = pTable->schema[i].type;
     pSchema->bytes = htons(pTable->schema[i].bytes);
     pSchema->colId = htons(pTable->schema[i].colId);
@@ -1250,7 +1250,7 @@ static void mgmtGetSuperTableMeta(SQueuedMsg *pMsg) {
   pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
   pMeta->tableType    = pTable->info.type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
-  STRNCPY(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_ID_LEN);
+  STRNCPY(pMeta->tableId, pTable->info.tableId, sizeof(pMeta->tableId));
 
   SRpcMsg rpcRsp = {
     .handle = pMsg->thandle, 

@@ -1704,7 +1704,7 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
           pDestCol->colIndex = htons(pCol->colIndex);
           pDestCol->colId = htons(pDestCol->colId);
           pDestCol->flag = htons(pDestCol->flag);
-          STRNCPY(pDestCol->name, pCol->name, sizeof(pCol->name));
+          STRNCPY(pDestCol->name, pCol->name, sizeof(pDestCol->name));
 
           pMsg += sizeof(SColIndex);
         }

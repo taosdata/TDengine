@@ -86,11 +86,16 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
     free(base64);
     return false;
   } else {
-    STRNCPY(pContext->user, descrypt, TSDB_USER_LEN);
-    STRNCPY(pContext->pass, descrypt + TSDB_USER_LEN, TSDB_PASSWORD_LEN);
+    MEMNCPY(pContext->user, descrypt, sizeof(pContext->user));
+    MEMNCPY(pContext->pass, descrypt + sizeof(pContext->user), sizeof(pContext->pass));
 
+    // for the purpose of httpTrace, but hereby, buffer overflow!!
+    // to handle this problem, we use tmp to save and restore
+    const char tmp = pContext->pass[sizeof(pContext->pass)];
+    pContext->pass[sizeof(pContext->pass)] = 0;
     httpTrace("context:%p, fd:%d, ip:%s, taosd token:%s parsed success, user:%s", pContext, pContext->fd,
               pContext->ipstr, token, pContext->user);
+    pContext->pass[sizeof(pContext->pass)] = tmp;
     free(base64);
     free(descrypt);
     return true;

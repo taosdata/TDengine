@@ -1166,7 +1166,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
         
         /* todo alias name should use the original sql string */
         char* name = (pItem->aliasName != NULL)? pItem->aliasName:arithmeticExprStr;
-        STRNCPY(pExpr->aliasName, name, TSDB_COL_NAME_LEN);
+        STRNCPY(pExpr->aliasName, name, sizeof(pExpr->aliasName)); // note: char aliasName[TSDB_COL_NAME_LEN]; + 1 to make sure strlen(aliasName) is col_name_len at most?
         
         tExprNode* pNode = NULL;
         SArray* colList = taosArrayInit(10, sizeof(SColIndex));
@@ -5198,7 +5198,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
       SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG, &index, type, bytes, bytes, true);
       
       memset(pExpr->aliasName, 0, tListLen(pExpr->aliasName));
-      STRNCPY(pExpr->aliasName, name, TSDB_COL_NAME_LEN);
+      STRNCPY(pExpr->aliasName, name, sizeof(pExpr->aliasName));
       
       pExpr->colInfo.flag = TSDB_COL_TAG;
 
@@ -5547,7 +5547,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   // get meter meta from mnode
-  STRNCPY(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
+  STRNCPY(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, sizeof(pCreateTable->usingInfo.tagdata.name));
   tVariantList* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
 
   int32_t code = tscGetTableMeta(pSql, pStableMeterMetaInfo);
@@ -5977,7 +5977,7 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray*
   
       if (pCols != NULL) {  // record the involved columns
         SColIndex colIndex = {0};
-        STRNCPY(colIndex.name, pSchema->name, TSDB_COL_NAME_LEN);
+        STRNCPY(colIndex.name, pSchema->name, sizeof(colIndex.name));
         colIndex.colId = pSchema->colId;
         colIndex.colIndex = index.columnIndex;
         

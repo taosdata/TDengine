@@ -589,7 +589,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  STRNCPY(dataBuf->tableId, name, TSDB_TABLE_ID_LEN);
+  STRNCPY(dataBuf->tableId, name, sizeof(dataBuf->tableId));
 
   /*
    * The table meta may be released since the table meta cache are completed clean by other thread
@@ -809,7 +809,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
   TAOS_FIELD f = { .type = type, .bytes = bytes, };
-  STRNCPY(f.name, name, TSDB_COL_NAME_LEN);
+  STRNCPY(f.name, name, sizeof(f.name));
   return f;
 }
 
@@ -974,11 +974,11 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
     if (isTagCol) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
-      STRNCPY(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, TSDB_COL_NAME_LEN);
+      STRNCPY(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, sizeof(pExpr->colInfo.name));
     } else {
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       pExpr->colInfo.colId = pSchema->colId;
-      STRNCPY(pExpr->colInfo.name, pSchema->name, TSDB_COL_NAME_LEN);
+      STRNCPY(pExpr->colInfo.name, pSchema->name, sizeof(pExpr->colInfo.name));
     }
   }
   
@@ -1671,7 +1671,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   assert(pTableMetaInfo != NULL);
 
   if (name != NULL) {
-    STRNCPY(pTableMetaInfo->name, name, TSDB_TABLE_ID_LEN);
+    STRNCPY(pTableMetaInfo->name, name, sizeof(pTableMetaInfo->name));
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
@@ -1977,7 +1977,6 @@ int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* s
 
   char buf[64] = {0};  // only extract part of sql string
   STRNCPY(buf, (sql - BACKWARD_CHAR_STEP), sizeof(buf));
-  buf[sizeof(buf)-1] = 0;
 
   if (additionalInfo != NULL) {
     sprintf(msg, msgFormat2, buf, additionalInfo);

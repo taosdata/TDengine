@@ -327,8 +327,8 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   if (code != 0) return code;
 
   pDb = calloc(1, sizeof(SDbObj));
-  STRNCPY(pDb->name, pCreate->db, TSDB_DB_NAME_LEN);
-  STRNCPY(pDb->acct, pAcct->user, TSDB_USER_LEN); 
+  STRNCPY(pDb->name, pCreate->db, sizeof(pDb->name));
+  STRNCPY(pDb->acct, pAcct->user, sizeof(pDb->acct)); 
   pDb->createdTime = taosGetTimestampMs(); 
   pDb->cfg = (SDbCfg) {
     .cacheBlockSize      = pCreate->cacheBlockSize,

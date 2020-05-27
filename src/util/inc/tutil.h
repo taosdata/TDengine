@@ -110,10 +110,28 @@ extern "C" {
 
 #define POW2(x) ((x) * (x))
 
+// note: copy at most n-bytes of src to dst if n is less than sizeof(dst)
+//       otherwise, copy sizeof(dst) of src to dst
+//       null-terminated?: not defined
+#define MEMNCPY(dst, src, n)       \
+  do {                             \
+    assert((n) <= sizeof(dst));    \
+    strncpy((dst), (src), n);      \
+  } while (0)
+
+// note: copy at most n-bytes of src to dst if n is less than sizeof(dst)
+//       otherwise, copy sizeof(dst)-1 of src to dst
+//       null-terminated in both case
+// note1: in either case, bytes beyond n in src, is never accessed at run time!
 #define STRNCPY(dst, src, n)       \
   do {                             \
-    strncpy((dst), (src), (n));    \
-    (dst)[(n)-1] = 0;              \
+    assert((n) <= sizeof(dst));    \
+    int nn = n;                    \
+    if (nn >= sizeof(dst)) {       \
+      nn = sizeof(dst) - 1;        \
+    }                              \
+    strncpy((dst), (src), nn);     \
+    (dst)[nn] = 0;                 \
   } while (0)
 
 int32_t strdequote(char *src);
