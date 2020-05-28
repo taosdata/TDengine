@@ -233,7 +233,10 @@ static int32_t mgmtChildTableActionDecode(SSdbOper *pOper) {
   if (pTable == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
   int32_t len = strlen(pOper->rowData);
-  if (len > TSDB_TABLE_ID_LEN) return TSDB_CODE_INVALID_TABLE_ID;
+  if (len > TSDB_TABLE_ID_LEN) {
+    free(pTable);
+    return TSDB_CODE_INVALID_TABLE_ID;
+  }
   pTable->info.tableId = strdup(pOper->rowData);
   len++;
 
