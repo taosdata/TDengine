@@ -59,9 +59,11 @@ static void    mnodeRemoveTableFromStable(SSuperTableObj *pStable, SChildTableOb
 
 static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-
+static int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+ 
 static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg);
@@ -567,7 +569,9 @@ int32_t mnodeInitTables() {
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mnodeRetrieveShowTables);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mnodeGetShowSuperTableMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mnodeRetrieveShowSuperTables);
-  
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mnodeGetStreamMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mnodeRetrieveStreams);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1386,7 +1390,10 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
 
   if (pTable->info.type == TSDB_CHILD_TABLE && pMsg != NULL) {
     memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData->data, tagDataLen);
-    memcpy(pCreate->data + totalCols * sizeof(SSchema) + tagDataLen, pTable->sql, pTable->sqlLen);
+  }
+
+  if (pTable->info.type == TSDB_STREAM_TABLE && pMsg != NULL) {
+    memcpy(pCreate->data + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
   }
 
   return pCreate;
@@ -1516,7 +1523,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
     return terrno;
   }
 
-  SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(pCreate, (SChildTableObj *) pMsg->pTable);
+  SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(pCreate, (SChildTableObj *)pMsg->pTable);
   if (pMDCreate == NULL) {
     return terrno;
   }
@@ -1879,7 +1886,7 @@ static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
   }
 
   SMDCreateTableMsg *pMDCreate = NULL;
-  pMDCreate = mnodeBuildCreateChildTableMsg(NULL, (SChildTableObj *) pTable);
+  pMDCreate = mnodeBuildCreateChildTableMsg(NULL, (SChildTableObj *)pTable);
   if (pMDCreate == NULL) {
     mnodeDecTableRef(pTable);
     return terrno;
@@ -2247,4 +2254,116 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
   }
 
   return code;
+}
+
+static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SDbObj *pDb = mnodeGetDb(pShow->db);
+  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
+
+  int32_t cols = 0;
+  SSchema *pSchema = pMeta->schema;
+
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "table_name");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "created_time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "columns");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_MAX_SQL_SHOW_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sql");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->numOfRows = pDb->numOfTables;
+  pShow->rowSize   = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  mnodeDecDbRef(pDb);
+  return 0;
+}
+
+static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  SDbObj *pDb = mnodeGetDb(pShow->db);
+  if (pDb == NULL) return 0;
+
+  
+  int32_t numOfRows  = 0;
+  SChildTableObj *pTable = NULL;
+  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
+
+  char prefix[64] = {0};
+  strcpy(prefix, pDb->name);
+  strcat(prefix, TS_PATH_DELIMITER);
+  int32_t prefixLen = strlen(prefix);
+
+  while (numOfRows < rows) {
+    pShow->pIter = mnodeGetNextChildTable(pShow->pIter, &pTable);
+    if (pTable == NULL) break;
+    
+    // not belong to current db
+    if (strncmp(pTable->info.tableId, prefix, prefixLen) || pTable->info.type != TSDB_STREAM_TABLE) {
+      mnodeDecTableRef(pTable);
+      continue;
+    }
+
+    char tableName[TSDB_TABLE_NAME_LEN + 1] = {0};
+    
+    // pattern compare for table name
+    mnodeExtractTableName(pTable->info.tableId, tableName);
+
+    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+      mnodeDecTableRef(pTable);
+      continue;
+    }
+
+    int32_t cols = 0;
+
+    char *pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *) pWrite = pTable->createdTime;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = pTable->numOfColumns;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTable->sql, TSDB_MAX_SQL_SHOW_LEN);    
+    cols++;
+
+    numOfRows++;
+    mnodeDecTableRef(pTable);
+  }
+
+  pShow->numOfReads += numOfRows;
+  const int32_t NUM_OF_COLUMNS = 4;
+
+  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeDecDbRef(pDb);
+
+  return numOfRows;
 }

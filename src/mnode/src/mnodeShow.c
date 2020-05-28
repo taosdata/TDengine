@@ -47,9 +47,10 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeProcessUseMsg(SMnodeMsg *mnodeMsg);
 
 static void  mnodeFreeShowObj(void *data);
-static bool  mnodeCheckQhandle(uint64_t qhandle);
-static void *mnodeSaveQhandle(void *qhandle, int32_t size);
-static void  mnodeFreeQhandle(void *qhandle, bool forceRemove);
+static bool  mnodeCheckShowObj(SShowObj *pShow);
+static bool  mnodeCheckShowFinished(SShowObj *pShow);
+static void *mnodeSaveShowObj(SShowObj *pShow, int32_t size);
+static void  mnodeCleanupShowObj(void *pShow, bool forceRemove);
 
 extern void *tsMnodeTmr;
 static void *tsQhandleCache = NULL;
@@ -129,7 +130,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   strcpy(pShow->db, pShowMsg->db);
   memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
 
-  pShow = mnodeSaveQhandle(pShow, showObjSize);
+  pShow = mnodeSaveShowObj(pShow, showObjSize);
   if (pShow == NULL) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
@@ -143,7 +144,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_SUCCESS;
   } else {
     mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, mnodeGetShowType(pShowMsg->type), tstrerror(code));
-    mnodeFreeQhandle(pShow, true);
+    mnodeCleanupShowObj(pShow, true);
     return code;
   }
 }
@@ -155,17 +156,24 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   SRetrieveTableMsg *pRetrieve = pMsg->rpcMsg.pCont;
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
+  SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
+  mTrace("show:%p, type:%s, retrieve data", pShow, mnodeGetShowType(pShow->type));
+
   /*
    * in case of server restart, apps may hold qhandle created by server before
    * restart, which is actually invalid, therefore, signature check is required.
    */
-  if (!mnodeCheckQhandle(pRetrieve->qhandle)) {
-    mError("retrieve:%p, qhandle:%p is invalid", pRetrieve, pRetrieve->qhandle);
+  if (!mnodeCheckShowObj(pShow)) {
+    mError("retrieve:%p, qhandle:%p is invalid", pRetrieve, pShow);
     return TSDB_CODE_INVALID_QHANDLE;
   }
-
-  SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
-  mTrace("show:%p, type:%s, retrieve data", pShow, mnodeGetShowType(pShow->type));
+  
+  if (mnodeCheckShowFinished(pShow)) {
+    mTrace("retrieve:%p, qhandle:%p already read finished, numOfReads:%d numOfRows:%d", pRetrieve, pShow, pShow->numOfReads, pShow->numOfRows);
+    pShow->numOfReads = pShow->numOfRows;
+    //mnodeCleanupShowObj(pShow, true);
+    //return TSDB_CODE_SUCCESS;
+  }
 
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
     rowsToRead = pShow->numOfRows - pShow->numOfReads;
@@ -190,7 +198,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
 
   if (rowsRead < 0) {
     rpcFreeCont(pRsp);
-    mnodeFreeQhandle(pShow, false);
+    mnodeCleanupShowObj(pShow, false);
     assert(false);
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }
@@ -202,11 +210,11 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   pMsg->rpcRsp.len = size;
 
   if (rowsToRead == 0) {
-    mnodeFreeQhandle(pShow, true);
+    mnodeCleanupShowObj(pShow, true);
   } else {
-    mnodeFreeQhandle(pShow, false);
+    mnodeCleanupShowObj(pShow, false);
   }
-
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -301,23 +309,29 @@ static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
   return code;
 }
 
-static bool mnodeCheckQhandle(uint64_t qhandle) {
-  void *pSaved = taosCacheAcquireByData(tsQhandleCache, (void *)qhandle);
-  if (pSaved == (void *)qhandle) {
-    mTrace("show:%p, is retrieved", qhandle);
+static bool mnodeCheckShowFinished(SShowObj *pShow) {
+  if (pShow->pIter == NULL && pShow->numOfReads != 0) {
+    return true;
+  } 
+  return false;
+}
+
+static bool mnodeCheckShowObj(SShowObj *pShow) {
+  SShowObj *pSaved = taosCacheAcquireByData(tsQhandleCache, pShow);
+  if (pSaved == pShow) {
     return true;
   } else {
-    mTrace("show:%p, is already released", qhandle);
+    mTrace("show:%p, is already released", pShow);
     return false;
   }
 }
 
-static void *mnodeSaveQhandle(void *qhandle, int32_t size) {
+static void *mnodeSaveShowObj(SShowObj *pShow, int32_t size) {
   if (tsQhandleCache != NULL) {
     char key[24];
-    sprintf(key, "show:%p", qhandle);
-    void *newQhandle = taosCachePut(tsQhandleCache, key, qhandle, size, 60);
-    free(qhandle);
+    sprintf(key, "show:%p", pShow);
+    SShowObj *newQhandle = taosCachePut(tsQhandleCache, key, pShow, size, 60);
+    free(pShow);
 
     mTrace("show:%p, is saved", newQhandle);
     return newQhandle;
@@ -332,7 +346,7 @@ static void mnodeFreeShowObj(void *data) {
   mTrace("show:%p, is destroyed", pShow);
 }
 
-static void mnodeFreeQhandle(void *qhandle, bool forceRemove) {
-  mTrace("show:%p, is released, force:%s", qhandle, forceRemove ? "true" : "false");
-  taosCacheRelease(tsQhandleCache, &qhandle, forceRemove);
+static void mnodeCleanupShowObj(void *pShow, bool forceRemove) {
+  mTrace("show:%p, is released, force:%s", pShow, forceRemove ? "true" : "false");
+  taosCacheRelease(tsQhandleCache, &pShow, forceRemove);
 }
