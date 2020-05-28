@@ -521,7 +521,7 @@ static void grantSendMsgToMgmt() {
 
 static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
 {  
-  SGrantMsg  *pGrant = pMsg->pCont;
+  SGrantMsg  *pGrant = pMsg->rpcMsg.pCont;
 
 #ifndef GRANT_MIRROR_VERSION 
   grantStatus.officialVersion = htonl(pGrant->officialVersion);
