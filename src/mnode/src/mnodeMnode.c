@@ -33,8 +33,8 @@
 
 static void *        tsMnodeSdb = NULL;
 static int32_t       tsMnodeUpdateSize = 0;
-static SRpcIpSet     tsMnodeRpcIpSetForShell;
-static SRpcIpSet     tsMnodeRpcIpSetForPeer;
+static SRpcIpSet     tsMnodeIpSetForShell;
+static SRpcIpSet     tsMnodeIpSetForPeer;
 static SDMMnodeInfos tsMnodeInfos;
 static int32_t mnodeGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -202,17 +202,13 @@ char *mnodeGetMnodeRoleStr(int32_t role) {
 }
 
 void mnodeUpdateMnodeIpSet() {
-  SRpcIpSet *ipSetForShell = &tsMnodeRpcIpSetForShell;
-  SRpcIpSet *ipSetForPeer = &tsMnodeRpcIpSetForPeer;
-  SDMMnodeInfos *mnodes = &tsMnodeInfos;
-
   mPrint("update mnodes ipset, numOfIps:%d ", mnodeGetMnodesNum());
 
   mnodeMnodeWrLock();
 
-  memset(ipSetForShell, 0, sizeof(SRpcIpSet));
-  memset(ipSetForPeer, 0, sizeof(SRpcIpSet));
-  memset(mnodes, 0, sizeof(SDMMnodeInfos));
+  memset(&tsMnodeIpSetForShell, 0, sizeof(SRpcIpSet));
+  memset(&tsMnodeIpSetForPeer, 0, sizeof(SRpcIpSet));
+  memset(&tsMnodeInfos, 0, sizeof(SDMMnodeInfos));
 
   int32_t index = 0;
   void *  pIter = NULL;
@@ -223,22 +219,24 @@ void mnodeUpdateMnodeIpSet() {
 
     SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
     if (pDnode != NULL) {
-      strcpy(ipSetForShell->fqdn[ipSetForShell->numOfIps], pDnode->dnodeFqdn);
-      ipSetForShell->port[ipSetForShell->numOfIps] = htons(pDnode->dnodePort);
+      strcpy(tsMnodeIpSetForShell.fqdn[index], pDnode->dnodeFqdn);
+      tsMnodeIpSetForShell.port[index] = htons(pDnode->dnodePort);
+      mTrace("mnode:%d, for shell fqdn:%s %d", pDnode->dnodeId, tsMnodeIpSetForShell.fqdn[index], htons(tsMnodeIpSetForShell.port[index]));      
 
-      strcpy(ipSetForPeer->fqdn[ipSetForPeer->numOfIps], pDnode->dnodeFqdn);
-      ipSetForPeer->port[ipSetForPeer->numOfIps] = htons(pDnode->dnodePort + TSDB_PORT_DNODEDNODE);
+      strcpy(tsMnodeIpSetForPeer.fqdn[index], pDnode->dnodeFqdn);
+      tsMnodeIpSetForPeer.port[index] = htons(pDnode->dnodePort + TSDB_PORT_DNODEDNODE);
+      mTrace("mnode:%d, for peer fqdn:%s %d", pDnode->dnodeId, tsMnodeIpSetForPeer.fqdn[index], htons(tsMnodeIpSetForPeer.port[index]));
 
-      mnodes->nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
-      strcpy(mnodes->nodeInfos[index].nodeEp, pDnode->dnodeEp);
+      tsMnodeInfos.nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
+      strcpy(tsMnodeInfos.nodeInfos[index].nodeEp, pDnode->dnodeEp);
 
       if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
-        ipSetForShell->inUse = index;
-        ipSetForPeer->inUse = index;
-        mnodes->inUse = index;
+        tsMnodeIpSetForShell.inUse = index;
+        tsMnodeIpSetForPeer.inUse = index;
+        tsMnodeInfos.inUse = index;
       }
 
-      mPrint("mnode:%d, ep:%s %s", index, pDnode->dnodeEp, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
+      mPrint("mnode:%d, ep:%s %s", pDnode->dnodeId, pDnode->dnodeEp, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
       index++;
     }
 
@@ -246,9 +244,9 @@ void mnodeUpdateMnodeIpSet() {
     mnodeDecMnodeRef(pMnode);
   }
 
-  mnodes->nodeNum = index;
-  ipSetForPeer->numOfIps = index;
-  ipSetForPeer->numOfIps = index;
+  tsMnodeInfos.nodeNum = index;
+  tsMnodeIpSetForShell.numOfIps = index;
+  tsMnodeIpSetForPeer.numOfIps = index;
 
   sdbFreeIter(pIter);
 
@@ -257,13 +255,13 @@ void mnodeUpdateMnodeIpSet() {
 
 void mnodeGetMnodeIpSetForPeer(SRpcIpSet *ipSet) {
   mnodeMnodeRdLock();
-  *ipSet = tsMnodeRpcIpSetForShell;
+  *ipSet = tsMnodeIpSetForPeer;
   mnodeMnodeUnLock();
 }
 
 void mnodeGetMnodeIpSetForShell(SRpcIpSet *ipSet) {
   mnodeMnodeRdLock();
-  *ipSet = tsMnodeRpcIpSetForShell;
+  *ipSet = tsMnodeIpSetForShell;
   mnodeMnodeUnLock();
 }
 

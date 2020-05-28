@@ -186,7 +186,7 @@ void sdbUpdateMnodeRoles() {
   SNodesRole roles = {0};
   syncGetNodesRole(tsSdbObj.sync, &roles);
 
-  sdbPrint("update mnodes:%d sync roles", tsSdbObj.cfg.replica);
+  sdbPrint("update mnodes sync roles, total:%d", tsSdbObj.cfg.replica);
   for (int32_t i = 0; i < tsSdbObj.cfg.replica; ++i) {
     SMnodeObj *pMnode = mnodeGetMnode(roles.nodeId[i]);
     if (pMnode != NULL) {

@@ -284,7 +284,7 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
 }
 
 void dnodeUpdateMnodeIpSetForPeer(SRpcIpSet *pIpSet) {
-  dPrint("mnode IP list is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
+  dPrint("mnode IP list for peer is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
   for (int i = 0; i < pIpSet->numOfIps; ++i) {
     dPrint("mnode index:%d %s:%u", i, pIpSet->fqdn[i], pIpSet->port[i])
   }
@@ -344,17 +344,24 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   if (!(mnodesChanged || mnodesNotInit)) return;
 
   memcpy(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
+  dPrint("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
+    dPrint("mnode index:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
+  }
 
   tsDMnodeIpSetForPeer.inUse = tsDMnodeInfos.inUse;
   tsDMnodeIpSetForPeer.numOfIps = tsDMnodeInfos.nodeNum;
   for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
     taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeIpSetForPeer.fqdn[i], &tsDMnodeIpSetForPeer.port[i]);
     tsDMnodeIpSetForPeer.port[i] += TSDB_PORT_DNODEDNODE;
+    dPrint("mnode index:%d, for peer %s %d", i, tsDMnodeIpSetForPeer.fqdn[i], tsDMnodeIpSetForPeer.port[i]);
   }
 
-  dPrint("mnodes is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  tsDMnodeIpSetForShell.inUse = tsDMnodeInfos.inUse;
+  tsDMnodeIpSetForShell.numOfIps = tsDMnodeInfos.nodeNum;
   for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    dPrint("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
+    taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeIpSetForShell.fqdn[i], &tsDMnodeIpSetForShell.port[i]);
+    dPrint("mnode index:%d, for shell %s %d", i, tsDMnodeIpSetForShell.fqdn[i], tsDMnodeIpSetForShell.port[i]);
   }
 
   dnodeSaveMnodeInfos();
