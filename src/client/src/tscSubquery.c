@@ -1763,7 +1763,12 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
       break;
     }
-    
+  
+    /*
+     * assign the callback function to fetchFp to make sure that the error process function can restore
+     * the callback function (multiVnodeInsertMerge) correctly.
+     */
+    pNew->fetchFp = pNew->fp;
     pSql->pSubs[i] = pNew;
     tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
   }
