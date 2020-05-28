@@ -150,7 +150,7 @@ static void *dnodeProcessMnodeReadQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pReadMsg->ahandle, taosMsg[pReadMsg->msgType]);    
+    dTrace("%p, msg:%s will be processed in mread queue", pReadMsg->ahandle, taosMsg[pReadMsg->msgType]);    
     int32_t code = mnodeProcessRead(pReadMsg);    
     dnodeSendRpcMnodeReadRsp(pReadMsg, code);    
     taosFreeQitem(pReadMsg);

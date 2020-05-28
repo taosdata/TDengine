@@ -145,7 +145,7 @@ static void *dnodeProcessMnodePeerQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pPeerMsg->ahandle, taosMsg[pPeerMsg->msgType]);    
+    dTrace("%p, msg:%s will be processed in mpeer queue", pPeerMsg->ahandle, taosMsg[pPeerMsg->msgType]);    
     int32_t code = mnodeProcessPeerReq(pPeerMsg);    
     dnodeSendRpcMnodePeerRsp(pPeerMsg, code);    
     taosFreeQitem(pPeerMsg);

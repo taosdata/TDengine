@@ -148,7 +148,7 @@ static void *dnodeProcessMnodeWriteQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pWriteMsg->ahandle, taosMsg[pWriteMsg->msgType]);    
+    dTrace("%p, msg:%s will be processed in mwrite queue", pWriteMsg->ahandle, taosMsg[pWriteMsg->msgType]);    
     int32_t code = mnodeProcessWrite(pWriteMsg);    
     dnodeSendRpcMnodeWriteRsp(pWriteMsg, code);    
     taosFreeQitem(pWriteMsg);

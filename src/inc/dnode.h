@@ -51,9 +51,15 @@ void *  dnodeGetMnodeInfos();
 int32_t dnodeGetDnodeId();
 
 void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
-void dnodeAddServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
 void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp);
+
+int32_t dnodeAllocateMnodeWqueue();
+void    dnodeFreeMnodeWqueue();
+int32_t dnodeAllocateMnodeRqueue();
+void    dnodeFreeMnodeRqueue();
+int32_t dnodeAllocateMnodePqueue();
+void    dnodeFreeMnodePqueue();
 
 void dnodeSendRpcMnodeWriteRsp(void *pMsg, int32_t code);
 void dnodeReprocessMnodeWriteMsg(void *pMsg);

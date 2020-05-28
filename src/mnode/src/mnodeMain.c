@@ -53,6 +53,10 @@ int32_t mnodeStartSystem() {
     mkdir(tsMnodeDir, 0755);
   }
 
+  dnodeAllocateMnodeWqueue();
+  dnodeAllocateMnodeRqueue();
+  dnodeAllocateMnodePqueue();
+
   if (mnodeInitAccts() < 0) {
     mError("failed to init accts");
     return -1;
@@ -125,6 +129,9 @@ void mnodeCleanupSystem() {
   mPrint("starting to clean up mgmt");
   tsMgmtIsRunning = false;
 
+  dnodeFreeMnodeWqueue();
+  dnodeFreeMnodeRqueue();
+  dnodeFreeMnodePqueue();
   mnodeCleanupTimer();
   mnodeCleanUpShow();
   grantCleanUp();
@@ -152,7 +159,7 @@ void mgmtStopSystem() {
 }
 
 static void mnodeInitTimer() {
-  if (tsMnodeTmr != NULL) {
+  if (tsMnodeTmr == NULL) {
     tsMnodeTmr = taosTmrInit((tsMaxShellConns)*3, 200, 3600000, "MND");
   }
 }

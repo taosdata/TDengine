@@ -131,6 +131,9 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
 
   pShow = mnodeSaveQhandle(pShow, showObjSize);
+  if (pShow == NULL) {
+    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  }
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
   mTrace("show:%p, type:%s, start to get meta", pShow, mnodeGetShowType(pShowMsg->type));

@@ -43,7 +43,7 @@ void mnodeAddReadMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *pMsg)) {
 
 int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
   if (pMsg->pCont == NULL) {
-    mError("msg:%s content is null", taosMsg[pMsg->msgType]);
+    mError("%p, msg:%s in mread queue, content is null", pMsg->ahandle, taosMsg[pMsg->msgType]);
     return TSDB_CODE_INVALID_MSG_LEN;
   }
 
@@ -54,7 +54,7 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
     rpcRsp->rsp = ipSet;
     rpcRsp->len = sizeof(SRpcIpSet);
 
-    mTrace("msg:%s will be redireced, inUse:%d", taosMsg[pMsg->msgType], ipSet->inUse);
+    mTrace("%p, msg:%s in mread queue, will be redireced, inUse:%d", pMsg->ahandle, taosMsg[pMsg->msgType], ipSet->inUse);
     for (int32_t i = 0; i < ipSet->numOfIps; ++i) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
@@ -63,13 +63,14 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
   }
 
   if (tsMnodeProcessReadMsgFp[pMsg->msgType] == NULL) {
-    mError("msg:%s not processed, no handle exist", taosMsg[pMsg->msgType]);
+    mError("%p, msg:%s in mread queue, not processed", pMsg->ahandle, taosMsg[pMsg->msgType]);
     return TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
-  if (!mnodeInitMsg(pMsg)) {
-    mError("msg:%s not processed, reason:%s", taosMsg[pMsg->msgType], tstrerror(terrno));
-    return terrno;
+  int32_t code = mnodeInitMsg(pMsg);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("%p, msg:%s in mread queue, not processed reason:%s", pMsg->ahandle, taosMsg[pMsg->msgType], tstrerror(code));
+    return code;
   }
 
   return (*tsMnodeProcessReadMsgFp[pMsg->msgType])(pMsg);
