@@ -29,20 +29,10 @@ extern "C" {
 
 extern int tsdbDebugFlag;
 
-#define tsdbError(...)                                      \
-  if (tsdbDebugFlag & DEBUG_ERROR) {                        \
-    taosPrintLog("ERROR TDB ", tsdbDebugFlag, __VA_ARGS__); \
-  }
-#define tsdbWarn(...)                                      \
-  if (tsdbDebugFlag & DEBUG_WARN) {                        \
-    taosPrintLog("WARN TDB ", tsdbDebugFlag, __VA_ARGS__); \
-  }
-#define tsdbTrace(...)                                \
-  if (tsdbDebugFlag & DEBUG_TRACE) {                  \
-    taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); \
-  }
-#define tsdbPrint(...) \
-  { taosPrintLog("TDB ", 255, __VA_ARGS__); }
+#define tsdbError(...) { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR TDB ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbWarn(...)  { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN TDB ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbTrace(...) { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbPrint(...) { taosPrintLog("TDB ", 255, __VA_ARGS__); }
 
 // ------------------------------ TSDB META FILE INTERFACES ------------------------------
 #define TSDB_META_FILE_NAME "meta"
@@ -95,12 +85,13 @@ typedef struct STable {
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
   struct STable *prev;
-  tstr *         name;           // NOTE: there a flexible string here
+  tstr *         name;  // NOTE: there a flexible string here
+  char *         sql;
 } STable;
 
 #define TSDB_GET_TABLE_LAST_KEY(tb) ((tb)->lastKey)
 
-void *  tsdbEncodeTable(STable *pTable, int *contLen);
+void    tsdbEncodeTable(STable *pTable, char *buf, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);
 void    tsdbFreeEncode(void *cont);
 
