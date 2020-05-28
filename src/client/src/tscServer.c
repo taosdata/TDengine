@@ -653,7 +653,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pQueryMsg->order          = htons(pQueryInfo->order.order);
   pQueryMsg->orderColId     = htons(pQueryInfo->order.orderColId);
-  pQueryMsg->fillType    = htons(pQueryInfo->fillType);
+  pQueryMsg->fillType       = htons(pQueryInfo->fillType);
   pQueryMsg->limit          = htobe64(pQueryInfo->limit.limit);
   pQueryMsg->offset         = htobe64(pQueryInfo->limit.offset);
   pQueryMsg->numOfCols      = htons(taosArrayGetSize(pQueryInfo->colList));
@@ -1845,17 +1845,6 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
   size_t size = 0;
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
-
-#if 0
-  // if current table is created according to super table, get the table meta of super table
-  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-    char id[TSDB_TABLE_ID_LEN + 1] = {0};
-    strncpy(id, pMetaMsg->stableId, TSDB_TABLE_ID_LEN);
-  
-    // NOTE: if the table meta of super table is not cached at client side yet, the pSTable is NULL
-    pTableMeta->pSTable = taosCacheAcquireByName(tscCacheHandle, id);
-  }
-#endif
   
   // todo add one more function: taosAddDataIfNotExists();
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
@@ -1978,7 +1967,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
   
   pSql->res.code = TSDB_CODE_SUCCESS;
   pSql->res.numOfTotal = i;
-  tscTrace("%p load multi-metermeta resp complete num:%d", pSql, pSql->res.numOfTotal);
+  tscTrace("%p load multi-metermeta resp from complete num:%d", pSql, pSql->res.numOfTotal);
 #endif
   
   return TSDB_CODE_SUCCESS;

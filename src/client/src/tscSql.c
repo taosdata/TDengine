@@ -123,6 +123,13 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   
   tsem_init(&pSql->rspSem, 0, 0);
   
+  pthread_mutexattr_t mutexattr;
+  memset(&mutexattr, 0, sizeof(pthread_mutexattr_t));
+  
+  pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE_NP);
+  pthread_mutex_init(&pSql->inUse, &mutexattr);
+  pthread_mutexattr_destroy(&mutexattr);
+
   pObj->pSql = pSql;
   pObj->pDnodeConn = pDnodeConn;
   
@@ -284,12 +291,23 @@ int taos_query(TAOS *taos, const char *sqlstr) {
   }
   
   SSqlObj* pSql = pObj->pSql;
+  SSqlCmd* pCmd = &pSql->cmd;
+  
+  // now this TAOS_CONN object is in use by one thread
+  pthread_mutex_lock(&pSql->inUse);
   
   size_t sqlLen = strlen(sqlstr);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   // wait for the callback function to post the semaphore
-  sem_wait(&pSql->rspSem);
+  tsem_wait(&pSql->rspSem);
+  
+  if (pCmd->command != TSDB_SQL_SELECT &&
+      pCmd->command != TSDB_SQL_SHOW &&
+      pCmd->command != TSDB_SQL_DESCRIBE_TABLE) {
+    pthread_mutex_unlock(&pSql->inUse);
+  }
+  
   return pSql->res.code;
 }
 
@@ -525,7 +543,7 @@ int taos_select_db(TAOS *taos, const char *db) {
   return taos_query(taos, sql);
 }
 
-void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
+void taos_free_result(TAOS_RES *res) {
   if (res == NULL) return;
 
   SSqlObj *pSql = (SSqlObj *)res;
@@ -536,26 +554,24 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
   if (pSql->signature != pSql) return;
 
+  STscObj* pObj = pSql->pTscObj;
   if (pRes == NULL || pRes->qhandle == 0) {
     /* Query rsp is not received from vnode, so the qhandle is NULL */
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
-    STscObj* pTscObj = pSql->pTscObj;
     
-    if (pTscObj->pSql != pSql) {
+    // The semaphore can not be changed while freeing async sub query objects.
+    if (pObj->pSql != pSql) {
       tscTrace("%p SqlObj is freed by app", pSql);
       tscFreeSqlObj(pSql);
     } else {
-      if (keepCmd) {
-        tscFreeSqlResult(pSql);
-      } else {
-        tscPartiallyFreeSqlObj(pSql);
-      }
+      tscPartiallyFreeSqlObj(pSql);
+      pthread_mutex_unlock(&pSql->inUse); // now this TAOS_CONN can be used by other threads
     }
-    
+  
     return;
   }
 
-  // set freeFlag to 1 in retrieve message if there are un-retrieved results
+  // set freeFlag to 1 in retrieve message if there are un-retrieved results data in node
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     tscPartiallyFreeSqlObj(pSql);
@@ -600,18 +616,11 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
       tscFreeSqlObj(pSql);
       tscTrace("%p sql result is freed by app", pSql);
     } else {
-      if (keepCmd) {
-        tscFreeSqlResult(pSql);
-        tscTrace("%p sql result is freed while sql command is kept", pSql);
-      } else {
-        tscPartiallyFreeSqlObj(pSql);
-        tscTrace("%p sql result is freed by app", pSql);
-      }
+      tscPartiallyFreeSqlObj(pSql);
+      tscTrace("%p sql result is freed by app", pSql);
     }
   }
 }
-
-void taos_free_result(TAOS_RES *res) { taos_free_result_imp(res, 0); }
 
 // todo should not be used in async query
 int taos_errno(TAOS *taos) {

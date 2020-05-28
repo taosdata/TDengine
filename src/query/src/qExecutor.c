@@ -4525,57 +4525,59 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
   size_t numOfGroups = taosArrayGetSize(pQInfo->groupInfo.pGroupList);
 
-  if (isPointInterpoQuery(pQuery)) {
+  if (isPointInterpoQuery(pQuery) || isFirstLastRowQuery(pQuery)) {
     resetCtxOutputBuf(pRuntimeEnv);
     assert(pQuery->limit.offset == 0 && pQuery->limit.limit != 0);
 
     while (pQInfo->groupIndex < numOfGroups) {
       SArray* group = taosArrayGetP(pQInfo->groupInfo.pGroupList, pQInfo->groupIndex);
 
-      if (isFirstLastRowQuery(pQuery)) {
-        qTrace("QInfo:%p last_row query on group:%d, total group:%d, current group:%d", pQInfo, pQInfo->groupIndex,
-               numOfGroups);
-  
-        STsdbQueryCond cond = {
-            .twindow = pQuery->window,
-            .colList = pQuery->colList,
-            .order   = pQuery->order.order,
-            .numOfCols = pQuery->numOfCols,
-        };
-  
-        SArray *g1 = taosArrayInit(1, POINTER_BYTES);
-        SArray *tx = taosArrayClone(group);
-        taosArrayPush(g1, &tx);
-        
-        STableGroupInfo gp = {.numOfTables = taosArrayGetSize(tx), .pGroupList = g1};
-  
-        // include only current table
-        if (pRuntimeEnv->pQueryHandle != NULL) {
-          tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
-          pRuntimeEnv->pQueryHandle = NULL;
-        }
-        
-        pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(pQInfo->tsdb, &cond, &gp);
-        
-        initCtxOutputBuf(pRuntimeEnv);
-        setTagVal(pRuntimeEnv, (STableId*) taosArrayGet(tx, 0), pQInfo->tsdb);
-        
-        // here we simply set the first table as current table
-        pQuery->current = ((SGroupItem*) taosArrayGet(group, 0))->info;
-        scanAllDataBlocks(pRuntimeEnv, pQuery->current->lastKey);
-        
-        int64_t numOfRes = getNumOfResult(pRuntimeEnv);
-        if (numOfRes > 0) {
-          pQuery->rec.rows += numOfRes;
-          forwardCtxOutputBuf(pRuntimeEnv, numOfRes);
-        }
-        
-        skipResults(pRuntimeEnv);
-        pQInfo->groupIndex += 1;
-  
-        // enable execution for next table, when handling the projection query
-        enableExecutionForNextTable(pRuntimeEnv);
+      qTrace("QInfo:%p last_row query on group:%d, total group:%d, current group:%d", pQInfo, pQInfo->groupIndex,
+             numOfGroups);
+
+      STsdbQueryCond cond = {
+          .twindow = pQuery->window,
+          .colList = pQuery->colList,
+          .order   = pQuery->order.order,
+          .numOfCols = pQuery->numOfCols,
+      };
+
+      SArray *g1 = taosArrayInit(1, POINTER_BYTES);
+      SArray *tx = taosArrayClone(group);
+      taosArrayPush(g1, &tx);
+      
+      STableGroupInfo gp = {.numOfTables = taosArrayGetSize(tx), .pGroupList = g1};
+
+      // include only current table
+      if (pRuntimeEnv->pQueryHandle != NULL) {
+        tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
+        pRuntimeEnv->pQueryHandle = NULL;
       }
+      
+      if (isFirstLastRowQuery(pQuery)) {
+        pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(pQInfo->tsdb, &cond, &gp);
+      } else {
+        pRuntimeEnv->pQueryHandle = tsdbQueryRowsInExternalWindow(pQInfo->tsdb, &cond, &gp);
+      }
+      
+      initCtxOutputBuf(pRuntimeEnv);
+      setTagVal(pRuntimeEnv, (STableId*) taosArrayGet(tx, 0), pQInfo->tsdb);
+      
+      // here we simply set the first table as current table
+      pQuery->current = ((SGroupItem*) taosArrayGet(group, 0))->info;
+      scanAllDataBlocks(pRuntimeEnv, pQuery->current->lastKey);
+      
+      int64_t numOfRes = getNumOfResult(pRuntimeEnv);
+      if (numOfRes > 0) {
+        pQuery->rec.rows += numOfRes;
+        forwardCtxOutputBuf(pRuntimeEnv, numOfRes);
+      }
+      
+      skipResults(pRuntimeEnv);
+      pQInfo->groupIndex += 1;
+
+      // enable execution for next table, when handling the projection query
+      enableExecutionForNextTable(pRuntimeEnv);
     }
   } else {
     /*
