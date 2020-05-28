@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MMGMT_H
-#define TDENGINE_DNODE_MMGMT_H
+#ifndef TDENGINE_DNODE_MPEER_H
+#define TDENGINE_DNODE_MPEER_H
 
 #ifdef __cplusplus
 extern "C" {

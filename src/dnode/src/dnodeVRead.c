@@ -92,7 +92,7 @@ void dnodeCleanupVnodeRead() {
 }
 
 void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
-  int32_t     mnodeMsgNum = 0;
+  int32_t     queuedMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
   void        *pVnode;  
@@ -124,12 +124,12 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
     // next vnode
     leftLen -= pHead->contLen;
     pCont -= pHead->contLen;
-    mnodeMsgNum++;
+    queuedMsgNum++;
 
     taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
   }
 
-  if (mnodeMsgNum == 0) {
+  if (queuedMsgNum == 0) {
     SRpcMsg rpcRsp = {
         .handle  = pMsg->handle,
         .pCont   = NULL,

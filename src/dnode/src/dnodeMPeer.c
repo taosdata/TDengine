@@ -119,7 +119,7 @@ void dnodeDispatchToMnodePeerQueue(SRpcMsg *pMsg) {
   taosWriteQitem(tsMPeerQueue, TAOS_QTYPE_RPC, pPeer);
 }
 
-static void dnodeFreeMnodePeadMsg(SMnodeMsg *pPeer) {
+static void dnodeFreeMnodePeerMsg(SMnodeMsg *pPeer) {
   mnodeCleanupMsg(pPeer);
   taosFreeQitem(pPeer);
 }
@@ -135,7 +135,7 @@ static void dnodeSendRpcMnodePeerRsp(SMnodeMsg *pPeer, int32_t code) {
   };
 
   rpcSendResponse(&rpcRsp);
-  dnodeFreeMnodePeadMsg(pPeer);
+  dnodeFreeMnodePeerMsg(pPeer);
 }
 
 static void *dnodeProcessMnodePeerQueue(void *param) {
