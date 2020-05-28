@@ -373,7 +373,7 @@ typedef enum {
 } ETableType;
 
 typedef enum {
-  TSDB_MOD_MGMT,
+  TSDB_MOD_MNODE,
   TSDB_MOD_HTTP,
   TSDB_MOD_MONITOR,
   TSDB_MOD_MQTT,

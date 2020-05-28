@@ -43,11 +43,11 @@ static bool mnodeNeedStart() ;
 
 int32_t mnodeStartSystem() {
   if (tsMgmtIsRunning) {
-    mPrint("TDengine mgmt module already started...");
+    mPrint("mnode module already started...");
     return 0;
   }
 
-  mPrint("starting to initialize TDengine mgmt ...");
+  mPrint("starting to initialize mnode ...");
   struct stat dirstat;
   if (stat(tsMnodeDir, &dirstat) < 0) {
     mkdir(tsMnodeDir, 0755);
@@ -114,7 +114,7 @@ int32_t mnodeStartSystem() {
   grantReset(TSDB_GRANT_ALL, 0);
   tsMgmtIsRunning = true;
 
-  mPrint("TDengine mgmt is initialized successfully");
+  mPrint("mnode is initialized successfully");
 
   return 0;
 }
@@ -126,7 +126,7 @@ int32_t mnodeInitSystem() {
 }
 
 void mnodeCleanupSystem() {
-  mPrint("starting to clean up mgmt");
+  mPrint("starting to clean up mnode");
   tsMgmtIsRunning = false;
 
   dnodeFreeMnodeWqueue();
@@ -137,24 +137,24 @@ void mnodeCleanupSystem() {
   grantCleanUp();
   balanceCleanUp();
   sdbCleanUp();
-  mgmtCleanupMnodes();
+  mnodeCleanupMnodes();
   mnodeCleanupTables();
   mnodeCleanupVgroups();
   mnodeCleanupDbs();
-  mgmtCleanupDnodes();
+  mnodeCleanupDnodes();
   mnodeCleanupUsers();
   mnodeCleanupAccts();
-  mPrint("mgmt is cleaned up");
+  mPrint("mnode is cleaned up");
 }
 
-void mgmtStopSystem() {
+void mnodeStopSystem() {
   if (sdbIsMaster()) {
-    mTrace("it is a master mgmt node, it could not be stopped");
+    mTrace("it is a master mnode, it could not be stopped");
     return;
   }
   
   mnodeCleanupSystem();
-  mPrint("mgmt file is removed");
+  mPrint("mnode file is removed");
   remove(tsMnodeDir);
 }
 

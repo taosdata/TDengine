@@ -28,7 +28,7 @@ typedef enum {
 } EDnodeStatus;
 
 int32_t mnodeInitDnodes();
-void    mgmtCleanupDnodes();
+void    mnodeCleanupDnodes();
 
 char*   mnodeGetDnodeStatusStr(int32_t dnodeStatus);
 void    mgmtMonitorDnodeModule();

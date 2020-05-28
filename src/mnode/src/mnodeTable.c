@@ -80,14 +80,14 @@ static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg);
 static int32_t mnodeGetChildTableMeta(SMnodeMsg *pMsg);
-static int32_t mgmtAutoCreateChildTable(SMnodeMsg *pMsg);
+static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg);
 
 static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *mnodeMsg);
 static void    mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg);
 
 static int32_t mnodeFindSuperTableColumnIndex(SSuperTableObj *pStable, char *colName);
 
-static void mgmtDestroyChildTable(SChildTableObj *pTable) {
+static void mnodeDestroyChildTable(SChildTableObj *pTable) {
   tfree(pTable->info.tableId);
   tfree(pTable->schema);
   tfree(pTable->sql);
@@ -95,7 +95,7 @@ static void mgmtDestroyChildTable(SChildTableObj *pTable) {
 }
 
 static int32_t mnodeChildTableActionDestroy(SSdbOper *pOper) {
-  mgmtDestroyChildTable(pOper->pObj);
+  mnodeDestroyChildTable(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -248,7 +248,7 @@ static int32_t mnodeChildTableActionDecode(SSdbOper *pOper) {
     int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
     pTable->schema = (SSchema *)malloc(schemaSize);
     if (pTable->schema == NULL) {
-      mgmtDestroyChildTable(pTable);
+      mnodeDestroyChildTable(pTable);
       return TSDB_CODE_INVALID_TABLE_TYPE;
     }
     memcpy(pTable->schema, pOper->rowData + len, schemaSize);
@@ -257,7 +257,7 @@ static int32_t mnodeChildTableActionDecode(SSdbOper *pOper) {
     if (pTable->sqlLen != 0) {
       pTable->sql = malloc(pTable->sqlLen);
       if (pTable->sql == NULL) {
-        mgmtDestroyChildTable(pTable);
+        mnodeDestroyChildTable(pTable);
         return TSDB_CODE_SERV_OUT_OF_MEMORY;
       }
       memcpy(pTable->sql, pOper->rowData + len, pTable->sqlLen);
@@ -395,7 +395,7 @@ static void mnodeRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *
   mnodeDecVgroupRef(pVgroup);
 }
 
-static void mgmtDestroySuperTable(SSuperTableObj *pStable) {
+static void mnodeDestroySuperTable(SSuperTableObj *pStable) {
   if (pStable->vgHash != NULL) {
     taosHashCleanup(pStable->vgHash);
     pStable->vgHash = NULL;
@@ -406,7 +406,7 @@ static void mgmtDestroySuperTable(SSuperTableObj *pStable) {
 }
 
 static int32_t mnodeSuperTableActionDestroy(SSdbOper *pOper) {
-  mgmtDestroySuperTable(pOper->pObj);
+  mnodeDestroySuperTable(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -489,7 +489,7 @@ static int32_t mnodeSuperTableActionDecode(SSdbOper *pOper) {
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfColumns + pStable->numOfTags);
   pStable->schema = malloc(schemaSize);
   if (pStable->schema == NULL) {
-    mgmtDestroySuperTable(pStable);
+    mnodeDestroySuperTable(pStable);
     return TSDB_CODE_NOT_SUPER_TABLE;
   }
 
@@ -646,7 +646,7 @@ void mnodeCleanupTables() {
 }
 
 // todo move to name.h, add length of table name
-static void mgmtExtractTableName(char* tableId, char* name) {
+static void mnodeExtractTableName(char* tableId, char* name) {
   int pos = -1;
   int num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
@@ -742,7 +742,7 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_INVALID_TABLE;
     } else {
       mTrace("table:%s, failed to get table meta, start auto create table ", pInfo->tableId);
-      return mgmtAutoCreateChildTable(pMsg);
+      return mnodeAutoCreateChildTable(pMsg);
     }
   } else {
     if (pMsg->pTable->type != TSDB_SUPER_TABLE) {
@@ -799,7 +799,7 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    mgmtDestroySuperTable(pStable);
+    mnodeDestroySuperTable(pStable);
     mError("table:%s, failed to create, sdb error", pCreate->tableId);
     return TSDB_CODE_SDB_ERROR;
   } else {
@@ -821,7 +821,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
       pDrop->contLen = htonl(sizeof(SMDDropSTableMsg));
       pDrop->vgId = htonl(pVgroup->vgId);
       pDrop->uid = htobe64(pStable->uid);
-      mgmtExtractTableName(pStable->info.tableId, pDrop->tableId);
+      mnodeExtractTableName(pStable->info.tableId, pDrop->tableId);
         
       mPrint("stable:%s, send drop stable msg to vgId:%d", pStable->info.tableId, pVgroup->vgId);
       SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pVgroup);
@@ -1146,7 +1146,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
     }
 
     memset(stableName, 0, tListLen(stableName));
-    mgmtExtractTableName(pTable->info.tableId, stableName);
+    mnodeExtractTableName(pTable->info.tableId, stableName);
 
     if (pShow->payloadLen > 0 && patternMatch(pShow->payload, stableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
@@ -1325,7 +1325,7 @@ static void mnodeProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
   mPrint("drop stable rsp received, result:%s", tstrerror(rpcMsg->code));
 }
 
-static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
+static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
   STagData *  pTagData = NULL;
   int32_t tagDataLen = 0;
   int32_t totalCols = 0;
@@ -1346,7 +1346,7 @@ static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableOb
     return NULL;
   }
 
-  mgmtExtractTableName(pTable->info.tableId, pCreate->tableId);
+  mnodeExtractTableName(pTable->info.tableId, pCreate->tableId);
   pCreate->contLen       = htonl(contLen);
   pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->info.type;
@@ -1356,7 +1356,7 @@ static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableOb
   pCreate->uid           = htobe64(pTable->uid);
   
   if (pTable->info.type == TSDB_CHILD_TABLE) {
-    mgmtExtractTableName(pTable->superTable->info.tableId, pCreate->superTableId);
+    mnodeExtractTableName(pTable->superTable->info.tableId, pCreate->superTableId);
     pCreate->numOfColumns  = htons(pTable->superTable->numOfColumns);
     pCreate->numOfTags     = htons(pTable->superTable->numOfTags);
     pCreate->sversion      = htonl(pTable->superTable->sversion);
@@ -1516,7 +1516,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
     return terrno;
   }
 
-  SMDCreateTableMsg *pMDCreate = mgmtBuildCreateChildTableMsg(pCreate, (SChildTableObj *) pMsg->pTable);
+  SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(pCreate, (SChildTableObj *) pMsg->pTable);
   if (pMDCreate == NULL) {
     return terrno;
   }
@@ -1723,7 +1723,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtAutoCreateChildTable(SMnodeMsg *pMsg) {
+static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   STagData* pTag = (STagData*)pInfo->tags;
 
@@ -1879,7 +1879,7 @@ static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
   }
 
   SMDCreateTableMsg *pMDCreate = NULL;
-  pMDCreate = mgmtBuildCreateChildTableMsg(NULL, (SChildTableObj *) pTable);
+  pMDCreate = mnodeBuildCreateChildTableMsg(NULL, (SChildTableObj *) pTable);
   if (pMDCreate == NULL) {
     mnodeDecTableRef(pTable);
     return terrno;
@@ -2098,7 +2098,7 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   return 0;
 }
 
-static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
+static void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
   if (rows < capacity) {
     for (int32_t i = 0; i < numOfCols; ++i) {
       memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
@@ -2132,7 +2132,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
     char tableName[TSDB_TABLE_NAME_LEN + 1] = {0};
     
     // pattern compare for table name
-    mgmtExtractTableName(pTable->info.tableId, tableName);
+    mnodeExtractTableName(pTable->info.tableId, tableName);
 
     if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
@@ -2163,7 +2163,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
     
     memset(tableName, 0, tListLen(tableName));
     if (pTable->info.type == TSDB_CHILD_TABLE) {
-      mgmtExtractTableName(pTable->superTable->info.tableId, tableName);
+      mnodeExtractTableName(pTable->superTable->info.tableId, tableName);
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
     }
     
@@ -2176,7 +2176,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   pShow->numOfReads += numOfRows;
   const int32_t NUM_OF_COLUMNS = 4;
 
-  mgmtVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
 
   return numOfRows;

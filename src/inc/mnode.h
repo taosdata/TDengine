@@ -57,7 +57,7 @@ void    mnodeCleanupMsg(SMnodeMsg *pMsg);
 int32_t mnodeInitSystem();
 int32_t mnodeStartSystem();
 void    mnodeCleanupSystem();
-void    mgmtStopSystem();
+void    mnodeStopSystem();
 void    sdbUpdateSync();
 bool    mnodeIsRunning();
 int32_t mnodeProcessRead(SMnodeMsg *pMsg);

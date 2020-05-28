@@ -427,7 +427,7 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  // 0-any; 1-mgmt; 2-dnode
+  // 0-any; 1-mnode; 2-dnode
   cfg.option = "alternativeRole";
   cfg.ptr = &tsAlternativeRole;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -875,7 +875,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   // module configs
-  cfg.option = "mgmtEqualVnodeNum";
+  cfg.option = "mnodeEqualVnodeNum";
   cfg.ptr = &tsMnodeEqualVnodeNum;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;

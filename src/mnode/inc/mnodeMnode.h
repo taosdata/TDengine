@@ -29,7 +29,7 @@ typedef enum {
 } EMnodeStatus;
 
 int32_t mnodeInitMnodes();
-void    mgmtCleanupMnodes();
+void    mnodeCleanupMnodes();
 
 int32_t mnodeAddMnode(int32_t dnodeId);
 int32_t mnodeDropMnode(int32_t dnodeId);

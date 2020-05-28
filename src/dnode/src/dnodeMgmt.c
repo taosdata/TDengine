@@ -363,10 +363,10 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
 
 static bool dnodeReadMnodeInfos() {
   char ipFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(ipFile, "%s/mgmtIpList.json", tsDnodeDir);
+  sprintf(ipFile, "%s/mnodeIpList.json", tsDnodeDir);
   FILE *fp = fopen(ipFile, "r");
   if (!fp) {
-    dTrace("failed to read mnode mgmtIpList.json, file not exist");
+    dTrace("failed to read mnodeIpList.json, file not exist");
     return false;
   }
 
@@ -377,39 +377,39 @@ static bool dnodeReadMnodeInfos() {
   if (len <= 0) {
     free(content);
     fclose(fp);
-    dError("failed to read mnode mgmtIpList.json, content is null");
+    dError("failed to read mnodeIpList.json, content is null");
     return false;
   }
 
   cJSON* root = cJSON_Parse(content);
   if (root == NULL) {
-    dError("failed to read mnode mgmtIpList.json, invalid json format");
+    dError("failed to read mnodeIpList.json, invalid json format");
     goto PARSE_OVER;
   }
 
   cJSON* inUse = cJSON_GetObjectItem(root, "inUse");
   if (!inUse || inUse->type != cJSON_Number) {
-    dError("failed to read mnode mgmtIpList.json, inUse not found");
+    dError("failed to read mnodeIpList.json, inUse not found");
     goto PARSE_OVER;
   }
   tsDMnodeInfos.inUse = inUse->valueint;
 
   cJSON* nodeNum = cJSON_GetObjectItem(root, "nodeNum");
   if (!nodeNum || nodeNum->type != cJSON_Number) {
-    dError("failed to read mnode mgmtIpList.json, nodeNum not found");
+    dError("failed to read mnodeIpList.json, nodeNum not found");
     goto PARSE_OVER;
   }
   tsDMnodeInfos.nodeNum = nodeNum->valueint;
 
   cJSON* nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
-    dError("failed to read mnode mgmtIpList.json, nodeInfos not found");
+    dError("failed to read mnodeIpList.json, nodeInfos not found");
     goto PARSE_OVER;
   }
 
   int size = cJSON_GetArraySize(nodeInfos);
   if (size != tsDMnodeInfos.nodeNum) {
-    dError("failed to read mnode mgmtIpList.json, nodeInfos size not matched");
+    dError("failed to read mnodeIpList.json, nodeInfos size not matched");
     goto PARSE_OVER;
   }
 
@@ -419,14 +419,14 @@ static bool dnodeReadMnodeInfos() {
 
     cJSON *nodeId = cJSON_GetObjectItem(nodeInfo, "nodeId");
     if (!nodeId || nodeId->type != cJSON_Number) {
-      dError("failed to read mnode mgmtIpList.json, nodeId not found");
+      dError("failed to read mnodeIpList.json, nodeId not found");
       goto PARSE_OVER;
     }
     tsDMnodeInfos.nodeInfos[i].nodeId = nodeId->valueint;
 
     cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
     if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
-      dError("failed to read mnode mgmtIpList.json, nodeName not found");
+      dError("failed to read mnodeIpList.json, nodeName not found");
       goto PARSE_OVER;
     }
     strncpy(tsDMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
@@ -448,7 +448,7 @@ PARSE_OVER:
 
 static void dnodeSaveMnodeInfos() {
   char ipFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(ipFile, "%s/mgmtIpList.json", tsDnodeDir);
+  sprintf(ipFile, "%s/mnodeIpList.json", tsDnodeDir);
   FILE *fp = fopen(ipFile, "w");
   if (!fp) return;
 

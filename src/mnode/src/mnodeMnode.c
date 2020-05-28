@@ -161,7 +161,7 @@ int32_t mnodeInitMnodes() {
   return TSDB_CODE_SUCCESS;
 }
 
-void mgmtCleanupMnodes() {
+void mnodeCleanupMnodes() {
   sdbCloseTable(tsMnodeSdb);
   mnodeMnodeDestroyLock();
 }

@@ -381,7 +381,7 @@ bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
 }
 
 #if 0
-void mgmtPrintVgroups(SDbObj *pDb, char *oper) {
+void mnodePrintVgroups(SDbObj *pDb, char *oper) {
   mPrint("db:%s, vgroup link from head, oper:%s", pDb->name, oper);  
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {

@@ -169,7 +169,7 @@ int32_t mnodeInitDnodes() {
   return 0;
 }
 
-void mgmtCleanupDnodes() {
+void mnodeCleanupDnodes() {
   sdbCloseTable(tsDnodeSdb);
 }
 
@@ -671,8 +671,8 @@ int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pC
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       switch (moduleType) {
-        case TSDB_MOD_MGMT:
-          strcpy(pWrite, "mgmt");
+        case TSDB_MOD_MNODE:
+          strcpy(pWrite, "mnode");
           break;
         case TSDB_MOD_HTTP:
           strcpy(pWrite, "http");

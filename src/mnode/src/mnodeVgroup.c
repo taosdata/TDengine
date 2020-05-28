@@ -284,7 +284,7 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
   }
 
   if (pVload->cfgVersion != pVgroup->pDb->cfgVersion || pVload->replica != pVgroup->numOfVnodes) {
-    mError("dnode:%d, vgId:%d, vnode cfgVersion:%d repica:%d not match with mgmt cfgVersion:%d replica:%d",
+    mError("dnode:%d, vgId:%d, vnode cfgVersion:%d repica:%d not match with mnode cfgVersion:%d replica:%d",
            pDnode->dnodeId, pVload->vgId, pVload->cfgVersion, pVload->replica, pVgroup->pDb->cfgVersion,
            pVgroup->numOfVnodes);
     mnodeSendCreateVgroupMsg(pVgroup, NULL);
@@ -532,7 +532,7 @@ void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   mnodeDecVgroupRef(pVgroup);
 }
 
-SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
+SMDCreateVnodeMsg *mnodeBuildCreateVnodeMsg(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
   if (pDb == NULL) return NULL;
 
@@ -595,7 +595,7 @@ SRpcIpSet mnodeGetIpSetFromIp(char *ep) {
 
 void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
   mTrace("vgId:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, pVgroup->vgId, ahandle);
-  SMDCreateVnodeMsg *pCreate = mgmtBuildCreateVnodeMsg(pVgroup);
+  SMDCreateVnodeMsg *pCreate = mnodeBuildCreateVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
     .handle  = ahandle,
     .pCont   = pCreate,
@@ -648,7 +648,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   }
 }
 
-static SMDDropVnodeMsg *mgmtBuildDropVnodeMsg(int32_t vgId) {
+static SMDDropVnodeMsg *mnodeBuildDropVnodeMsg(int32_t vgId) {
   SMDDropVnodeMsg *pDrop = rpcMallocCont(sizeof(SMDDropVnodeMsg));
   if (pDrop == NULL) return NULL;
 
@@ -657,7 +657,7 @@ static SMDDropVnodeMsg *mgmtBuildDropVnodeMsg(int32_t vgId) {
 }
 
 void mnodeSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle) {
-  SMDDropVnodeMsg *pDrop = mgmtBuildDropVnodeMsg(vgId);
+  SMDDropVnodeMsg *pDrop = mnodeBuildDropVnodeMsg(vgId);
   SRpcMsg rpcMsg = {
       .handle  = ahandle,
       .pCont   = pDrop,

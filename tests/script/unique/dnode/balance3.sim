@@ -7,12 +7,12 @@ system sh/deploy.sh -n dnode4 -i 4
 system sh/deploy.sh -n dnode5 -i 5
 system sh/deploy.sh -n dnode6 -i 6
 
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode5 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode6 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode5 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode6 -c mnodeEqualVnodeNum -v 4
 
 system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1

@@ -284,8 +284,8 @@ typedef struct {
 typedef struct STscObj {
   void *             signature;
   void *             pTimer;
-  char               mgmtIp[TSDB_USER_LEN];
-  uint16_t           mgmtPort;
+  char               mnodeIp[TSDB_USER_LEN];
+  uint16_t           mnodePort;
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_KEY_LEN];
   char               acctId[TSDB_DB_NAME_LEN];
