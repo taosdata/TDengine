@@ -447,10 +447,10 @@ int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
   int32_t ucs4_max_len = bytes + 4;
   char *f1_mbs = calloc(bytes, 1);
   char *f2_mbs = calloc(bytes, 1);
-  if (!taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs)) {
+  if (taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs) < 0) {
     return -1;
   }
-  if (!taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs)) {
+  if (taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs) < 0) {
     return -1;
   }
   int32_t ret = strcmp(f1_mbs, f2_mbs);
@@ -464,29 +464,29 @@ int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
 #endif
 }
 
-bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
+int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
 #ifdef USE_LIBICONV
   iconv_t cd = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;
   if (iconv(cd, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
     iconv_close(cd);
-    return false;
+    return -1;
   }
   iconv_close(cd);
-  return true;
+  return (int32_t)(ucs4_max_len - outLen);
 #else
   mbstate_t state = {0};
   int32_t len = (int32_t) wcsnrtombs(NULL, (const wchar_t **) &ucs4, ucs4_max_len / 4, 0, &state);
   if (len < 0) {
-    return false;
+    return -1;
   }
   memset(&state, 0, sizeof(state));
   len = wcsnrtombs(mbs, (const wchar_t **) &ucs4, ucs4_max_len / 4, (size_t) len, &state);
   if (len < 0) {
-    return false;
+    return -1;
   }
-  return true;
+  return len;
 #endif
 }
 
