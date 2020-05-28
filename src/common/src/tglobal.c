@@ -607,7 +607,7 @@ static void doInitGlobalConfig() {
   cfg.minValue = TSDB_MIN_CACHE_BLOCK_SIZE;
   cfg.maxValue = TSDB_MAX_CACHE_BLOCK_SIZE;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
+  cfg.unitType = TAOS_CFG_UTYPE_Mb;
   taosInitConfigOption(cfg);
 
   cfg.option = "blocks";
@@ -617,7 +617,7 @@ static void doInitGlobalConfig() {
   cfg.minValue = TSDB_MIN_TOTAL_BLOCKS;
   cfg.maxValue = TSDB_MAX_TOTAL_BLOCKS;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   cfg.option = "days";
