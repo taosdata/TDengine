@@ -22,11 +22,11 @@ New keyword "tags" is introduced, where tag_name is the tag name, and tag_type i
 
 Note：
 
-1. The bytes of all tags together shall be less than 512 
+1. The bytes of all tags together shall be less than 64k 
 2. Tag's data type can not be time stamp
 3. Tag name shall be different from the field name
 4. Tag name shall not be the same as system keywords
-5. Maximum number of tags is 6 
+5. Maximum number of tags is 128 
 
 For example:
 
@@ -168,7 +168,7 @@ You can add, delete and change the tags for a STable, and you can change the tag
 ALTER TABLE <stable_name> ADD TAG <new_tag_name> <TYPE>
 ```
 
-It adds a new tag to the STable with a data type. The maximum number of tags is 6. 
+It adds a new tag to the STable with a data type. The maximum number of tags is 128. 
 
 ### Drop a Tag
 

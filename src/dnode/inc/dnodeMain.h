@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 int32_t dnodeInitSystem();
-void dnodeCleanUpSystem();
+void    dnodeCleanUpSystem();
 
 #ifdef __cplusplus
 }

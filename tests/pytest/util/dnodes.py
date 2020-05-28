@@ -159,7 +159,7 @@ class TDDnode:
         self.cfg("dataDir", self.dataDir)
         self.cfg("logDir", self.logDir)
         self.cfg("numOfLogLines", "100000000")
-        self.cfg("mgmtEqualVnodeNum", "0")
+        self.cfg("mnodeEqualVnodeNum", "0")
         self.cfg("clog", "1")
         self.cfg("statusInterval", "1")
         self.cfg("numOfTotalVnodes", "64")

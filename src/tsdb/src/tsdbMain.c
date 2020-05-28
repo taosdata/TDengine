@@ -446,7 +446,7 @@ int32_t tsdbInsertData(TsdbRepoT *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg * p
  */
 int tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid) {
   if (config == NULL) return -1;
-  if (type != TSDB_NORMAL_TABLE && type != TSDB_CHILD_TABLE) return -1;
+  if (type != TSDB_CHILD_TABLE && type != TSDB_NORMAL_TABLE && type != TSDB_STREAM_TABLE) return -1;
 
   memset((void *)config, 0, sizeof(STableCfg));
 
@@ -455,6 +455,7 @@ int tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t t
   config->tableId.uid = uid;
   config->tableId.tid = tid;
   config->name = NULL;
+  config->sql = NULL;
   return 0;
 }
 
@@ -540,12 +541,26 @@ int tsdbTableSetSName(STableCfg *config, char *sname, bool dup) {
   return 0;
 }
 
+int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
+  if (config->type != TSDB_STREAM_TABLE) return -1;
+  
+  if (dup) {
+    config->sql = strdup(sql);
+    if (config->sql == NULL) return -1;
+  } else {
+    config->sql = sql;
+  }
+
+  return 0;
+}
+
 void tsdbClearTableCfg(STableCfg *config) {
   if (config->schema) tdFreeSchema(config->schema);
   if (config->tagSchema) tdFreeSchema(config->tagSchema);
   if (config->tagValues) tdFreeDataRow(config->tagValues);
   tfree(config->name);
   tfree(config->sname);
+  tfree(config->sql);
 }
 
 int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
