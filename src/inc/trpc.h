@@ -28,21 +28,21 @@ extern "C" {
 
 extern int tsRpcHeadSize;
 
-typedef struct {
+typedef struct SRpcIpSet {
   int8_t    inUse; 
   int8_t    numOfIps;
   uint16_t  port[TSDB_MAX_REPLICA];
   char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
 } SRpcIpSet;
 
-typedef struct {
+typedef struct SRpcConnInfo {
   uint32_t  clientIp;
   uint16_t  clientPort;
   uint32_t  serverIp;
   char      user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
-typedef struct {
+typedef struct SRpcMsg {
   uint8_t msgType;
   void   *pCont;
   int     contLen;
@@ -51,7 +51,7 @@ typedef struct {
   void   *ahandle;  //app handle set by client, for debug purpose
 } SRpcMsg;
 
-typedef struct {
+typedef struct SRpcInit {
   uint16_t localPort; // local port
   char  *label;        // for debug purpose
   int    numOfThreads; // number of threads to handle connections

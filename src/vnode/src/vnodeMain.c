@@ -198,8 +198,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   pVnode->fversion = pVnode->version;
   
-  pVnode->wqueue = dnodeAllocateWqueue(pVnode);
-  pVnode->rqueue = dnodeAllocateRqueue(pVnode);
+  pVnode->wqueue = dnodeAllocateVnodeWqueue(pVnode);
+  pVnode->rqueue = dnodeAllocateVnodeRqueue(pVnode);
   if (pVnode->wqueue == NULL || pVnode->rqueue == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
@@ -245,7 +245,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
   syncInfo.writeToCache = vnodeWriteToQueue;
-  syncInfo.confirmForward = dnodeSendRpcWriteRsp; 
+  syncInfo.confirmForward = dnodeSendRpcVnodeWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
@@ -404,11 +404,11 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   pVnode->cq = NULL;
 
   if (pVnode->wqueue) 
-    dnodeFreeWqueue(pVnode->wqueue);
+    dnodeFreeVnodeWqueue(pVnode->wqueue);
   pVnode->wqueue = NULL;
 
   if (pVnode->rqueue) 
-    dnodeFreeRqueue(pVnode->rqueue);
+    dnodeFreeVnodeRqueue(pVnode->rqueue);
   pVnode->rqueue = NULL;
  
   vnodeRelease(pVnode);

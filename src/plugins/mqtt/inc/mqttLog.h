@@ -26,7 +26,7 @@ extern int32_t mqttDebugFlag;
   }
 #define mqttWarn(...)                                  \
   if ( mqttDebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  MQT ",  mqttDebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN MQT ",  mqttDebugFlag, __VA_ARGS__); \
   }
 #define  mqttTrace(...)                           \
   if ( mqttDebugFlag & DEBUG_TRACE) {             \

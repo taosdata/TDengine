@@ -27,14 +27,14 @@ system sh/cfg.sh -n dnode6 -c numOfMpeers -v 3
 system sh/cfg.sh -n dnode7 -c numOfMpeers -v 3
 system sh/cfg.sh -n dnode8 -c numOfMpeers -v 3
 
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode5 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode6 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode7 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode8 -c mgmtEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode5 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode6 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode7 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode8 -c mnodeEqualVnodeNum -v 0
 
 system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1

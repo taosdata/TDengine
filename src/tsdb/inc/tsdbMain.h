@@ -85,12 +85,13 @@ typedef struct STable {
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
   struct STable *prev;
-  tstr *         name;           // NOTE: there a flexible string here
+  tstr *         name;  // NOTE: there a flexible string here
+  char *         sql;
 } STable;
 
 #define TSDB_GET_TABLE_LAST_KEY(tb) ((tb)->lastKey)
 
-void *  tsdbEncodeTable(STable *pTable, int *contLen);
+void    tsdbEncodeTable(STable *pTable, char *buf, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);
 void    tsdbFreeEncode(void *cont);
 

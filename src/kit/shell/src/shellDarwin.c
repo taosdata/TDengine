@@ -349,31 +349,6 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void shellPrintNChar(const char *str, int length, int width) {
-  int pos = 0, cols = 0;
-  while (pos < length) {
-    wchar_t wc;
-    pos += mbtowc(&wc, str + pos, MB_CUR_MAX);
-    if (pos > length) {
-      break;
-    }
-
-    int w = wcwidth(wc);
-    if (w > 0) {
-      if (width > 0 && cols + w > width) {
-        break;
-      }
-      printf("%lc", wc);
-      cols += w;
-    }
-  }
-
-  for (; cols < width; cols++) {
-    putchar(' ');
-  }
-}
-
-
 int get_old_terminal_mode(struct termios *tio) {
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {

@@ -60,10 +60,10 @@ static void tscSetDnodeIpList(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
 
 void tscPrintMgmtIp() {
   if (tscMgmtIpSet.numOfIps <= 0) {
-    tscError("invalid mgmt IP list:%d", tscMgmtIpSet.numOfIps);
+    tscError("invalid mnode IP list:%d", tscMgmtIpSet.numOfIps);
   } else {
     for (int i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-      tscTrace("mgmt index:%d %s:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
+      tscTrace("mnode index:%d %s:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
     }
   }
 }
@@ -78,7 +78,7 @@ void tscSetMgmtIpList(SRpcIpSet *pIpList) {
 
 void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
   tscMgmtIpSet = *pIpSet;
-  tscTrace("mgmt IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
+  tscTrace("mnode IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
   for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
     tscTrace("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
   }
