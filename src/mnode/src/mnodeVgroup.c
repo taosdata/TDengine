@@ -307,7 +307,6 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   if (balanceAllocVnodes(pVgroup) != 0) {
     mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
-    mnodeCleanupMsg(pMsg);
     return TSDB_CODE_NO_ENOUGH_DNODES;
   }
 
@@ -321,9 +320,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pVgroup);
-    code = TSDB_CODE_SDB_ERROR;
-    mnodeCleanupMsg(pMsg);
-    return TSDB_CODE_SDB_ERROR;    
+    return TSDB_CODE_SDB_ERROR;
   }
 
   mPrint("vgId:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);

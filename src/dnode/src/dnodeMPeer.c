@@ -75,7 +75,7 @@ void dnodeCleanupMnodePeer() {
     }
   }
 
-  dPrint("dnode mmgmt is closed");
+  dPrint("dnode mpeer is closed");
 }
 
 int32_t dnodeAllocateMnodePqueue() {
@@ -93,14 +93,14 @@ int32_t dnodeAllocateMnodePqueue() {
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
     if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessMnodePeerQueue, pWorker) != 0) {
-      dError("failed to create thread to process mmgmt queue, reason:%s", strerror(errno));
+      dError("failed to create thread to process mpeer queue, reason:%s", strerror(errno));
     }
 
     pthread_attr_destroy(&thAttr);
-    dTrace("dnode mmgmt worker:%d is launched, total:%d", pWorker->workerId, tsMPeerPool.num);
+    dTrace("dnode mpeer worker:%d is launched, total:%d", pWorker->workerId, tsMPeerPool.num);
   }
 
-  dTrace("dnode mmgmt queue:%p is allocated", tsMPeerQueue);
+  dTrace("dnode mpeer queue:%p is allocated", tsMPeerQueue);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -150,7 +150,7 @@ static void *dnodeProcessMnodePeerQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed in mpeer queue", pPeerMsg->rpcMsg.ahandle, taosMsg[pPeerMsg->rpcMsg.msgType]);    
+    dTrace("msg:%s will be processed in mpeer queue", taosMsg[pPeerMsg->rpcMsg.msgType]);    
     int32_t code = mnodeProcessPeerReq(pPeerMsg);    
     dnodeSendRpcMnodePeerRsp(pPeerMsg, code);    
   }

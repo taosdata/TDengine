@@ -741,6 +741,7 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
       mError("table:%s, failed to get table meta, table not exist", pInfo->tableId);
       return TSDB_CODE_INVALID_TABLE;
     } else {
+      mTrace("table:%s, failed to get table meta, start auto create table ", pInfo->tableId);
       return mgmtAutoCreateChildTable(pMsg);
     }
   } else {

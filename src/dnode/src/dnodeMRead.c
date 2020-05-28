@@ -132,6 +132,11 @@ static void dnodeFreeMnodeReadMsg(SMnodeMsg *pRead) {
 
 static void dnodeSendRpcMnodeReadRsp(SMnodeMsg *pRead, int32_t code) {
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_ACTION_NEED_REPROCESSED) {
+    // may be a auto create req, should put into write queue
+    dnodeReprocessMnodeWriteMsg(pRead);
+    return;
+  }
 
   SRpcMsg rpcRsp = {
     .handle  = pRead->rpcMsg.handle,
