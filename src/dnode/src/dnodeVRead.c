@@ -19,7 +19,6 @@
 #include "taosmsg.h"
 #include "tutil.h"
 #include "tqueue.h"
-#include "trpc.h"
 #include "twal.h"
 #include "tglobal.h"
 #include "dnodeInt.h"
@@ -142,7 +141,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateRqueue(void *pVnode) {
+void *dnodeAllocateVnodeRqueue(void *pVnode) {
   taos_queue queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
@@ -172,7 +171,7 @@ void *dnodeAllocateRqueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeRqueue(void *rqueue) {
+void dnodeFreeVnodeRqueue(void *rqueue) {
   taosCloseQueue(rqueue);
 
   // dynamically adjust the number of threads

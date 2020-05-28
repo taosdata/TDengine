@@ -20,13 +20,14 @@
 extern "C" {
 #endif
 
+#include "trpc.h"
+
 struct SAcctObj;
 struct SDnodeObj;
 struct SUserObj;
 struct SDbObj;
 struct SVgObj;
 struct STableObj;
-struct SRpcMsg;
 
 typedef struct {
   int32_t len;
@@ -34,13 +35,13 @@ typedef struct {
 } SMnodeRsp;
 
 typedef struct SMnodeMsg {
+  SRpcMsg   rpcMsg;
   SMnodeRsp rpcRsp;
   int8_t    received;
   int8_t    successed;
   int8_t    expected;
   int8_t    retry;
   int32_t   code;
-  struct SRpcMsg    rpcMsg;
   struct SAcctObj * pAcct;
   struct SDnodeObj *pDnode;
   struct SUserObj * pUser;
@@ -49,7 +50,7 @@ typedef struct SMnodeMsg {
   struct STableObj *pTable;
 } SMnodeMsg;
 
-void    mnodeCreateMsg(SMnodeMsg *pMsg, struct SRpcMsg *rpcMsg);
+void    mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg);
 int32_t mnodeInitMsg(SMnodeMsg *pMsg);
 void    mnodeCleanupMsg(SMnodeMsg *pMsg);
 
@@ -62,7 +63,7 @@ bool    mnodeIsRunning();
 int32_t mnodeProcessRead(SMnodeMsg *pMsg);
 int32_t mnodeProcessWrite(SMnodeMsg *pMsg);
 int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg);
-void    mnodeProcessPeerRsp(struct SRpcMsg *pMsg);
+void    mnodeProcessPeerRsp(SRpcMsg *pMsg);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 #ifdef __cplusplus

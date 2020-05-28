@@ -19,7 +19,6 @@
 #include "taosmsg.h"
 #include "tutil.h"
 #include "tqueue.h"
-#include "trpc.h"
 #include "twal.h"
 #include "tglobal.h"
 #include "mnode.h"

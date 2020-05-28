@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "trpc.h"
 #include "tgrant.h"
 #include "tbalance.h"
 #include "tglobal.h"

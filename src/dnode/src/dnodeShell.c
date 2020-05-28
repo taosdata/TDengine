@@ -18,7 +18,6 @@
 #include "taoserror.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "trpc.h"
 #include "tglobal.h"
 #include "http.h"
 #include "mnode.h"

@@ -20,7 +20,6 @@
 #include "taosmsg.h"
 #include "ttime.h"
 #include "ttimer.h"
-#include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
 #include "tsync.h"

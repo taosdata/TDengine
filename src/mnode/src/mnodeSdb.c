@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taoserror.h"
 #include "hash.h"
-#include "trpc.h"
 #include "tutil.h"
 #include "tbalance.h"
 #include "tqueue.h"

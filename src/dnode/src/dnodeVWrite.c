@@ -22,9 +22,9 @@
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "vnode.h"
-#include "tdataformat.h"
 #include "dnodeInt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMgmt.h"
@@ -122,7 +122,7 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateWqueue(void *pVnode) {
+void *dnodeAllocateVnodeWqueue(void *pVnode) {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
   void *queue = taosOpenQueue();
   if (queue == NULL) return NULL;
@@ -157,13 +157,13 @@ void *dnodeAllocateWqueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeWqueue(void *wqueue) {
+void dnodeFreeVnodeWqueue(void *wqueue) {
   taosCloseQueue(wqueue);
 
   // dynamically adjust the number of threads
 }
 
-void dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code) {
+void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
   SWriteMsg *pWrite = (SWriteMsg *)param;
 
   if (code > 0) return;
@@ -223,7 +223,7 @@ static void *dnodeProcessWriteQueue(void *param) {
       taosGetQitem(pWorker->qall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
-        dnodeSendRpcWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
+        dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
       } else {
         taosFreeQitem(item);
         vnodeRelease(pVnode);

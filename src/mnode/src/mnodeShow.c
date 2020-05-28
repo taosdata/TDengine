@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-#include "trpc.h"
 #include "tsched.h"
 #include "tutil.h"
 #include "ttimer.h"

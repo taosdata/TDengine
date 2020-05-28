@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "trpc.h"
 #include "taosdef.h"
 #include "tsched.h"
 #include "tbalance.h"

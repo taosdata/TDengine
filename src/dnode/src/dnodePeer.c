@@ -22,7 +22,6 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tglobal.h"
-#include "trpc.h"
 #include "mnode.h"
 #include "dnode.h"
 #include "dnodeInt.h"

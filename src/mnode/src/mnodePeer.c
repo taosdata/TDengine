@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "trpc.h"
 #include "tsched.h"
 #include "tsystem.h"
 #include "tutil.h"

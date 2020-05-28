@@ -20,7 +20,6 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tqueue.h"
-#include "trpc.h"
 #include "twal.h"
 #include "tglobal.h"
 #include "mnode.h"
