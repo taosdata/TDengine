@@ -48,6 +48,7 @@ void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
     ptr = tdEncodeSchema(ptr, pTable->tagSchema);
   } else if (pTable->type == TSDB_CHILD_TABLE) {
     dataRowCpy(ptr, pTable->tagVal);
+    ptr = POINTER_SHIFT(ptr, dataRowLen(pTable->tagVal));
   } else {
     ptr = tdEncodeSchema(ptr, pTable->schema);
   }
