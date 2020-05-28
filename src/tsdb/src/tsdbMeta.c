@@ -406,7 +406,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
 
   // Write to meta file
   int bufLen = 0;
-  char *buf = malloc(4096);
+  char *buf = malloc(1024*1024);
   if (newSuper) {
     tsdbEncodeTable(super, buf, &bufLen);
     tsdbInsertMetaRecord(pMeta->mfh, super->tableId.uid, buf, bufLen);
