@@ -121,6 +121,7 @@ class Test:
         tdDnodes.start(1)
         tdSql.prepare()
 
+
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)

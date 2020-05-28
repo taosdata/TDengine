@@ -307,19 +307,13 @@ void *shellLoopQuery(void *arg) {
     return NULL;
   }
   
-  while (1) {
+  do {
     // Read command from shell.
-
     memset(command, 0, MAX_COMMAND_SIZE);
     set_terminal_mode();
     shellReadCommand(con, command);
     reset_terminal_mode();
-
-    // Run the command
-    if (shellRunCommand(con, command) != 0) {
-      break;
-    }
-  }
+  } while (shellRunCommand(con, command) == 0);
   
   tfree(command);
   exitShell();
@@ -329,34 +323,27 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void shellPrintNChar(char *str, int width, bool printMode) {
-  int col_left = width;
-  wchar_t wc;
-  while (col_left > 0) {
-    if (*str == '\0') break;
-    char *tstr = str;
-    int byte_width = mbtowc(&wc, tstr, MB_CUR_MAX);
-    if (byte_width <= 0) break;
-    int col_width = wcwidth(wc);
-    if (col_width <= 0) {
-      str += byte_width;
-      continue;
+void shellPrintNChar(const char *str, int length, int width) {
+  int pos = 0, cols = 0;
+  while (pos < length) {
+    wchar_t wc;
+    pos += mbtowc(&wc, str + pos, MB_CUR_MAX);
+    if (pos > length) {
+      break;
     }
-    if (col_left < col_width) break;
-    printf("%lc", wc);
-    str += byte_width;
-    col_left -= col_width;
+
+    int w = wcwidth(wc);
+    if (w > 0) {
+      if (width > 0 && cols + w > width) {
+        break;
+      }
+      printf("%lc", wc);
+      cols += w;
+    }
   }
 
-  while (col_left > 0) {
-    printf(" ");
-    col_left--;
-  }
-
-  if (!printMode) {
-    printf("|");
-  } else {
-    printf("\n");
+  for (; cols < width; cols++) {
+    putchar(' ');
   }
 }
 
