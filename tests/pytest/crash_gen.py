@@ -115,7 +115,7 @@ class WorkerThread:
 
             logger.debug("[TRD] Worker thread [{}] about to fetch task".format(self._tid))
             task = tc.fetchTask()
-            logger.debug("[TRD] Worker thread [{}] about to execute task".format(self._tid))
+            logger.debug("[TRD] Worker thread [{}] about to execute task: {}".format(self._tid, task.__class__.__name__))
             task.execute(self)
             tc.saveExecutedTask(task)
             logger.debug("[TRD] Worker thread [{}] finished executing task".format(self._tid))
@@ -553,6 +553,12 @@ class AnyState:
                 return True
         return False
 
+    def hasTask(self, tasks, cls):
+        for task in tasks :
+            if isinstance(task, cls):
+                return True
+        return False
+
 class StateInvalid(AnyState):
     def getInfo(self):
         return [
@@ -573,9 +579,10 @@ class StateEmpty(AnyState):
             False, False, # can insert/read data with fixed table
         ]
 
-    def verifyTasksToState(self, tasks, newState):
-        if ( self.hasSuccess(tasks, CreateDbTask) ):
-            self.assertAtMostOneSuccess(tasks, CreateDbTask) # not really valid for massively parrallel tasks
+    def verifyTasksToState(self, tasks, newState): 
+        if ( self.hasSuccess(tasks, CreateDbTask) ): # at EMPTY, if there's succes in creating DB
+            if ( not self.hasTask(tasks, DropDbTask) ) : # and no drop_db tasks
+                self.assertAtMostOneSuccess(tasks, CreateDbTask) # we must have at most one. TODO: compare numbers
 
 class StateDbOnly(AnyState):
     def getInfo(self):
@@ -589,7 +596,7 @@ class StateDbOnly(AnyState):
     def verifyTasksToState(self, tasks, newState):
         self.assertAtMostOneSuccess(tasks, DropDbTask) # not true in massively parralel cases
         self.assertIfExistThenSuccess(tasks, DropDbTask)
-        self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) 
+        # self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # not true in massively parrallel cases
         # Nothing to be said about adding data task
         if ( self.hasSuccess(tasks, DropDbTask) ): # dropped the DB
             # self.assertHasTask(tasks, DropDbTask) # implied by hasSuccess
@@ -624,12 +631,12 @@ class StateTableOnly(AnyState):
         if ( self.hasSuccess(tasks, DropFixedTableTask) ): # we are able to drop the table
             self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
             # self._state = self.STATE_DB_ONLY
-        elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table, but added data
-            self.assertNoTask(tasks, DropFixedTableTask)
+        # elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table, but added data
+        #     self.assertNoTask(tasks, DropFixedTableTask) # not true in massively parrallel cases
             # self._state = self.STATE_HAS_DATA
-        elif ( self.hasSuccess(tasks, ReadFixedDataTask) ): # no success in prev cases, but was able to read data
-            self.assertNoTask(tasks, DropFixedTableTask)
-            self.assertNoTask(tasks, AddFixedDataTask)
+        # elif ( self.hasSuccess(tasks, ReadFixedDataTask) ): # no success in prev cases, but was able to read data
+            # self.assertNoTask(tasks, DropFixedTableTask)
+            # self.assertNoTask(tasks, AddFixedDataTask)
             # self._state = self.STATE_TABLE_ONLY # no change
         # else: # did not drop table, did not insert data, did not read successfully, that is impossible
         #     raise RuntimeError("Unexpected no-success scenarios")
@@ -648,8 +655,9 @@ class StateHasData(AnyState):
         if ( newState.equals(AnyState.STATE_EMPTY) ):
             self.hasSuccess(tasks, DropDbTask)
             self.assertAtMostOneSuccess(tasks, DropDbTask) # TODO: dicy
-        elif ( newState.equals(AnyState.STATE_DB_ONLY) ):
-            self.assertNoTask(tasks, DropDbTask)
+        elif ( newState.equals(AnyState.STATE_DB_ONLY) ): # in DB only
+            if ( not self.hasTask(tasks, CreateDbTask)): # without a create_db task
+                self.assertNoTask(tasks, DropDbTask) # we must have drop_db task
             self.hasSuccess(tasks, DropFixedTableTask)
             self.assertAtMostOneSuccess(tasks, DropFixedTableTask) # TODO: dicy
         elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
@@ -791,18 +799,23 @@ class DbState():
 
     def _findCurrentState(self):
         dbc = self._dbConn
+        ts = time.time()
         if dbc.query("show databases") == 0 : # no database?!
             # logger.debug("Found EMPTY state")
+            logger.debug("[STT] empty database found, between {} and {}".format(ts, time.time()))
             return StateEmpty()
         dbc.execute("use db") # did not do this when openning connection
         if dbc.query("show tables") == 0 : # no tables
             # logger.debug("Found DB ONLY state")
+            logger.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
             return StateDbOnly()
         if dbc.query("SELECT * FROM db.{}".format(self.getFixedTableName()) ) == 0 : # no data
             # logger.debug("Found TABLE_ONLY state")
+            logger.debug("[STT] TABLE_ONLY found, between {} and {}".format(ts, time.time()))
             return StateTableOnly()
         else:
             # logger.debug("Found HAS_DATA state")
+            logger.debug("[STT] HAS_DATA found, between {} and {}".format(ts, time.time()))
             return StateHasData()
     
     def transition(self, tasks):
@@ -835,10 +848,9 @@ class DbState():
             # Nothing for sure
 
         newState = self._findCurrentState()
+        logger.debug("[STT] New DB state determined: {}".format(newState))
         self._state.verifyTasksToState(tasks, newState) # can old state move to new state through the tasks?
-
         self._state = newState
-        logger.debug("New DB state is: {}".format(self._state))
 
 class TaskExecutor():
     def __init__(self, curStep):
@@ -1039,6 +1051,7 @@ class DropDbTask(StateTransitionTask):
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         wt.execSql("drop database db")
+        logger.debug("[OPS] database dropped at {}".format(time.time()))
 
 class CreateFixedTableTask(StateTransitionTask):
     @classmethod
@@ -1207,8 +1220,11 @@ class LoggingFilter(logging.Filter):
         msg = record.msg
         # print("type = {}, value={}".format(type(msg), msg))
         # sys.exit()
-        if msg.startswith("[TRD]"):
-            return False
+
+        # Commenting out below to adjust...
+
+        # if msg.startswith("[TRD]"):
+        #     return False
         return True
 
         
@@ -1241,7 +1257,7 @@ def main():
 
     global logger
     logger = logging.getLogger('CrashGen')
-    # logger.addFilter(LoggingFilter())
+    logger.addFilter(LoggingFilter())
     if ( gConfig.debug ):
         logger.setLevel(logging.DEBUG) # default seems to be INFO        
     else:
@@ -1256,6 +1272,12 @@ def main():
         # WorkDispatcher(dbState), # Obsolete?
         dbState
         )
+
+    # Sandbox testing code
+    # dbc = dbState.getDbConn()
+    # while True:
+    #     rows = dbc.query("show databases") 
+    #     print("Rows: {}, time={}".format(rows, time.time()))
     
     tc.run()
     tc.logStats()
