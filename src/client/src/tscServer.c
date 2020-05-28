@@ -220,7 +220,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (pSql->freed || pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
-    tscFreeSqlObj(pSql);
+    if (pObj->pSql != pSql) { // it is not a main SqlObj, should be freed
+      tscFreeSqlObj(pSql);
+    }
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -1867,8 +1869,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  free(pTableMeta);
   tscTrace("%p recv table meta: %"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
+  free(pTableMeta);
   
   return TSDB_CODE_SUCCESS;
 }

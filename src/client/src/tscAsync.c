@@ -57,6 +57,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   }
   
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);

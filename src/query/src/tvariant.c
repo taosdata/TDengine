@@ -766,7 +766,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, char type) {
     
     case TSDB_DATA_TYPE_BINARY: {
       if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-        *payload = TSDB_DATA_BINARY_NULL;
+        setVardataNull(payload,TSDB_DATA_TYPE_BINARY);
       } else {
         if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
           toBinary(pVariant, &payload, &pVariant->nLen);
@@ -786,7 +786,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, char type) {
     }
     case TSDB_DATA_TYPE_NCHAR: {
       if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-        *(uint32_t *) payload = TSDB_DATA_NCHAR_NULL;
+        setVardataNull(payload,TSDB_DATA_TYPE_NCHAR);
       } else {
         if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
           toNchar(pVariant, &payload, &pVariant->nLen);

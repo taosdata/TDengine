@@ -530,7 +530,6 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
 
   tscTrace("%p start to free result", pSql);
 
@@ -562,10 +561,6 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     return;
   }
 
-  pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
   /*
    * case 1. Partial data have been retrieved from vnodes, but not all data has been retrieved yet.
    *         We need to recycle the connection by noticing the vnode return 0 results.
@@ -576,27 +571,27 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
    *         for each subquery. Because the failure of execution tsProcessSql may trigger the callback function
    *         be executed, and the retry efforts may result in double free the resources, e.g.,SRetrieveSupport
    */
-  if ((pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_SHOW || pCmd->command == TSDB_SQL_RETRIEVE ||
-      pCmd->command == TSDB_SQL_FETCH) &&
-      (pRes->code != TSDB_CODE_QUERY_CANCELLED && ((pRes->numOfRows > 0 && pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
-       (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows == 0 && pCmd->command == TSDB_SQL_SELECT &&
-        pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)))) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-
-    tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
-
-    pSql->freed = 1;
-    tscProcessSql(pSql);
+//  if ((pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_SHOW || pCmd->command == TSDB_SQL_RETRIEVE ||
+//      pCmd->command == TSDB_SQL_FETCH) &&
+//      (pRes->code != TSDB_CODE_QUERY_CANCELLED && ((pRes->numOfRows > 0 && pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
+//       (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows == 0 && pCmd->command == TSDB_SQL_SELECT &&
+//        pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)))) {
+//    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+//
+//    tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
+//
+//    pSql->freed = 1;
+//    tscProcessSql(pSql);
 
     /*
      *  If release connection msg is sent to vnode, the corresponding SqlObj for async query can not be freed instantly,
      *  since its free operation is delegated to callback function, which is tscProcessMsgFromServer.
      */
-    STscObj* pObj = pSql->pTscObj;
-    if (pObj->pSql == pSql) {
-      pObj->pSql = NULL;
-    }
-  } else { // if no free resource msg is sent to vnode, we free this object immediately.
+//    STscObj* pObj = pSql->pTscObj;
+//    if (pObj->pSql == pSql) {
+//      pObj->pSql = NULL;
+//    }
+//  } else { // if no free resource msg is sent to vnode, we free this object immediately.
     STscObj* pTscObj = pSql->pTscObj;
     
     if (pTscObj->pSql != pSql) {
@@ -611,7 +606,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
         tscTrace("%p sql result is freed by app", pSql);
       }
     }
-  }
+//  }
 }
 
 void taos_free_result(TAOS_RES *res) { taos_free_result_imp(res, 0); }

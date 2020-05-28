@@ -421,8 +421,9 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
-
   pCmd->allocSize = 0;
+  
+  tfree(pSql->sqlstr);
   free(pSql);
 }
 

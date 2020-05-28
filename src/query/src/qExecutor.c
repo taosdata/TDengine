@@ -110,8 +110,9 @@ static void resetMergeResultBuf(SQuery *pQuery, SQLFunctionCtx *pCtx, SResultInf
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId);
 static void getNextTimeWindow(SQuery *pQuery, STimeWindow *pTimeWindow);
 
-static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* pData, TSKEY *tsCol, SDataBlockInfo* pBlockInfo,
-                          int32_t functionId, SDataStatis *pStatis, bool hasNull, void *param, int32_t scanFlag);
+static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY *tsCol, SDataBlockInfo* pBlockInfo,
+                          SDataStatis *pStatis, void *param, int32_t colIndex);
+
 static void initCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv);
 static void destroyTableQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols);
 static void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv);
@@ -954,16 +955,8 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
   SArithmeticSupport *sasArray = calloc((size_t)pQuery->numOfOutput, sizeof(SArithmeticSupport));
   
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
-    int32_t functionId = pQuery->pSelectExpr[k].base.functionId;
-    int32_t colId = pQuery->pSelectExpr[k].base.colInfo.colId;
-
-    SDataStatis *tpField = NULL;
-
-    bool  hasNull = hasNullValue(pQuery, k, pDataBlockInfo->numOfCols, pStatis, &tpField);
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
-
-    setExecParams(pQuery, &pCtx[k], dataBlock, primaryKeyCol, pDataBlockInfo, functionId, tpField, hasNull,
-                  &sasArray[k], colId);
+    setExecParams(pQuery, &pCtx[k], dataBlock, primaryKeyCol, pDataBlockInfo, pStatis, &sasArray[k], k);
   }
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
@@ -1176,16 +1169,8 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
   }
 
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
-    int32_t functionId = pQuery->pSelectExpr[k].base.functionId;
-    int32_t colId = pQuery->pSelectExpr[k].base.colInfo.colId;
-    
-    SDataStatis *pColStatis = NULL;
-
-    bool  hasNull = hasNullValue(pQuery, k, pDataBlockInfo->numOfCols, pStatis, &pColStatis);
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
-
-    setExecParams(pQuery, &pCtx[k], dataBlock, primaryKeyCol, pDataBlockInfo, functionId, pColStatis, hasNull,
-                  &sasArray[k], colId);
+    setExecParams(pQuery, &pCtx[k], dataBlock, primaryKeyCol, pDataBlockInfo, pStatis, &sasArray[k], k);
   }
 
   // set the input column data
@@ -1354,11 +1339,16 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
 }
 
 void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY *tsCol, SDataBlockInfo* pBlockInfo,
-                   int32_t functionId, SDataStatis *pStatis, bool hasNull, void *param, int32_t colId) {
-  pCtx->hasNull  = hasNull;
+                   SDataStatis *pStatis, void *param, int32_t colIndex) {
+  
+  int32_t functionId = pQuery->pSelectExpr[colIndex].base.functionId;
+  int32_t colId = pQuery->pSelectExpr[colIndex].base.colInfo.colId;
+  
+  SDataStatis *tpField = NULL;
+  pCtx->hasNull = hasNullValue(pQuery, colIndex, pBlockInfo->numOfCols, pStatis, &tpField);
   pCtx->aInputElemBuf = inputData;
 
-  if (pStatis != NULL) {
+  if (tpField != NULL) {
     pCtx->preAggVals.isSet  = true;
     pCtx->preAggVals.statis = *pStatis;
     if (pCtx->preAggVals.statis.numOfNull == -1) {
@@ -1403,6 +1393,19 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY 
       pCtx->preAggVals.isSet  = true;
       pCtx->preAggVals.statis.min = pBlockInfo->window.skey;
       pCtx->preAggVals.statis.max = pBlockInfo->window.ekey;
+    }
+  } else if (functionId == TSDB_FUNC_INTERP) {
+    SInterpInfoDetail *pInterpInfo = GET_RES_INFO(pCtx)->interResultBuf;
+    pInterpInfo->type = pQuery->fillType;
+    pInterpInfo->ts = pQuery->window.skey;
+    pInterpInfo->primaryCol = (colId == PRIMARYKEY_TIMESTAMP_COL_INDEX);
+  
+    if (pQuery->fillVal != NULL) {
+      if (isNull((const char*) &pQuery->fillVal[colIndex], pCtx->inputType)) {
+        pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
+      } else { // todo refactor, tVariantCreateFromBinary should handle the NULL value
+        tVariantCreateFromBinary(&pCtx->param[1], (char*) &pQuery->fillVal[colIndex], pCtx->inputBytes, pCtx->inputType);
+      }
     }
   }
 
@@ -1635,10 +1638,11 @@ static bool isFixedOutputQuery(SQuery *pQuery) {
   return false;
 }
 
+// todo refactor with isLastRowQuery
 static bool isPointInterpoQuery(SQuery *pQuery) {
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     int32_t functionID = pQuery->pSelectExpr[i].base.functionId;
-    if (functionID == TSDB_FUNC_INTERP || functionID == TSDB_FUNC_LAST_ROW) {
+    if (functionID == TSDB_FUNC_INTERP/* || functionID == TSDB_FUNC_LAST_ROW*/) {
       return true;
     }
   }
@@ -1817,7 +1821,7 @@ static void setScanLimitationByResultBuffer(SQuery *pQuery) {
 /*
  * todo add more parameters to check soon..
  */
-bool vnodeParametersSafetyCheck(SQuery *pQuery) {
+bool colIdCheck(SQuery *pQuery) {
   // load data column information is incorrect
   for (int32_t i = 0; i < pQuery->numOfCols - 1; ++i) {
     if (pQuery->colList[i].colId == pQuery->colList[i + 1].colId) {
@@ -1825,6 +1829,7 @@ bool vnodeParametersSafetyCheck(SQuery *pQuery) {
       return false;
     }
   }
+  
   return true;
 }
 
@@ -1851,7 +1856,7 @@ static bool onlyFirstQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSD
 
 static bool onlyLastQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
 
-static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
+static void changeExecuteScanOrder(SQuery *pQuery, bool stableQuery) {
   // in case of point-interpolation query, use asc order scan
   char msg[] = "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%" PRId64
                "-%" PRId64 ", new qrange:%" PRId64 "-%" PRId64;
@@ -1906,7 +1911,7 @@ static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
     }
 
   } else {  // interval query
-    if (metricQuery) {
+    if (stableQuery) {
       if (onlyFirstQuery(pQuery)) {
         if (!QUERY_IS_ASC_QUERY(pQuery)) {
           qTrace(msg, GET_QINFO_ADDR(pQuery), "only-first stable", pQuery->order.order, TSDB_ORDER_ASC,
@@ -3841,7 +3846,8 @@ bool queryHasRemainResults(SQueryRuntimeEnv* pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SFillInfo *pFillInfo = pRuntimeEnv->pFillInfo;
   
-  if (pQuery->fillType == TSDB_FILL_NONE) {
+  // todo refactor
+  if (pQuery->fillType == TSDB_FILL_NONE || (pQuery->fillType != TSDB_FILL_NONE && isPointInterpoQuery(pQuery))) {
     assert(pFillInfo == NULL);
     return false;
   }
@@ -4195,7 +4201,6 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   return true;
 }
 
-
 static void setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -4229,6 +4234,8 @@ static void setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
 
   if (isFirstLastRowQuery(pQuery)) {
     pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
+  } else if (isPointInterpoQuery(pQuery)) {
+    pRuntimeEnv->pQueryHandle = tsdbQueryRowsInExternalWindow(tsdb, &cond, &pQInfo->tableIdGroupInfo);
   } else {
     pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableIdGroupInfo);
   }
@@ -4346,7 +4353,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
 //  pointInterpSupporterSetData(pQInfo, &interpInfo);
 //  pointInterpSupporterDestroy(&interpInfo);
 
-  if (pQuery->fillType != TSDB_FILL_NONE) {
+  if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
     SFillColInfo* pColInfo = taosCreateFillColInfo(pQuery);
     pRuntimeEnv->pFillInfo = taosInitFillInfo(pQuery->order.order, 0, 0, pQuery->rec.capacity, pQuery->numOfOutput,
                                               pQuery->slidingTime, pQuery->fillType, pColInfo);
@@ -5809,7 +5816,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
     goto _cleanup;
   }
 
-  vnodeParametersSafetyCheck(pQuery);
+  colIdCheck(pQuery);
 
   qTrace("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
   return pQInfo;

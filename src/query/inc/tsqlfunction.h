@@ -269,9 +269,6 @@ extern struct SQLAggFuncElem aAggs[];
 /* compatible check array list */
 extern int32_t funcCompatDefList[];
 
-void getStatistics(char *priData, char *data, int32_t size, int32_t numOfRow, int32_t type, int64_t *min, int64_t *max,
-                   int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int32_t *numOfNull);
-
 bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *minval, char *maxval);
 
 bool stableQueryFunctChanged(int32_t funcId);

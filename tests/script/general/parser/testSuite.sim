@@ -62,16 +62,19 @@ sleep 2000
 run general/parser/tbnameIn.sim
 sleep 2000
 run general/parser/projection_limit_offset.sim
-
 sleep 2000
 run general/parser/limit2.sim
-sleep 2000
-run general/parser/slimit.sim
-
 sleep 2000
 run general/parser/fill.sim
 sleep 2000
 run general/parser/fill_stb.sim
+sleep 2000
+run general/parser/where.sim
+sleep 2000
+run general/parser/slimit.sim
+sleep 2000
+run general/parser/select_with_tags.sim
+
 sleep 2000
 run general/parser/tags_dynamically_specifiy.sim
 sleep 2000
@@ -87,8 +90,6 @@ sleep 2000
 run general/parser/stream.sim
 
 sleep 2000
-run general/parser/where.sim
-sleep 2000
 #run general/parser/repeatAlter.sim
 sleep 2000
 #run general/parser/repeatStream.sim
@@ -98,10 +99,7 @@ sleep 2000
 run general/parser/join_multivnode.sim
 
 sleep 2000
-run general/parser/select_with_tags.sim
-sleep 2000
 run general/parser/groupby.sim
-
 sleep 2000
 run general/parser/binary_escapeCharacter.sim
 sleep 2000

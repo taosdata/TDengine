@@ -101,6 +101,7 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
     pTable->schema = tdDecodeSchema(&ptr);
   }
 
+  pTable->lastKey = TSKEY_INITIAL_VAL;
   return pTable;
 }
 
@@ -349,7 +350,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
   table->name = calloc(1, size + VARSTR_HEADER_SIZE + 1);
   STR_WITH_SIZE_TO_VARSTR(table->name, pCfg->name, size);
   
-  table->lastKey = 0;
+  table->lastKey = TSKEY_INITIAL_VAL;
   if (IS_CREATE_STABLE(pCfg)) { // TSDB_CHILD_TABLE
     table->type = TSDB_CHILD_TABLE;
     table->superUid = pCfg->superUid;

@@ -3003,6 +3003,7 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     output += VARSTR_HEADER_SIZE;
   }
   
+  // todo : handle the binary/nchar data
   tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
   pCtx->aOutputBuf += pCtx->outputBytes;
 }
@@ -3857,10 +3858,14 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
  * param[2]: next value of specified timestamp
  * param[3]: denotes if the result is a precious result or interpolation results
  *
+ * param[1]: denote the specified timestamp to generated the interp result
+ * param[2]: fill policy
+ *
  * @param pCtx
  */
 static void interp_function(SQLFunctionCtx *pCtx) {
   // at this point, the value is existed, return directly
+#if 0
   if (pCtx->param[3].i64Key == 1) {
     char *pData = GET_INPUT_CHAR(pCtx);
     assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
@@ -3955,6 +3960,88 @@ static void interp_function(SQLFunctionCtx *pCtx) {
   tVariantDestroy(&pCtx->param[2]);
   
   // data in the check operation are all null, not output
+  SET_VAL(pCtx, pCtx->size, 1);
+#endif
+  
+  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SInterpInfoDetail* pInfo = pResInfo->interResultBuf;
+
+  if (pCtx->size == 1) {
+    char *pData = GET_INPUT_CHAR(pCtx);
+    assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
+  } else {
+    /*
+     * use interpolation to generate the result.
+     * Note: the result of primary timestamp column uses the timestamp specified by user in the query sql
+     */
+    assert(pCtx->size == 2);
+    if (pInfo->type == TSDB_FILL_NONE) {  // set no output result
+      return;
+    }
+    
+    if (pInfo->primaryCol == 1) {
+      *(TSKEY *) pCtx->aOutputBuf = pInfo->ts;
+    } else {
+      if (pInfo->type == TSDB_FILL_NULL) {
+        if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+          setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+        } else {
+          setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+        }
+  
+        SET_VAL(pCtx, pCtx->size, 1);
+      } else if (pInfo->type == TSDB_FILL_SET_VALUE) {
+        tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType);
+      } else if (pInfo->type == TSDB_FILL_PREV) {
+        char *data = GET_INPUT_CHAR_INDEX(pCtx, 0);
+        assignVal(pCtx->aOutputBuf, data, pCtx->outputBytes, pCtx->outputType);
+  
+        SET_VAL(pCtx, pCtx->size, 1);
+      } else if (pInfo->type == TSDB_FILL_LINEAR) {
+        char *data1 = GET_INPUT_CHAR_INDEX(pCtx, 0);
+        char *data2 = GET_INPUT_CHAR_INDEX(pCtx, 1);
+      
+        TSKEY key1 = pCtx->ptsList[0];
+        TSKEY key2 = pCtx->ptsList[1];
+      
+        SPoint point1 = {.key = key1, .val = data1};
+        SPoint point2 = {.key = key2, .val = data2};
+      
+        SPoint point = {.key = pInfo->ts, .val = pCtx->aOutputBuf};
+      
+        int32_t srcType = pCtx->inputType;
+        if ((srcType >= TSDB_DATA_TYPE_TINYINT && srcType <= TSDB_DATA_TYPE_BIGINT) ||
+            srcType == TSDB_DATA_TYPE_TIMESTAMP || srcType == TSDB_DATA_TYPE_DOUBLE) {
+          point1.val = data1;
+          point2.val = data2;
+        
+          if (isNull(data1, srcType) || isNull(data2, srcType)) {
+            setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
+          } else {
+            taosDoLinearInterpolation(pCtx->outputType, &point1, &point2, &point);
+          }
+        } else if (srcType == TSDB_DATA_TYPE_FLOAT) {
+          point1.val = data1;
+          point2.val = data2;
+        
+          if (isNull(data1, srcType) || isNull(data2, srcType)) {
+            setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
+          } else {
+            taosDoLinearInterpolation(pCtx->outputType, &point1, &point2, &point);
+          }
+        
+        } else {
+          if (srcType == TSDB_DATA_TYPE_BINARY || srcType == TSDB_DATA_TYPE_NCHAR) {
+            setVardataNull(pCtx->aOutputBuf, pCtx->inputType);
+          } else {
+            setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
+          }
+        }
+      }
+    }
+    
+  }
+  
   SET_VAL(pCtx, pCtx->size, 1);
 }
 
@@ -4910,7 +4997,7 @@ SQLAggFuncElem aAggs[] = {{
                               "interp",
                               TSDB_FUNC_INTERP,
                               TSDB_FUNC_INTERP,
-                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS ,
                               function_setup,
                               interp_function,
                               do_sum_f,  // todo filter handle
@@ -4918,7 +5005,7 @@ SQLAggFuncElem aAggs[] = {{
                               doFinalizer,
                               noop1,
                               copy_function,
-                              no_data_info,
+                              data_req_load_info,
                           },
                           {
                               // 28
