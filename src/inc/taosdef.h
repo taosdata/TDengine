@@ -157,6 +157,7 @@ extern tDataTypeDescriptor tDataTypeDesc[11];
 bool isValidDataType(int32_t type, int32_t length);
 bool isNull(const char *val, int32_t type);
 
+void setVardataNull(char* val, int32_t type);
 void setNull(char *val, int32_t type, int32_t bytes);
 void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 

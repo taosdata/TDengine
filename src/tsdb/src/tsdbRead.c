@@ -1539,14 +1539,21 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
   
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);
-  memset(pHandle->statis, 0, sizeof(SDataStatis) * numOfCols);
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SDataStatis* st = &pHandle->statis[i];
+    int32_t colId = st->colId;
+    
+    memset(st, 0, sizeof(SDataStatis));
+    st->colId = colId;
+  }
+  
   tsdbGetDataStatis(&pHandle->rhelper, pHandle->statis, numOfCols);
   
   *pBlockStatis = pHandle->statis;
   
   //update the number of NULL data rows
   for(int32_t i = 0; i < numOfCols; ++i) {
-    if (pHandle->statis[i].numOfNull == -1) {
+    if (pHandle->statis[i].numOfNull == -1) { // set the column data are all NULL
       pHandle->statis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
     }
   }
@@ -1746,9 +1753,9 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;
       type = pCol->type;
-      
-      f1 = tdGetRowDataOfCol(pTable1->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
-      f2 = tdGetRowDataOfCol(pTable2->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+      int16_t tgtype1, tgtype2 = 0;
+      f1 = tdQueryTagByID(pTable1->tagVal, pCol->colId, &tgtype1);
+      f2 = tdQueryTagByID(pTable2->tagVal, pCol->colId, &tgtype2);
     }
     
     int32_t ret = doCompare(f1, f2, type, bytes);
@@ -1836,12 +1843,14 @@ bool indexedNodeFilterFp(const void* pNode, void* param) {
     val = (char*) elem->pTable->name;
     type = TSDB_DATA_TYPE_BINARY;
   } else {
-    STSchema* pTSchema = (STSchema*) pInfo->param; // todo table schema is identical to stable schema??
-    
-    int32_t offset = pTSchema->columns[pInfo->colIndex].offset;
-    val = tdGetRowDataOfCol(elem->pTable->tagVal, pInfo->sch.type, TD_DATA_ROW_HEAD_SIZE + offset);
+//    STSchema* pTSchema = (STSchema*) pInfo->param; // todo table schema is identical to stable schema??
+    int16_t type;
+  //  int32_t offset = pTSchema->columns[pInfo->colIndex].offset;
+  //  val = tdGetRowDataOfCol(elem->pTable->tagVal, pInfo->sch.type, TD_DATA_ROW_HEAD_SIZE + offset);
+    val = tdQueryTagByID(elem->pTable->tagVal, pInfo->sch.colId, &type);
+  //  ASSERT(pInfo->sch.type == type);    
   }
-
+  //todo :the val is possible to be null, so check it out carefully
   int32_t ret = 0;
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     if (pInfo->optr == TSDB_RELATION_IN) {

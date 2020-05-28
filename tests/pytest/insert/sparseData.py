@@ -12,7 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import random
 
 from util.log import *
 from util.cases import *
@@ -30,32 +29,34 @@ class TDTestCase:
 
         tdLog.info("=============== step1")
         tdSql.execute(
-            'create table tb (ts timestamp, speed int, temp float, note binary(5), flag bool)')
+            'create table tb (ts timestamp, speed int, temp float, note binary(4000), flag bool)')
 
-        numOfRecords = 0
-        randomList = [10, 50, 100, 500, 1000, 5000]
-        for i in range(0, 10):
-            num = random.choice(randomList)
-            tdLog.info("will insert %d records" % num)
-            for x in range(0, num):
-                tdLog.info(
-                    'insert into tb values (now + %da, NULL, NULL, NULL, TRUE)' %
-                    x)
+        numOfRecords = 1000000
+        dividend = 1000
+        tdLog.info("will insert %d records" % numOfRecords)
+
+        ts = 1500000000000
+        for i in range(0, numOfRecords):
+
+            if (i % dividend):
+                print(".", end="")
                 tdSql.execute(
-                    'insert into tb values (now + %da, NULL, NULL, NULL, TRUE)' %
-                    x)
+                    'insert into tb values (%d + %da, NULL, NULL, NULL, TRUE)' %
+                    (ts, i))
+            else:
+                print("a", end="")
+                tdSql.execute(
+                    'insert into tb values (%d + %da, NULL, NULL, "a", FALSE)' %
+                    (ts, i))
 
-            numOfRecords = numOfRecords + num
+        tdSql.query("select * from tb")
+        tdSql.checkRows(numOfRecords)
+        tdSql.checkData(numOfRecords - dividend, 3, 'a')
+        tdSql.checkData(numOfRecords - dividend - 1, 3, None)
 
-            tdSql.query("select * from tb")
-            tdSql.checkRows(numOfRecords)
-            tdSql.checkData(numOfRecords - num, 1, None)
-            tdSql.checkData(numOfRecords - 1, 2, None)
-
-            tdLog.info("stop dnode to commit data to disk")
-            tdDnodes.stop(1)
-            tdDnodes.start(1)
-            tdLog.sleep(5)
+        tdLog.info("stop dnode to commit data to disk")
+        tdDnodes.stop(1)
+        tdLog.info("dnodes:%d size is %d" % (1, tdDnodes.getDataSize(1)))
 
     def stop(self):
         tdSql.close()

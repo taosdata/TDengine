@@ -106,6 +106,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
+  char sql[1024] = "\0";
 
   vTrace("vgId:%d, table:%s, start to create", pVnode->vgId, pTable->tableId);
   int16_t   numOfColumns = htons(pTable->numOfColumns);
@@ -139,14 +140,21 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
-    dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+    //dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+    dataRow = tdNewTagRowFromSchema(pDestTagSchema, numOfTags);
 
     for (int i = 0; i < numOfTags; i++) {
       STColumn *pTCol = schemaColAt(pDestTagSchema, i);
-      tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
+//      tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
+      tdAppendTagColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->colId);
       accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }
     tsdbTableSetTagValue(&tCfg, dataRow, false);
+  }
+
+  if (pTable->tableType == TSDB_STREAM_TABLE) {
+    // TODO: set sql value
+    tsdbTableSetStreamSql(&tCfg, sql, false);
   }
 
   code = tsdbCreateTable(pVnode->tsdb, &tCfg);

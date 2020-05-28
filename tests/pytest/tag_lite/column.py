@@ -103,7 +103,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(4)')
         tdSql.checkRows(4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step3
         tdLog.info('=============== step3')
@@ -149,7 +149,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== step5
         tdLog.info('=============== step5')
@@ -160,7 +160,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(4)')
         tdSql.checkRows(4)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol = 1
         tdLog.info('select * from %s where tgcol = 1' % (mt))
@@ -169,7 +169,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: print =============== clear
         tdLog.info('=============== clear')
@@ -183,7 +183,7 @@ class TDTestCase:
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
-        #TSIM: endi
+        # TSIM: endi
         # TSIM:
         # TSIM: system sh/exec.sh -n dnode1 -s stop -x SIGINT
 # convert end

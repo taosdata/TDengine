@@ -96,6 +96,7 @@ echo "second              ${HOSTNAME}:7200" >> $TAOS_CFG
 echo "serverPort          ${NODE}"          >> $TAOS_CFG
 echo "dataDir             $DATA_DIR"      >> $TAOS_CFG
 echo "logDir              $LOG_DIR"       >> $TAOS_CFG
+echo "debugFlag           135"            >> $TAOS_CFG
 echo "dDebugFlag          135"            >> $TAOS_CFG
 echo "mDebugFlag          135"            >> $TAOS_CFG
 echo "sdbDebugFlag        135"            >> $TAOS_CFG
