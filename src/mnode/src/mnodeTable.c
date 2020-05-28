@@ -660,7 +660,7 @@ static void mgmtExtractTableName(char* tableId, char* name) {
 }
 
 static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
-  SCMCreateTableMsg *pCreate = pMsg->pCont;
+  SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
   
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCreate->db);
   if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
@@ -683,16 +683,16 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
   }
 
   if (pCreate->numOfTags != 0) {
-    mTrace("table:%s, create msg is received from thandle:%p", pCreate->tableId, pMsg->thandle);
+    mTrace("table:%s, create msg is received from thandle:%p", pCreate->tableId, pMsg->rpcMsg.handle);
     return mnodeProcessCreateSuperTableMsg(pMsg);
   } else {
-    mTrace("table:%s, create msg is received from thandle:%p", pCreate->tableId, pMsg->thandle);
+    mTrace("table:%s, create msg is received from thandle:%p", pCreate->tableId, pMsg->rpcMsg.handle);
     return mnodeProcessCreateChildTableMsg(pMsg);
   }
 }
 
 static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
-  SCMDropTableMsg *pDrop = pMsg->pCont;
+  SCMDropTableMsg *pDrop = pMsg->rpcMsg.pCont;
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableId(pDrop->tableId);
   if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("table:%s, failed to drop table, db not selected", pDrop->tableId);
@@ -725,9 +725,9 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
-  SCMTableInfoMsg *pInfo = pMsg->pCont;
+  SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   pInfo->createFlag = htons(pInfo->createFlag);
-  mTrace("table:%s, table meta msg is received from thandle:%p, createFlag:%d", pInfo->tableId, pMsg->thandle, pInfo->createFlag);
+  mTrace("table:%s, table meta msg is received from thandle:%p, createFlag:%d", pInfo->tableId, pMsg->rpcMsg.handle, pInfo->createFlag);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableId(pInfo->tableId);
   if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
@@ -753,7 +753,7 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
-  SCMCreateTableMsg *pCreate = pMsg->pCont;
+  SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
   SSuperTableObj *pStable = calloc(1, sizeof(SSuperTableObj));
   if (pStable == NULL) {
     mError("table:%s, failed to create, no enough memory", pCreate->tableId);
@@ -1257,7 +1257,7 @@ static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
-  SCMSTableVgroupMsg *pInfo = pMsg->pCont;
+  SCMSTableVgroupMsg *pInfo = pMsg->rpcMsg.pCont;
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
   // reserve space
@@ -1479,7 +1479,7 @@ static SChildTableObj* mnodeDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgOb
 }
 
 static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
-  SCMCreateTableMsg *pCreate = pMsg->pCont;
+  SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
   int32_t code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to create, grant timeseries failed", pCreate->tableId);
@@ -1521,8 +1521,6 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
   }
 
   SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pVgroup);
-  pMsg->ahandle = pMsg->pTable;
-  pMsg->maxRetry = 10;
   SRpcMsg rpcMsg = {
       .handle  = pMsg,
       .pCont   = pMDCreate,
@@ -1559,7 +1557,6 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
   SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
 
   mPrint("table:%s, send drop ctable msg", pDrop->tableId);
-  pMsg->ahandle = pMsg->pTable;
   SRpcMsg rpcMsg = {
     .handle  = pMsg,
     .pCont   = pDrop,
@@ -1726,7 +1723,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 }
 
 static int32_t mgmtAutoCreateChildTable(SMnodeMsg *pMsg) {
-  SCMTableInfoMsg *pInfo = pMsg->pCont;
+  SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   STagData* pTag = (STagData*)pInfo->tags;
 
   int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + ntohl(pTag->dataLen);
@@ -1744,10 +1741,10 @@ static int32_t mgmtAutoCreateChildTable(SMnodeMsg *pMsg) {
 
   memcpy(pCreateMsg->schema, pInfo->tags, contLen - sizeof(SCMCreateTableMsg));
 
-  pMsg->msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
-  rpcFreeCont(pMsg->pCont);
-  pMsg->pCont = pCreateMsg;
-  pMsg->contLen = contLen;
+  rpcFreeCont(pMsg->rpcMsg.pCont);
+  pMsg->rpcMsg.msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
+  pMsg->rpcMsg.pCont = pCreateMsg;
+  pMsg->rpcMsg.contLen = contLen;
 
   mTrace("table:%s, start to create on demand, stable:%s", pInfo->tableId, pInfo->tags);
 
@@ -1868,7 +1865,7 @@ static SChildTableObj* mnodeGetTableByPos(int32_t vnode, int32_t sid) {
 }
 
 static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
-  SDMConfigTableMsg *pCfg = (SDMConfigTableMsg *) pMsg->pCont;
+  SDMConfigTableMsg *pCfg = pMsg->rpcMsg.pCont;
   pCfg->dnode = htonl(pCfg->dnode);
   pCfg->vnode = htonl(pCfg->vnode);
   pCfg->sid   = htonl(pCfg->sid);
@@ -1911,8 +1908,9 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   SMnodeMsg *mnodeMsg = rpcMsg->handle;
   mnodeMsg->received++;
 
-  SChildTableObj *pTable = mnodeMsg->ahandle;
-  mPrint("table:%s, drop table rsp received, thandle:%p result:%s", pTable->info.tableId, mnodeMsg->thandle, tstrerror(rpcMsg->code));
+  SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
+  assert(pTable);
+  mPrint("table:%s, drop table rsp received, thandle:%p result:%s", pTable->info.tableId, mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to drop in dnode, reason:%s", pTable->info.tableId, tstrerror(rpcMsg->code));
@@ -1957,18 +1955,19 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
   SMnodeMsg *mnodeMsg = rpcMsg->handle;
   mnodeMsg->received++;
 
-  SChildTableObj *pTable = mnodeMsg->ahandle;
-  mTrace("table:%s, create table rsp received, thandle:%p result:%s", pTable->info.tableId, mnodeMsg->thandle,
+  SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
+  assert(pTable);
+  mTrace("table:%s, create table rsp received, thandle:%p result:%s", pTable->info.tableId, mnodeMsg->rpcMsg.handle,
          tstrerror(rpcMsg->code));
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
-    if (mnodeMsg->retry++ < mnodeMsg->maxRetry) {
+    if (mnodeMsg->retry++ < 10) {
       mTrace("table:%s, create table rsp received, retry:%d thandle:%p result:%s", pTable->info.tableId,
-             mnodeMsg->retry, mnodeMsg->thandle, tstrerror(rpcMsg->code));
+             mnodeMsg->retry, mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
       dnodeDelayReprocessMnodeWriteMsg(mnodeMsg);
     } else {
       mError("table:%s, failed to create in dnode, thandle:%p result:%s", pTable->info.tableId,
-             mnodeMsg->thandle, tstrerror(rpcMsg->code));
+             mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
       
       SSdbOper oper = {
         .type = SDB_OPER_GLOBAL,
@@ -1980,9 +1979,9 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
       dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
     }    
   } else {
-    mTrace("table:%s, created in dnode, thandle:%p result:%s", pTable->info.tableId, mnodeMsg->thandle,
+    mTrace("table:%s, created in dnode, thandle:%p result:%s", pTable->info.tableId, mnodeMsg->rpcMsg.handle,
            tstrerror(rpcMsg->code));
-    SCMCreateTableMsg *pCreate = mnodeMsg->pCont;
+    SCMCreateTableMsg *pCreate = mnodeMsg->rpcMsg.pCont;
     if (pCreate->getMeta) {
       mTrace("table:%s, continue to get meta", pTable->info.tableId);
       mnodeMsg->retry = 0;
@@ -1999,7 +1998,7 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
 }
 
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
-  SCMMultiTableInfoMsg *pInfo = pMsg->pCont;
+  SCMMultiTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   pInfo->numOfTables = htonl(pInfo->numOfTables);
 
   int32_t totalMallocLen = 4 * 1024 * 1024;  // first malloc 4 MB, subsequent reallocation as twice
@@ -2183,8 +2182,8 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 }
 
 static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
-  SCMAlterTableMsg *pAlter = pMsg->pCont;
-  mTrace("table:%s, alter table msg is received from thandle:%p", pAlter->tableId, pMsg->thandle);
+  SCMAlterTableMsg *pAlter = pMsg->rpcMsg.pCont;
+  mTrace("table:%s, alter table msg is received from thandle:%p", pAlter->tableId, pMsg->rpcMsg.handle);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableId(pAlter->tableId);
   if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {

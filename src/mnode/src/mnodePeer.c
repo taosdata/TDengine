@@ -47,8 +47,8 @@ void mnodeAddPeerRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
 }
 
 int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
-  if (pMsg->pCont == NULL) {
-    mError("%p, msg:%s in mpeer queue, content is null", pMsg->ahandle, taosMsg[pMsg->msgType]);
+  if (pMsg->rpcMsg.pCont == NULL) {
+    mError("%p, msg:%s in mpeer queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_INVALID_MSG_LEN;
   }
 
@@ -59,7 +59,7 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
     rpcRsp->rsp = ipSet;
     rpcRsp->len = sizeof(SRpcIpSet);
 
-    mTrace("%p, msg:%s in mpeer queue, will be redireced inUse:%d", pMsg->ahandle, taosMsg[pMsg->msgType], ipSet->inUse);
+    mTrace("%p, msg:%s in mpeer queue, will be redireced inUse:%d", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], ipSet->inUse);
     for (int32_t i = 0; i < ipSet->numOfIps; ++i) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
@@ -67,18 +67,18 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
     return TSDB_CODE_REDIRECT;
   }
 
-  if (tsMnodeProcessPeerMsgFp[pMsg->msgType] == NULL) {
-    mError("%p, msg:%s in mpeer queue, not processed", pMsg->ahandle, taosMsg[pMsg->msgType]);
+  if (tsMnodeProcessPeerMsgFp[pMsg->rpcMsg.msgType] == NULL) {
+    mError("%p, msg:%s in mpeer queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
-  return (*tsMnodeProcessPeerMsgFp[pMsg->msgType])(pMsg);
+  return (*tsMnodeProcessPeerMsgFp[pMsg->rpcMsg.msgType])(pMsg);
 }
 
 void mnodeProcessPeerRsp(SRpcMsg *pMsg) {
   if (tsMnodeProcessPeerRspFp[pMsg->msgType]) {
     (*tsMnodeProcessPeerRspFp[pMsg->msgType])(pMsg);
   } else {
-    mError("msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
+    mError("%p, msg:%s is not processed", pMsg->ahandle, taosMsg[pMsg->msgType]);
   }
 }

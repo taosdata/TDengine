@@ -750,8 +750,7 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
 }
 
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
-  SCMCreateDbMsg *pCreate = pMsg->pCont;
-  
+  SCMCreateDbMsg *pCreate  = pMsg->rpcMsg.pCont;  
   pCreate->maxTables       = htonl(pCreate->maxTables);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
   pCreate->totalBlocks     = htonl(pCreate->totalBlocks);
@@ -937,8 +936,8 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 }
 
 static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
-  SCMAlterDbMsg *pAlter = pMsg->pCont;
-  mTrace("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->thandle);
+  SCMAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
+  mTrace("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->rpcMsg.handle);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pAlter->db);
   if (pMsg->pDb == NULL) {
@@ -974,8 +973,8 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
-  SCMDropDbMsg *pDrop = pMsg->pCont;
-  mTrace("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->thandle);
+  SCMDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
+  mTrace("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->rpcMsg.handle);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pDrop->db);
   if (pMsg->pDb == NULL) {

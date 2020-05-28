@@ -352,7 +352,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
   SUserObj *pOperUser = pMsg->pUser;
   
   if (pOperUser->superAuth) {
-    SCMCreateUserMsg *pCreate = pMsg->pCont;
+    SCMCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
     code = mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass);
     if (code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s, is created by %s", pCreate->user, pOperUser->user);
@@ -369,7 +369,7 @@ static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
-  SCMAlterUserMsg *pAlter = pMsg->pCont;
+  SCMAlterUserMsg *pAlter = pMsg->rpcMsg.pCont;
   SUserObj *pUser = mnodeGetUser(pAlter->user);
   if (pUser == NULL) {
     return TSDB_CODE_INVALID_USER;
@@ -459,7 +459,7 @@ static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
 
-  SCMDropUserMsg *pDrop = pMsg->pCont;
+  SCMDropUserMsg *pDrop = pMsg->rpcMsg.pCont;
   SUserObj *pUser = mnodeGetUser(pDrop->user);
   if (pUser == NULL) {
     return TSDB_CODE_INVALID_USER;
@@ -552,7 +552,7 @@ int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, cha
 }
 
 static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg) {
-  SDMAuthMsg *pAuthMsg = pMsg->pCont;
+  SDMAuthMsg *pAuthMsg = pMsg->rpcMsg.pCont;
   SDMAuthRsp *pAuthRsp = rpcMallocCont(sizeof(SDMAuthRsp));
   
   pMsg->rpcRsp.rsp = pAuthRsp;

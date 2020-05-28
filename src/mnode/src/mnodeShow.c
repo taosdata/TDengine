@@ -106,7 +106,7 @@ static char *mnodeGetShowType(int32_t showType) {
 }
 
 static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
-  SCMShowMsg *pShowMsg = pMsg->pCont;
+  SCMShowMsg *pShowMsg = pMsg->rpcMsg.pCont;
   if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
     return TSDB_CODE_INVALID_MSG_TYPE;
   }
@@ -137,7 +137,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
   mTrace("show:%p, type:%s, start to get meta", pShow, mnodeGetShowType(pShowMsg->type));
-  int32_t code = (*tsMnodeShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->thandle);
+  int32_t code = (*tsMnodeShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->rpcMsg.handle);
   if (code == 0) {
     pMsg->rpcRsp.rsp = pShowRsp;
     pMsg->rpcRsp.len = sizeof(SCMShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
@@ -153,7 +153,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   int32_t rowsToRead = 0;
   int32_t size = 0;
   int32_t rowsRead = 0;
-  SRetrieveTableMsg *pRetrieve = pMsg->pCont;
+  SRetrieveTableMsg *pRetrieve = pMsg->rpcMsg.pCont;
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
   /*
@@ -187,7 +187,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
 
   // if free flag is set, client wants to clean the resources
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
-    rowsRead = (*tsMnodeShowRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pMsg->thandle);
+    rowsRead = (*tsMnodeShowRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pMsg->rpcMsg.handle);
 
   if (rowsRead < 0) {
     rpcFreeCont(pRsp);
@@ -236,12 +236,12 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
-  SCMConnectMsg *pConnectMsg = pMsg->pCont;
+  SCMConnectMsg *pConnectMsg = pMsg->rpcMsg.pCont;
   int32_t code = TSDB_CODE_SUCCESS;
 
   SRpcConnInfo connInfo;
-  if (rpcGetConnInfo(pMsg->thandle, &connInfo) != 0) {
-    mError("thandle:%p is already released while process connect msg", pMsg->thandle);
+  if (rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo) != 0) {
+    mError("thandle:%p is already released while process connect msg", pMsg->rpcMsg.handle);
     code = TSDB_CODE_INVALID_MSG_CONTENT;
     goto connect_over;
   }
@@ -291,7 +291,7 @@ connect_over:
 }
 
 static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
-  SCMUseDbMsg *pUseDbMsg = pMsg->pCont;
+  SCMUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pUseDbMsg->db);

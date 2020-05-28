@@ -331,7 +331,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
     mPrint("vgId:%d, index:%d, dnode:%d", pVgroup->vgId, i, pVgroup->vnodeGid[i].dnodeId);
   }
 
-  pMsg->ahandle = pVgroup;
+  pMsg->pVgroup = pVgroup;
   pMsg->expected = pVgroup->numOfVnodes;
   mnodeSendCreateVgroupMsg(pVgroup, pMsg);
 
@@ -626,10 +626,10 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     mnodeMsg->successed++;
   }
 
-  SVgObj *pVgroup = mnodeMsg->ahandle;
+  SVgObj *pVgroup = mnodeMsg->pVgroup;
   mTrace("vgId:%d, create vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
          pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
-         mnodeMsg->thandle, rpcMsg->handle);
+         mnodeMsg->rpcMsg.handle, rpcMsg->handle);
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 
@@ -690,10 +690,10 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
     mnodeMsg->successed++;
   }
 
-  SVgObj *pVgroup = mnodeMsg->ahandle;
+  SVgObj *pVgroup = mnodeMsg->pVgroup;
   mTrace("vgId:%d, drop vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
          pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
-         mnodeMsg->thandle, rpcMsg->handle);
+         mnodeMsg->rpcMsg.handle, rpcMsg->handle);
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 
@@ -711,7 +711,7 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
 }
 
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
-  SDMConfigVnodeMsg *pCfg = (SDMConfigVnodeMsg *) pMsg->pCont;
+  SDMConfigVnodeMsg *pCfg = pMsg->rpcMsg.pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   pCfg->vgId    = htonl(pCfg->vgId);
 

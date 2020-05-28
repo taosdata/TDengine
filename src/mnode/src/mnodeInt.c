@@ -35,14 +35,11 @@
 #include "mnodeVgroup.h"
 
 void mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg) {
-  pMsg->thandle = rpcMsg->handle;
-  pMsg->msgType = rpcMsg->msgType;
-  pMsg->contLen = rpcMsg->contLen;
-  pMsg->pCont = rpcMsg->pCont;
+  pMsg->rpcMsg = *rpcMsg;
 }
 
 int32_t mnodeInitMsg(SMnodeMsg *pMsg) {
-  pMsg->pUser = mnodeGetUserFromConn(pMsg->thandle);
+  pMsg->pUser = mnodeGetUserFromConn(pMsg->rpcMsg.handle);
   if (pMsg->pUser == NULL) {
     return TSDB_CODE_INVALID_USER;
   }
@@ -52,7 +49,7 @@ int32_t mnodeInitMsg(SMnodeMsg *pMsg) {
 
 void mnodeCleanupMsg(SMnodeMsg *pMsg) {
   if (pMsg != NULL) {
-    if (pMsg->pCont) rpcFreeCont(pMsg->pCont);
+    if (pMsg->rpcMsg.pCont) rpcFreeCont(pMsg->rpcMsg.pCont);
     if (pMsg->pUser) mnodeDecUserRef(pMsg->pUser);
     if (pMsg->pDb) mnodeDecDbRef(pMsg->pDb);
     if (pMsg->pVgroup) mnodeDecVgroupRef(pMsg->pVgroup);

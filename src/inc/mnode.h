@@ -29,23 +29,18 @@ struct STableObj;
 struct SRpcMsg;
 
 typedef struct {
-  int   len;
-  void *rsp;
+  int32_t len;
+  void *  rsp;
 } SMnodeRsp;
 
 typedef struct SMnodeMsg {
   SMnodeRsp rpcRsp;
-  uint8_t   msgType;
   int8_t    received;
   int8_t    successed;
   int8_t    expected;
   int8_t    retry;
-  int8_t    maxRetry;
-  int32_t   contLen;
   int32_t   code;
-  void *    ahandle;
-  void *    thandle;
-  void *    pCont;
+  struct SRpcMsg    rpcMsg;
   struct SAcctObj * pAcct;
   struct SDnodeObj *pDnode;
   struct SUserObj * pUser;

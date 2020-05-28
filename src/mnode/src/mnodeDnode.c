@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "trpc.h"
 #include "tgrant.h"
 #include "tbalance.h"
 #include "tglobal.h"
@@ -240,7 +241,7 @@ void mnodeUpdateDnode(SDnodeObj *pDnode) {
 }
 
 static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
-  SCMCfgDnodeMsg *pCmCfgDnode = pMsg->pCont;
+  SCMCfgDnodeMsg *pCmCfgDnode = pMsg->rpcMsg.pCont;
   if (pCmCfgDnode->ep[0] == 0) {
     strcpy(pCmCfgDnode->ep, tsLocalEp);
   } else {
@@ -275,7 +276,7 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 }
 
 static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
-  SDMStatusMsg *pStatus = pMsg->pCont;
+  SDMStatusMsg *pStatus = pMsg->rpcMsg.pCont;
   pStatus->dnodeId      = htonl(pStatus->dnodeId);
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
@@ -442,7 +443,7 @@ static int32_t mnodeDropDnodeByEp(char *ep) {
 }
 
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
-  SCMCreateDnodeMsg *pCreate = pMsg->pCont;
+  SCMCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     return TSDB_CODE_NO_RIGHTS;
@@ -462,7 +463,7 @@ static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg) {
-  SCMDropDnodeMsg *pDrop = pMsg->pCont;
+  SCMDropDnodeMsg *pDrop = pMsg->rpcMsg.pCont;
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     return TSDB_CODE_NO_RIGHTS;
