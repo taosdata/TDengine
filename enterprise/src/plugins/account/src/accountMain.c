@@ -620,9 +620,8 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
   SAcctObj *pAcct = mnodeGetAcct(pCreate->user);
   if (pAcct != NULL) {
     mPrint("acct:%s, already exist, update it", pCreate->user);
-    acctProcessAlterAcctMsg(pMsg);
     mnodeDecAcctRef(pAcct);
-    return TSDB_CODE_ACCT_ALREADY_EXIST;
+    return acctProcessAlterAcctMsg(pMsg);
   }
   
   pCreate->cfg.maxUsers           = htonl(pCreate->cfg.maxUsers);
