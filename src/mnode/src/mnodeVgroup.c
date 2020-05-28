@@ -331,6 +331,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
     mPrint("vgId:%d, index:%d, dnode:%d", pVgroup->vgId, i, pVgroup->vnodeGid[i].dnodeId);
   }
 
+  mnodeIncVgroupRef(pVgroup);
   pMsg->pVgroup = pVgroup;
   pMsg->expected = pVgroup->numOfVnodes;
   mnodeSendCreateVgroupMsg(pVgroup, pMsg);
