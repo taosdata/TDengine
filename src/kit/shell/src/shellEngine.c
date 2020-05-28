@@ -435,7 +435,6 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
 
   int num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  int32_t* length = taos_fetch_lengths(result);
   int precision = taos_result_precision(result);
 
   for (int col = 0; col < num_fields; col++) {
@@ -448,6 +447,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
   
   int numOfRows = 0;
   do {
+    int32_t* length = taos_fetch_lengths(result);
     for (int i = 0; i < num_fields; i++) {
       if (i > 0) {
         fputc(',', fp);
@@ -462,6 +462,39 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
 
   fclose(fp);
   return numOfRows;
+}
+
+
+static void shellPrintNChar(const char *str, int length, int width) {
+  int pos = 0, cols = 0;
+  while (pos < length) {
+    wchar_t wc;
+    int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
+    if (bytes == 0) {
+      break;
+    }
+    pos += bytes;
+    if (pos > length) {
+      break;
+    }
+
+#ifdef WINDOWS
+    int w = bytes;
+#else
+    int w = wcwidth(wc);
+#endif
+    if (w > 0) {
+      if (width > 0 && cols + w > width) {
+        break;
+      }
+      printf("%lc", wc);
+      cols += w;
+    }
+  }
+
+  for (; cols < width; cols++) {
+    putchar(' ');
+  }
 }
 
 
@@ -523,7 +556,6 @@ static int verticalPrintResult(TAOS_RES* result) {
 
   int num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  int32_t* length = taos_fetch_lengths(result);
   int precision = taos_result_precision(result);
 
   int maxColNameLen = 0;
@@ -537,6 +569,7 @@ static int verticalPrintResult(TAOS_RES* result) {
   int numOfRows = 0;
   do {
     printf("*************************** %d.row ***************************\n", numOfRows + 1);
+    int32_t* length = taos_fetch_lengths(result);
     for (int i = 0; i < num_fields; i++) {
       TAOS_FIELD* field = fields + i;
 
@@ -631,7 +664,6 @@ static int horizontalPrintResult(TAOS_RES* result) {
 
   int num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  int32_t* length = taos_fetch_lengths(result);
   int precision = taos_result_precision(result);
 
   int width[TSDB_MAX_COLUMNS];
@@ -643,6 +675,7 @@ static int horizontalPrintResult(TAOS_RES* result) {
 
   int numOfRows = 0;
   do {
+    int32_t* length = taos_fetch_lengths(result);
     for (int i = 0; i < num_fields; i++) {
       putchar(' ');
       printField(row[i], fields + i, width[i], length[i], precision);
