@@ -116,7 +116,7 @@ void dnodeFreeMnodeRqueue() {
 
 void dnodeDispatchToMnodeReadQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMReadQueue == NULL) {
-    dnodeSendRedirectMsg(pMsg->msgType, pMsg->handle, true);
+    dnodeSendRedirectMsg(pMsg, true);
     return;
   }
 
@@ -125,18 +125,23 @@ void dnodeDispatchToMnodeReadQueue(SRpcMsg *pMsg) {
   taosWriteQitem(tsMReadQueue, TAOS_QTYPE_RPC, pRead);
 }
 
+static void dnodeFreeMnodeReadMsg(SMnodeMsg *pRead) {
+  mnodeCleanupMsg(pRead);
+  taosFreeQitem(pRead);
+}
+
 static void dnodeSendRpcMnodeReadRsp(SMnodeMsg *pRead, int32_t code) {
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
   SRpcMsg rpcRsp = {
-    .handle  = pRead->thandle,
+    .handle  = pRead->rpcMsg.handle,
     .pCont   = pRead->rpcRsp.rsp,
     .contLen = pRead->rpcRsp.len,
     .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
-  mnodeCleanupMsg(pRead);
+  dnodeFreeMnodeReadMsg(pRead);
 }
 
 static void *dnodeProcessMnodeReadQueue(void *param) {
@@ -150,10 +155,9 @@ static void *dnodeProcessMnodeReadQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed in mread queue", pReadMsg->ahandle, taosMsg[pReadMsg->msgType]);    
+    dTrace("%p, msg:%s will be processed in mread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);    
     int32_t code = mnodeProcessRead(pReadMsg);    
-    dnodeSendRpcMnodeReadRsp(pReadMsg, code);    
-    taosFreeQitem(pReadMsg);
+    dnodeSendRpcMnodeReadRsp(pReadMsg, code);   
   }
 
   return NULL;

@@ -113,7 +113,7 @@ void dnodeFreeMnodeWqueue() {
 
 void dnodeDispatchToMnodeWriteQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
-    dnodeSendRedirectMsg(pMsg->msgType, pMsg->handle, true);
+    dnodeSendRedirectMsg(pMsg, true);
     return;
   }
 
@@ -122,19 +122,24 @@ void dnodeDispatchToMnodeWriteQueue(SRpcMsg *pMsg) {
   taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
 }
 
+static void dnodeFreeMnodeWriteMsg(SMnodeMsg *pWrite) {
+  mnodeCleanupMsg(pWrite);
+  taosFreeQitem(pWrite);
+}
+
 void dnodeSendRpcMnodeWriteRsp(void *pRaw, int32_t code) {
   SMnodeMsg *pWrite = pRaw;
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
   SRpcMsg rpcRsp = {
-    .handle  = pWrite->thandle,
+    .handle  = pWrite->rpcMsg.handle,
     .pCont   = pWrite->rpcRsp.rsp,
     .contLen = pWrite->rpcRsp.len,
     .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
-  mnodeCleanupMsg(pWrite);
+  dnodeFreeMnodeWriteMsg(pWrite);
 }
 
 static void *dnodeProcessMnodeWriteQueue(void *param) {
@@ -148,26 +153,19 @@ static void *dnodeProcessMnodeWriteQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed in mwrite queue", pWriteMsg->ahandle, taosMsg[pWriteMsg->msgType]);    
+    dTrace("%p, msg:%s will be processed in mwrite queue", pWriteMsg->rpcMsg.ahandle, taosMsg[pWriteMsg->rpcMsg.msgType]);    
     int32_t code = mnodeProcessWrite(pWriteMsg);    
-    dnodeSendRpcMnodeWriteRsp(pWriteMsg, code);    
-    taosFreeQitem(pWriteMsg);
+    dnodeSendRpcMnodeWriteRsp(pWriteMsg, code);
   }
 
   return NULL;
-}
-
-static void dnodeFreeMnodeWriteMsg(void *pMsg) {
-  SMnodeMsg *pWrite = pMsg;
-  mnodeCleanupMsg(pWrite);
-  taosFreeQitem(pWrite);
 }
 
 void dnodeReprocessMnodeWriteMsg(void *pMsg) {
   SMnodeMsg *pWrite = pMsg;
 
   if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
-    dnodeSendRedirectMsg(pWrite->msgType, pWrite->thandle, true);
+    dnodeSendRedirectMsg(pMsg, true);
     dnodeFreeMnodeWriteMsg(pWrite);
   } else {    
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);

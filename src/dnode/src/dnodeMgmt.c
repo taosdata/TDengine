@@ -609,9 +609,9 @@ int32_t dnodeGetDnodeId() {
   return tsDnodeCfg.dnodeId;
 }
 
-void dnodeSendRedirectMsg(int32_t msgType, void *thandle, bool forShell) {
+void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(thandle, &connInfo);
+  rpcGetConnInfo(rpcMsg->handle, &connInfo);
 
   SRpcIpSet ipSet = {0};
   if (forShell) {
@@ -620,7 +620,7 @@ void dnodeSendRedirectMsg(int32_t msgType, void *thandle, bool forShell) {
     dnodeGetMnodeIpSetForPeer(&ipSet);
   }
   
-  dTrace("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[msgType],
+  dTrace("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[rpcMsg->msgType],
          taosIpStr(connInfo.clientIp), connInfo.user, ipSet.numOfIps, ipSet.inUse);
 
   for (int i = 0; i < ipSet.numOfIps; ++i) {
@@ -628,5 +628,5 @@ void dnodeSendRedirectMsg(int32_t msgType, void *thandle, bool forShell) {
     ipSet.port[i] = htons(ipSet.port[i]);
   }
 
-  rpcSendRedirectRsp(thandle, &ipSet);
+  rpcSendRedirectRsp(rpcMsg->handle, &ipSet);
 }

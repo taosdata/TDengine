@@ -111,7 +111,7 @@ void dnodeFreeMnodePqueue() {
 
 void dnodeDispatchToMnodePeerQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMPeerQueue == NULL) {
-    dnodeSendRedirectMsg(pMsg->msgType, pMsg->handle, false);
+    dnodeSendRedirectMsg(pMsg, false);
     return;
   }
 
@@ -120,18 +120,23 @@ void dnodeDispatchToMnodePeerQueue(SRpcMsg *pMsg) {
   taosWriteQitem(tsMPeerQueue, TAOS_QTYPE_RPC, pPeer);
 }
 
+static void dnodeFreeMnodePeadMsg(SMnodeMsg *pPeer) {
+  mnodeCleanupMsg(pPeer);
+  taosFreeQitem(pPeer);
+}
+
 static void dnodeSendRpcMnodePeerRsp(SMnodeMsg *pPeer, int32_t code) {
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
   SRpcMsg rpcRsp = {
-    .handle  = pPeer->thandle,
+    .handle  = pPeer->rpcMsg.handle,
     .pCont   = pPeer->rpcRsp.rsp,
     .contLen = pPeer->rpcRsp.len,
     .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
-  mnodeCleanupMsg(pPeer);
+  dnodeFreeMnodePeadMsg(pPeer);
 }
 
 static void *dnodeProcessMnodePeerQueue(void *param) {
@@ -145,10 +150,9 @@ static void *dnodeProcessMnodePeerQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed in mpeer queue", pPeerMsg->ahandle, taosMsg[pPeerMsg->msgType]);    
+    dTrace("%p, msg:%s will be processed in mpeer queue", pPeerMsg->rpcMsg.ahandle, taosMsg[pPeerMsg->rpcMsg.msgType]);    
     int32_t code = mnodeProcessPeerReq(pPeerMsg);    
     dnodeSendRpcMnodePeerRsp(pPeerMsg, code);    
-    taosFreeQitem(pPeerMsg);
   }
 
   return NULL;
