@@ -49,8 +49,8 @@ static struct argp_option options[] = {
   {0, 'h', "host",                     0, "The host to connect to TDEngine. Default is localhost.",                                                           0},
   {0, 'p', "port",                     0, "The TCP/IP port number to use for the connection. Default is 0.",                                                  1},
   {0, 'u', "user",                     0, "The TDEngine user name to use when connecting to the server. Default is 'root'.",                                  2},
-  {0, 'a', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        3},
-  {0, 'P', "database",                 0, "Destination database. Default is 'test'.",                                                                         3},
+  {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        3},
+  {0, 'd', "database",                 0, "Destination database. Default is 'test'.",                                                                         3},
   {0, 'm', "table_prefix",             0, "Table prefix name. Default is 't'.",                                                                               3},
   {0, 'M', 0,                          0, "Use metric flag.",                                                                                                 13},
   {0, 'o', "outputfile",               0, "Direct output to the named file. Default is './output.txt'.",                                                      14},
@@ -58,12 +58,14 @@ static struct argp_option options[] = {
   {0, 'b', "type_of_cols",             0, "The data_type of columns: 'INT', 'TINYINT', 'SMALLINT', 'BIGINT', 'FLOAT', 'DOUBLE', 'BINARY'. Default is 'INT'.", 7},
   {0, 'w', "length_of_binary",         0, "The length of data_type 'BINARY'. Only applicable when type of cols is 'BINARY'. Default is 8",                    8},
   {0, 'l', "num_of_cols_per_record",   0, "The number of columns per record. Default is 3.",                                                                  8},
-  {0, 'T', "num_of_threads",           0, "The number of threads. Default is 10.",                                                                        9},
+  {0, 'T', "num_of_threads",           0, "The number of threads. Default is 10.",                                                                            9},
   {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1000.",                                                              10},
   {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                          11},
   {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                              12},
   {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
   {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
+  {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order",                                                    1},
+  {0, 'R', "rate",                 0, "Out of order data's rate--if order=1 Default 10",                                                                   1},
   {0}};
 
 /* Used by main to communicate with parse_opt. */
@@ -86,6 +88,8 @@ typedef struct DemoArguments {
   int    num_of_tables;
   int    num_of_DPT;
   int    abort;
+  int    order;
+  int    rate;
   char **arg_list;
 } SDemoArguments;
 
@@ -184,6 +188,24 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
       wordfree(&full_path);
       break;
+    case 'O':
+      arguments->order = atoi(arg);
+      if (arguments->order > 1 || arguments->order < 0)
+      {
+        arguments->order = 0;
+      } else if (arguments->order == 1)
+      {
+        arguments->rate = 10;
+      }
+      break;
+    case 'R':
+      arguments->rate = atoi(arg);
+      printf("%d", arguments->rate);
+      if (arguments->order == 1 && (arguments->rate > 50 || arguments->rate <= 0))
+      {
+        arguments->rate = 10;
+      }
+      break;
     case OPT_ABORT:
       arguments->abort = 1;
       break;
@@ -217,6 +239,8 @@ typedef struct {
   int ncols_per_record;
   int nrecords_per_table;
   int nrecords_per_request;
+  int data_of_order;
+  int data_of_rate;
   int64_t start_time;
   bool do_aggreFunc;
 
@@ -296,6 +320,8 @@ int main(int argc, char *argv[]) {
                                 1,               // num_of_tables
                                 50000,           // num_of_DPT
                                 0,               // abort
+                                0,               // order
+                                0,               // rate
                                 NULL             // arg_list
                                 };
 
@@ -330,6 +356,8 @@ int main(int argc, char *argv[]) {
   char *tb_prefix = arguments.tb_prefix;
   int len_of_binary = arguments.len_of_binary;
   int ncols_per_record = arguments.num_of_CPR;
+  int order = arguments.order;
+  int rate = arguments.rate;
   int ntables = arguments.num_of_tables;
   int threads = arguments.num_of_threads;
   int nrecords_per_table = arguments.num_of_DPT;
@@ -377,6 +405,12 @@ int main(int argc, char *argv[]) {
   printf("# Records/Request:                   %d\n", nrecords_per_request);
   printf("# Database name:                     %s\n", db_name);
   printf("# Table prefix:                      %s\n", tb_prefix);
+  if (order == 1)
+  {
+      printf("# Data order:                        %d\n", order);
+      printf("# Data out of order rate:            %d\n", rate);
+
+  }
   printf("# Test time:                         %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   printf("###################################################################\n\n");
@@ -507,6 +541,8 @@ int main(int argc, char *argv[]) {
     t_info->len_of_binary = len_of_binary;
     t_info->nrecords_per_request = nrecords_per_request;
     t_info->start_table_id = last;
+    t_info->data_of_order = order;
+    t_info->data_of_rate = rate;
     t_info->end_table_id = i < b ? last + a : last + a - 1;
     last = t_info->end_table_id + 1;
 
@@ -735,7 +771,15 @@ void *syncWrite(void *sarg) {
       pstr += sprintf(pstr, "insert into %s.%s%d values", winfo->db_name, winfo->tb_prefix, tID);
       int k;
       for (k = 0; k < winfo->nrecords_per_request;) {
-        generateData(data, data_type, ncols_per_record, tmp_time++, len_of_binary);
+        int rand_num = rand() % 100;
+        if (winfo->data_of_order ==1 && rand_num < winfo->data_of_rate)
+        {
+          printf("insert out of order data: %d, time: %ld\n", rand_num, tmp_time - rand() % 100000);
+          generateData(data, data_type, ncols_per_record, tmp_time - rand() % 1000, len_of_binary);
+        } else 
+        {
+          generateData(data, data_type, ncols_per_record, tmp_time++, len_of_binary);
+        }
         pstr += sprintf(pstr, " %s", data);
         inserted++;
         k++;
