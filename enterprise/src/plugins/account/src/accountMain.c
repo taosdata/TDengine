@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "trpc.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
