@@ -106,6 +106,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
+  char sql[1024] = "\0";
 
   vTrace("vgId:%d, table:%s, start to create", pVnode->vgId, pTable->tableId);
   int16_t   numOfColumns = htons(pTable->numOfColumns);
@@ -149,6 +150,11 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
       accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }
     tsdbTableSetTagValue(&tCfg, dataRow, false);
+  }
+
+  if (pTable->tableType == TSDB_STREAM_TABLE) {
+    // TODO: set sql value
+    tsdbTableSetStreamSql(&tCfg, sql, false);
   }
 
   code = tsdbCreateTable(pVnode->tsdb, &tCfg);
