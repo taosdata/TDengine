@@ -30,10 +30,10 @@ system sh/cfg.sh -n dnode2 -c wallevel -v 1
 system sh/cfg.sh -n dnode3 -c wallevel -v 1
 system sh/cfg.sh -n dnode4 -c wallevel -v 1
 
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 0
 
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4

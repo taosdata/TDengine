@@ -13,15 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_DSERVER_H
-#define TDENGINE_MGMT_DSERVER_H
+#ifndef TDENGINE_MNODE_PROFILE_H
+#define TDENGINE_MNODE_PROFILE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "mnodeDef.h"
 
-int32_t mgmtInitServer();
-void    mgmtCleanupServer();
+int32_t mnodeInitProfile();
+void    mnodeCleanupProfile();
 
 #ifdef __cplusplus
 }

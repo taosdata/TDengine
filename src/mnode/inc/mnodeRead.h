@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_PROFILE_H
-#define TDENGINE_MGMT_PROFILE_H
+#ifndef TDENGINE_MNODE_READ_H
+#define TDENGINE_MNODE_READ_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "mgmtDef.h"
+#include "mnodeDef.h"
 
-int32_t mgmtInitProfile();
-void    mgmtCleanUpProfile();
+void    mnodeAddReadMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg));
+int32_t mnodeProcessRead(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

@@ -13,25 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_ACCT_H
-#define TDENGINE_MGMT_ACCT_H
+#ifndef TDENGINE_MNODE_USER_H
+#define TDENGINE_MNODE_USER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "mnodeDef.h"
 
-#include "tacct.h"
-
-int32_t mgmtInitAccts();
-void    mgmtCleanUpAccts();
-void *  mgmtGetAcct(char *acctName);
-void *  mgmtGetNextAcct(void *pIter, SAcctObj **pAcct);
-void    mgmtIncAcctRef(SAcctObj *pAcct);
-void    mgmtDecAcctRef(SAcctObj *pAcct);
-void    mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);
-void    mgmtDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
-void    mgmtAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
-void    mgmtDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
+int32_t   mnodeInitUsers();
+void      mnodeCleanupUsers();
+SUserObj *mnodeGetUser(char *name);
+void *    mnodeGetNextUser(void *pIter, SUserObj **pUser);
+void      mnodeIncUserRef(SUserObj *pUser);
+void      mnodeDecUserRef(SUserObj *pUser);
+SUserObj *mnodeGetUserFromConn(void *pConn);
+int32_t   mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass);
+void      mnodeDropAllUsers(SAcctObj *pAcct);
 
 #ifdef __cplusplus
 }

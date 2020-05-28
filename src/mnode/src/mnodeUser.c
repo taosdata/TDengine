@@ -21,36 +21,39 @@
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tdataformat.h"
+#include "mnode.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtMnode.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtUser.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeMnode.h"
+#include "mnodeSdb.h"
+#include "mnodeShow.h"
+#include "mnodeUser.h"
+#include "mnodeWrite.h"
+#include "mnodePeer.h"
 
 static void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
-static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static void    mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessAlterUserMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessDropUserMsg(SQueuedMsg *pMsg);
-static void    mgmtProcessAuthMsg(SRpcMsg *rpcMsg);
+static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg);
 
-static int32_t mgmtUserActionDestroy(SSdbOper *pOper) {
+static int32_t mnodeUserActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionInsert(SSdbOper *pOper) {
+static int32_t mnodeUserActionInsert(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+  SAcctObj *pAcct = mnodeGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
-    mgmtAddUserToAcct(pAcct, pUser);
-    mgmtDecAcctRef(pAcct);
+    mnodeAddUserToAcct(pAcct, pUser);
+    mnodeDecAcctRef(pAcct);
   } else {
     mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
     return TSDB_CODE_INVALID_ACCT;
@@ -59,37 +62,37 @@ static int32_t mgmtUserActionInsert(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionDelete(SSdbOper *pOper) {
+static int32_t mnodeUserActionDelete(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+  SAcctObj *pAcct = mnodeGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
-    mgmtDropUserFromAcct(pAcct, pUser);
-    mgmtDecAcctRef(pAcct);
+    mnodeDropUserFromAcct(pAcct, pUser);
+    mnodeDecAcctRef(pAcct);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionUpdate(SSdbOper *pOper) {
+static int32_t mnodeUserActionUpdate(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SUserObj *pSaved = mgmtGetUser(pUser->user);
+  SUserObj *pSaved = mnodeGetUser(pUser->user);
   if (pUser != pSaved) {
     memcpy(pSaved, pUser, tsUserUpdateSize);
     free(pUser);
   }
-  mgmtDecUserRef(pSaved);
+  mnodeDecUserRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionEncode(SSdbOper *pOper) {
+static int32_t mnodeUserActionEncode(SSdbOper *pOper) {
   SUserObj *pUser = pOper->pObj;
   memcpy(pOper->rowData, pUser, tsUserUpdateSize);
   pOper->rowSize = tsUserUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionDecode(SSdbOper *pOper) {
+static int32_t mnodeUserActionDecode(SSdbOper *pOper) {
   SUserObj *pUser = (SUserObj *)calloc(1, sizeof(SUserObj));
   if (pUser == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -98,19 +101,19 @@ static int32_t mgmtUserActionDecode(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtUserActionRestored() {
+static int32_t mnodeUserActionRestored() {
   if (dnodeIsFirstDeploy()) {
-    SAcctObj *pAcct = mgmtGetAcct("root");
-    mgmtCreateUser(pAcct, "root", "taosdata");
-    mgmtCreateUser(pAcct, "monitor", tsInternalPass);
-    mgmtCreateUser(pAcct, "_root", tsInternalPass);
-    mgmtDecAcctRef(pAcct);
+    SAcctObj *pAcct = mnodeGetAcct("root");
+    mnodeCreateUser(pAcct, "root", "taosdata");
+    mnodeCreateUser(pAcct, "monitor", tsInternalPass);
+    mnodeCreateUser(pAcct, "_root", tsInternalPass);
+    mnodeDecAcctRef(pAcct);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtInitUsers() {
+int32_t mnodeInitUsers() {
   SUserObj tObj;
   tsUserUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
@@ -121,13 +124,13 @@ int32_t mgmtInitUsers() {
     .maxRowSize   = tsUserUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
-    .insertFp     = mgmtUserActionInsert,
-    .deleteFp     = mgmtUserActionDelete,
-    .updateFp     = mgmtUserActionUpdate,
-    .encodeFp     = mgmtUserActionEncode,
-    .decodeFp     = mgmtUserActionDecode,
-    .destroyFp    = mgmtUserActionDestroy,
-    .restoredFp   = mgmtUserActionRestored
+    .insertFp     = mnodeUserActionInsert,
+    .deleteFp     = mnodeUserActionDelete,
+    .updateFp     = mnodeUserActionUpdate,
+    .encodeFp     = mnodeUserActionEncode,
+    .decodeFp     = mnodeUserActionDecode,
+    .destroyFp    = mnodeUserActionDestroy,
+    .restoredFp   = mnodeUserActionRestored
   };
 
   tsUserSdb = sdbOpenTable(&tableDesc);
@@ -136,38 +139,38 @@ int32_t mgmtInitUsers() {
     return -1;
   }
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mgmtProcessDropUserMsg);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
-  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mgmtProcessAuthMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mnodeProcessCreateUserMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mnodeProcessAlterUserMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mnodeProcessDropUserMsg);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_USER, mnodeGetUserMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mnodeRetrieveUsers);
+  mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mnodeProcessAuthMsg);
    
   mTrace("table:%s, hash is created", tableDesc.tableName);
   return 0;
 }
 
-void mgmtCleanUpUsers() {
+void mnodeCleanupUsers() {
   sdbCloseTable(tsUserSdb);
 }
 
-SUserObj *mgmtGetUser(char *name) {
+SUserObj *mnodeGetUser(char *name) {
   return (SUserObj *)sdbGetRow(tsUserSdb, name);
 }
 
-void *mgmtGetNextUser(void *pIter, SUserObj **pUser) { 
+void *mnodeGetNextUser(void *pIter, SUserObj **pUser) { 
   return sdbFetchRow(tsUserSdb, pIter, (void **)pUser); 
 }
 
-void mgmtIncUserRef(SUserObj *pUser) { 
+void mnodeIncUserRef(SUserObj *pUser) { 
   return sdbIncRef(tsUserSdb, pUser); 
 }
 
-void mgmtDecUserRef(SUserObj *pUser) { 
+void mnodeDecUserRef(SUserObj *pUser) { 
   return sdbDecRef(tsUserSdb, pUser); 
 }
 
-static int32_t mgmtUpdateUser(SUserObj *pUser) {
+static int32_t mnodeUpdateUser(SUserObj *pUser) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
@@ -182,7 +185,7 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
   return code;
 }
 
-int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
+int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   int32_t code = acctCheck(pAcct, ACCT_GRANT_USER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -196,10 +199,10 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     return TSDB_CODE_INVALID_PASS_FORMAT;
   }
 
-  SUserObj *pUser = mgmtGetUser(name);
+  SUserObj *pUser = mnodeGetUser(name);
   if (pUser != NULL) {
     mTrace("user:%s, is already there", name);
-    mgmtDecUserRef(pUser);
+    mnodeDecUserRef(pUser);
     return TSDB_CODE_USER_ALREADY_EXIST;
   }
 
@@ -235,7 +238,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   return code;
 }
 
-static int32_t mgmtDropUser(SUserObj *pUser) {
+static int32_t mnodeDropUser(SUserObj *pUser) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
@@ -250,8 +253,8 @@ static int32_t mgmtDropUser(SUserObj *pUser) {
   return code;
 }
 
-static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) {
     return TSDB_CODE_NO_USER_FROM_CONN;
   }
@@ -289,18 +292,18 @@ static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pShow->numOfRows = pUser->pAcct->acctInfo.numOfUsers;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtDecUserRef(pUser);
+  mnodeDecUserRef(pUser);
   return 0;
 }
 
-static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t  numOfRows = 0;
   SUserObj *pUser    = NULL;
   int32_t  cols      = 0;
   char     *pWrite;
 
   while (numOfRows < rows) {
-    pShow->pIter = mgmtGetNextUser(pShow->pIter, &pUser);
+    pShow->pIter = mnodeGetNextUser(pShow->pIter, &pUser);
     if (pUser == NULL) break;
     
     cols = 0;
@@ -327,30 +330,30 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
     cols++;
 
     numOfRows++;
-    mgmtDecUserRef(pUser);
+    mnodeDecUserRef(pUser);
   }
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
 
-SUserObj *mgmtGetUserFromConn(void *pConn) {
+SUserObj *mnodeGetUserFromConn(void *pConn) {
   SRpcConnInfo connInfo;
   if (rpcGetConnInfo(pConn, &connInfo) == 0) {
-    return mgmtGetUser(connInfo.user);
+    return mnodeGetUser(connInfo.user);
   } else {
     mError("can not get user from conn:%p", pConn);
     return NULL;
   }
 }
 
-static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
+static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
   if (pOperUser->superAuth) {
-    SCMCreateUserMsg *pCreate = pMsg->pCont;
-    code = mgmtCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass);
+    SCMCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
+    code = mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass);
     if (code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s, is created by %s", pCreate->user, pOperUser->user);
     }
@@ -359,24 +362,22 @@ static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
     code = TSDB_CODE_NO_RIGHTS;
   }
 
-  mgmtSendSimpleResp(pMsg->thandle, code);
+  return code;
 }
 
-static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
+static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
-  SCMAlterUserMsg *pAlter = pMsg->pCont;
-  SUserObj *pUser = mgmtGetUser(pAlter->user);
+  SCMAlterUserMsg *pAlter = pMsg->rpcMsg.pCont;
+  SUserObj *pUser = mnodeGetUser(pAlter->user);
   if (pUser == NULL) {
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_USER);
-    return;
+    return TSDB_CODE_INVALID_USER;
   }
 
   if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    mgmtDecUserRef(pUser);
-    return;
+    mnodeDecUserRef(pUser);
+    return TSDB_CODE_NO_RIGHTS;
   }
 
   if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
@@ -398,14 +399,12 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
     if (hasRight) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
       taosEncryptPass((uint8_t*)pAlter->pass, strlen(pAlter->pass), pUser->pass);
-      code = mgmtUpdateUser(pUser);
+      code = mnodeUpdateUser(pUser);
       mLPrint("user:%s, password is altered by %s, result:%s", pUser->user, pOperUser->user, tstrerror(code));
     } else {
       mError("user:%s, no rights to alter user", pOperUser->user);
       code = TSDB_CODE_NO_RIGHTS;
     }
-
-    mgmtSendSimpleResp(pMsg->thandle, code);
   } else if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
     bool hasRight = false;
 
@@ -441,38 +440,35 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
         pUser->writeAuth = 1;
       }
 
-      code = mgmtUpdateUser(pUser);
+      code = mnodeUpdateUser(pUser);
       mLPrint("user:%s, privilege is altered by %s, result:%s", pUser->user, pOperUser->user, tstrerror(code));
     } else {
       mError("user:%s, no rights to alter user", pOperUser->user);
       code = TSDB_CODE_NO_RIGHTS;
     }
-
-    mgmtSendSimpleResp(pMsg->thandle, code);
   } else {
     mError("user:%s, no rights to alter user", pOperUser->user);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
+    code = TSDB_CODE_NO_RIGHTS;
   }
 
-  mgmtDecUserRef(pUser);
+  mnodeDecUserRef(pUser);
+  return code;
 }
 
-static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
+static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
 
-  SCMDropUserMsg *pDrop = pMsg->pCont;
-  SUserObj *pUser = mgmtGetUser(pDrop->user);
+  SCMDropUserMsg *pDrop = pMsg->rpcMsg.pCont;
+  SUserObj *pUser = mnodeGetUser(pDrop->user);
   if (pUser == NULL) {
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_USER);
-    return;
+    return TSDB_CODE_INVALID_USER;
   }
 
   if (strcmp(pUser->user, "monitor") == 0 || strcmp(pUser->user, pUser->acct) == 0 ||
     (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    mgmtDecUserRef(pUser);
-    return ;
+    mnodeDecUserRef(pUser);
+    return TSDB_CODE_NO_RIGHTS;
   }
 
   bool hasRight = false;
@@ -491,7 +487,7 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
   }
 
   if (hasRight) {
-    code = mgmtDropUser(pUser);
+    code = mnodeDropUser(pUser);
     if (code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s, is dropped by %s, result:%s", pUser->user, pOperUser->user, tstrerror(code));
     }
@@ -499,18 +495,18 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
     code = TSDB_CODE_NO_RIGHTS;
   }
 
-  mgmtSendSimpleResp(pMsg->thandle, code);
-  mgmtDecUserRef(pUser);
+  mnodeDecUserRef(pUser);
+  return code;
 }
 
-void  mgmtDropAllUsers(SAcctObj *pAcct)  {
+void mnodeDropAllUsers(SAcctObj *pAcct)  {
   void *    pIter = NULL;
   int32_t   numOfUsers = 0;
   int32_t   acctNameLen = strlen(pAcct->user);
   SUserObj *pUser = NULL;
 
   while (1) {
-    pIter = mgmtGetNextUser(pIter, &pUser);
+    pIter = mnodeGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
 
     if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
@@ -523,7 +519,7 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
       numOfUsers++;
     }
 
-    mgmtDecUserRef(pUser);
+    mnodeDecUserRef(pUser);
   }
 
   sdbFreeIter(pIter);
@@ -531,14 +527,14 @@ void  mgmtDropAllUsers(SAcctObj *pAcct)  {
   mTrace("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
 }
 
-int32_t mgmtRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (!sdbIsMaster()) {
     *secret = 0;
     mTrace("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_NOT_READY));
     return TSDB_CODE_NOT_READY;
   }
 
-  SUserObj *pUser = mgmtGetUser(user);
+  SUserObj *pUser = mnodeGetUser(user);
   if (pUser == NULL) {
     *secret = 0;
     mError("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_INVALID_USER));
@@ -549,21 +545,18 @@ int32_t mgmtRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char
     *ckey = 0;
 
     memcpy(secret, pUser->pass, TSDB_KEY_LEN);
-    mgmtDecUserRef(pUser);
+    mnodeDecUserRef(pUser);
     mTrace("user:%s, auth info is returned", user);
     return TSDB_CODE_SUCCESS;
   }
 }
 
-static void mgmtProcessAuthMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  
-  SDMAuthMsg *pAuthMsg = rpcMsg->pCont;
+static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg) {
+  SDMAuthMsg *pAuthMsg = pMsg->rpcMsg.pCont;
   SDMAuthRsp *pAuthRsp = rpcMallocCont(sizeof(SDMAuthRsp));
   
-  rpcRsp.code = mgmtRetriveAuth(pAuthMsg->user, &pAuthRsp->spi, &pAuthRsp->encrypt, pAuthRsp->secret, pAuthRsp->ckey);
-  rpcRsp.pCont = pAuthRsp;
-  rpcRsp.contLen = sizeof(SDMAuthRsp);
+  pMsg->rpcRsp.rsp = pAuthRsp;
+  pMsg->rpcRsp.len = sizeof(SDMAuthRsp);
   
-  rpcSendResponse(&rpcRsp);
+  return mnodeRetriveAuth(pAuthMsg->user, &pAuthRsp->spi, &pAuthRsp->encrypt, pAuthRsp->secret, pAuthRsp->ckey);
 }

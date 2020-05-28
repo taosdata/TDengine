@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_CLUSTER_H
-#define TDENGINE_CLUSTER_H
+#ifndef TDENGINE_MNODE_DNODE_H
+#define TDENGINE_MNODE_DNODE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,21 +27,21 @@ typedef enum {
   TAOS_DN_STATUS_READY
 } EDnodeStatus;
 
-int32_t mgmtInitDnodes();
-void    mgmtCleanupDnodes();
+int32_t mnodeInitDnodes();
+void    mnodeCleanupDnodes();
 
-char*   mgmtGetDnodeStatusStr(int32_t dnodeStatus);
+char*   mnodeGetDnodeStatusStr(int32_t dnodeStatus);
 void    mgmtMonitorDnodeModule();
 
-int32_t mgmtGetDnodesNum();
-int32_t mgmtGetOnlinDnodesNum();
-void *  mgmtGetNextDnode(void *pIter, SDnodeObj **pDnode);
-void    mgmtIncDnodeRef(SDnodeObj *pDnode);
-void    mgmtDecDnodeRef(SDnodeObj *pDnode);
-void *  mgmtGetDnode(int32_t dnodeId);
-void *  mgmtGetDnodeByEp(char *ep);
-void    mgmtUpdateDnode(SDnodeObj *pDnode);
-int32_t mgmtDropDnode(SDnodeObj *pDnode);
+int32_t mnodeGetDnodesNum();
+int32_t mnodeGetOnlinDnodesNum();
+void *  mnodeGetNextDnode(void *pIter, SDnodeObj **pDnode);
+void    mnodeIncDnodeRef(SDnodeObj *pDnode);
+void    mnodeDecDnodeRef(SDnodeObj *pDnode);
+void *  mnodeGetDnode(int32_t dnodeId);
+void *  mnodeGetDnodeByEp(char *ep);
+void    mnodeUpdateDnode(SDnodeObj *pDnode);
+int32_t mnodeDropDnode(SDnodeObj *pDnode);
 
 extern int32_t tsAccessSquence;
 

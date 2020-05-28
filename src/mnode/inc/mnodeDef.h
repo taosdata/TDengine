@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_DEF_H
-#define TDENGINE_MGMT_DEF_H
+#ifndef TDENGINE_MNODE_DEF_H
+#define TDENGINE_MNODE_DEF_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,7 +65,7 @@ typedef struct SMnodeObj {
   int8_t     role;
 } SMnodeObj;
 
-typedef struct {
+typedef struct STableObj {
   char  *tableId;
   int8_t type;
 } STableObj;
@@ -232,26 +232,6 @@ typedef struct {
   uint16_t payloadLen;
   char     payload[];
 } SShowObj;
-
-typedef struct {
-  uint8_t  msgType;
-  int8_t   received;
-  int8_t   successed;
-  int8_t   expected;
-  int8_t   retry;
-  int8_t   maxRetry;
-  int32_t  contLen;
-  int32_t  code;
-  void     *ahandle;
-  void     *thandle;
-  void     *pCont;
-  SAcctObj *pAcct;
-  SDnodeObj*pDnode;
-  SUserObj *pUser;
-  SDbObj   *pDb;
-  SVgObj   *pVgroup;
-  STableObj *pTable;
-} SQueuedMsg;
 
 #ifdef __cplusplus
 }

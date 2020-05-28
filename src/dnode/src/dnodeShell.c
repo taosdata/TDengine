@@ -18,7 +18,6 @@
 #include "taoserror.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "trpc.h"
 #include "tglobal.h"
 #include "http.h"
 #include "mnode.h"
@@ -26,6 +25,8 @@
 #include "dnodeInt.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
+#include "dnodeMRead.h"
+#include "dnodeMWrite.h"
 #include "dnodeShell.h"
 
 static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
@@ -35,43 +36,41 @@ static void  * tsDnodeShellRpc = NULL;
 static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
-void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg);
-
 int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeDispatchToVnodeWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]  = dnodeDispatchToVnodeReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]  = dnodeDispatchToVnodeReadQueue;
 
   // the following message shall be treated as mnode write
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONNECT]     = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_ACCT]  = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_ACCT]   = mgmtProcessMsgFromShell; 
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_USER] = mgmtProcessMsgFromShell; 
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_USER]  = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_USER]   = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE]= mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE]  = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB]   = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DB]     = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB]    = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE]= mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_TABLE]  = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TABLE] = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_STREAM]= mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_QUERY]  = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_STREAM] = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_CONN]   = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_HEARTBEAT]   = mgmtProcessMsgFromShell;
-
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_ACCT]  = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_ACCT]   = dnodeDispatchToMnodeWriteQueue; 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_USER] = dnodeDispatchToMnodeWriteQueue; 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_USER]  = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_USER]   = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE]= dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE]  = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB]   = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DB]     = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB]    = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE]= dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_TABLE]  = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TABLE] = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_STREAM]= dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_QUERY]  = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_STREAM] = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_CONN]   = dnodeDispatchToMnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONFIG_DNODE]= dnodeDispatchToMnodeWriteQueue;
+  
   // the following message shall be treated as mnode query 
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_USE_DB]      = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLE_META]  = mgmtProcessMsgFromShell; 
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP]= mgmtProcessMsgFromShell;   
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SHOW]        = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]    = mgmtProcessMsgFromShell;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONFIG_DNODE]= mgmtProcessMsgFromShell;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_HEARTBEAT]   = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONNECT]     = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_USE_DB]      = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLE_META]  = dnodeDispatchToMnodeReadQueue; 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP]= dnodeDispatchToMnodeReadQueue;   
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SHOW]        = dnodeDispatchToMnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]    = dnodeDispatchToMnodeReadQueue;
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
   numOfThreads = (int32_t) ((1.0 - tsRatioOfQueryThreads) * numOfThreads / 2.0);
@@ -139,7 +138,7 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
 }
 
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  int code = mgmtRetriveAuth(user, spi, encrypt, secret, ckey);
+  int code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
   if (code != TSDB_CODE_NOT_READY) return code;
 
   SDMAuthMsg *pMsg = rpcMallocCont(sizeof(SDMAuthMsg));

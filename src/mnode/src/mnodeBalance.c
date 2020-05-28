@@ -15,22 +15,18 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "trpc.h"
-#include "tbalance.h"
 #include "tglobal.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtMnode.h"
-#include "mgmtDnode.h"
-#include "mgmtSdb.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeDnode.h"
+#include "mnodeSdb.h"
 
 #ifndef _SYNC
 
 int32_t balanceInit() { return TSDB_CODE_SUCCESS; }
 void    balanceCleanUp() {}
 void    balanceNotify() {}
-void    balanceUpdateMgmt() {}
+void    balanceUpdateMnode() {}
 void    balanceReset() {}
 
 int32_t balanceAllocVnodes(SVgObj *pVgroup) {
@@ -40,12 +36,12 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   float      vnodeUsage = 1000.0;
 
   while (1) {
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
 
     if (pDnode->totalVnodes > 0 && pDnode->openVnodes < pDnode->totalVnodes) {
       float openVnodes = pDnode->openVnodes;
-      if (pDnode->isMgmt) openVnodes += tsMgmtEqualVnodeNum;
+      if (pDnode->isMgmt) openVnodes += tsMnodeEqualVnodeNum;
 
       float usage = openVnodes / pDnode->totalVnodes;
       if (usage <= vnodeUsage) {
@@ -53,7 +49,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
         vnodeUsage = usage;
       }
     }
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   sdbFreeIter(pIter);

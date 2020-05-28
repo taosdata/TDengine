@@ -13,25 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_MNODE_TABLE_H
-#define TBASE_MNODE_TABLE_H
+#ifndef TDENGINE_DNODE_MREAD_H
+#define TDENGINE_DNODE_MREAD_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "mgmtDef.h"
-
-int32_t mgmtInitTables();
-void    mgmtCleanUpTables();
-void *  mgmtGetTable(char *tableId);
-void    mgmtIncTableRef(void *pTable);
-void    mgmtDecTableRef(void *pTable);
-void *  mgmtGetNextChildTable(void *pIter, SChildTableObj **pTable);
-void *  mgmtGetNextSuperTable(void *pIter, SSuperTableObj **pTable);
-void    mgmtDropAllChildTables(SDbObj *pDropDb);
-void    mgmtDropAllSuperTables(SDbObj *pDropDb);
-void    mgmtDropAllChildTablesInVgroups(SVgObj *pVgroup);
+int32_t dnodeInitMnodeRead();
+void    dnodeCleanupMnodeRead();
+int32_t dnodeAllocateMnodeRqueue();
+void    dnodeFreeMnodeRqueue();
+void    dnodeDispatchToMnodeReadQueue(SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }

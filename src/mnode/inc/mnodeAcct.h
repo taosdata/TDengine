@@ -13,17 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_DCLIENT_H
-#define TDENGINE_MGMT_DCLIENT_H
+#ifndef TDENGINE_MNODE_ACCT_H
+#define TDENGINE_MNODE_ACCT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mgmtInitDClient();
-void    mgmtCleanupDClient();
-void    mgmtAddDClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
-void    mgmtSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
+#include "tacct.h"
+
+int32_t mnodeInitAccts();
+void    mnodeCleanupAccts();
+void *  mnodeGetAcct(char *acctName);
+void *  mnodeGetNextAcct(void *pIter, SAcctObj **pAcct);
+void    mnodeIncAcctRef(SAcctObj *pAcct);
+void    mnodeDecAcctRef(SAcctObj *pAcct);
+void    mnodeAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mnodeDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
+void    mnodeAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
+void    mnodeDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
 
 #ifdef __cplusplus
 }

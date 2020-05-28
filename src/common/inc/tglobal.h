@@ -100,7 +100,7 @@ extern int32_t tsMaxMgmtConnections;
 
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
-extern int32_t tsMgmtEqualVnodeNum;
+extern int32_t tsMnodeEqualVnodeNum;
 
 extern int32_t tsEnableHttpModule;
 extern int32_t tsEnableMqttModule;

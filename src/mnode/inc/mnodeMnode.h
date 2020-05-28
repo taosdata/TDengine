@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_MNODE_H
-#define TDENGINE_MGMT_MNODE_H
+#ifndef TDENGINE_MNODE_MNODE_H
+#define TDENGINE_MNODE_MNODE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,23 +28,25 @@ typedef enum {
   TAOS_MN_STATUS_READY
 } EMnodeStatus;
 
-int32_t mgmtInitMnodes();
-void    mgmtCleanupMnodes();
+int32_t mnodeInitMnodes();
+void    mnodeCleanupMnodes();
 
-int32_t mgmtAddMnode(int32_t dnodeId);
-int32_t mgmtDropMnode(int32_t dnodeId);
-void    mgmtDropMnodeLocal(int32_t dnodeId);
+int32_t mnodeAddMnode(int32_t dnodeId);
+int32_t mnodeDropMnode(int32_t dnodeId);
+void    mnodeDropMnodeLocal(int32_t dnodeId);
 
-void *  mgmtGetMnode(int32_t mnodeId);
-int32_t mgmtGetMnodesNum();
-void *  mgmtGetNextMnode(void *pIter, struct SMnodeObj **pMnode);
-void    mgmtIncMnodeRef(struct SMnodeObj *pMnode);
-void    mgmtDecMnodeRef(struct SMnodeObj *pMnode);
+void *  mnodeGetMnode(int32_t mnodeId);
+int32_t mnodeGetMnodesNum();
+void *  mnodeGetNextMnode(void *pIter, struct SMnodeObj **pMnode);
+void    mnodeIncMnodeRef(struct SMnodeObj *pMnode);
+void    mnodeDecMnodeRef(struct SMnodeObj *pMnode);
 
-char *  mgmtGetMnodeRoleStr();
-void    mgmtGetMnodeIpSet(SRpcIpSet *ipSet);
-void    mgmtGetMnodeInfos(void *mnodes);
-void    mgmtUpdateMnodeIpSet();
+char *  mnodeGetMnodeRoleStr();
+void    mnodeGetMnodeIpSetForPeer(SRpcIpSet *ipSet);
+void    mnodeGetMnodeIpSetForShell(SRpcIpSet *ipSet);
+
+void    mnodeGetMnodeInfos(void *mnodes);
+void    mnodeUpdateMnodeIpSet();
 
 #ifdef __cplusplus
 }

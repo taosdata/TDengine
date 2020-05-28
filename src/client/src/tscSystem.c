@@ -116,7 +116,7 @@ void taos_init_imp() {
   }
 
   if (tscSetMgmtIpListFromCfg(tsFirst, tsSecond) < 0) {
-    tscError("failed to init mgmt IP list");
+    tscError("failed to init mnode IP list");
     return;
   } 
 

@@ -13,23 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_USER_H
-#define TDENGINE_MGMT_USER_H
+#ifndef TDENGINE_DNODE_MWRITE_H
+#define TDENGINE_DNODE_MWRITE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "mgmtDef.h"
 
-int32_t   mgmtInitUsers();
-void      mgmtCleanUpUsers();
-SUserObj *mgmtGetUser(char *name);
-void *    mgmtGetNextUser(void *pIter, SUserObj **pUser);
-void      mgmtIncUserRef(SUserObj *pUser);
-void      mgmtDecUserRef(SUserObj *pUser);
-SUserObj *mgmtGetUserFromConn(void *pConn);
-int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
-void      mgmtDropAllUsers(SAcctObj *pAcct);
+int32_t dnodeInitMnodeWrite();
+void    dnodeCleanupMnodeWrite();
+int32_t dnodeAllocateMnodeWqueue();
+void    dnodeFreeMnodeWqueue();
+void    dnodeDispatchToMnodeWriteQueue(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

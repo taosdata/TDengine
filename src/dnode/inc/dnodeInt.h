@@ -25,7 +25,7 @@ extern "C" {
 extern int32_t dDebugFlag;
 
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR DND ", 255, __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN  DND ", dDebugFlag, __VA_ARGS__); }}
+#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN DND ", dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 #define dPrint(...) { taosPrintLog("DND ", 255, __VA_ARGS__); }
 

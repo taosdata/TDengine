@@ -17,59 +17,58 @@
 #include "os.h"
 #include "taoserror.h"
 #include "ttime.h"
-#include "tutil.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtDb.h"
-#include "mgmtSdb.h"
-#include "mgmtUser.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeDb.h"
+#include "mnodeSdb.h"
+#include "mnodeUser.h"
 
 void *  tsAcctSdb = NULL;
 static int32_t tsAcctUpdateSize;
-static void    mgmtCreateRootAcct();
+static void    mnodeCreateRootAcct();
 
-static int32_t mgmtActionAcctDestroy(SSdbOper *pOper) {
+static int32_t mnodeAcctActionDestroy(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   pthread_mutex_destroy(&pAcct->mutex);
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtAcctActionInsert(SSdbOper *pOper) {
+static int32_t mnodeAcctActionInsert(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memset(&pAcct->acctInfo, 0, sizeof(SAcctInfo));
   pthread_mutex_init(&pAcct->mutex, NULL);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionAcctDelete(SSdbOper *pOper) {
+static int32_t mnodeAcctActionDelete(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
-  mgmtDropAllUsers(pAcct);
-  mgmtDropAllDbs(pAcct);
+  mnodeDropAllUsers(pAcct);
+  mnodeDropAllDbs(pAcct);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionAcctUpdate(SSdbOper *pOper) {
+static int32_t mnodeAcctActionUpdate(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
-  SAcctObj *pSaved = mgmtGetAcct(pAcct->user);
+  SAcctObj *pSaved = mnodeGetAcct(pAcct->user);
   if (pAcct != pSaved) {
     memcpy(pSaved, pAcct, tsAcctUpdateSize);
     free(pAcct);
   }
-  mgmtDecAcctRef(pSaved);
+  mnodeDecAcctRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionActionEncode(SSdbOper *pOper) {
+static int32_t mnodeActionActionEncode(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
   pOper->rowSize = tsAcctUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionAcctDecode(SSdbOper *pOper) {
+static int32_t mnodeAcctActionDecode(SSdbOper *pOper) {
   SAcctObj *pAcct = (SAcctObj *) calloc(1, sizeof(SAcctObj));
   if (pAcct == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
@@ -78,16 +77,16 @@ static int32_t mgmtActionAcctDecode(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtActionAcctRestored() {
+static int32_t mnodeAcctActionRestored() {
   if (dnodeIsFirstDeploy()) {
-    mgmtCreateRootAcct();
+    mnodeCreateRootAcct();
   }
 
   acctInit();
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtInitAccts() {
+int32_t mnodeInitAccts() {
   SAcctObj tObj;
   tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
@@ -98,13 +97,13 @@ int32_t mgmtInitAccts() {
     .maxRowSize   = tsAcctUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
-    .insertFp     = mgmtAcctActionInsert,
-    .deleteFp     = mgmtActionAcctDelete,
-    .updateFp     = mgmtActionAcctUpdate,
-    .encodeFp     = mgmtActionActionEncode,
-    .decodeFp     = mgmtActionAcctDecode,
-    .destroyFp    = mgmtActionAcctDestroy,
-    .restoredFp   = mgmtActionAcctRestored
+    .insertFp     = mnodeAcctActionInsert,
+    .deleteFp     = mnodeAcctActionDelete,
+    .updateFp     = mnodeAcctActionUpdate,
+    .encodeFp     = mnodeActionActionEncode,
+    .decodeFp     = mnodeAcctActionDecode,
+    .destroyFp    = mnodeAcctActionDestroy,
+    .restoredFp   = mnodeAcctActionRestored
   };
 
   tsAcctSdb = sdbOpenTable(&tableDesc);
@@ -117,52 +116,52 @@ int32_t mgmtInitAccts() {
   return TSDB_CODE_SUCCESS;
 }
 
-void mgmtCleanUpAccts() {
+void mnodeCleanupAccts() {
   sdbCloseTable(tsAcctSdb);
   acctCleanUp();
 }
 
-void *mgmtGetAcct(char *name) {
+void *mnodeGetAcct(char *name) {
   return sdbGetRow(tsAcctSdb, name);
 }
 
-void *mgmtGetNextAcct(void *pIter, SAcctObj **pAcct) {
+void *mnodeGetNextAcct(void *pIter, SAcctObj **pAcct) {
   return sdbFetchRow(tsAcctSdb, pIter, (void **)pAcct); 
 }
 
-void mgmtIncAcctRef(SAcctObj *pAcct) {
+void mnodeIncAcctRef(SAcctObj *pAcct) {
   sdbIncRef(tsAcctSdb, pAcct);
 }
 
-void mgmtDecAcctRef(SAcctObj *pAcct) {
+void mnodeDecAcctRef(SAcctObj *pAcct) {
   sdbDecRef(tsAcctSdb, pAcct);
 }
 
-void mgmtAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb) {
+void mnodeAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb) {
   atomic_add_fetch_32(&pAcct->acctInfo.numOfDbs, 1);
   pDb->pAcct = pAcct;
-  mgmtIncAcctRef(pAcct);
+  mnodeIncAcctRef(pAcct);
 }
 
-void mgmtDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb) {
+void mnodeDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfDbs, 1);
   pDb->pAcct = NULL;
-  mgmtDecAcctRef(pAcct);
+  mnodeDecAcctRef(pAcct);
 }
 
-void mgmtAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser) {
+void mnodeAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser) {
   atomic_add_fetch_32(&pAcct->acctInfo.numOfUsers, 1);
   pUser->pAcct = pAcct;
-  mgmtIncAcctRef(pAcct);
+  mnodeIncAcctRef(pAcct);
 }
 
-void mgmtDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
+void mnodeDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
   atomic_sub_fetch_32(&pAcct->acctInfo.numOfUsers, 1);
   pUser->pAcct = NULL;
-  mgmtDecAcctRef(pAcct);
+  mnodeDecAcctRef(pAcct);
 }
 
-static void mgmtCreateRootAcct() {
+static void mnodeCreateRootAcct() {
   int32_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
   if (numOfAccts != 0) return;
 
