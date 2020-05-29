@@ -1916,7 +1916,6 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to drop in dnode, reason:%s", pTable->info.tableId, tstrerror(rpcMsg->code));
     dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
-    mnodeDecTableRef(pTable);
     return;
   }
 
