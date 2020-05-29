@@ -328,6 +328,7 @@ static bool balanceMonitorBalance() {
 
           float destScore = balanceTryCalcDnodeScore(pDestDnode, 1);
           if (srcScore + 0.0001 < destScore) continue;
+          if (!balanceCheckFree(pDestDnode)) continue;
           
           mTrace("vgId:%d, balance from dnode:%d to dnode:%d, srcScore:%.1f:%.1f, destScore:%.1f:%.1f",
                  pVgroup->vgId, pSrcDnode->dnodeId, pDestDnode->dnodeId, pSrcDnode->score,
@@ -676,7 +677,7 @@ static float balanceCalcModuleScore(SDnodeObj *pDnode) {
 }
 
 static float balanceCalcVnodeScore(SDnodeObj *pDnode, int32_t extra) {
-  if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) return 1000;
+  if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) return 100000;
   if (pDnode->totalVnodes <= 1) return 0;
   return (float)(pDnode->openVnodes + extra) / pDnode->totalVnodes * 100;
 }
