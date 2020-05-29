@@ -64,9 +64,9 @@ static struct argp_option options[] = {
   {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                              12},
   {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
   {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
-  {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order",                                                   1},
-  {0, 'R', "rate",                     0, "Out of order data's rate--if order=1 Default 10",                                                                  1},
-  {0, 'D', "delete table",             0, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database",             1},
+  {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order.",                                                  14},
+  {0, 'R', "rate",                     0, "Out of order data's rate--if order=1 Default 10, min: 0, max: 50.",                                                14},
+  {0, 'D', "delete table",             0, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database",             14},
   {0}};
 
 /* Used by main to communicate with parse_opt. */
