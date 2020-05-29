@@ -28,13 +28,82 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static ttpool_h tsTcpPool;
+static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
+static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp);
+static void arbProcessBrokenLink(void *param);
+static int  arbProcessPeerMsg(void *param, void *buffer);
+static sem_t    tsArbSem;
+static ttpool_h tsArbTcpPool;
 
 typedef struct {
   char  id[TSDB_EP_LEN];
   int   nodeFd;
   void *pThread;
 } SNodeConn;
+
+int main(int argc, char *argv[]) {
+  char     arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
+
+  for (int i=1; i<argc; ++i) {
+    if (strcmp(argv[i], "-p")==0 && i < argc-1) {
+      tsServerPort = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
+      debugFlag = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
+      if (strlen(argv[++i]) > TSDB_FILENAME_LEN) continue; 
+      strcpy(arbLogPath, argv[i]);
+    } else {
+      printf("\nusage: %s [options] \n", argv[0]);
+      printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
+      printf("  [-d debugFlag]: debug flag, default:%d\n", debugFlag);
+      printf("  [-g logFilePath]: log file pathe, default:%s\n", arbLogPath);
+      printf("  [-h help]: print out this help\n\n");
+      exit(0);
+    }
+  }
+  
+ if (sem_init(&tsArbSem, 0, 0) != 0) {
+    printf("failed to create exit semphore\n");
+    exit(EXIT_FAILURE);
+  }
+
+  /* Set termination handler. */
+  struct sigaction act = {{0}};
+  act.sa_flags = SA_SIGINFO;
+  act.sa_sigaction = arbSignalHandler;
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
+
+  tsAsyncLog = 0;
+  strcat(arbLogPath, "/arbitrator.log");
+  taosInitLog(arbLogPath, 1000000, 10);
+
+  taosGetFqdn(tsNodeFqdn);
+  tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
+
+  SPoolInfo info;
+  info.numOfThreads = 1;
+  info.serverIp = 0;
+  info.port = tsSyncPort;
+  info.bufferSize = 640000;
+  info.processBrokenLink = arbProcessBrokenLink;
+  info.processIncomingMsg = arbProcessPeerMsg;
+  info.processIncomingConn = arbProcessIncommingConnection;
+  tsArbTcpPool = taosOpenTcpThreadPool(&info);
+  
+  sPrint("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsServerPort);
+
+  for (int res = sem_wait(&tsArbSem); res != 0; res = sem_wait(&tsArbSem)) {
+    if (res != EINTR) break;
+  }
+
+  taosCloseTcpThreadPool(tsArbTcpPool);
+  sPrint("TAOS arbitrator is shut down\n", tsNodeFqdn, tsServerPort);
+  closelog();
+
+  return 0;
+}
 
 static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
 {
@@ -66,7 +135,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
 
   sTrace("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
-  pNode->pThread = taosAllocateTcpThread(tsTcpPool, pNode, connFd);
+  pNode->pThread = taosAllocateTcpThread(tsArbTcpPool, pNode, connFd);
 
   return;
 }
@@ -103,51 +172,17 @@ static int arbProcessPeerMsg(void *param, void *buffer)
   return 0;
 }
 
-int main(int argc, char *argv[]) {
-  char  arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
-  
-  for (int i=1; i<argc; ++i) {
-    if (strcmp(argv[i], "-p")==0 && i < argc-1) {
-      tsServerPort = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
-      debugFlag = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
-      if (strlen(argv[++i]) > TSDB_FILENAME_LEN) continue; 
-      strcpy(arbLogPath, argv[i]);
-    } else {
-      printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
-      printf("  [-d debugFlag]: debug flag, default:%d\n", debugFlag);
-      printf("  [-g logFilePath]: log file pathe, default:%s\n", arbLogPath);
-      printf("  [-h help]: print out this help\n\n");
-      exit(0);
-    }
-  }
-  
-  tsAsyncLog = 0;
-  strcat(arbLogPath, "/arbitrator.log");
-  taosInitLog(arbLogPath, 1000000, 10);
+static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) {
 
-  taosGetFqdn(tsNodeFqdn);
-  tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
+  struct sigaction act = {{0}};
+  act.sa_handler = SIG_IGN;
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
 
-  SPoolInfo info;
-  info.numOfThreads = 1;
-  info.serverIp = 0;
-  info.port = tsSyncPort;
-  info.bufferSize = 640000;
-  info.processBrokenLink = arbProcessBrokenLink;
-  info.processIncomingMsg = arbProcessPeerMsg;
-  info.processIncomingConn = arbProcessIncommingConnection;
-  tsTcpPool = taosOpenTcpThreadPool(&info);
-  
-  sPrint("TAOS arbitrator: %s:%d is running\n", tsNodeFqdn, tsServerPort);
+  sPrint("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
 
-  while (1) {
-    sleep(1);
-  }
-
-  return 0;
+  // inform main thread to exit
+  sem_post(&tsArbSem);
 }
-
 
