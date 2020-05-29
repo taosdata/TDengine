@@ -469,7 +469,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
   int ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     sTrace("%s, start to check peer connection", pPeer->id);
-    taosTmrReset(syncCheckPeerConnection, 10, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, 100, pPeer, syncTmrCtrl, &pPeer->timer);
   }
   
   syncAddNodeRef(pNode);
@@ -936,6 +936,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   firstPkt.syncHead.type = TAOS_SMSG_STATUS;
   strcpy(firstPkt.fqdn, tsNodeFqdn); 
   firstPkt.port = tsSyncPort;
+  firstPkt.sourceId = pNode->vgId;  // tell arbitrator its vgId
 
   if ( write(connFd, &firstPkt, sizeof(firstPkt)) == sizeof(firstPkt)) {
     sTrace("%s, connection to peer server is setup", pPeer->id);

@@ -32,6 +32,7 @@ typedef struct SThreadPool {
   SThreadObj **pThread;
   pthread_t    thread;
   int          nextId;
+  int          acceptFd;  // FD for accept new connection
 } SThreadPool;
 
 static void *taosAcceptPeerTcpConnection(void *argv);
@@ -83,6 +84,7 @@ void taosCloseTcpThreadPool(void *param)
     }
   }
 
+  tclose(pPool->acceptFd);
   tfree(pPool->pThread);
   tfree(pPool);
 }
@@ -146,7 +148,7 @@ static void taosProcessTcpData(void *param) {
 
     for (int i = 0; i < fdNum; ++i) {
       void *ahandle = events[i].data.ptr;
-      if (ahandle == NULL) continue;
+      assert(ahandle);
 
       if (events[i].events & EPOLLERR) {
         (*pInfo->processBrokenLink)(ahandle);
@@ -174,8 +176,8 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
 
   taosBlockSIGPIPE();
 
-  int tcpFd = taosOpenTcpServerSocket(pInfo->serverIp, pInfo->port);
-  if (tcpFd < 0) {
+  pPool->acceptFd = taosOpenTcpServerSocket(pInfo->serverIp, pInfo->port);
+  if (pPool->acceptFd < 0) {
     uError("failed to create TCP server socket, port:%d (%s)", pInfo->port, strerror(errno));
     return NULL;
   }
@@ -183,12 +185,13 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
   while (1) {
     struct sockaddr_in clientAddr;
     socklen_t addrlen = sizeof(clientAddr);
-    int connFd = accept(tcpFd, (struct sockaddr *) &clientAddr, &addrlen);
+    int connFd = accept(pPool->acceptFd, (struct sockaddr *) &clientAddr, &addrlen);
     if (connFd < 0) {
       uError("TCP accept failure, reason:%s", strerror(errno));
       continue;
     }
 
+    //uTrace("TCP connection from: 0x%x:%d", clientAddr.sin_addr.s_addr, clientAddr.sin_port); 
     taosKeepTcpAlive(connFd);
     (*pInfo->processIncomingConn)(connFd, clientAddr.sin_addr.s_addr);
   }

@@ -50,22 +50,22 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
     return;
   }
 
-  int32_t vgId = firstPkt.syncHead.vgId;
-  if (vgId) {  
-    sTrace("%s:%d, vgId is not zero, close the connection", firstPkt.fqdn, firstPkt.port);
-    close(connFd);
-    return;
-  }
-
   SNodeConn *pNode = (SNodeConn *) calloc(sizeof(SNodeConn), 1);
   if (pNode == NULL) {
-    sError("%s:%d, failed to allocate syncPeer(%s)", firstPkt.fqdn, firstPkt.port, strerror(errno));
-    close(connFd);
+    sError("failed to allocate memory(%s)", strerror(errno));
+    taosCloseSocket(connFd);
     return;
   }
 
-  sprintf(pNode->id, "%s:%d", firstPkt.fqdn, firstPkt.port); 
-  sTrace("%s:%d, arbitrator request is accepted", firstPkt.fqdn, firstPkt.port);
+  sprintf(pNode->id, "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port); 
+  if (firstPkt.syncHead.vgId) {  
+    sTrace("%s, vgId in head is not zero, close the connection", pNode->id);
+    tfree(pNode);
+    taosCloseSocket(connFd);
+    return;
+  }
+
+  sTrace("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
   pNode->pThread = taosAllocateTcpThread(tsTcpPool, pNode, connFd);
 
