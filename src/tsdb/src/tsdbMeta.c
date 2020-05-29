@@ -154,7 +154,7 @@ void tsdbOrgMeta(void *pHandle) {
   for (int i = 0; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
-      (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, i, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, i, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
   }
 }
@@ -203,11 +203,11 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
 
   tsdbCloseMetaFile(pMeta->mfh);
 
-  (*pRepo->appH.cqDropFunc)(pRepo->appH.cqH);
-
   for (int i = 1; i < pMeta->maxTables; i++) {
     if (pMeta->tables[i] != NULL) {
-      tsdbFreeTable(pMeta->tables[i]);
+      STable *pTable = pMeta->tables[i];
+      if (pTable->type == TSDB_STREAM_TABLE) (*pRepo->appH.cqDropFunc)(pTable->cqhandle);
+      tsdbFreeTable(pTable);
     }
   }
 
@@ -544,7 +544,7 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
       tsdbAddTableIntoIndex(pMeta, pTable);
     }
     if (pTable->type == TSDB_STREAM_TABLE && addIdx) {
-      (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, pTable->tableId.tid, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, pTable->tableId.tid, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
     
     pMeta->nTables++;

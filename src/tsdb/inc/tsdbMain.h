@@ -87,6 +87,7 @@ typedef struct STable {
   struct STable *prev;
   tstr *         name;  // NOTE: there a flexible string here
   char *         sql;
+  void *         cqhandle;
 } STable;
 
 #define TSDB_GET_TABLE_LAST_KEY(tb) ((tb)->lastKey)
