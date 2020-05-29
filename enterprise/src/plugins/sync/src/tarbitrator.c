@@ -15,16 +15,35 @@
 
 //#define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
-#include "tulog.h"
-#include "tglobal.h"
+#include "hash.h"
+#include "tlog.h"
+#include "tutil.h"
+#include "ttimer.h"
+#include "ttime.h"
 #include "tsocket.h"
+#include "tglobal.h"
+#include "taoserror.h"
+#include "taosTcpPool.h"
+#include "twal.h"
 #include "tsync.h"
+#include "syncInt.h"
 
-char arbitratorLogFilePath[TSDB_FILENAME_LEN + 16] = {0};
+static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
+static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp);
+static void arbProcessBrokenLink(void *param);
+static int  arbProcessPeerMsg(void *param, void *buffer);
+static sem_t    tsArbSem;
+static ttpool_h tsArbTcpPool;
+
+typedef struct {
+  char  id[TSDB_EP_LEN];
+  int   nodeFd;
+  void *pThread;
+} SNodeConn;
 
 int main(int argc, char *argv[]) {
-  
+  char     arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
+
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       tsServerPort = atoi(argv[++i]);
@@ -32,46 +51,138 @@ int main(int argc, char *argv[]) {
       debugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
       if (strlen(argv[++i]) > TSDB_FILENAME_LEN) continue; 
-      strcpy(arbitratorLogFilePath, argv[i]);
+      strcpy(arbLogPath, argv[i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
       printf("  [-d debugFlag]: debug flag, default:%d\n", debugFlag);
-      printf("  [-g logFilePath]: log file pathe, default:%s\n", arbitratorLogFilePath);
+      printf("  [-g logFilePath]: log file pathe, default:%s\n", arbLogPath);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
   }
- 
+  
+ if (sem_init(&tsArbSem, 0, 0) != 0) {
+    printf("failed to create exit semphore\n");
+    exit(EXIT_FAILURE);
+  }
+
+  /* Set termination handler. */
+  struct sigaction act = {{0}};
+  act.sa_flags = SA_SIGINFO;
+  act.sa_sigaction = arbSignalHandler;
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
+
   tsAsyncLog = 0;
-  strcat(arbitratorLogFilePath, "/arbitrator.log");
-  taosInitLog(arbitratorLogFilePath, 1000000, 10);
+  strcat(arbLogPath, "/arbitrator.log");
+  taosInitLog(arbLogPath, 1000000, 10);
 
-  SSyncInfo syncInfo;
-  memset(&syncInfo, 0, sizeof(syncInfo));
-
-  syncInfo.syncCfg.replica = 1;
-  syncInfo.syncCfg.quorum = 1;
-  syncInfo.vgId = 1;
-  syncInfo.ahandle = &syncInfo;
-  syncInfo.syncCfg.nodeInfo[0].nodeId = 1;
-  taosGetFqdn(syncInfo.syncCfg.nodeInfo[0].nodeFqdn);
-  syncInfo.syncCfg.nodeInfo[0].nodePort = tsServerPort + TSDB_PORT_SYNC;
+  taosGetFqdn(tsNodeFqdn);
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
 
-  void *syncHandle = syncStart(&syncInfo);
-  if (syncHandle == NULL) {
-    uError("failed to init arbitrator");
-    return -1;
+  SPoolInfo info;
+  info.numOfThreads = 1;
+  info.serverIp = 0;
+  info.port = tsSyncPort;
+  info.bufferSize = 640000;
+  info.processBrokenLink = arbProcessBrokenLink;
+  info.processIncomingMsg = arbProcessPeerMsg;
+  info.processIncomingConn = arbProcessIncommingConnection;
+  tsArbTcpPool = taosOpenTcpThreadPool(&info);
+  
+  sPrint("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsServerPort);
+
+  for (int res = sem_wait(&tsArbSem); res != 0; res = sem_wait(&tsArbSem)) {
+    if (res != EINTR) break;
   }
 
-  uPrint("TAOS arbitrator: %s:%d is running\n", syncInfo.syncCfg.nodeInfo[0].nodeFqdn, tsServerPort);
-
-  while (1) {
-    sleep(1);
-  }
+  taosCloseTcpThreadPool(tsArbTcpPool);
+  sPrint("TAOS arbitrator is shut down\n", tsNodeFqdn, tsServerPort);
+  closelog();
 
   return 0;
 }
 
+static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
+{
+  char  ipstr[24];
+  tinet_ntoa(ipstr, sourceIp);
+  sTrace("peer TCP connection from ip:%s", ipstr);
+
+  SFirstPkt firstPkt;
+  if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
+    sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
+    taosCloseSocket(connFd);
+    return;
+  }
+
+  SNodeConn *pNode = (SNodeConn *) calloc(sizeof(SNodeConn), 1);
+  if (pNode == NULL) {
+    sError("failed to allocate memory(%s)", strerror(errno));
+    taosCloseSocket(connFd);
+    return;
+  }
+
+  sprintf(pNode->id, "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port); 
+  if (firstPkt.syncHead.vgId) {  
+    sTrace("%s, vgId in head is not zero, close the connection", pNode->id);
+    tfree(pNode);
+    taosCloseSocket(connFd);
+    return;
+  }
+
+  sTrace("%s, arbitrator request is accepted", pNode->id);
+  pNode->nodeFd = connFd;
+  pNode->pThread = taosAllocateTcpThread(tsArbTcpPool, pNode, connFd);
+
+  return;
+}
+
+static void arbProcessBrokenLink(void *param) {
+  SNodeConn *pNode = param;
+
+  sTrace("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
+  taosFreeTcpThread(pNode->pThread, &pNode->nodeFd);
+
+  tfree(pNode);
+}
+
+static int arbProcessPeerMsg(void *param, void *buffer)
+{
+  SNodeConn  *pNode = param;
+  SSyncHead   head;
+  int         bytes = 0;
+  char       *cont = (char *)buffer;
+
+  int hlen = taosReadMsg(pNode->nodeFd, &head, sizeof(head));
+  if (hlen != sizeof(head)) {
+    sTrace("%s, failed to read msg, hlen:%d", pNode->id, hlen);
+    return -1;
+  }
+
+  bytes = taosReadMsg(pNode->nodeFd, cont, head.len);
+  if (bytes != head.len) {
+    sTrace("%s, failed to read, bytes:%d len:%d", pNode->id, bytes, head.len);
+    return -1;
+  }
+
+  sTrace("%s, msg is received, len:%d", pNode->id, head.len);
+  return 0;
+}
+
+static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) {
+
+  struct sigaction act = {{0}};
+  act.sa_handler = SIG_IGN;
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
+
+  sPrint("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
+
+  // inform main thread to exit
+  sem_post(&tsArbSem);
+}
 

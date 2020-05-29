@@ -26,8 +26,8 @@
 static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  minfo = {0};   // master file info
-  SFileInfo  sinfo = {0};   // slave file info
+  SFileInfo  minfo; memset(&minfo, 0, sizeof(minfo)); /* = {0}; */  // master file info
+  SFileInfo  sinfo; memset(&sinfo, 0, sizeof(sinfo)); /* = {0}; */  // slave file info
   SFileAck   fileAck;
   int        code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
