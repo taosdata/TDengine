@@ -17,14 +17,14 @@ system sh/cfg.sh -n dnode6 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode7 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode8 -c numOfTotalVnodes -v 4
 
-system sh/cfg.sh -n dnode1 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode2 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode3 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode4 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode5 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode6 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode7 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode8 -c numOfMpeers -v 3
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode5 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode6 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode7 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode8 -c numOfMnodes -v 3
 
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0

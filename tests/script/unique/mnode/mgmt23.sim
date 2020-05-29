@@ -3,9 +3,9 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 2
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 2
 
 print ============== step1
 system sh/exec_up.sh -n dnode1 -s start
@@ -91,7 +91,7 @@ print ============== step5
 sleep 2000
 sql create dnode $hostname2
 system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
 system sh/exec_up.sh -n dnode2 -s start
 sleep 8000
 
