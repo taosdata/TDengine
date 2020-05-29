@@ -28,8 +28,6 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-<<<<<<< HEAD
-static char     arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
 static ttpool_h tsTcpPool;
 
 typedef struct {
@@ -105,11 +103,8 @@ static int arbProcessPeerMsg(void *param, void *buffer)
   return 0;
 }
 
-=======
-char arbitratorLogFilePath[TSDB_FILENAME_LEN + 16] = {0};
-
->>>>>>> develop
 int main(int argc, char *argv[]) {
+  char  arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
   
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
@@ -118,27 +113,18 @@ int main(int argc, char *argv[]) {
       debugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
       if (strlen(argv[++i]) > TSDB_FILENAME_LEN) continue; 
-<<<<<<< HEAD
       strcpy(arbLogPath, argv[i]);
-=======
-      strcpy(arbitratorLogFilePath, argv[i]);
->>>>>>> develop
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
       printf("  [-d debugFlag]: debug flag, default:%d\n", debugFlag);
-<<<<<<< HEAD
       printf("  [-g logFilePath]: log file pathe, default:%s\n", arbLogPath);
-=======
-      printf("  [-g logFilePath]: log file pathe, default:%s\n", arbitratorLogFilePath);
->>>>>>> develop
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
   }
- 
+  
   tsAsyncLog = 0;
-<<<<<<< HEAD
   strcat(arbLogPath, "/arbitrator.log");
   taosInitLog(arbLogPath, 1000000, 10);
 
@@ -156,30 +142,6 @@ int main(int argc, char *argv[]) {
   tsTcpPool = taosOpenTcpThreadPool(&info);
   
   sPrint("TAOS arbitrator: %s:%d is running\n", tsNodeFqdn, tsServerPort);
-=======
-  strcat(arbitratorLogFilePath, "/arbitrator.log");
-  taosInitLog(arbitratorLogFilePath, 1000000, 10);
-
-  SSyncInfo syncInfo;
-  memset(&syncInfo, 0, sizeof(syncInfo));
-
-  syncInfo.syncCfg.replica = 1;
-  syncInfo.syncCfg.quorum = 1;
-  syncInfo.vgId = 1;
-  syncInfo.ahandle = &syncInfo;
-  syncInfo.syncCfg.nodeInfo[0].nodeId = 1;
-  taosGetFqdn(syncInfo.syncCfg.nodeInfo[0].nodeFqdn);
-  syncInfo.syncCfg.nodeInfo[0].nodePort = tsServerPort + TSDB_PORT_SYNC;
-  tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
-
-  void *syncHandle = syncStart(&syncInfo);
-  if (syncHandle == NULL) {
-    uError("failed to init arbitrator");
-    return -1;
-  }
-
-  uPrint("TAOS arbitrator: %s:%d is running\n", syncInfo.syncCfg.nodeInfo[0].nodeFqdn, tsServerPort);
->>>>>>> develop
 
   while (1) {
     sleep(1);
