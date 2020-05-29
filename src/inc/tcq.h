@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#include "tdataformat.h"
 
 typedef int (*FCqWrite)(void *ahandle, void *pHead, int type);
 
@@ -40,7 +41,7 @@ void  cqStart(void *handle);
 void  cqStop(void *handle);
 
 // cqCreate is called by TSDB to start an instance of CQ 
-void *cqCreate(void *handle, int sid, char *sqlStr, SSchema *pSchema, int columns);
+void *cqCreate(void *handle, int sid, char *sqlStr, STSchema *pSchema);
 
 // cqDrop is called by TSDB to stop an instance of CQ, handle is the return value of cqCreate
 void  cqDrop(void *handle);

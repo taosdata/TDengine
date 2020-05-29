@@ -58,6 +58,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static char*   mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole);
 
 static int32_t mnodeDnodeActionDestroy(SSdbOper *pOper) {
   tfree(pOper->pObj);
@@ -521,6 +522,12 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 6 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "alternativeRole");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
@@ -572,10 +579,14 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     *(int16_t *)pWrite = pDnode->totalVnodes;
     cols++;
     
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
     char* status = mnodeGetDnodeStatusStr(pDnode->status);
     STR_TO_VARSTR(pWrite, status);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
+    char* role = mnodeGetDnodeAlternativeRoleStr(pDnode->alternativeRole);
+    STR_TO_VARSTR(pWrite, role);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -895,3 +906,13 @@ char* mnodeGetDnodeStatusStr(int32_t dnodeStatus) {
     default:                       return "undefined";
   }
 }
+
+static char* mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole) {
+  switch (alternativeRole) {
+    case TAOS_DN_ALTERNATIVE_ROLE_ANY: return "any";
+    case TAOS_DN_ALTERNATIVE_ROLE_MNODE: return "mnode";
+    case TAOS_DN_ALTERNATIVE_ROLE_VNODE: return "vnode";
+    default:return "any";
+  }
+}
+
