@@ -68,10 +68,10 @@ type nametag struct {
 
 // Global vars
 var (
-	bufPool         sync.Pool
-	batchChans      []chan string  //multi table one chan
-	nodeChans       []chan Metrics //multi node one chan
-	inputDone       chan struct{}
+	bufPool    sync.Pool
+	batchChans []chan string  //multi table one chan
+	nodeChans  []chan Metrics //multi node one chan
+	inputDone  chan struct{}
 	//workersGroup    sync.WaitGroup
 	reportTags      [][2]string
 	reportHostname  string
@@ -149,6 +149,7 @@ func main() {
 	}
 
 	http.HandleFunc("/telegraf", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
 		addr := strings.Split(r.RemoteAddr, ":")
 		idx := TAOShashID([]byte(addr[0]))
 
@@ -166,7 +167,8 @@ func main() {
 		req.HostIP = addr[0]
 
 		nodeChans[idx%httpworkers] <- req
-		w.WriteHeader(http.StatusAccepted)
+
+		r.Body.Close()
 	})
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -329,24 +331,24 @@ func SerilizeTDengine(m metric, dbn string, hostip string, taglist *list.List, d
 			sqlcmd = sqlcmd + "\"" + hostip + "\"," + "\"" + k + "\")\n"
 			execSql(dbn, sqlcmd, db)
 			IsTableCreated.Store(s, true)
-		} 
-			idx := TAOShashID([]byte(s))
-			sqlcmd := " " + s + " values("
-
-			tls := strconv.FormatInt(m.TimeStamp, 10)
-			switch v.(type) {
-			case string:
-				sqlcmd = sqlcmd + tls + ",\"" + v.(string) + "\")"
-			case int64:
-				sqlcmd = sqlcmd + tls + "," + strconv.FormatInt(v.(int64), 10) + ")"
-			case float64:
-				sqlcmd = sqlcmd + tls + "," + strconv.FormatFloat(v.(float64), 'E', -1, 64) + ")"
-			default:
-				panic("Checktable error value type")
-			}
-			batchChans[idx%sqlworkers] <- sqlcmd
-			//execSql(dbn,sqlcmd)
 		}
+		idx := TAOShashID([]byte(s))
+		sqlcmd := " " + s + " values("
+
+		tls := strconv.FormatInt(m.TimeStamp, 10)
+		switch v.(type) {
+		case string:
+			sqlcmd = sqlcmd + tls + ",\"" + v.(string) + "\")"
+		case int64:
+			sqlcmd = sqlcmd + tls + "," + strconv.FormatInt(v.(int64), 10) + ")"
+		case float64:
+			sqlcmd = sqlcmd + tls + "," + strconv.FormatFloat(v.(float64), 'E', -1, 64) + ")"
+		default:
+			panic("Checktable error value type")
+		}
+		batchChans[idx%sqlworkers] <- sqlcmd
+		//execSql(dbn,sqlcmd)
+	}
 	return nil
 }
 
