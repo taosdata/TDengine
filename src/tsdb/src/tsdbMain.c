@@ -205,7 +205,7 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
   tsdbRestoreCfg(pRepo, &(pRepo->config));
   if (pAppH) pRepo->appH = *pAppH;
 
-  pRepo->tsdbMeta = tsdbInitMeta(tsdbDir, pRepo->config.maxTables);
+  pRepo->tsdbMeta = tsdbInitMeta(tsdbDir, pRepo->config.maxTables, pRepo);
   if (pRepo->tsdbMeta == NULL) {
     free(pRepo->rootDir);
     free(pRepo);

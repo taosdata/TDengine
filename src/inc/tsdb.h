@@ -43,6 +43,8 @@ typedef struct {
   void *cqH;
   int (*notifyStatus)(void *, int status);
   int (*eventCallBack)(void *);
+  void *(*cqCreateFunc)(void *handle, int sid, char *sqlStr, STSchema *pSchema);
+  void (*cqDropFunc)(void *handle);
 } STsdbAppH;
 
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION

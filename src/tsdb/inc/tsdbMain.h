@@ -110,6 +110,7 @@ typedef struct {
   SMetaFile *mfh;  // meta file handle
   int        maxRowBytes;
   int        maxCols;
+  void *     pRepo;
 } STsdbMeta;
 
 // element put in skiplist for each table
@@ -118,7 +119,7 @@ typedef struct STableIndexElem {
   STable*    pTable;
 } STableIndexElem;
 
-STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables);
+STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables, void *pRepo);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
