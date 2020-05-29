@@ -427,7 +427,7 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  // 0-any; 1-mnode; 2-dnode
+  // 0-any; 1-mnode; 2-vnode
   cfg.option = "alternativeRole";
   cfg.ptr = &tsAlternativeRole;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
