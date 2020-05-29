@@ -9,8 +9,8 @@ static bool test_fixed_uint16(uint16_t value) {
   char     buf[20] = "\0";
   uint16_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixed16(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixed16(static_cast<void *>(buf), &value_check);
+  void *ptr1 = taosEncodeFixedU16(static_cast<void *>(buf), value);
+  void *ptr2 = taosDecodeFixedU16(static_cast<void *>(buf), &value_check);
 
   return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
 }
@@ -19,8 +19,8 @@ static bool test_fixed_uint32(uint32_t value) {
   char     buf[20] = "\0";
   uint32_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixed32(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixed32(static_cast<void *>(buf), &value_check);
+  void *ptr1 = taosEncodeFixedU32(static_cast<void *>(buf), value);
+  void *ptr2 = taosDecodeFixedU32(static_cast<void *>(buf), &value_check);
 
   return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
 }
@@ -29,8 +29,8 @@ static bool test_fixed_uint64(uint64_t value) {
   char     buf[20] = "\0";
   uint64_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixed64(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixed64(static_cast<void *>(buf), &value_check);
+  void *ptr1 = taosEncodeFixedU64(static_cast<void *>(buf), value);
+  void *ptr2 = taosDecodeFixedU64(static_cast<void *>(buf), &value_check);
 
   return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
 }
@@ -39,8 +39,8 @@ static bool test_variant_uint16(uint16_t value) {
   char     buf[20] = "\0";
   uint16_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariant16(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariant16(static_cast<void *>(buf), &value_check);
+  void *ptr1 = taosEncodeVariantU16(static_cast<void *>(buf), value);
+  void *ptr2 = taosDecodeVariantU16(static_cast<void *>(buf), &value_check);
 
   return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
 }
@@ -49,8 +49,8 @@ static bool test_variant_uint32(uint32_t value) {
   char     buf[20] = "\0";
   uint32_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariant32(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariant32(static_cast<void *>(buf), &value_check);
+  void *ptr1 = taosEncodeVariantU32(static_cast<void *>(buf), value);
+  void *ptr2 = taosDecodeVariantU32(static_cast<void *>(buf), &value_check);
 
   return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
 }
@@ -59,8 +59,8 @@ static bool test_variant_uint64(uint64_t value) {
   char     buf[20] = "\0";
   uint64_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariant64(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariant64(static_cast<void *>(buf), &value_check);
+  void *ptr1 = taosEncodeVariantU64(static_cast<void *>(buf), value);
+  void *ptr2 = taosDecodeVariantU64(static_cast<void *>(buf), &value_check);
 
   return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
 }
