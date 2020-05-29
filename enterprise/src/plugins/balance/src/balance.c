@@ -921,6 +921,10 @@ static void balanceMonitorDnodeModule() {
       continue;
     }
 
+    if (pDnode->alternativeRole == TAOS_DN_ALTERNATIVE_ROLE_VNODE) {
+      continue;
+    }
+
     mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMPeers);
     mnodeAddMnode(pDnode->dnodeId);
     
