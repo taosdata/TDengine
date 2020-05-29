@@ -369,7 +369,8 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
 }
 
 static bool dnodeReadMnodeInfos() {
-  char ipFile[TSDB_FILENAME_LEN] = {0};
+  char ipFile[TSDB_FILENAME_LEN*2] = {0};
+  
   sprintf(ipFile, "%s/mnodeIpList.json", tsDnodeDir);
   FILE *fp = fopen(ipFile, "r");
   if (!fp) {
@@ -537,7 +538,8 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
 }
 
 static bool dnodeReadDnodeCfg() {
-  char dnodeCfgFile[TSDB_FILENAME_LEN] = {0};
+  char dnodeCfgFile[TSDB_FILENAME_LEN*2] = {0};
+  
   sprintf(dnodeCfgFile, "%s/dnodeCfg.json", tsDnodeDir);
 
   FILE *fp = fopen(dnodeCfgFile, "r");
