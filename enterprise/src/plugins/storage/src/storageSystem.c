@@ -92,7 +92,7 @@ static bool storageReadTiersInfo() {
   char *  line, *option, *value, *value1;
   size_t  len;
   int32_t olen, vlen, vlen1;
-  char    fileName[128];
+  char    fileName[TSDB_FILENAME_LEN*2];
 
   sprintf(fileName, "%s/taos.cfg", configDir);
   fp = fopen(fileName, "r");
