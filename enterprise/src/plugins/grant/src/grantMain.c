@@ -26,25 +26,26 @@
 #include "machine.h"
 #include "mnode.h"
 #include "dnode.h"
-#include "mgmtDef.h"
-#include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtTable.h"
-#include "mgmtMnode.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtAcct.h"
-#include "mgmtUser.h"
+#include "mnodeDef.h"
+#include "mnodeDb.h"
+#include "mnodeDnode.h"
+#include "mnodeTable.h"
+#include "mnodeMnode.h"
+#include "mnodeSdb.h"
+#include "mnodeShow.h"
+#include "mnodeAcct.h"
+#include "mnodeUser.h"
+#include "mnodePeer.h"
 
 #define min(x, y) (x)<(y)?(x):(y)
 
-extern void *tsMgmtTmr;
+extern void *tsMnodeTmr;
 extern SGrantObj grantObj;
 
 static char   *grantSecondsToString(uint32_t seconds);
 static void    grantCheckGrantInfo();
 static void    grantSendMsgToMgmt();
-static void    grantProcessMsgInMgmt(SRpcMsg *pMsg);
+static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg);
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -74,10 +75,10 @@ static SGrantStatus grantStatus = {
 
 int32_t grantInit() {
   grantActiveSystem("/etc/taos/taos.cfg");
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
-  dnodeAddServerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
-  taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMgmtTmr, &grantSendTimer);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
+  mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
+  taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMnodeTmr, &grantSendTimer);
 
   uTrace("grant data is initialized");
   return TSDB_CODE_SUCCESS;
@@ -113,37 +114,37 @@ static uint32_t grantGetCulsterCreateTime() {
 
   int64_t createTime = (int64_t)taosGetTimestampMs();
   while (1) {
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     createTime = createTime < pDnode->createdTime ? createTime : pDnode->createdTime;
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
   sdbFreeIter(pIter);
   pIter = NULL;
 
   while (1) {
-    pIter = mgmtGetNextAcct(pIter, &pAcct);
+    pIter = mnodeGetNextAcct(pIter, &pAcct);
     if (pAcct == NULL) break;
     createTime = createTime < pAcct->createdTime ? createTime : pAcct->createdTime;
-    mgmtDecAcctRef(pAcct);
+    mnodeDecAcctRef(pAcct);
   }
   sdbFreeIter(pIter);
   pIter = NULL;
 
   while (1) {
-    pIter = mgmtGetNextUser(pIter, &pUser);
+    pIter = mnodeGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
     createTime = createTime < pUser->createdTime ? createTime : pUser->createdTime;
-    mgmtDecUserRef(pUser);
+    mnodeDecUserRef(pUser);
   }
   sdbFreeIter(pIter);
   pIter = NULL;
 
   while (1) {
-    pIter = mgmtGetNextDb(pIter, &pDb);
+    pIter = mnodeGetNextDb(pIter, &pDb);
     if (pDb == NULL) break;
     createTime = createTime < pDb->createdTime ? createTime : pDb->createdTime;
-    mgmtDecDbRef(pDb);
+    mnodeDecDbRef(pDb);
   }
   sdbFreeIter(pIter);
 
@@ -158,14 +159,14 @@ static uint32_t grantGetCulsterCurTimeSeries() {
   uint32_t        numOfPoints = 0;
 
   while (1) {
-    pIter = mgmtGetNextChildTable(pIter, &pTable);
+    pIter = mnodeGetNextChildTable(pIter, &pTable);
     if (pTable == NULL) break;
     if (pTable->superTable != NULL) {
       numOfPoints += (pTable->superTable->numOfColumns - 1);
     } else {
       numOfPoints += (pTable->numOfColumns - 1);
     }
-    mgmtDecTableRef(pTable);
+    mnodeDecTableRef(pTable);
   }
 
   sdbFreeIter(pIter);
@@ -181,10 +182,10 @@ static uint32_t grantGetCulsterCurDbs() {
   uint32_t numOfDbs = 0;
 
   while (1) {
-    pIter = mgmtGetNextDb(pIter, &pDb);
+    pIter = mnodeGetNextDb(pIter, &pDb);
     if (pDb == NULL) break;
     if (strcmp(pDb->name, tsMonitorDbName) != 0) numOfDbs++;
-    mgmtDecDbRef(pDb);
+    mnodeDecDbRef(pDb);
   }
 
   sdbFreeIter(pIter);
@@ -198,12 +199,12 @@ static uint32_t grantGetCulsterCurUsers() {
   uint32_t  numOfUsers = 0;
 
   while (1) {
-    pIter = mgmtGetNextUser(pIter, &pUser);
+    pIter = mnodeGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
     if (strcmp(pUser->user, "monitor") == 0) continue;
     if (pUser->user[0] == '_') continue;
     numOfUsers++;
-    mgmtDecUserRef(pUser);
+    mnodeDecUserRef(pUser);
   }
 
   sdbFreeIter(pIter);
@@ -223,10 +224,10 @@ static uint32_t grantGetCulsterCurAccts() {
   uint32_t  numOfAccts = 0;
 
   while (1) {
-    pIter = mgmtGetNextAcct(pIter, &pAcct);
+    pIter = mnodeGetNextAcct(pIter, &pAcct);
     if (pAcct == NULL) break;
     numOfAccts++;
-    mgmtDecAcctRef(pAcct);
+    mnodeDecAcctRef(pAcct);
   }
   sdbFreeIter(pIter);
 
@@ -239,10 +240,10 @@ static uint32_t grantGetCulsterCurDnodes() {
   int32_t    numOfDnodes = 0;
 
   while (1) {
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     numOfDnodes++;
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   sdbFreeIter(pIter);
@@ -257,10 +258,10 @@ static uint32_t grantGetCulsterCurCpuCores() {
   uint32_t   numOfCpuCores = 0;
 
   while (1) {
-    pIter = mgmtGetNextDnode(pIter, &pDnode);
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     numOfCpuCores += pDnode->numOfCores;
-    mgmtDecDnodeRef(pDnode);
+    mnodeDecDnodeRef(pDnode);
   }
 
   sdbFreeIter(pIter);
@@ -286,7 +287,7 @@ static void grantResetMaster() {
          grantStatus.curTimeSeries);
   free(ts);
 
-  taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantCheckTimer);
+  taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMnodeTmr, &grantCheckTimer);
 }
 
 void grantReset(EGrantType grant, uint64_t value) {
@@ -477,7 +478,7 @@ int32_t grantCheck(EGrantType grant) {
 }
 
 static void grantSendMsgToMgmt() {
-  taosTmrReset(grantSendMsgToMgmt, GRANT_HEART_BEAT_MSG * 1000, NULL, tsMgmtTmr, &grantSendTimer);
+  taosTmrReset(grantSendMsgToMgmt, GRANT_HEART_BEAT_MSG * 1000, NULL, tsMnodeTmr, &grantSendTimer);
 
   if (!grantObj.granted) return;
 
@@ -501,7 +502,7 @@ static void grantSendMsgToMgmt() {
 
   char *ts = grantSecondsToString(grantObj.expireTimeSec);
   uTrace(
-      "grant send message to mgmt, storage limits:%uGB, timeseries limits:%u, database limits:%u, user limits:%u, "
+      "grant send message to mnode, storage limits:%uGB, timeseries limits:%u, database limits:%u, user limits:%u, "
       "expire: %s %u",
       grantObj.limitStorage, grantObj.limitTimeSeries, grantObj.limitDbs, grantObj.limitUsers, ts,
       grantObj.expireTimeSec);
@@ -514,13 +515,13 @@ static void grantSendMsgToMgmt() {
   };
 
   SRpcIpSet ipSet = {0};
-  dnodeGetMnodeDnodeIpSet(&ipSet);
+  dnodeGetMnodeIpSetForPeer(&ipSet);
   dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
-static void grantProcessMsgInMgmt(SRpcMsg *pMsg)
+static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
 {  
-  SGrantMsg  *pGrant = pMsg->pCont;
+  SGrantMsg  *pGrant = pMsg->rpcMsg.pCont;
 
 #ifndef GRANT_MIRROR_VERSION 
   grantStatus.officialVersion = htonl(pGrant->officialVersion);
@@ -572,14 +573,11 @@ static void grantProcessMsgInMgmt(SRpcMsg *pMsg)
 
   free(ts);
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.code = TSDB_CODE_SUCCESS;
-  rpcMsg.handle = pMsg->handle;
-  rpcSendResponse(&rpcMsg);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void grantCheckGrantInfo() {
-  taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMgmtTmr, &grantCheckTimer);
+  taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMnodeTmr, &grantCheckTimer);
   grantStatus.expired = false;
 
   if (sdbIsMaster()) {
@@ -590,15 +588,15 @@ static void grantCheckGrantInfo() {
     void *     pIter = NULL;
     SDnodeObj *pDnode = NULL;
     while (1) {
-      pIter = mgmtGetNextDnode(pIter, &pDnode);
+      pIter = mnodeGetNextDnode(pIter, &pDnode);
       if (pDnode == NULL) break;
 
       if (pDnode->status == 0) {  // TSDB_DN_STATUS_OFFLINE
-        mgmtDecDnodeRef(pDnode);
+        mnodeDecDnodeRef(pDnode);
         return;
       }
 
-      mgmtDecDnodeRef(pDnode);
+      mnodeDecDnodeRef(pDnode);
     }
     sdbFreeIter(pIter);
 
