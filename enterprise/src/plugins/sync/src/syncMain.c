@@ -997,16 +997,10 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
     sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
     taosCloseSocket(connFd);
-    return;;
-  }
-
-  int32_t vgId = firstPkt.syncHead.vgId;
-  if (vgId == 0) {  // work as arbitrator
-    sTrace("work as arbitrator for ip:%s", ipstr);
-    taosAllocateTcpThread(tsTcpPool, NULL, connFd);
     return;
   }
 
+  int32_t vgId = firstPkt.syncHead.vgId;
   SSyncNode **ppNode = (SSyncNode **)taosHashGet(vgIdHash, (const char *)&vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
