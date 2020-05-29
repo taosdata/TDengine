@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   }
 
   taosCloseTcpThreadPool(tsArbTcpPool);
-  sPrint("TAOS arbitrator exit\n", tsNodeFqdn, tsServerPort);
+  sPrint("TAOS arbitrator is shut down\n", tsNodeFqdn, tsServerPort);
   closelog();
 
   return 0;
