@@ -591,7 +591,10 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     tscProcessSql(pSql);
   
     // waits for response and then goes on
-    sem_wait(&pSql->rspSem);
+    STscObj* pTscObj = pSql->pTscObj;
+    if (pTscObj->pSql == pSql) {
+      sem_wait(&pSql->rspSem);
+    }
   } else { // if no free resource msg is sent to vnode, we free this object immediately.
     STscObj* pTscObj = pSql->pTscObj;
     
