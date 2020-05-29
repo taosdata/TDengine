@@ -116,12 +116,6 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 
-  int32_t size = sizeof(SCMShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
-  SCMShowRsp *pShowRsp = rpcMallocCont(size);
-  if (pShowRsp == NULL) {
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
-  }
-
   int32_t showObjSize = sizeof(SShowObj) + htons(pShowMsg->payloadLen);
   SShowObj *pShow = (SShowObj *) calloc(1, showObjSize);
   pShow->signature  = pShow;
@@ -131,7 +125,14 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
 
   pShow = mnodeSaveShowObj(pShow, showObjSize);
-  if (pShow == NULL) {
+  if (pShow == NULL) {    
+    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  }
+
+  int32_t size = sizeof(SCMShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
+  SCMShowRsp *pShowRsp = rpcMallocCont(size);
+  if (pShowRsp == NULL) {
+    mnodeFreeShowObj(pShow);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
@@ -144,6 +145,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_SUCCESS;
   } else {
     mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, mnodeGetShowType(pShowMsg->type), tstrerror(code));
+    rpcFreeCont(pShowRsp);
     mnodeCleanupShowObj(pShow, true);
     return code;
   }

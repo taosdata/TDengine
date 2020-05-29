@@ -129,7 +129,10 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
-    if (pWorker->qset == NULL) return NULL;
+    if (pWorker->qset == NULL) {
+      taosCloseQueue(queue);
+      return NULL;
+    }
 
     taosAddIntoQset(pWorker->qset, queue, pVnode);
     pWorker->qall = taosAllocateQall();

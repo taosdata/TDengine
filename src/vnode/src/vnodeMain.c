@@ -220,6 +220,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   appH.appH = (void *)pVnode;
   appH.notifyStatus = vnodeProcessTsdbStatus;
   appH.cqH = pVnode->cq;
+  appH.cqCreateFunc = cqCreate;
+  appH.cqDropFunc = cqDrop;
   sprintf(temp, "%s/tsdb", rootDir);
   pVnode->tsdb = tsdbOpenRepo(temp, &appH);
   if (pVnode->tsdb == NULL) {
@@ -391,13 +393,13 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     pVnode->sync = NULL;
   }
 
-  if (pVnode->wal) 
-    walClose(pVnode->wal);
-  pVnode->wal = NULL;
-
   if (pVnode->tsdb)
     tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
+
+  if (pVnode->wal) 
+    walClose(pVnode->wal);
+  pVnode->wal = NULL;
 
   if (pVnode->cq) 
     cqClose(pVnode->cq);
@@ -467,6 +469,8 @@ static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   appH.appH = (void *)pVnode;
   appH.notifyStatus = vnodeProcessTsdbStatus;
   appH.cqH = pVnode->cq;
+  appH.cqCreateFunc = cqCreate;
+  appH.cqDropFunc = cqDrop;
   pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
 }
 

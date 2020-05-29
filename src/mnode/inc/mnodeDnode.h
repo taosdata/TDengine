@@ -27,6 +27,12 @@ typedef enum {
   TAOS_DN_STATUS_READY
 } EDnodeStatus;
 
+typedef enum {
+  TAOS_DN_ALTERNATIVE_ROLE_ANY,
+  TAOS_DN_ALTERNATIVE_ROLE_MNODE,
+  TAOS_DN_ALTERNATIVE_ROLE_VNODE
+} EDnodeAlternativeRole;
+
 int32_t mnodeInitDnodes();
 void    mnodeCleanupDnodes();
 
