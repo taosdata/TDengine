@@ -132,6 +132,8 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
 
   pShow = mnodeSaveShowObj(pShow, showObjSize);
   if (pShow == NULL) {
+    mnodeFreeShowObj(pShow);
+    rpcFreeCont(pShowRsp);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
