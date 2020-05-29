@@ -150,19 +150,11 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
 
 void tsdbOrgMeta(void *pHandle) {
   STsdbMeta *pMeta = (STsdbMeta *)pHandle;
-  STsdbRepo *pRepo = (STsdbRepo *)pMeta->pRepo;
 
   for (int i = 1; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable != NULL && pTable->type == TSDB_CHILD_TABLE) {
       tsdbAddTableIntoIndex(pMeta, pTable);
-    }
-  }
-
-  for (int i = 0; i < pMeta->maxTables; i++) {
-    STable *pTable = pMeta->tables[i];
-    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
-      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, i, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
   }
 }

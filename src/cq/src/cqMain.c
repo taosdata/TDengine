@@ -38,6 +38,7 @@ typedef struct {
   int      vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
+  char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
   void    *ahandle;
   int      num;      // number of continuous streams
@@ -73,6 +74,7 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 
   strcpy(pContext->user, pCfg->user);
   strcpy(pContext->pass, pCfg->pass);
+  strcpy(pContext->db, pCfg->db);
   pContext->vgId = pCfg->vgId;
   pContext->cqWrite = pCfg->cqWrite;
   pContext->ahandle = ahandle;
@@ -207,9 +209,8 @@ void cqDrop(void *handle) {
 }
 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
-
   if (pContext->dbConn == NULL) {
-    pContext->dbConn = taos_connect("localhost", pContext->user, pContext->pass, NULL, 0);
+    pContext->dbConn = taos_connect("localhost", pContext->user, pContext->pass, pContext->db, 0);
     if (pContext->dbConn == NULL) {
       cError("vgId:%d, failed to connect to TDengine(%s)", pContext->vgId, tstrerror(terrno));
     }
@@ -217,6 +218,7 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   }
 
   int64_t lastKey = 0;
+  pObj->pContext = pContext;
   pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, lastKey, pObj, NULL);
   if (pObj->pStream) {
     pContext->num++;

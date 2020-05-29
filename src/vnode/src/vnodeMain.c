@@ -208,8 +208,9 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   SCqCfg cqCfg = {0};
-  sprintf(cqCfg.user, "root");
+  sprintf(cqCfg.user, "_root");
   strcpy(cqCfg.pass, tsInternalPass);
+  strcpy(cqCfg.db, "s1_db0");   // TODO: replace hard coded db name
   cqCfg.vgId = vnode;
   cqCfg.cqWrite = vnodeWriteToQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
@@ -274,6 +275,15 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   taosHashPut(tsDnodeVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t vnodeStartStream(int32_t vnode) {
+  SVnodeObj* pVnode = vnodeAccquireVnode(vnode);
+  if (pVnode != NULL) {
+    tsdbStartStream(pVnode->tsdb);
+    vnodeRelease(pVnode);
+  }
   return TSDB_CODE_SUCCESS;
 }
 

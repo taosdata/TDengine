@@ -260,9 +260,25 @@ static int32_t dnodeOpenVnodes() {
   }
 
   free(vnodeList);
-
   dPrint("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, numOfVnodes-failed, failed);
   return TSDB_CODE_SUCCESS;
+}
+
+void dnodeStartStream() {
+  int32_t vnodeList[TSDB_MAX_VNODES];
+  int32_t numOfVnodes = 0;
+  int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+
+  if (status != TSDB_CODE_SUCCESS) {
+    dPrint("Get dnode list failed");
+    return;
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    vnodeStartStream(vnodeList[i]);
+  }
+
+  dPrint("streams started");
 }
 
 static void dnodeCloseVnodes() {

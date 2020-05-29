@@ -474,6 +474,18 @@ TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, uint64_t uid) {
   return TSDB_GET_TABLE_LAST_KEY(pTable);
 }
 
+void  tsdbStartStream(TsdbRepoT *repo) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, pTable->tableId.tid, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
+    }
+  }
+}
+
 STableInfo *tsdbGetTableInfo(TsdbRepoT *pRepo, STableId tableId) {
   // TODO
   return NULL;
