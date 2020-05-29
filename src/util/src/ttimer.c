@@ -27,7 +27,7 @@
 
 #define tmrWarn(...)                                  \
   do { if (tmrDebugFlag & DEBUG_WARN) {               \
-    taosPrintLog("WARN  TMR ", tmrDebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN TMR ", tmrDebugFlag, __VA_ARGS__); \
   } } while(0)
 
 #define tmrTrace(...)                           \

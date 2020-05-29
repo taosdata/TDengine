@@ -117,7 +117,7 @@ int32_t tsMaxVnodeConnections = 10000;
 
 int32_t tsBalanceInterval = 300;  // seconds
 int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
-int32_t tsMgmtEqualVnodeNum = 4;
+int32_t tsMnodeEqualVnodeNum = 4;
 
 int32_t tsEnableHttpModule = 1;
 int32_t tsEnableMqttModule = 0;   // not finished yet, not started it by default
@@ -427,7 +427,7 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  // 0-any; 1-mgmt; 2-dnode
+  // 0-any; 1-mnode; 2-dnode
   cfg.option = "alternativeRole";
   cfg.ptr = &tsAlternativeRole;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -875,8 +875,8 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   // module configs
-  cfg.option = "mgmtEqualVnodeNum";
-  cfg.ptr = &tsMgmtEqualVnodeNum;
+  cfg.option = "mnodeEqualVnodeNum";
+  cfg.ptr = &tsMnodeEqualVnodeNum;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;

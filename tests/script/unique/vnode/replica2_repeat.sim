@@ -12,10 +12,10 @@ system sh/cfg.sh -n dnode1 -c numofMpeers -v 1
 system sh/cfg.sh -n dnode2 -c numofMpeers -v 1
 system sh/cfg.sh -n dnode3 -c numofMpeers -v 1
 system sh/cfg.sh -n dnode4 -c numofMpeers -v 1
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 system sh/exec_up.sh -n dnode1 -s start
 
 sql connect

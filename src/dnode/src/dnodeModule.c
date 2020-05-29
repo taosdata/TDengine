@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tglobal.h"
-#include "trpc.h"
 #include "mnode.h"
 #include "http.h"
 #include "mqtt.h"
@@ -46,12 +45,12 @@ static void dnodeUnSetModuleStatus(int32_t module) {
 }
 
 static void dnodeAllocModules() {
-  tsModule[TSDB_MOD_MGMT].enable       = false;
-  tsModule[TSDB_MOD_MGMT].name         = "mgmt";
-  tsModule[TSDB_MOD_MGMT].initFp       = mgmtInitSystem;
-  tsModule[TSDB_MOD_MGMT].cleanUpFp    = mgmtCleanUpSystem;
-  tsModule[TSDB_MOD_MGMT].startFp      = mgmtStartSystem;
-  tsModule[TSDB_MOD_MGMT].stopFp       = mgmtStopSystem;
+  tsModule[TSDB_MOD_MNODE].enable       = false;
+  tsModule[TSDB_MOD_MNODE].name         = "mnode";
+  tsModule[TSDB_MOD_MNODE].initFp       = mnodeInitSystem;
+  tsModule[TSDB_MOD_MNODE].cleanUpFp    = mnodeCleanupSystem;
+  tsModule[TSDB_MOD_MNODE].startFp      = mnodeStartSystem;
+  tsModule[TSDB_MOD_MNODE].stopFp       = mnodeStopSystem;
 
   tsModule[TSDB_MOD_HTTP].enable       = (tsEnableHttpModule == 1);
   tsModule[TSDB_MOD_HTTP].name         = "http";
@@ -94,8 +93,8 @@ void dnodeCleanUpModules() {
     }
   }
 
-  if (tsModule[TSDB_MOD_MGMT].enable && tsModule[TSDB_MOD_MGMT].cleanUpFp) {
-    (*tsModule[TSDB_MOD_MGMT].cleanUpFp)();
+  if (tsModule[TSDB_MOD_MNODE].enable && tsModule[TSDB_MOD_MNODE].cleanUpFp) {
+    (*tsModule[TSDB_MOD_MNODE].cleanUpFp)();
   }
 }
 
@@ -125,7 +124,7 @@ void dnodeStartModules() {
 }
 
 void dnodeProcessModuleStatus(uint32_t moduleStatus) {
-  for (int32_t module = TSDB_MOD_MGMT; module < TSDB_MOD_HTTP; ++module) {
+  for (int32_t module = TSDB_MOD_MNODE; module < TSDB_MOD_HTTP; ++module) {
     bool enableModule = moduleStatus & (1 << module);
     if (!tsModule[module].enable && enableModule) {
       dPrint("module status:%u is received, start %s module", tsModuleStatus, tsModule[module].name);

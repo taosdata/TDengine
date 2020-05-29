@@ -12,8 +12,8 @@ system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode2 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
 system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 5
