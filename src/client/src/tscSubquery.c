@@ -1765,6 +1765,8 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     }
     
     pSql->pSubs[i] = pNew;
+    pNew->fetchFp = pNew->fp;
+    
     tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
   }
   

@@ -1289,7 +1289,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pAlterTableMsg->numOfCols = htons(tscNumOfFields(pQueryInfo));
   SSchema *pSchema = pAlterTableMsg->schema;
-  for (int i = 0; i < pAlterTableMsg->numOfCols; ++i) {
+  for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
 
     pSchema->type = pField->type;

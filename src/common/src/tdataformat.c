@@ -196,6 +196,7 @@ void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type) {
   STagCol key = {colId,0,0};
   STagCol * stCol = taosbsearch(&key, pBase, nCols, sizeof(STagCol), compTagId, TD_EQ);
   if (NULL == stCol) {
+    type = TSDB_DATA_TYPE_NULL;
     return NULL;
   }
   

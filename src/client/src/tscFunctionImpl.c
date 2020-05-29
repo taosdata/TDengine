@@ -1909,7 +1909,8 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
         __ctx->tag = (tVariant) {.nType = TSDB_DATA_TYPE_BIGINT, .i64Key = tsKey};
       }
       
-      tVariantDump(&pTagInfo->pTagCtxList[i]->tag, dst->pTags + size, pTagInfo->pTagCtxList[i]->tag.nType);
+      //todo? error ??
+      tVariantDump(&pTagInfo->pTagCtxList[i]->tag, dst->pTags + size, pTagInfo->pTagCtxList[i]->tag.nType, false);
       size += pTagInfo->pTagCtxList[i]->outputBytes;
     }
   }
@@ -2981,14 +2982,7 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputBytes == pCtx->outputBytes);
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
-    char* output = pCtx->aOutputBuf;
-  
-    if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-      varDataSetLen(output, pCtx->tag.nLen);
-      tVariantDump(&pCtx->tag, varDataVal(output), pCtx->outputType);
-    } else {
-      tVariantDump(&pCtx->tag, output, pCtx->outputType);
-    }
+    tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
     
     pCtx->aOutputBuf += pCtx->outputBytes;
   }
@@ -2997,14 +2991,7 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
 static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   INC_INIT_VAL(pCtx, 1);
   
-  char* output = pCtx->aOutputBuf;
-  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    *(int16_t*) output = pCtx->tag.nLen;
-    output += VARSTR_HEADER_SIZE;
-  }
-  
-  // todo : handle the binary/nchar data
-  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
   pCtx->aOutputBuf += pCtx->outputBytes;
 }
 
@@ -3017,30 +3004,12 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
  */
 static void tag_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  
-  char* output = pCtx->aOutputBuf;
-  
-  // todo refactor to dump length presented string(var string)
-  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    *(int16_t*) output = pCtx->tag.nLen;
-    output += VARSTR_HEADER_SIZE;
-  }
-  
-  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
 }
 
 static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
-  
-  char* output = pCtx->aOutputBuf;
-  
-  // todo refactor to dump length presented string(var string)
-  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    *(int16_t*) output = pCtx->tag.nLen;
-    output += VARSTR_HEADER_SIZE;
-  }
-  
-  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
 }
 
 static void copy_function(SQLFunctionCtx *pCtx) {
@@ -3991,7 +3960,7 @@ static void interp_function(SQLFunctionCtx *pCtx) {
   
         SET_VAL(pCtx, pCtx->size, 1);
       } else if (pInfo->type == TSDB_FILL_SET_VALUE) {
-        tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType);
+        tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType, true);
       } else if (pInfo->type == TSDB_FILL_PREV) {
         char *data = GET_INPUT_CHAR_INDEX(pCtx, 0);
         assignVal(pCtx->aOutputBuf, data, pCtx->outputBytes, pCtx->outputType);

@@ -209,7 +209,7 @@ bool like_str(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 bool like_nchar(SColumnFilterElem* pFilter, char* minval, char *maxval) {
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
   
-  return WCSPatternMatch((wchar_t*) pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
+  return WCSPatternMatch((wchar_t*)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
 }
 
 ////////////////////////////////////////////////////////////////

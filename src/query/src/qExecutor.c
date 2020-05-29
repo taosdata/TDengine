@@ -55,12 +55,6 @@
   ((query)->colList[(query)->pSelectExpr[colidx].base.colInfo.colIndex].bytes)
 #define GET_COLUMN_TYPE(query, colidx) ((query)->colList[(query)->pSelectExpr[colidx].base.colInfo.colIndex].type)
 
-typedef struct SPointInterpoSupporter {
-  int32_t numOfCols;
-  SArray* prev;
-  SArray* next;
-} SPointInterpoSupporter;
-
 typedef enum {
   // when query starts to execute, this status will set
   QUERY_NOT_COMPLETED = 0x1u,
@@ -121,111 +115,6 @@ static void buildTagQueryResult(SQInfo *pQInfo);
 
 static int32_t setAdditionalInfo(SQInfo *pQInfo, STableId *pTableId, STableQueryInfo *pTableQueryInfo);
 static int32_t flushFromResultBuf(SQInfo *pQInfo);
-
-bool getNeighborPoints(SQInfo *pQInfo, void *pMeterObj, SPointInterpoSupporter *pPointInterpSupporter) {
-#if 0
-  SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
-
-  if (!isPointInterpoQuery(pQuery)) {
-    return false;
-  }
-
-  /*
-   * for interpolate point query, points that are directly before/after the specified point are required
-   */
-  if (isFirstLastRowQuery(pQuery)) {
-    assert(!QUERY_IS_ASC_QUERY(pQuery));
-  } else {
-    assert(QUERY_IS_ASC_QUERY(pQuery));
-  }
-  assert(pPointInterpSupporter != NULL && pQuery->skey == pQuery->ekey);
-
-  SCacheBlock *pBlock = NULL;
-
-  qTrace("QInfo:%p get next data point, fileId:%d, slot:%d, pos:%d", GET_QINFO_ADDR(pQuery), pQuery->fileId,
-         pQuery->slot, pQuery->pos);
-
-  // save the point that is directly after or equals to the specified point
-  getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pNextPoint, pQuery->pos);
-
-  /*
-   * 1. for last_row query, return immediately.
-   * 2. the specified timestamp equals to the required key, interpolation according to neighbor points is not necessary
-   *    for interp query.
-   */
-  TSKEY actualKey = *(TSKEY *)pPointInterpSupporter->pNextPoint[0];
-  if (isFirstLastRowQuery(pQuery) || actualKey == pQuery->skey) {
-    setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
-
-    /*
-     * the retrieved ts may not equals to pMeterObj->lastKey due to cache re-allocation
-     * set the pQuery->ekey/pQuery->skey/pQuery->lastKey to be the new value.
-     */
-    if (pQuery->ekey != actualKey) {
-      pQuery->skey = actualKey;
-      pQuery->ekey = actualKey;
-      pQuery->lastKey = actualKey;
-      pSupporter->rawSKey = actualKey;
-      pSupporter->rawEKey = actualKey;
-    }
-    return true;
-  }
-
-  /* the qualified point is not the first point in data block */
-  if (pQuery->pos > 0) {
-    int32_t prevPos = pQuery->pos - 1;
-
-    /* save the point that is directly after the specified point */
-    getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, prevPos);
-  } else {
-    __block_search_fn_t searchFn = vnodeSearchKeyFunc[pMeterObj->searchAlgorithm];
-
-//    savePointPosition(&pRuntimeEnv->startPos, pQuery->fileId, pQuery->slot, pQuery->pos);
-
-    // backwards movement would not set the pQuery->pos correct. We need to set it manually later.
-    moveToNextBlock(pRuntimeEnv, QUERY_DESC_FORWARD_STEP, searchFn, true);
-
-    /*
-     * no previous data exists.
-     * reset the status and load the data block that contains the qualified point
-     */
-    if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-      qTrace("QInfo:%p no previous data block, start fileId:%d, slot:%d, pos:%d, qrange:%" PRId64 "-%" PRId64
-             ", out of range",
-             GET_QINFO_ADDR(pQuery), pRuntimeEnv->startPos.fileId, pRuntimeEnv->startPos.slot,
-             pRuntimeEnv->startPos.pos, pQuery->skey, pQuery->ekey);
-
-      // no result, return immediately
-      setQueryStatus(pQuery, QUERY_COMPLETED);
-      return false;
-    } else {  // prev has been located
-      if (pQuery->fileId >= 0) {
-        pQuery->pos = pQuery->pBlock[pQuery->slot].numOfRows - 1;
-        getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, pQuery->pos);
-
-        qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
-               pQuery->fileId, pQuery->slot, pQuery->pos, pQuery->pos);
-      } else {
-        // moveToNextBlock make sure there is a available cache block, if exists
-        assert(vnodeIsDatablockLoaded(pRuntimeEnv, pMeterObj, -1, true) == DISK_BLOCK_NO_NEED_TO_LOAD);
-        pBlock = &pRuntimeEnv->cacheBlock;
-
-        pQuery->pos = pBlock->numOfRows - 1;
-        getOneRowFromDataBlock(pRuntimeEnv, pPointInterpSupporter->pPrevPoint, pQuery->pos);
-
-        qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
-               pQuery->fileId, pQuery->slot, pBlock->numOfRows - 1, pQuery->pos);
-      }
-    }
-  }
-
-  pQuery->skey = *(TSKEY *)pPointInterpSupporter->pPrevPoint[0];
-  pQuery->ekey = *(TSKEY *)pPointInterpSupporter->pNextPoint[0];
-  pQuery->lastKey = pQuery->skey;
-#endif
-  return true;
-}
 
 bool doFilterData(SQuery *pQuery, int32_t elemPos) {
   for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
@@ -944,11 +833,9 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
   SQuery *        pQuery = pRuntimeEnv->pQuery;
 
-  SColumnInfoData *pColInfo = NULL;
-  
   TSKEY *primaryKeyCol = NULL;
   if (pDataBlock != NULL) {
-    pColInfo = taosArrayGet(pDataBlock, 0);
+    SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, 0);
     primaryKeyCol = (TSKEY *)(pColInfo->pData);
   }
 
@@ -1222,9 +1109,6 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
         continue;
       }
 
-      // all startOffset are identical
-//      offset -= pCtx[0].startOffset;
-
       SWindowStatus *pStatus = getTimeWindowResStatus(pWindowResInfo, curTimeWindow(pWindowResInfo));
       doRowwiseApplyFunctions(pRuntimeEnv, pStatus, &win, offset);
 
@@ -1350,10 +1234,8 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY 
 
   if (tpField != NULL) {
     pCtx->preAggVals.isSet  = true;
-    pCtx->preAggVals.statis = *pStatis;
-    if (pCtx->preAggVals.statis.numOfNull == -1) {
-      pCtx->preAggVals.statis.numOfNull = pBlockInfo->rows;  // todo :can not be -1
-    }
+    pCtx->preAggVals.statis = *tpField;
+    assert(pCtx->preAggVals.statis.numOfNull <= pBlockInfo->rows);
   } else {
     pCtx->preAggVals.isSet = false;
   }
@@ -1747,54 +1629,6 @@ void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int6
   }
 }
 
-static UNUSED_FUNC bool doGetQueryPos(TSKEY key, SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupporter) {
-#if 0
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
-  SMeterObj *       pMeterObj = pRuntimeEnv->pTabObj;
-  
-  /* key in query range. If not, no qualified in disk file */
-  if (key != -1 && key <= pQuery->window.ekey) {
-    if (isPointInterpoQuery(pQuery)) { /* no qualified data in this query range */
-      return getNeighborPoints(pQInfo, pMeterObj, pPointInterpSupporter);
-    } else {
-      return true;
-    }
-  } else {  // key > pQuery->window.ekey, abort for normal query, continue for interp query
-    if (isPointInterpoQuery(pQuery)) {
-      return getNeighborPoints(pQInfo, pMeterObj, pPointInterpSupporter);
-    } else {
-      return false;
-    }
-  }
-#endif
-  return true;
-}
-
-static UNUSED_FUNC bool doSetDataInfo(SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupporter, void *pMeterObj,
-                                      TSKEY nextKey) {
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
-
-  if (isFirstLastRowQuery(pQuery)) {
-    /*
-     * if the pQuery->window.skey != pQuery->window.ekey for last_row query,
-     * the query range is existed, so set them both the value of nextKey
-     */
-    if (pQuery->window.skey != pQuery->window.ekey) {
-      assert(pQuery->window.skey >= pQuery->window.ekey && !QUERY_IS_ASC_QUERY(pQuery) &&
-             nextKey >= pQuery->window.ekey && nextKey <= pQuery->window.skey);
-
-      pQuery->window.skey = nextKey;
-      pQuery->window.ekey = nextKey;
-    }
-
-    return getNeighborPoints(pQInfo, pMeterObj, pPointInterpSupporter);
-  } else {
-    return true;
-  }
-}
-
 static void setScanLimitationByResultBuffer(SQuery *pQuery) {
   if (isTopBottomQuery(pQuery)) {
     pQuery->checkBuffer = 0;
@@ -1988,159 +1822,6 @@ static UNUSED_FUNC void doSetInterpVal(SQLFunctionCtx *pCtx, TSKEY ts, int16_t t
   }
 
   pCtx->param[index].nLen = len;
-}
-
-/**
- * param[1]: default value/previous value of specified timestamp
- * param[2]: next value of specified timestamp
- * param[3]: denotes if the result is a precious result or interpolation results
- *
- * @param pQInfo
- * @param pQInfo
- * @param pInterpoRaw
- */
-void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointInterpSupport) {
-#if 0
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
-
-  // not point interpolation query, abort
-  if (!isPointInterpoQuery(pQuery)) {
-    return;
-  }
-
-  int32_t count = 1;
-  TSKEY key = *(TSKEY *)pPointInterpSupport->next[0];
-
-  if (key == pQuery->window.skey) {
-    // the queried timestamp has value, return it directly without interpolation
-    for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-      tVariantCreateFromBinary(&pRuntimeEnv->pCtx[i].param[3], (char *)&count, sizeof(count), TSDB_DATA_TYPE_INT);
-
-      pRuntimeEnv->pCtx[i].param[0].i64Key = key;
-      pRuntimeEnv->pCtx[i].param[0].nType = TSDB_DATA_TYPE_BIGINT;
-    }
-  } else {
-    // set the direct previous(next) point for process
-    count = 2;
-
-    if (pQuery->fillType == TSDB_FILL_SET_VALUE) {
-      for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-        SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
-
-        // only the function of interp needs the corresponding information
-        if (pCtx->functionId != TSDB_FUNC_INTERP) {
-          continue;
-        }
-
-        pCtx->numOfParams = 4;
-
-        SInterpInfo *pInterpInfo = (SInterpInfo *)pRuntimeEnv->pCtx[i].aOutputBuf;
-        pInterpInfo->pInterpDetail = calloc(1, sizeof(SInterpInfoDetail));
-
-        SInterpInfoDetail *pInterpDetail = pInterpInfo->pInterpDetail;
-
-        // for primary timestamp column, set the flag
-        if (pQuery->pSelectExpr[i].base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-          pInterpDetail->primaryCol = 1;
-        }
-
-        tVariantCreateFromBinary(&pCtx->param[3], (char *)&count, sizeof(count), TSDB_DATA_TYPE_INT);
-
-        if (isNull((char *)&pQuery->fillVal[i], pCtx->inputType)) {
-          pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
-        } else {
-          tVariantCreateFromBinary(&pCtx->param[1], (char *)&pQuery->fillVal[i], pCtx->inputBytes, pCtx->inputType);
-        }
-
-        pInterpDetail->ts = pQuery->window.skey;
-        pInterpDetail->type = pQuery->fillType;
-      }
-    } else {
-      TSKEY prevKey = *(TSKEY *)pPointInterpSupport->pPrevPoint[0];
-      TSKEY nextKey = *(TSKEY *)pPointInterpSupport->pNextPoint[0];
-
-      for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-        SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
-
-        // tag column does not need the interp environment
-        if (pQuery->pSelectExpr[i].base.functionId == TSDB_FUNC_TAG) {
-          continue;
-        }
-
-        int32_t      colInBuf = 0;  // pQuery->pSelectExpr[i].base.colInfo.colIdxInBuf;
-        SInterpInfo *pInterpInfo = (SInterpInfo *)pRuntimeEnv->pCtx[i].aOutputBuf;
-
-        pInterpInfo->pInterpDetail = calloc(1, sizeof(SInterpInfoDetail));
-        SInterpInfoDetail *pInterpDetail = pInterpInfo->pInterpDetail;
-
-        //        int32_t type = GET_COLUMN_TYPE(pQuery, i);
-        int32_t type = 0;
-        assert(0);
-
-        // for primary timestamp column, set the flag
-        if (pQuery->pSelectExpr[i].base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-          pInterpDetail->primaryCol = 1;
-        } else {
-          doSetInterpVal(pCtx, prevKey, type, 1, pPointInterpSupport->pPrevPoint[colInBuf]);
-          doSetInterpVal(pCtx, nextKey, type, 2, pPointInterpSupport->pNextPoint[colInBuf]);
-        }
-
-        tVariantCreateFromBinary(&pRuntimeEnv->pCtx[i].param[3], (char *)&count, sizeof(count), TSDB_DATA_TYPE_INT);
-
-        pInterpDetail->ts = pQInfo->runtimeEnv.pQuery->window.skey;
-        pInterpDetail->type = pQuery->fillType;
-      }
-    }
-  }
-#endif
-}
-
-void pointInterpSupporterInit(SQuery *pQuery, SPointInterpoSupporter *pInterpoSupport) {
-#if 0
-  if (isPointInterpoQuery(pQuery)) {
-    pInterpoSupport->pPrevPoint = malloc(pQuery->numOfCols * POINTER_BYTES);
-    pInterpoSupport->pNextPoint = malloc(pQuery->numOfCols * POINTER_BYTES);
-
-    pInterpoSupport->numOfCols = pQuery->numOfCols;
-
-    /* get appropriated size for one row data source*/
-    int32_t len = 0;
-    for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
-      len += pQuery->colList[i].bytes;
-    }
-
-    //    assert(PRIMARY_TSCOL_LOADED(pQuery));
-
-    void *prev = calloc(1, len);
-    void *next = calloc(1, len);
-
-    int32_t offset = 0;
-
-    for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
-      pInterpoSupport->pPrevPoint[i] = prev + offset;
-      pInterpoSupport->pNextPoint[i] = next + offset;
-
-      offset += pQuery->colList[i].bytes;
-    }
-  }
-#endif
-}
-
-void pointInterpSupporterDestroy(SPointInterpoSupporter *pPointInterpSupport) {
-#if 0
-  if (pPointInterpSupport->numOfCols <= 0 || pPointInterpSupport->pPrevPoint == NULL) {
-    return;
-  }
-
-  tfree(pPointInterpSupport->pPrevPoint[0]);
-  tfree(pPointInterpSupport->pNextPoint[0]);
-
-  tfree(pPointInterpSupport->pPrevPoint);
-  tfree(pPointInterpSupport->pNextPoint);
-
-  pPointInterpSupport->numOfCols = 0;
-#endif
 }
 
 static int32_t getInitialPageNum(SQInfo *pQInfo) {
@@ -4331,9 +4012,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
 
-//  SPointInterpoSupporter interpInfo = {0};
-//  pointInterpSupporterInit(pQuery, &interpInfo);
-
   /*
    * in case of last_row query without query range, we set the query timestamp to be
    * STable->lastKey. Otherwise, keep the initial query time range unchanged.
@@ -4345,13 +4023,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
 //      return TSDB_CODE_SUCCESS;
 //    }
 //  }
-
-  /*
-   * here we set the value for before and after the specified time into the
-   * parameter for interpolation query
-   */
-//  pointInterpSupporterSetData(pQInfo, &interpInfo);
-//  pointInterpSupporterDestroy(&interpInfo);
 
   if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
     SFillColInfo* pColInfo = taosCreateFillColInfo(pQuery);
@@ -4429,6 +4100,7 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
   
     assert(pTableQueryInfo != NULL);
     restoreIntervalQueryRange(pRuntimeEnv, pTableQueryInfo);
+    printf("table:%d, groupIndex:%d, rows:%d\n", pTableQueryInfo->id.tid, pTableQueryInfo->groupIdx, blockInfo.tid);
 
     SDataStatis *pStatis = NULL;
     
@@ -6340,7 +6012,7 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
           memcpy(dst, data, varDataTLen(data));
         } else {// todo refactor, return the true length of binary|nchar data
           tsdbGetTableTagVal(pQInfo->tsdb, &item->id, pExprInfo[j].base.colInfo.colId, &type, &bytes, &data);
-          assert(bytes == pExprInfo[j].bytes && type == pExprInfo[j].type);
+          assert(bytes <= pExprInfo[j].bytes && type == pExprInfo[j].type);
           
           char* dst = pQuery->sdata[j]->data + i * bytes;
           if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
