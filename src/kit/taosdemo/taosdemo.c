@@ -64,8 +64,9 @@ static struct argp_option options[] = {
   {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                              12},
   {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
   {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
-  {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order",                                                    1},
-  {0, 'R', "rate",                 0, "Out of order data's rate--if order=1 Default 10",                                                                   1},
+  {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order",                                                   1},
+  {0, 'R', "rate",                     0, "Out of order data's rate--if order=1 Default 10",                                                                  1},
+  {0, 'D', "delete table",             0, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database",             1},
   {0}};
 
 /* Used by main to communicate with parse_opt. */
@@ -90,6 +91,7 @@ typedef struct DemoArguments {
   int    abort;
   int    order;
   int    rate;
+  int    method_of_delete;
   char **arg_list;
 } SDemoArguments;
 
@@ -200,10 +202,16 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'R':
       arguments->rate = atoi(arg);
-      printf("%d", arguments->rate);
       if (arguments->order == 1 && (arguments->rate > 50 || arguments->rate <= 0))
       {
         arguments->rate = 10;
+      }
+      break;
+    case 'D':
+      arguments->method_of_delete = atoi(arg);
+      if (arguments->method_of_delete < 0 || arguments->method_of_delete > 3)
+      {
+        arguments->method_of_delete = 0;
       }
       break;
     case OPT_ABORT:
@@ -284,6 +292,8 @@ void *readMetric(void *sarg);
 
 void *syncWrite(void *sarg);
 
+void *deleteTable();
+
 void *asyncWrite(void *sarg);
 
 void generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary);
@@ -324,6 +334,7 @@ int main(int argc, char *argv[]) {
                                 0,               // abort
                                 0,               // order
                                 0,               // rate
+                                0,               // method_of_delete
                                 NULL             // arg_list
                                 };
 
@@ -360,6 +371,7 @@ int main(int argc, char *argv[]) {
   int ncols_per_record = arguments.num_of_CPR;
   int order = arguments.order;
   int rate = arguments.rate;
+  int method_of_delete = arguments.method_of_delete;
   int ntables = arguments.num_of_tables;
   int threads = arguments.num_of_threads;
   int nrecords_per_table = arguments.num_of_DPT;
@@ -409,10 +421,11 @@ int main(int argc, char *argv[]) {
   printf("# Table prefix:                      %s\n", tb_prefix);
   if (order == 1)
   {
-      printf("# Data order:                        %d\n", order);
-      printf("# Data out of order rate:            %d\n", rate);
+    printf("# Data order:                        %d\n", order);
+    printf("# Data out of order rate:            %d\n", rate);
 
   }
+  printf("# Delete method:                     %d\n", method_of_delete);
   printf("# Test time:                         %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   printf("###################################################################\n\n");
@@ -428,12 +441,18 @@ int main(int argc, char *argv[]) {
   fprintf(fp, "# Binary Length(If applicable):      %d\n",
           (strcasestr(dataString, "BINARY") != NULL) ? len_of_binary : -1);
   fprintf(fp, "# Number of Columns per record:      %d\n", ncols_per_record);
-  fprintf(fp, "# Number of Threads:             %d\n", threads);
+  fprintf(fp, "# Number of Threads:                 %d\n", threads);
   fprintf(fp, "# Number of Tables:                  %d\n", ntables);
   fprintf(fp, "# Number of Data per Table:          %d\n", nrecords_per_table);
   fprintf(fp, "# Records/Request:                   %d\n", nrecords_per_request);
   fprintf(fp, "# Database name:                     %s\n", db_name);
   fprintf(fp, "# Table prefix:                      %s\n", tb_prefix);
+  if (order == 1)
+  {
+    printf("# Data order:                        %d\n", order);
+    printf("# Data out of order rate:            %d\n", rate);
+
+  }
   fprintf(fp, "# Test time:                         %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   fprintf(fp, "###################################################################\n\n");
@@ -588,6 +607,55 @@ int main(int argc, char *argv[]) {
   free(pids);
   free(infos);
   fclose(fp);
+
+  if (method_of_delete != 0)
+  {
+    TAOS *dtaos = taos_connect(ip_addr, user, pass, db_name, port);
+    double dts = getCurrentTime();
+    printf("Deleteing %d table(s)......\n", ntables);
+
+    switch (method_of_delete)
+    {
+    case 1:
+      // delete by table
+      /* Create all the tables; */
+      for (int i = 0; i < ntables; i++) {
+        sprintf(command, "drop table %s.%s%d;", db_name, tb_prefix, i);
+        queryDB(dtaos, command);
+      }
+      break;
+    case 2:
+      // delete by stable
+      if (!use_metric) {
+        break;
+      }
+      else
+      {
+        sprintf(command, "drop table %s.meters;", db_name);
+        queryDB(dtaos, command);
+      }
+      break;
+    case 3:
+      // delete by database
+      sprintf(command, "drop database %s;", db_name);
+      queryDB(dtaos, command);
+      break;
+    default:
+      break;
+    }
+
+    printf("Table(s) droped!\n");
+    taos_close(dtaos);
+
+    double dt = getCurrentTime() - dts;
+    printf("Spent %.4f seconds to drop %d tables\n", dt, ntables);
+
+    FILE *fp = fopen(arguments.output_file, "a");
+    fprintf(fp, "Spent %.4f seconds to drop %d tables\n", dt, ntables);
+    fclose(fp);
+
+  }
+  
 
   if (!insert_only) {
     // query data
