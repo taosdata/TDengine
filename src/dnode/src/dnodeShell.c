@@ -168,6 +168,44 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   return rpcRsp.code;
 }
 
+void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid) {
+  dTrace("vgId:%d, sid:%d send config table msg to mnode", vgId, sid);
+
+  int32_t contLen = sizeof(SDMConfigTableMsg);
+  SDMConfigTableMsg *pMsg = rpcMallocCont(contLen);
+
+  pMsg->dnodeId = htonl(dnodeGetDnodeId());
+  pMsg->vgId = htonl(vgId);
+  pMsg->sid = htonl(sid);
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pMsg;
+  rpcMsg.contLen = contLen;
+  rpcMsg.msgType = TSDB_MSG_TYPE_DM_CONFIG_TABLE;
+
+  SRpcMsg rpcRsp = {0};
+  dnodeSendMsgToDnodeRecv(&rpcMsg, &rpcRsp);
+  terrno = rpcRsp.code;
+  
+  if (rpcRsp.code != 0) {
+    rpcFreeCont(rpcRsp.pCont);
+    dError("vgId:%d, sid:%d failed to config table from mnode", vgId, sid);
+    return NULL;
+  } else {
+    dPrint("vgId:%d, sid:%d config table msg is received", vgId, sid);
+    
+    // delete this after debug finished
+    SMDCreateTableMsg *pTable = rpcRsp.pCont;
+    int16_t   numOfColumns = htons(pTable->numOfColumns);
+    int16_t   numOfTags = htons(pTable->numOfTags);
+    int32_t   sid = htonl(pTable->sid);
+    uint64_t  uid = htobe64(pTable->uid);
+    dPrint("table:%s, numOfColumns:%d numOfTags:%d sid:%d uid:%d", pTable->tableId, numOfColumns, numOfTags, sid, uid);
+
+    return rpcRsp.pCont;
+  }
+}
+
 SDnodeStatisInfo dnodeGetStatisInfo() {
   SDnodeStatisInfo info = {0};
   if (dnodeGetRunStatus() == TSDB_DNODE_RUN_STATUS_RUNING) {
