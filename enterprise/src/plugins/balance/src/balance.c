@@ -912,7 +912,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
 
 static void balanceMonitorDnodeModule() {
   int32_t numOfMnodes = mnodeGetMnodesNum();
-  if (numOfMnodes >= tsNumOfMPeers) return;
+  if (numOfMnodes >= tsNumOfMnodes) return;
 
   for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
     SDnodeObj *pDnode = tsBalanceDnodeList[i];
@@ -926,10 +926,10 @@ static void balanceMonitorDnodeModule() {
       continue;
     }
 
-    mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMPeers);
+    mLPrint("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMnodes);
     mnodeAddMnode(pDnode->dnodeId);
     
     numOfMnodes = mnodeGetMnodesNum();
-    if (numOfMnodes >= tsNumOfMPeers) return;
+    if (numOfMnodes >= tsNumOfMnodes) return;
   }
 }
