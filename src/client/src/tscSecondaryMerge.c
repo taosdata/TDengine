@@ -231,13 +231,13 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
       idx += 1;
     }
   }
-  assert(idx >= pReducer->numOfBuffer);
+
   if (idx == 0) {
     free(pReducer);
     return;
   }
 
-  pReducer->numOfBuffer = idx;
+  pReducer->numOfBuffer = idx; // the actual entries that has result for merge
 
   SCompareParam *param = malloc(sizeof(SCompareParam));
   param->pLocalData = pReducer->pLocalDataSrc;

@@ -1185,7 +1185,7 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   char *    pStart, *pMsg;
   int       msgLen;
   STaosRsp *pRsp;
-
+  
   mgmtSaveQueryStreamList(cont, contLen, pConn);
 
   pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_HEARTBEAT_RSP, 128);
@@ -1202,6 +1202,10 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   pHBRsp->streamId = pConn->streamId;
   pConn->streamId = 0;
   pHBRsp->killConnection = pConn->killConnection;
+
+  mgmtGetDnodeOnlineNum(&pHBRsp->totalDnodes, &pHBRsp->onlineDnodes);
+  pHBRsp->totalDnodes = htonl(pHBRsp->totalDnodes);
+  pHBRsp->onlineDnodes = htonl(pHBRsp->onlineDnodes);
 
   if (pConn->usePublicIp) {
     if (pSdbPublicIpList != NULL) {

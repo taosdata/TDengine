@@ -3678,7 +3678,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
 
         str++;
 
-        int32_t ret = WCSPatternMatch(&patterStr[i], str, wcslen(str), pInfo);
+        int32_t ret = WCSPatternMatch(&patterStr[i], str, twcslen(str), pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }

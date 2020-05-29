@@ -106,12 +106,12 @@ static int32_t tscGetMgmtConnMaxRetryTimes() {
   return tscMgmtIpList.numOfIps * factor;
 }
 
-void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
+int32_t tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
-  if (pObj == NULL) return;
+  if (pObj == NULL) return TSDB_CODE_APP_ERROR;
   if (pObj != pObj->signature) {
     tscError("heart beat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
-    return;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SSqlObj *pSql = pObj->pHb;
@@ -128,11 +128,19 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->queryId) tscKillQuery(pObj, pRsp->queryId);
       if (pRsp->streamId) tscKillStream(pObj, pRsp->streamId);
     }
+    
+    if (pRes->data == NULL) {
+      pRes->data = calloc(2, sizeof(int32_t));
+    }
+    
+    ((int32_t*)pRes->data)[0] = htonl(pRsp->totalDnodes);
+    ((int32_t*)pRes->data)[1] = htonl(pRsp->onlineDnodes);
   } else {
     tscTrace("heart beat failed, code:%d", code);
   }
 
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+  return code;
 }
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
