@@ -238,9 +238,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   } else {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
     if (rpcMsg->code == TSDB_CODE_NOT_ACTIVE_TABLE || rpcMsg->code == TSDB_CODE_INVALID_TABLE_ID ||
-        rpcMsg->code == TSDB_CODE_INVALID_VNODE_ID || rpcMsg->code == TSDB_CODE_NOT_ACTIVE_VNODE ||
-        rpcMsg->code == TSDB_CODE_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_NOT_ACTIVE_TABLE ||
-        rpcMsg->code == TSDB_CODE_TABLE_ID_MISMATCH) {
+        rpcMsg->code == TSDB_CODE_INVALID_VGROUP_ID || rpcMsg->code == TSDB_CODE_NOT_ACTIVE_VNODE ||
+        rpcMsg->code == TSDB_CODE_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_TABLE_ID_MISMATCH) {
       /*
        * not_active_table: 1. the virtual node may fail to create table, since the procedure of create table is asynchronized,
        *                   the virtual node may have not create table till now, so try again by using the new metermeta.

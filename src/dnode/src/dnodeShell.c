@@ -84,7 +84,7 @@ int32_t dnodeInitShell() {
   rpcInit.label        = "SHELL";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp          = dnodeProcessMsgFromShell;
-  rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
+  rpcInit.sessions     = tsMaxShellConns;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.afp          = dnodeRetrieveUserAuthInfo;
