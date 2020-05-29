@@ -260,6 +260,8 @@ typedef struct {
   int    ncols_per_record;
   char **data_type;
   int    len_of_binary;
+  int data_of_order;
+  int data_of_rate;
 
   sem_t *mutex_sem;
   int   *notFinished;
@@ -774,11 +776,11 @@ void *syncWrite(void *sarg) {
         int rand_num = rand() % 100;
         if (winfo->data_of_order ==1 && rand_num < winfo->data_of_rate)
         {
-          printf("insert out of order data: %d, time: %ld\n", rand_num, tmp_time - rand() % 100000);
-          generateData(data, data_type, ncols_per_record, tmp_time - rand() % 1000, len_of_binary);
+          long d = tmp_time - rand() % 1000000 + rand_num;
+          generateData(data, data_type, ncols_per_record, d, len_of_binary);
         } else 
         {
-          generateData(data, data_type, ncols_per_record, tmp_time++, len_of_binary);
+          generateData(data, data_type, ncols_per_record, tmp_time += 1000, len_of_binary);
         }
         pstr += sprintf(pstr, " %s", data);
         inserted++;
@@ -818,6 +820,8 @@ void *asyncWrite(void *sarg) {
     tb_info->mutex_sem = &(winfo->mutex_sem);
     tb_info->notFinished = &(winfo->notFinished);
     tb_info->lock_sem = &(winfo->lock_sem);
+    tb_info->data_of_order = winfo->data_of_order;
+    tb_info->data_of_rate = winfo->data_of_rate;
 
     /* char buff[BUFFER_SIZE] = "\0"; */
     /* sprintf(buff, "insert into %s values (0, 0)", tb_info->tb_name); */
@@ -859,7 +863,15 @@ void callBack(void *param, TAOS_RES *res, int code) {
   pstr += sprintf(pstr, "insert into %s values", tb_info->tb_name);
 
   for (int i = 0; i < tb_info->nrecords_per_request; i++) {
-    generateData(data, datatype, ncols_per_record, tmp_time++, len_of_binary);
+    int rand_num = rand() % 100;
+    if (tb_info->data_of_order ==1 && rand_num < tb_info->data_of_rate)
+    {
+      long d = tmp_time - rand() % 1000000 + rand_num;
+      generateData(data, datatype, ncols_per_record, d, len_of_binary);
+    } else 
+    {
+      generateData(data, datatype, ncols_per_record, tmp_time += 1000, len_of_binary);
+    }
     pstr += sprintf(pstr, "%s", data);
     tb_info->counter++;
 
