@@ -18,24 +18,24 @@
 #include "taoserror.h"
 #include "tqueue.h"
 
-typedef struct _taos_qnode {
+typedef struct STaosQnode {
   int                 type;
-  struct _taos_qnode *next;
+  struct STaosQnode  *next;
   char                item[];
 } STaosQnode;
 
-typedef struct _taos_q {
+typedef struct STaosQueue {
   int32_t             itemSize;
   int32_t             numOfItems;
-  struct _taos_qnode *head;
-  struct _taos_qnode *tail;
-  struct _taos_q     *next;    // for queue set
-  struct _taos_qset  *qset;    // for queue set
+  struct STaosQnode  *head;
+  struct STaosQnode  *tail;
+  struct STaosQueue  *next;    // for queue set
+  struct STaosQset   *qset;    // for queue set
   void               *ahandle; // for queue set
   pthread_mutex_t     mutex;  
 } STaosQueue;
 
-typedef struct _taos_qset {
+typedef struct STaosQset {
   STaosQueue        *head;
   STaosQueue        *current;
   pthread_mutex_t    mutex;
@@ -44,7 +44,7 @@ typedef struct _taos_qset {
   tsem_t             sem;
 } STaosQset;
 
-typedef struct _taos_qall {
+typedef struct STaosQall {
   STaosQnode   *current;
   STaosQnode   *start;
   int32_t       itemSize;
