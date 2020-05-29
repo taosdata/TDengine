@@ -393,13 +393,13 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     pVnode->sync = NULL;
   }
 
-  if (pVnode->wal) 
-    walClose(pVnode->wal);
-  pVnode->wal = NULL;
-
   if (pVnode->tsdb)
     tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
+
+  if (pVnode->wal) 
+    walClose(pVnode->wal);
+  pVnode->wal = NULL;
 
   if (pVnode->cq) 
     cqClose(pVnode->cq);
