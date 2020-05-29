@@ -132,6 +132,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   int32_t size = sizeof(SCMShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
   SCMShowRsp *pShowRsp = rpcMallocCont(size);
   if (pShowRsp == NULL) {
+    mnodeFreeShowObj(pShow);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
   pShowRsp->qhandle = htobe64((uint64_t) pShow);

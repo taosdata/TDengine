@@ -12,9 +12,9 @@ system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1
 system sh/cfg.sh -n dnode3 -c wallevel -v 1
 
-system sh/cfg.sh -n dnode1 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode2 -c numOfMpeers -v 3
-system sh/cfg.sh -n dnode3 -c numOfMpeers -v 3
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
 
 print ========== step1
 system sh/exec_up.sh -n dnode1 -s start

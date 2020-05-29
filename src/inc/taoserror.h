@@ -72,9 +72,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_RESOURCE,                0, 0x0018, "no resource"
 TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,            0, 0x0019, "operations not support")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_OPTION,             0, 0x001A, "invalid option")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_CONFIGURED,             0, 0x001B, "not configured")
-TAOS_DEFINE_ERROR(TSDB_CODE_NODE_OFFLINE,               0, 0x001C, "node offline")
-TAOS_DEFINE_ERROR(TSDB_CODE_NETWORK_UNAVAIL,            0, 0x001D, "network unavailable")
-TAOS_DEFINE_ERROR(TSDB_CODE_AUTH_REQUIRED,              0, 0x001E, "auth required")
+TAOS_DEFINE_ERROR(TSDB_CODE_NETWORK_UNAVAIL,            0, 0x001C, "network unavailable")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUTH_REQUIRED,              0, 0x001D, "auth required")
 
 // db
 TAOS_DEFINE_ERROR(TSDB_CODE_DB_NOT_SELECTED,            0, 0x0100, "db not selected")
@@ -148,15 +147,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,          0, 0x038F, "grant cpu li
 
 // server
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VGROUP_ID,          0, 0x0400, "invalid vgroup id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VNODE_ID,           0, 0x0401, "invalid vnode id")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_VNODE,           0, 0x0402, "not active vnode")
-TAOS_DEFINE_ERROR(TSDB_CODE_VG_INIT_FAILED,             0, 0x0403, "vg init failed")
-TAOS_DEFINE_ERROR(TSDB_CODE_SERV_NO_DISKSPACE,          0, 0x0404, "server no diskspace")
-TAOS_DEFINE_ERROR(TSDB_CODE_SERV_OUT_OF_MEMORY,         0, 0x0405, "server out of memory")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISK_PERMISSIONS,        0, 0x0406, "no disk permissions")
-TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,             0, 0x0407, "file corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,           0, 0x0408, "memory corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUCH_FILE_OR_DIR,       0, 0x0409, "no such file or directory")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_VNODE,           0, 0x0401, "not active vnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_VG_INIT_FAILED,             0, 0x0402, "vgroup init failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_SERV_NO_DISKSPACE,          0, 0x0403, "server no diskspace")
+TAOS_DEFINE_ERROR(TSDB_CODE_SERV_OUT_OF_MEMORY,         0, 0x0404, "server out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISK_PERMISSIONS,        0, 0x0405, "no disk permissions")
+TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,             0, 0x0406, "file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,           0, 0x0407, "memory corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUCH_FILE_OR_DIR,       0, 0x0408, "no such file or directory")
 
 // client
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CLIENT_VERSION,     0, 0x0481, "invalid client version")

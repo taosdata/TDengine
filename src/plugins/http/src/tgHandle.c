@@ -281,7 +281,7 @@ int tgReadSchema(char *fileName) {
 }
 
 void tgInitHandle(HttpServer *pServer) {
-  char fileName[256] = {0};
+  char fileName[TSDB_FILENAME_LEN*2] = {0};
   sprintf(fileName, "%s/taos.telegraf.cfg", configDir);
   if (tgReadSchema(fileName) <= 0) {
     tgFreeSchemas();

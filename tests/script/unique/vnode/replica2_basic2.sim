@@ -10,10 +10,10 @@ system sh/cfg.sh -n dnode2 -c wallevel -v 2
 system sh/cfg.sh -n dnode3 -c wallevel -v 2
 system sh/cfg.sh -n dnode4 -c wallevel -v 2
 
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode4 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
 
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4

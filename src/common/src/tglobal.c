@@ -105,15 +105,13 @@ int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
  * 1: affected rows include those duplicate records
  */
 int16_t tsAffectedRowsMod = 0;
-int32_t tsNumOfMPeers = 3;
-int32_t tsMaxShellConns = 2000;
+int32_t tsNumOfMnodes = 3;
+int32_t tsMaxShellConns = 5000;
 
 char    tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
 char    tsDefaultUser[64] = "root";
 char    tsDefaultPass[64] = "taosdata";
-int32_t tsMaxMeterConnections = 10000;
-int32_t tsMaxMgmtConnections = 2000;
-int32_t tsMaxVnodeConnections = 10000;
+int32_t tsMaxConnections = 50;
 
 int32_t tsBalanceInterval = 300;  // seconds
 int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
@@ -407,8 +405,8 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "numOfMPeers";
-  cfg.ptr = &tsNumOfMPeers;
+  cfg.option = "numOfMnodes";
+  cfg.ptr = &tsNumOfMnodes;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
@@ -680,7 +678,7 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "wallevel";
+  cfg.option = "walLevel";
   cfg.ptr = &tsWAL;
   cfg.valType = TAOS_CFG_VTYPE_INT16;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
@@ -814,32 +812,12 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "maxMeterConnections";
-  cfg.ptr = &tsMaxMeterConnections;
+  cfg.option = "maxConnections";
+  cfg.ptr = &tsMaxConnections;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
-  cfg.maxValue = 50000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "maxMgmtConnections";
-  cfg.ptr = &tsMaxMgmtConnections;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
-  cfg.maxValue = 50000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "maxVnodeConnections";
-  cfg.ptr = &tsMaxVnodeConnections;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
-  cfg.maxValue = 50000000;
+  cfg.minValue = 1;
+  cfg.maxValue = 100;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
