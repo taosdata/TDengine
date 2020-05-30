@@ -81,10 +81,10 @@ static int32_t mnodeDbActionDelete(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
-  mnodeDropDbFromAcct(pAcct, pDb);
   mnodeDropAllChildTables(pDb);
   mnodeDropAllSuperTables(pDb);
-  mnodeDropAllDbVgroups(pDb, false);
+  mnodeDropAllDbVgroups(pDb);
+  mnodeDropDbFromAcct(pAcct, pDb);
   mnodeDecAcctRef(pAcct);
   
   return TSDB_CODE_SUCCESS;
@@ -998,19 +998,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
     return code;
   }
 
-#if 1
-  mnodeDropAllDbVgroups(pMsg->pDb, true);
-#else
-  SVgObj *pVgroup = pMsg->pDb->pHead;
-  if (pVgroup != NULL) {
-    mPrint("vgId:%d, will be dropped", pVgroup->vgId);
-    SMnodeMsg *newMsg = mnodeCloneMsg(pMsg);
-    newMsg->ahandle = pVgroup;
-    newMsg->expected = pVgroup->numOfVnodes;
-    mnodeDropVgroup(pVgroup, newMsg);
-    return;
-  }
-#endif  
+  mnodeSendDropAllDbVgroupsMsg(pMsg->pDb);
 
   mTrace("db:%s, all vgroups is dropped", pMsg->pDb->name);
   return mnodeDropDb(pMsg);

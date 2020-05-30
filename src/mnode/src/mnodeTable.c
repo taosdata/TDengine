@@ -148,37 +148,30 @@ static int32_t mnodeChildTableActionDelete(SSdbOper *pOper) {
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
 
-  SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
-  if (pVgroup == NULL) {
-    return TSDB_CODE_INVALID_VGROUP_ID;
-  }
-  mnodeDecVgroupRef(pVgroup);
-
-  SDbObj *pDb = mnodeGetDb(pVgroup->dbName);
-  if (pDb == NULL) {
-    mError("ctable:%s, vgId:%d not in DB:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
-    return TSDB_CODE_INVALID_DB;
-  }
-  mnodeDecDbRef(pDb);
-
-  SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
-  if (pAcct == NULL) {
-    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
-    return TSDB_CODE_INVALID_ACCT;
-  }
-  mnodeDecAcctRef(pAcct);
+  SVgObj *pVgroup = NULL;
+  SDbObj *pDb = NULL;
+  SAcctObj *pAcct = NULL;
+  
+  pVgroup = mnodeGetVgroup(pTable->vgId);
+  if (pVgroup != NULL) pDb = mnodeGetDb(pVgroup->dbName);
+  if (pDb != NULL) pAcct = mnodeGetAcct(pDb->acct);
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     grantRestore(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
-    pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
+    if (pAcct != NULL) pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
     mnodeRemoveTableFromStable(pTable->superTable, pTable);
     mnodeDecTableRef(pTable->superTable);
   } else {
     grantRestore(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
-    pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
+    if (pAcct != NULL) pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
   }
-  mnodeRemoveTableFromDb(pDb);
-  mnodeRemoveTableFromVgroup(pVgroup, pTable);
+  
+  if (pDb != NULL) mnodeRemoveTableFromDb(pDb);
+  if (pVgroup != NULL) mnodeRemoveTableFromVgroup(pVgroup, pTable);
+
+  mnodeDecVgroupRef(pVgroup);
+  mnodeDecDbRef(pDb);
+  mnodeDecAcctRef(pAcct);
  
   return TSDB_CODE_SUCCESS;
 }
@@ -693,10 +686,10 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
   }
 
   if (pCreate->numOfTags != 0) {
-    mTrace("table:%s, create msg is received from thandle:%p", pCreate->tableId, pMsg->rpcMsg.handle);
+    mTrace("table:%s, create stable msg is received from thandle:%p", pCreate->tableId, pMsg->rpcMsg.handle);
     return mnodeProcessCreateSuperTableMsg(pMsg);
   } else {
-    mTrace("table:%s, create msg is received from thandle:%p", pCreate->tableId, pMsg->rpcMsg.handle);
+    mTrace("table:%s, create ctable msg is received from thandle:%p", pCreate->tableId, pMsg->rpcMsg.handle);
     return mnodeProcessCreateChildTableMsg(pMsg);
   }
 }
@@ -1288,7 +1281,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   }
 
   pRsp->numOfTables = htonl(numOfTable);
-  char* msg = (char*) pRsp + sizeof(SCMSTableVgroupRspMsg);
+  char *msg = (char *)pRsp + sizeof(SCMSTableVgroupRspMsg);
 
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
@@ -1318,6 +1311,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
     }
 
     taosHashDestroyIter(pIter);
+    mnodeDecTableRef(pTable);
 
     pVgroupInfo->numOfVgroups = htonl(vgSize);
 
@@ -1738,7 +1732,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
-  STagData* pTag = (STagData*)pInfo->tags;
+  STagData *pTag = (STagData *)pInfo->tags;
 
   int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + ntohl(pTag->dataLen);
   SCMCreateTableMsg *pCreateMsg = rpcMallocCont(contLen);
@@ -1754,13 +1748,12 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   pCreateMsg->contLen = htonl(contLen);
 
   memcpy(pCreateMsg->schema, pInfo->tags, contLen - sizeof(SCMCreateTableMsg));
-  mTrace("table:%s, start to create on demand, stable:%s", pInfo->tableId, pInfo->tags);
+  mTrace("table:%s, start to create on demand, stable:%s", pInfo->tableId, ((STagData *)(pCreateMsg->schema))->name);
 
   rpcFreeCont(pMsg->rpcMsg.pCont);
   pMsg->rpcMsg.msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
   pMsg->rpcMsg.pCont = pCreateMsg;
   pMsg->rpcMsg.contLen = contLen;
-
   
   return TSDB_CODE_ACTION_NEED_REPROCESSED;
 }
