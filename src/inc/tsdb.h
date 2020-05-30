@@ -43,6 +43,8 @@ typedef struct {
   void *cqH;
   int (*notifyStatus)(void *, int status);
   int (*eventCallBack)(void *);
+  void *(*cqCreateFunc)(void *handle, int sid, char *sqlStr, STSchema *pSchema);
+  void (*cqDropFunc)(void *handle);
 } STsdbAppH;
 
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
@@ -71,7 +73,7 @@ typedef void TsdbRepoT;  // use void to hide implementation details from outside
 
 int        tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 int32_t    tsdbDropRepo(TsdbRepoT *repo);
-TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH);
+TsdbRepoT *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
 int32_t    tsdbCloseRepo(TsdbRepoT *repo, int toCommit);
 int32_t    tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg);
 
@@ -92,6 +94,7 @@ typedef struct {
   STSchema * schema;
   STSchema * tagSchema;
   SDataRow   tagValues;
+  char *     sql;
 } STableCfg;
 
 int  tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid);
@@ -101,6 +104,7 @@ int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
 int  tsdbTableSetName(STableCfg *config, char *name, bool dup);
 int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
+int  tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
 int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId* id, int32_t colId, int16_t *type, int16_t *bytes, char **val);

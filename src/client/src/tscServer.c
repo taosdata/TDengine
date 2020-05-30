@@ -60,10 +60,10 @@ static void tscSetDnodeIpList(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
 
 void tscPrintMgmtIp() {
   if (tscMgmtIpSet.numOfIps <= 0) {
-    tscError("invalid mgmt IP list:%d", tscMgmtIpSet.numOfIps);
+    tscError("invalid mnode IP list:%d", tscMgmtIpSet.numOfIps);
   } else {
     for (int i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-      tscTrace("mgmt index:%d %s:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
+      tscTrace("mnode index:%d %s:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
     }
   }
 }
@@ -78,7 +78,7 @@ void tscSetMgmtIpList(SRpcIpSet *pIpList) {
 
 void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
   tscMgmtIpSet = *pIpSet;
-  tscTrace("mgmt IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
+  tscTrace("mnode IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
   for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
     tscTrace("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
   }
@@ -217,10 +217,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   STscObj *pObj = pSql->pTscObj;
   // tscTrace("%p msg:%s is received from server", pSql, taosMsg[rpcMsg->msgType]);
 
-  if (pSql->freed || pObj->signature != pObj) {
+  if (pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
-    tscFreeSqlObj(pSql);
+    if (pSql != pObj->pSql) {
+      tscFreeSqlObj(pSql);
+    }
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -235,10 +237,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     rpcMsg->code = TSDB_CODE_NETWORK_UNAVAIL;
   } else {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-    if (rpcMsg->code == TSDB_CODE_NOT_ACTIVE_TABLE || rpcMsg->code == TSDB_CODE_INVALID_TABLE_ID ||
-        rpcMsg->code == TSDB_CODE_INVALID_VNODE_ID || rpcMsg->code == TSDB_CODE_NOT_ACTIVE_VNODE ||
-        rpcMsg->code == TSDB_CODE_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_NOT_ACTIVE_TABLE ||
-        rpcMsg->code == TSDB_CODE_TABLE_ID_MISMATCH) {
+    if (rpcMsg->code == TSDB_CODE_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_INVALID_VGROUP_ID || 
+        rpcMsg->code == TSDB_CODE_NETWORK_UNAVAIL) {
       /*
        * not_active_table: 1. the virtual node may fail to create table, since the procedure of create table is asynchronized,
        *                   the virtual node may have not create table till now, so try again by using the new metermeta.
@@ -1867,8 +1867,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  free(pTableMeta);
   tscTrace("%p recv table meta: %"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
+  free(pTableMeta);
   
   return TSDB_CODE_SUCCESS;
 }

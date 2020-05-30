@@ -12,12 +12,12 @@ system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode2 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
 
 $dbPrefix = tb_db
 $tbPrefix = tb_tb

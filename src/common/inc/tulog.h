@@ -26,7 +26,7 @@ extern int32_t uDebugFlag;
 extern int32_t tscEmbedded;
 
 #define uError(...)       { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR UTL ", uDebugFlag, __VA_ARGS__); }}
-#define uWarn(...)        { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN  UTL ", uDebugFlag, __VA_ARGS__); }}
+#define uWarn(...)        { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN UTL ", uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...)       { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
 #define uDump(x, y)       { if (uDebugFlag & DEBUG_DUMP)  { taosDumpData(x, y); }}
 #define uPrint(...)       { taosPrintLog("UTL ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }

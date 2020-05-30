@@ -22,7 +22,7 @@ extern "C" {
 
 int32_t dnodeInitMgmt();
 void    dnodeCleanupMgmt();
-void    dnodeDispatchToDnodeMgmt(SRpcMsg *rpcMsg);
+void    dnodeDispatchToMgmtQueue(SRpcMsg *rpcMsg);
 
 void*   dnodeGetVnode(int32_t vgId);
 int32_t dnodeGetVnodeStatus(void *pVnode);
@@ -31,6 +31,10 @@ void*   dnodeGetVnodeWworker(void *pVnode);
 void*   dnodeGetVnodeWal(void *pVnode);
 void*   dnodeGetVnodeTsdb(void *pVnode);
 void    dnodeReleaseVnode(void *pVnode);
+
+void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
+void    dnodeGetMnodeIpSetForPeer(void *ipSet);
+void    dnodeGetMnodeIpSetForShell(void *ipSet);
 
 #ifdef __cplusplus
 }

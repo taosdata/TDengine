@@ -88,7 +88,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
-  pObj->mgmtPort = port ? port : tsDnodeShellPort;
+  pObj->mnodePort = port ? port : tsDnodeShellPort;
 
   if (db) {
     int32_t len = strlen(db);
@@ -576,25 +576,24 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
    *         for each subquery. Because the failure of execution tsProcessSql may trigger the callback function
    *         be executed, and the retry efforts may result in double free the resources, e.g.,SRetrieveSupport
    */
-  if ((pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_SHOW || pCmd->command == TSDB_SQL_RETRIEVE ||
-      pCmd->command == TSDB_SQL_FETCH) &&
-      (pRes->code != TSDB_CODE_QUERY_CANCELLED && ((pRes->numOfRows > 0 && pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
-       (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows == 0 && pCmd->command == TSDB_SQL_SELECT &&
-        pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)))) {
+  if ((pCmd->command == TSDB_SQL_SELECT ||
+       pCmd->command == TSDB_SQL_SHOW ||
+       pCmd->command == TSDB_SQL_RETRIEVE ||
+       pCmd->command == TSDB_SQL_FETCH) && pRes->code == TSDB_CODE_SUCCESS &&
+       ((pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
+       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL))) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
-    tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
+    tscTrace("%p send msg to free qhandle in vnode, code:%d, numOfRows:%d, command:%s", pSql, pRes->code, pRes->numOfRows,
+        sqlCmd[pCmd->command]);
 
     pSql->freed = 1;
     tscProcessSql(pSql);
-
-    /*
-     *  If release connection msg is sent to vnode, the corresponding SqlObj for async query can not be freed instantly,
-     *  since its free operation is delegated to callback function, which is tscProcessMsgFromServer.
-     */
-    STscObj* pObj = pSql->pTscObj;
-    if (pObj->pSql == pSql) {
-      pObj->pSql = NULL;
+  
+    // waits for response and then goes on
+    STscObj* pTscObj = pSql->pTscObj;
+    if (pTscObj->pSql == pSql) {
+      sem_wait(&pSql->rspSem);
     }
   } else { // if no free resource msg is sent to vnode, we free this object immediately.
     STscObj* pTscObj = pSql->pTscObj;

@@ -1361,7 +1361,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
   /*
    * the pRes->code may be modified or released by another thread in tscTableMetaCallBack function,
    * so do NOT use pRes->code to determine if the getTableMeta/getMetricMeta function
-   * invokes new threads to get data from mgmt node or simply retrieves data from cache.
+   * invokes new threads to get data from mnode or simply retrieves data from cache.
    *
    * do NOT assign return code to pRes->code for the same reason since it may be released by another thread
    * pRes->code = ret;

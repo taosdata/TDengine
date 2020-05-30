@@ -15,17 +15,19 @@
 
 #define _DEFAULT_SOURCE
 
+#include <errno.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-#include <errno.h>
+
+#include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "tcq.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "twal.h"
-#include "tcq.h"
-#include "taos.h"
 
 #define cError(...) { if (cqDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR CQ  ", cqDebugFlag, __VA_ARGS__); }}
 #define cWarn(...)  { if (cqDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN CQ  ", cqDebugFlag, __VA_ARGS__); }}
@@ -46,15 +48,14 @@ typedef struct {
 } SCqContext;
 
 typedef struct SCqObj {
-  int      tid;      // table ID
-  int      rowSize;  // bytes of a row 
-  char    *sqlStr;   // SQL string
-  int      columns;  // number of columns
-  SSchema *pSchema;  // pointer to schema array
-  void    *pStream;
-  struct SCqObj *prev; 
-  struct SCqObj *next; 
-  SCqContext *pContext;
+  int            tid;      // table ID
+  int            rowSize;  // bytes of a row
+  char *         sqlStr;   // SQL string
+  STSchema *     pSchema;  // pointer to schema array
+  void *         pStream;
+  struct SCqObj *prev;
+  struct SCqObj *next;
+  SCqContext *   pContext;
 } SCqObj;
 
 int cqDebugFlag = 135;
@@ -152,7 +153,7 @@ void cqStop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
-void *cqCreate(void *handle, int tid, char *sqlStr, SSchema *pSchema, int columns) {
+void *cqCreate(void *handle, int tid, char *sqlStr, STSchema *pSchema) {
   SCqContext *pContext = handle;
 
   SCqObj *pObj = calloc(sizeof(SCqObj), 1);
@@ -162,11 +163,7 @@ void *cqCreate(void *handle, int tid, char *sqlStr, SSchema *pSchema, int column
   pObj->sqlStr = malloc(strlen(sqlStr)+1);
   strcpy(pObj->sqlStr, sqlStr);
 
-  pObj->columns = columns;
-
-  int size = sizeof(SSchema) * columns;
-  pObj->pSchema = malloc(size);
-  memcpy(pObj->pSchema, pSchema, size);
+  pObj->pSchema = tdDupSchema(pSchema);
 
   cTrace("vgId:%d, id:%d CQ:%s is created", pContext->vgId, pObj->tid, pObj->sqlStr);
 

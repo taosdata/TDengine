@@ -22,9 +22,9 @@
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "vnode.h"
-#include "tdataformat.h"
 #include "dnodeInt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMgmt.h"
@@ -54,7 +54,7 @@ static void  dnodeHandleIdleWorker(SWriteWorker *pWorker);
 
 SWriteWorkerPool wWorkerPool;
 
-int32_t dnodeInitWrite() {
+int32_t dnodeInitVnodeWrite() {
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
   if (wWorkerPool.writeWorker == NULL) return -1;
@@ -67,7 +67,7 @@ int32_t dnodeInitWrite() {
   return 0;
 }
 
-void dnodeCleanupWrite() {
+void dnodeCleanupVnodeWrite() {
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
@@ -122,14 +122,17 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateWqueue(void *pVnode) {
+void *dnodeAllocateVnodeWqueue(void *pVnode) {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
   void *queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
-    if (pWorker->qset == NULL) return NULL;
+    if (pWorker->qset == NULL) {
+      taosCloseQueue(queue);
+      return NULL;
+    }
 
     taosAddIntoQset(pWorker->qset, queue, pVnode);
     pWorker->qall = taosAllocateQall();
@@ -157,13 +160,13 @@ void *dnodeAllocateWqueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeWqueue(void *wqueue) {
+void dnodeFreeVnodeWqueue(void *wqueue) {
   taosCloseQueue(wqueue);
 
   // dynamically adjust the number of threads
 }
 
-void dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code) {
+void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
   SWriteMsg *pWrite = (SWriteMsg *)param;
 
   if (code > 0) return;
@@ -223,7 +226,7 @@ static void *dnodeProcessWriteQueue(void *param) {
       taosGetQitem(pWorker->qall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
-        dnodeSendRpcWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
+        dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
       } else {
         taosFreeQitem(item);
         vnodeRelease(pVnode);

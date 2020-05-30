@@ -91,7 +91,7 @@ class TDTestCase:
         tdSql.query("select * from stb1 limit 2 offset 3")
         tdSql.checkRows(1)
 
-        # query ... alien for table ---- bug
+        # query ... alias for table ---- bug
         tdSql.query("select t.ts from tb1 t")
         tdSql.checkRows(2)       
 

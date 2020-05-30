@@ -57,9 +57,9 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
     rpcInit.label = "TSC";
-    rpcInit.numOfThreads = tscNumOfThreads;
+    rpcInit.numOfThreads = 1;  // every DB connection has only one thread
     rpcInit.cfp = tscProcessMsgFromServer;
-    rpcInit.sessions = tsMaxVnodeConnections;
+    rpcInit.sessions = tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char*)user;
     rpcInit.idleTime = 2000;
@@ -116,12 +116,12 @@ void taos_init_imp() {
   }
 
   if (tscSetMgmtIpListFromCfg(tsFirst, tsSecond) < 0) {
-    tscError("failed to init mgmt IP list");
+    tscError("failed to init mnode IP list");
     return;
   } 
 
   tscInitMsgsFp();
-  int queueSize = tsMaxVnodeConnections + tsMaxMeterConnections + tsMaxMgmtConnections + tsMaxMgmtConnections;
+  int queueSize = tsMaxConnections*2;
 
   if (tscEmbedded == 0) {
     tscNumOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
@@ -137,7 +137,7 @@ void taos_init_imp() {
     return;
   }
 
-  tscTmr = taosTmrInit(tsMaxMgmtConnections * 2, 200, 60000, "TSC");
+  tscTmr = taosTmrInit(tsMaxConnections * 2, 200, 60000, "TSC");
   if(0 == tscEmbedded){
     taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }

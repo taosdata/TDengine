@@ -15,7 +15,6 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
 static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
-static int     tsdbEstimateTableEncodeSize(STable *pTable);
 static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx);
 
 /**
@@ -28,16 +27,10 @@ static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rm
  * @return binary content for success
  *         NULL fro failure
  */
-void *tsdbEncodeTable(STable *pTable, int *contLen) {
-  if (pTable == NULL) return NULL;
+void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
+  if (pTable == NULL) return;
 
-  *contLen = tsdbEstimateTableEncodeSize(pTable);
-  if (*contLen < 0) return NULL;
-
-  void *ret = calloc(1, *contLen);
-  if (ret == NULL) return NULL;
-
-  void *ptr = ret;
+  void *ptr = buf;
   T_APPEND_MEMBER(ptr, pTable, STable, type);
   // Encode name, todo refactor
   *(int *)ptr = varDataLen(pTable->name);
@@ -54,12 +47,17 @@ void *tsdbEncodeTable(STable *pTable, int *contLen) {
     ptr = tdEncodeSchema(ptr, pTable->schema);
     ptr = tdEncodeSchema(ptr, pTable->tagSchema);
   } else if (pTable->type == TSDB_CHILD_TABLE) {
-    dataRowCpy(ptr, pTable->tagVal);
+    tdTagRowCpy(ptr, pTable->tagVal);
+    ptr = POINTER_SHIFT(ptr, dataRowLen(pTable->tagVal) + ((STagRow *)pTable->tagVal)->dataLen);
   } else {
     ptr = tdEncodeSchema(ptr, pTable->schema);
   }
 
-  return ret;
+  if (pTable->type == TSDB_STREAM_TABLE) {
+    ptr = taosEncodeString(ptr, pTable->sql);
+  }
+
+  *contLen = (char *)ptr - buf;
 }
 
 /**
@@ -96,9 +94,14 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
     pTable->schema = tdDecodeSchema(&ptr);
     pTable->tagSchema = tdDecodeSchema(&ptr);
   } else if (pTable->type == TSDB_CHILD_TABLE) {
-    pTable->tagVal = tdDataRowDup(ptr);
+    pTable->tagVal = tdTagRowDecode(ptr);
+    ptr = POINTER_SHIFT(ptr, dataRowLen(pTable->tagVal) + ((STagRow *)pTable->tagVal)->dataLen);
   } else {
     pTable->schema = tdDecodeSchema(&ptr);
+  }
+
+  if (pTable->type == TSDB_STREAM_TABLE) {
+    ptr = taosDecodeString(ptr, &(pTable->sql));
   }
 
   return pTable;
@@ -114,8 +117,10 @@ static char* getTagIndexKey(const void* pData) {
   SDataRow row = elem->pTable->tagVal;
   STSchema* pSchema = tsdbGetTableTagSchema(elem->pMeta, elem->pTable);
   STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
-  
-  return tdGetRowDataOfCol(row, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+  int16_t type = 0;
+  void * res = tdQueryTagByID(row, pCol->colId,&type);
+  ASSERT(type == pCol->type);
+  return res;
 }
 
 int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
@@ -137,11 +142,19 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
 
 void tsdbOrgMeta(void *pHandle) {
   STsdbMeta *pMeta = (STsdbMeta *)pHandle;
+  STsdbRepo *pRepo = (STsdbRepo *)pMeta->pRepo;
 
   for (int i = 1; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable != NULL && pTable->type == TSDB_CHILD_TABLE) {
       tsdbAddTableIntoIndex(pMeta, pTable);
+    }
+  }
+
+  for (int i = 0; i < pMeta->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, i, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
   }
 }
@@ -150,7 +163,7 @@ void tsdbOrgMeta(void *pHandle) {
  * Initialize the meta handle
  * ASSUMPTIONS: VALID PARAMETER
  */
-STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
+STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables, void *pRepo) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) return NULL;
 
@@ -160,6 +173,7 @@ STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
   pMeta->tables = (STable **)calloc(maxTables, sizeof(STable *));
   pMeta->maxRowBytes = 0;
   pMeta->maxCols = 0;
+  pMeta->pRepo = pRepo;
   if (pMeta->tables == NULL) {
     free(pMeta);
     return NULL;
@@ -184,13 +198,16 @@ STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
 }
 
 int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
+  STsdbRepo *pRepo = (STsdbRepo *)pMeta->pRepo;
   if (pMeta == NULL) return 0;
 
   tsdbCloseMetaFile(pMeta->mfh);
 
   for (int i = 1; i < pMeta->maxTables; i++) {
     if (pMeta->tables[i] != NULL) {
-      tsdbFreeTable(pMeta->tables[i]);
+      STable *pTable = pMeta->tables[i];
+      if (pTable->type == TSDB_STREAM_TABLE) (*pRepo->appH.cqDropFunc)(pTable->cqhandle);
+      tsdbFreeTable(pTable);
     }
   }
 
@@ -211,7 +228,7 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
 }
 
 STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable) {
-  if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE) {
+  if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_STREAM_TABLE) {
     return pTable->schema;
   } else if (pTable->type == TSDB_CHILD_TABLE) {
     STable *pSuper = tsdbGetTableByUid(pMeta, pTable->superUid);
@@ -255,8 +272,9 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   }
   
   SDataRow row = (SDataRow)pTable->tagVal;
-  char* d = tdGetRowDataOfCol(row, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
-  
+  int16_t tagtype = 0;
+  char* d = tdQueryTagByID(row, pCol->colId, &tagtype);
+  //ASSERT((int8_t)tagtype == pCol->type)
   *val = d;
   *type  = pCol->type;
   *bytes = pCol->bytes;
@@ -283,6 +301,76 @@ char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes) {
   }
 }
 
+static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
+  STable *pTable = NULL;
+  size_t  tsize = 0;
+
+  pTable = (STable *)calloc(1, sizeof(STable));
+  if (pTable == NULL) {
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  pTable->type = pCfg->type;
+
+  if (isSuper) {
+    pTable->type = TSDB_SUPER_TABLE;
+    pTable->tableId.uid = pCfg->superUid;
+    pTable->tableId.tid = -1;
+    pTable->superUid = TSDB_INVALID_SUPER_TABLE_ID;
+    pTable->schema = tdDupSchema(pCfg->schema);
+    pTable->tagSchema = tdDupSchema(pCfg->tagSchema);
+
+    tsize = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
+    pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
+    if (pTable->name == NULL) {
+      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      goto _err;
+    }
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, tsize);
+
+    STColumn *pColSchema = schemaColAt(pTable->tagSchema, 0);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes, 1, 0, 0,
+                                     getTagIndexKey);  // Allow duplicate key, no lock
+    if (pTable->pIndex == NULL) {
+      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      goto _err;
+    }
+  } else {
+    pTable->type = pCfg->type;
+    pTable->tableId.uid = pCfg->tableId.uid;
+    pTable->tableId.tid = pCfg->tableId.tid;
+    pTable->lastKey = TSKEY_INITIAL_VAL;
+
+    tsize = strnlen(pCfg->name, TSDB_TABLE_NAME_LEN);
+    pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
+    if (pTable->name == NULL) {
+      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      goto _err;
+    }
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->name, tsize);
+
+    if (pCfg->type == TSDB_CHILD_TABLE) {
+      pTable->superUid = pCfg->superUid;
+      pTable->tagVal = tdDataRowDup(pCfg->tagValues);
+    } else if (pCfg->type == TSDB_NORMAL_TABLE) {
+      pTable->superUid = -1;
+      pTable->schema = tdDupSchema(pCfg->schema);
+    } else {
+      ASSERT(pCfg->type == TSDB_STREAM_TABLE);
+      pTable->superUid = -1;
+      pTable->schema = tdDupSchema(pCfg->schema);
+      pTable->sql = strdup(pCfg->sql);
+    }
+  }
+
+  return pTable;
+
+_err:
+  tsdbFreeTable(pTable);
+  return NULL;
+}
+
 int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
@@ -303,61 +391,19 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
     super = tsdbGetTableByUid(pMeta, pCfg->superUid);
     if (super == NULL) {  // super table not exists, try to create it
       newSuper = 1;
-      // TODO: use function to implement create table object
-      super = (STable *)calloc(1, sizeof(STable));
+      super = tsdbNewTable(pCfg, true);
       if (super == NULL) return -1;
-
-      super->type = TSDB_SUPER_TABLE;
-      super->tableId.uid = pCfg->superUid;
-      super->tableId.tid = -1;
-      super->superUid = TSDB_INVALID_SUPER_TABLE_ID;
-      super->schema = tdDupSchema(pCfg->schema);
-      super->tagSchema = tdDupSchema(pCfg->tagSchema);
-      super->tagVal = NULL;
-      
-      // todo refactor extract method
-      size_t size = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
-      super->name = calloc(1, size + VARSTR_HEADER_SIZE + 1);
-      STR_WITH_SIZE_TO_VARSTR(super->name, pCfg->sname, size);
-
-      // index the first tag column
-      STColumn* pColSchema = schemaColAt(super->tagSchema, 0);
-      super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes,
-          1, 0, 1, getTagIndexKey);  // Allow duplicate key, no lock
-
-      if (super->pIndex == NULL) {
-        tdFreeSchema(super->schema);
-        tdFreeSchema(super->tagSchema);
-        tdFreeDataRow(super->tagVal);
-        free(super);
-        return -1;
-      }
     } else {
       if (super->type != TSDB_SUPER_TABLE) return -1;
     }
   }
 
-  STable *table = (STable *)calloc(1, sizeof(STable));
+  STable *table = tsdbNewTable(pCfg, false);
   if (table == NULL) {
-    if (newSuper) tsdbFreeTable(super);
-    return -1;
-  }
-
-  table->tableId = pCfg->tableId;
-  
-  size_t size = strnlen(pCfg->name, TSDB_TABLE_NAME_LEN);
-  table->name = calloc(1, size + VARSTR_HEADER_SIZE + 1);
-  STR_WITH_SIZE_TO_VARSTR(table->name, pCfg->name, size);
-  
-  table->lastKey = 0;
-  if (IS_CREATE_STABLE(pCfg)) { // TSDB_CHILD_TABLE
-    table->type = TSDB_CHILD_TABLE;
-    table->superUid = pCfg->superUid;
-    table->tagVal = tdDataRowDup(pCfg->tagValues);
-  } else { // TSDB_NORMAL_TABLE
-    table->type = TSDB_NORMAL_TABLE;
-    table->superUid = -1;
-    table->schema = tdDupSchema(pCfg->schema);
+    if (newSuper) {
+      tsdbFreeTable(super);
+      return -1;
+    }
   }
 
   // Register to meta
@@ -372,15 +418,15 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
 
   // Write to meta file
   int bufLen = 0;
+  char *buf = malloc(1024*1024);
   if (newSuper) {
-    void *buf = tsdbEncodeTable(super, &bufLen);
+    tsdbEncodeTable(super, buf, &bufLen);
     tsdbInsertMetaRecord(pMeta->mfh, super->tableId.uid, buf, bufLen);
-    tsdbFreeEncode(buf);
   }
 
-  void *buf = tsdbEncodeTable(table, &bufLen);
+  tsdbEncodeTable(table, buf, &bufLen);
   tsdbInsertMetaRecord(pMeta->mfh, table->tableId.uid, buf, bufLen);
-  tsdbFreeEncode(buf);
+  tfree(buf);
 
   return 0;
 }
@@ -438,11 +484,16 @@ static void tsdbFreeMemTable(SMemTable *pMemTable) {
 }
 
 static int tsdbFreeTable(STable *pTable) {
-  // TODO: finish this function
+  if (pTable == NULL) return 0;
+
   if (pTable->type == TSDB_CHILD_TABLE) {
-    tdFreeDataRow(pTable->tagVal);
+    tdFreeTagRow(pTable->tagVal);
   } else {
     tdFreeSchema(pTable->schema);
+  }
+
+  if (pTable->type == TSDB_STREAM_TABLE) {
+    tfree(pTable->sql);
   }
 
   // Free content
@@ -473,6 +524,7 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
 }
 
 static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
+  STsdbRepo *pRepo = (STsdbRepo *)pMeta->pRepo;
   if (pTable->type == TSDB_SUPER_TABLE) { 
     // add super table to the linked list
     if (pMeta->superList == NULL) {
@@ -490,6 +542,9 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
     pMeta->tables[pTable->tableId.tid] = pTable;
     if (pTable->type == TSDB_CHILD_TABLE && addIdx) { // add STABLE to the index
       tsdbAddTableIntoIndex(pMeta, pTable);
+    }
+    if (pTable->type == TSDB_STREAM_TABLE && addIdx) {
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, pTable->tableId.tid, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
     
     pMeta->nTables++;
@@ -522,7 +577,6 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFrom
 
     tSkipListDestroyIter(pIter);
 
-    // TODO: Remove the table from the list
     if (pTable->prev != NULL) {
       pTable->prev->next = pTable->next;
       if (pTable->next != NULL) {
@@ -535,6 +589,9 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFrom
     pMeta->tables[pTable->tableId.tid] = NULL;
     if (pTable->type == TSDB_CHILD_TABLE && rmFromIdx) {
       tsdbRemoveTableFromIndex(pMeta, pTable);
+    }
+    if (pTable->type == TSDB_STREAM_TABLE && rmFromIdx) {
+      // TODO
     }
 
     pMeta->nTables--;
@@ -579,7 +636,9 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
   
-  char* key = tdGetRowDataOfCol(pTable->tagVal, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+  int16_t tagtype = 0;
+  char* key = tdQueryTagByID(pTable->tagVal, pCol->colId, &tagtype);
+  ASSERT(pCol->type == tagtype);
   SArray* res = tSkipListGet(pSTable->pIndex, key);
   
   size_t size = taosArrayGetSize(res);
@@ -598,25 +657,6 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   return 0;
 }
 
-static int tsdbEstimateTableEncodeSize(STable *pTable) {
-  int size = 0;
-  size += T_MEMBER_SIZE(STable, type);
-  size += sizeof(int) + varDataLen(pTable->name);
-  size += T_MEMBER_SIZE(STable, tableId);
-  size += T_MEMBER_SIZE(STable, superUid);
-  size += T_MEMBER_SIZE(STable, sversion);
-
-  if (pTable->type == TSDB_SUPER_TABLE) {
-    size += tdGetSchemaEncodeSize(pTable->schema);
-    size += tdGetSchemaEncodeSize(pTable->tagSchema);
-  } else if (pTable->type == TSDB_CHILD_TABLE) {
-    size += dataRowLen(pTable->tagVal);
-  } else {
-    size += tdGetSchemaEncodeSize(pTable->schema);
-  }
-
-  return size;
-}
 
 char *getTSTupleKey(const void * data) {
   SDataRow row = (SDataRow)data;

@@ -85,12 +85,14 @@ typedef struct STable {
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
   struct STable *prev;
-  tstr *         name;           // NOTE: there a flexible string here
+  tstr *         name;  // NOTE: there a flexible string here
+  char *         sql;
+  void *         cqhandle;
 } STable;
 
 #define TSDB_GET_TABLE_LAST_KEY(tb) ((tb)->lastKey)
 
-void *  tsdbEncodeTable(STable *pTable, int *contLen);
+void    tsdbEncodeTable(STable *pTable, char *buf, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);
 void    tsdbFreeEncode(void *cont);
 
@@ -109,6 +111,7 @@ typedef struct {
   SMetaFile *mfh;  // meta file handle
   int        maxRowBytes;
   int        maxCols;
+  void *     pRepo;
 } STsdbMeta;
 
 // element put in skiplist for each table
@@ -117,7 +120,7 @@ typedef struct STableIndexElem {
   STable*    pTable;
 } STableIndexElem;
 
-STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables);
+STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables, void *pRepo);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);

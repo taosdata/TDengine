@@ -5298,7 +5298,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
       if (pColFilter->filterstr) {
         pColFilter->len = htobe64(pFilterMsg->len);
 
-        pColFilter->pz = (int64_t) calloc(1, pColFilter->len);
+        pColFilter->pz = (int64_t) calloc(1, pColFilter->len + 1 * TSDB_NCHAR_SIZE); // note: null-terminator
         memcpy((void *)pColFilter->pz, pMsg, pColFilter->len);
         pMsg += (pColFilter->len + 1);
       } else {
