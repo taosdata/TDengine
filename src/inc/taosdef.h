@@ -203,6 +203,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_COL_NAME_LEN         64
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
+#define TSDB_MAX_SQL_SHOW_LEN     256
 #define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 6mb
 
 #define TSDB_MAX_BYTES_PER_ROW    TSDB_MAX_COLUMNS * 64
@@ -337,9 +338,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_ORDER_ASC   1
 #define TSDB_ORDER_DESC  2
 
-#define TSDB_SESSIONS_PER_VNODE (300)
-#define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
-
 #define TSDB_DEFAULT_MNODES_HASH_SIZE   5
 #define TSDB_DEFAULT_DNODES_HASH_SIZE   10
 #define TSDB_DEFAULT_ACCOUNTS_HASH_SIZE 10
@@ -373,7 +371,7 @@ typedef enum {
 } ETableType;
 
 typedef enum {
-  TSDB_MOD_MGMT,
+  TSDB_MOD_MNODE,
   TSDB_MOD_HTTP,
   TSDB_MOD_MONITOR,
   TSDB_MOD_MQTT,

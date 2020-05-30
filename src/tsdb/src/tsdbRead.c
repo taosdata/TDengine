@@ -1680,6 +1680,13 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
       ((cur->slot == pHandle->numOfBlocks) && (cur->slot == 0)));
   
   STableBlockInfo* pBlockInfo = &pHandle->pDataBlockInfo[cur->slot];
+  
+  // file block with subblocks has no statistics data
+  if (pBlockInfo->compBlock->numOfSubBlocks > 1) {
+    *pBlockStatis = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  
   tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
   
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);

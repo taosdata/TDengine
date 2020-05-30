@@ -13,23 +13,58 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_H
-#define TDENGINE_MGMT_H
+#ifndef TDENGINE_MNODE_H
+#define TDENGINE_MNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mgmtInitSystem();
-int32_t mgmtStartSystem();
-void    mgmtCleanUpSystem();
-void    mgmtStopSystem();
+#include "trpc.h"
+
+struct SAcctObj;
+struct SDnodeObj;
+struct SUserObj;
+struct SDbObj;
+struct SVgObj;
+struct STableObj;
+
+typedef struct {
+  int32_t len;
+  void *  rsp;
+} SMnodeRsp;
+
+typedef struct SMnodeMsg {
+  SRpcMsg   rpcMsg;
+  SMnodeRsp rpcRsp;
+  int8_t    received;
+  int8_t    successed;
+  int8_t    expected;
+  int8_t    retry;
+  int32_t   code;
+  struct SAcctObj * pAcct;
+  struct SDnodeObj *pDnode;
+  struct SUserObj * pUser;
+  struct SDbObj *   pDb;
+  struct SVgObj *   pVgroup;
+  struct STableObj *pTable;
+} SMnodeMsg;
+
+void    mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg);
+int32_t mnodeInitMsg(SMnodeMsg *pMsg);
+void    mnodeCleanupMsg(SMnodeMsg *pMsg);
+
+int32_t mnodeInitSystem();
+int32_t mnodeStartSystem();
+void    mnodeCleanupSystem();
+void    mnodeStopSystem();
 void    sdbUpdateSync();
-
-int32_t mgmtRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
-void    mgmtProcessMsgFromShell(SRpcMsg *rpcMsg);
-void    mgmtProcessReqMsgFromDnode(SRpcMsg *rpcMsg);
-
+bool    mnodeIsRunning();
+int32_t mnodeProcessRead(SMnodeMsg *pMsg);
+int32_t mnodeProcessWrite(SMnodeMsg *pMsg);
+int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg);
+void    mnodeProcessPeerRsp(SRpcMsg *pMsg);
+int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 #ifdef __cplusplus
 }

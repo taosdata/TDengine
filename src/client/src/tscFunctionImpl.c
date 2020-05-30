@@ -478,7 +478,7 @@ int32_t count_load_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32
   if (colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     return BLK_DATA_NO_NEEDED;
   } else {
-    return BLK_DATA_FILEDS_NEEDED;
+    return BLK_DATA_STATIS_NEEDED;
   }
 }
 
@@ -690,7 +690,7 @@ static void sum_func_second_merge(SQLFunctionCtx *pCtx) {
 }
 
 static int32_t precal_req_load_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  return BLK_DATA_FILEDS_NEEDED;
+  return BLK_DATA_STATIS_NEEDED;
 }
 
 static int32_t data_req_load_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {

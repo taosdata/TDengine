@@ -237,7 +237,7 @@ enum {
 /* determine the real data need to calculated the result */
 enum {
   BLK_DATA_NO_NEEDED = 0x0,
-  BLK_DATA_FILEDS_NEEDED = 0x1,
+  BLK_DATA_STATIS_NEEDED = 0x1,
   BLK_DATA_ALL_NEEDED = 0x3,
 };
 

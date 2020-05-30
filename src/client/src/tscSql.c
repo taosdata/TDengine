@@ -88,7 +88,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
-  pObj->mgmtPort = port ? port : tsDnodeShellPort;
+  pObj->mnodePort = port ? port : tsDnodeShellPort;
 
   if (db) {
     int32_t len = strlen(db);
@@ -596,9 +596,9 @@ void taos_free_result(TAOS_RES *res) {
   if ((pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_SHOW ||
        pCmd->command == TSDB_SQL_RETRIEVE ||
-       pCmd->command == TSDB_SQL_FETCH) &&
-       (pRes->code != TSDB_CODE_QUERY_CANCELLED && ((pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
-       (pRes->code == TSDB_CODE_SUCCESS && pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)))) {
+       pCmd->command == TSDB_SQL_FETCH) && pRes->code == TSDB_CODE_SUCCESS &&
+       ((pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
+       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL))) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
     tscTrace("%p send msg to free qhandle in vnode, code:%d, numOfRows:%d, command:%s", pSql, pRes->code, pRes->numOfRows,

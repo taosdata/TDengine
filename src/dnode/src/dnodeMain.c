@@ -25,8 +25,11 @@
 #include "dnodePeer.h"
 #include "dnodeModule.h"
 #include "dnodeVRead.h"
-#include "dnodeShell.h"
 #include "dnodeVWrite.h"
+#include "dnodeMRead.h"
+#include "dnodeMWrite.h"
+#include "dnodeMPeer.h"
+#include "dnodeShell.h"
 
 static int32_t dnodeInitStorage();
 static void dnodeCleanupStorage();
@@ -65,8 +68,11 @@ int32_t dnodeInitSystem() {
   dPrint("start to initialize TDengine on %s", tsLocalEp);
 
   if (dnodeInitStorage() != 0) return -1;
-  if (dnodeInitRead() != 0) return -1;
-  if (dnodeInitWrite() != 0) return -1;
+  if (dnodeInitVnodeRead() != 0) return -1;
+  if (dnodeInitVnodeWrite() != 0) return -1;
+  if (dnodeInitMnodeRead() != 0) return -1;
+  if (dnodeInitMnodeWrite() != 0) return -1;
+  if (dnodeInitMnodePeer() != 0) return -1;
   if (dnodeInitClient() != 0) return -1;
   if (dnodeInitServer() != 0) return -1;
   if (dnodeInitMgmt() != 0) return -1;
@@ -89,8 +95,11 @@ void dnodeCleanUpSystem() {
     dnodeCleanupMgmt();
     dnodeCleanupServer();
     dnodeCleanupClient();
-    dnodeCleanupWrite();
-    dnodeCleanupRead();
+    dnodeCleanupMnodePeer();
+    dnodeCleanupMnodeWrite();
+    dnodeCleanupMnodeRead();
+    dnodeCleanupVnodeWrite();
+    dnodeCleanupVnodeRead();
     dnodeCleanupStorage();
     taos_cleanup();
     taosCloseLog();
