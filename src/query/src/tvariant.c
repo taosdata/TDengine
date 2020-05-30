@@ -596,7 +596,7 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
  *
  * todo handle the return value
  */
-int32_t tVariantDump(tVariant *pVariant, char *payload, char type, bool includeLengthPrefix) {
+int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
   if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType, pVariant->nLen))) {
     return -1;
   }

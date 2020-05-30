@@ -1032,7 +1032,7 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   return pExpr;
 }
 
-int32_t  tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo) {
+size_t tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo) {
   return taosArrayGetSize(pQueryInfo->exprList);
 }
 
@@ -1351,7 +1351,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == -1 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX) {
     return true;
   }
 
@@ -2122,7 +2122,7 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
   int32_t type = pInfo->pSqlExpr->resType;
   int32_t bytes = pInfo->pSqlExpr->resBytes;
   
-  char* pData = ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
+  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
   
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
     int32_t realLen = varDataLen(pData);
@@ -2135,7 +2135,7 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
     }
   
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-      *(char*) (pData + realLen + VARSTR_HEADER_SIZE) = 0;
+      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
     }
     
     pRes->length[columnIndex] = realLen;

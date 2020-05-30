@@ -1403,7 +1403,6 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
       SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE};
       strcpy(colSchema.name, TSQL_TBNAME_L);
 
-      pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;
       tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, true);
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
@@ -4166,6 +4165,10 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
     if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
       int32_t relTagIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
       
+      // it is a tag column
+      if (pQueryInfo->groupbyExpr.columnInfo == NULL) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+      }
       SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, 0);
       if (relTagIndex == pColIndex->colIndex) {
         orderByTags = true;
@@ -4678,7 +4681,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
 
   const char* msg0 = "soffset/offset can not be less than 0";
   const char* msg1 = "slimit/soffset only available for STable query";
-  const char* msg2 = "function not supported on table";
+  const char* msg2 = "functions mixed up in table query";
   const char* msg3 = "slimit/soffset can not apply to projection query";
 
   // handle the limit offset value, validate the limit
@@ -4761,13 +4764,21 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     }
   
     size_t size = taosArrayGetSize(pQueryInfo->exprList);
-  
+    
+    bool hasTags = false;
+    bool hasOtherFunc = false;
     // filter the query functions operating on "tbname" column that are not supported by normal columns.
     for (int32_t i = 0; i < size; ++i) {
       SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-      if (pExpr->colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
-        return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+      if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
+        hasTags = true;
+      } else {
+        hasOtherFunc = true;
       }
+    }
+    
+    if (hasTags && hasOtherFunc) {
+      return invalidSqlErrMsg(pQueryInfo->msg, msg2);
     }
   }
 
@@ -5831,7 +5842,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
     }
   } else {  // set the time rang
-    pQueryInfo->window.skey = 0;
+    pQueryInfo->window.skey = TSKEY_INITIAL_VAL;
     pQueryInfo->window.ekey = INT64_MAX;
   }
 

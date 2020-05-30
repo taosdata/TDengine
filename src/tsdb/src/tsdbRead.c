@@ -211,6 +211,22 @@ TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STable
   return pQueryHandle;
 }
 
+SArray* tsdbGetQueriedTableIdList(TsdbQueryHandleT *pHandle) {
+  assert(pHandle != NULL);
+  
+  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) pHandle;
+  
+  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  SArray* res = taosArrayInit(size, sizeof(STableId));
+  
+  for(int32_t i = 0; i < size; ++i) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    taosArrayPush(res, &pCheckInfo->tableId);
+  }
+  
+  return res;
+}
+
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TsdbRepoT *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList);
   
@@ -1461,6 +1477,9 @@ void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle) {
   
   for(int32_t i = 0; i < numOfTables; ++i) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    if (pCheckInfo->pTableObj->tableId.uid == 12094628167747) {
+      printf("abc\n");
+    }
     if (pCheckInfo->pTableObj->lastKey > key) {
       key = pCheckInfo->pTableObj->lastKey;
       index = i;

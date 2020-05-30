@@ -161,26 +161,24 @@ typedef struct SExtTagsInfo {
 
 // sql function runtime context
 typedef struct SQLFunctionCtx {
-  int32_t  startOffset;
-  int32_t  size;      // number of rows
-  uint32_t order;     // asc|desc
-  uint32_t scanFlag;  // TODO merge with currentStage
-
-  int16_t inputType;
-  int16_t inputBytes;
-
-  int16_t  outputType;
-  int16_t  outputBytes;  // size of results, determined by function and input column data type
-  bool     hasNull;      // null value exist in current block
-  int16_t  functionId;   // function id
-  void *   aInputElemBuf;
-  char *   aOutputBuf;            // final result output buffer, point to sdata->data
-  uint8_t  currentStage;          // record current running step, default: 0
-  int64_t  nStartQueryTimestamp;  // timestamp range of current query when function is executed on a specific data block
-  int32_t  numOfParams;
-  tVariant param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param */
-  int64_t *ptsList;       // corresponding timestamp array list
-  void *   ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  int32_t      startOffset;
+  int32_t      size;      // number of rows
+  uint32_t     order;     // asc|desc
+  int16_t      inputType;
+  int16_t      inputBytes;
+  
+  int16_t      outputType;
+  int16_t      outputBytes;  // size of results, determined by function and input column data type
+  bool         hasNull;      // null value exist in current block
+  int16_t      functionId;   // function id
+  void *       aInputElemBuf;
+  char *       aOutputBuf;            // final result output buffer, point to sdata->data
+  uint8_t      currentStage;          // record current running step, default: 0
+  int64_t      nStartQueryTimestamp;  // timestamp range of current query when function is executed on a specific data block
+  int32_t      numOfParams;
+  tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param */
+  int64_t *    ptsList;       // corresponding timestamp array list
+  void *       ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SQLPreAggVal preAggVals;
   tVariant     tag;
   SResultInfo *resultInfo;

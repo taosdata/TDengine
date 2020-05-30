@@ -620,13 +620,6 @@ typedef struct {
   SCMVgroupInfo vgroups[];
 } SVgroupsInfo;
 
-//typedef struct {
-//  int32_t numOfTables;
-//  int32_t join;
-//  int32_t joinCondLen;  // for join condition
-//  int32_t metaElem[TSDB_MAX_JOIN_TABLE_NUM];
-//} SSuperTableMetaMsg;
-
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableId[TSDB_TABLE_ID_LEN + 1];   // table id
