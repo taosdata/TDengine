@@ -721,7 +721,7 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_SUCCESS;
     } else {
       mError("table:%s, failed to drop table, table not exist", pDrop->tableId);
-      return TSDB_CODE_INVALID_TABLE;
+      return TSDB_CODE_INVALID_TABLE_ID;
     }
   }
 
@@ -749,7 +749,7 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
   if (pMsg->pTable == NULL) {
     if (!pInfo->createFlag) {
       mError("table:%s, failed to get table meta, table not exist", pInfo->tableId);
-      return TSDB_CODE_INVALID_TABLE;
+      return TSDB_CODE_INVALID_TABLE_ID;
     } else {
       mTrace("table:%s, failed to get table meta, start auto create table ", pInfo->tableId);
       return mnodeAutoCreateChildTable(pMsg);
@@ -786,7 +786,7 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   if (pStable->schema == NULL) {
     free(pStable);
     mError("table:%s, failed to create, no schema input", pCreate->tableId);
-    return TSDB_CODE_INVALID_TABLE;
+    return TSDB_CODE_INVALID_TABLE_ID;
   }
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
@@ -1430,7 +1430,7 @@ static SChildTableObj* mnodeDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgOb
     if (pSuperTable == NULL) {
       mError("table:%s, corresponding super table:%s does not exist", pCreate->tableId, pTagData->name);
       free(pTable);
-      terrno = TSDB_CODE_INVALID_TABLE;
+      terrno = TSDB_CODE_INVALID_TABLE_ID;
       return NULL;
     }
     mnodeDecTableRef(pSuperTable);
@@ -1888,7 +1888,7 @@ static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
   SChildTableObj *pTable = mnodeGetTableByPos(pCfg->vgId, pCfg->sid);
   if (pTable == NULL) {
     mError("dnode:%d, vgId:%d sid:%d, table not found", pCfg->dnodeId, pCfg->vgId, pCfg->sid);
-    return TSDB_CODE_NOT_ACTIVE_TABLE;
+    return TSDB_CODE_INVALID_TABLE_ID;
   }
 
   SMDCreateTableMsg *pCreate = NULL;
@@ -2199,7 +2199,7 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pAlter->tableId);
   if (pMsg->pTable == NULL) {
     mError("table:%s, failed to alter table, table not exist", pMsg->pTable->tableId);
-    return TSDB_CODE_INVALID_TABLE;
+    return TSDB_CODE_INVALID_TABLE_ID;
   }
 
   pAlter->type = htons(pAlter->type);
