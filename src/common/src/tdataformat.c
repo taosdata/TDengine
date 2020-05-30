@@ -680,3 +680,71 @@ void *tdDecodeKVDataRow(void *buf, SKVDataRow *row) {
   *row = tdKVDataRowDup(buf);
   return POINTER_SHIFT(buf, kvDataRowLen(*row));
 }
+
+int tdInitKVDataRowBuilder(SKVDataRowBuilder *pBuilder) {
+  pBuilder->tCols = 128;
+  pBuilder->nCols = 0;
+  pBuilder->pColIdx = (SColIdx *)malloc(sizeof(SColIdx) * pBuilder->tCols);
+  if (pBuilder->pColIdx == NULL) return -1;
+  pBuilder->alloc = 1024;
+  pBuilder->size = 0;
+  pBuilder->buf = malloc(pBuilder->alloc);
+  if (pBuilder->buf == NULL) {
+    free(pBuilder->pColIdx);
+    return -1;
+  }
+  return 0;
+}
+
+void tdDestroyKVDataRowBuilder(SKVDataRowBuilder *pBuilder) {
+  tfree(pBuilder->pColIdx);
+  tfree(pBuilder->buf);
+}
+
+void tdResetKVDataRowBuilder(SKVDataRowBuilder *pBuilder) {
+  pBuilder->nCols = 0;
+  pBuilder->size = 0;
+}
+
+SKVDataRow tdGetKVDataRowFromBuilder(SKVDataRowBuilder *pBuilder) {
+  int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
+  if (tlen == 0) return NULL;
+
+  SKVDataRow row = malloc(TD_KV_DATA_ROW_HEAD_SIZE + tlen);
+  if (row == NULL) return NULL;
+
+  kvDataRowSetNCols(row, pBuilder->nCols);
+  kvDataRowSetLen(row, TD_KV_DATA_ROW_HEAD_SIZE + tlen);
+
+  memcpy(kvDataRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
+  memcpy(kvDataRowValues(row), pBuilder->buf, pBuilder->size);
+
+  return row;
+}
+
+int tdAddColToKVDataRow(SKVDataRowBuilder *pBuilder, int16_t colId, int8_t type, void *value) {
+  ASSERT(pBuilder->nCols == 0 || colId > pBuilder->pColIdx[pBuilder->nCols - 1].colId);
+
+  if (pBuilder->nCols >= pBuilder->tCols) {
+    pBuilder->tCols *= 2;
+    pBuilder->pColIdx = realloc(pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->tCols);
+    if (pBuilder->pColIdx == NULL) return -1;
+  }
+
+  pBuilder->pColIdx[pBuilder->nCols].colId = colId;
+  pBuilder->pColIdx[pBuilder->nCols].offset = pBuilder->size;
+  
+  pBuilder->nCols++;
+
+  int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+  if (tlen > pBuilder->alloc - pBuilder->size) {
+    pBuilder->alloc *= 2;
+    pBuilder->buf = realloc(pBuilder->buf, pBuilder->alloc);
+    if (pBuilder->buf == NULL) return -1;
+  }
+
+  memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);
+  pBuilder->size += tlen;
+
+  return 0;
+}

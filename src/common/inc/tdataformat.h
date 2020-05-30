@@ -267,6 +267,22 @@ static FORCE_INLINE void *tdGetKVRowDataOfCol(SKVDataRow row, int16_t colId) {
   return kvDataRowColVal(row, (SColIdx *)ret);
 }
 
+// ----------------- K-V data row builder
+typedef struct {
+  int16_t  tCols;
+  int16_t  nCols;
+  SColIdx *pColIdx;
+  int16_t  alloc;
+  int16_t  size;
+  void *   buf;
+} SKVDataRowBuilder;
+
+int        tdInitKVDataRowBuilder(SKVDataRowBuilder *pBuilder);
+void       tdDestroyKVDataRowBuilder(SKVDataRowBuilder *pBuilder);
+void       tdResetKVDataRowBuilder(SKVDataRowBuilder *pBuilder);
+SKVDataRow tdGetKVDataRowFromBuilder(SKVDataRowBuilder *pBuilder);
+int        tdAddColToKVDataRow(SKVDataRowBuilder *pBuilder, int16_t colId, int8_t type, void *value);
+
 // ----------------- Tag row structure
 
 /* A tag row, the format is like below:
