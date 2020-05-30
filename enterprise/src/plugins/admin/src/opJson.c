@@ -169,7 +169,7 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
                     pContext->ipstr);
           return false;
         }
-      } else if (code == TSDB_CODE_INVALID_TABLE) {
+      } else if (code == TSDB_CODE_INVALID_TABLE_ID) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)(multiCmds->pos - 2);
@@ -273,7 +273,7 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
                     pContext->ipstr);
           return false;
         }
-      } else if (code == TSDB_CODE_INVALID_TABLE) {
+      } else if (code == TSDB_CODE_INVALID_TABLE_ID) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = 0;
