@@ -676,9 +676,9 @@ typedef struct {
 } SCMCreateDnodeMsg, SCMDropDnodeMsg;
 
 typedef struct {
-  uint32_t dnode;
-  int32_t  vnode;
-  int32_t  sid;
+  int32_t dnodeId;
+  int32_t vgId;
+  int32_t sid;
 } SDMConfigTableMsg;
 
 typedef struct {

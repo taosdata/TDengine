@@ -484,7 +484,10 @@ static int32_t mnodeSuperTableActionDecode(SSdbOper *pOper) {
   if (pStable == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
   int32_t len = strlen(pOper->rowData);
-  if (len > TSDB_TABLE_ID_LEN) return TSDB_CODE_INVALID_TABLE_ID;
+  if (len > TSDB_TABLE_ID_LEN){
+    free(pStable);
+    return TSDB_CODE_INVALID_TABLE_ID;
+  }
   pStable->info.tableId = strdup(pOper->rowData);
   len++;
 
@@ -1877,38 +1880,25 @@ static SChildTableObj* mnodeGetTableByPos(int32_t vnode, int32_t sid) {
 
 static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
   SDMConfigTableMsg *pCfg = pMsg->rpcMsg.pCont;
-  pCfg->dnode = htonl(pCfg->dnode);
-  pCfg->vnode = htonl(pCfg->vnode);
-  pCfg->sid   = htonl(pCfg->sid);
-  mTrace("dnode:%s, vnode:%d, sid:%d, receive table config msg", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
+  pCfg->dnodeId = htonl(pCfg->dnodeId);
+  pCfg->vgId = htonl(pCfg->vgId);
+  pCfg->sid = htonl(pCfg->sid);
+  mTrace("dnode:%d, vgId:%d sid:%d, receive table config msg", pCfg->dnodeId, pCfg->vgId, pCfg->sid);
 
-  SChildTableObj *pTable = mnodeGetTableByPos(pCfg->vnode, pCfg->sid);
+  SChildTableObj *pTable = mnodeGetTableByPos(pCfg->vgId, pCfg->sid);
   if (pTable == NULL) {
-    mError("dnode:%s, vnode:%d, sid:%d, table not found", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
+    mError("dnode:%d, vgId:%d sid:%d, table not found", pCfg->dnodeId, pCfg->vgId, pCfg->sid);
     return TSDB_CODE_NOT_ACTIVE_TABLE;
   }
 
-  SMDCreateTableMsg *pMDCreate = NULL;
-  pMDCreate = mnodeBuildCreateChildTableMsg(NULL, (SChildTableObj *)pTable);
-  if (pMDCreate == NULL) {
-    mnodeDecTableRef(pTable);
-    return terrno;
-  }
-
-  SDnodeObj *pDnode = mnodeGetDnode(pCfg->dnode);
-  SRpcIpSet ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
-  SRpcMsg rpcRsp = {
-      .handle  = NULL,
-      .pCont   = pMDCreate,
-      .contLen = htonl(pMDCreate->contLen),
-      .code    = 0,
-      .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
-  };
-  dnodeSendMsgToDnode(&ipSet, &rpcRsp);
-
+  SMDCreateTableMsg *pCreate = NULL;
+  pCreate = mnodeBuildCreateChildTableMsg(NULL, (SChildTableObj *)pTable);
   mnodeDecTableRef(pTable);
-  mnodeDecDnodeRef(pDnode);
-
+    
+  if (pCreate == NULL) return terrno;
+  
+  pMsg->rpcRsp.rsp = pCreate;
+  pMsg->rpcRsp.len = htonl(pCreate->contLen);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1926,7 +1916,6 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to drop in dnode, reason:%s", pTable->info.tableId, tstrerror(rpcMsg->code));
     dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
-    mnodeDecTableRef(pTable);
     return;
   }
 

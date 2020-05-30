@@ -17,14 +17,14 @@ system sh/cfg.sh -n dnode6 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode7 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode8 -c numOfTotalVnodes -v 4
 
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode5 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode6 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode7 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode8 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode5 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode6 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode7 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode8 -c numOfMnodes -v 3
 
 system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1
