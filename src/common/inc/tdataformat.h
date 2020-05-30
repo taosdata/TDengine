@@ -243,31 +243,31 @@ pData
 //#define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
 
 typedef struct {
-  int16_t colId;   // column ID
-  int16_t colType;
-  uint16_t offset;  //to store value for numeric col or offset for binary/Nchar
+  int16_t  colId;  // column ID
+  int16_t  colType;
+  uint16_t offset;  // to store value for numeric col or offset for binary/Nchar
 } STagCol;
 
 typedef struct {
-  int32_t    len;    
-  void *     pData;  // Space to store the tag value   
-  uint16_t   dataLen;
-  int16_t    ncols;  // Total columns allocated
-  STagCol    tagCols[];
+  int32_t  len;
+  void *   pData;  // Space to store the tag value
+  uint16_t dataLen;
+  int16_t  ncols;  // Total columns allocated
+  STagCol  tagCols[];
 } STagRow;
-
 
 #define tagColSize(r) (sizeof(STagCol) + r.colLen)
 
-int tdSetTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId);  //insert tag value and update all the information
-int tdDeleteTagCol(SDataRow row, int16_t colId);  // delete tag value and update all the information
-void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type);   //if find tag, 0, else return -1;
-int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int16_t colId);  
-SDataRow tdTagRowDup(SDataRow row);
-void tdFreeTagRow(SDataRow row); 
-SDataRow tdTagRowDecode(SDataRow row);
-int tdTagRowCpy(SDataRow dst, SDataRow src);
-void * tdNewTagRowFromSchema(STSchema *pSchema, int16_t numofTags);
+int       tdSetTagCol(SDataRow row, void *value, int16_t len, int8_t type,
+                      int16_t colId);                   // insert tag value and update all the information
+int       tdDeleteTagCol(SDataRow row, int16_t colId);  // delete tag value and update all the information
+void *    tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type);  // if find tag, 0, else return -1;
+int       tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int16_t colId);
+SDataRow  tdTagRowDup(SDataRow row);
+void      tdFreeTagRow(SDataRow row);
+SDataRow  tdTagRowDecode(SDataRow row);
+int       tdTagRowCpy(SDataRow dst, SDataRow src);
+void *    tdNewTagRowFromSchema(STSchema *pSchema, int16_t numofTags);
 STSchema *tdGetSchemaFromData(SDataRow *row);
 
 #ifdef __cplusplus
