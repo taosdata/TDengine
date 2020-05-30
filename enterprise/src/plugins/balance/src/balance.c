@@ -78,6 +78,11 @@ static bool balanceCheckFree(SDnodeObj *pDnode) {
     return false;
   }
 
+  if (pDnode->alternativeRole == TAOS_DN_ALTERNATIVE_ROLE_MNODE) {
+    mTrace("dnode:%d, alternative role is master, can't alloc vnodes in this dnode", pDnode->dnodeId);
+    return false;
+  }
+
   return true;
 }
 
