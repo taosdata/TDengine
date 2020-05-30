@@ -1754,14 +1754,14 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   pCreateMsg->contLen = htonl(contLen);
 
   memcpy(pCreateMsg->schema, pInfo->tags, contLen - sizeof(SCMCreateTableMsg));
+  mTrace("table:%s, start to create on demand, stable:%s", pInfo->tableId, pInfo->tags);
 
   rpcFreeCont(pMsg->rpcMsg.pCont);
   pMsg->rpcMsg.msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
   pMsg->rpcMsg.pCont = pCreateMsg;
   pMsg->rpcMsg.contLen = contLen;
 
-  mTrace("table:%s, start to create on demand, stable:%s", pInfo->tableId, pInfo->tags);
-
+  
   return TSDB_CODE_ACTION_NEED_REPROCESSED;
 }
 
