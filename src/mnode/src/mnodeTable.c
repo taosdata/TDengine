@@ -1442,7 +1442,7 @@ static SChildTableObj* mnodeDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgOb
     if (pSuperTable == NULL) {
       mError("table:%s, corresponding super table:%s does not exist", pCreate->tableId, pTagData->name);
       mnodeDestroyChildTable(pTable);
-      terrno = TSDB_CODE_INVALID_TABLE;
+      terrno = TSDB_CODE_INVALID_TABLE_ID;
       return NULL;
     }
     mnodeDecTableRef(pSuperTable);
