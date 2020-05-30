@@ -420,12 +420,12 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   pConn->rspMsgLen = msgLen;
   if (pMsg->code == TSDB_CODE_ACTION_IN_PROGRESS) pConn->inTranId--;
 
-  rpcUnlockConn(pConn);
-
   taosTmrStopA(&pConn->pTimer);
   // taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
   pConn->secured = 1; // connection shall be secured
+
+  rpcUnlockConn(pConn);
 
   return;
 }
@@ -1095,10 +1095,10 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pConn->reqMsgLen = msgLen;
   pConn->pContext = pContext;
 
-  rpcUnlockConn(pConn);
-
   taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
+
+  rpcUnlockConn(pConn);
 }
 
 static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {

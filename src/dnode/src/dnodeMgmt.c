@@ -413,7 +413,6 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   tsDMnodeIpSet.numOfIps = tsDMnodeInfos.nodeNum;
   for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
     taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeIpSet.fqdn[i], &tsDMnodeIpSet.port[i]);
-    dPrint("mnode index:%d, for peer %s %d", i, tsDMnodeIpSet.fqdn[i], tsDMnodeIpSet.port[i]);
   }
 
   dnodeSaveMnodeInfos();
