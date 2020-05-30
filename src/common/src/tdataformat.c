@@ -595,3 +595,88 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCol
     }
   }
 }
+
+SKVDataRow tdKVDataRowDup(SKVDataRow row) {
+  SKVDataRow trow = malloc(kvDataRowLen(row));
+  if (trow == NULL) return NULL;
+
+  kvDataRowCpy(trow, row);
+  return trow;
+}
+
+SKVDataRow tdSetKVRowDataOfCol(SKVDataRow row, int16_t colId, int8_t type, void *value) {
+  // TODO
+  return NULL;
+  // SColIdx *pColIdx = NULL;
+  // SKVDataRow rrow = row;
+  // SKVDataRow nrow = NULL;
+  // void *ptr = taosbsearch(&colId, kvDataRowColIdx(row), kvDataRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
+
+  // if (ptr == NULL || ((SColIdx *)ptr)->colId < colId) { // need to add a column value to the row
+  //   int tlen = kvDataRowLen(row) + sizeof(SColIdx) + (IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type]);
+  //   nrow = malloc(tlen);
+  //   if (nrow == NULL) return NULL;
+
+  //   kvDataRowSetNCols(nrow, kvDataRowNCols(row)+1);
+  //   kvDataRowSetLen(nrow, tlen);
+
+  //   if (ptr == NULL) ptr = kvDataRowValues(row);
+
+  //   // Copy the columns before the col
+  //   if (POINTER_DISTANCE(ptr, kvDataRowColIdx(row)) > 0) {
+  //     memcpy(kvDataRowColIdx(nrow), kvDataRowColIdx(row), POINTER_DISTANCE(ptr, kvDataRowColIdx(row)));
+  //     memcpy(kvDataRowValues(nrow), kvDataRowValues(row), ((SColIdx *)ptr)->offset); // TODO: here is not correct
+  //   }
+
+  //   // Set the new col value
+  //   pColIdx = (SColIdx *)POINTER_SHIFT(nrow, POINTER_DISTANCE(ptr, row));
+  //   pColIdx->colId = colId;
+  //   pColIdx->offset = ((SColIdx *)ptr)->offset; // TODO: here is not correct
+
+  //   if (IS_VAR_DATA_TYPE(type)) {
+  //     memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, varDataLen(value));
+  //   } else {
+  //     memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, TYPE_BYTES[type]);
+  //   }
+
+  //   // Copy the columns after the col
+  //   if (POINTER_DISTANCE(kvDataRowValues(row), ptr) > 0) {
+  //     // TODO: memcpy();
+  //   }
+  // } else {
+  //   // TODO
+  //   ASSERT(((SColIdx *)ptr)->colId == colId);
+  //   if (IS_VAR_DATA_TYPE(type)) {
+  //     void *pOldVal = kvDataRowColVal(row, (SColIdx *)ptr);
+
+  //     if (varDataTLen(value) == varDataTLen(pOldVal)) { // just update the column value in place
+  //       memcpy(pOldVal, value, varDataTLen(value));
+  //     } else { // enlarge the memory
+  //       // rrow = realloc(rrow, kvDataRowLen(rrow) + varDataTLen(value) - varDataTLen(pOldVal));
+  //       // if (rrow == NULL) return NULL;
+  //       // memmove();
+  //       // for () {
+  //       //   ((SColIdx *)ptr)->offset += balabala;
+  //       // }
+
+  //       // kvDataRowSetLen();
+
+  //     }
+  //   } else {
+  //     memcpy(kvDataRowColVal(row, (SColIdx *)ptr), value, TYPE_BYTES[type]);
+  //   }
+  // }
+
+  // return rrow;
+}
+
+void *tdEncodeKVDataRow(void *buf, SKVDataRow row) {
+  // May change the encode purpose
+  kvDataRowCpy(buf, row);
+  return POINTER_SHIFT(buf, kvDataRowLen(row));
+}
+
+void *tdDecodeKVDataRow(void *buf, SKVDataRow *row) {
+  *row = tdKVDataRowDup(buf);
+  return POINTER_SHIFT(buf, kvDataRowLen(*row));
+}

@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "talgo.h"
 #include "taosdef.h"
 #include "tutil.h"
 
@@ -217,6 +218,54 @@ void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop); //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);
 
+
+// ----------------- K-V data row structure
+/*
+ * +----------+----------+---------------------------------+---------------------------------+
+ * |  int16_t |  int16_t |                                 |                                 |
+ * +----------+----------+---------------------------------+---------------------------------+
+ * |    len   |   ncols  |           cols index            |             data part           |
+ * +----------+----------+---------------------------------+---------------------------------+
+ */
+typedef void *SKVDataRow;
+
+typedef struct {
+  int16_t colId;
+  int16_t offset;
+} SColIdx;
+
+#define TD_KV_DATA_ROW_HEAD_SIZE 2*sizeof(int16_t)
+
+#define kvDataRowLen(r) (*(int16_t *)(r))
+#define kvDataRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
+#define kvDataRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_DATA_ROW_HEAD_SIZE)
+#define kvDataRowValues(r) POINTER_SHIFT(r, TD_KV_DATA_ROW_HEAD_SIZE + sizeof(SColIdx) * kvDataRowNCols(r))
+#define kvDataRowCpy(dst, r) memcpy((dst), (r), kvDataRowLen(r))
+#define kvDataRowColVal(r, colIdx) POINTER_SHIFT(kvDataRowValues(r), (colIdx)->offset)
+#define kvDataRowSetLen(r, len) kvDataRowLen(r) = (len)
+#define kvDataRowSetNCols(r, n) kvDataRowNCols(r) = (n)
+#define kvDataRowColIdxAt(r, i) (kvDataRowColIdx(r) + (i))
+
+SKVDataRow tdKVDataRowDup(SKVDataRow row);
+SKVDataRow tdSetKVRowDataOfCol(SKVDataRow row, int16_t colId, int8_t type, void *value);
+void *     tdEncodeKVDataRow(void *buf, SKVDataRow row);
+void *     tdDecodeKVDataRow(void *buf, SKVDataRow *row);
+
+static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
+    return 1;
+  } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+static FORCE_INLINE void *tdGetKVRowDataOfCol(SKVDataRow row, int16_t colId) {
+  void *ret = taosbsearch(&colId, kvDataRowColIdx(row), kvDataRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
+  if (ret == NULL) return NULL;
+  return kvDataRowColVal(row, (SColIdx *)ret);
+}
 
 // ----------------- Tag row structure
 
