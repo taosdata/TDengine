@@ -93,16 +93,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_USER_FROM_CONN,          0, 0x0185, "can not get 
 TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ALREADY_EXIST,        0, 0x0200, "table already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_ID,           0, 0x0201, "invalid table id")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_TYPE,         0, 0x0202, "invalid table typee")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE,              0, 0x0203, "invalid table name")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPER_TABLE,            0, 0x0204, "no super table")           // operation only available for super table
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_TABLE,           0, 0x0205, "not active table")
-TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ID_MISMATCH,          0, 0x0206, "table id mismatch")
-TAOS_DEFINE_ERROR(TSDB_CODE_TAG_ALREAY_EXIST,           0, 0x0207, "tag already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_TAG_NOT_EXIST,              0, 0x0208, "tag not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_ALREAY_EXIST,         0, 0x0209, "field already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_NOT_EXIST,            0, 0x020A, "field not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_COL_NAME_TOO_LONG,          0, 0x020B, "column name too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TAGS,              0, 0x020C, "too many tags")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPER_TABLE,            0, 0x0203, "no super table")           // operation only available for super table
+TAOS_DEFINE_ERROR(TSDB_CODE_TAG_ALREAY_EXIST,           0, 0x0204, "tag already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_TAG_NOT_EXIST,              0, 0x0205, "tag not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_ALREAY_EXIST,         0, 0x0206, "field already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_NOT_EXIST,            0, 0x0207, "field not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_COL_NAME_TOO_LONG,          0, 0x0209, "column name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TAGS,              0, 0x0209, "too many tags")
 
 
 // dnode & mnode
@@ -147,7 +144,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,          0, 0x038F, "grant cpu li
 
 // server
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VGROUP_ID,          0, 0x0400, "invalid vgroup id")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_VNODE,           0, 0x0401, "not active vnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_VG_INIT_FAILED,             0, 0x0402, "vgroup init failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_SERV_NO_DISKSPACE,          0, 0x0403, "server no diskspace")
 TAOS_DEFINE_ERROR(TSDB_CODE_SERV_OUT_OF_MEMORY,         0, 0x0404, "server out of memory")

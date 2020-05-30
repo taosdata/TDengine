@@ -716,14 +716,14 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnode(pCfg->dnodeId);
   if (pDnode == NULL) {
     mTrace("dnode:%s, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
-    return TSDB_CODE_NOT_ACTIVE_VNODE;
+    return TSDB_CODE_INVALID_VGROUP_ID;
   }
   mnodeDecDnodeRef(pDnode);
 
   SVgObj *pVgroup = mnodeGetVgroup(pCfg->vgId);
   if (pVgroup == NULL) {
     mTrace("dnode:%s, vgId:%d, no vgroup info", taosIpStr(pCfg->dnodeId), pCfg->vgId);
-    return TSDB_CODE_NOT_ACTIVE_VNODE;
+    return TSDB_CODE_INVALID_VGROUP_ID;
   }
   mnodeDecVgroupRef(pVgroup);
 
