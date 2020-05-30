@@ -163,7 +163,7 @@ class TDDnode:
         self.cfg("clog", "1")
         self.cfg("statusInterval", "1")
         self.cfg("numOfTotalVnodes", "64")
-        self.cfg("numOfMPeers", "3")
+        self.cfg("numOfMnodes", "3")
         self.cfg("numOfThreadsPerCore", "2.0")
         self.cfg("monitor", "0")
         self.cfg("maxVnodeConnections", "30000")

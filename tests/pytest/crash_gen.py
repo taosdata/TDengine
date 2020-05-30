@@ -152,11 +152,17 @@ class WorkerThread:
         self._stepGate.set() # wake up!        
         time.sleep(0) # let the released thread run a bit
 
-    def execSql(self, sql): # not "execute", since we are out side the DB context
+    def execSql(self, sql): # TODO: expose DbConn directly
         if ( gConfig.per_thread_db_connection ):
             return self._dbConn.execute(sql)            
         else:
             return self._tc.getDbState().getDbConn().execute(sql)
+
+    def getDbConn(self):
+        if ( gConfig.per_thread_db_connection ):
+            return self._dbConn     
+        else:
+            return self._tc.getDbState().getDbConn()
 
     # def querySql(self, sql): # not "execute", since we are out side the DB context
     #     if ( gConfig.per_thread_db_connection ):
@@ -432,13 +438,22 @@ class DbConn:
     def execute(self, sql): 
         if ( not self.isOpen ):
             raise RuntimeError("Cannot execute database commands until connection is open")
-        return self._tdSql.execute(sql)
+        logger.debug("[SQL] Executing SQL: {}".format(sql))
+        nRows = self._tdSql.execute(sql)
+        logger.debug("[SQL] Execution Result, nRows = {}, SQL = {}".format(nRows, sql))
+        return nRows
 
     def query(self, sql) :  # return rows affected
         if ( not self.isOpen ):
             raise RuntimeError("Cannot query database until connection is open")
-        return self._tdSql.query(sql)
+        logger.debug("[SQL] Executing SQL: {}".format(sql))
+        nRows = self._tdSql.query(sql)
+        logger.debug("[SQL] Execution Result, nRows = {}, SQL = {}".format(nRows, sql))
+        return nRows
         # results are in: return self._tdSql.queryResult
+
+    def getQueryResult(self):
+        return self._tdSql.queryResult
 
     def _queryAny(self, sql) : # actual query result as an int
         if ( not self.isOpen ):
@@ -468,8 +483,8 @@ class AnyState:
     STATE_VAL_IDX = 0
     CAN_CREATE_DB = 1
     CAN_DROP_DB = 2
-    CAN_CREATE_FIXED_TABLE = 3
-    CAN_DROP_FIXED_TABLE = 4
+    CAN_CREATE_FIXED_SUPER_TABLE = 3
+    CAN_DROP_FIXED_SUPER_TABLE = 4
     CAN_ADD_DATA = 5
     CAN_READ_DATA = 6
 
@@ -502,10 +517,10 @@ class AnyState:
         return self._info[self.CAN_CREATE_DB]
     def canDropDb(self):
         return self._info[self.CAN_DROP_DB]
-    def canCreateFixedTable(self):
-        return self._info[self.CAN_CREATE_FIXED_TABLE]
-    def canDropFixedTable(self):
-        return self._info[self.CAN_DROP_FIXED_TABLE]
+    def canCreateFixedSuperTable(self):
+        return self._info[self.CAN_CREATE_FIXED_SUPER_TABLE]
+    def canDropFixedSuperTable(self):
+        return self._info[self.CAN_DROP_FIXED_SUPER_TABLE]
     def canAddData(self):
         return self._info[self.CAN_ADD_DATA]
     def canReadData(self):
@@ -602,9 +617,9 @@ class StateDbOnly(AnyState):
             # self.assertHasTask(tasks, DropDbTask) # implied by hasSuccess
             self.assertAtMostOneSuccess(tasks, DropDbTask)
             # self._state = self.STATE_EMPTY
-        elif ( self.hasSuccess(tasks, CreateFixedTableTask) ): # did not drop db, create table success
+        elif ( self.hasSuccess(tasks, CreateFixedSuperTableTask) ): # did not drop db, create table success
             # self.assertHasTask(tasks, CreateFixedTableTask) # tried to create table
-            self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # at most 1 attempt is successful
+            self.assertAtMostOneSuccess(tasks, CreateFixedSuperTableTask) # at most 1 attempt is successful
             self.assertNoTask(tasks, DropDbTask) # should have have tried
             # if ( not self.hasSuccess(tasks, AddFixedDataTask) ): # just created table, no data yet
             #     # can't say there's add-data attempts, since they may all fail
@@ -618,7 +633,7 @@ class StateDbOnly(AnyState):
         #     # raise RuntimeError("Unexpected no-success scenario")   # We might just landed all failure tasks, 
         #     self._state = self.STATE_DB_ONLY  # no change
 
-class StateTableOnly(AnyState):
+class StateSuperTableOnly(AnyState):
     def getInfo(self):
         return [
             self.STATE_TABLE_ONLY,
@@ -628,8 +643,8 @@ class StateTableOnly(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
-        if ( self.hasSuccess(tasks, DropFixedTableTask) ): # we are able to drop the table
-            self.assertAtMostOneSuccess(tasks, DropFixedTableTask)
+        if ( self.hasSuccess(tasks, DropFixedSuperTableTask) ): # we are able to drop the table
+            self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask)
             # self._state = self.STATE_DB_ONLY
         # elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table, but added data
         #     self.assertNoTask(tasks, DropFixedTableTask) # not true in massively parrallel cases
@@ -658,16 +673,16 @@ class StateHasData(AnyState):
         elif ( newState.equals(AnyState.STATE_DB_ONLY) ): # in DB only
             if ( not self.hasTask(tasks, CreateDbTask)): # without a create_db task
                 self.assertNoTask(tasks, DropDbTask) # we must have drop_db task
-            self.hasSuccess(tasks, DropFixedTableTask)
-            self.assertAtMostOneSuccess(tasks, DropFixedTableTask) # TODO: dicy
+            self.hasSuccess(tasks, DropFixedSuperTableTask)
+            self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask) # TODO: dicy
         elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
             self.assertNoTask(tasks, DropDbTask)
-            self.assertNoTask(tasks, DropFixedTableTask)
+            self.assertNoTask(tasks, DropFixedSuperTableTask)
             self.assertNoTask(tasks, AddFixedDataTask)
             # self.hasSuccess(tasks, DeleteDataTasks)
         else:
             self.assertNoTask(tasks, DropDbTask)
-            self.assertNoTask(tasks, DropFixedTableTask)
+            self.assertNoTask(tasks, DropFixedSuperTableTask)
             self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
 
 
@@ -681,7 +696,7 @@ class DbState():
         self._lock = threading.RLock()
 
         self._state = StateInvalid() # starting state
-        self._stateWeights = [1,3,5,10]
+        self._stateWeights = [1,3,5,10] # indexed with value of STATE_EMPTY, STATE_DB_ONLY, etc.
         
         # self.openDbServerConnection()
         self._dbConn = DbConn()
@@ -711,8 +726,8 @@ class DbState():
             tIndex = self.tableNumQueue.push()
         return tIndex
 
-    def getFixedTableName(self):
-        return "fixed_table"
+    def getFixedSuperTableName(self):
+        return "fs_table"
 
     def releaseTable(self, i): # return the table back, so others can use it
         self.tableNumQueue.release(i)
@@ -726,6 +741,12 @@ class DbState():
         with self._lock:
             self._lastInt += 1
             return self._lastInt
+
+    def getNextBinary(self):
+        return "Los_Angeles_{}".format(self.getNextInt())
+
+    def getNextFloat(self):
+        return 0.9 + self.getNextInt()
     
     def getTableNameToDelete(self):
         tblNum = self.tableNumQueue.pop() # TODO: race condition!
@@ -752,11 +773,12 @@ class DbState():
             if endState == None:
                 continue
             for tc in allTaskClasses: # what task can further begin from there?
-                if tc.canBeginFrom(endState) and (endState not in firstTaskTypes):
+                if tc.canBeginFrom(endState) and (tc not in firstTaskTypes):
                     taskTypes.append(tc) # gather it
 
         if len(taskTypes) <= 0:
-            raise RuntimeError("No suitable task types found for state: {}".format(self._state))        
+            raise RuntimeError("No suitable task types found for state: {}".format(self._state))   
+        logger.debug("[OPS] Tasks found for state {}: {}".format(self._state, taskTypes))     
         return taskTypes
 
         # tasks.append(ReadFixedDataTask(self)) # always for everybody
@@ -809,10 +831,10 @@ class DbState():
             # logger.debug("Found DB ONLY state")
             logger.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
             return StateDbOnly()
-        if dbc.query("SELECT * FROM db.{}".format(self.getFixedTableName()) ) == 0 : # no data
+        if dbc.query("SELECT * FROM db.{}".format(self.getFixedSuperTableName()) ) == 0 : # no data
             # logger.debug("Found TABLE_ONLY state")
-            logger.debug("[STT] TABLE_ONLY found, between {} and {}".format(ts, time.time()))
-            return StateTableOnly()
+            logger.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
+            return StateSuperTableOnly()
         else:
             # logger.debug("Found HAS_DATA state")
             logger.debug("[STT] HAS_DATA found, between {} and {}".format(ts, time.time()))
@@ -933,7 +955,7 @@ class Task():
         return self._dbState.execute(sql)
 
                   
-class ExecutionStats:    
+class ExecutionStats:
     def __init__(self):
         self._execTimes: Dict[str, [int, int]] = {} # total/success times for a task
         self._tasksInProgress = 0
@@ -984,7 +1006,7 @@ class ExecutionStats:
         logger.info("| Task Execution Times (success/total):")
         execTimesAny = 0
         for k, n in self._execTimes.items():            
-            execTimesAny += n[1]
+            execTimesAny += n[0]
             logger.info("|    {0:<24}: {1}/{2}".format(k,n[1],n[0]))
                 
         logger.info("| Total Tasks Executed (success or not): {} ".format(execTimesAny))
@@ -1035,7 +1057,7 @@ class CreateDbTask(StateTransitionTask):
         return state.canCreateDb()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        wt.execSql("create database db")
+        wt.execSql("create database db")       
 
 class DropDbTask(StateTransitionTask):
     @classmethod
@@ -1053,21 +1075,23 @@ class DropDbTask(StateTransitionTask):
         wt.execSql("drop database db")
         logger.debug("[OPS] database dropped at {}".format(time.time()))
 
-class CreateFixedTableTask(StateTransitionTask):
+class CreateFixedSuperTableTask(StateTransitionTask):
     @classmethod
     def getInfo(cls):
         return [
             # [AnyState.STATE_DB_ONLY],
-            StateTableOnly()
+            StateSuperTableOnly()
         ]
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
-        return state.canCreateFixedTable()
+        return state.canCreateFixedSuperTable()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tblName = self._dbState.getFixedTableName()        
-        wt.execSql("create table db.{} (ts timestamp, speed int)".format(tblName))
+        tblName = self._dbState.getFixedSuperTableName()        
+        wt.execSql("create table db.{} (ts timestamp, speed int) tags (b binary(20), f float) ".format(tblName))
+        # No need to create the regular tables, INSERT will do that automatically
+
 
 class ReadFixedDataTask(StateTransitionTask):
     @classmethod
@@ -1082,11 +1106,17 @@ class ReadFixedDataTask(StateTransitionTask):
         return state.canReadData()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tblName = self._dbState.getFixedTableName()        
-        wt.execSql("select * from db.{}".format(tblName)) # TODO: analyze result set later
+        sTbName = self._dbState.getFixedSuperTableName()        
+        dbc = wt.getDbConn()
+        dbc.query("select TBNAME from db.{}".format(sTbName)) # TODO: analyze result set later
+        rTables = dbc.getQueryResult()
+        # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
+        for rTbName in rTables : # regular tables
+            dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
+
         # tdSql.query(" cars where tbname in ('carzero', 'carone')")
 
-class DropFixedTableTask(StateTransitionTask):
+class DropFixedSuperTableTask(StateTransitionTask):
     @classmethod
     def getInfo(cls):
         return [
@@ -1096,10 +1126,10 @@ class DropFixedTableTask(StateTransitionTask):
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
-        return state.canDropFixedTable()
+        return state.canDropFixedSuperTable()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tblName = self._dbState.getFixedTableName()        
+        tblName = self._dbState.getFixedSuperTableName()        
         wt.execSql("drop table db.{}".format(tblName))
 
 class AddFixedDataTask(StateTransitionTask):
@@ -1116,8 +1146,14 @@ class AddFixedDataTask(StateTransitionTask):
         
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         ds = self._dbState
-        sql = "insert into db.{} values ('{}', {});".format(ds.getFixedTableName(), ds.getNextTick(), ds.getNextInt())
-        wt.execSql(sql) 
+        wt.execSql("use db") # TODO: seems to be an INSERT bug to require this
+        for i in range(10): # 0 to 9
+            sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
+                i, 
+                ds.getFixedSuperTableName(), 
+                ds.getNextBinary(), ds.getNextFloat(),
+                ds.getNextTick(), ds.getNextInt())
+            wt.execSql(sql) 
 
 
 #---------- Non State-Transition Related Tasks ----------#
@@ -1150,10 +1186,10 @@ class AddDataTask(Task):
             self.logInfo("No table found to add data, skipping...")
             return
         sql = "insert into db.table_{} values ('{}', {});".format(tIndex, ds.getNextTick(), ds.getNextInt())
-        self.logDebug("Executing SQL: {}".format(sql))
+        self.logDebug("[SQL] Executing SQL: {}".format(sql))
         wt.execSql(sql) 
         ds.releaseTable(tIndex)
-        self.logDebug("Finished adding data")
+        self.logDebug("[OPS] Finished adding data")
 
 
 # Deterministic random number generator

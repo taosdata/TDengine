@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/taosdata/TDengine/src/connector/go/src/taosSql"
+	_ "github.com/taosdata/TDengine/src/connector/go/taosSql"
 )
 
 const (
@@ -634,6 +634,7 @@ func insertData(threadIndex, start, end int, wg  *sync.WaitGroup, successRows []
 					if  appendRows == batch {
 						// executebatch
 						insertSql := buffers.String()
+						connection.Exec("use " + db)
 						affectedRows := executeBatchInsert(insertSql, connection)
 
 						successRows[threadIndex] += affectedRows
@@ -658,6 +659,7 @@ func insertData(threadIndex, start, end int, wg  *sync.WaitGroup, successRows []
 		if  appendRows > 0 {
 			// executebatch
 			insertSql := buffers.String()
+			connection.Exec("use " + db)
 			affectedRows := executeBatchInsert(insertSql, connection)
 			
 			successRows[threadIndex] += affectedRows
