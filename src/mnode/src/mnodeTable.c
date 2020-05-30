@@ -1269,9 +1269,9 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
-    if (pTable->vgHash != NULL) {
+    if (pTable != NULL && pTable->vgHash != NULL) {
       contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo));
-    }
+    } 
     mnodeDecTableRef(pTable);
   }
 
@@ -1280,12 +1280,23 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  pRsp->numOfTables = htonl(numOfTable);
+  pRsp->numOfTables = 0;
   char *msg = (char *)pRsp + sizeof(SCMSTableVgroupRspMsg);
 
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
+    if (pTable == NULL) {
+      mError("stable:%s, not exist while get stable vgroup info", stableName);
+      mnodeDecTableRef(pTable);
+      continue;
+    }
+    if (pTable->vgHash == NULL) {
+      mError("stable:%s, not vgroup exist while get stable vgroup info", stableName);
+      mnodeDecTableRef(pTable);
+      continue;
+    }
+
     SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
 
     SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
@@ -1317,12 +1328,19 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
 
     // one table is done, try the next table
     msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
+    pRsp->numOfTables++;
   }
 
-  pMsg->rpcRsp.rsp = pRsp;
-  pMsg->rpcRsp.len = msg - (char *)pRsp;
+  if (pRsp->numOfTables != numOfTable) {
+    rpcFreeCont(pRsp);
+    return TSDB_CODE_INVALID_TABLE_ID;
+  } else {
+    pRsp->numOfTables = htonl(pRsp->numOfTables);
+    pMsg->rpcRsp.rsp = pRsp;
+    pMsg->rpcRsp.len = msg - (char *)pRsp;
 
-  return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 static void mnodeProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
@@ -1423,7 +1441,7 @@ static SChildTableObj* mnodeDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgOb
     SSuperTableObj *pSuperTable = mnodeGetSuperTable(pTagData->name);
     if (pSuperTable == NULL) {
       mError("table:%s, corresponding super table:%s does not exist", pCreate->tableId, pTagData->name);
-      free(pTable);
+      mnodeDestroyChildTable(pTable);
       terrno = TSDB_CODE_INVALID_TABLE;
       return NULL;
     }
