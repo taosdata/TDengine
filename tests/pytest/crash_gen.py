@@ -609,7 +609,8 @@ class StateDbOnly(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
-        self.assertAtMostOneSuccess(tasks, DropDbTask) # not true in massively parralel cases
+        if ( not self.hasTask(tasks, CreateDbTask) ):
+            self.assertAtMostOneSuccess(tasks, DropDbTask) # only if we don't create any more
         self.assertIfExistThenSuccess(tasks, DropDbTask)
         # self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # not true in massively parrallel cases
         # Nothing to be said about adding data task
@@ -619,7 +620,8 @@ class StateDbOnly(AnyState):
             # self._state = self.STATE_EMPTY
         elif ( self.hasSuccess(tasks, CreateFixedSuperTableTask) ): # did not drop db, create table success
             # self.assertHasTask(tasks, CreateFixedTableTask) # tried to create table
-            self.assertAtMostOneSuccess(tasks, CreateFixedSuperTableTask) # at most 1 attempt is successful
+            if ( not self.hasTask(tasks, DropFixedSuperTableTask) ): 
+                self.assertAtMostOneSuccess(tasks, CreateFixedSuperTableTask) # at most 1 attempt is successful, if we don't drop anything
             self.assertNoTask(tasks, DropDbTask) # should have have tried
             # if ( not self.hasSuccess(tasks, AddFixedDataTask) ): # just created table, no data yet
             #     # can't say there's add-data attempts, since they may all fail
@@ -674,7 +676,7 @@ class StateHasData(AnyState):
             if ( not self.hasTask(tasks, CreateDbTask)): # without a create_db task
                 self.assertNoTask(tasks, DropDbTask) # we must have drop_db task
             self.hasSuccess(tasks, DropFixedSuperTableTask)
-            self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask) # TODO: dicy
+            # self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask) # TODO: dicy
         elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
             self.assertNoTask(tasks, DropDbTask)
             self.assertNoTask(tasks, DropFixedSuperTableTask)
