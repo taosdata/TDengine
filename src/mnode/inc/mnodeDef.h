@@ -220,6 +220,7 @@ typedef struct SAcctObj {
 
 typedef struct {
   int8_t   type;
+  int32_t  index;
   char     db[TSDB_DB_NAME_LEN + 1];
   void *   pIter;
   int16_t  numOfColumns;
@@ -228,7 +229,6 @@ typedef struct {
   int32_t  numOfReads;
   int16_t  offset[TSDB_MAX_COLUMNS];
   int16_t  bytes[TSDB_MAX_COLUMNS];
-  void *   signature;
   uint16_t payloadLen;
   char     payload[];
 } SShowObj;
