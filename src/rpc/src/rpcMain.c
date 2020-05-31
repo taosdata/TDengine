@@ -124,7 +124,6 @@ typedef struct SRpcConn {
 } SRpcConn;
 
 int tsRpcMaxUdpSize = 15000;  // bytes
-int tsRpcProgressTime = 10;  // milliseocnds
 
 // not configurable
 int tsRpcMaxRetry;
@@ -204,7 +203,7 @@ static void  rpcUnlockConn(SRpcConn *pConn);
 void *rpcOpen(const SRpcInit *pInit) {
   SRpcInfo *pRpc;
 
-  tsRpcMaxRetry = tsRpcMaxTime * 1000 / tsRpcProgressTime;
+  tsRpcMaxRetry = tsRpcMaxTime * 1000 * 2 / tsRpcTimer;
   tsRpcHeadSize = RPC_MSG_OVERHEAD; 
   tsRpcOverhead = sizeof(SRpcReqContext);
 
