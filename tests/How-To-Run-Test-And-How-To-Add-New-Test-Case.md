@@ -8,8 +8,8 @@
 
 3.  mkdir debug; cd debug; cmake ..; make ; sudo make install
 
-4.  pip install src/connector/python/linux/python2 ; pip3 install
-    src/connector/python/linux/python3
+4.  pip install ../src/connector/python/linux/python2 ; pip3 install
+    ../src/connector/python/linux/python3
 
 >   Note: Both Python2 and Python3 are currently supported by the Python test
 >   framework. Since Python2 is no longer officially supported by Python Software
