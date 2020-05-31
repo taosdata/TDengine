@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 echo "Executing deploy.sh"
 
@@ -31,10 +31,19 @@ cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
 echo "SCRIPT_DIR: $SCRIPT_DIR" 
 
-cd ../../
+TDINTERNAL="TDinternal"
+if [[ "$SCRIPT_DIR" == *"$TDINTERNAL"* ]]; then
+  cd ../../..
+else
+  cd ../../
+fi
+
 TAOS_DIR=`pwd`
 
-BUILD_DIR=$TAOS_DIR/debug/build
+BIN_DIR=`find . -name "taosd"|grep bin| cut -d '/' --fields=2,3`
+
+BUILD_DIR=$TAOS_DIR/$BIN_DIR
+
 SIM_DIR=$TAOS_DIR/sim
 
 NODE_DIR=$SIM_DIR/$NODE_NAME
