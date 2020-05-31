@@ -123,13 +123,6 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   
   tsem_init(&pSql->rspSem, 0, 0);
   
-  pthread_mutexattr_t mutexattr;
-  memset(&mutexattr, 0, sizeof(pthread_mutexattr_t));
-  
-  pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE_NP);
-  pthread_mutex_init(&pSql->inUse, &mutexattr);
-  pthread_mutexattr_destroy(&mutexattr);
-
   pObj->pSql = pSql;
   pObj->pDnodeConn = pDnodeConn;
   
@@ -291,23 +284,11 @@ int taos_query(TAOS *taos, const char *sqlstr) {
   }
   
   SSqlObj* pSql = pObj->pSql;
-  SSqlCmd* pCmd = &pSql->cmd;
-  
-  // now this TAOS_CONN object is in use by one thread
-  pthread_mutex_lock(&pSql->inUse);
-  
-  size_t sqlLen = strlen(sqlstr);
+  size_t   sqlLen = strlen(sqlstr);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   // wait for the callback function to post the semaphore
   tsem_wait(&pSql->rspSem);
-  
-  if (pCmd->command != TSDB_SQL_SELECT &&
-      pCmd->command != TSDB_SQL_SHOW &&
-      pCmd->command != TSDB_SQL_DESCRIBE_TABLE) {
-    pthread_mutex_unlock(&pSql->inUse);
-  }
-  
   return pSql->res.code;
 }
 
@@ -565,7 +546,6 @@ void taos_free_result(TAOS_RES *res) {
       tscFreeSqlObj(pSql);
     } else {
       tscPartiallyFreeSqlObj(pSql);
-      pthread_mutex_unlock(&pSql->inUse); // now this TAOS_CONN can be used by other threads
     }
   
     return;
@@ -596,9 +576,8 @@ void taos_free_result(TAOS_RES *res) {
   if ((pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_SHOW ||
        pCmd->command == TSDB_SQL_RETRIEVE ||
-       pCmd->command == TSDB_SQL_FETCH) && pRes->code == TSDB_CODE_SUCCESS &&
-       ((pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
-       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL))) {
+       pCmd->command == TSDB_SQL_FETCH) && pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false &&
+       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
     tscTrace("%p send msg to free qhandle in vnode, code:%d, numOfRows:%d, command:%s", pSql, pRes->code, pRes->numOfRows,

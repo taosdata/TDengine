@@ -318,7 +318,6 @@ typedef struct SSqlObj {
   char             freed : 4;
   char             listed : 4;
   tsem_t           rspSem;
-  pthread_mutex_t  inUse; // make sure that one connection can only be utilized by one thread/process
   SSqlCmd          cmd;
   SSqlRes          res;
   uint16_t         numOfSubs;
