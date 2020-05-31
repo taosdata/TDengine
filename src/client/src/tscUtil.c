@@ -1864,7 +1864,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   if (pFinalInfo->pTableMeta == NULL) {
-    tscError("%p new subquery failed for get pMeterMeta is NULL from cache", pSql);
+    tscError("%p new subquery failed for get tableMeta is NULL from cache", pSql);
     tscFreeSqlObj(pNew);
     return NULL;
   }
