@@ -423,6 +423,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tfree(pCmd->payload);
 
   pCmd->allocSize = 0;
+  
+  tfree(pSql->sqlstr);
   free(pSql);
 }
 
@@ -1848,8 +1850,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   STableMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
-    STableMeta* pTableMeta = taosCacheAcquireByName(tscCacheHandle, name);
-    // todo handle error
+    STableMeta* pTableMeta = taosCacheAcquireByData(tscCacheHandle, pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
     assert(pTableMeta != NULL);
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->tagColList);
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.

@@ -9,12 +9,12 @@ system sh/deploy.sh -n dnode3 -i 3
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode2 -c walLevel -v 0
 system sh/cfg.sh -n dnode3 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 
 print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start

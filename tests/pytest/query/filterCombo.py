@@ -49,7 +49,8 @@ class TDTestCase:
         tdSql.error("select * from db.st where ts > '2020-05-13 10:00:00.002' OR tagtype < 2")
 
         # illegal condition
-        tdSql.error("select * from db.st where ts != '2020-05-13 10:00:00.002' OR tagtype < 2")
+        tdSql.error("select * from db.st where ts != '2020-05-13 10:00:00.002' OR tagtype < 2")        
+        tdSql.error("select * from db.st where tagtype <> 1 OR tagtype < 2")
 
     def stop(self):
         tdSql.close()

@@ -269,6 +269,7 @@ cd ../../../debug; make
 ./test.sh -u -f unique/db/replica_reduce31.sim
 ./test.sh -u -f unique/db/replica_part.sim
 
+./test.sh -u -f unique/dnode/alternativeRole.sim
 ./test.sh -u -f unique/dnode/balance1.sim
 ./test.sh -u -f unique/dnode/balance2.sim
 ./test.sh -u -f unique/dnode/balance3.sim

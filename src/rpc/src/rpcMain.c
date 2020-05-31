@@ -420,12 +420,12 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   pConn->rspMsgLen = msgLen;
   if (pMsg->code == TSDB_CODE_ACTION_IN_PROGRESS) pConn->inTranId--;
 
-  rpcUnlockConn(pConn);
-
   taosTmrStopA(&pConn->pTimer);
   // taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
   pConn->secured = 1; // connection shall be secured
+
+  rpcUnlockConn(pConn);
 
   return;
 }
@@ -594,7 +594,10 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   // check if it is already allocated
   SRpcConn **ppConn = (SRpcConn **)(taosHashGet(pRpc->hash, hashstr, size));
   if (ppConn) pConn = *ppConn;
-  if (pConn) return pConn;
+  if (pConn) {
+    pConn->secured = 0;
+    return pConn;
+  }
 
   int sid = taosAllocateId(pRpc->idPool);
   if (sid <= 0) {
@@ -1092,10 +1095,10 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pConn->reqMsgLen = msgLen;
   pConn->pContext = pContext;
 
-  rpcUnlockConn(pConn);
-
   taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
+
+  rpcUnlockConn(pConn);
 }
 
 static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {

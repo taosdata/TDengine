@@ -76,8 +76,12 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {
-        strcpy(configDir, argv[++i]);
+      if (i < argc - 1) {   
+        if (strlen(argv[++i]) > TSDB_FILENAME_LEN - 1) {
+          fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
+          exit(EXIT_FAILURE);
+        }
+        strcpy(configDir, argv[i]);
       } else {
         fprintf(stderr, "Option -c requires an argument\n");
         exit(EXIT_FAILURE);
@@ -203,45 +207,16 @@ void *shellLoopQuery(void *arg) {
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL) return NULL;
 
-  while (1) {
+  do {
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
 
     // Read command from shell.
     shellReadCommand(con, command);
-
-    // Run the command
-    shellRunCommand(con, command);
-  }
+  } while (shellRunCommand(con, command) == 0);
 
   return NULL;
 }
-
-void shellPrintNChar(const char *str, int length, int width) {
-  int pos = 0, cols = 0;
-  while (pos < length) {
-    wchar_t wc;
-    int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
-    pos += bytes;
-    if (pos > length) {
-      break;
-    }
-
-    int w = bytes;
-    if (w > 0) {
-      if (width > 0 && cols + w > width) {
-        break;
-      }
-      printf("%lc", wc);
-      cols += w;
-    }
-  }
-
-  for (; cols < width; cols++) {
-    putchar(' ');
-  }
-}
-
 
 void get_history_path(char *history) { sprintf(history, "%s/%s", ".", HISTORY_FILE); }
 

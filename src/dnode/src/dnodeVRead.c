@@ -19,7 +19,6 @@
 #include "taosmsg.h"
 #include "tutil.h"
 #include "tqueue.h"
-#include "trpc.h"
 #include "twal.h"
 #include "tglobal.h"
 #include "dnodeInt.h"
@@ -53,7 +52,7 @@ static void  dnodeHandleIdleReadWorker(SReadWorker *);
 static SReadWorkerPool readPool;
 static taos_qset       readQset;
 
-int32_t dnodeInitRead() {
+int32_t dnodeInitVnodeRead() {
   readQset = taosOpenQset();
 
   readPool.min = 2;
@@ -71,7 +70,7 @@ int32_t dnodeInitRead() {
   return 0;
 }
 
-void dnodeCleanupRead() {
+void dnodeCleanupVnodeRead() {
   for (int i=0; i < readPool.max; ++i) {
     SReadWorker *pWorker = readPool.readWorker + i;
     if (pWorker->thread) {
@@ -142,7 +141,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateRqueue(void *pVnode) {
+void *dnodeAllocateVnodeRqueue(void *pVnode) {
   taos_queue queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
@@ -172,7 +171,7 @@ void *dnodeAllocateRqueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeRqueue(void *rqueue) {
+void dnodeFreeVnodeRqueue(void *rqueue) {
   taosCloseQueue(rqueue);
 
   // dynamically adjust the number of threads

@@ -226,11 +226,11 @@ static void taosGetSystemLocale() {  // get and set default locale
   if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     locale = setlocale(LC_CTYPE, "");
     if (locale == NULL) {
-      uForcePrint("can't get locale from system, set it to en_US.UTF-8");
+      uError("can't get locale from system, set it to en_US.UTF-8");
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
       strncpy(tsLocale, locale, tListLen(tsLocale));
-      uForcePrint("locale not configured, set to system default:%s", tsLocale);
+      uError("locale not configured, set to system default:%s", tsLocale);
     }
   }
 
@@ -245,10 +245,10 @@ static void taosGetSystemLocale() {  // get and set default locale
       strncpy(tsCharset, revisedCharset, tListLen(tsCharset));
 
       free(revisedCharset);
-      uForcePrint("charset not configured, set to system default:%s", tsCharset);
+      uError("charset not configured, set to system default:%s", tsCharset);
     } else {
       strcpy(tsCharset, "UTF-8");
-      uForcePrint("can't get locale and charset from system, set it to UTF-8");
+      uError("can't get locale and charset from system, set it to UTF-8");
     }
   }
 }

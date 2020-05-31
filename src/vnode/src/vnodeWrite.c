@@ -53,7 +53,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
 
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) 
-      return TSDB_CODE_NOT_ACTIVE_VNODE;
+      return TSDB_CODE_INVALID_VGROUP_ID;  // it may be in deleting or closing state
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
       return TSDB_CODE_NOT_READY;
@@ -106,7 +106,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
-
+  
   vTrace("vgId:%d, table:%s, start to create", pVnode->vgId, pTable->tableId);
   int16_t   numOfColumns = htons(pTable->numOfColumns);
   int16_t   numOfTags = htons(pTable->numOfTags);
@@ -139,14 +139,23 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
-    dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+    //dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+    dataRow = tdNewTagRowFromSchema(pDestTagSchema, numOfTags);
 
     for (int i = 0; i < numOfTags; i++) {
       STColumn *pTCol = schemaColAt(pDestTagSchema, i);
-      tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
+//      tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
+      tdAppendTagColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->colId);
       accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }
     tsdbTableSetTagValue(&tCfg, dataRow, false);
+  }
+
+  // only normal has sql string
+  if (pTable->tableType == TSDB_STREAM_TABLE) {
+    char *sql = pTable->data + totalCols * sizeof(SSchema);
+    vTrace("vgId:%d, table:%s is creating, sql:%s", pVnode->vgId, pTable->tableId, sql);
+    tsdbTableSetStreamSql(&tCfg, sql, false);
   }
 
   code = tsdbCreateTable(pVnode->tsdb, &tCfg);

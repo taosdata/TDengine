@@ -80,6 +80,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       if (wordexp(arg, &full_path, 0) != 0) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
+      }       
+      if (strlen(full_path.we_wordv[0]) > TSDB_FILENAME_LEN - 1) {
+        fprintf(stderr, "config file path: %s overflow max len %d\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);
+        wordfree(&full_path);
+        return -1;
       }
       strcpy(configDir, full_path.we_wordv[0]);
       wordfree(&full_path);
@@ -307,19 +312,13 @@ void *shellLoopQuery(void *arg) {
     return NULL;
   }
   
-  while (1) {
+  do {
     // Read command from shell.
-
     memset(command, 0, MAX_COMMAND_SIZE);
     set_terminal_mode();
     shellReadCommand(con, command);
     reset_terminal_mode();
-
-    // Run the command
-    if (shellRunCommand(con, command) != 0) {
-      break;
-    }
-  }
+  } while (shellRunCommand(con, command) == 0);
   
   tfree(command);
   exitShell();
@@ -327,30 +326,6 @@ void *shellLoopQuery(void *arg) {
   pthread_cleanup_pop(1);
   
   return NULL;
-}
-
-void shellPrintNChar(const char *str, int length, int width) {
-  int pos = 0, cols = 0;
-  while (pos < length) {
-    wchar_t wc;
-    pos += mbtowc(&wc, str + pos, MB_CUR_MAX);
-    if (pos > length) {
-      break;
-    }
-
-    int w = wcwidth(wc);
-    if (w > 0) {
-      if (width > 0 && cols + w > width) {
-        break;
-      }
-      printf("%lc", wc);
-      cols += w;
-    }
-  }
-
-  for (; cols < width; cols++) {
-    putchar(' ');
-  }
 }
 
 int get_old_terminal_mode(struct termios *tio) {
