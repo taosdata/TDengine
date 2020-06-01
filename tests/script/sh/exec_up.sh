@@ -100,7 +100,7 @@ else
   if [ -n "$PID" ]; then 
     if [ "$SIGNAL" = "SIGINT" ]; then 
       echo killed by signal
-      kill -sigint $PID
+      kill -SIGINT $PID
     else
       kill -9 $PID
     fi
