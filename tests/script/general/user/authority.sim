@@ -63,4 +63,4 @@ sql close
 sql connect
 sleep 2000
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

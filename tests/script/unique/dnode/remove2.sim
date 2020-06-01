@@ -16,7 +16,7 @@ system sh/cfg.sh -n dnode3 -c wallevel -v 2
 system sh/cfg.sh -n dnode4 -c wallevel -v 2
 
 print ========== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
@@ -44,7 +44,7 @@ endi
 
 print ========== step2
 sql create dnode $hostname2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sleep 9000
 
 sql create database d3 replica 2 maxTables 4
@@ -74,7 +74,7 @@ if $data2_2 != 3 then
 endi
 
 print ========== step3
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sql drop dnode $hostname2
 sleep 4000
 
@@ -84,7 +84,7 @@ print dnode2 openVnodes $data2_2
 
 print ========== step4
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 
 sleep 5000
 
@@ -97,7 +97,7 @@ if $data2_3 != 0 then
 endi
 
 print ============ step 4.1
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 
 $x = 0
 show4: 
@@ -146,11 +146,11 @@ if $data41 != 35 then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

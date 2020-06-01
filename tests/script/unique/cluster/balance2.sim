@@ -46,14 +46,14 @@ system sh/cfg.sh -n dnode8 -c mnodeEqualVnodeNum -v 0
 
 print ============== step1
 print ========= start dnode1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 
 sql connect
 sleep 4001
 sql create dnode $hostname2
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode2 -s start
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 4001
 
 sql create database c_b2_d1 replica 2 maxTables 4
@@ -148,12 +148,12 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
 
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 
 print ============================== step3
 print ========= start dnode4
 sql create dnode $hostname4
-system sh/exec_up.sh -n dnode4 -s start
+system sh/exec.sh -n dnode4 -s start
 sleep 10000
 
 $x = 0
@@ -259,12 +259,12 @@ if $dnode4Role != slave then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 
 print ============================== step5
 print ========= start dnode3
 sql create dnode $hostname5
-system sh/exec_up.sh -n dnode5 -s start
+system sh/exec.sh -n dnode5 -s start
 sleep 9000
 
 $x = 0
@@ -301,7 +301,7 @@ print dnode4 ==> $dnode4Role
 print dnode5 ==> $dnode5Role
 
 print ============================== step6
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 print stop dnode1 and sleep 10000
 sleep 10000
 
@@ -322,7 +322,7 @@ if $dnode1Role != offline then
 endi
 
 print ============================== step6.1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 
 $x = 0
 show6: 
@@ -357,7 +357,7 @@ print dnode1 ==> $dnode1Role
 print dnode4 ==> $dnode4Role
 print dnode5 ==> $dnode5Role
 
-#system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+#system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 
 print ============================== step12
 print ========= check data
@@ -421,11 +421,11 @@ if $data41 != 35 then
 endi
 
 print ============================================ over
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

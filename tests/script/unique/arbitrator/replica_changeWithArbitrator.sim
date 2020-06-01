@@ -24,7 +24,7 @@ system sh/exec_tarbitrator.sh -s start
 
 
 print ============== step1: replica is 1, and start 1 dnode
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
@@ -58,7 +58,7 @@ while $i < $tblNum
 endw 
 
 print ============== step2: add 1 new dnode, expect balanced
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 
 # expect after balanced, 2 vondes in dnode1, 1 vonde in dnode2
@@ -81,7 +81,7 @@ if $data2_2 != 1 then
 endi
 
 print ============== step4: stop dnode1, and wait dnode2 master
-system sh/exec_up.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode1 -s stop
 
 $x = 0
 loop_wait:
