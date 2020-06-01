@@ -79,7 +79,7 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
   int32_t rowsize = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t bytes = pFillInfo->pFillCol[i].col.bytes;
-    pFillInfo->pData[i] = calloc(1, sizeof(tFilePage) + bytes * capacity);
+    pFillInfo->pData[i] = calloc(1, bytes * capacity);
     
     rowsize += bytes;
   }
@@ -89,6 +89,8 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
   }
   
   pFillInfo->rowSize = rowsize;
+  pFillInfo->capacityInRows = capacity;
+  
   return pFillInfo;
 }
 
@@ -119,6 +121,17 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
   pFillInfo->rowIdx    = 0;
   pFillInfo->endKey    = endKey;
   pFillInfo->numOfRows = numOfRows;
+  
+  // ensure the space
+  if (pFillInfo->capacityInRows < numOfRows) {
+    for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+      char* tmp = realloc(pFillInfo->pData[i], numOfRows*pFillInfo->pFillCol[i].col.bytes);
+      assert(tmp != NULL); // todo handle error
+      
+      memset(tmp, 0, numOfRows*pFillInfo->pFillCol[i].col.bytes);
+      pFillInfo->pData[i] = tmp;
+    }
+  }
 }
 
 void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, tFilePage** pInput) {
@@ -474,11 +487,11 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
 }
 
 int64_t taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity) {
-    int32_t remain = taosNumOfRemainRows(pFillInfo);  // todo use iterator?
-    int32_t rows   = taosGetNumOfResultWithFill(pFillInfo, remain, pFillInfo->endKey, capacity);
+  int32_t remain = taosNumOfRemainRows(pFillInfo);  // todo use iterator?
+  int32_t rows   = taosGetNumOfResultWithFill(pFillInfo, remain, pFillInfo->endKey, capacity);
+
+  int32_t numOfRes = generateDataBlockImpl(pFillInfo, output, remain, rows, pFillInfo->pData);
+  assert(numOfRes == rows);
   
-    int32_t numOfRes = generateDataBlockImpl(pFillInfo, output, remain, rows, pFillInfo->pData);
-    assert(numOfRes == rows);
-    
-    return numOfRes;
+  return numOfRes;
 }

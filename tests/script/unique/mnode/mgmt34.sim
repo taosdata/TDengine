@@ -5,13 +5,13 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
-system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 3
 
 print ============== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
@@ -30,7 +30,7 @@ if $data3_3 != null then
 endi
 
 print ============== step2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 sleep 8000
 
@@ -58,7 +58,7 @@ if $dnode4Role != null then
 endi
 
 print ============== step3
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
 sleep 8000
 
@@ -87,7 +87,7 @@ endi
 
 
 print ============== step4
-system sh/exec_up.sh -n dnode4 -s start
+system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname4
 sleep 8000
 
@@ -141,12 +141,12 @@ if $dnode4Role != slave then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode2 -s stop
 sleep 3000
 
 system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
-system sh/exec_up.sh -n dnode2 -s start
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/exec.sh -n dnode2 -s start
 
 print ============== step6
 sql create dnode $hostname2
@@ -176,7 +176,7 @@ if $dnode4Role != slave then
 endi
 
 print ============== step7
-system sh/exec_up.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode1 -s stop
 sleep 4000
 
 sql show mnodes
@@ -220,11 +220,11 @@ endi
 #  return -1
 #endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

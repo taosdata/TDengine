@@ -370,7 +370,7 @@ typedef struct SExprInfo {
   struct tExprNode* pExpr;
   int16_t     bytes;
   int16_t     type;
-  int16_t     interBytes;
+  int32_t     interBytes;
 } SExprInfo;
 
 typedef struct SColumnFilterInfo {
@@ -620,13 +620,6 @@ typedef struct {
   SCMVgroupInfo vgroups[];
 } SVgroupsInfo;
 
-//typedef struct {
-//  int32_t numOfTables;
-//  int32_t join;
-//  int32_t joinCondLen;  // for join condition
-//  int32_t metaElem[TSDB_MAX_JOIN_TABLE_NUM];
-//} SSuperTableMetaMsg;
-
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableId[TSDB_TABLE_ID_LEN + 1];   // table id
@@ -676,9 +669,9 @@ typedef struct {
 } SCMCreateDnodeMsg, SCMDropDnodeMsg;
 
 typedef struct {
-  uint32_t dnode;
-  int32_t  vnode;
-  int32_t  sid;
+  int32_t dnodeId;
+  int32_t vgId;
+  int32_t sid;
 } SDMConfigTableMsg;
 
 typedef struct {

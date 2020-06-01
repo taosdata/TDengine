@@ -22,15 +22,15 @@ system sh/cfg.sh -n dnode5 -c wallevel -v 1
 system sh/cfg.sh -n dnode6 -c wallevel -v 1
 
 print ========== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 
 sql create dnode $hostname2
 sql create dnode $hostname3
 sql create dnode $hostname4
-system sh/exec_up.sh -n dnode2 -s start
-system sh/exec_up.sh -n dnode3 -s start
-system sh/exec_up.sh -n dnode4 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
 sleep 3000
 
 sql create database d1 replica 3  maxTables 4
@@ -98,11 +98,11 @@ if $data2_4 != 2 then
 	goto show2
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
 print ========== step
 sql create dnode $hostname5
-system sh/exec_up.sh -n dnode5 -s start
+system sh/exec.sh -n dnode5 -s start
 
 $x = 0
 show3: 
@@ -178,7 +178,7 @@ endi
 print ========== step5
 sql create dnode $hostname6
 system sh/deploy.sh -n dnode6 -i 6
-system sh/exec_up.sh -n dnode6 -s start
+system sh/exec.sh -n dnode6 -s start
 
 $x = 0
 show5: 
@@ -238,7 +238,7 @@ if $data2_5 != 3 then
 	goto show6
 endi
 
-system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
 
 sql reset query cache
 sleep 1000
@@ -298,11 +298,11 @@ if $data41 != 35 then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

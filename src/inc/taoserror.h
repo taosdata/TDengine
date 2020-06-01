@@ -72,9 +72,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_RESOURCE,                0, 0x0018, "no resource"
 TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,            0, 0x0019, "operations not support")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_OPTION,             0, 0x001A, "invalid option")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_CONFIGURED,             0, 0x001B, "not configured")
-TAOS_DEFINE_ERROR(TSDB_CODE_NODE_OFFLINE,               0, 0x001C, "node offline")
-TAOS_DEFINE_ERROR(TSDB_CODE_NETWORK_UNAVAIL,            0, 0x001D, "network unavailable")
-TAOS_DEFINE_ERROR(TSDB_CODE_AUTH_REQUIRED,              0, 0x001E, "auth required")
+TAOS_DEFINE_ERROR(TSDB_CODE_NETWORK_UNAVAIL,            0, 0x001C, "network unavailable")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUTH_REQUIRED,              0, 0x001D, "auth required")
 
 // db
 TAOS_DEFINE_ERROR(TSDB_CODE_DB_NOT_SELECTED,            0, 0x0100, "db not selected")
@@ -94,16 +93,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_USER_FROM_CONN,          0, 0x0185, "can not get 
 TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ALREADY_EXIST,        0, 0x0200, "table already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_ID,           0, 0x0201, "invalid table id")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_TYPE,         0, 0x0202, "invalid table typee")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE,              0, 0x0203, "invalid table name")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPER_TABLE,            0, 0x0204, "no super table")           // operation only available for super table
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_TABLE,           0, 0x0205, "not active table")
-TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ID_MISMATCH,          0, 0x0206, "table id mismatch")
-TAOS_DEFINE_ERROR(TSDB_CODE_TAG_ALREAY_EXIST,           0, 0x0207, "tag already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_TAG_NOT_EXIST,              0, 0x0208, "tag not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_ALREAY_EXIST,         0, 0x0209, "field already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_NOT_EXIST,            0, 0x020A, "field not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_COL_NAME_TOO_LONG,          0, 0x020B, "column name too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TAGS,              0, 0x020C, "too many tags")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPER_TABLE,            0, 0x0203, "no super table")           // operation only available for super table
+TAOS_DEFINE_ERROR(TSDB_CODE_TAG_ALREAY_EXIST,           0, 0x0204, "tag already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_TAG_NOT_EXIST,              0, 0x0205, "tag not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_ALREAY_EXIST,         0, 0x0206, "field already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_NOT_EXIST,            0, 0x0207, "field not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_COL_NAME_TOO_LONG,          0, 0x0209, "column name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TAGS,              0, 0x0209, "too many tags")
 
 
 // dnode & mnode
@@ -148,15 +144,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,          0, 0x038F, "grant cpu li
 
 // server
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VGROUP_ID,          0, 0x0400, "invalid vgroup id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VNODE_ID,           0, 0x0401, "invalid vnode id")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_VNODE,           0, 0x0402, "not active vnode")
-TAOS_DEFINE_ERROR(TSDB_CODE_VG_INIT_FAILED,             0, 0x0403, "vg init failed")
-TAOS_DEFINE_ERROR(TSDB_CODE_SERV_NO_DISKSPACE,          0, 0x0404, "server no diskspace")
-TAOS_DEFINE_ERROR(TSDB_CODE_SERV_OUT_OF_MEMORY,         0, 0x0405, "server out of memory")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISK_PERMISSIONS,        0, 0x0406, "no disk permissions")
-TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,             0, 0x0407, "file corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,           0, 0x0408, "memory corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUCH_FILE_OR_DIR,       0, 0x0409, "no such file or directory")
+TAOS_DEFINE_ERROR(TSDB_CODE_VG_INIT_FAILED,             0, 0x0402, "vgroup init failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_SERV_NO_DISKSPACE,          0, 0x0403, "server no diskspace")
+TAOS_DEFINE_ERROR(TSDB_CODE_SERV_OUT_OF_MEMORY,         0, 0x0404, "server out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISK_PERMISSIONS,        0, 0x0405, "no disk permissions")
+TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,             0, 0x0406, "file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,           0, 0x0407, "memory corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUCH_FILE_OR_DIR,       0, 0x0408, "no such file or directory")
 
 // client
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CLIENT_VERSION,     0, 0x0481, "invalid client version")

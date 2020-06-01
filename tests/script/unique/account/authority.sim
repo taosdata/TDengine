@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 8
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
 sql connect
@@ -344,4 +344,4 @@ sql drop database d2
 sql drop database d3
 sql drop database d4
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

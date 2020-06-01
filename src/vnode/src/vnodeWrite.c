@@ -53,7 +53,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
 
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) 
-      return TSDB_CODE_NOT_ACTIVE_VNODE;
+      return TSDB_CODE_INVALID_VGROUP_ID;  // it may be in deleting or closing state
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
       return TSDB_CODE_NOT_READY;
@@ -139,12 +139,10 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
-    //dataRow = tdNewDataRowFromSchema(pDestTagSchema);
     dataRow = tdNewTagRowFromSchema(pDestTagSchema, numOfTags);
 
     for (int i = 0; i < numOfTags; i++) {
       STColumn *pTCol = schemaColAt(pDestTagSchema, i);
-//      tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
       tdAppendTagColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->colId);
       accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }

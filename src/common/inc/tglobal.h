@@ -87,7 +87,7 @@ extern int16_t tsWAL;
 extern int32_t tsReplications;
 
 extern int16_t tsAffectedRowsMod;
-extern int32_t tsNumOfMPeers;
+extern int32_t tsNumOfMnodes;
 extern int32_t tsMaxShellConns;
 extern int32_t tsMaxTables;
 
@@ -98,9 +98,7 @@ extern char tsDefaultPass[];
 extern char tsMqttBrokerAddress[];
 extern char tsMqttBrokerClientId[];
 
-extern int32_t tsMaxMeterConnections;
-extern int32_t tsMaxVnodeConnections;
-extern int32_t tsMaxMgmtConnections;
+extern int32_t tsMaxConnections;
 
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;

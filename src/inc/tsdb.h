@@ -43,6 +43,8 @@ typedef struct {
   void *cqH;
   int (*notifyStatus)(void *, int status);
   int (*eventCallBack)(void *);
+  void *(*cqCreateFunc)(void *handle, int sid, char *sqlStr, STSchema *pSchema);
+  void (*cqDropFunc)(void *handle);
 } STsdbAppH;
 
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
@@ -71,7 +73,7 @@ typedef void TsdbRepoT;  // use void to hide implementation details from outside
 
 int        tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 int32_t    tsdbDropRepo(TsdbRepoT *repo);
-TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH);
+TsdbRepoT *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
 int32_t    tsdbCloseRepo(TsdbRepoT *repo, int toCommit);
 int32_t    tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg);
 
@@ -197,6 +199,10 @@ TsdbQueryHandleT *tsdbQueryTables(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STable
  * @return
  */
 TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo);
+
+SArray* tsdbGetQueriedTableIdList(TsdbQueryHandleT *pHandle);
+
+TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TsdbRepoT *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList);
 
 /**
  * move to next block if exists

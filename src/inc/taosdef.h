@@ -293,9 +293,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_COMP_LEVEL             2
 #define TSDB_DEFAULT_COMP_LEVEL         2
 
-#define TSDB_MIN_WAL_LEVEL             0
-#define TSDB_MAX_WAL_LEVEL             2
-#define TSDB_DEFAULT_WAL_LEVEL         2
+#define TSDB_MIN_WAL_LEVEL              1
+#define TSDB_MAX_WAL_LEVEL              2
+#define TSDB_DEFAULT_WAL_LEVEL          1
 
 #define TSDB_MIN_REPLICA_NUM            1
 #define TSDB_MAX_REPLICA_NUM            3
@@ -337,9 +337,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_ORDER_ASC   1
 #define TSDB_ORDER_DESC  2
-
-#define TSDB_SESSIONS_PER_VNODE (300)
-#define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
 
 #define TSDB_DEFAULT_MNODES_HASH_SIZE   5
 #define TSDB_DEFAULT_DNODES_HASH_SIZE   10

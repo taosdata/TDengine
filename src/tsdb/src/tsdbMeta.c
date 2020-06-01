@@ -103,7 +103,8 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   if (pTable->type == TSDB_STREAM_TABLE) {
     ptr = taosDecodeString(ptr, &(pTable->sql));
   }
-
+  
+  pTable->lastKey = TSKEY_INITIAL_VAL;
   return pTable;
 }
 
@@ -118,7 +119,7 @@ static char* getTagIndexKey(const void* pData) {
   STSchema* pSchema = tsdbGetTableTagSchema(elem->pMeta, elem->pTable);
   STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
   int16_t type = 0;
-  void * res = tdQueryTagByID(row, pCol->colId,&type);
+  void * res = tdQueryTagByID(row, pCol->colId, &type);
   ASSERT(type == pCol->type);
   return res;
 }
@@ -142,11 +143,19 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
 
 void tsdbOrgMeta(void *pHandle) {
   STsdbMeta *pMeta = (STsdbMeta *)pHandle;
+  STsdbRepo *pRepo = (STsdbRepo *)pMeta->pRepo;
 
   for (int i = 1; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable != NULL && pTable->type == TSDB_CHILD_TABLE) {
       tsdbAddTableIntoIndex(pMeta, pTable);
+    }
+  }
+
+  for (int i = 0; i < pMeta->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, i, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
   }
 }
@@ -155,7 +164,7 @@ void tsdbOrgMeta(void *pHandle) {
  * Initialize the meta handle
  * ASSUMPTIONS: VALID PARAMETER
  */
-STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
+STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables, void *pRepo) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) return NULL;
 
@@ -165,6 +174,7 @@ STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
   pMeta->tables = (STable **)calloc(maxTables, sizeof(STable *));
   pMeta->maxRowBytes = 0;
   pMeta->maxCols = 0;
+  pMeta->pRepo = pRepo;
   if (pMeta->tables == NULL) {
     free(pMeta);
     return NULL;
@@ -189,13 +199,16 @@ STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables) {
 }
 
 int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
+  STsdbRepo *pRepo = (STsdbRepo *)pMeta->pRepo;
   if (pMeta == NULL) return 0;
 
   tsdbCloseMetaFile(pMeta->mfh);
 
   for (int i = 1; i < pMeta->maxTables; i++) {
     if (pMeta->tables[i] != NULL) {
-      tsdbFreeTable(pMeta->tables[i]);
+      STable *pTable = pMeta->tables[i];
+      if (pTable->type == TSDB_STREAM_TABLE) (*pRepo->appH.cqDropFunc)(pTable->cqhandle);
+      tsdbFreeTable(pTable);
     }
   }
 
@@ -243,30 +256,18 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
-  STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
-  STColumn* pCol = NULL;
+  *val = tdQueryTagByID(pTable->tagVal, colId, type);
   
-  // todo binary search
-  for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
-    STColumn* p = schemaColAt(pSchema, col);
-    if (p->colId == colId) {
-      pCol = p;
-      break;
+  if (*val != NULL) {
+    switch(*type) {
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:  *bytes = varDataLen(*val); break;
+      case TSDB_DATA_TYPE_NULL:   *bytes = 0; break;
+      default:
+        *bytes = tDataTypeDesc[*type].nSize;break;
     }
   }
-  
-  if (pCol == NULL) {
-    return -1;  // No matched tags. Maybe the modification of tags has not been done yet.
-  }
-  
-  SDataRow row = (SDataRow)pTable->tagVal;
-  int16_t tagtype = 0;
-  char* d = tdQueryTagByID(row, pCol->colId, &tagtype);
-  //ASSERT((int8_t)tagtype == pCol->type)
-  *val = d;
-  *type  = pCol->type;
-  *bytes = pCol->bytes;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -393,7 +394,9 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
       return -1;
     }
   }
-
+  
+  table->lastKey = TSKEY_INITIAL_VAL;
+  
   // Register to meta
   if (newSuper) {
     tsdbAddTableToMeta(pMeta, super, true);
@@ -512,6 +515,7 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
 }
 
 static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
+  STsdbRepo *pRepo = (STsdbRepo *)pMeta->pRepo;
   if (pTable->type == TSDB_SUPER_TABLE) { 
     // add super table to the linked list
     if (pMeta->superList == NULL) {
@@ -531,7 +535,7 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
       tsdbAddTableIntoIndex(pMeta, pTable);
     }
     if (pTable->type == TSDB_STREAM_TABLE && addIdx) {
-      // TODO
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, pTable->tableId.tid, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
     
     pMeta->nTables++;

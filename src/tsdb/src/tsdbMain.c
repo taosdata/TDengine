@@ -189,9 +189,9 @@ _err:
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
+TsdbRepoT *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
   char dataDir[128] = "\0";
-  if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
+  if (access(rootDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
   }
 
@@ -200,12 +200,12 @@ TsdbRepoT *tsdbOpenRepo(char *tsdbDir, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  pRepo->rootDir = strdup(tsdbDir);
+  pRepo->rootDir = strdup(rootDir);
 
   tsdbRestoreCfg(pRepo, &(pRepo->config));
   if (pAppH) pRepo->appH = *pAppH;
 
-  pRepo->tsdbMeta = tsdbInitMeta(tsdbDir, pRepo->config.maxTables);
+  pRepo->tsdbMeta = tsdbInitMeta(rootDir, pRepo->config.maxTables, pRepo);
   if (pRepo->tsdbMeta == NULL) {
     free(pRepo->rootDir);
     free(pRepo);

@@ -716,14 +716,14 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnode(pCfg->dnodeId);
   if (pDnode == NULL) {
     mTrace("dnode:%s, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
-    return TSDB_CODE_NOT_ACTIVE_VNODE;
+    return TSDB_CODE_INVALID_VGROUP_ID;
   }
   mnodeDecDnodeRef(pDnode);
 
   SVgObj *pVgroup = mnodeGetVgroup(pCfg->vgId);
   if (pVgroup == NULL) {
     mTrace("dnode:%s, vgId:%d, no vgroup info", taosIpStr(pCfg->dnodeId), pCfg->vgId);
-    return TSDB_CODE_NOT_ACTIVE_VNODE;
+    return TSDB_CODE_INVALID_VGROUP_ID;
   }
   mnodeDecVgroupRef(pVgroup);
 
@@ -784,7 +784,7 @@ void mnodeUpdateAllDbVgroups(SDbObj *pAlterDb) {
   mPrint("db:%s, all vgroups is updated in sdb", pAlterDb->name);
 }
 
-void mnodeDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
+void mnodeDropAllDbVgroups(SDbObj *pDropDb) {
   void *  pIter = NULL;
   int32_t numOfVgroups = 0;
   SVgObj *pVgroup = NULL;
@@ -802,10 +802,6 @@ void mnodeDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
       };
       sdbDeleteRow(&oper);
       numOfVgroups++;
-
-      if (sendMsg) {
-        mnodeSendDropVgroupMsg(pVgroup, NULL);
-      }
     }
 
     mnodeDecVgroupRef(pVgroup);
@@ -814,4 +810,26 @@ void mnodeDropAllDbVgroups(SDbObj *pDropDb, bool sendMsg) {
   sdbFreeIter(pIter);
 
   mPrint("db:%s, all vgroups:%d is dropped from sdb", pDropDb->name, numOfVgroups);
+}
+
+void mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb) {
+  void *  pIter = NULL;
+  int32_t numOfVgroups = 0;
+  SVgObj *pVgroup = NULL;
+
+  mPrint("db:%s, all vgroups will be dropped in dnode", pDropDb->name);
+  while (1) {
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    if (pVgroup->pDb == pDropDb) {
+      mnodeSendDropVgroupMsg(pVgroup, NULL);
+    }
+
+    mnodeDecVgroupRef(pVgroup);
+  }
+
+  sdbFreeIter(pIter);
+
+  mPrint("db:%s, all vgroups:%d drop msg is sent to dnode", pDropDb->name, numOfVgroups);
 }

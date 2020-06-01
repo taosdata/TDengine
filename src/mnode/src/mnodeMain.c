@@ -160,7 +160,7 @@ void mnodeStopSystem() {
 
 static void mnodeInitTimer() {
   if (tsMnodeTmr == NULL) {
-    tsMnodeTmr = taosTmrInit((tsMaxShellConns)*3, 200, 3600000, "MND");
+    tsMnodeTmr = taosTmrInit(tsMaxShellConns, 200, 3600000, "MND");
   }
 }
 
