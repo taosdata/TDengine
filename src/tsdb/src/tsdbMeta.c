@@ -103,7 +103,8 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   if (pTable->type == TSDB_STREAM_TABLE) {
     ptr = taosDecodeString(ptr, &(pTable->sql));
   }
-
+  
+  pTable->lastKey = TSKEY_INITIAL_VAL;
   return pTable;
 }
 
@@ -118,7 +119,7 @@ static char* getTagIndexKey(const void* pData) {
   STSchema* pSchema = tsdbGetTableTagSchema(elem->pMeta, elem->pTable);
   STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
   int16_t type = 0;
-  void * res = tdQueryTagByID(row, pCol->colId,&type);
+  void * res = tdQueryTagByID(row, pCol->colId, &type);
   ASSERT(type == pCol->type);
   return res;
 }
@@ -255,30 +256,18 @@ int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
-  STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
-  STColumn* pCol = NULL;
+  *val = tdQueryTagByID(pTable->tagVal, colId, type);
   
-  // todo binary search
-  for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
-    STColumn* p = schemaColAt(pSchema, col);
-    if (p->colId == colId) {
-      pCol = p;
-      break;
+  if (*val != NULL) {
+    switch(*type) {
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:  *bytes = varDataLen(*val); break;
+      case TSDB_DATA_TYPE_NULL:   *bytes = 0; break;
+      default:
+        *bytes = tDataTypeDesc[*type].nSize;break;
     }
   }
-  
-  if (pCol == NULL) {
-    return -1;  // No matched tags. Maybe the modification of tags has not been done yet.
-  }
-  
-  SDataRow row = (SDataRow)pTable->tagVal;
-  int16_t tagtype = 0;
-  char* d = tdQueryTagByID(row, pCol->colId, &tagtype);
-  //ASSERT((int8_t)tagtype == pCol->type)
-  *val = d;
-  *type  = pCol->type;
-  *bytes = pCol->bytes;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -405,7 +394,9 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
       return -1;
     }
   }
-
+  
+  table->lastKey = TSKEY_INITIAL_VAL;
+  
   // Register to meta
   if (newSuper) {
     tsdbAddTableToMeta(pMeta, super, true);

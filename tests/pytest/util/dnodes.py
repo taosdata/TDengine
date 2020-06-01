@@ -38,9 +38,9 @@ class TDSimClient:
             tdLog.exit(cmd)
 
     def deploy(self):
-        self.logDir = "%s/pysim/psim/log" % (self.path,)
-        self.cfgDir = "%s/pysim/psim/cfg" % (self.path)
-        self.cfgPath = "%s/pysim/psim/cfg/taos.cfg" % (self.path)
+        self.logDir = "%s/sim/psim/log" % (self.path,)
+        self.cfgDir = "%s/sim/psim/cfg" % (self.path)
+        self.cfgPath = "%s/sim/psim/cfg/taos.cfg" % (self.path)
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
@@ -113,10 +113,10 @@ class TDDnode:
         return totalSize
 
     def deploy(self):
-        self.logDir = "%s/pysim/dnode%d/log" % (self.path, self.index)
-        self.dataDir = "%s/pysim/dnode%d/data" % (self.path, self.index)
-        self.cfgDir = "%s/pysim/dnode%d/cfg" % (self.path, self.index)
-        self.cfgPath = "%s/pysim/dnode%d/cfg/taos.cfg" % (
+        self.logDir = "%s/sim/dnode%d/log" % (self.path, self.index)
+        self.dataDir = "%s/sim/dnode%d/data" % (self.path, self.index)
+        self.cfgDir = "%s/sim/dnode%d/cfg" % (self.path, self.index)
+        self.cfgPath = "%s/sim/dnode%d/cfg/taos.cfg" % (
             self.path, self.index)
 
         cmd = "rm -rf " + self.dataDir
@@ -298,11 +298,11 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def getDnodeRootDir(self, index):
-        dnodeRootDir = "%s/pysim/psim/dnode%d" % (self.path, index)
+        dnodeRootDir = "%s/sim/psim/dnode%d" % (self.path, index)
         return dnodeRootDir
 
     def getDnodesRootDir(self):
-        dnodesRootDir = "%s/pysim/psim" % (self.path)
+        dnodesRootDir = "%s/sim/psim" % (self.path)
         return dnodesRootDir
 
 
@@ -455,7 +455,7 @@ class TDDnodes:
         # tdLog.exit(cmd)
 
     def getDnodesRootDir(self):
-        dnodesRootDir = "%s/pysim" % (self.path)
+        dnodesRootDir = "%s/sim" % (self.path)
         return dnodesRootDir
 
     def getSimCfgPath(self):

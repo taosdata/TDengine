@@ -28,8 +28,7 @@ extern "C" {
 #include "tdataformat.h"
 #include "talgo.h"
 
-#define DEFAULT_PAGE_SIZE 16384  // 16k larger than the SHistoInfo
-#define MIN_BUFFER_SIZE (1 << 19)
+#define DEFAULT_PAGE_SIZE (1024L*56)  // 16k larger than the SHistoInfo
 #define MAX_TMPFILE_PATH_LENGTH PATH_MAX
 #define INITIAL_ALLOCATION_BUFFER_SIZE 64
 

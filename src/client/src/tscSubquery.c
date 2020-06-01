@@ -1084,7 +1084,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
         
         int16_t bytes = 0;
         int16_t type = 0;
-        int16_t inter = 0;
+        int32_t inter = 0;
         
         getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
         
@@ -1770,6 +1770,8 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
      */
     pNew->fetchFp = pNew->fp;
     pSql->pSubs[i] = pNew;
+    pNew->fetchFp = pNew->fp;
+    
     tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
   }
   

@@ -57,6 +57,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   }
   
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
@@ -165,7 +166,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   SSqlRes *pRes = &pSql->res;
 
   if ((pRes->qhandle == 0 || numOfRows != 0) && pCmd->command < TSDB_SQL_LOCAL) {
-    if (pRes->qhandle == 0) {
+    if (pRes->qhandle == 0 && numOfRows != 0) {
       tscError("qhandle is NULL");
     } else {
       pRes->code = numOfRows;

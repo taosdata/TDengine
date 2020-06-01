@@ -46,6 +46,7 @@ extern "C" {
 
 // Pointer p drift right by b bytes
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
+#define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
 
 #ifndef NDEBUG
 #define ASSERT(x) assert(x)
@@ -123,6 +124,8 @@ char* strtolower(char *dst, const char *src);
 int64_t strnatoi(char *num, int32_t len);
 
 char* strreplace(const char* str, const char* pattern, const char* rep);
+
+char *strbetween(char *string, char *begin, char *end);
 
 char *paGetToken(char *src, char **token, int32_t *tokenLen);
 

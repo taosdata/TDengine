@@ -1,4 +1,6 @@
 #!/bin/bash
+ulimit -c unlimited
+
 # insert
 python3 ./test.py $1 -f insert/basic.py
 python3 ./test.py $1 -s && sleep 1
@@ -55,11 +57,5 @@ python3 ./test.py $1 -s && sleep 1
 
 #query
 python3 ./test.py $1 -f query/filter.py
-python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f query/filterCombo.py
-python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f query/queryNormal.py
-python3 ./test.py $1 -s && sleep 1
-python3 ./test.py $1 -f query/queryError.py
 python3 ./test.py $1 -s && sleep 1
 

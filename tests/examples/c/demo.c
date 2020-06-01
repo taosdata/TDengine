@@ -16,11 +16,12 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet
 // to compile: gcc -o demo demo.c -ltaos
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <taos.h>  // TAOS header file
+#include <unistd.h>
 
 void taosMsleep(int mseconds);
 
@@ -49,11 +50,44 @@ static int32_t doQuery(TAOS* taos, const char* sql) {
   return 0;
 }
 
+void* oneLoader(void* param) {
+  TAOS* conn = (TAOS*) param;
+  
+  for(int32_t i = 0; i < 20000; ++i) {
+//    doQuery(conn, "show databases");
+    doQuery(conn, "use test");
+//    doQuery(conn, "describe t12");
+//    doQuery(conn, "show tables");
+//    doQuery(conn, "create table if not exists abc (ts timestamp, k int)");
+//    doQuery(conn, "select * from t12");
+  }
+  
+  return 0;
+}
+
+
+static __attribute__((unused)) void multiThreadTest(int32_t numOfThreads, void* conn) {
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  
+  pthread_t* threadId = malloc(sizeof(pthread_t)*numOfThreads);
+  
+  for (int i = 0; i < numOfThreads; ++i) {
+    pthread_create(&threadId[i], NULL, oneLoader, conn);
+  }
+  
+  for (int32_t i = 0; i < numOfThreads; ++i) {
+    pthread_join(threadId[i], NULL);
+  }
+  
+  pthread_attr_destroy(&thattr);
+}
+
 int main(int argc, char *argv[]) {
   TAOS *    taos;
   char      qstr[1024];
   TAOS_RES *result;
-  
   
   // connect to server
   if (argc < 2) {
@@ -61,7 +95,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/tsim/cfg");
   
   // init TAOS
   taos_init();
@@ -73,15 +107,12 @@ int main(int argc, char *argv[]) {
   }
   printf("success to connect to server\n");
   
-  doQuery(taos, "create database if not exists test");
-  doQuery(taos, "use test");
-  doQuery(taos, "select count(*) from m1 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:1:59' interval(500a) fill(value, 99)");
-  
-//  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
-//  for(int32_t i = 0; i< 100000; ++i) {
-//    doQuery(taos, "select m1.ts,m1.a from m1, m2 where m1.ts=m2.ts and m1.a=m2.b;");
-//    usleep(500000);
+//  multiThreadTest(1, taos);
+  doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1, -2) group by t1 limit 2 offset 10;");
+//  for(int32_t i = 0; i < 100000; ++i) {
+//    doQuery(taos, "insert into t1 values(now, 2)");
 //  }
+//  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
 
 //  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 'abc')");
 //  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");

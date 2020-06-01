@@ -30,11 +30,11 @@ system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
 
 print ========= start dnodes
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 sql create dnode $hostname2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 
 $loop = 0
 begin:
@@ -137,14 +137,14 @@ begin:
 
 	print ======== step2 $loop
 	
-	system sh/exec_up.sh -n dnode2 -s stop
+	system sh/exec.sh -n dnode2 -s stop
 	sleep 1000
 	print ==> drop database $db 
 	sql drop database $db 
 	
 	print ======== step3 $loop
 	sleep 2000
-	system sh/exec_up.sh -n dnode2 -s start
+	system sh/exec.sh -n dnode2 -s start
 	sleep 15000
 
 	sql show dnodes
@@ -175,11 +175,11 @@ begin:
 	
 goto begin
   
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT
