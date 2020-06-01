@@ -139,12 +139,10 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
-    //dataRow = tdNewDataRowFromSchema(pDestTagSchema);
     dataRow = tdNewTagRowFromSchema(pDestTagSchema, numOfTags);
 
     for (int i = 0; i < numOfTags; i++) {
       STColumn *pTCol = schemaColAt(pDestTagSchema, i);
-//      tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
       tdAppendTagColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->colId);
       accumBytes += htons(pSchema[i + numOfColumns].bytes);
     }

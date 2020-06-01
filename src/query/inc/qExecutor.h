@@ -28,21 +28,16 @@
 #include "tsdb.h"
 #include "tsqlfunction.h"
 
-//typedef struct tFilePage {
-//  int64_t num;
-//  char    data[];
-//} tFilePage;
-
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
 typedef struct SSqlGroupbyExpr {
-  int16_t     tableIndex;
-  SArray*     columnInfo;      // SArray<SColIndex>, group by columns information
-  int16_t     numOfGroupCols;
-  int16_t     orderIndex;      // order by column index
-  int16_t     orderType;       // order by type: asc/desc
+  int16_t tableIndex;
+  SArray* columnInfo;  // SArray<SColIndex>, group by columns information
+  int16_t numOfGroupCols;
+  int16_t orderIndex;  // order by column index
+  int16_t orderType;   // order by type: asc/desc
 } SSqlGroupbyExpr;
 
 typedef struct SPosInfo {
@@ -62,25 +57,27 @@ typedef struct SWindowResult {
   SWindowStatus status;      // this result status: closed or opened
 } SWindowResult;
 
+/**
+ * If the number of generated results is greater than this value,
+ * query query will be halt and return results to client immediate.
+ */
 typedef struct SResultRec {
-  int64_t total;     // total generated result size in rows
-  int64_t rows;      // current result set size in rows
-  int64_t capacity;  // capacity of current result output buffer
-  
-  // result size threshold in rows. If the result buffer is larger than this, pause query and return to client
-  int32_t threshold;
+  int64_t total;      // total generated result size in rows
+  int64_t rows;       // current result set size in rows
+  int64_t capacity;   // capacity of current result output buffer
+  int32_t threshold;  // result size threshold in rows.
 } SResultRec;
 
 typedef struct SWindowResInfo {
   SWindowResult* pResult;    // result list
-  void*          hashList;   // hash list for quick access
+  SHashObj*      hashList;   // hash list for quick access
   int16_t        type;       // data type for hash key
   int32_t        capacity;   // max capacity
   int32_t        curIndex;   // current start active index
   int32_t        size;       // number of result set
   int64_t        startTime;  // start time of the first time window for sliding query
   int64_t        prevSKey;   // previous (not completed) sliding window start key
-  int64_t        threshold;  // threshold to pausing query and return closed results.
+  int64_t        threshold;  // threshold to halt query and return the generated results.
 } SWindowResInfo;
 
 typedef struct SColumnFilterElem {
@@ -90,98 +87,111 @@ typedef struct SColumnFilterElem {
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {
-  SColumnInfo        info;
-  int32_t            numOfFilters;
-  SColumnFilterElem* pFilters;
   void*              pData;
+  int32_t            numOfFilters;
+  SColumnInfo        info;
+  SColumnFilterElem* pFilters;
 } SSingleColumnFilterInfo;
 
 typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
   int32_t     tableIndex;
-  int32_t     groupIdx;       // group id in table list
+  int32_t     groupIndex;  // group id in table list
   TSKEY       lastKey;
   int32_t     numOfRes;
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
   int64_t     tag;
   STimeWindow win;
   STSCursor   cur;
-  STableId    id;             // for retrieve the page id list
-  
+  STableId    id;  // for retrieve the page id list
+
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
 
-typedef struct SQueryCostSummary {
-} SQueryCostSummary;
+typedef struct SQueryCostInfo {
+  uint64_t loadStatisTime;
+  uint64_t loadFileBlockTime;
+  uint64_t loadDataInCacheTime;
+  uint64_t loadStatisSize;
+  uint64_t loadFileBlockSize;
+  uint64_t loadDataInCacheSize;
+  
+  uint64_t loadDataTime;
+  uint64_t dataInRows;
+  uint64_t checkRows;
+  uint32_t dataBlocks;
+  uint32_t loadBlockStatis;
+  uint32_t discardBlocks;
+} SQueryCostInfo;
 
 typedef struct SGroupItem {
-  STableId id;
+  STableId         id;
   STableQueryInfo* info;
 } SGroupItem;
 
 typedef struct SQuery {
-  int16_t           numOfCols;
-  int16_t           numOfTags;
-  
-  SOrderVal         order;
-  STimeWindow       window;
-  int64_t           intervalTime;
-  int64_t           slidingTime;      // sliding time for sliding window query
-  char              slidingTimeUnit;  // interval data type, used for daytime revise
-  int8_t            precision;
-  int16_t           numOfOutput;
-  int16_t           fillType;
-  int16_t           checkBuffer;  // check if the buffer is full during scan each block
-  SLimitVal         limit;
-  int32_t           rowSize;
-  SSqlGroupbyExpr*  pGroupbyExpr;
-  SExprInfo*        pSelectExpr;
-  SColumnInfo*      colList;
-  SColumnInfo*      tagColList;
-  int32_t           numOfFilterCols;
-  int64_t*          fillVal;
-  uint32_t          status;  // query status
-  SResultRec        rec;
-  int32_t           pos;
-  tFilePage**       sdata;
-  STableQueryInfo*  current;
+  int16_t          numOfCols;
+  int16_t          numOfTags;
+  SOrderVal        order;
+  STimeWindow      window;
+  int64_t          intervalTime;
+  int64_t          slidingTime;      // sliding time for sliding window query
+  char             slidingTimeUnit;  // interval data type, used for daytime revise
+  int8_t           precision;
+  int16_t          numOfOutput;
+  int16_t          fillType;
+  int16_t          checkBuffer;  // check if the buffer is full during scan each block
+  SLimitVal        limit;
+  int32_t          rowSize;
+  SSqlGroupbyExpr* pGroupbyExpr;
+  SExprInfo*       pSelectExpr;
+  SColumnInfo*     colList;
+  SColumnInfo*     tagColList;
+  int32_t          numOfFilterCols;
+  int64_t*         fillVal;
+  uint32_t         status;  // query status
+  SResultRec       rec;
+  int32_t          pos;
+  tFilePage**      sdata;
+  STableQueryInfo* current;
+
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
 
 typedef struct SQueryRuntimeEnv {
-  SResultInfo*       resultInfo;  // todo refactor to merge with SWindowResInfo
-  SQuery*            pQuery;
-  SQLFunctionCtx*    pCtx;
-  int16_t            numOfRowsPerPage;
-  int16_t            offset[TSDB_MAX_COLUMNS];
-  uint16_t           scanFlag;  // denotes reversed scan of data or not
-  SFillInfo*         pFillInfo;
-  SWindowResInfo     windowResInfo;
-  STSBuf*            pTSBuf;
-  STSCursor          cur;
-  SQueryCostSummary  summary;
-  bool               stableQuery;  // super table query or not
-  void*              pQueryHandle;
-  void*              pSecQueryHandle; // another thread for
-  SDiskbasedResultBuf* pResultBuf;  // query result buffer based on blocked-wised disk file
+  SResultInfo*         resultInfo;  // todo refactor to merge with SWindowResInfo
+  SQuery*              pQuery;
+  SQLFunctionCtx*      pCtx;
+  int16_t              numOfRowsPerPage;
+  int16_t              offset[TSDB_MAX_COLUMNS];
+  uint16_t             scanFlag;  // denotes reversed scan of data or not
+  SFillInfo*           pFillInfo;
+  SWindowResInfo       windowResInfo;
+  STSBuf*              pTSBuf;
+  STSCursor            cur;
+  SQueryCostInfo    summary;
+  bool                 stableQuery;  // super table query or not
+  void*                pQueryHandle;
+  void*                pSecQueryHandle;  // another thread for
+  SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
 } SQueryRuntimeEnv;
 
 typedef struct SQInfo {
-  void*            signature;
-  TSKEY            startTime;
-  TSKEY            elapsedTime;
-  int32_t          pointsInterpo;
-  int32_t          code;              // error code to returned to client
-  sem_t            dataReady;
-  void*            tsdb;
-  int32_t          vgId;
-  
+  void*   signature;
+  TSKEY   startTime;
+  TSKEY   elapsedTime;
+  int32_t pointsInterpo;
+  int32_t code;  // error code to returned to client
+  sem_t   dataReady;
+  void*   tsdb;
+  int32_t vgId;
+
   STableGroupInfo  tableIdGroupInfo;  // table id list < only includes the STableId list>
   STableGroupInfo  groupInfo;         //
   SQueryRuntimeEnv runtimeEnv;
   int32_t          groupIndex;
-  int32_t          offset;            // offset in group result set of subgroup, todo refactor
+  int32_t          offset;  // offset in group result set of subgroup, todo refactor
   SArray*          arrTableIdInfo;
-  
+
   T_REF_DECLARE()
   /*
    * the query is executed position on which meter of the whole list.
@@ -189,8 +199,8 @@ typedef struct SQInfo {
    * We later may refactor to remove this attribution by using another flag to denote
    * whether a multimeter query is completed or not.
    */
-  int32_t         tableIndex;
-  int32_t         numOfGroupResultPages;
+  int32_t tableIndex;
+  int32_t numOfGroupResultPages;
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H
