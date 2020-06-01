@@ -551,7 +551,7 @@ void taos_free_result(TAOS_RES *res) {
        (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
-    tscTrace("%p send msg to free qhandle in node, code:%d, command:%s", pSql, pRes->code, sqlCmd[pCmd->command]);
+    tscTrace("%p start to send msg to free qhandle in dnode, command:%s", pSql, sqlCmd[pCmd->command]);
     pSql->freed = 1;
     tscProcessSql(pSql);
 
