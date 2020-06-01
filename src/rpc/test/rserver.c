@@ -115,7 +115,7 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
 
 void processRequestMsg(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SRpcMsg *pTemp;
-
+ 
   pTemp = taosAllocateQitem(sizeof(SRpcMsg));
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
@@ -171,7 +171,6 @@ int main(int argc, char *argv[]) {
 
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
-
   taosInitLog("server.log", 100000, 10);
 
   void *pRpc = rpcOpen(&rpcInit);

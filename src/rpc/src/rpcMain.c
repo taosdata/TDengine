@@ -683,6 +683,7 @@ static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
     pConn->tretry = 0;
     pConn->ahandle = pContext->ahandle;
     sprintf(pConn->info, "%s %p %p", pRpc->label, pConn, pConn->ahandle);
+    pConn->tretry = 0;
   } else {
     tError("%s %p, failed to set up connection(%s)", pRpc->label, pContext->ahandle, tstrerror(terrno));
   }
@@ -833,8 +834,8 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
       terrno = rpcProcessReqHead(pConn, pHead);
       pConn->connType = pRecv->connType;
 
-      // client shall send the request within tsRpcTime again, put 20 mseconds tolerance
-      taosTmrReset(rpcProcessIdleTimer, tsRpcTimer+20, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
+      // client shall send the request within tsRpcTime again, double it 
+      taosTmrReset(rpcProcessIdleTimer, tsRpcTimer*2, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
     } else {
       terrno = rpcProcessRspHead(pConn, pHead);
     }
