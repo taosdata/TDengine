@@ -237,20 +237,24 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
 int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   if (pHelper->files.headF.fd > 0) {
+    fsync(pHelper->files.headF.fd);
     close(pHelper->files.headF.fd);
     pHelper->files.headF.fd = -1;
   }
   if (pHelper->files.dataF.fd > 0) {
     if (!hasError) tsdbUpdateFileHeader(&(pHelper->files.dataF), 0);
+    fsync(pHelper->files.dataF.fd);
     close(pHelper->files.dataF.fd);
     pHelper->files.dataF.fd = -1;
   }
   if (pHelper->files.lastF.fd > 0) {
+    fsync(pHelper->files.lastF.fd);
     close(pHelper->files.lastF.fd);
     pHelper->files.lastF.fd = -1;
   }
   if (pHelper->files.nHeadF.fd > 0) {
     if (!hasError) tsdbUpdateFileHeader(&(pHelper->files.nHeadF), 0);
+    fsync(pHelper->files.nHeadF.fd);
     close(pHelper->files.nHeadF.fd);
     pHelper->files.nHeadF.fd = -1;
     if (hasError) {
@@ -263,6 +267,7 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   
   if (pHelper->files.nLastF.fd > 0) {
     if (!hasError) tsdbUpdateFileHeader(&(pHelper->files.nLastF), 0);
+    fsync(pHelper->files.nLastF.fd);
     close(pHelper->files.nLastF.fd);
     pHelper->files.nLastF.fd = -1;
     if (hasError) {
