@@ -467,7 +467,7 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
     for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
       tdAddColToSchema(&schemaBuilder, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
       tdAddColToKVRow(&kvRowBuilder, htons(pSchema[i].colId), pSchema[i].type, pTagData + accBytes);
-      accBytes += htons(pSchema[i + numOfCols].bytes);
+      accBytes += htons(pSchema[i].bytes);
     }
     if (tsdbTableSetTagSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
     if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
