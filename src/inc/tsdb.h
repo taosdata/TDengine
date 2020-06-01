@@ -101,7 +101,7 @@ int  tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t 
 int  tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
 int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
-int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
+int  tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
 int  tsdbTableSetName(STableCfg *config, char *name, bool dup);
 int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 int  tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
