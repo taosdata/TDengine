@@ -29,6 +29,8 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 
+#define TSDB_VNODE_VERSION_CONTENT_LEN 31
+
 static int32_t  tsOpennedVnodes;
 static void    *tsDnodeVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
@@ -488,6 +490,10 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   int32_t len = 0;
   int32_t maxLen = 1000;
   char *  content = calloc(1, maxLen + 1);
+  if (content == NULL) {
+    fclose(fp);
+    return TSDB_CODE_NO_RESOURCE;
+  }
 
   len += snprintf(content + len, maxLen - len, "{\n");
 
@@ -528,7 +534,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
 
   vPrint("vgId:%d, save vnode cfg successed", pVnodeCfg->cfg.vgId);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
@@ -742,7 +748,7 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
 
   int32_t len = 0;
   int32_t maxLen = 30;
-  char *  content = calloc(1, maxLen + 1);
+  char content[TSDB_VNODE_VERSION_CONTENT_LEN] = {0};
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->fversion);
@@ -750,11 +756,10 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
 
   fwrite(content, 1, len, fp);
   fclose(fp);
-  free(content);
 
   vPrint("vgId:%d, save vnode version:%" PRId64 " succeed", pVnode->vgId, pVnode->fversion);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
