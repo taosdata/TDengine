@@ -19,6 +19,7 @@
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tsched.h"
+#include "tcache.h"
 #include "tsclient.h"
 #include "ttime.h"
 #include "ttimer.h"
@@ -147,7 +148,8 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
              retryDelay);
 
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
-    tscClearTableMetaInfo(pTableMetaInfo, true);
+    taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), true);
+    tfree(pTableMetaInfo->vgroupList);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
     return;
@@ -259,7 +261,9 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
              pStream->numOfRes);
 
     // release the metric/meter meta information reference, so data in cache can be updated
-    tscClearTableMetaInfo(pTableMetaInfo, false);
+
+    taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), false);
+    tfree(pTableMetaInfo->vgroupList);
     tscSetNextLaunchTimer(pStream, pSql);
   }
 }

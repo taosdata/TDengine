@@ -70,6 +70,7 @@ typedef struct {
   int      numOfCols;  // Number of columns appended
   int      tlen;       // maximum length of a SDataRow without the header part
   int      flen;       // First part length in a SDataRow after the header part
+  int32_t  version;
   STColumn columns[];
 } STSchema;
 

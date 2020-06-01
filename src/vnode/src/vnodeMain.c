@@ -210,7 +210,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   SCqCfg cqCfg = {0};
   sprintf(cqCfg.user, "_root");
   strcpy(cqCfg.pass, tsInternalPass);
-  strcpy(cqCfg.db, "s1_db0");   // TODO: replace hard coded db name
+  strcpy(cqCfg.db, "db");   // TODO: replace hard coded db name
   cqCfg.vgId = vnode;
   cqCfg.cqWrite = vnodeWriteToQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);

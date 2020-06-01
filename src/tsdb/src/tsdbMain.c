@@ -481,7 +481,7 @@ void  tsdbStartStream(TsdbRepoT *repo) {
   for (int i = 0; i < pRepo->config.maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
-      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, pTable->tableId.tid, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, pTable->tableId.uid, pTable->tableId.tid, pTable->sql, tsdbGetTableSchema(pMeta, pTable));
     }
   }
 }
