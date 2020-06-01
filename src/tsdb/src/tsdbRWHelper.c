@@ -237,20 +237,24 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
 int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   if (pHelper->files.headF.fd > 0) {
+    fsync(pHelper->files.headF.fd);
     close(pHelper->files.headF.fd);
     pHelper->files.headF.fd = -1;
   }
   if (pHelper->files.dataF.fd > 0) {
     if (!hasError) tsdbUpdateFileHeader(&(pHelper->files.dataF), 0);
+    fsync(pHelper->files.dataF.fd);
     close(pHelper->files.dataF.fd);
     pHelper->files.dataF.fd = -1;
   }
   if (pHelper->files.lastF.fd > 0) {
+    fsync(pHelper->files.lastF.fd);
     close(pHelper->files.lastF.fd);
     pHelper->files.lastF.fd = -1;
   }
   if (pHelper->files.nHeadF.fd > 0) {
     if (!hasError) tsdbUpdateFileHeader(&(pHelper->files.nHeadF), 0);
+    fsync(pHelper->files.nHeadF.fd);
     close(pHelper->files.nHeadF.fd);
     pHelper->files.nHeadF.fd = -1;
     if (hasError) {
@@ -263,6 +267,7 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   
   if (pHelper->files.nLastF.fd > 0) {
     if (!hasError) tsdbUpdateFileHeader(&(pHelper->files.nLastF), 0);
+    fsync(pHelper->files.nLastF.fd);
     close(pHelper->files.nLastF.fd);
     pHelper->files.nLastF.fd = -1;
     if (hasError) {
@@ -448,7 +453,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
         pHelper->pBuffer = trealloc(pHelper->pBuffer, tsizeof(pHelper->pBuffer)*2);
       }
       buf = POINTER_SHIFT(pHelper->pBuffer, drift);
-      buf = taosEncodeVariant32(buf, i);
+      buf = taosEncodeVariantU32(buf, i);
       buf = tsdbEncodeSCompIdx(buf, pCompIdx);
     }
   }
@@ -486,7 +491,7 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
       void *ptr = pHelper->pBuffer;
       while (((char *)ptr - (char *)pHelper->pBuffer) < (pFile->info.len - sizeof(TSCKSUM))) {
         uint32_t tid = 0;
-        if ((ptr = taosDecodeVariant32(ptr, &tid)) == NULL) return -1;
+        if ((ptr = taosDecodeVariantU32(ptr, &tid)) == NULL) return -1;
         ASSERT(tid > 0 && tid < pHelper->config.maxTables);
 
         if ((ptr = tsdbDecodeSCompIdx(ptr, pHelper->pCompIdx + tid)) == NULL) return -1;
@@ -1248,12 +1253,12 @@ static int tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey) 
 }
 
 void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx) {
-  buf = taosEncodeVariant32(buf, pIdx->len);
-  buf = taosEncodeVariant32(buf, pIdx->offset);
-  buf = taosEncodeFixed8(buf, pIdx->hasLast);
-  buf = taosEncodeVariant32(buf, pIdx->numOfBlocks);
-  buf = taosEncodeFixed64(buf, pIdx->uid);
-  buf = taosEncodeFixed64(buf, pIdx->maxKey);
+  buf = taosEncodeVariantU32(buf, pIdx->len);
+  buf = taosEncodeVariantU32(buf, pIdx->offset);
+  buf = taosEncodeFixedU8(buf, pIdx->hasLast);
+  buf = taosEncodeVariantU32(buf, pIdx->numOfBlocks);
+  buf = taosEncodeFixedU64(buf, pIdx->uid);
+  buf = taosEncodeFixedU64(buf, pIdx->maxKey);
 
   return buf;
 }
@@ -1263,15 +1268,15 @@ void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx) {
   uint32_t numOfBlocks = 0;
   uint64_t value = 0;
 
-  if ((buf = taosDecodeVariant32(buf, &(pIdx->len))) == NULL) return NULL;
-  if ((buf = taosDecodeVariant32(buf, &(pIdx->offset))) == NULL) return NULL;
-  if ((buf = taosDecodeFixed8(buf, &(hasLast))) == NULL) return NULL;
+  if ((buf = taosDecodeVariantU32(buf, &(pIdx->len))) == NULL) return NULL;
+  if ((buf = taosDecodeVariantU32(buf, &(pIdx->offset))) == NULL) return NULL;
+  if ((buf = taosDecodeFixedU8(buf, &(hasLast))) == NULL) return NULL;
   pIdx->hasLast = hasLast;
-  if ((buf = taosDecodeVariant32(buf, &(numOfBlocks))) == NULL) return NULL;
+  if ((buf = taosDecodeVariantU32(buf, &(numOfBlocks))) == NULL) return NULL;
   pIdx->numOfBlocks = numOfBlocks;
-  if ((buf = taosDecodeFixed64(buf, &value)) == NULL) return NULL;
+  if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
   pIdx->uid = (int64_t)value;
-  if ((buf = taosDecodeFixed64(buf, &value)) == NULL) return NULL;
+  if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
   pIdx->maxKey = (TSKEY)value;
 
   return buf;
@@ -1281,7 +1286,7 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
   void *pBuf = (void *)buf;
-  pBuf = taosEncodeFixed32(pBuf, version);
+  pBuf = taosEncodeFixedU32(pBuf, version);
   pBuf = tsdbEncodeSFileInfo(pBuf, &(pFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
@@ -1295,23 +1300,23 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
 
 
 void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo) {
-  buf = taosEncodeFixed32(buf, pInfo->offset);
-  buf = taosEncodeFixed32(buf, pInfo->len);
-  buf = taosEncodeFixed64(buf, pInfo->size);
-  buf = taosEncodeFixed64(buf, pInfo->tombSize);
-  buf = taosEncodeFixed32(buf, pInfo->totalBlocks);
-  buf = taosEncodeFixed32(buf, pInfo->totalSubBlocks);
+  buf = taosEncodeFixedU32(buf, pInfo->offset);
+  buf = taosEncodeFixedU32(buf, pInfo->len);
+  buf = taosEncodeFixedU64(buf, pInfo->size);
+  buf = taosEncodeFixedU64(buf, pInfo->tombSize);
+  buf = taosEncodeFixedU32(buf, pInfo->totalBlocks);
+  buf = taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
 
   return buf;
 }
 
 void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
-  buf = taosDecodeFixed32(buf, &(pInfo->offset));
-  buf = taosDecodeFixed32(buf, &(pInfo->len));
-  buf = taosDecodeFixed64(buf, &(pInfo->size));
-  buf = taosDecodeFixed64(buf, &(pInfo->tombSize));
-  buf = taosDecodeFixed32(buf, &(pInfo->totalBlocks));
-  buf = taosDecodeFixed32(buf, &(pInfo->totalSubBlocks));
+  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
+  buf = taosDecodeFixedU32(buf, &(pInfo->len));
+  buf = taosDecodeFixedU64(buf, &(pInfo->size));
+  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
+  buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
+  buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
 
   return buf;
 }

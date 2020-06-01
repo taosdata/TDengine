@@ -31,12 +31,26 @@ function collectSysInfo {
 
 function buildTDengine {
 	cd /root/TDengine
-	git pull
-	cd debug
-	rm -rf *
-	cmake ..
-	make > /dev/null
-	make install
+
+	git remote update
+	REMOTE_COMMIT=`git rev-parse --short remotes/origin/develop`
+	LOCAL_COMMIT=`git rev-parse --short @`
+
+	echo " LOCAL: $LOCAL_COMMIT"
+	echo "REMOTE: $REMOTE_COMMIT"
+	if [ "$LOCAL_COMMIT" == "$REMOTE_COMMIT" ]; then
+		echo "repo up-to-date"
+	else
+		echo "repo need to pull"
+		git pull
+
+		LOCAL_COMMIT=`git rev-parse @`
+		cd debug
+		rm -rf *
+		cmake ..
+		make > /dev/null
+		make install
+	fi
 }
 
 function restartTaosd {
@@ -55,7 +69,7 @@ function sendReport {
 	receiver="sdsang@taosdata.com, sangshuduo@gmail.com"
 	mimebody="MIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\n"
 
-	echo -e "to: ${receiver}\nsubject: Perf test report ${today}\n" | \
+	echo -e "to: ${receiver}\nsubject: Perf test report ${today}, commit ID: ${LOCAL_COMMIT}\n" | \
 		(cat - && uuencode perftest-1d-$today.log perftest-1d-$today.log)| \
 		(cat - && uuencode perftest-1d-report.csv perftest-1d-report-$today.csv) | \
 		(cat - && uuencode perftest-1d-report.png perftest-1d-report-$today.png) | \

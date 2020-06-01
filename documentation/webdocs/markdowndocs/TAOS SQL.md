@@ -39,8 +39,8 @@ The full list of data types is listed below.  For string types of data, we will 
 | 6    |   DOUBLE    |    8    | A standard nullable double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308]​ |
 | 7    |    BOOL     |    1    | A nullable boolean type, [**`true`**, **`false`**]           |
 | 8    |  TIMESTAMP  |    8    | A nullable timestamp type with the same usage as the primary column timestamp |
-| 9    | BINARY(*M*) |   *M*   | A nullable string type whose length is *M*, any exceeded chars will be automatically truncated, the maximum length of *M* is 65526, but as maximum row size is 64K bytes, the actual upper limit will generally less than 65526. This type of string only supports ASCii encoded chars. |
-| 10   | NCHAR(*M*)  | 4 * *M* | A nullable string type whose length is *M*, any exceeded chars will be truncated. The **`NCHAR`** type supports Unicode encoded chars. |
+| 9    | BINARY(*M*) |   *M*   | A nullable string type whose length is *M*, error should be threw with exceeded chars, the maximum length of *M* is 65526, but as maximum row size is 64K bytes, the actual upper limit will generally less than 65526. This type of string only supports ASCii encoded chars. |
+| 10   | NCHAR(*M*)  | 4 * *M* | A nullable string type whose length is *M*, error should be threw with exceeded chars. The **`NCHAR`** type supports Unicode encoded chars. |
 
 All the keywords in a SQL statement are case-insensitive, but strings values are case-sensitive and must be quoted by a pair of `'` or `"`. To quote a `'` or a `"` , you can use the escape character `\`.
 
