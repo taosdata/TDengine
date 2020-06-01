@@ -27,19 +27,24 @@
 extern "C" {
 #endif
 
-#define STR_TO_VARSTR(x, str) do {VarDataLenT __len = strlen(str); \
-  *(VarDataLenT*)(x) = __len; \
-  strncpy(varDataVal(x), (str), __len);} while(0);
+#define STR_TO_VARSTR(x, str)             \
+  do {                                    \
+    VarDataLenT __len = strlen(str);      \
+    *(VarDataLenT *)(x) = __len;          \
+    strncpy(varDataVal(x), (str), __len); \
+  } while (0);
 
-#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs) do {\
-  char* _e = stpncpy(varDataVal(x), (str), (_maxs));\
-  varDataSetLen(x, (_e - (x) - VARSTR_HEADER_SIZE));\
-} while(0)
+#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)      \
+  do {                                                 \
+    char *_e = stpncpy(varDataVal(x), (str), (_maxs)); \
+    varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));   \
+  } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) do {\
-  *(VarDataLenT*)(x) = (_size); \
-  strncpy(varDataVal(x), (str), (_size));\
-} while(0);
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
+  do {                                         \
+    *(VarDataLenT *)(x) = (_size);             \
+    strncpy(varDataVal(x), (str), (_size));    \
+  } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
 typedef struct {
@@ -73,9 +78,9 @@ typedef struct {
 #define schemaTLen(s) ((s)->tlen)
 #define schemaFLen(s) ((s)->flen)
 #define schemaColAt(s, i) ((s)->columns + i)
+#define tdFreeSchema(s) tfree((s))
 
 STSchema *tdNewSchema(int32_t nCols);
-#define   tdFreeSchema(s) tfree((s))
 int       tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes);
 STSchema *tdDupSchema(STSchema *pSchema);
 int       tdGetSchemaEncodeSize(STSchema *pSchema);
@@ -189,12 +194,11 @@ static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
   }
 }
 
-
 typedef struct {
-  int      maxRowSize;
-  int      maxCols;    // max number of columns
-  int      maxPoints;  // max number of points
-  int      bufSize;
+  int maxRowSize;
+  int maxCols;    // max number of columns
+  int maxPoints;  // max number of points
+  int bufSize;
 
   int      numOfRows;
   int      numOfCols;  // Total number of cols
@@ -214,10 +218,9 @@ void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
-void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop); //!!!!
+void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);  //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);
-
 
 // ----------------- K-V data row structure
 /*
@@ -227,29 +230,29 @@ void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SD
  * |    len   |   ncols  |           cols index            |             data part           |
  * +----------+----------+---------------------------------+---------------------------------+
  */
-typedef void *SKVDataRow;
+typedef void *SKVRow;
 
 typedef struct {
   int16_t colId;
   int16_t offset;
 } SColIdx;
 
-#define TD_KV_DATA_ROW_HEAD_SIZE 2*sizeof(int16_t)
+#define TD_KV_ROW_HEAD_SIZE 2 * sizeof(int16_t)
 
-#define kvDataRowLen(r) (*(int16_t *)(r))
-#define kvDataRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
-#define kvDataRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_DATA_ROW_HEAD_SIZE)
-#define kvDataRowValues(r) POINTER_SHIFT(r, TD_KV_DATA_ROW_HEAD_SIZE + sizeof(SColIdx) * kvDataRowNCols(r))
-#define kvDataRowCpy(dst, r) memcpy((dst), (r), kvDataRowLen(r))
-#define kvDataRowColVal(r, colIdx) POINTER_SHIFT(kvDataRowValues(r), (colIdx)->offset)
-#define kvDataRowSetLen(r, len) kvDataRowLen(r) = (len)
-#define kvDataRowSetNCols(r, n) kvDataRowNCols(r) = (n)
-#define kvDataRowColIdxAt(r, i) (kvDataRowColIdx(r) + (i))
+#define kvRowLen(r) (*(int16_t *)(r))
+#define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
+#define kvRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
+#define kvRowValues(r) POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * kvRowNCols(r))
+#define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
+#define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
+#define kvRowSetLen(r, len) kvRowLen(r) = (len)
+#define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
+#define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
 
-SKVDataRow tdKVDataRowDup(SKVDataRow row);
-SKVDataRow tdSetKVRowDataOfCol(SKVDataRow row, int16_t colId, int8_t type, void *value);
-void *     tdEncodeKVDataRow(void *buf, SKVDataRow row);
-void *     tdDecodeKVDataRow(void *buf, SKVDataRow *row);
+SKVRow tdKVRowDup(SKVRow row);
+SKVRow tdSetKVRowDataOfCol(SKVRow row, int16_t colId, int8_t type, void *value);
+void * tdEncodeKVRow(void *buf, SKVRow row);
+void * tdDecodeKVRow(void *buf, SKVRow *row);
 
 static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
   if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
@@ -261,10 +264,10 @@ static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
   }
 }
 
-static FORCE_INLINE void *tdGetKVRowDataOfCol(SKVDataRow row, int16_t colId) {
-  void *ret = taosbsearch(&colId, kvDataRowColIdx(row), kvDataRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
+static FORCE_INLINE void *tdGetKVRowDataOfCol(SKVRow row, int16_t colId) {
+  void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
   if (ret == NULL) return NULL;
-  return kvDataRowColVal(row, (SColIdx *)ret);
+  return kvRowColVal(row, (SColIdx *)ret);
 }
 
 // ----------------- K-V data row builder
@@ -275,19 +278,19 @@ typedef struct {
   int16_t  alloc;
   int16_t  size;
   void *   buf;
-} SKVDataRowBuilder;
+} SKVRowBuilder;
 
-int        tdInitKVDataRowBuilder(SKVDataRowBuilder *pBuilder);
-void       tdDestroyKVDataRowBuilder(SKVDataRowBuilder *pBuilder);
-void       tdResetKVDataRowBuilder(SKVDataRowBuilder *pBuilder);
-SKVDataRow tdGetKVDataRowFromBuilder(SKVDataRowBuilder *pBuilder);
-int        tdAddColToKVDataRow(SKVDataRowBuilder *pBuilder, int16_t colId, int8_t type, void *value);
+int    tdInitKVRowBuilder(SKVRowBuilder *pBuilder);
+void   tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
+void   tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
+SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
+int    tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *value);
 
 // ----------------- Tag row structure
 
 /* A tag row, the format is like below:
 +----------+----------------------------------------------------------------+
-| STagRow  | STagCol | STagCol | STagCol | STagCol | ...| STagCol | STagCol | 
+| STagRow  | STagCol | STagCol | STagCol | STagCol | ...| STagCol | STagCol |
 +----------+----------------------------------------------------------------+
 
 pData
@@ -296,7 +299,6 @@ pData
 +----------+----------------------------------------------------------------+
 
  */
-
 
 #define TD_TAG_ROW_HEAD_SIZE sizeof(int16_t)
 
