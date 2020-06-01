@@ -19,7 +19,7 @@
 #include "tglobal.h"
 #include "mnode.h"
 #include "http.h"
-#include "mqtt.h"
+#include "tmqtt.h"
 #include "monitor.h"
 #include "dnodeInt.h"
 #include "dnodeModule.h"
