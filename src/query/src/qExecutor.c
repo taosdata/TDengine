@@ -3964,10 +3964,12 @@ static SFillColInfo* taosCreateFillColInfo(SQuery* pQuery) {
 }
 
 int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool isSTableQuery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-  int32_t code = TSDB_CODE_SUCCESS;
+  pQuery->precision = tsdbGetCfg(tsdb)->precision;
 
   setScanLimitationByResultBuffer(pQuery);
   changeExecuteScanOrder(pQuery, false);
@@ -5422,7 +5424,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   pQuery->slidingTimeUnit = pQueryMsg->slidingTimeUnit;
   pQuery->fillType        = pQueryMsg->fillType;
   pQuery->numOfTags       = pQueryMsg->numOfTags;
-
+  
   // todo do not allocate ??
   pQuery->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQuery->colList == NULL) {
@@ -5491,7 +5493,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   
   int tableIndex = 0;
   STimeWindow window = pQueryMsg->window;
-  taosArraySort( pTableIdList, compareTableIdInfo );
+  taosArraySort(pTableIdList, compareTableIdInfo);
   for(int32_t i = 0; i < numOfGroups; ++i) {
     SArray* pa = taosArrayGetP(groupInfo->pGroupList, i);
     size_t s = taosArrayGetSize(pa);
@@ -5960,7 +5962,8 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     (*pRsp)->offset = 0;
     (*pRsp)->useconds = 0;
   }
-
+  
+  (*pRsp)->precision = htons(pQuery->precision);
   if (pQuery->rec.rows > 0 && code == TSDB_CODE_SUCCESS) {
     code = doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {

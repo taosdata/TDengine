@@ -64,13 +64,14 @@ typedef struct {
   int8_t  compression;
 } STsdbCfg;
 
+typedef void TsdbRepoT;  // use void to hide implementation details from outside
+
 void      tsdbSetDefaultCfg(STsdbCfg *pCfg);
 STsdbCfg *tsdbCreateDefaultCfg();
 void      tsdbFreeCfg(STsdbCfg *pCfg);
+STsdbCfg *tsdbGetCfg(const TsdbRepoT *repo);
 
 // --------- TSDB REPOSITORY DEFINITION
-typedef void TsdbRepoT;  // use void to hide implementation details from outside
-
 int        tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 int32_t    tsdbDropRepo(TsdbRepoT *repo);
 TsdbRepoT *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
