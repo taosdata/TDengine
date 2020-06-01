@@ -217,7 +217,7 @@ typedef struct SQLAggFuncElem {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int16_t *interBytes, int16_t extLength, bool isSuperTable);
+                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)

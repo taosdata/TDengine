@@ -689,7 +689,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
     SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
 
-    int16_t inter = 0;
+    int32_t inter = 0;
     int16_t type = -1;
     int16_t bytes = 0;
 

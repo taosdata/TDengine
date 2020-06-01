@@ -1594,7 +1594,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
 
       int16_t resultType = 0;
       int16_t resultSize = 0;
-      int16_t intermediateResSize = 0;
+      int32_t intermediateResSize = 0;
 
       int16_t functionID = 0;
       if (changeFunctionID(optr, &functionID) != TSDB_CODE_SUCCESS) {
@@ -1901,7 +1901,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
 
       int16_t bytes = 0;
       int16_t type  = 0;
-      int16_t inter = 0;
+      int32_t inter = 0;
 
       int32_t ret = getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
       assert(ret == TSDB_CODE_SUCCESS);
@@ -2287,7 +2287,7 @@ int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 
   int16_t bytes = 0;
   int16_t type = 0;
-  int16_t intermediateBytes = 0;
+  int32_t interBytes = 0;
   
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t k = 0; k < size; ++k) {
@@ -2301,13 +2301,13 @@ int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
         (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_LAST_DST) ||
         (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, pExpr->param[0].i64Key, &type, &bytes,
-                            &intermediateBytes, 0, true) != TSDB_CODE_SUCCESS) {
+                            &interBytes, 0, true) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
       }
 
       tscSqlExprUpdate(pQueryInfo, k, functionId, pExpr->colInfo.colIndex, TSDB_DATA_TYPE_BINARY, bytes);
       // todo refactor
-      pExpr->interBytes = intermediateBytes;
+      pExpr->interBytes = interBytes;
     }
   }
 
@@ -2327,27 +2327,23 @@ void tscRestoreSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
     SSqlExpr*   pExpr = tscSqlExprGet(pQueryInfo, i);
     SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
     
-//    if (/*(pExpr->functionId >= TSDB_FUNC_FIRST_DST && pExpr->functionId <= TSDB_FUNC_LAST_DST) ||
-//        (pExpr->functionId >= TSDB_FUNC_SUM && pExpr->functionId <= TSDB_FUNC_MAX) ||
-//        pExpr->functionId == TSDB_FUNC_LAST_ROW*/) {
-      // the final result size and type in the same as query on single table.
-      // so here, set the flag to be false;
-      int16_t inter = 0;
-      
-      int32_t functionId = pExpr->functionId;
-      if (functionId >= TSDB_FUNC_TS && functionId <= TSDB_FUNC_DIFF) {
-        continue;
-      }
-      
-      if (functionId == TSDB_FUNC_FIRST_DST) {
-        functionId = TSDB_FUNC_FIRST;
-      } else if (functionId == TSDB_FUNC_LAST_DST) {
-        functionId = TSDB_FUNC_LAST;
-      }
-      
-      getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &pExpr->resType, &pExpr->resBytes,
-                        &inter, 0, false);
-//    }
+    // the final result size and type in the same as query on single table.
+    // so here, set the flag to be false;
+    int32_t inter = 0;
+    
+    int32_t functionId = pExpr->functionId;
+    if (functionId >= TSDB_FUNC_TS && functionId <= TSDB_FUNC_DIFF) {
+      continue;
+    }
+    
+    if (functionId == TSDB_FUNC_FIRST_DST) {
+      functionId = TSDB_FUNC_FIRST;
+    } else if (functionId == TSDB_FUNC_LAST_DST) {
+      functionId = TSDB_FUNC_LAST;
+    }
+    
+    getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &pExpr->resType, &pExpr->resBytes,
+                      &inter, 0, false);
   }
 }
 
