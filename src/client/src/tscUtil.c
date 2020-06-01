@@ -409,8 +409,10 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
-  if (pSql == NULL || pSql->signature != pSql) return;
-
+  if (pSql == NULL || pSql->signature != pSql) {
+    return;
+  }
+  
   tscTrace("%p start to free sql object", pSql);
   tscPartiallyFreeSqlObj(pSql);
 
@@ -749,20 +751,7 @@ void tscCloseTscObj(STscObj* pObj) {
   assert(pObj != NULL);
   
   pObj->signature = NULL;
-  SSqlObj* pSql = pObj->pSql;
-  
-  if (pSql) {
-    terrno = pSql->res.code;
-    sem_destroy(&pSql->rspSem);
-  }
-  
   taosTmrStopA(&(pObj->pTimer));
-  tscFreeSqlObj(pSql);
-
-  if (pSql) {
-    sem_destroy(&pSql->rspSem);
-  }
-  
   pthread_mutex_destroy(&pObj->mutex);
   
   if (pObj->pDnodeConn != NULL) {
@@ -1474,22 +1463,27 @@ bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
  * If connection need to be recycled, the SqlObj also should be freed.
  */
 bool tscShouldBeFreed(SSqlObj* pSql) {
-  if (pSql == NULL || pSql->signature != pSql || pSql->fp == NULL) {
+  if (pSql == NULL || pSql->signature != pSql) {
     return false;
   }
-
+  
+  assert(pSql->fp != NULL);
+  
   STscObj* pTscObj = pSql->pTscObj;
-  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pTscObj->pSql == pSql || pSql->pSubscription != NULL) {
+  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pSql->pSubscription != NULL) {
     return false;
   }
 
   int32_t command = pSql->cmd.command;
-  if (command == TSDB_SQL_CONNECT || command == TSDB_SQL_INSERT) {
+  if (command == TSDB_SQL_META || command == TSDB_SQL_STABLEVGROUP) {//TODO subquery should be freed here
     return true;
-  } else {
-    return tscKeepConn[command] == 0 ||
-           (pSql->res.code != TSDB_CODE_ACTION_IN_PROGRESS && pSql->res.code != TSDB_CODE_SUCCESS);
   }
+  
+  // all subqueries should be automatically freed
+//  if (pSql->cmd.pQueryInfo != NULL && pSql->cmd.pQueryInfo[0]->type & TSDB_QUERY_TYPE_SUBQUERY) {
+//    return true;
+//  }
+  return false;
 }
 
 /**
@@ -1952,15 +1946,14 @@ int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid) {
   }
 }
 
-bool tscIsUpdateQuery(STscObj* pObj) {
-  if (pObj == NULL || pObj->signature != pObj) {
+bool tscIsUpdateQuery(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
     terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 
-  SSqlCmd* pCmd = &pObj->pSql->cmd;
-  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) ||
-          TSDB_SQL_USE_DB == pCmd->command);
+  SSqlCmd* pCmd = &pSql->cmd;
+  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
 }
 
 int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {

@@ -268,18 +268,18 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
   }
 
   jniTrace("jobj:%p, conn:%p, sql:%s", jobj, tscon, dst);
-
-  int code = taos_query(tscon, dst);
-  if (code != 0) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, tscon, tstrerror(code), taos_errstr(tscon));
+  
+  SSqlObj *pSql = taos_query(tscon, dst);
+  if (pSql == NULL || pSql->res.code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, tscon, tstrerror(pSql->res.code), taos_errstr(tscon));
     free(dst);
     return JNI_TDENGINE_ERROR;
   } else {
-    int32_t  affectRows = 0;
-    SSqlObj *pSql = ((STscObj *)tscon)->pSql;
-
+    int32_t affectRows = 0;
+    int32_t code = pSql->res.code;
+    
     if (pSql->cmd.command == TSDB_SQL_INSERT) {
-      affectRows = taos_affected_rows(tscon);
+      affectRows = taos_affected_rows(pSql);
       jniTrace("jobj:%p, conn:%p, code:%s, affect rows:%d", jobj, tscon, tstrerror(code), affectRows);
     } else {
       jniTrace("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
@@ -306,20 +306,20 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getErrMsgImp(J
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(JNIEnv *env, jobject jobj, jlong con) {
-  TAOS *tscon = (TAOS *)con;
-  if (tscon == NULL) {
+  SSqlObj *pSql = (TAOS_RES *) con;
+  if (pSql == NULL) {
     jniError("jobj:%p, connection is closed", jobj);
     return JNI_CONNECTION_NULL;
   }
 
   jlong ret = 0;
-
-  if (tscIsUpdateQuery(tscon)) {
+  STscObj* pObj = pSql->pTscObj;
+  
+  if (tscIsUpdateQuery(pSql)) {
     ret = 0;  // for update query, no result pointer
-    jniTrace("jobj:%p, conn:%p, no resultset", jobj, tscon);
+    jniTrace("jobj:%p, conn:%p, no resultset", jobj, pObj);
   } else {
-    ret = (jlong) taos_use_result(tscon);
-    jniTrace("jobj:%p, conn:%p, get resultset:%p", jobj, tscon, (void *) ret);
+    jniTrace("jobj:%p, conn:%p, get resultset:%p", jobj, pObj, (void *) ret);
   }
 
   return ret;
