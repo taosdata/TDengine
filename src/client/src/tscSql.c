@@ -269,6 +269,15 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
     return NULL;
   }
   
+  int32_t sqlLen = strlen(sqlstr);
+  if (sqlLen > tsMaxSQLStringLen) {
+    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+    terrno = TSDB_CODE_INVALID_SQL;
+    return NULL;
+  }
+  
+  taosNotePrintTsc(sqlstr);
+  
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
@@ -276,7 +285,6 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
     return NULL;
   }
   
-  size_t sqlLen = strlen(sqlstr);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   // wait for the callback function to post the semaphore
@@ -510,22 +518,20 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 void taos_free_result(TAOS_RES *res) {
-  if (res == NULL) return;
-
   SSqlObj *pSql = (SSqlObj *)res;
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-
-  tscTrace("%p start to free result", pSql);
-
-  if (pSql->signature != pSql) {
+  tscTrace("%p start to free result", res);
+  
+  if (pSql == NULL || pSql->signature != pSql) {
     tscTrace("%p result has been freed", pSql);
     return;
   }
   
+  SSqlRes *pRes = &pSql->res;
+  SSqlCmd *pCmd = &pSql->cmd;
+
   // The semaphore can not be changed while freeing async sub query objects.
   if (pRes == NULL || pRes->qhandle == 0) {
-    tscTrace("%p SqlObj is freed by app, phandle is null", pSql);
+    tscTrace("%p SqlObj is freed by app, qhandle is null", pSql);
     tscFreeSqlObj(pSql);
     return;
   }

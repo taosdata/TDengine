@@ -56,8 +56,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
     return;
   }
   
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
-  
+  // todo check for OOM problem
+  pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
@@ -95,7 +95,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   
   int32_t sqlLen = strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
-    tscError("sql string too long");
+    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
     terrno = TSDB_CODE_INVALID_SQL;
     tscQueueAsyncError(fp, param, TSDB_CODE_INVALID_SQL);
     return;
