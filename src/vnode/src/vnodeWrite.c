@@ -130,52 +130,11 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
 }
 
 static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  SMDCreateTableMsg *pTable = pCont;
-  int32_t code = 0;
-
-  vTrace("vgId:%d, table:%s, start to alter", pVnode->vgId, pTable->tableId);
-  int16_t numOfColumns  = htons(pTable->numOfColumns);
-  int16_t numOfTags     = htons(pTable->numOfTags);
-  int32_t sid           = htonl(pTable->sid);
-  uint64_t uid          = htobe64(pTable->uid);
-  SSchema *pSchema = (SSchema *) pTable->data;
-
-  int32_t totalCols = numOfColumns + numOfTags;
-  
-  STableCfg tCfg;
-  tsdbInitTableCfg(&tCfg, pTable->tableType, uid, sid);
-
-  STSchema *pDestSchema = tdNewSchema(numOfColumns);
-  for (int i = 0; i < numOfColumns; i++) {
-    tdSchemaAddCol(pDestSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
-  }
-  tsdbTableSetSchema(&tCfg, pDestSchema, false);
-
-  if (numOfTags != 0) {
-    STSchema *pDestTagSchema = tdNewSchema(numOfTags);
-    for (int i = numOfColumns; i < totalCols; i++) {
-      tdSchemaAddCol(pDestTagSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
-    }
-    tsdbTableSetTagSchema(&tCfg, pDestTagSchema, false);
-
-    char *pTagData = pTable->data + totalCols * sizeof(SSchema);
-    int accumBytes = 0;
-    SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
-
-    for (int i = 0; i < numOfTags; i++) {
-      STColumn *pTCol = schemaColAt(pDestTagSchema, i);
-      tdAppendColVal(dataRow, pTagData + accumBytes, pTCol->type, pTCol->bytes, pTCol->offset);
-      accumBytes += htons(pSchema[i + numOfColumns].bytes);
-    }
-    tsdbTableSetTagValue(&tCfg, dataRow, false);
-  }
-
-  code = tsdbAlterTable(pVnode->tsdb, &tCfg);
-
-  tfree(pDestSchema);
-
-  vTrace("vgId:%d, table:%s, alter table result:%d", pVnode->vgId, pTable->tableId, code);
-
+  STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
+  if (pCfg == NULL) return terrno;
+  int32_t code = tsdbAlterTable(pVnode->tsdb, pCfg);
+  tsdbClearTableCfg(pCfg);
+  free(pCfg);
   return code;
 }
 

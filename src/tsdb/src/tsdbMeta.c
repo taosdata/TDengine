@@ -440,41 +440,39 @@ STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId) {
 
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
   if (pMsg == NULL) return NULL;
-  SSchema *pSchema = (SSchema *)pMsg->data;
-  int16_t  numOfCols = htons(pMsg->numOfColumns);
-  int16_t  numOfTags = htons(pMsg->numOfTags);
+  SSchema *       pSchema = (SSchema *)pMsg->data;
+  int16_t         numOfCols = htons(pMsg->numOfColumns);
+  int16_t         numOfTags = htons(pMsg->numOfTags);
+  STSchemaBuilder schemaBuilder = {0};
 
   STableCfg *pCfg = (STableCfg *)calloc(1, sizeof(STableCfg));
   if (pCfg == NULL) return NULL;
 
   if (tsdbInitTableCfg(pCfg, pMsg->tableType, htobe64(pMsg->uid), htonl(pMsg->sid)) < 0) goto _err;
-  STSchema *pDSchema = tdNewSchema(numOfCols);
-  if (pDSchema == NULL) goto _err;
+  if (tdInitTSchemaBuilder(&schemaBuilder, htonl(pMsg->sversion)) < 0) goto _err;
+
   for (int i = 0; i < numOfCols; i++) {
-    tdSchemaAddCol(pDSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+    tdAddColToSchema(&schemaBuilder, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
   }
-  if (tsdbTableSetSchema(pCfg, pDSchema, false) < 0) goto _err;
+  if (tsdbTableSetSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
   if (tsdbTableSetName(pCfg, pMsg->tableId, true) < 0) goto _err;
 
   if (numOfTags > 0) {
-    STSchema *pTSchema = tdNewSchema(numOfTags);
+    int   accBytes = 0;
+    char *pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
+
+    SKVRowBuilder kvRowBuilder = {0};
+    tdResetTSchemaBuilder(&schemaBuilder, htonl(pMsg->tversion));
+    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) goto _err;
     for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
-      tdSchemaAddCol(pTSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+      tdAddColToSchema(&schemaBuilder, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+      tdAddColToKVRow(&kvRowBuilder, htons(pSchema[i].colId), pSchema[i].type, pTagData + accBytes);
+      accBytes += htons(pSchema[i + numOfCols].bytes);
     }
-    if (tsdbTableSetTagSchema(pCfg, pTSchema, false) < 0) goto _err;
+    if (tsdbTableSetTagSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
     if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
     if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
 
-    char *        pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
-    int           accBytes = 0;
-    SKVRowBuilder kvRowBuilder;
-
-    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) goto _err;
-    for (int i = 0; i < numOfTags; i++) {
-      STColumn *pCol = schemaColAt(pTSchema, i);
-      tdAddColToKVRow(&kvRowBuilder, pCol->colId, pCol->type, pTagData + accBytes);
-      accBytes += htons(pSchema[i+numOfCols].bytes);
-    }
     tsdbTableSetTagValue(pCfg, tdGetKVRowFromBuilder(&kvRowBuilder), false);
     tdDestroyKVRowBuilder(&kvRowBuilder);
   }
@@ -484,9 +482,12 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
     tsdbTableSetStreamSql(pCfg, sql, true);
   }
 
+  tdDestroyTSchemaBuilder(&schemaBuilder);
+
   return pCfg;
 
 _err:
+  tdDestroyTSchemaBuilder(&schemaBuilder);
   tsdbClearTableCfg(pCfg);
   tfree(pCfg);
   return NULL;
