@@ -59,7 +59,6 @@ cd ../../../debug; make
 ./test.sh -f general/db/delete_writing1.sim
 ./test.sh -f general/db/delete_writing2.sim
 ./test.sh -f general/db/delete.sim
-#not test ./test.sh -f general/db/dropdnodes.sim
 ./test.sh -f general/db/len.sim
 ./test.sh -f general/db/repeat.sim
 ./test.sh -f general/db/tables.sim
@@ -121,7 +120,7 @@ cd ../../../debug; make
 # ./test.sh -f general/parser/import_file.sim
 ./test.sh -f general/parser/lastrow.sim
 ./test.sh -f general/parser/nchar.sim
-./test.sh -f general/parser/null_char.sim
+#unsupport ./test.sh -f general/parser/null_char.sim
 ./test.sh -f general/parser/single_row_in_tb.sim
 ./test.sh -f general/parser/select_from_cache_disk.sim
 ./test.sh -f general/parser/limit.sim
@@ -214,7 +213,6 @@ cd ../../../debug; make
 ./test.sh -f general/tag/tinyint.sim
 
 ./test.sh -f general/user/authority.sim
-./test.sh -f general/user/basic1.sim
 ./test.sh -f general/user/monitor.sim
 ./test.sh -f general/user/pass_alter.sim
 ./test.sh -f general/user/pass_len.sim
