@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # if [ $# != 2 || $# != 3 ]; then 
   # echo "argument list need input : "
