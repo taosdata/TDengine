@@ -176,8 +176,8 @@ matrix:
           sleep 1
 
           cd ${TRAVIS_BUILD_DIR}
-          lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info \
-            --exclude "*tests*" --exclude "*deps*"
+          lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info
+          lcov --remove coverage.info '*tests*' '*deps*' -o coverage.info
           lcov -l --rc lcov_branch_coverage=1 coverage.info || travis_terminate $?
 
           gem install coveralls-lcov
