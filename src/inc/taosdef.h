@@ -52,6 +52,7 @@ typedef struct tstr {
 #define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
 #define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))
+#define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)

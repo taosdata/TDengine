@@ -510,11 +510,11 @@ int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
   return 0;
 }
 
-int tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup) {
+int tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup) {
   if (config->type != TSDB_CHILD_TABLE) return -1;
 
   if (dup) {
-    config->tagValues = tdDataRowDup(row);
+    config->tagValues = tdKVRowDup(row);
   } else {
     config->tagValues = row;
   }
@@ -561,7 +561,7 @@ int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
 void tsdbClearTableCfg(STableCfg *config) {
   if (config->schema) tdFreeSchema(config->schema);
   if (config->tagSchema) tdFreeSchema(config->tagSchema);
-  if (config->tagValues) tdFreeDataRow(config->tagValues);
+  if (config->tagValues) kvRowFree(config->tagValues);
   tfree(config->name);
   tfree(config->sname);
   tfree(config->sql);

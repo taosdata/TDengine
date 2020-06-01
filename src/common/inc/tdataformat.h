@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "talgo.h"
 #include "taosdef.h"
 #include "tutil.h"
 
@@ -26,19 +27,24 @@
 extern "C" {
 #endif
 
-#define STR_TO_VARSTR(x, str) do {VarDataLenT __len = strlen(str); \
-  *(VarDataLenT*)(x) = __len; \
-  strncpy(varDataVal(x), (str), __len);} while(0);
+#define STR_TO_VARSTR(x, str)             \
+  do {                                    \
+    VarDataLenT __len = strlen(str);      \
+    *(VarDataLenT *)(x) = __len;          \
+    strncpy(varDataVal(x), (str), __len); \
+  } while (0);
 
-#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs) do {\
-  char* _e = stpncpy(varDataVal(x), (str), (_maxs));\
-  varDataSetLen(x, (_e - (x) - VARSTR_HEADER_SIZE));\
-} while(0)
+#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)      \
+  do {                                                 \
+    char *_e = stpncpy(varDataVal(x), (str), (_maxs)); \
+    varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));   \
+  } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) do {\
-  *(VarDataLenT*)(x) = (_size); \
-  strncpy(varDataVal(x), (str), (_size));\
-} while(0);
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
+  do {                                         \
+    *(VarDataLenT *)(x) = (_size);             \
+    strncpy(varDataVal(x), (str), (_size));    \
+  } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
 typedef struct {
@@ -72,14 +78,30 @@ typedef struct {
 #define schemaTLen(s) ((s)->tlen)
 #define schemaFLen(s) ((s)->flen)
 #define schemaColAt(s, i) ((s)->columns + i)
+#define tdFreeSchema(s) tfree((s))
 
 STSchema *tdNewSchema(int32_t nCols);
-#define   tdFreeSchema(s) tfree((s))
 int       tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes);
 STSchema *tdDupSchema(STSchema *pSchema);
 int       tdGetSchemaEncodeSize(STSchema *pSchema);
 void *    tdEncodeSchema(void *dst, STSchema *pSchema);
 STSchema *tdDecodeSchema(void **psrc);
+
+static FORCE_INLINE int comparColId(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 > ((STColumn *)key2)->colId) {
+    return 1;
+  } else if (*(int16_t *)key1 < ((STColumn *)key2)->colId) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+static FORCE_INLINE STColumn *tdGetColOfID(STSchema *pSchema, int16_t colId) {
+  void *ptr = bsearch(&colId, (void *)pSchema->columns, schemaNCols(pSchema), sizeof(STColumn), comparColId);
+  if (ptr == NULL) return NULL;
+  return (STColumn *)ptr;
+}
 
 // ----------------- Data row structure
 
@@ -188,12 +210,11 @@ static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
   }
 }
 
-
 typedef struct {
-  int      maxRowSize;
-  int      maxCols;    // max number of columns
-  int      maxPoints;  // max number of points
-  int      bufSize;
+  int maxRowSize;
+  int maxCols;    // max number of columns
+  int maxPoints;  // max number of points
+  int bufSize;
 
   int      numOfRows;
   int      numOfCols;  // Total number of cols
@@ -213,62 +234,102 @@ void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
-void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop); //!!!!
+void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);  //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);
 
-
-// ----------------- Tag row structure
-
-/* A tag row, the format is like below:
-+----------+----------------------------------------------------------------+
-| STagRow  | STagCol | STagCol | STagCol | STagCol | ...| STagCol | STagCol | 
-+----------+----------------------------------------------------------------+
-
-pData
-+----------+----------------------------------------------------------------+
-| value 1     | value 2 |  value 3     | value 4       | ....|value n       |
-+----------+----------------------------------------------------------------+
-
+// ----------------- K-V data row structure
+/*
+ * +----------+----------+---------------------------------+---------------------------------+
+ * |  int16_t |  int16_t |                                 |                                 |
+ * +----------+----------+---------------------------------+---------------------------------+
+ * |    len   |   ncols  |           cols index            |             data part           |
+ * +----------+----------+---------------------------------+---------------------------------+
  */
-
-
-#define TD_TAG_ROW_HEAD_SIZE sizeof(int16_t)
-
-#define tagRowNum(r) (*(int16_t *)(r))
-#define tagRowArray(r) POINTER_SHIFT(r, TD_TAG_ROW_HEAD_SIZE)
-//#define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
-//#define dataRowSetLen(r, l) (dataRowLen(r) = (l))
-//#define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
-//#define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
+typedef void *SKVRow;
 
 typedef struct {
-  int16_t colId;   // column ID
-  int16_t colType;
-  uint16_t offset;  //to store value for numeric col or offset for binary/Nchar
-} STagCol;
+  int16_t colId;
+  int16_t offset;
+} SColIdx;
 
+#define TD_KV_ROW_HEAD_SIZE 2 * sizeof(int16_t)
+
+#define kvRowLen(r) (*(int16_t *)(r))
+#define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
+#define kvRowSetLen(r, len) kvRowLen(r) = (len)
+#define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
+#define kvRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
+#define kvRowValues(r) POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * kvRowNCols(r))
+#define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
+#define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
+#define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
+#define kvRowFree(r) tfree(r)
+
+SKVRow tdKVRowDup(SKVRow row);
+SKVRow tdSetKVRowDataOfCol(SKVRow row, int16_t colId, int8_t type, void *value);
+void * tdEncodeKVRow(void *buf, SKVRow row);
+void * tdDecodeKVRow(void *buf, SKVRow *row);
+
+static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
+    return 1;
+  } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+static FORCE_INLINE void *tdGetKVRowValOfCol(SKVRow row, int16_t colId) {
+  void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
+  if (ret == NULL) return NULL;
+  return kvRowColVal(row, (SColIdx *)ret);
+}
+
+// ----------------- K-V data row builder
 typedef struct {
-  int32_t    len;    
-  void *     pData;  // Space to store the tag value   
-  uint16_t   dataLen;
-  int16_t    ncols;  // Total columns allocated
-  STagCol    tagCols[];
-} STagRow;
+  int16_t  tCols;
+  int16_t  nCols;
+  SColIdx *pColIdx;
+  int16_t  alloc;
+  int16_t  size;
+  void *   buf;
+} SKVRowBuilder;
 
+int    tdInitKVRowBuilder(SKVRowBuilder *pBuilder);
+void   tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
+void   tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
+SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 
-#define tagColSize(r) (sizeof(STagCol) + r.colLen)
+static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *value) {
+  ASSERT(pBuilder->nCols == 0 || colId > pBuilder->pColIdx[pBuilder->nCols - 1].colId);
 
-int tdSetTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId);  //insert tag value and update all the information
-int tdDeleteTagCol(SDataRow row, int16_t colId);  // delete tag value and update all the information
-void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type);   //if find tag, 0, else return -1;
-int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int16_t colId);  
-SDataRow tdTagRowDup(SDataRow row);
-void tdFreeTagRow(SDataRow row); 
-SDataRow tdTagRowDecode(SDataRow row);
-int tdTagRowCpy(SDataRow dst, SDataRow src);
-void * tdNewTagRowFromSchema(STSchema *pSchema, int16_t numofTags);
-STSchema *tdGetSchemaFromData(SDataRow *row);
+  if (pBuilder->nCols >= pBuilder->tCols) {
+    pBuilder->tCols *= 2;
+    pBuilder->pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+    if (pBuilder->pColIdx == NULL) return -1;
+  }
+
+  pBuilder->pColIdx[pBuilder->nCols].colId = colId;
+  pBuilder->pColIdx[pBuilder->nCols].offset = pBuilder->size;
+
+  pBuilder->nCols++;
+
+  int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+  if (tlen > pBuilder->alloc - pBuilder->size) {
+    while (tlen > pBuilder->alloc - pBuilder->size) {
+      pBuilder->alloc *= 2;
+    }
+    pBuilder->buf = realloc(pBuilder->buf, pBuilder->alloc);
+    if (pBuilder->buf == NULL) return -1;
+  }
+
+  memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);
+  pBuilder->size += tlen;
+
+  return 0;
+}
 
 #ifdef __cplusplus
 }

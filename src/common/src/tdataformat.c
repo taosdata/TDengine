@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tdataformat.h"
-#include "wchar.h"
 #include "talgo.h"
+#include "wchar.h"
 
 /**
  * Create a SSchema object with nCols columns
@@ -51,13 +51,13 @@ int tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes)
   if (schemaNCols(pSchema) == 0) {
     colSetOffset(pCol, 0);
   } else {
-    STColumn *pTCol = schemaColAt(pSchema, schemaNCols(pSchema)-1);
+    STColumn *pTCol = schemaColAt(pSchema, schemaNCols(pSchema) - 1);
     colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
   }
   switch (type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-      colSetBytes(pCol, bytes); // Set as maximum bytes
+      colSetBytes(pCol, bytes);  // Set as maximum bytes
       pSchema->tlen += (TYPE_BYTES[type] + sizeof(VarDataLenT) + bytes);
       break;
     default:
@@ -152,152 +152,6 @@ SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
   return row;
 }
 
-int tdSetTagCol(SDataRow row, void *value, int16_t len, int8_t type, int16_t colId){ //insert/update tag value and update all the information
-  ASSERT(((STagRow *)row)->pData != NULL);
-  //STagCol * stCol = tdQueryTagColByID()
-
-  return 0;
-};  
-
-int tdDeleteTagCol(SDataRow row, int16_t colId){   // delete tag value and update all the information
-  //todo
-  return 0;
-};  
-
-static int compTagId(const void *key1, const void *key2) {
-  if (((STagCol *)key1)->colId > ((STagCol *)key2)->colId) {
-    return 1;
-  } else if (((STagCol *)key1)->colId == ((STagCol *)key2)->colId) {
-    return 0;
-  } else {
-    return -1;
-  }
-}
-
-/**
- * Find tag structure by colId, if find, return tag structure, else return NULL;
- */
-STagCol * tdQueryTagColByID(SDataRow row, int16_t colId, int flags) {  //if find tag, 0, else return -1; 
-  ASSERT(((STagRow *)row)->pData != NULL);
-  STagCol *pBase = ((STagRow *)row)->tagCols;
-  int16_t nCols = ((STagRow *)row)->ncols;
-  STagCol key = {colId,0,0};
-  STagCol * stCol = taosbsearch(&key, pBase, nCols, sizeof(STagCol), compTagId, flags);
-  return stCol;
-};   
-
-/**
-* Find tag value by colId, if find, return tag value, else return NULL;
-*/
-void * tdQueryTagByID(SDataRow row, int16_t colId, int16_t *type) {
-  ASSERT(((STagRow *)row)->pData != NULL);
-  STagCol *pBase = ((STagRow *)row)->tagCols;
-  int16_t nCols = ((STagRow *)row)->ncols;
-  STagCol key = {colId,0,0};
-  STagCol * stCol = taosbsearch(&key, pBase, nCols, sizeof(STagCol), compTagId, TD_EQ);
-  if (NULL == stCol) {
-    type = TSDB_DATA_TYPE_NULL;
-    return NULL;
-  }
-  
-  void * pData = ((STagRow *)row)->pData;
-  *type = stCol->colType;
-
-  return pData + stCol->offset;
-};   
-
-int tdAppendTagColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int16_t colId){
-  ASSERT(value != NULL);
-  //ASSERT(bytes-2 == varDataTLen(value));
-  ASSERT(row != NULL);
-  STagRow *pTagrow = row;
-  pTagrow->tagCols[pTagrow->ncols].colId = colId;
-  pTagrow->tagCols[pTagrow->ncols].colType = type;
-  pTagrow->tagCols[pTagrow->ncols].offset = pTagrow->dataLen;
-  
-  switch (type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      memcpy((char *)pTagrow->pData + pTagrow->dataLen, value, varDataTLen(value));
-      pTagrow->dataLen += varDataTLen(value);
-      break;
-    default:
-      memcpy((char *)pTagrow->pData + pTagrow->dataLen, value, TYPE_BYTES[type]);
-      pTagrow->dataLen += TYPE_BYTES[type];
-      break;
-  } 
-  
-  pTagrow->ncols++;   
-
-  return 0;
-};  
-
-void * tdNewTagRowFromSchema(STSchema *pSchema, int16_t numofTags) {
-  int32_t size = sizeof(STagRow) + numofTags * sizeof(STagCol);
-
-  STagRow *row = malloc(size);
-  if (row == NULL) return NULL;
-
-  int32_t datasize = pSchema->tlen;
-  row->pData = malloc(datasize);
-  if (NULL == row->pData) {
-    free(row);
-    return NULL;
-  }
-
-  row->len = size;
-  row->dataLen = 0; 
-  row->ncols = 0; 
-  return row;   
-}
-/**
- * free tag row 
- */
- 
-void tdFreeTagRow(SDataRow row) {
-  if (row) {
-    free(((STagRow *)row)->pData);
-    free(row);
-  }  
-}
-
-SDataRow tdTagRowDup(SDataRow row) {
-  STagRow *trow = malloc(dataRowLen(row));
-  if (trow == NULL) return NULL;
-  
-  dataRowCpy(trow, row);
-  trow->pData = malloc(trow->dataLen);
-  if (NULL == trow->pData) {
-    free(trow);
-    return NULL;
-  }
-  memcpy(trow->pData, ((STagRow *)row)->pData, trow->dataLen);
-  return trow;
-}
-
-SDataRow tdTagRowDecode(SDataRow row) {
-  STagRow *trow = malloc(dataRowLen(row));
-  if (trow == NULL) return NULL;
-  
-  dataRowCpy(trow, row);
-  trow->pData = malloc(trow->dataLen);
-  if (NULL == trow->pData) {
-    free(trow);
-    return NULL;
-  }
-  char * pData = (char *)row + dataRowLen(row);
-  memcpy(trow->pData, pData, trow->dataLen);
-  return trow;
-}
-
-int tdTagRowCpy(SDataRow dst, SDataRow src) {
-  if (src == NULL) return -1;
-  
-  dataRowCpy(dst, src);
-  void * pData = dst + dataRowLen(src);
-  memcpy(pData, ((STagRow *)src)->pData, ((STagRow *)src)->dataLen);
-  return 0;
-}
 /**
  * Free the SDataRow object
  */
@@ -331,7 +185,6 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
     pDataCol->pData = *pBuf;
     *pBuf = POINTER_SHIFT(*pBuf, pDataCol->spaceSize);
   }
-
 }
 
 void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints) {
@@ -415,7 +268,7 @@ void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
 void dataColSetOffset(SDataCol *pCol, int nEle) {
   ASSERT(((pCol->type == TSDB_DATA_TYPE_BINARY) || (pCol->type == TSDB_DATA_TYPE_NCHAR)));
 
-  void * tptr = pCol->pData;
+  void *tptr = pCol->pData;
   // char *tptr = (char *)(pCol->pData);
 
   VarDataOffsetT offset = 0;
@@ -595,4 +448,131 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCol
       (*iter2)++;
     }
   }
+}
+
+SKVRow tdKVRowDup(SKVRow row) {
+  SKVRow trow = malloc(kvRowLen(row));
+  if (trow == NULL) return NULL;
+
+  kvRowCpy(trow, row);
+  return trow;
+}
+
+SKVRow tdSetKVRowDataOfCol(SKVRow row, int16_t colId, int8_t type, void *value) {
+  // TODO
+  return NULL;
+  // SColIdx *pColIdx = NULL;
+  // SKVRow rrow = row;
+  // SKVRow nrow = NULL;
+  // void *ptr = taosbsearch(&colId, kvDataRowColIdx(row), kvDataRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
+
+  // if (ptr == NULL || ((SColIdx *)ptr)->colId < colId) { // need to add a column value to the row
+  //   int tlen = kvDataRowLen(row) + sizeof(SColIdx) + (IS_VAR_DATA_TYPE(type) ? varDataTLen(value) :
+  //   TYPE_BYTES[type]); nrow = malloc(tlen); if (nrow == NULL) return NULL;
+
+  //   kvDataRowSetNCols(nrow, kvDataRowNCols(row)+1);
+  //   kvDataRowSetLen(nrow, tlen);
+
+  //   if (ptr == NULL) ptr = kvDataRowValues(row);
+
+  //   // Copy the columns before the col
+  //   if (POINTER_DISTANCE(ptr, kvDataRowColIdx(row)) > 0) {
+  //     memcpy(kvDataRowColIdx(nrow), kvDataRowColIdx(row), POINTER_DISTANCE(ptr, kvDataRowColIdx(row)));
+  //     memcpy(kvDataRowValues(nrow), kvDataRowValues(row), ((SColIdx *)ptr)->offset); // TODO: here is not correct
+  //   }
+
+  //   // Set the new col value
+  //   pColIdx = (SColIdx *)POINTER_SHIFT(nrow, POINTER_DISTANCE(ptr, row));
+  //   pColIdx->colId = colId;
+  //   pColIdx->offset = ((SColIdx *)ptr)->offset; // TODO: here is not correct
+
+  //   if (IS_VAR_DATA_TYPE(type)) {
+  //     memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, varDataLen(value));
+  //   } else {
+  //     memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, TYPE_BYTES[type]);
+  //   }
+
+  //   // Copy the columns after the col
+  //   if (POINTER_DISTANCE(kvDataRowValues(row), ptr) > 0) {
+  //     // TODO: memcpy();
+  //   }
+  // } else {
+  //   // TODO
+  //   ASSERT(((SColIdx *)ptr)->colId == colId);
+  //   if (IS_VAR_DATA_TYPE(type)) {
+  //     void *pOldVal = kvDataRowColVal(row, (SColIdx *)ptr);
+
+  //     if (varDataTLen(value) == varDataTLen(pOldVal)) { // just update the column value in place
+  //       memcpy(pOldVal, value, varDataTLen(value));
+  //     } else { // enlarge the memory
+  //       // rrow = realloc(rrow, kvDataRowLen(rrow) + varDataTLen(value) - varDataTLen(pOldVal));
+  //       // if (rrow == NULL) return NULL;
+  //       // memmove();
+  //       // for () {
+  //       //   ((SColIdx *)ptr)->offset += balabala;
+  //       // }
+
+  //       // kvDataRowSetLen();
+
+  //     }
+  //   } else {
+  //     memcpy(kvDataRowColVal(row, (SColIdx *)ptr), value, TYPE_BYTES[type]);
+  //   }
+  // }
+
+  // return rrow;
+}
+
+void *tdEncodeKVRow(void *buf, SKVRow row) {
+  // May change the encode purpose
+  kvRowCpy(buf, row);
+  return POINTER_SHIFT(buf, kvRowLen(row));
+}
+
+void *tdDecodeKVRow(void *buf, SKVRow *row) {
+  *row = tdKVRowDup(buf);
+  return POINTER_SHIFT(buf, kvRowLen(*row));
+}
+
+int tdInitKVRowBuilder(SKVRowBuilder *pBuilder) {
+  pBuilder->tCols = 128;
+  pBuilder->nCols = 0;
+  pBuilder->pColIdx = (SColIdx *)malloc(sizeof(SColIdx) * pBuilder->tCols);
+  if (pBuilder->pColIdx == NULL) return -1;
+  pBuilder->alloc = 1024;
+  pBuilder->size = 0;
+  pBuilder->buf = malloc(pBuilder->alloc);
+  if (pBuilder->buf == NULL) {
+    free(pBuilder->pColIdx);
+    return -1;
+  }
+  return 0;
+}
+
+void tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder) {
+  tfree(pBuilder->pColIdx);
+  tfree(pBuilder->buf);
+}
+
+void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {
+  pBuilder->nCols = 0;
+  pBuilder->size = 0;
+}
+
+SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
+  int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
+  if (tlen == 0) return NULL;
+
+  tlen += TD_KV_ROW_HEAD_SIZE;
+
+  SKVRow row = malloc(tlen);
+  if (row == NULL) return NULL;
+
+  kvRowSetNCols(row, pBuilder->nCols);
+  kvRowSetLen(row, tlen);
+
+  memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
+  memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+
+  return row;
 }
