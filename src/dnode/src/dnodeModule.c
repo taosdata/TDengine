@@ -83,7 +83,7 @@ static void dnodeAllocModules() {
   }
 }
 
-void dnodeCleanUpModules() {
+void dnodeCleanupModules() {
   for (int32_t module = 1; module < TSDB_MOD_MAX; ++module) {
     if (tsModule[module].enable && tsModule[module].stopFp) {
       (*tsModule[module].stopFp)();
