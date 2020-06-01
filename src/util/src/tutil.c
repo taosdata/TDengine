@@ -331,6 +331,20 @@ char *strreplace(const char *str, const char *pattern, const char *rep) {
   return dest;
 }
 
+char *strbetween(char *string, char *begin, char *end) {
+  char *result = NULL;
+  char *_begin = strstr(string, begin);
+  if (_begin != NULL) {
+    char *_end = strstr(_begin + strlen(begin), end);
+    int   size = _end - _begin;
+    if (_end != NULL && size > 0) {
+      result = (char *)calloc(1, size);
+      memcpy(result, _begin + strlen(begin), size - +strlen(begin));
+    }
+  }
+  return result;
+}
+
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {
   int32_t i;
   char    hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};

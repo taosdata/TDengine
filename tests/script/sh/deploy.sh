@@ -31,8 +31,8 @@ cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
 echo "SCRIPT_DIR: $SCRIPT_DIR" 
 
-TDINTERNAL="TDinternal"
-if [[ "$SCRIPT_DIR" == *"$TDINTERNAL"* ]]; then
+IN_TDINTERNAL="community"
+if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
   cd ../../..
 else
   cd ../../
