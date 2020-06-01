@@ -241,12 +241,12 @@ typedef struct {
 
 #define kvRowLen(r) (*(int16_t *)(r))
 #define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
+#define kvRowSetLen(r, len) kvRowLen(r) = (len)
+#define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
 #define kvRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
 #define kvRowValues(r) POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * kvRowNCols(r))
 #define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
-#define kvRowSetLen(r, len) kvRowLen(r) = (len)
-#define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
 #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
 
 SKVRow tdKVRowDup(SKVRow row);
@@ -264,7 +264,7 @@ static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
   }
 }
 
-static FORCE_INLINE void *tdGetKVRowDataOfCol(SKVRow row, int16_t colId) {
+static FORCE_INLINE void *tdGetKVRowValOfCol(SKVRow row, int16_t colId) {
   void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
   if (ret == NULL) return NULL;
   return kvRowColVal(row, (SColIdx *)ret);

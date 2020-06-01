@@ -709,11 +709,13 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
   if (tlen == 0) return NULL;
 
-  SKVRow row = malloc(TD_KV_ROW_HEAD_SIZE + tlen);
+  tlen += TD_KV_ROW_HEAD_SIZE;
+
+  SKVRow row = malloc(tlen);
   if (row == NULL) return NULL;
 
   kvRowSetNCols(row, pBuilder->nCols);
-  kvRowSetLen(row, TD_KV_ROW_HEAD_SIZE + tlen);
+  kvRowSetLen(row, tlen);
 
   memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
   memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
@@ -737,7 +739,9 @@ int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *v
 
   int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
   if (tlen > pBuilder->alloc - pBuilder->size) {
-    pBuilder->alloc *= 2;
+    while (tlen > pBuilder->alloc - pBuilder->size) {
+      pBuilder->alloc *= 2;
+    }
     pBuilder->buf = realloc(pBuilder->buf, pBuilder->alloc);
     if (pBuilder->buf == NULL) return -1;
   }
