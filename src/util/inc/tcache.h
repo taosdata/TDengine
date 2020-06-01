@@ -47,7 +47,7 @@ typedef struct SCacheDataNode {
 typedef struct STrashElem {
   struct STrashElem *prev;
   struct STrashElem *next;
-  SCacheDataNode *        pData;
+  SCacheDataNode    *pData;
 } STrashElem;
 
 typedef struct {

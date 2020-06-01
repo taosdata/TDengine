@@ -529,7 +529,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-  size_t totalSize = dsize + sizeof(SHashNode) + keyLen + 1;  // one extra byte for null
+  size_t totalSize = dsize + sizeof(SHashNode) + keyLen;
   
   SHashNode *pNewNode = calloc(1, totalSize);
   if (pNewNode == NULL) {
@@ -544,7 +544,6 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
   pNewNode->keyLen = keyLen;
   
   pNewNode->hashVal = hashVal;
-  
   return pNewNode;
 }
 
@@ -559,7 +558,6 @@ SHashNode *doUpdateHashNode(SHashNode *pNode, const void *key, size_t keyLen, co
   memcpy(pNewNode->data, pData, dsize);
   
   pNewNode->key = pNewNode->data + dsize;
-  
   assert(memcmp(pNewNode->key, key, keyLen) == 0 && keyLen == pNewNode->keyLen);
   
   memcpy(pNewNode->key, key, keyLen);
