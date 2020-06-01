@@ -1,4 +1,6 @@
 #!/bin/bash
+ulimit -c unlimited
+
 # insert
 python3 ./test.py $1 -f insert/basic.py
 python3 ./test.py $1 -s && sleep 1
