@@ -742,7 +742,7 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
   if (pMsg->pTable == NULL) {
     if (!pInfo->createFlag) {
       mError("table:%s, failed to get table meta, table not exist", pInfo->tableId);
-      return TSDB_CODE_INVALID_TABLE_ID;
+      return TSDB_CODE_INVALID_TABLE_NAME;
     } else {
       mTrace("table:%s, failed to get table meta, start auto create table ", pInfo->tableId);
       return mnodeAutoCreateChildTable(pMsg);
