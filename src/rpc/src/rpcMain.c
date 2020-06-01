@@ -682,11 +682,11 @@ static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
   if (pConn) {
     pConn->ahandle = pContext->ahandle;
     sprintf(pConn->info, "%s %p %p", pRpc->label, pConn, pConn->ahandle);
+    pConn->tretry = 0;
   } else {
     tError("%s %p, failed to set up connection(%s)", pRpc->label, pContext->ahandle, tstrerror(terrno));
   }
 
-  pConn->tretry = 0;
   return pConn;
 }
 
