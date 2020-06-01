@@ -745,7 +745,7 @@ class DbState():
             return self._lastInt
 
     def getNextBinary(self):
-        return "Los_Angeles_{}".format(self.getNextInt())
+        return "Beijing_Shanghai_Los_Angeles_New_York_San_Francisco_Chicago_Beijing_Shanghai_Los_Angeles_New_York_San_Francisco_Chicago_{}".format(self.getNextInt())
 
     def getNextFloat(self):
         return 0.9 + self.getNextInt()
@@ -1091,7 +1091,7 @@ class CreateFixedSuperTableTask(StateTransitionTask):
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         tblName = self._dbState.getFixedSuperTableName()        
-        wt.execSql("create table db.{} (ts timestamp, speed int) tags (b binary(20), f float) ".format(tblName))
+        wt.execSql("create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that automatically
 
 
@@ -1150,12 +1150,13 @@ class AddFixedDataTask(StateTransitionTask):
         ds = self._dbState
         wt.execSql("use db") # TODO: seems to be an INSERT bug to require this
         for i in range(10): # 0 to 9
-            sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
-                i, 
-                ds.getFixedSuperTableName(), 
-                ds.getNextBinary(), ds.getNextFloat(),
-                ds.getNextTick(), ds.getNextInt())
-            wt.execSql(sql) 
+            for j in range(200) :
+                sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
+                    i, 
+                    ds.getFixedSuperTableName(), 
+                    ds.getNextBinary(), ds.getNextFloat(),
+                    ds.getNextTick(), ds.getNextInt())
+                wt.execSql(sql) 
 
 
 #---------- Non State-Transition Related Tasks ----------#
@@ -1310,6 +1311,23 @@ def main():
         # WorkDispatcher(dbState), # Obsolete?
         dbState
         )
+
+    # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
+    dbc = dbState.getDbConn()
+    sTbName = dbState.getFixedSuperTableName()   
+    dbc.execute("create database if not exists db")
+    dbc.execute("use db")     
+    dbState._state = StateDbOnly() # We altered the state
+    try: # the super table may not exist
+        dbc.query("select TBNAME from db.{}".format(sTbName)) # TODO: analyze result set later
+        rTables = dbc.getQueryResult()
+        # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
+        for rTbName in rTables : # regular tables
+            dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
+        logger.debug("Initial READING operation is successful")        
+    except taos.error.ProgrammingError as err:
+        pass
+    
 
     # Sandbox testing code
     # dbc = dbState.getDbConn()
