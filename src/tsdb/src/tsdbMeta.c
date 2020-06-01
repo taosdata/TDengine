@@ -438,6 +438,60 @@ STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId) {
   return pTable;
 }
 
+STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
+  if (pMsg == NULL) return NULL;
+  SSchema *pSchema = (SSchema *)pMsg->data;
+  int16_t  numOfCols = htons(pMsg->numOfColumns);
+  int16_t  numOfTags = htons(pMsg->numOfTags);
+
+  STableCfg *pCfg = (STableCfg *)calloc(1, sizeof(STableCfg));
+  if (pCfg == NULL) return NULL;
+
+  if (tsdbInitTableCfg(pCfg, pMsg->tableType, htobe64(pMsg->uid), htonl(pMsg->sid)) < 0) goto _err;
+  STSchema *pDSchema = tdNewSchema(numOfCols);
+  if (pDSchema == NULL) goto _err;
+  for (int i = 0; i < numOfCols; i++) {
+    tdSchemaAddCol(pDSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+  }
+  if (tsdbTableSetSchema(pCfg, pDSchema, false) < 0) goto _err;
+  if (tsdbTableSetName(pCfg, pMsg->tableId, true) < 0) goto _err;
+
+  if (numOfTags > 0) {
+    STSchema *pTSchema = tdNewSchema(numOfTags);
+    for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
+      tdSchemaAddCol(pTSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+    }
+    if (tsdbTableSetTagSchema(pCfg, pTSchema, false) < 0) goto _err;
+    if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
+    if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
+
+    char *        pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
+    int           accBytes = 0;
+    SKVRowBuilder kvRowBuilder;
+
+    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) goto _err;
+    for (int i = 0; i < numOfTags; i++) {
+      STColumn *pCol = schemaColAt(pTSchema, i);
+      tdAddColToKVRow(&kvRowBuilder, pCol->colId, pCol->type, pTagData + accBytes);
+      accBytes += htons(pSchema[i+numOfCols].bytes);
+    }
+    tsdbTableSetTagValue(pCfg, tdGetKVRowFromBuilder(&kvRowBuilder), false);
+    tdDestroyKVRowBuilder(&kvRowBuilder);
+  }
+
+  if (pMsg->tableType == TSDB_STREAM_TABLE) {
+    char *sql = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
+    tsdbTableSetStreamSql(pCfg, sql, true);
+  }
+
+  return pCfg;
+
+_err:
+  tsdbClearTableCfg(pCfg);
+  tfree(pCfg);
+  return NULL;
+}
+
 // int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
 int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;

@@ -104,6 +104,16 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 }
 
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
+
+  STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
+  if (pCfg == NULL) return terrno;
+  int32_t code = tsdbCreateTable(pVnode->tsdb, pCfg);
+
+  tsdbClearTableCfg(pCfg);
+  free(pCfg);
+  return code;
+
+  #if 0
   SMDCreateTableMsg *pTable = pCont;
   int32_t code = 0;
   
@@ -165,6 +175,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
 
   vTrace("vgId:%d, table:%s is created, result:%x", pVnode->vgId, pTable->tableId, code);
   return code; 
+  #endif
 }
 
 static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
