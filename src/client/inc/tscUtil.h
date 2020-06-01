@@ -175,7 +175,7 @@ SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIn
 
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
-int32_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
+size_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
 void      tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);

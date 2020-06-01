@@ -284,12 +284,11 @@ int taos_query(TAOS *taos, const char *sqlstr) {
   }
   
   SSqlObj* pSql = pObj->pSql;
-  
-  size_t sqlLen = strlen(sqlstr);
+  size_t   sqlLen = strlen(sqlstr);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   // wait for the callback function to post the semaphore
-  sem_wait(&pSql->rspSem);
+  tsem_wait(&pSql->rspSem);
   return pSql->res.code;
 }
 
@@ -525,7 +524,7 @@ int taos_select_db(TAOS *taos, const char *db) {
   return taos_query(taos, sql);
 }
 
-void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
+void taos_free_result(TAOS_RES *res) {
   if (res == NULL) return;
 
   SSqlObj *pSql = (SSqlObj *)res;
@@ -536,26 +535,23 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
   if (pSql->signature != pSql) return;
 
+  STscObj* pObj = pSql->pTscObj;
   if (pRes == NULL || pRes->qhandle == 0) {
     /* Query rsp is not received from vnode, so the qhandle is NULL */
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
-    STscObj* pTscObj = pSql->pTscObj;
     
-    if (pTscObj->pSql != pSql) {
+    // The semaphore can not be changed while freeing async sub query objects.
+    if (pObj->pSql != pSql) {
       tscTrace("%p SqlObj is freed by app", pSql);
       tscFreeSqlObj(pSql);
     } else {
-      if (keepCmd) {
-        tscFreeSqlResult(pSql);
-      } else {
-        tscPartiallyFreeSqlObj(pSql);
-      }
+      tscPartiallyFreeSqlObj(pSql);
     }
-    
+  
     return;
   }
 
-  // set freeFlag to 1 in retrieve message if there are un-retrieved results
+  // set freeFlag to 1 in retrieve message if there are un-retrieved results data in node
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     tscPartiallyFreeSqlObj(pSql);
@@ -563,6 +559,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
   }
 
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
+  STscObj* pTscObj = pSql->pTscObj;
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
@@ -579,9 +576,8 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
   if ((pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_SHOW ||
        pCmd->command == TSDB_SQL_RETRIEVE ||
-       pCmd->command == TSDB_SQL_FETCH) && pRes->code == TSDB_CODE_SUCCESS &&
-       ((pCmd->command < TSDB_SQL_LOCAL && pRes->completed == false) ||
-       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL))) {
+       pCmd->command == TSDB_SQL_FETCH) && pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false &&
+       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
     tscTrace("%p send msg to free qhandle in vnode, code:%d, numOfRows:%d, command:%s", pSql, pRes->code, pRes->numOfRows,
@@ -591,29 +587,19 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     tscProcessSql(pSql);
   
     // waits for response and then goes on
-    STscObj* pTscObj = pSql->pTscObj;
     if (pTscObj->pSql == pSql) {
       sem_wait(&pSql->rspSem);
     }
   } else { // if no free resource msg is sent to vnode, we free this object immediately.
-    STscObj* pTscObj = pSql->pTscObj;
-    
     if (pTscObj->pSql != pSql) {
       tscFreeSqlObj(pSql);
       tscTrace("%p sql result is freed by app", pSql);
     } else {
-      if (keepCmd) {
-        tscFreeSqlResult(pSql);
-        tscTrace("%p sql result is freed while sql command is kept", pSql);
-      } else {
-        tscPartiallyFreeSqlObj(pSql);
-        tscTrace("%p sql result is freed by app", pSql);
-      }
+      tscPartiallyFreeSqlObj(pSql);
+      tscTrace("%p sql result is freed by app", pSql);
     }
   }
 }
-
-void taos_free_result(TAOS_RES *res) { taos_free_result_imp(res, 0); }
 
 // todo should not be used in async query
 int taos_errno(TAOS *taos) {

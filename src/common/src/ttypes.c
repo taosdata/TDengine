@@ -32,6 +32,35 @@ const int32_t TYPE_BYTES[11] = {
     sizeof(VarDataOffsetT)   // TSDB_DATA_TYPE_NCHAR
 };
 
+static void getStatics_bool(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
+                            int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  int8_t *data = (int8_t *)pData;
+  *min = INT64_MAX;
+  *max = INT64_MIN;
+  *minIndex = 0;
+  *maxIndex = 0;
+  
+  ASSERT(numOfRow <= INT16_MAX);
+  
+  for (int32_t i = 0; i < numOfRow; ++i) {
+    if (isNull((char *)&data[i], TSDB_DATA_TYPE_BOOL)) {
+      (*numOfNull) += 1;
+      continue;
+    }
+    
+    *sum += data[i];
+    if (*min > data[i]) {
+      *min = data[i];
+      *minIndex = i;
+    }
+    
+    if (*max < data[i]) {
+      *max = data[i];
+      *maxIndex = i;
+    }
+  }
+}
+
 static void getStatics_i8(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
                           int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int8_t *data = (int8_t *)pData;
@@ -131,15 +160,6 @@ static void getStatics_i32(const TSKEY *primaryKey, const void *pData, int32_t n
       *max = data[i];
       *maxIndex = i;
     }
-    
-    //    if (isNull(&lastVal, TSDB_DATA_TYPE_INT)) {
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    } else {
-    //      *wsum = lastVal * (primaryKey[i] - lastKey);
-    //      lastKey = primaryKey[i];
-    //      lastVal = data[i];
-    //    }
   }
 }
 
@@ -279,11 +299,11 @@ static void getStatics_bin(const TSKEY *primaryKey, const void *pData, int32_t n
   ASSERT(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (isNull((const char*) varDataVal(data), TSDB_DATA_TYPE_BINARY)) {
+    if (isNull(data, TSDB_DATA_TYPE_BINARY)) {
       (*numOfNull) += 1;
     }
     
-    data += varDataLen(data);
+    data += varDataTLen(data);
   }
   
   *sum = 0;
@@ -299,11 +319,11 @@ static void getStatics_nchr(const TSKEY *primaryKey, const void *pData, int32_t 
   ASSERT(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (isNull((const char*) varDataVal(data), TSDB_DATA_TYPE_NCHAR)) {
+    if (isNull(data, TSDB_DATA_TYPE_NCHAR)) {
       (*numOfNull) += 1;
     }
     
-    data += varDataLen(data);
+    data += varDataTLen(data);
   }
   
   *sum = 0;
@@ -315,7 +335,7 @@ static void getStatics_nchr(const TSKEY *primaryKey, const void *pData, int32_t 
 
 tDataTypeDescriptor tDataTypeDesc[11] = {
   {TSDB_DATA_TYPE_NULL,      6, 1,            "NOTYPE",    NULL,                NULL,                  NULL},
-  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool,      getStatics_i8},
+  {TSDB_DATA_TYPE_BOOL,      4, CHAR_BYTES,   "BOOL",      tsCompressBool,      tsDecompressBool,      getStatics_bool},
   {TSDB_DATA_TYPE_TINYINT,   7, CHAR_BYTES,   "TINYINT",   tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
   {TSDB_DATA_TYPE_SMALLINT,  8, SHORT_BYTES,  "SMALLINT",  tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
   {TSDB_DATA_TYPE_INT,       3, INT_BYTES,    "INT",       tsCompressInt,       tsDecompressInt,       getStatics_i32},

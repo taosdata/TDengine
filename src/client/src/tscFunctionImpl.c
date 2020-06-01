@@ -153,7 +153,7 @@ typedef struct SRateInfo {
 
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *bytes, int16_t *interBytes, int16_t extLength, bool isSuperTable) {
+                          int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType, dataBytes)) {
     tscError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_INVALID_SQL;
@@ -478,7 +478,7 @@ int32_t count_load_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32
   if (colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     return BLK_DATA_NO_NEEDED;
   } else {
-    return BLK_DATA_FILEDS_NEEDED;
+    return BLK_DATA_STATIS_NEEDED;
   }
 }
 
@@ -690,7 +690,7 @@ static void sum_func_second_merge(SQLFunctionCtx *pCtx) {
 }
 
 static int32_t precal_req_load_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  return BLK_DATA_FILEDS_NEEDED;
+  return BLK_DATA_STATIS_NEEDED;
 }
 
 static int32_t data_req_load_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
@@ -1848,13 +1848,14 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
   pResInfo->hasResult = DATA_SET_FLAG;
   
   SLastrowInfo *pInfo = (SLastrowInfo *)pResInfo->interResultBuf;
-  pInfo->ts = pCtx->param[0].i64Key;
+  pInfo->ts = pCtx->ptsList[0];
+  
   pInfo->hasResult = DATA_SET_FLAG;
   
   // set the result to final result buffer
   if (pResInfo->superTableQ) {
     SLastrowInfo *pInfo1 = (SLastrowInfo *)(pCtx->aOutputBuf + pCtx->inputBytes);
-    pInfo1->ts = pCtx->param[0].i64Key;
+    pInfo1->ts = pCtx->ptsList[0];
     pInfo1->hasResult = DATA_SET_FLAG;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
@@ -1904,12 +1905,12 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
     memcpy(dst->pTags, pTags, (size_t)pTagInfo->tagsLen);
   } else {  // the tags are dumped from the ctx tag fields
     for (int32_t i = 0; i < pTagInfo->numOfTagCols; ++i) {
-      SQLFunctionCtx* __ctx = pTagInfo->pTagCtxList[i];
-      if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {
-        __ctx->tag = (tVariant) {.nType = TSDB_DATA_TYPE_BIGINT, .i64Key = tsKey};
+      SQLFunctionCtx* ctx = pTagInfo->pTagCtxList[i];
+      if (ctx->functionId == TSDB_FUNC_TS_DUMMY) {
+        ctx->tag = (tVariant) {.nType = TSDB_DATA_TYPE_BIGINT, .i64Key = tsKey};
       }
       
-      tVariantDump(&pTagInfo->pTagCtxList[i]->tag, dst->pTags + size, pTagInfo->pTagCtxList[i]->tag.nType);
+      tVariantDump(&ctx->tag, dst->pTags + size, ctx->tag.nType, true);
       size += pTagInfo->pTagCtxList[i]->outputBytes;
     }
   }
@@ -2226,7 +2227,6 @@ static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
 static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
   char *tmp = (char *)pTopBotInfo + sizeof(STopBotInfo);
   pTopBotInfo->res = (tValuePair**) tmp;
-  
   tmp += POINTER_BYTES * pCtx->param[0].i64Key;
   
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
@@ -2981,14 +2981,7 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputBytes == pCtx->outputBytes);
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
-    char* output = pCtx->aOutputBuf;
-  
-    if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-      varDataSetLen(output, pCtx->tag.nLen);
-      tVariantDump(&pCtx->tag, varDataVal(output), pCtx->outputType);
-    } else {
-      tVariantDump(&pCtx->tag, output, pCtx->outputType);
-    }
+    tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
     
     pCtx->aOutputBuf += pCtx->outputBytes;
   }
@@ -2997,13 +2990,7 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
 static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   INC_INIT_VAL(pCtx, 1);
   
-  char* output = pCtx->aOutputBuf;
-  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    *(int16_t*) output = pCtx->tag.nLen;
-    output += VARSTR_HEADER_SIZE;
-  }
-  
-  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
   pCtx->aOutputBuf += pCtx->outputBytes;
 }
 
@@ -3016,30 +3003,12 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
  */
 static void tag_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  
-  char* output = pCtx->aOutputBuf;
-  
-  // todo refactor to dump length presented string(var string)
-  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    *(int16_t*) output = pCtx->tag.nLen;
-    output += VARSTR_HEADER_SIZE;
-  }
-  
-  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
 }
 
 static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
-  
-  char* output = pCtx->aOutputBuf;
-  
-  // todo refactor to dump length presented string(var string)
-  if (pCtx->tag.nType == TSDB_DATA_TYPE_BINARY || pCtx->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    *(int16_t*) output = pCtx->tag.nLen;
-    output += VARSTR_HEADER_SIZE;
-  }
-  
-  tVariantDump(&pCtx->tag, output, pCtx->tag.nType);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
 }
 
 static void copy_function(SQLFunctionCtx *pCtx) {
@@ -3853,15 +3822,15 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 /**
- * param[1]: default value/previous value of specified timestamp
- * param[2]: next value of specified timestamp
- * param[3]: denotes if the result is a precious result or interpolation results
  *
  * @param pCtx
  */
 static void interp_function(SQLFunctionCtx *pCtx) {
   // at this point, the value is existed, return directly
-  if (pCtx->param[3].i64Key == 1) {
+  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SInterpInfoDetail* pInfo = pResInfo->interResultBuf;
+
+  if (pCtx->size == 1) {
     char *pData = GET_INPUT_CHAR(pCtx);
     assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
   } else {
@@ -3869,76 +3838,65 @@ static void interp_function(SQLFunctionCtx *pCtx) {
      * use interpolation to generate the result.
      * Note: the result of primary timestamp column uses the timestamp specified by user in the query sql
      */
-    assert(pCtx->param[3].i64Key == 2);
+    assert(pCtx->size == 2);
+    if (pInfo->type == TSDB_FILL_NONE) {  // set no output result
+      return;
+    }
     
-    SInterpInfo        interpInfo = *(SInterpInfo *)pCtx->aOutputBuf;
-    SInterpInfoDetail *pInfoDetail = interpInfo.pInterpDetail;
-    
-    /* set no output result */
-    if (pInfoDetail->type == TSDB_FILL_NONE) {
-      pCtx->param[3].i64Key = 0;
-    } else if (pInfoDetail->primaryCol == 1) {
-      *(TSKEY *)pCtx->aOutputBuf = pInfoDetail->ts;
+    if (pInfo->primaryCol == 1) {
+      *(TSKEY *) pCtx->aOutputBuf = pInfo->ts;
     } else {
-      if (pInfoDetail->type == TSDB_FILL_NULL) {
+      if (pInfo->type == TSDB_FILL_NULL) {
         if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
           setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
         } else {
           setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
         }
-      } else if (pInfoDetail->type == TSDB_FILL_SET_VALUE) {
-        tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType);
-      } else if (pInfoDetail->type == TSDB_FILL_PREV) {
-        char *data = pCtx->param[1].pz;
-        char *pVal = data + TSDB_KEYSIZE;
-        
-        if (pCtx->outputType == TSDB_DATA_TYPE_FLOAT) {
-          float v = GET_DOUBLE_VAL(pVal);
-          assignVal(pCtx->aOutputBuf, (const char*) &v, pCtx->outputBytes, pCtx->outputType);
-        } else {
-          assignVal(pCtx->aOutputBuf, pVal, pCtx->outputBytes, pCtx->outputType);
-        }
-        
-      } else if (pInfoDetail->type == TSDB_FILL_LINEAR) {
-        char *data1 = pCtx->param[1].pz;
-        char *data2 = pCtx->param[2].pz;
-        
-        char *pVal1 = data1 + TSDB_KEYSIZE;
-        char *pVal2 = data2 + TSDB_KEYSIZE;
-        
-        SPoint point1 = {.key = *(TSKEY *)data1, .val = &pCtx->param[1].i64Key};
-        SPoint point2 = {.key = *(TSKEY *)data2, .val = &pCtx->param[2].i64Key};
-        
-        SPoint point = {.key = pInfoDetail->ts, .val = pCtx->aOutputBuf};
-        
+  
+        SET_VAL(pCtx, pCtx->size, 1);
+      } else if (pInfo->type == TSDB_FILL_SET_VALUE) {
+        tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType, true);
+      } else if (pInfo->type == TSDB_FILL_PREV) {
+        char *data = GET_INPUT_CHAR_INDEX(pCtx, 0);
+        assignVal(pCtx->aOutputBuf, data, pCtx->outputBytes, pCtx->outputType);
+  
+        SET_VAL(pCtx, pCtx->size, 1);
+      } else if (pInfo->type == TSDB_FILL_LINEAR) {
+        char *data1 = GET_INPUT_CHAR_INDEX(pCtx, 0);
+        char *data2 = GET_INPUT_CHAR_INDEX(pCtx, 1);
+      
+        TSKEY key1 = pCtx->ptsList[0];
+        TSKEY key2 = pCtx->ptsList[1];
+      
+        SPoint point1 = {.key = key1, .val = data1};
+        SPoint point2 = {.key = key2, .val = data2};
+      
+        SPoint point = {.key = pInfo->ts, .val = pCtx->aOutputBuf};
+      
         int32_t srcType = pCtx->inputType;
         if ((srcType >= TSDB_DATA_TYPE_TINYINT && srcType <= TSDB_DATA_TYPE_BIGINT) ||
             srcType == TSDB_DATA_TYPE_TIMESTAMP || srcType == TSDB_DATA_TYPE_DOUBLE) {
-          point1.val = pVal1;
-          
-          point2.val = pVal2;
-          
-          if (isNull(pVal1, srcType) || isNull(pVal2, srcType)) {
+          point1.val = data1;
+          point2.val = data2;
+        
+          if (isNull(data1, srcType) || isNull(data2, srcType)) {
             setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
           } else {
             taosDoLinearInterpolation(pCtx->outputType, &point1, &point2, &point);
           }
         } else if (srcType == TSDB_DATA_TYPE_FLOAT) {
-          float v1 = GET_DOUBLE_VAL(pVal1);
-          float v2 = GET_DOUBLE_VAL(pVal2);
-          
-          point1.val = &v1;
-          point2.val = &v2;
-          
-          if (isNull(pVal1, srcType) || isNull(pVal2, srcType)) {
+          point1.val = data1;
+          point2.val = data2;
+        
+          if (isNull(data1, srcType) || isNull(data2, srcType)) {
             setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
           } else {
             taosDoLinearInterpolation(pCtx->outputType, &point1, &point2, &point);
           }
-          
+        
         } else {
           if (srcType == TSDB_DATA_TYPE_BINARY || srcType == TSDB_DATA_TYPE_NCHAR) {
-            setVardataNull(pCtx->aOutputBuf, pCtx->inputBytes);
+            setVardataNull(pCtx->aOutputBuf, pCtx->inputType);
           } else {
             setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
           }
@@ -3946,15 +3904,8 @@ static void interp_function(SQLFunctionCtx *pCtx) {
       }
     }
     
-    free(interpInfo.pInterpDetail);
   }
   
-  pCtx->size = pCtx->param[3].i64Key;
-  
-  tVariantDestroy(&pCtx->param[1]);
-  tVariantDestroy(&pCtx->param[2]);
-  
-  // data in the check operation are all null, not output
   SET_VAL(pCtx, pCtx->size, 1);
 }
 
@@ -4910,7 +4861,7 @@ SQLAggFuncElem aAggs[] = {{
                               "interp",
                               TSDB_FUNC_INTERP,
                               TSDB_FUNC_INTERP,
-                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS ,
                               function_setup,
                               interp_function,
                               do_sum_f,  // todo filter handle
@@ -4918,7 +4869,7 @@ SQLAggFuncElem aAggs[] = {{
                               doFinalizer,
                               noop1,
                               copy_function,
-                              no_data_info,
+                              data_req_load_info,
                           },
                           {
                               // 28

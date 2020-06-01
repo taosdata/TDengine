@@ -421,7 +421,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
-
   pCmd->allocSize = 0;
   
   tfree(pSql->sqlstr);
@@ -1033,7 +1032,7 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   return pExpr;
 }
 
-int32_t  tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo) {
+size_t tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo) {
   return taosArrayGetSize(pQueryInfo->exprList);
 }
 
@@ -1352,7 +1351,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == -1 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX) {
     return true;
   }
 
@@ -1768,11 +1767,12 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   pNewQueryInfo->limit  = pQueryInfo->limit;
   pNewQueryInfo->slimit = pQueryInfo->slimit;
   pNewQueryInfo->order  = pQueryInfo->order;
-  pNewQueryInfo->clauseLimit = pQueryInfo->clauseLimit;
-  pNewQueryInfo->pTableMetaInfo = NULL;
+  pNewQueryInfo->tsBuf  = NULL;
+  pNewQueryInfo->fillType = pQueryInfo->fillType;
   pNewQueryInfo->fillVal  = NULL;
+  pNewQueryInfo->clauseLimit = pQueryInfo->clauseLimit;
   pNewQueryInfo->numOfTables = 0;
-  pNewQueryInfo->tsBuf = NULL;
+  pNewQueryInfo->pTableMetaInfo = NULL;
   
   pNewQueryInfo->groupbyExpr = pQueryInfo->groupbyExpr;
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
@@ -1864,7 +1864,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   if (pFinalInfo->pTableMeta == NULL) {
-    tscError("%p new subquery failed for get pMeterMeta is NULL from cache", pSql);
+    tscError("%p new subquery failed for get tableMeta is NULL from cache", pSql);
     tscFreeSqlObj(pNew);
     return NULL;
   }
@@ -2011,7 +2011,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   assert(pRes->completed);
   
-  // for normal table, do not try any more if result are exhausted
+  // for normal table, no need to try any more if results are all retrieved from one vnode
   if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) || (pTableMetaInfo->vgroupList == NULL)) {
     return false;
   }
@@ -2037,7 +2037,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   
   int32_t totalVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
   while (++pTableMetaInfo->vgroupIndex < totalVgroups) {
-    tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
+    tscTrace("%p results from vgroup index:%d completed, try next:%d. total vgroups:%d. current numOfRes:%d", pSql,
              pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVgroups, pRes->numOfClauseTotal);
 
     /*
@@ -2121,7 +2121,7 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
   int32_t type = pInfo->pSqlExpr->resType;
   int32_t bytes = pInfo->pSqlExpr->resBytes;
   
-  char* pData = ((char*) pRes->data) + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
+  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
   
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
     int32_t realLen = varDataLen(pData);
@@ -2134,7 +2134,7 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
     }
   
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-      *(char*) (pData + realLen + VARSTR_HEADER_SIZE) = 0;
+      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
     }
     
     pRes->length[columnIndex] = realLen;

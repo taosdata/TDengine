@@ -13,7 +13,7 @@ system sh/cfg.sh -n dnode1 -c monitor -v 1
 system sh/cfg.sh -n dnode2 -c monitor -v 0
 
 print ========== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 sleep 5000
 
@@ -25,7 +25,7 @@ endi
 
 print ========== step2
 sql create dnode $hostname2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 
 $x = 0
 show2: 

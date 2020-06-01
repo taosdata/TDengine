@@ -689,7 +689,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
     SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
 
-    int16_t inter = 0;
+    int32_t inter = 0;
     int16_t type = -1;
     int16_t bytes = 0;
 
@@ -1049,7 +1049,14 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
     int32_t functionId = pExpr->functionId;
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS_DUMMY) {
       tVariantDestroy(&pCtx->tag);
-      tVariantCreateFromBinary(&pCtx->tag, pCtx->aInputElemBuf, pCtx->inputBytes, pCtx->inputType);
+      char* input = pCtx->aInputElemBuf;
+      
+      if (pCtx->inputType == TSDB_DATA_TYPE_BINARY || pCtx->inputType == TSDB_DATA_TYPE_NCHAR) {
+        assert(varDataLen(input) <= pCtx->inputBytes);
+        tVariantCreateFromBinary(&pCtx->tag, varDataVal(input), varDataLen(input), pCtx->inputType);
+      } else {
+        tVariantCreateFromBinary(&pCtx->tag, input, pCtx->inputBytes, pCtx->inputType);
+      }
     }
 
     pCtx->currentStage = SECONDARY_STAGE_MERGE;
@@ -1309,7 +1316,7 @@ static bool isAllSourcesCompleted(SLocalReducer *pLocalReducer) {
   return (pLocalReducer->numOfBuffer == pLocalReducer->numOfCompleted);
 }
 
-static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
+static bool doBuildFilledResultForGroup(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
@@ -1347,8 +1354,8 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SLocalReducer *     pLocalReducer = pRes->pLocalReducer;
-  SFillInfo *pFillInfo = pLocalReducer->pFillInfo;
+  SLocalReducer *pLocalReducer = pRes->pLocalReducer;
+  SFillInfo     *pFillInfo = pLocalReducer->pFillInfo;
 
   bool prevGroupCompleted = (!pLocalReducer->discard) && pLocalReducer->hasUnprocessedRow;
 
@@ -1445,7 +1452,7 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (doInterpolationForCurrentGroup(pSql)) {
+  if (doBuildFilledResultForGroup(pSql)) {
     pLocalReducer->status = TSC_LOCALREDUCE_READY;  // set the flag, taos_free_result can release this result.
     return TSDB_CODE_SUCCESS;
   }
@@ -1464,8 +1471,7 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
 #ifdef _DEBUG_VIEW
     printf("chosen data in pTree[0] = %d\n", pTree->pNode[0].index);
 #endif
-    assert((pTree->pNode[0].index < pLocalReducer->numOfBuffer) && (pTree->pNode[0].index >= 0) &&
-           tmpBuffer->num == 0);
+    assert((pTree->pNode[0].index < pLocalReducer->numOfBuffer) && (pTree->pNode[0].index >= 0) && tmpBuffer->num == 0);
 
     // chosen from loser tree
     SLocalDataSource *pOneDataSrc = pLocalReducer->pLocalDataSrc[pTree->pNode[0].index];

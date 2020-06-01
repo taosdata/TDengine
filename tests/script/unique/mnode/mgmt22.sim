@@ -8,7 +8,7 @@ system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 2
 
 print ============== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
@@ -20,7 +20,7 @@ if $data2_1 != master then
 endi
 
 print ============== step2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 
 $x = 0
@@ -46,7 +46,7 @@ sql_error drop dnode $hostname1 -x error1
 print should not drop master
 
 print ============== step4
-system sh/exec_up.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 2000
 sql_error show mnodes
 print error of no master
@@ -56,7 +56,7 @@ sql_error drop dnode $hostname1
 print error of no master
 
 print ============== step6
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 2000
 sql close
 sql connect
@@ -80,7 +80,7 @@ if $data2_2 != slave then
 endi
 
 print ============== step7
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
 sleep 5000
 
@@ -106,11 +106,11 @@ if $data3_3 != null then
 	goto show7
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

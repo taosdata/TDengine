@@ -44,6 +44,8 @@ typedef struct SDiskbasedResultBuf {
   SIDList* list;                // for each id, there is a page id list
 } SDiskbasedResultBuf;
 
+#define DEFAULT_INTERN_BUF_PAGE_SIZE (8192L*5)
+
 /**
  * create disk-based result buffer
  * @param pResultBuf
