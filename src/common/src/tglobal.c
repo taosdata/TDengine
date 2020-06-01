@@ -55,11 +55,12 @@ int32_t tsEnableCoreFile = 0;
 int32_t tscEmbedded = 0;
 
 /*
- * minmum scale for whole system, millisecond by default
+ * minimum scale for whole system, millisecond by default
  * for TSDB_TIME_PRECISION_MILLI: 86400000L
  *     TSDB_TIME_PRECISION_MICRO: 86400000000L
+ *     TSDB_TIME_PRECISION_NANO:  86400000000000L
  */
-int64_t tsMsPerDay[] = {86400000L, 86400000000L};
+int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 char  tsFirst[TSDB_EP_LEN] = {0};  
 char  tsSecond[TSDB_EP_LEN] = {0};
