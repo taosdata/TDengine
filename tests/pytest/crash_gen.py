@@ -691,9 +691,9 @@ class StateHasData(AnyState):
 # State of the database as we believe it to be
 class DbState():
     
-    def __init__(self):
+    def __init__(self, resetDb = True):
         self.tableNumQueue = LinearQueue()
-        self._lastTick = datetime.datetime(2019, 1, 1) # initial date time tick
+        self._lastTick = self.setupLastTick() # datetime.datetime(2019, 1, 1) # initial date time tick
         self._lastInt  = 0 # next one is initial integer 
         self._lock = threading.RLock()
 
@@ -714,11 +714,31 @@ class DbState():
         except:
             print("[=] Unexpected exception")
             raise        
-        self._dbConn.resetDb() # drop and recreate DB
-        self._state = StateEmpty() # initial state, the result of above
+
+        if resetDb :
+            self._dbConn.resetDb() # drop and recreate DB            
+        self._state = self._findCurrentState()
 
     def getDbConn(self):
         return self._dbConn
+
+    def getState(self):
+        return self._state
+
+    # We aim to create a starting time tick, such that, whenever we run our test here once
+    # We should be able to safely create 100,000 records, which will not have any repeated time stamp
+    # when we re-run the test in 3 minutes (180 seconds), basically we should expand time duration
+    # by a factor of 500.
+    # TODO: what if it goes beyond 10 years into the future
+    def setupLastTick(self):
+        t1 = datetime.datetime(2020, 5, 30)
+        t2 = datetime.datetime.now()
+        elSec = t2.timestamp() - t1.timestamp()
+        # print("elSec = {}".format(elSec))
+        t3 = datetime.datetime(2012, 1, 1) # default "keep" is 10 years
+        t4 = datetime.datetime.fromtimestamp( t3.timestamp() + elSec * 500) # see explanation above
+        logger.info("Setting up TICKS to start from: {}".format(t4))
+        return t4
 
     def pickAndAllocateTable(self): # pick any table, and "use" it
         return self.tableNumQueue.pickAndAllocate()
@@ -1150,7 +1170,7 @@ class AddFixedDataTask(StateTransitionTask):
         ds = self._dbState
         wt.execSql("use db") # TODO: seems to be an INSERT bug to require this
         for i in range(10): # 0 to 9
-            for j in range(200) :
+            for j in range(10) :
                 sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
                     i, 
                     ds.getFixedSuperTableName(), 
@@ -1304,7 +1324,9 @@ def main():
     ch = logging.StreamHandler()
     logger.addHandler(ch)
 
-    dbState = DbState()
+    # resetDb = False # DEBUG only
+    # dbState = DbState(resetDb)  # DBEUG only!
+    dbState = DbState() # Regular function
     Dice.seed(0) # initial seeding of dice
     tc = ThreadCoordinator(
         ThreadPool(dbState, gConfig.num_threads, gConfig.max_steps, 0), 
@@ -1312,21 +1334,41 @@ def main():
         dbState
         )
 
-    # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
-    dbc = dbState.getDbConn()
-    sTbName = dbState.getFixedSuperTableName()   
-    dbc.execute("create database if not exists db")
-    dbc.execute("use db")     
-    dbState._state = StateDbOnly() # We altered the state
-    try: # the super table may not exist
-        dbc.query("select TBNAME from db.{}".format(sTbName)) # TODO: analyze result set later
-        rTables = dbc.getQueryResult()
-        # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
-        for rTbName in rTables : # regular tables
-            dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
-        logger.debug("Initial READING operation is successful")        
-    except taos.error.ProgrammingError as err:
-        pass
+    # # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
+    # dbc = dbState.getDbConn()
+    # sTbName = dbState.getFixedSuperTableName()   
+    # dbc.execute("create database if not exists db")
+    # if not dbState.getState().equals(StateEmpty()):
+    #     dbc.execute("use db")     
+
+    # rTables = None
+    # try: # the super table may not exist
+    #     sql = "select TBNAME from db.{}".format(sTbName)
+    #     logger.info("Finding out tables in super table: {}".format(sql))
+    #     dbc.query(sql) # TODO: analyze result set later
+    #     logger.info("Fetching result")
+    #     rTables = dbc.getQueryResult()
+    #     logger.info("Result: {}".format(rTables))
+    # except taos.error.ProgrammingError as err:
+    #     logger.info("Initial Super table OPS error: {}".format(err))
+    
+    # # sys.exit()
+    # if ( not rTables == None):
+    #     # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
+    #     try:
+    #         for rTbName in rTables : # regular tables
+    #             ds = dbState
+    #             logger.info("Inserting into table: {}".format(rTbName[0]))
+    #             sql = "insert into db.{} values ('{}', {});".format(
+    #                 rTbName[0],                    
+    #                 ds.getNextTick(), ds.getNextInt())
+    #             dbc.execute(sql)
+    #         for rTbName in rTables : # regular tables        
+    #             dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
+    #         logger.info("Initial READING operation is successful")       
+    #     except taos.error.ProgrammingError as err:
+    #         logger.info("Initial WRITE/READ error: {}".format(err))   
+    
     
 
     # Sandbox testing code
