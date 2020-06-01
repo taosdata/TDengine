@@ -342,7 +342,6 @@ static void taosTimerLoopFunc(int signo) {
   int64_t now = taosGetTimestampMs();
 
   for (int i = 0; i < tListLen(wheels); i++) {
-    tmrTrace("begin processing wheel %d", i);
     // `expried` is a temporary expire list.
     // expired timers are first add to this list, then move
     // to expired queue as a batch to improve performance.
@@ -390,7 +389,6 @@ static void taosTimerLoopFunc(int signo) {
     }
 
     addToExpired(expired);
-    tmrTrace("end processing wheel %d", i);
   }
 }
 
