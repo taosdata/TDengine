@@ -66,7 +66,7 @@ typedef struct {
 
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
-  int      totalCols;  // Total columns allocated
+  int      version;    // version
   int      numOfCols;  // Number of columns appended
   int      tlen;       // maximum length of a SDataRow without the header part
   int      flen;       // First part length in a SDataRow after the header part
@@ -74,16 +74,13 @@ typedef struct {
 } STSchema;
 
 #define schemaNCols(s) ((s)->numOfCols)
-#define schemaTotalCols(s) ((s)->totalCols)
+#define schemaVersion(s) ((s)->version)
 #define schemaTLen(s) ((s)->tlen)
 #define schemaFLen(s) ((s)->flen)
 #define schemaColAt(s, i) ((s)->columns + i)
 #define tdFreeSchema(s) tfree((s))
 
-STSchema *tdNewSchema(int32_t nCols);
-int       tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes);
 STSchema *tdDupSchema(STSchema *pSchema);
-int       tdGetSchemaEncodeSize(STSchema *pSchema);
 void *    tdEncodeSchema(void *dst, STSchema *pSchema);
 STSchema *tdDecodeSchema(void **psrc);
 
@@ -102,6 +99,22 @@ static FORCE_INLINE STColumn *tdGetColOfID(STSchema *pSchema, int16_t colId) {
   if (ptr == NULL) return NULL;
   return (STColumn *)ptr;
 }
+
+// ----------------- SCHEMA BUILDER DEFINITION
+typedef struct {
+  int       tCols;
+  int       nCols;
+  int       tlen;
+  int       flen;
+  int       version;
+  STColumn *columns;
+} STSchemaBuilder;
+
+int       tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
+void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
+void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
+int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int32_t bytes);
+STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Data row structure
 

@@ -17,92 +17,26 @@
 #include "wchar.h"
 
 /**
- * Create a SSchema object with nCols columns
- * ASSUMPTIONS: VALID PARAMETERS
- *
- * @param nCols number of columns the schema has
- *
- * @return a STSchema object for success
- *         NULL for failure
- */
-STSchema *tdNewSchema(int32_t nCols) {
-  int32_t size = sizeof(STSchema) + sizeof(STColumn) * nCols;
-
-  STSchema *pSchema = (STSchema *)calloc(1, size);
-  if (pSchema == NULL) return NULL;
-
-  pSchema->numOfCols = 0;
-  pSchema->totalCols = nCols;
-  pSchema->flen = 0;
-  pSchema->tlen = 0;
-
-  return pSchema;
-}
-
-/**
- * Append a column to the schema
- */
-int tdSchemaAddCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes) {
-  if (!isValidDataType(type, 0) || pSchema->numOfCols >= pSchema->totalCols) return -1;
-
-  STColumn *pCol = schemaColAt(pSchema, schemaNCols(pSchema));
-  colSetType(pCol, type);
-  colSetColId(pCol, colId);
-  if (schemaNCols(pSchema) == 0) {
-    colSetOffset(pCol, 0);
-  } else {
-    STColumn *pTCol = schemaColAt(pSchema, schemaNCols(pSchema) - 1);
-    colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
-  }
-  switch (type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      colSetBytes(pCol, bytes);  // Set as maximum bytes
-      pSchema->tlen += (TYPE_BYTES[type] + sizeof(VarDataLenT) + bytes);
-      break;
-    default:
-      colSetBytes(pCol, TYPE_BYTES[type]);
-      pSchema->tlen += TYPE_BYTES[type];
-      break;
-  }
-
-  pSchema->numOfCols++;
-  pSchema->flen += TYPE_BYTES[type];
-
-  ASSERT(pCol->offset < pSchema->flen);
-
-  return 0;
-}
-
-/**
  * Duplicate the schema and return a new object
  */
 STSchema *tdDupSchema(STSchema *pSchema) {
-  STSchema *tSchema = tdNewSchema(schemaNCols(pSchema));
+
+  int tlen = sizeof(STSchema) + sizeof(STColumn) * schemaNCols(pSchema);
+  STSchema *tSchema = (STSchema *)malloc(tlen);
   if (tSchema == NULL) return NULL;
 
-  int32_t size = sizeof(STSchema) + sizeof(STColumn) * schemaNCols(pSchema);
-  memcpy((void *)tSchema, (void *)pSchema, size);
+  memcpy((void *)tSchema, (void *)pSchema, tlen);
 
   return tSchema;
-}
-
-/**
- * Return the size of encoded schema
- */
-int tdGetSchemaEncodeSize(STSchema *pSchema) {
-  return T_MEMBER_SIZE(STSchema, totalCols) +
-         schemaNCols(pSchema) *
-             (T_MEMBER_SIZE(STColumn, type) + T_MEMBER_SIZE(STColumn, colId) + T_MEMBER_SIZE(STColumn, bytes));
 }
 
 /**
  * Encode a schema to dst, and return the next pointer
  */
 void *tdEncodeSchema(void *dst, STSchema *pSchema) {
-  ASSERT(pSchema->numOfCols == pSchema->totalCols);
 
-  T_APPEND_MEMBER(dst, pSchema, STSchema, totalCols);
+  T_APPEND_MEMBER(dst, pSchema, STSchema, version);
+  T_APPEND_MEMBER(dst, pSchema, STSchema, numOfCols);
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
     T_APPEND_MEMBER(dst, pCol, STColumn, type);
@@ -118,11 +52,14 @@ void *tdEncodeSchema(void *dst, STSchema *pSchema) {
  */
 STSchema *tdDecodeSchema(void **psrc) {
   int totalCols = 0;
+  int version = 0;
+  STSchemaBuilder schemaBuilder = {0};
 
+  T_READ_MEMBER(*psrc, int, version);
   T_READ_MEMBER(*psrc, int, totalCols);
 
-  STSchema *pSchema = tdNewSchema(totalCols);
-  if (pSchema == NULL) return NULL;
+  if (tdInitTSchemaBuilder(&schemaBuilder, version) < 0) return NULL;
+
   for (int i = 0; i < totalCols; i++) {
     int8_t  type = 0;
     int16_t colId = 0;
@@ -131,8 +68,90 @@ STSchema *tdDecodeSchema(void **psrc) {
     T_READ_MEMBER(*psrc, int16_t, colId);
     T_READ_MEMBER(*psrc, int32_t, bytes);
 
-    tdSchemaAddCol(pSchema, type, colId, bytes);
+    if (tdAddColToSchema(&schemaBuilder, type, colId, bytes) < 0) {
+      tdDestroyTSchemaBuilder(&schemaBuilder);
+      return NULL;
+    }
   }
+
+  STSchema *pSchema = tdGetSchemaFromBuilder(&schemaBuilder);
+  tdDestroyTSchemaBuilder(&schemaBuilder);
+  return pSchema;
+}
+
+int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
+  if (pBuilder == NULL) return -1;
+
+  pBuilder->tCols = 256;
+  pBuilder->columns = (STColumn *)malloc(sizeof(STColumn) * pBuilder->tCols);
+  if (pBuilder->columns == NULL) return -1;
+
+  tdResetTSchemaBuilder(pBuilder, version);
+  return 0;
+}
+
+void tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder) {
+  if (pBuilder) {
+    tfree(pBuilder->columns);
+  }
+}
+
+void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
+  pBuilder->nCols = 0;
+  pBuilder->tlen = 0;
+  pBuilder->flen = 0;
+  pBuilder->version = version;
+}
+
+int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int32_t bytes) {
+  if (!isValidDataType(type, 0)) return -1;
+
+  if (pBuilder->nCols >= pBuilder->tCols) {
+    pBuilder->tCols *= 2;
+    pBuilder->columns = (STColumn *)realloc(pBuilder->columns, sizeof(STColumn) * pBuilder->tCols);
+    if (pBuilder->columns == NULL) return -1;
+  }
+
+  STColumn *pCol = &(pBuilder->columns[pBuilder->nCols]);
+  colSetType(pCol, type);
+  colSetColId(pCol, colId);
+  if (pBuilder->nCols == 0) {
+    colSetOffset(pCol, 0);
+  } else {
+    STColumn *pTCol = &(pBuilder->columns[pBuilder->nCols-1]);
+    colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
+  }
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    colSetBytes(pCol, bytes);
+    pBuilder->tlen += (TYPE_BYTES[type] + sizeof(VarDataLenT) + bytes);
+  } else {
+    colSetBytes(pCol, TYPE_BYTES[type]);
+    pBuilder->tlen += TYPE_BYTES[type];
+  }
+
+  pBuilder->nCols++;
+  pBuilder->flen += TYPE_BYTES[type];
+
+  ASSERT(pCol->offset < pBuilder->flen);
+
+  return 0;
+}
+
+STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
+  if (pBuilder->nCols <= 0) return NULL;
+
+  int tlen = sizeof(STSchema) + sizeof(STColumn) * pBuilder->nCols;
+
+  STSchema *pSchema = (STSchema *)malloc(tlen);
+  if (pSchema == NULL) return NULL;
+
+  schemaVersion(pSchema) = pBuilder->version;
+  schemaNCols(pSchema) = pBuilder->nCols;
+  schemaTLen(pSchema) = pBuilder->tlen;
+  schemaFLen(pSchema) = pBuilder->flen;
+
+  memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
 
   return pSchema;
 }
