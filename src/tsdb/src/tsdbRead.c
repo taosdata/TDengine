@@ -364,12 +364,13 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
   return true;
 }
 
-static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile) {
+static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precision) {
+  assert(precision >= TSDB_TIME_PRECISION_MICRO || precision <= TSDB_TIME_PRECISION_NANO);
   if (key == TSKEY_INITIAL_VAL) {
     return INT32_MIN;
   }
   
-  int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[0]));  // set the starting fileId
+  int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[precision]));  // set the starting fileId
   if (fid < 0L && llabs(fid) > INT32_MAX) { // data value overflow for INT32
     fid = INT32_MIN;
   }
@@ -1297,7 +1298,8 @@ static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
   // find the start data block in file
   if (!pQueryHandle->locateStart) {
     pQueryHandle->locateStart = true;
-    int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pQueryHandle->pTsdb->config.daysPerFile);
+    STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
+    int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
     
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);

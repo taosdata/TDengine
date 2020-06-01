@@ -50,7 +50,7 @@ int32_t mqttInitSystem() {
   recntStatus.password = strstr(url, "@") != NULL ? strbetween(strstr(url, recntStatus.user_name), ":", "@") : NULL;
 
   if (strlen(url) == 0) {
-    mqttError("failed to initialize mqtt module, reason: url is null");
+    mqttTrace("mqtt module not init, url is null");
     return rc;
   }
 

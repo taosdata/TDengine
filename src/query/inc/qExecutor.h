@@ -136,7 +136,7 @@ typedef struct SQuery {
   int64_t          intervalTime;
   int64_t          slidingTime;      // sliding time for sliding window query
   char             slidingTimeUnit;  // interval data type, used for daytime revise
-  int8_t           precision;
+  int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;
   int16_t          checkBuffer;  // check if the buffer is full during scan each block

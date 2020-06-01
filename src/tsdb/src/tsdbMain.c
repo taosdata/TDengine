@@ -9,8 +9,7 @@
 #include "ttime.h"
 #include <sys/stat.h>
 
-#define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
-#define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
+#define IS_VALID_PRECISION(precision) (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
 #define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 #define TSDB_MIN_ID 0
@@ -77,6 +76,11 @@ STsdbCfg *tsdbCreateDefaultCfg() {
 
 void tsdbFreeCfg(STsdbCfg *pCfg) {
   if (pCfg != NULL) free(pCfg);
+}
+
+STsdbCfg *tsdbGetCfg(const TsdbRepoT *repo) {
+  assert(repo != NULL);
+  return &((STsdbRepo*)repo)->config;
 }
 
 /**
