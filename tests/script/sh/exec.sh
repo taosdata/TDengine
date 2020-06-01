@@ -42,8 +42,8 @@ SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
 
-TDINTERNAL="TDinternal"
-if [[ "$SCRIPT_DIR" == *"$TDINTERNAL"* ]]; then
+IN_TDINTERNAL="community"
+if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
   cd ../../..
 else
   cd ../../
@@ -95,7 +95,7 @@ else
   if [ -n "$PID" ]; then 
     if [ "$SIGNAL" = "SIGINT" ]; then 
       echo killed by signal
-      kill -sigint $PID
+      kill -SIGINT $PID
     else
       kill -9 $PID
     fi
