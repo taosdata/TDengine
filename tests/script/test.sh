@@ -41,8 +41,8 @@ cd .
 CODE_DIR=`dirname $0`
 CODE_DIR=`pwd`
 
-TDINTERNAL="TDinternal"
-if [[ "$CODE_DIR" == *"$TDINTERNAL"* ]]; then
+IN_TDINTERNAL="community"
+if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
   cd ../../..
 else
   cd ../../
