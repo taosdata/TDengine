@@ -365,8 +365,16 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
 }
 
 static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile) {
+  if (key == TSKEY_INITIAL_VAL) {
+    return INT32_MIN;
+  }
+  
   int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[0]));  // set the starting fileId
-  if (fid > INT32_MAX) {
+  if (fid < 0L && llabs(fid) > INT32_MAX) { // data value overflow for INT32
+    fid = INT32_MIN;
+  }
+  
+  if (fid > 0L && fid > INT32_MAX) {
     fid = INT32_MAX;
   }
   
