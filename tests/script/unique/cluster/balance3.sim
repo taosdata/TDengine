@@ -47,14 +47,14 @@ system sh/cfg.sh -n dnode8 -c wallevel -v 1
 
 print ============== step1
 print ========= start dnode1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 sleep 2001
 
 sql create dnode $hostname2
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode2 -s start
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 3001
 
 sql create database c_b3_d1 replica 3
@@ -117,7 +117,7 @@ endi
 print ============================== step2
 print ========= start dnode4
 sql create dnode $hostname4
-system sh/exec_up.sh -n dnode4 -s start
+system sh/exec.sh -n dnode4 -s start
 sleep 9000
 
 $x = 0
@@ -176,11 +176,11 @@ if $dnode4Vnodes != 3 then
   goto show3
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 
 print ============================== step4
 sql create dnode $hostname5
-system sh/exec_up.sh -n dnode5 -s start
+system sh/exec.sh -n dnode5 -s start
 sleep 10000
 
 $x = 0
@@ -239,11 +239,11 @@ if $dnode4Vnodes != 3 then
   goto show5
 endi
 
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 
 print ============================== step6
 sql create dnode $hostname6
-system sh/exec_up.sh -n dnode6 -s start
+system sh/exec.sh -n dnode6 -s start
 sleep 9000
 
 $x = 0
@@ -302,11 +302,11 @@ if $dnode4Vnodes != null then
   goto show7
 endi
 
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
 
 print ============================== step8
 sql create dnode $hostname7
-system sh/exec_up.sh -n dnode7 -s start
+system sh/exec.sh -n dnode7 -s start
 sleep 9000
 
 $x = 0
@@ -332,7 +332,7 @@ endi
 
 print ============================== step9
 print ========= drop dnode1
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 print stop dnode1 and sleep 10000
 sleep 10000
 
@@ -353,7 +353,7 @@ if $dnode1Role != offline then
 endi
 
 print ============================== step9.1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 
 $x = 0
 show9: 
@@ -380,7 +380,7 @@ if $dnode7Vnodes != 3 then
   goto show9
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 print ============================== step11
 print ========= add db4
@@ -428,7 +428,7 @@ if $dnode7Vnodes != 4 then
   goto show11
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 
 print ============================== step13
 sql reset query cache
@@ -492,11 +492,11 @@ if $data41 != 35 then
 endi
 
 print ============================================ over
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

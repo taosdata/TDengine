@@ -288,7 +288,11 @@ int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInf
 static int compFGroupKey(const void *key, const void *fgroup) {
   int         fid = *(int *)key;
   SFileGroup *pFGroup = (SFileGroup *)fgroup;
-  return (fid - pFGroup->fileId);
+  if (fid == pFGroup->fileId) {
+    return 0;
+  } else {
+    return fid > pFGroup->fileId? 1:-1;
+  }
 }
 
 static int compFGroup(const void *arg1, const void *arg2) {

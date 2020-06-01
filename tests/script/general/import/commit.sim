@@ -78,7 +78,8 @@ sleep 5000
 
 print ========= step4
 sql select * from ic2db.tb;
-if $rows != 13 then 
+if $rows != 13 then
+  print expect 13, actual:$rows
   return -1
 endi
 

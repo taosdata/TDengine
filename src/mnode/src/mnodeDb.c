@@ -276,8 +276,8 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCfg->replications > 1 && pCfg->walLevel <= TSDB_MIN_WAL_LEVEL) {
-    mError("invalid db option walLevel:%d must > 0, while replica:%d > 1", pCfg->walLevel, pCfg->replications);
+  if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL) {
+    mError("invalid db option walLevel:%d must be greater than 0", pCfg->walLevel);
     return TSDB_CODE_INVALID_OPTION;
   }
 
@@ -871,8 +871,8 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     mTrace("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
     newCfg.replications = replications;
 
-    if (replications > 1 && pDb->cfg.walLevel <= TSDB_MIN_WAL_LEVEL) {
-      mError("db:%s, walLevel:%d must > 0, while replica:%d > 1", pDb->name, pDb->cfg.walLevel, replications);
+    if (pDb->cfg.walLevel < TSDB_MIN_WAL_LEVEL) {
+      mError("db:%s, walLevel:%d must be greater than 0", pDb->name, pDb->cfg.walLevel);
       terrno = TSDB_CODE_INVALID_OPTION;
     }
 

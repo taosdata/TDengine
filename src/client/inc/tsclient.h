@@ -84,7 +84,7 @@ typedef struct SSqlExpr {
   int16_t   functionId;     // function id in aAgg array
   int16_t   resType;        // return value type
   int16_t   resBytes;       // length of return value
-  int16_t   interBytes;  // inter result buffer size
+  int32_t   interBytes;  // inter result buffer size
   int16_t   numOfParams;    // argument value of each function
   tVariant  param[3];       // parameters are not more than 3
   int32_t   offset;         // sub result column value of arithmetic expression.
@@ -320,7 +320,7 @@ typedef struct SSqlObj {
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
-  uint8_t          numOfSubs;
+  uint16_t         numOfSubs;
   struct SSqlObj **pSubs;
   struct SSqlObj * prev, *next;
 } SSqlObj;

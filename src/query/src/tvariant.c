@@ -363,8 +363,6 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
       
       taosUcs4ToMbs(pVariant->wpz, newSize, pBuf);
       free(pVariant->wpz);
-      
-      /* terminated string */
       pBuf[newSize] = 0;
     } else {
       taosUcs4ToMbs(pVariant->wpz, newSize, *pDest);
@@ -598,7 +596,7 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
  *
  * todo handle the return value
  */
-int32_t tVariantDump(tVariant *pVariant, char *payload, char type) {
+int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
   if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType, pVariant->nLen))) {
     return -1;
   }
@@ -765,13 +763,30 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, char type) {
     }
     
     case TSDB_DATA_TYPE_BINARY: {
-      if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-        *payload = TSDB_DATA_BINARY_NULL;
-      } else {
-        if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
-          toBinary(pVariant, &payload, &pVariant->nLen);
+      if (!includeLengthPrefix) {
+        if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+          *(uint8_t*) payload = TSDB_DATA_BINARY_NULL;
         } else {
-          strncpy(payload, pVariant->pz, pVariant->nLen);
+          if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+            toBinary(pVariant, &payload, &pVariant->nLen);
+          } else {
+            strncpy(payload, pVariant->pz, pVariant->nLen);
+          }
+        }
+      } else {
+        if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+          setVardataNull(payload, TSDB_DATA_TYPE_BINARY);
+        } else {
+          char *p = varDataVal(payload);
+
+          if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+            toBinary(pVariant, &p, &pVariant->nLen);
+          } else {
+            strncpy(p, pVariant->pz, pVariant->nLen);
+          }
+
+          varDataSetLen(payload, pVariant->nLen);
+          assert(p == varDataVal(payload));
         }
       }
       break;
@@ -785,15 +800,33 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, char type) {
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {
-      if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-        *(uint32_t *) payload = TSDB_DATA_NCHAR_NULL;
-      } else {
-        if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
-          toNchar(pVariant, &payload, &pVariant->nLen);
+      if (!includeLengthPrefix) {
+        if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+          *(uint32_t *)payload = TSDB_DATA_NCHAR_NULL;
         } else {
-          wcsncpy((wchar_t *)payload, pVariant->wpz, pVariant->nLen);
+          if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
+            toNchar(pVariant, &payload, &pVariant->nLen);
+          } else {
+            wcsncpy((wchar_t *)payload, pVariant->wpz, pVariant->nLen);
+          }
+        }
+      } else {
+        if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+          setVardataNull(payload, TSDB_DATA_TYPE_NCHAR);
+        } else {
+          char *p = varDataVal(payload);
+
+          if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
+            toNchar(pVariant, &p, &pVariant->nLen);
+          } else {
+            wcsncpy((wchar_t *)p, pVariant->wpz, pVariant->nLen);
+          }
+
+          varDataSetLen(payload, pVariant->nLen);  // the length may be changed after toNchar function called
+          assert(p == varDataVal(payload));
         }
       }
+      
       break;
     }
   }

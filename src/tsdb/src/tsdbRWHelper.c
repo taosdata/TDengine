@@ -448,7 +448,12 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
   for (uint32_t i = 0; i < pHelper->config.maxTables; i++) {
     SCompIdx *pCompIdx = pHelper->pCompIdx + i;
     if (pCompIdx->offset > 0) {
-      buf = taosEncodeVariantU32(buf, i);
+      int drift = POINTER_DISTANCE(buf, pHelper->pBuffer);
+      if (tsizeof(pHelper->pBuffer) - drift < 128) {
+        pHelper->pBuffer = trealloc(pHelper->pBuffer, tsizeof(pHelper->pBuffer)*2);
+      }
+      buf = POINTER_SHIFT(pHelper->pBuffer, drift);
+      buf = taosEncodeVariant32(buf, i);
       buf = tsdbEncodeSCompIdx(buf, pCompIdx);
     }
   }
@@ -474,6 +479,7 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
       ASSERT(pFile->info.offset > TSDB_FILE_HEAD_SIZE);
 
       if (lseek(fd, pFile->info.offset, SEEK_SET) < 0) return -1;
+      if ((pHelper->pBuffer = trealloc(pHelper->pBuffer, pFile->info.len)) == NULL) return -1;
       if (tread(fd, (void *)(pHelper->pBuffer), pFile->info.len) < pFile->info.len)
         return -1;
       if (!taosCheckChecksumWhole((uint8_t *)(pHelper->pBuffer), pFile->info.len)) {

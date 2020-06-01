@@ -30,24 +30,19 @@ typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
   char *key;
-  union {
+//  union {
     struct SHashNode * prev;
-    struct SHashEntry *prev1;
-  };
-  
+//    struct SHashEntry *prev1;
+//  };
+//
   struct SHashNode *next;
   uint32_t          hashVal;  // the hash value of key, if hashVal == HASH_VALUE_IN_TRASH, this node is moved to trash
   uint32_t          keyLen;   // length of the key
   char              data[];
 } SHashNode;
 
-typedef struct SHashEntry {
-  SHashNode *next;
-  uint32_t   num;
-} SHashEntry;
-
 typedef struct SHashObj {
-  SHashEntry **   hashList;
+  SHashNode     **hashList;
   size_t          capacity;  // number of slots
   size_t          size;      // number of elements in hash table
   _hash_fn_t      hashFp;    // hash function

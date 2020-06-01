@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
 sql connect
@@ -113,4 +113,4 @@ sql drop account oroot
 sql drop user read
 sql drop user write
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
