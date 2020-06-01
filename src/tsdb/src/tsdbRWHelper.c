@@ -453,7 +453,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
         pHelper->pBuffer = trealloc(pHelper->pBuffer, tsizeof(pHelper->pBuffer)*2);
       }
       buf = POINTER_SHIFT(pHelper->pBuffer, drift);
-      buf = taosEncodeVariant32(buf, i);
+      buf = taosEncodeVariantU32(buf, i);
       buf = tsdbEncodeSCompIdx(buf, pCompIdx);
     }
   }

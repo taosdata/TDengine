@@ -250,28 +250,23 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
 int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
+
+  STSchema *pSchema = tsdbGetTableTagSchema(pMeta, pTable);
+  STColumn *pCol = tdGetColOfID(pSchema, colId);
+  if (pCol == NULL) {
+    return -1; // No matched tag volumn
+  }
   
-  *val = tdQueryTagByID(pTable->tagVal, colId, type);
+  *val = tdGetKVRowValOfCol(pTable->tagVal, colId);
+  *type = pCol->type;
   
   if (*val != NULL) {
-    switch(*type) {
-      case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR:  *bytes = varDataLen(*val); break;
-      case TSDB_DATA_TYPE_NULL:   *bytes = 0; break;
-      default:
-        *bytes = tDataTypeDesc[*type].nSize;break;
+    if (IS_VAR_DATA_TYPE(*type)) {
+      *bytes = varDataLen(*val);
+    } else {
+      *bytes = TYPE_BYTES[*type];
     }
   }
-  
-  if (pCol == NULL) {
-    return -1;  // No matched tags. Maybe the modification of tags has not been done yet.
-  }
-  
-  char* d = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
-  //ASSERT((int8_t)tagtype == pCol->type)
-  *val = d;
-  *type  = pCol->type;
-  *bytes = pCol->bytes;
   
   return TSDB_CODE_SUCCESS;
 }

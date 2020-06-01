@@ -87,6 +87,22 @@ int       tdGetSchemaEncodeSize(STSchema *pSchema);
 void *    tdEncodeSchema(void *dst, STSchema *pSchema);
 STSchema *tdDecodeSchema(void **psrc);
 
+static FORCE_INLINE int comparColId(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 > ((STColumn *)key2)->colId) {
+    return 1;
+  } else if (*(int16_t *)key1 < ((STColumn *)key2)->colId) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+static FORCE_INLINE STColumn *tdGetColOfID(STSchema *pSchema, int16_t colId) {
+  void *ptr = bsearch(&colId, (void *)pSchema->columns, schemaNCols(pSchema), sizeof(STColumn), comparColId);
+  if (ptr == NULL) return NULL;
+  return (STColumn *)ptr;
+}
+
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
