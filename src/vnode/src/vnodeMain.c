@@ -552,6 +552,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   int   len = fread(content, 1, maxLen, fp);
   if (len <= 0) {
     vError("vgId:%d, failed to read vnode cfg, content is null", pVnode->vgId);
+    free(content);
     return errno;
   }
 
