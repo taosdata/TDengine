@@ -37,7 +37,7 @@ struct reconnect_state_t recntStatus = {0};
 char*                    topicPath=NULL;
 int                      mttIsRuning = 1;
 
-int32_t                  mqttInitSystem() {
+int32_t mqttInitSystem() {
   int   rc = 0;
   uint8_t sendbuf[2048];
   uint8_t recvbuf[1024];
@@ -48,6 +48,11 @@ int32_t                  mqttInitSystem() {
   char* url = tsMqttBrokerAddress;
   recntStatus.user_name = strstr(url, "@") != NULL ? strbetween(url, "//", ":") : NULL;
   recntStatus.password = strstr(url, "@") != NULL ? strbetween(strstr(url, recntStatus.user_name), ":", "@") : NULL;
+
+  if (strlen(url) == 0) {
+    mqttError("failed to initialize mqtt module, reason: url is null");
+    return rc;
+  }
 
   if (strstr(url, "@") != NULL) {
     recntStatus.hostname = strbetween(url, "@", ":");
@@ -81,10 +86,9 @@ int32_t mqttStartSystem() {
   if (recntStatus.user_name != NULL && recntStatus.password != NULL) {
     mqttPrint("connecting to  mqtt://%s:%s@%s:%s/%s/", recntStatus.user_name, recntStatus.password,
               recntStatus.hostname, recntStatus.port, topicPath);
-  }
-  else if (recntStatus.user_name != NULL && recntStatus.password == NULL)
-  {
-        mqttPrint("connecting to  mqtt://%s@%s:%s/%s/", recntStatus.user_name,recntStatus.hostname, recntStatus.port, topicPath);
+  } else if (recntStatus.user_name != NULL && recntStatus.password == NULL) {
+    mqttPrint("connecting to  mqtt://%s@%s:%s/%s/", recntStatus.user_name, recntStatus.hostname, recntStatus.port,
+              topicPath);
   }
 
   mqtt_init_reconnect(&mqttClient, mqttReconnectClient, &recntStatus, mqtt_PublishCallback);
