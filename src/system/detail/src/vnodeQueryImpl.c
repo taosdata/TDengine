@@ -2801,14 +2801,16 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
       break;
     }
   }
-  
-  // save the last accessed row of current data block for interpolation
-  int32_t index = GET_COL_DATA_POS(pQuery, lastIndex, step);
-  for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
-    SColumnInfo* pColInfo = &pQuery->colList[i].data;
-    int32_t s = pColInfo->bytes * index;
+ 
+  if (lastIndex >= 0) { 
+    // save the last accessed row of current data block for interpolation
+    int32_t index = GET_COL_DATA_POS(pQuery, lastIndex, step);
+    for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
+      SColumnInfo* pColInfo = &pQuery->colList[i].data;
+      int32_t s = pColInfo->bytes * index;
     
-    memcpy(pRuntimeEnv->lastRowInBlock[i], pRuntimeEnv->colDataBuffer[i]->data + s, pColInfo->bytes);
+      memcpy(pRuntimeEnv->lastRowInBlock[i], pRuntimeEnv->colDataBuffer[i]->data + s, pColInfo->bytes);
+    }
   }
 
   free(sasArray);
