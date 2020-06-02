@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -158,11 +172,11 @@ static void *bindUPort(void *sarg) {
 
 int main() {
   int        port = 6020;
-  pthread_t *pids = malloc(20 * sizeof(pthread_t));
-  info *     infos = malloc(10 * sizeof(info));
-  info *     uinfos = malloc(10 * sizeof(info));
+  pthread_t *pids = malloc(60 * sizeof(pthread_t));
+  info *     infos = malloc(30 * sizeof(info));
+  info *     uinfos = malloc(30 * sizeof(info));
 
-  for (size_t i = 0; i < 10; i++) {
+  for (size_t i = 0; i < 30; i++) {
     port++;
 
     info *pinfo = infos++;
@@ -177,13 +191,13 @@ int main() {
     info *uinfo = uinfos++;
     uinfo->port = port;
     uinfo->type = 1;
-    if (pthread_create(pids + 10 + i, NULL, bindUPort, uinfo) != 0)  //创建线程
+    if (pthread_create(pids + 30 + i, NULL, bindUPort, uinfo) != 0)  //创建线程
     {                                                                //创建线程失败
       printf("创建线程失败: %d.\n", port);
       exit(0);
     }
   }
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 30; i++) {
     pthread_join(pids[i], NULL);
     pthread_join(pids[(10 + i)], NULL);
   }

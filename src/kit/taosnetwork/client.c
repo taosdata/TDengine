@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -80,12 +94,6 @@ void *checkUPort(void *sarg) {
   serverAddr.sin_addr.s_addr = inet_addr(host);
 
   printf("=================================\n");
-  // if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-  //   perror("connect");
-  //   return NULL;
-  // }
-
-  // printf("Connect to: %s:%d...success\n", host, port);
 
   sprintf(sendbuf, "send msg port_%d by udp", port);
 
@@ -108,21 +116,21 @@ void *checkUPort(void *sarg) {
 int main() {
   int   port = 6020;
   char *host = "127.0.0.1";
-  info *infos = malloc(10 * sizeof(info));
-  info *uinfos = malloc(10 * sizeof(info));
+  info *tinfo = malloc(sizeof(info));
+  info *uinfo = malloc(sizeof(info));
 
-  for (size_t i = 0; i < 10; i++) {
+  for (size_t i = 0; i < 30; i++) {
     port++;
     printf("For test: %s:%d\n", host, port);
 
-    info *pinfo = infos++;
-    *pinfo->host = host;
-    pinfo->port = port;
-    checkPort(pinfo);
+    *tinfo->host = host;
+    tinfo->port = port;
+    checkPort(tinfo);
 
-    info *uinfo = uinfos++;
     *uinfo->host = host;
     uinfo->port = port;
     checkUPort(uinfo);
   }
+  free(tinfo);
+  free(uinfo);
 }
