@@ -211,7 +211,7 @@ static void* taosAcceptTcpConnection(void *arg) {
         tTrace("%s TCP server socket was shutdown, exiting...", pServerObj->label);
         break;
       }
-      tError("%s TCP accept failure(%s)", pServerObj->label, errno, strerror(errno));
+      tError("%s TCP accept failure(%s)", pServerObj->label, strerror(errno));
       continue;
     }
 
