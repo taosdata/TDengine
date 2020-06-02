@@ -73,7 +73,6 @@ typedef struct STable {
   int8_t         type;
   STableId       tableId;
   uint64_t       superUid;  // Super table UID
-  int32_t        sversion;
   STSchema *     schema;
   STSchema *     tagSchema;
   SKVRow         tagVal;

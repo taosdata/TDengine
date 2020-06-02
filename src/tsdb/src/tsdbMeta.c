@@ -41,7 +41,7 @@ void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
   T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, uid);
   T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, tid);
   T_APPEND_MEMBER(ptr, pTable, STable, superUid);
-  T_APPEND_MEMBER(ptr, pTable, STable, sversion);
+  // T_APPEND_MEMBER(ptr, pTable, STable, sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
     ptr = tdEncodeSchema(ptr, pTable->schema);
@@ -87,7 +87,7 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   T_READ_MEMBER(ptr, uint64_t, pTable->tableId.uid);
   T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
   T_READ_MEMBER(ptr, uint64_t, pTable->superUid);
-  T_READ_MEMBER(ptr, int32_t, pTable->sversion);
+  // T_READ_MEMBER(ptr, int32_t, pTable->sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
     pTable->schema = tdDecodeSchema(&ptr);
