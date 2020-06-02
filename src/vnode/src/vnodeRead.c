@@ -39,8 +39,8 @@ void vnodeInitReadFp(void) {
 int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen, SRspRet *ret) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
 
-  if (vnodeProcessReadMsgFp[msgType] == NULL) 
-    return TSDB_CODE_MSG_NOT_PROCESSED; 
+  if (vnodeProcessReadMsgFp[msgType] == NULL)
+    return TSDB_CODE_MSG_NOT_PROCESSED;
 
   if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
     return TSDB_CODE_INVALID_VGROUP_ID; 
@@ -53,26 +53,29 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   memset(pRet, 0, sizeof(SRspRet));
 
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   qinfo_t pQInfo = NULL;
   if (contLen != 0) {
     pRet->code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo);
-  
+
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->qhandle = htobe64((uint64_t) (pQInfo));
     pRsp->code = pRet->code;
-     
+
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
     
     vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
   } else {
+    assert(pCont != NULL);
     pQInfo = pCont;
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  qTableQuery(pQInfo); // do execute query
-  
+  if (pQInfo != NULL) {
+    qTableQuery(pQInfo); // do execute query
+  }
+
   return code;
 }
 

@@ -44,7 +44,7 @@ sudo apt-get install maven
 Build TDengine:
 
 ```
-mkdir build && cd build
+mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 

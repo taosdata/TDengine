@@ -94,7 +94,7 @@ static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile
   if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) return -1;
 
   void *pBuf = buf;
-  pBuf = taosDecodeFixed32(pBuf, &version);
+  pBuf = taosDecodeFixedU32(pBuf, &version);
   pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
 
   tsdbCloseFile(pFile);

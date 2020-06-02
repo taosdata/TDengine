@@ -40,7 +40,7 @@ fi
 
 TAOS_DIR=`pwd`
 
-BIN_DIR=`find . -name "taosd"|grep bin| cut -d '/' --fields=2,3`
+BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR
 
