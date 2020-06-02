@@ -88,7 +88,7 @@ void tscSaveSlowQueryFp(void *handle, void *tmrId) {
 }
 
 void tscSaveSlowQuery(SSqlObj *pSql) {
-  const static int64_t SLOW_QUERY_INTERVAL = 3000000L;
+  const static int64_t SLOW_QUERY_INTERVAL = 3000000L; // todo configurable
   size_t size = 200;  // other part of sql string, expect the main sql str
   
   if (pSql->res.useconds < SLOW_QUERY_INTERVAL) {
