@@ -155,6 +155,7 @@ cd ../../../debug; make
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
 ./test.sh -f general/stable/metrics.sim
+./test.sh -f general/stable/show.sim
 ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
 

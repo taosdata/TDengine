@@ -9,7 +9,11 @@ NC='\033[0m'
 
 echo "### run TSIM script ###"
 cd script
-./test.sh -f basicSuite.sim 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee out.log
+if [ "$1" == "cron" ]; then
+  ./test.sh -f fullGeneralSuite.sim 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee out.log
+else
+  ./test.sh -f basicSuite.sim 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee out.log
+fi
 
 totalSuccess=`grep 'success' out.log | wc -l`
 totalBasic=`grep success out.log | grep Suite | wc -l`
