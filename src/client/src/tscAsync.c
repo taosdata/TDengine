@@ -50,6 +50,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->maxRetry  = TSDB_MAX_REPLICA_NUM;
   pSql->fp        = fp;
   
+  sem_init(&pSql->rspSem, 0, 0);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("failed to malloc payload");
     tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);

@@ -426,6 +426,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pCmd->allocSize = 0;
   
   tfree(pSql->sqlstr);
+  sem_destroy(&pSql->rspSem);
   free(pSql);
 }
 
