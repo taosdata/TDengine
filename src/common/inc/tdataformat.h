@@ -278,9 +278,10 @@ typedef struct {
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
 #define kvRowFree(r) tfree(r)
+#define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 
 SKVRow tdKVRowDup(SKVRow row);
-SKVRow tdSetKVRowDataOfCol(SKVRow row, int16_t colId, int8_t type, void *value);
+int    tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
 void * tdEncodeKVRow(void *buf, SKVRow row);
 void * tdDecodeKVRow(void *buf, SKVRow *row);
 
