@@ -3664,10 +3664,8 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int
   }
 }
 
-void queryCostStatis(SQInfo *pQInfo) {
+static void queryCostStatis(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-//  SQuery *pQuery = pRuntimeEnv->pQuery;
-
   SQueryCostInfo *pSummary = &pRuntimeEnv->summary;
 //  if (pRuntimeEnv->pResultBuf == NULL) {
 ////    pSummary->tmpBufferInDisk = 0;
@@ -4790,7 +4788,6 @@ static void tableQueryImpl(SQInfo *pQInfo) {
     }
 
     qTrace("QInfo:%p query over, %d rows are returned", pQInfo, pQuery->rec.total);
-    queryCostStatis(pQInfo);
     return;
   }
 
@@ -4822,10 +4819,6 @@ static void tableQueryImpl(SQInfo *pQInfo) {
   } else {// todo set the table uid and tid in log
     qTrace("QInfo:%p query paused, %" PRId64 " rows returned, numOfTotal:%" PRId64 " rows",
         pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
-    
-    if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-      queryCostStatis(pQInfo);
-    }
   }
 }
 
@@ -5877,6 +5870,9 @@ _over:
 
 void qDestroyQueryInfo(qinfo_t pQInfo) {
   qTrace("QInfo:%p query completed", pQInfo);
+  
+  // print the query cost summary
+  queryCostStatis(pQInfo);
   freeQInfo(pQInfo);
 }
 
