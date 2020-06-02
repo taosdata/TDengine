@@ -484,35 +484,44 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
   void *   ptr = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
 
   if (ptr == NULL || ((SColIdx *)ptr)->colId < colId) { // need to add a column value to the row
-    // int tlen = kvDataRowLen(row) + sizeof(SColIdx) + (IS_VAR_DATA_TYPE(type) ? varDataTLen(value) :
-    // TYPE_BYTES[type]); nrow = malloc(tlen); if (nrow == NULL) return NULL;
+    int diff = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+    nrow = malloc(kvRowLen(row) + sizeof(SColIdx) + diff);
+    if (nrow == NULL) return -1;
 
-    // kvDataRowSetNCols(nrow, kvDataRowNCols(row)+1);
-    // kvDataRowSetLen(nrow, tlen);
+    kvRowSetLen(nrow, kvRowLen(row) + sizeof(SColIdx) + diff);
+    kvRowSetNCols(nrow, kvRowNCols(row) + 1);
 
-    // if (ptr == NULL) ptr = kvDataRowValues(row);
+    if (ptr == NULL) {
+      memcpy(kvRowColIdx(nrow), kvRowColIdx(row), sizeof(SColIdx) * kvRowNCols(row));
+      memcpy(kvRowValues(nrow), kvRowValues(row), POINTER_DISTANCE(kvRowEnd(row), kvRowValues(row)));
+      int colIdx = kvRowNCols(nrow) - 1;
+      kvRowColIdxAt(nrow, colIdx)->colId = colId;
+      kvRowColIdxAt(nrow, colIdx)->offset = POINTER_DISTANCE(kvRowEnd(row), kvRowValues(row));
+      memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx)), value, diff);
+    } else {
+      int16_t tlen = POINTER_DISTANCE(ptr, kvRowColIdx(row));
+      if (tlen > 0) {
+        memcpy(kvRowColIdx(nrow), kvRowColIdx(row), tlen);
+        memcpy(kvRowValues(nrow), kvRowValues(row), ((SColIdx *)ptr)->offset);
+      }
 
-    // // Copy the columns before the col
-    // if (POINTER_DISTANCE(ptr, kvDataRowColIdx(row)) > 0) {
-    //   memcpy(kvDataRowColIdx(nrow), kvDataRowColIdx(row), POINTER_DISTANCE(ptr, kvDataRowColIdx(row)));
-    //   memcpy(kvDataRowValues(nrow), kvDataRowValues(row), ((SColIdx *)ptr)->offset); // TODO: here is not correct
-    // }
+      int colIdx = tlen / sizeof(SColIdx);
+      kvRowColIdxAt(nrow, colIdx)->colId = colId;
+      kvRowColIdxAt(nrow, colIdx)->offset = ((SColIdx *)ptr)->offset;
+      memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx)), value, diff);
 
-    // // Set the new col value
-    // pColIdx = (SColIdx *)POINTER_SHIFT(nrow, POINTER_DISTANCE(ptr, row));
-    // pColIdx->colId = colId;
-    // pColIdx->offset = ((SColIdx *)ptr)->offset; // TODO: here is not correct
+      for (int i = colIdx; i < kvRowNCols(row); i++) {
+        kvRowColIdxAt(nrow, i + 1)->colId = kvRowColIdxAt(row, i)->colId;
+        kvRowColIdxAt(nrow, i + 1)->offset = kvRowColIdxAt(row, i)->offset + diff;
+      }
+      memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx + 1)), kvRowColVal(row, kvRowColIdxAt(row, colIdx)),
+             POINTER_DISTANCE(kvRowEnd(row), kvRowColVal(row, kvRowColIdxAt(row, colIdx)))
 
-    // if (IS_VAR_DATA_TYPE(type)) {
-    //   memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, varDataLen(value));
-    // } else {
-    //   memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, TYPE_BYTES[type]);
-    // }
+      );
+    }
 
-    // // Copy the columns after the col
-    // if (POINTER_DISTANCE(kvDataRowValues(row), ptr) > 0) {
-    //   // TODO: memcpy();
-    // }
+    *orow = nrow;
+    free(row);
   } else {
     ASSERT(((SColIdx *)ptr)->colId == colId);
     if (IS_VAR_DATA_TYPE(type)) {
@@ -525,9 +534,7 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
         int16_t nlen = kvRowLen(row) + diff;
         ASSERT(nlen > 0);
         nrow = malloc(nlen);
-        if (nrow == NULL) {
-          // TODO: deal with the error here
-        }
+        if (nrow == NULL) return -1;
 
         kvRowSetLen(nrow, nlen);
         kvRowSetNCols(nrow, kvRowNCols(row));
@@ -558,8 +565,8 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
                  POINTER_DISTANCE(kvRowEnd(row), kvRowColVal(row, kvRowColIdxAt(row, colIdx + 1))));
         }
 
-        free(row);
         *orow = nrow;
+        free(row);
       }
     } else {
       memcpy(kvRowColVal(row, (SColIdx *)ptr), value, TYPE_BYTES[type]);
