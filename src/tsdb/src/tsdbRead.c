@@ -1909,9 +1909,8 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;
       type = pCol->type;
-      int16_t tgtype1, tgtype2 = 0;
-      f1 = tdQueryTagByID(pTable1->tagVal, pCol->colId, &tgtype1);
-      f2 = tdQueryTagByID(pTable2->tagVal, pCol->colId, &tgtype2);
+      f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
+      f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
     }
     
     int32_t ret = doCompare(f1, f2, type, bytes);
@@ -1999,9 +1998,7 @@ bool indexedNodeFilterFp(const void* pNode, void* param) {
     val = (char*) elem->pTable->name;
     type = TSDB_DATA_TYPE_BINARY;
   } else {
-    int16_t t1;
-    val = tdQueryTagByID(elem->pTable->tagVal, pInfo->sch.colId, &t1);
-    assert(pInfo->sch.type == t1);
+    val = tdGetKVRowValOfCol(elem->pTable->tagVal, pInfo->sch.colId);
   }
   
   //todo :the val is possible to be null, so check it out carefully

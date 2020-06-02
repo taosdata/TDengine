@@ -380,7 +380,7 @@ static void *taosProcessTcpData(void *param) {
 
       int32_t headLen = taosReadMsg(pFdObj->fd, &rpcHead, sizeof(SRpcHead));
       if (headLen != sizeof(SRpcHead)) {
-        tError("%s %p, read error, headLen:%d", pThreadObj->label, pFdObj->thandle, headLen);
+        tTrace("%s %p, read error, headLen:%d", pThreadObj->label, pFdObj->thandle, headLen);
         taosReportBrokenLink(pFdObj);
         continue;
       }

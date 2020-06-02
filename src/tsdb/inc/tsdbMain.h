@@ -76,7 +76,7 @@ typedef struct STable {
   int32_t        sversion;
   STSchema *     schema;
   STSchema *     tagSchema;
-  SDataRow       tagVal;
+  SKVRow         tagVal;
   SMemTable *    mem;
   SMemTable *    imem;
   void *         pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index

@@ -102,14 +102,15 @@ int  tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t 
 int  tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
 int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
-int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
+int  tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
 int  tsdbTableSetName(STableCfg *config, char *name, bool dup);
 int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 int  tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
-int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId* id, int32_t colId, int16_t *type, int16_t *bytes, char **val);
-char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes);
+int32_t    tsdbGetTableTagVal(TsdbRepoT *repo, STableId *id, int32_t colId, int16_t *type, int16_t *bytes, char **val);
+char *     tsdbGetTableName(TsdbRepoT *repo, const STableId *id, int16_t *bytes);
+STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
 int   tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
 int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
