@@ -5833,9 +5833,11 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
         numOfGroupByCols = 0;
       }
       
-      // todo handle the error
-      /*int32_t ret =*/tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &groupInfo, pGroupColIndex,
+      code = tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &groupInfo, pGroupColIndex,
                                           numOfGroupByCols);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _over;
+      }
     } else {
       SArray* pTableGroup = taosArrayInit(1, POINTER_BYTES);
 
