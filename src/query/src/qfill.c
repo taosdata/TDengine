@@ -116,6 +116,8 @@ void taosDestoryFillInfo(SFillInfo* pFillInfo) {
   }
   
   tfree(pFillInfo->pData);
+  tfree(pFillInfo->pFillCol);
+  
   tfree(pFillInfo);
 }
 
