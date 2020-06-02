@@ -44,7 +44,7 @@ function buildTDengine {
 		echo "repo need to pull"
 		git pull
 
-		LOCAL_COMMIT=`git rev-parse @`
+		LOCAL_COMMIT=`git rev-parse --short @`
 		cd debug
 		rm -rf *
 		cmake ..
