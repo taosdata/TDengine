@@ -60,17 +60,10 @@ if $rows != 75 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' group by tgcol -x step13
-  return -1
-step13:
-
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m and tbcol = '1' group by tgcol -x step14
-  return -1
-step14:
-
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' interval(1d) group by tgcol -x step15
-  return -1
-step15:
+print select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1'
+sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' group by tgcol 
+sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m and tbcol = '1' group by tgcol 
+sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' interval(1d) group by tgcol 
 
 #can't filter binary fields
 
