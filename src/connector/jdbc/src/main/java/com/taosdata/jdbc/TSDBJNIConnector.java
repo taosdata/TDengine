@@ -261,31 +261,31 @@ public class TSDBJNIConnector {
     /**
      * Subscribe to a table in TSDB
      */
-    public long subscribe(String host, String user, String password, String database, String table, long time, int period) {
-        return subscribeImp(host, user, password, database, table, time, period);
+    public long subscribe(String topic, String sql, boolean restart, int period) {
+        return subscribeImp(this.taos, restart, topic, sql, period);
     }
 
-    private native long subscribeImp(String host, String user, String password, String database, String table, long time, int period);
+    public native long subscribeImp(long connection, boolean restart, String topic, String sql, int period);
 
     /**
      * Consume a subscribed table
      */
-    public TSDBResultSetRowData consume(long subscription) {
+    public long consume(long subscription) {
         return this.consumeImp(subscription);
     }
 
-    private native TSDBResultSetRowData consumeImp(long subscription);
+    private native long consumeImp(long subscription);
 
     /**
      * Unsubscribe a table
      *
      * @param subscription
      */
-    public void unsubscribe(long subscription) {
-        unsubscribeImp(subscription);
+    public void unsubscribe(long subscription, boolean isKeep) {
+        unsubscribeImp(subscription, isKeep);
     }
 
-    private native void unsubscribeImp(long subscription);
+    private native void unsubscribeImp(long subscription, boolean isKeep);
 
     /**
      * Validate if a <I>create table</I> sql statement is correct without actually creating that table

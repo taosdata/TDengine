@@ -102,41 +102,49 @@ public class DatabaseMetaDataResultSet implements ResultSet {
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
+        columnIndex--;
         return (byte) rowCursor.getInt(columnIndex, columnMetaDataList.get(columnIndex).getColType());
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
+        columnIndex--;
         return (short) rowCursor.getInt(columnIndex, columnMetaDataList.get(columnIndex).getColType());
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
+        columnIndex--;
         return rowCursor.getInt(columnIndex, columnMetaDataList.get(columnIndex).getColType());
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
+        columnIndex--;
         return rowCursor.getLong(columnIndex, columnMetaDataList.get(columnIndex).getColType());
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
+        columnIndex--;
         return rowCursor.getFloat(columnIndex, columnMetaDataList.get(columnIndex).getColType());
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
+        columnIndex--;
         return rowCursor.getDouble(columnIndex, columnMetaDataList.get(columnIndex).getColType());
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
+        columnIndex--;
         return new BigDecimal(rowCursor.getDouble(columnIndex, columnMetaDataList.get(columnIndex).getColType()));
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
+        columnIndex--;
         return (rowCursor.getString(columnIndex, columnMetaDataList.get(columnIndex).getColType())).getBytes();
     }
 
@@ -152,6 +160,7 @@ public class DatabaseMetaDataResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
+        columnIndex--;
         return rowCursor.getTimestamp(columnIndex);
     }
 

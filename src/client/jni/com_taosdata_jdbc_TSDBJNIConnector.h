@@ -143,7 +143,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp
  * Signature: (J)Lcom/taosdata/jdbc/TSDBResultSetRowData;
  */
 JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp
-  (JNIEnv *, jobject, jlong, jint);
+  (JNIEnv *, jobject, jlong);
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
