@@ -771,11 +771,11 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
       }
     }
 
-    taos_free_result(pSql);
   } else {
     numOfRows = taos_affected_rows(pSql);
   }
 
+  taos_free_result(pSql);
   sprintf(script->rows, "%d", numOfRows);
 
   script->linePos++;
