@@ -36,7 +36,7 @@ void processShellMsg() {
   while (1) {
     int numOfMsgs = taosReadAllQitems(qhandle, qall);
     if (numOfMsgs <= 0) {
-      usleep(1000);
+      usleep(100);
       continue;
     }     
 

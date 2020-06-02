@@ -211,7 +211,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = size;
 
-  if (rowsToRead == 0 || rowsRead == rowsToRead) {
+  if (rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows - pShow->numOfReads == rowsToRead)) {
     pRsp->completed = 1;
     mnodeReleaseShowObj(pShow, true);
   } else {
