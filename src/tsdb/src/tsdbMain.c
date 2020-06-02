@@ -1212,40 +1212,44 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, uint32_t 
   tsdbTrace("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *index, eindex);
   ASSERT(*index <= eindex);
 
+  char *sdup = strdup(pRepo->rootDir);
+  char *prefix = dirname(sdup);
+
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    if (*index == TSDB_META_FILE_INDEX) {
-      tsdbGetMetaFileName(pRepo->rootDir, fname);
-    } else {                            // to get a file in index or larger than index but
-      if (pFileH->numOfFGroups == 0) {  // not found
-        return 0;
+    int fid = (*index) / 3;
+
+    if (pFileH->numOfFGroups == 0 || fid > pFileH->fGroup[pFileH->numOfFGroups - 1].fileId) {
+      if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
+        tsdbGetMetaFileName(pRepo->rootDir, fname);
+        *index = TSDB_META_FILE_INDEX;
       } else {
-        int         fid = (*index) / 3;
-        SFileGroup *pFGroup =
-            taosbsearch(&fid, pFileH->fGroup, pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey, TD_GE);
-        if (pFGroup == NULL) {
-          return 0;
+        tfree(sdup);
+        return 0;
+      }
+    } else {
+      SFileGroup *pFGroup =
+          taosbsearch(&fid, pFileH->fGroup, pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey, TD_GE);
+      if (pFGroup->fileId == fid) {
+        strcpy(fname, pFGroup->files[(*index) % 3].fname);
+      } else {
+        if (pFGroup->fileId * 3 + 2 < eindex) {
+          strcpy(fname, pFGroup->files[0].fname);
+          *index = pFGroup->fileId * 3;
         } else {
-          if (pFGroup->fileId == fid) {
-            strcpy(fname, pFGroup->files[(*index) % 3].fname);
-          } else {
-            if (pFGroup->fileId * 3 + 2 < eindex) {
-              strcpy(fname, pFGroup->files[(*index) % 3].fname);
-              *index = pFGroup->fileId * 3 + (*index) % 3;
-            } else {
-              return 0;
-            }
-          }
+          tfree(sdup);
+          return 0;
         }
       }
     }
-    strcpy(name, fname);
-  } else {                                // get the named file at the specified index. If not there, return 0
-    if (*index == TSDB_META_FILE_INDEX) { // get meta file
+    strcpy(name, fname + strlen(prefix));
+  } else {                                 // get the named file at the specified index. If not there, return 0
+    if (*index == TSDB_META_FILE_INDEX) {  // get meta file
       tsdbGetMetaFileName(pRepo->rootDir, fname);
-    } else { 
-      int fid = (*index) / 3;
+    } else {
+      int         fid = (*index) / 3;
       SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid);
-      if (pFGroup == NULL) { // not found
+      if (pFGroup == NULL) {  // not found
+        tfree(sdup);
         return 0;
       }
 
@@ -1255,9 +1259,11 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, uint32_t 
   }
 
   if (stat(fname, &fState) < 0) {
+    tfree(sdup);
     return 0;
   }
 
+  tfree(sdup);
   *size = fState.st_size;
   magic = *size;
 
