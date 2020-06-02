@@ -1475,15 +1475,12 @@ bool tscShouldBeFreed(SSqlObj* pSql) {
     return false;
   }
 
+  // only the table meta and super table vgroup query will free resource automatically
   int32_t command = pSql->cmd.command;
-  if (command == TSDB_SQL_META || command == TSDB_SQL_STABLEVGROUP) {//TODO subquery should be freed here
+  if (command == TSDB_SQL_META || command == TSDB_SQL_STABLEVGROUP) {
     return true;
   }
-  
-  // all subqueries should be automatically freed
-//  if (pSql->cmd.pQueryInfo != NULL && pSql->cmd.pQueryInfo[0]->type & TSDB_QUERY_TYPE_SUBQUERY) {
-//    return true;
-//  }
+
   return false;
 }
 

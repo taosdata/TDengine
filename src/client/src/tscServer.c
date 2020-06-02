@@ -335,15 +335,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
     
     tscTrace("%p SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
-
-    /*
-     * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
-     * may be freed in UDF, and reused by other threads before tscShouldBeFreed called, in which case
-     * tscShouldBeFreed checks an object which is actually allocated by other threads.
-     *
-     * If this block of memory is re-allocated for an insert thread, in which tscKeepConn[command] equals to 0,
-     * the tscShouldBeFreed will success and tscFreeSqlObj free it immediately.
-     */
     bool shouldFree = tscShouldBeFreed(pSql);
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
 
