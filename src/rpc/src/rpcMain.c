@@ -803,7 +803,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
 
   pConn = rpcGetConnObj(pRpc, sid, pRecv);
   if (pConn == NULL) {
-    tError("%s %p, failed to get connection obj(%s)", pRpc->label, pHead->ahandle, tstrerror(terrno)); 
+    tTrace("%s %p, failed to get connection obj(%s)", pRpc->label, pHead->ahandle, tstrerror(terrno)); 
     return NULL;
   } else {
     if (rpcIsReq(pHead->msgType)) {
@@ -1100,7 +1100,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pHead->port = 0;
   pHead->linkUid = pConn->linkUid;
   pHead->ahandle = (uint64_t)pConn->ahandle;
-  if (!pConn->secured) memcpy(pHead->user, pConn->user, tListLen(pHead->user));
+  memcpy(pHead->user, pConn->user, tListLen(pHead->user));
 
   // set the connection parameters
   pConn->outType = msgType;
@@ -1399,7 +1399,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
       code = TSDB_CODE_INVALID_TIME_STAMP;
     } else {
       if (rpcAuthenticateMsg(pHead, msgLen-TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
-        tError("%s, authentication failed, msg discarded", pConn->info);
+        tTrace("%s, authentication failed, msg discarded", pConn->info);
         code = TSDB_CODE_AUTH_FAILURE;
       } else {
         pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen) - sizeof(SRpcDigest);
@@ -1408,7 +1408,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
       }
     }
   } else {
-    tError("%s, auth spi:%d not matched with received:%d", pConn->info, pConn->spi, pHead->spi);
+    tTrace("%s, auth spi:%d not matched with received:%d", pConn->info, pConn->spi, pHead->spi);
     code = pHead->spi ? TSDB_CODE_AUTH_FAILURE : TSDB_CODE_AUTH_REQUIRED;
   }
 
