@@ -925,7 +925,11 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
       for (int32_t i = 0; i < spd.numOfCols; ++i) {
         if (!spd.hasVal[i]) {  // current tag column do not have any value to insert, set it to null
-          setNull(ptr, pTagSchema[i].type, pTagSchema[i].bytes);
+          if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+            setVardataNull(ptr, pTagSchema[i].type);
+          } else {
+            setNull(ptr, pTagSchema[i].type, pTagSchema[i].bytes);
+          }
         }
 
         ptr += pTagSchema[i].bytes;
