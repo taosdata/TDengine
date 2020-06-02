@@ -34,7 +34,7 @@ typedef struct {
 } SReadMsg;
 
 typedef struct {
-  pthread_t  thread;    // thread 
+  pthread_t  thread;    // thread
   int32_t    workerId;  // worker ID
 } SReadWorker;
 
@@ -85,8 +85,8 @@ void dnodeCleanupVnodeRead() {
     }
   }
 
-  taosCloseQset(readQset);
   free(readPool.readWorker);
+  taosCloseQset(readQset);
 
   dPrint("dnode read is closed");
 }
@@ -95,7 +95,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   int32_t     queuedMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
-  void        *pVnode;  
+  void        *pVnode;
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
@@ -166,7 +166,7 @@ void *dnodeAllocateVnodeRqueue(void *pVnode) {
     } while (readPool.num < readPool.min);
   }
 
-  dTrace("pVnode:%p, read queue:%p is allocated", pVnode, queue); 
+  dTrace("pVnode:%p, read queue:%p is allocated", pVnode, queue);
 
   return queue;
 }
@@ -177,13 +177,13 @@ void dnodeFreeVnodeRqueue(void *rqueue) {
   // dynamically adjust the number of threads
 }
 
-static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMsg) {  
+static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMsg) {
   SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
   pRead->rpcMsg      = pMsg->rpcMsg;
   pRead->pCont       = qhandle;
   pRead->contLen     = 0;
   pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
-  
+
   taos_queue queue = vnodeGetRqueue(pVnode);
   taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
 }

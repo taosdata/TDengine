@@ -364,12 +364,13 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
   return true;
 }
 
-static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile) {
+static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precision) {
+  assert(precision >= TSDB_TIME_PRECISION_MICRO || precision <= TSDB_TIME_PRECISION_NANO);
   if (key == TSKEY_INITIAL_VAL) {
     return INT32_MIN;
   }
   
-  int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[0]));  // set the starting fileId
+  int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[precision]));  // set the starting fileId
   if (fid < 0L && llabs(fid) > INT32_MAX) { // data value overflow for INT32
     fid = INT32_MIN;
   }
@@ -1297,7 +1298,8 @@ static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
   // find the start data block in file
   if (!pQueryHandle->locateStart) {
     pQueryHandle->locateStart = true;
-    int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pQueryHandle->pTsdb->config.daysPerFile);
+    STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
+    int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
     
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
@@ -1907,9 +1909,8 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;
       type = pCol->type;
-      int16_t tgtype1, tgtype2 = 0;
-      f1 = tdQueryTagByID(pTable1->tagVal, pCol->colId, &tgtype1);
-      f2 = tdQueryTagByID(pTable2->tagVal, pCol->colId, &tgtype2);
+      f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
+      f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
     }
     
     int32_t ret = doCompare(f1, f2, type, bytes);
@@ -1997,9 +1998,7 @@ bool indexedNodeFilterFp(const void* pNode, void* param) {
     val = (char*) elem->pTable->name;
     type = TSDB_DATA_TYPE_BINARY;
   } else {
-    int16_t t1;
-    val = tdQueryTagByID(elem->pTable->tagVal, pInfo->sch.colId, &t1);
-    assert(pInfo->sch.type == t1);
+    val = tdGetKVRowValOfCol(elem->pTable->tagVal, pInfo->sch.colId);
   }
   
   //todo :the val is possible to be null, so check it out carefully

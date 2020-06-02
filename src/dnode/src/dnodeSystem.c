@@ -39,11 +39,11 @@ int32_t main(int32_t argc, char *argv[]) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-V") == 0) {
-#ifdef _SYNC      
+#ifdef _SYNC
       char *versionStr = "enterprise";
-#else      
+#else
       char *versionStr = "community";
-#endif      
+#endif
       printf("%s version: %s compatible_version: %s\n", versionStr, version, compatible_version);
       printf("gitinfo: %s\n", gitinfo);
       printf("gitinfoI: %s\n", gitinfoOfInternal);
@@ -93,8 +93,6 @@ int32_t main(int32_t argc, char *argv[]) {
   if (dnodeInitSystem() < 0) {
     syslog(LOG_ERR, "Error initialize TDengine system");
     closelog();
-
-    dnodeCleanUpSystem();
     exit(EXIT_FAILURE);
   }
 

@@ -211,7 +211,7 @@ static void* taosAcceptTcpConnection(void *arg) {
         tTrace("%s TCP server socket was shutdown, exiting...", pServerObj->label);
         break;
       }
-      tError("%s TCP accept failure(%s)", pServerObj->label, errno, strerror(errno));
+      tError("%s TCP accept failure(%s)", pServerObj->label, strerror(errno));
       continue;
     }
 
@@ -380,7 +380,7 @@ static void *taosProcessTcpData(void *param) {
 
       int32_t headLen = taosReadMsg(pFdObj->fd, &rpcHead, sizeof(SRpcHead));
       if (headLen != sizeof(SRpcHead)) {
-        tError("%s %p, read error, headLen:%d", pThreadObj->label, pFdObj->thandle, headLen);
+        tTrace("%s %p, read error, headLen:%d", pThreadObj->label, pFdObj->thandle, headLen);
         taosReportBrokenLink(pFdObj);
         continue;
       }

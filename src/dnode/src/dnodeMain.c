@@ -36,6 +36,46 @@ static void dnodeCleanupStorage();
 static void dnodeSetRunStatus(SDnodeRunStatus status);
 static void dnodeCheckDataDirOpenned(char *dir);
 static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
+static int32_t dnodeInitComponents();
+static void dnodeCleanupComponents(int32_t stepId);
+
+typedef struct {
+  const char *const name;
+  int               (*init)();
+  void              (*cleanup)();
+} SDnodeComponent;
+
+static const SDnodeComponent SDnodeComponents[] = {
+  {"storage", dnodeInitStorage,    dnodeCleanupStorage},
+  {"vread",   dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
+  {"vwrite",  dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},
+  {"mread",   dnodeInitMnodeRead,  dnodeCleanupMnodeRead},
+  {"mwrite",  dnodeInitMnodeWrite, dnodeCleanupMnodeWrite},
+  {"mpeer",   dnodeInitMnodePeer,  dnodeCleanupMnodePeer},  
+  {"client",  dnodeInitClient,     dnodeCleanupClient},
+  {"server",  dnodeInitServer,     dnodeCleanupServer},
+  {"mgmt",    dnodeInitMgmt,       dnodeCleanupMgmt},
+  {"modules", dnodeInitModules,    dnodeCleanupModules},
+  {"shell",   dnodeInitShell,      dnodeCleanupShell}
+};
+
+static void dnodeCleanupComponents(int32_t stepId) {
+  for (int32_t i = stepId; i >= 0; i--) {
+    SDnodeComponents[i].cleanup();
+  }
+}
+
+static int32_t dnodeInitComponents() {
+  int32_t code = 0;
+  for (int32_t i = 0; i < sizeof(SDnodeComponents) / sizeof(SDnodeComponents[0]); i++) {
+    if (SDnodeComponents[i].init() != 0) {
+      dnodeCleanupComponents(i);
+      code = -1;
+      break;
+    }
+  }
+  return code;
+}
 
 int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
@@ -67,17 +107,9 @@ int32_t dnodeInitSystem() {
 
   dPrint("start to initialize TDengine on %s", tsLocalEp);
 
-  if (dnodeInitStorage() != 0) return -1;
-  if (dnodeInitVnodeRead() != 0) return -1;
-  if (dnodeInitVnodeWrite() != 0) return -1;
-  if (dnodeInitMnodeRead() != 0) return -1;
-  if (dnodeInitMnodeWrite() != 0) return -1;
-  if (dnodeInitMnodePeer() != 0) return -1;
-  if (dnodeInitClient() != 0) return -1;
-  if (dnodeInitServer() != 0) return -1;
-  if (dnodeInitMgmt() != 0) return -1;
-  if (dnodeInitModules() != 0) return -1;
-  if (dnodeInitShell() != 0) return -1;
+  if (dnodeInitComponents() != 0) {
+    return -1;
+  }
 
   dnodeStartModules();
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_RUNING);
@@ -90,17 +122,7 @@ int32_t dnodeInitSystem() {
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
-    dnodeCleanupShell();
-    dnodeCleanUpModules();
-    dnodeCleanupMgmt();
-    dnodeCleanupServer();
-    dnodeCleanupClient();
-    dnodeCleanupMnodePeer();
-    dnodeCleanupMnodeWrite();
-    dnodeCleanupMnodeRead();
-    dnodeCleanupVnodeWrite();
-    dnodeCleanupVnodeRead();
-    dnodeCleanupStorage();
+    dnodeCleanupComponents(sizeof(SDnodeComponents) / sizeof(SDnodeComponents[0]) - 1);
     taos_cleanup();
     taosCloseLog();
   }
