@@ -110,6 +110,12 @@ void taosDestoryFillInfo(SFillInfo* pFillInfo) {
   tfree(pFillInfo->prevValues);
   tfree(pFillInfo->nextValues);
   tfree(pFillInfo->pTags);
+  
+  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+    tfree(pFillInfo->pData[i]);
+  }
+  
+  tfree(pFillInfo->pData);
   tfree(pFillInfo);
 }
 
