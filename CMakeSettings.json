@@ -5,7 +5,7 @@
       "generator": "Unix Makefiles",
       "configurationType": "Debug",
       "buildRoot": "${projectDir}\\build\\",
-      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "installRoot": "${projectDir}\\build\\",
       "cmakeExecutable": "/usr/bin/cmake",
       "cmakeCommandArgs": "",
       "buildCommandArgs": "",

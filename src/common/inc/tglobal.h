@@ -49,7 +49,7 @@ extern int32_t tsTotalMemoryMB;
 extern int32_t tsVersion;
 
 extern int32_t tscEmbedded;
-extern int64_t tsMsPerDay[2];
+extern int64_t tsMsPerDay[3];
 
 extern char  tsFirst[];
 extern char  tsSecond[];
@@ -94,6 +94,10 @@ extern int32_t tsMaxTables;
 extern char tsDefaultDB[];
 extern char tsDefaultUser[];
 extern char tsDefaultPass[];
+
+extern char tsMqttBrokerAddress[];
+extern char tsMqttBrokerClientId[];
+
 extern int32_t tsMaxConnections;
 
 extern int32_t tsBalanceInterval;

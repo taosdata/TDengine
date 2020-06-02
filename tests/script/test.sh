@@ -40,9 +40,20 @@ cd .
 # Get responsible directories
 CODE_DIR=`dirname $0`
 CODE_DIR=`pwd`
-cd ../../
+
+IN_TDINTERNAL="community"
+if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  cd ../../..
+else
+  cd ../../
+fi
+
 TOP_DIR=`pwd`
-BUILD_DIR=$TOP_DIR/debug/build
+
+BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+
+BUILD_DIR=$TOP_DIR/$BIN_DIR
+
 SIM_DIR=$TOP_DIR/sim
 
 if [ $ASYNC -eq 0 ]; then
@@ -51,11 +62,6 @@ else
   PROGRAM="$BUILD_DIR/bin/tsim -a"
 fi
 
-if [ $UNIQUE -eq 0 ]; then
-  PROGRAM=$BUILD_DIR/bin/tsim
-else
-  PROGRAM="$TOP_DIR/../debug/build/bin/tsim"
-fi 
 
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg

@@ -26,12 +26,12 @@ system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 sql create dnode $hostname2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 3000
 
 print ======== step1 
@@ -145,7 +145,7 @@ sql reset query cache
 sleep 2000
 
 print ========= step5 
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep 5000
 
 sql select * from d1.t1
@@ -196,7 +196,7 @@ if $rows != 2 then
 endi
 
 print ========= step6
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sleep 5000
 
 sql insert into d1.t1 values(now, 3)
@@ -226,7 +226,7 @@ endi
 
 print ========= step61
 
-system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep 5000
 
 sql_error insert into d1.t1 values(now, 3)
@@ -255,7 +255,7 @@ if $rows != 3 then
 endi
 
 print ========= step7
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 5000
 
 sql insert into d1.t1 values(now, 5)
@@ -283,11 +283,11 @@ if $rows != 4 then
 	return -1
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

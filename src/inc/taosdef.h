@@ -52,6 +52,7 @@ typedef struct tstr {
 #define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
 #define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))
+#define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
@@ -91,6 +92,7 @@ extern const int32_t TYPE_BYTES[11];
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
+#define TSDB_TIME_PRECISION_NANO  2
 
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
@@ -285,17 +287,17 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_COMMIT_TIME            40960
 #define TSDB_DEFAULT_COMMIT_TIME        3600
 
-#define TSDB_MIN_PRECISION              TSDB_PRECISION_MILLI
-#define TSDB_MAX_PRECISION              TSDB_PRECISION_NANO
-#define TSDB_DEFAULT_PRECISION          TSDB_PRECISION_MILLI
+#define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
+#define TSDB_MAX_PRECISION              TSDB_TIME_PRECISION_NANO
+#define TSDB_DEFAULT_PRECISION          TSDB_TIME_PRECISION_MILLI
 
 #define TSDB_MIN_COMP_LEVEL             0
 #define TSDB_MAX_COMP_LEVEL             2
 #define TSDB_DEFAULT_COMP_LEVEL         2
 
-#define TSDB_MIN_WAL_LEVEL             0
-#define TSDB_MAX_WAL_LEVEL             2
-#define TSDB_DEFAULT_WAL_LEVEL         2
+#define TSDB_MIN_WAL_LEVEL              1
+#define TSDB_MAX_WAL_LEVEL              2
+#define TSDB_DEFAULT_WAL_LEVEL          1
 
 #define TSDB_MIN_REPLICA_NUM            1
 #define TSDB_MAX_REPLICA_NUM            3
@@ -355,12 +357,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TAOS_QTYPE_FWD      1
 #define TAOS_QTYPE_WAL      2 
 #define TAOS_QTYPE_CQ       3
-
-typedef enum {
-  TSDB_PRECISION_MILLI,
-  TSDB_PRECISION_MICRO,
-  TSDB_PRECISION_NANO
-} EPrecisionType;
 
 typedef enum {
   TSDB_SUPER_TABLE        = 0,  // super table

@@ -8,7 +8,7 @@ system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
 
 print ============== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 
 sql show mnodes
@@ -26,7 +26,7 @@ if $data3_3 != null then
 endi
 
 print ============== step2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 sleep 8000
 
@@ -49,7 +49,7 @@ if $dnode3Role != null then
 endi
 
 print ============== step3
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
 sleep 8000
 
@@ -93,12 +93,12 @@ if $dnode3Role != slave then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode2 -s stop
 sleep 3000
 
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 
 print ============== step5
 sql create dnode $hostname2
@@ -123,7 +123,7 @@ if $dnode3Role != slave then
 endi
 
 print ============== step6
-system sh/exec_up.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode1 -s stop
 sleep 10000
 
 sql show mnodes
@@ -166,11 +166,11 @@ endi
 #  return -1
 #endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

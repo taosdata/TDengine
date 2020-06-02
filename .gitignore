@@ -46,7 +46,6 @@ html/
 /CMakeCache.txt
 /Makefile
 /*.cmake
-/deps
 /src/cq/test/CMakeFiles/cqtest.dir/*.cmake
 *.cmake
 /src/cq/test/CMakeFiles/cqtest.dir/*.make
@@ -65,3 +64,4 @@ CMakeError.log
 /out/isenseconfig/WSL-Clang-Debug
 /out/isenseconfig/WSL-GCC-Debug
 /test/cfg
+/src/.vs

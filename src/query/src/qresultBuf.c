@@ -5,14 +5,12 @@
 #include "tsqlfunction.h"
 #include "queryLog.h"
 
-#define DEFAULT_INTERN_BUF_SIZE 16384L
-
 int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize, void* handle) {
   SDiskbasedResultBuf* pResBuf = calloc(1, sizeof(SDiskbasedResultBuf));
-  pResBuf->numOfRowsPerPage = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / rowSize;
+  pResBuf->numOfRowsPerPage = (DEFAULT_INTERN_BUF_PAGE_SIZE - sizeof(tFilePage)) / rowSize;
   pResBuf->numOfPages = size;
 
-  pResBuf->totalBufSize = pResBuf->numOfPages * DEFAULT_INTERN_BUF_SIZE;
+  pResBuf->totalBufSize = pResBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE;
   pResBuf->incStep = 4;
 
   // init id hash table
@@ -33,7 +31,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
     return TSDB_CODE_CLI_NO_DISKSPACE;
   }
 
-  int32_t ret = ftruncate(pResBuf->fd, pResBuf->numOfPages * DEFAULT_INTERN_BUF_SIZE);
+  int32_t ret = ftruncate(pResBuf->fd, pResBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE);
   if (ret != TSDB_CODE_SUCCESS) {
     qError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
     return TSDB_CODE_CLI_NO_DISKSPACE;
@@ -55,7 +53,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
 tFilePage* getResultBufferPageById(SDiskbasedResultBuf* pResultBuf, int32_t id) {
   assert(id < pResultBuf->numOfPages && id >= 0);
 
-  return (tFilePage*)(pResultBuf->pBuf + DEFAULT_INTERN_BUF_SIZE * id);
+  return (tFilePage*)(pResultBuf->pBuf + DEFAULT_INTERN_BUF_PAGE_SIZE * id);
 }
 
 int32_t getNumOfResultBufGroupId(SDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->idsTable); }
@@ -63,7 +61,7 @@ int32_t getNumOfResultBufGroupId(SDiskbasedResultBuf* pResultBuf) { return taosH
 int32_t getResBufSize(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->totalBufSize; }
 
 static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOfPages) {
-  assert(pResultBuf->numOfPages * DEFAULT_INTERN_BUF_SIZE == pResultBuf->totalBufSize);
+  assert(pResultBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE == pResultBuf->totalBufSize);
 
   int32_t ret = munmap(pResultBuf->pBuf, pResultBuf->totalBufSize);
   pResultBuf->numOfPages += numOfPages;
@@ -72,14 +70,14 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOf
    * disk-based output buffer is exhausted, try to extend the disk-based buffer, the available disk space may
    * be insufficient
    */
-  ret = ftruncate(pResultBuf->fd, pResultBuf->numOfPages * DEFAULT_INTERN_BUF_SIZE);
+  ret = ftruncate(pResultBuf->fd, pResultBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE);
   if (ret != 0) {
     //    dError("QInfo:%p failed to create intermediate result output file:%s. %s", pQInfo, pSupporter->extBufFile,
     //           strerror(errno));
     return -TSDB_CODE_SERV_NO_DISKSPACE;
   }
 
-  pResultBuf->totalBufSize = pResultBuf->numOfPages * DEFAULT_INTERN_BUF_SIZE;
+  pResultBuf->totalBufSize = pResultBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE;
   pResultBuf->pBuf = mmap(NULL, pResultBuf->totalBufSize, PROT_READ | PROT_WRITE, MAP_SHARED, pResultBuf->fd, 0);
 
   if (pResultBuf->pBuf == MAP_FAILED) {
@@ -174,7 +172,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   tFilePage* page = getResultBufferPageById(pResultBuf, *pageId);
   
   // clear memory for the new page
-  memset(page, 0, DEFAULT_INTERN_BUF_SIZE);
+  memset(page, 0, DEFAULT_INTERN_BUF_PAGE_SIZE);
   
   return page;
 }

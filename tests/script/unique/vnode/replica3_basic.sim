@@ -10,12 +10,12 @@ system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
 
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 sql create dnode $hostname2
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode2 -s start
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 3000
 
 $N = 10
@@ -48,7 +48,7 @@ if $rows != $expect then
 endi
 
 print =================== step 3
-system sh/exec_up.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode2 -s stop
 sleep 2000
 $y = $x + $N
 $expect = $N * 2
@@ -65,7 +65,7 @@ if $rows != $expect then
 endi
 
 print =================== step 4
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 sleep 2000
 $y = $x + $N
 $expect = $N * 3
@@ -82,7 +82,7 @@ if $rows != $expect then
 endi
 
 print =================== step 5
-system sh/exec_up.sh -n dnode3 -s stop
+system sh/exec.sh -n dnode3 -s stop
 sleep 2000
 $y = $x + $N
 $expect = $N * 4
@@ -99,7 +99,7 @@ if $rows != $expect then
 endi
 
 print =================== step 6
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 2000
 $y = $x + $N
 $expect = $N * 5
@@ -116,7 +116,7 @@ return -1
 endi
 
 print =================== step 7
-system sh/exec_up.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode1 -s stop
 sleep 2000
 $y = $x + $N
 $expect = $N * 6
@@ -133,7 +133,7 @@ return -1
 endi
 
 print =================== step 8
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 2000
 $y = $x + $N
 $expect = $N * 7
@@ -149,11 +149,11 @@ if $rows != $expect then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

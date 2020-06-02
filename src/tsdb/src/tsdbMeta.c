@@ -47,8 +47,7 @@ void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
     ptr = tdEncodeSchema(ptr, pTable->schema);
     ptr = tdEncodeSchema(ptr, pTable->tagSchema);
   } else if (pTable->type == TSDB_CHILD_TABLE) {
-    tdTagRowCpy(ptr, pTable->tagVal);
-    ptr = POINTER_SHIFT(ptr, dataRowLen(pTable->tagVal) + ((STagRow *)pTable->tagVal)->dataLen);
+    ptr = tdEncodeKVRow(ptr, pTable->tagVal);
   } else {
     ptr = tdEncodeSchema(ptr, pTable->schema);
   }
@@ -94,8 +93,7 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
     pTable->schema = tdDecodeSchema(&ptr);
     pTable->tagSchema = tdDecodeSchema(&ptr);
   } else if (pTable->type == TSDB_CHILD_TABLE) {
-    pTable->tagVal = tdTagRowDecode(ptr);
-    ptr = POINTER_SHIFT(ptr, dataRowLen(pTable->tagVal) + ((STagRow *)pTable->tagVal)->dataLen);
+    ptr = tdDecodeKVRow(ptr, &pTable->tagVal);
   } else {
     pTable->schema = tdDecodeSchema(&ptr);
   }
@@ -103,7 +101,8 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   if (pTable->type == TSDB_STREAM_TABLE) {
     ptr = taosDecodeString(ptr, &(pTable->sql));
   }
-
+  
+  pTable->lastKey = TSKEY_INITIAL_VAL;
   return pTable;
 }
 
@@ -114,12 +113,9 @@ void tsdbFreeEncode(void *cont) {
 static char* getTagIndexKey(const void* pData) {
   STableIndexElem* elem = (STableIndexElem*) pData;
   
-  SDataRow row = elem->pTable->tagVal;
   STSchema* pSchema = tsdbGetTableTagSchema(elem->pMeta, elem->pTable);
   STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
-  int16_t type = 0;
-  void * res = tdQueryTagByID(row, pCol->colId,&type);
-  ASSERT(type == pCol->type);
+  void * res = tdGetKVRowValOfCol(elem->pTable->tagVal, pCol->colId);
   return res;
 }
 
@@ -254,30 +250,23 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
 int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
+
+  STSchema *pSchema = tsdbGetTableTagSchema(pMeta, pTable);
+  STColumn *pCol = tdGetColOfID(pSchema, colId);
+  if (pCol == NULL) {
+    return -1; // No matched tag volumn
+  }
   
-  STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
-  STColumn* pCol = NULL;
+  *val = tdGetKVRowValOfCol(pTable->tagVal, colId);
+  *type = pCol->type;
   
-  // todo binary search
-  for(int32_t col = 0; col < schemaNCols(pSchema); ++col) {
-    STColumn* p = schemaColAt(pSchema, col);
-    if (p->colId == colId) {
-      pCol = p;
-      break;
+  if (*val != NULL) {
+    if (IS_VAR_DATA_TYPE(*type)) {
+      *bytes = varDataLen(*val);
+    } else {
+      *bytes = TYPE_BYTES[*type];
     }
   }
-  
-  if (pCol == NULL) {
-    return -1;  // No matched tags. Maybe the modification of tags has not been done yet.
-  }
-  
-  SDataRow row = (SDataRow)pTable->tagVal;
-  int16_t tagtype = 0;
-  char* d = tdQueryTagByID(row, pCol->colId, &tagtype);
-  //ASSERT((int8_t)tagtype == pCol->type)
-  *val = d;
-  *type  = pCol->type;
-  *bytes = pCol->bytes;
   
   return TSDB_CODE_SUCCESS;
 }
@@ -352,7 +341,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
 
     if (pCfg->type == TSDB_CHILD_TABLE) {
       pTable->superUid = pCfg->superUid;
-      pTable->tagVal = tdDataRowDup(pCfg->tagValues);
+      pTable->tagVal = tdKVRowDup(pCfg->tagValues);
     } else if (pCfg->type == TSDB_NORMAL_TABLE) {
       pTable->superUid = -1;
       pTable->schema = tdDupSchema(pCfg->schema);
@@ -405,7 +394,9 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
       return -1;
     }
   }
-
+  
+  table->lastKey = TSKEY_INITIAL_VAL;
+  
   // Register to meta
   if (newSuper) {
     tsdbAddTableToMeta(pMeta, super, true);
@@ -445,6 +436,61 @@ STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId) {
   if (pTable->tableId.tid != tableId.tid) return NULL;
 
   return pTable;
+}
+
+STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
+  if (pMsg == NULL) return NULL;
+  SSchema *       pSchema = (SSchema *)pMsg->data;
+  int16_t         numOfCols = htons(pMsg->numOfColumns);
+  int16_t         numOfTags = htons(pMsg->numOfTags);
+  STSchemaBuilder schemaBuilder = {0};
+
+  STableCfg *pCfg = (STableCfg *)calloc(1, sizeof(STableCfg));
+  if (pCfg == NULL) return NULL;
+
+  if (tsdbInitTableCfg(pCfg, pMsg->tableType, htobe64(pMsg->uid), htonl(pMsg->sid)) < 0) goto _err;
+  if (tdInitTSchemaBuilder(&schemaBuilder, htonl(pMsg->sversion)) < 0) goto _err;
+
+  for (int i = 0; i < numOfCols; i++) {
+    tdAddColToSchema(&schemaBuilder, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+  }
+  if (tsdbTableSetSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
+  if (tsdbTableSetName(pCfg, pMsg->tableId, true) < 0) goto _err;
+
+  if (numOfTags > 0) {
+    int   accBytes = 0;
+    char *pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
+
+    SKVRowBuilder kvRowBuilder = {0};
+    tdResetTSchemaBuilder(&schemaBuilder, htonl(pMsg->tversion));
+    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) goto _err;
+    for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
+      tdAddColToSchema(&schemaBuilder, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+      tdAddColToKVRow(&kvRowBuilder, htons(pSchema[i].colId), pSchema[i].type, pTagData + accBytes);
+      accBytes += htons(pSchema[i].bytes);
+    }
+    if (tsdbTableSetTagSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
+    if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
+    if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
+
+    tsdbTableSetTagValue(pCfg, tdGetKVRowFromBuilder(&kvRowBuilder), false);
+    tdDestroyKVRowBuilder(&kvRowBuilder);
+  }
+
+  if (pMsg->tableType == TSDB_STREAM_TABLE) {
+    char *sql = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
+    tsdbTableSetStreamSql(pCfg, sql, true);
+  }
+
+  tdDestroyTSchemaBuilder(&schemaBuilder);
+
+  return pCfg;
+
+_err:
+  tdDestroyTSchemaBuilder(&schemaBuilder);
+  tsdbClearTableCfg(pCfg);
+  tfree(pCfg);
+  return NULL;
 }
 
 // int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
@@ -487,7 +533,7 @@ static int tsdbFreeTable(STable *pTable) {
   if (pTable == NULL) return 0;
 
   if (pTable->type == TSDB_CHILD_TABLE) {
-    tdFreeTagRow(pTable->tagVal);
+    kvRowFree(pTable->tagVal);
   } else {
     tdFreeSchema(pTable->schema);
   }
@@ -636,9 +682,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STSchema* pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   STColumn* pCol = &pSchema->columns[DEFAULT_TAG_INDEX_COLUMN];
   
-  int16_t tagtype = 0;
-  char* key = tdQueryTagByID(pTable->tagVal, pCol->colId, &tagtype);
-  ASSERT(pCol->type == tagtype);
+  char* key = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
   SArray* res = tSkipListGet(pSTable->pIndex, key);
   
   size_t size = taosArrayGetSize(res);

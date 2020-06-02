@@ -19,7 +19,7 @@
 #include "tglobal.h"
 #include "mnode.h"
 #include "http.h"
-#include "mqtt.h"
+#include "tmqtt.h"
 #include "monitor.h"
 #include "dnodeInt.h"
 #include "dnodeModule.h"
@@ -83,8 +83,8 @@ static void dnodeAllocModules() {
   }
 }
 
-void dnodeCleanUpModules() {
-  for (int32_t module = 1; module < TSDB_MOD_MAX; ++module) {
+void dnodeCleanupModules() {
+  for (EModuleType module = 1; module < TSDB_MOD_MAX; ++module) {
     if (tsModule[module].enable && tsModule[module].stopFp) {
       (*tsModule[module].stopFp)();
     }

@@ -64,13 +64,14 @@ typedef struct {
   int8_t  compression;
 } STsdbCfg;
 
+typedef void TsdbRepoT;  // use void to hide implementation details from outside
+
 void      tsdbSetDefaultCfg(STsdbCfg *pCfg);
 STsdbCfg *tsdbCreateDefaultCfg();
 void      tsdbFreeCfg(STsdbCfg *pCfg);
+STsdbCfg *tsdbGetCfg(const TsdbRepoT *repo);
 
 // --------- TSDB REPOSITORY DEFINITION
-typedef void TsdbRepoT;  // use void to hide implementation details from outside
-
 int        tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 int32_t    tsdbDropRepo(TsdbRepoT *repo);
 TsdbRepoT *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
@@ -101,14 +102,15 @@ int  tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t 
 int  tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
 int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
 int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
-int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
+int  tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
 int  tsdbTableSetName(STableCfg *config, char *name, bool dup);
 int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 int  tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
-int32_t tsdbGetTableTagVal(TsdbRepoT *repo, STableId* id, int32_t colId, int16_t *type, int16_t *bytes, char **val);
-char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes);
+int32_t    tsdbGetTableTagVal(TsdbRepoT *repo, STableId *id, int32_t colId, int16_t *type, int16_t *bytes, char **val);
+char *     tsdbGetTableName(TsdbRepoT *repo, const STableId *id, int16_t *bytes);
+STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
 int   tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
 int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
@@ -199,6 +201,10 @@ TsdbQueryHandleT *tsdbQueryTables(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STable
  * @return
  */
 TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo);
+
+SArray* tsdbGetQueriedTableIdList(TsdbQueryHandleT *pHandle);
+
+TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TsdbRepoT *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList);
 
 /**
  * move to next block if exists

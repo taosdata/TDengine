@@ -1,4 +1,6 @@
 #!/bin/bash
+ulimit -c unlimited
+
 python3 ./test.py -f insert/basic.py
 python3 ./test.py -f insert/int.py
 python3 ./test.py -f insert/float.py

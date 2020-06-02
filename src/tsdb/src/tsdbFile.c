@@ -93,7 +93,7 @@ static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile
   if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) return -1;
 
   void *pBuf = buf;
-  pBuf = taosDecodeFixed32(pBuf, &version);
+  pBuf = taosDecodeFixedU32(pBuf, &version);
   pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
 
   tsdbCloseFile(pFile);
@@ -287,7 +287,11 @@ int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInf
 int compFGroupKey(const void *key, const void *fgroup) {
   int         fid = *(int *)key;
   SFileGroup *pFGroup = (SFileGroup *)fgroup;
-  return (fid - pFGroup->fileId);
+  if (fid == pFGroup->fileId) {
+    return 0;
+  } else {
+    return fid > pFGroup->fileId? 1:-1;
+  }
 }
 
 static int compFGroup(const void *arg1, const void *arg2) {

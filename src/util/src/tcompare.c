@@ -92,7 +92,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   if (len1 != len2) {
     return len1 > len2? 1:-1;
   } else {
-    int32_t ret = wcsncmp(varDataVal(pLeft), varDataVal(pRight), len1);
+    int32_t ret = wcsncmp(varDataVal(pLeft), varDataVal(pRight), len1/TSDB_NCHAR_SIZE);
     if (ret == 0) {
       return 0;
     } else {

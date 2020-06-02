@@ -20,7 +20,7 @@ system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 1000
 
 print =============== prepare data
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
@@ -87,7 +87,7 @@ endi
 
 print ========== step1
 sql create dnode $hostname2
-system sh/exec_up.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s start
 
 $x = 0
 show1: 
@@ -142,7 +142,7 @@ endi
 
 print ========== step2
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 10000
 
 print ========== step3
@@ -170,7 +170,7 @@ if $data2_3 != 2 then
 	goto show3
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
 sql reset query cache
 sleep 1000
@@ -226,7 +226,7 @@ if $data2_3 != null then
 	goto show4
 endi
 
-system sh/exec_up.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
 
 sql reset query cache
 sleep 1000
@@ -262,7 +262,7 @@ if $data00 != $totalNum then
 endi
 
 print ========== step5
-system sh/exec_up.sh -n dnode4 -s start
+system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname4
 
 sleep 3000
@@ -319,11 +319,11 @@ if $data00 != $totalNum then
   goto show5
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

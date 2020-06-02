@@ -32,9 +32,9 @@
 typedef struct {
   taos_qall  qall;
   taos_qset  qset;      // queue set
-  pthread_t  thread;    // thread 
+  pthread_t  thread;    // thread
   int32_t    workerId;  // worker ID
-} SWriteWorker;  
+} SWriteWorker;
 
 typedef struct {
   SRspRet  rspRet;
@@ -136,17 +136,24 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
 
     taosAddIntoQset(pWorker->qset, queue, pVnode);
     pWorker->qall = taosAllocateQall();
-    wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
-
+    if (pWorker->qall == NULL) {
+      taosCloseQset(pWorker->qset);
+      taosCloseQueue(queue);
+      return NULL;
+    }
     pthread_attr_t thAttr;
     pthread_attr_init(&thAttr);
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
     if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessWriteQueue, pWorker) != 0) {
       dError("failed to create thread to process read queue, reason:%s", strerror(errno));
+      taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
+      taosCloseQueue(queue);
+      queue = NULL;
     } else {
       dTrace("write worker:%d is launched", pWorker->workerId);
+      wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
     }
 
     pthread_attr_destroy(&thAttr);
@@ -195,7 +202,7 @@ static void *dnodeProcessWriteQueue(void *param) {
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
-    if (numOfMsgs ==0) { 
+    if (numOfMsgs == 0) {
       dTrace("dnodeProcessWriteQueee: got no message from qset, exiting...");
       break;
     }
@@ -243,7 +250,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
 
   if (num > 0) {
      usleep(30000);
-     sched_yield(); 
+     sched_yield();
   } else {
      taosFreeQall(pWorker->qall);
      taosCloseQset(pWorker->qset);

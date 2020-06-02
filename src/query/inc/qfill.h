@@ -45,12 +45,13 @@ typedef struct SFillInfo {
   int32_t numOfCols;            // number of columns, including the tags columns
   int32_t rowSize;              // size of each row
   char ** pTags;                // tags value for current interpolation
-  
-  int64_t slidingTime;         // sliding value to determine the number of result for a given time window
+  int64_t slidingTime;          // sliding value to determine the number of result for a given time window
   char *  prevValues;           // previous row of data, to generate the interpolation results
   char *  nextValues;           // next row of data
+  char**  pData;                // original result data block involved in filling data
+  int32_t capacityInRows;       // data buffer size in rows
+  
   SFillColInfo* pFillCol;       // column info for fill operations
-  char** pData;                 // original result data block involved in filling data
 } SFillInfo;
 
 typedef struct SPoint {

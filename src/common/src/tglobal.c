@@ -55,11 +55,12 @@ int32_t tsEnableCoreFile = 0;
 int32_t tscEmbedded = 0;
 
 /*
- * minmum scale for whole system, millisecond by default
+ * minimum scale for whole system, millisecond by default
  * for TSDB_TIME_PRECISION_MILLI: 86400000L
  *     TSDB_TIME_PRECISION_MICRO: 86400000000L
+ *     TSDB_TIME_PRECISION_NANO:  86400000000000L
  */
-int64_t tsMsPerDay[] = {86400000L, 86400000000L};
+int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 char  tsFirst[TSDB_EP_LEN] = {0};  
 char  tsSecond[TSDB_EP_LEN] = {0};
@@ -199,6 +200,8 @@ int32_t tsMonitorInterval = 30;  // seconds
 char tsTimezone[64] = {0};
 char tsLocale[TSDB_LOCALE_LEN] = {0};
 char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
+char tsMqttBrokerAddress[128] = {0}; 
+char tsMqttBrokerClientId[128] = {0};
 
 int32_t tsMaxBinaryDisplayWidth = 30;
 
@@ -729,6 +732,26 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "mqttBrokerAddress";
+  cfg.ptr = tsMqttBrokerAddress;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = 126;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "mqttBrokerClientId";
+  cfg.ptr = tsMqttBrokerClientId;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = 126;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+ 
   // socket type; udp by default
   cfg.option = "sockettype";
   cfg.ptr = tsSocketType;
