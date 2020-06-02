@@ -642,14 +642,13 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
     pSql = taos_query(script->taos, rest);
     ret = taos_errno(pSql);
     
-    if (ret == TSDB_CODE_TABLE_ALREADY_EXIST ||
-        ret == TSDB_CODE_DB_ALREADY_EXIST) {
+    if (ret == TSDB_CODE_TABLE_ALREADY_EXIST || ret == TSDB_CODE_DB_ALREADY_EXIST) {
       simTrace("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
       ret = 0;
       break;
     } else if (ret != 0) {
       simTrace("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s",
-               script->fileName, script->taos, rest, ret, tstrerror(ret), taos_errstr(script->taos));
+               script->fileName, script->taos, rest, ret, tstrerror(ret), taos_errstr(pSql));
 
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
@@ -659,6 +658,8 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
     } else {
       break;
     }
+    
+    taos_free_result(pSql);
   }
 
   if (ret) {
