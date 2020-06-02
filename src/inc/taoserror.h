@@ -172,6 +172,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_FILE_FORMAT,        0, 0x0500, "invalid file
 
 // TSDB
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CONFIG,             0, 0x0580, "invalid TSDB configuration")
+TAOS_DEFINE_ERROR(TSDB_CODE_TAG_VER_OUT_OF_DATE,        0, 0x0581, "tag version is out of date")
 
 
 #ifdef TAOS_ERROR_C

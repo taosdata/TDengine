@@ -410,6 +410,36 @@ int tsdbAlterTable(TsdbRepoT *pRepo, STableCfg *pCfg) {
   return 0;
 }
 
+int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  int16_t    tversion = htons(pMsg->tversion);
+
+  STable *pTable = tsdbGetTableByUid(pMeta, htobe64(pMsg->uid));
+  if (pTable == NULL) return TSDB_CODE_INVALID_TABLE_ID;
+  if (pTable->tableId.tid != htonl(pMsg->tid)) return TSDB_CODE_INVALID_TABLE_ID;
+
+  if (pTable->type != TSDB_CHILD_TABLE) {
+    tsdbError("vgId:%d failed to update tag value of table %s since its type is %d", pRepo->config.tsdbId,
+              varDataVal(pTable->name), pTable->type);
+    return TSDB_CODE_INVALID_TABLE_TYPE;
+  }
+
+  if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) > tversion) {
+    // TODO: Need to update
+  }
+
+  if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) > tversion) {
+    tsdbError(
+        "vgId:%d failed to update tag value of table %s since version out of date, client tag version:%d server tag "
+        "version:%d",
+        pRepo->config.tsdbId, varDataVal(pTable->name), tversion, schemaVersion(pTable->tagSchema));
+    return TSDB_CODE_TAG_VER_OUT_OF_DATE;
+  }
+  tdSetKVRowDataOfCol(&pTable->tagVal, htons(pMsg->colId), htons(pMsg->type), pMsg->data);
+  return TSDB_CODE_SUCCESS;
+}
+
 TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, uint64_t uid) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
