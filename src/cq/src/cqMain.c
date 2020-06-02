@@ -239,18 +239,18 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   cTrace("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
+  int32_t flen = 0;
+  for (int32_t i = 0; i < pSchema->numOfCols; i++) {
+    flen += TYPE_BYTES[pSchema->columns[i].type];
+  }
+
   // construct data
-  int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + pObj->rowSize;
+  int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + flen;
   char *buffer = calloc(size, 1);
 
   SWalHead   *pHead = (SWalHead *)buffer;
   SSubmitMsg *pMsg = (SSubmitMsg *) (buffer + sizeof(SWalHead));
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
-
-  int32_t flen = 0;
-  for (int32_t i = 0; i < pSchema->numOfCols; i++) {
-    flen += TYPE_BYTES[pSchema->columns[i].type];
-  }
 
   SDataRow trow = (SDataRow)pBlk->data;
   dataRowSetLen(trow, TD_DATA_ROW_HEAD_SIZE + flen);
@@ -279,5 +279,6 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   // write into vnode write queue
   pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ);
+  free(buffer);
 }
 

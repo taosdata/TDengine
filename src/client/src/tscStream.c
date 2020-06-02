@@ -477,6 +477,14 @@ static void setErrorInfo(SSqlObj* pSql, int32_t code, char* info) {
   }
 }
 
+static void asyncCallback(void *param, TAOS_RES *tres, int code) {
+  assert(param != NULL);
+  SSqlObj *pSql = ((SSqlObj *)param);
+  
+  pSql->res.code = code;
+  sem_post(&pSql->rspSem);
+}
+
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {
   STscObj *pObj = (STscObj *)taos;
@@ -521,7 +529,13 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
     return NULL;
   }
   
+  pSql->param = pSql;
+  pSql->fp = asyncCallback;
   pRes->code = tscToSQLCmd(pSql, &SQLInfo);
+  if (pRes->code == TSDB_CODE_ACTION_IN_PROGRESS) {
+    sem_wait(&pSql->rspSem);
+  }
+  
   SQLInfoDestroy(&SQLInfo);
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
