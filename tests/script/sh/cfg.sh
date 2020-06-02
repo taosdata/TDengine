@@ -41,10 +41,15 @@ else
 fi
 
 TAOS_DIR=`pwd`
+TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+fi
 
-BUILD_DIR=$TAOS_DIR/$BIN_DIR
+BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
 
 SIM_DIR=$TAOS_DIR/sim
 
