@@ -640,7 +640,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   for (int attempt = 0; attempt < 3; ++attempt) {
     simLogSql(rest);
     pSql = taos_query(script->taos, rest);
-    ret = terrno;
+    ret = taos_errno(pSql);
     
     if (ret == TSDB_CODE_TABLE_ALREADY_EXIST ||
         ret == TSDB_CODE_DB_ALREADY_EXIST) {
@@ -922,8 +922,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   }
   else {
     pSql = taos_query(script->taos, rest);
-    ret = terrno;
-    
+    ret = taos_errno(pSql);
     taos_free_result(pSql);
   }
 

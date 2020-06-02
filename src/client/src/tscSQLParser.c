@@ -1465,7 +1465,6 @@ static int32_t setExprInfoForFunctions(SQueryInfo* pQueryInfo, SSchema* pSchema,
 
 int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult) {
   STableMetaInfo* pTableMetaInfo = NULL;
-  
   int32_t optr = pItem->pNode->nSQLOptr;
 
   const char* msg1 = "not support column types";
