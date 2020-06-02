@@ -27,6 +27,17 @@ var DbSession = new function() {
 		return user;
 	}
 	
+	this.SetAcct = function(acct) {
+		localStorage.setItem("dbAcct", acct);
+	}
+
+	this.GetAcct = function() {
+		acct = localStorage.getItem("dbAcct");
+		if (acct == null || acct == undefined || acct == "undefined")
+			return "";
+		return acct;
+	}
+	
 	// a simple way for authority
 	this.IsRoot = function() {
 		var user = localStorage.getItem("dbUser");
@@ -207,21 +218,4 @@ var DbSession = new function() {
 		}	
 	}
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

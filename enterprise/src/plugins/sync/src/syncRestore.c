@@ -109,6 +109,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
     }
 
     ret = taosCopyFds(pPeer->syncFd, dfd, minfo.size);
+    fsync(dfd);
     close(dfd);
     if (ret<0) break;
 
