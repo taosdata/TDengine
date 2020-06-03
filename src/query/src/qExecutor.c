@@ -6055,9 +6055,17 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
           
           char* dst = pQuery->sdata[j]->data + i * pExprInfo[j].bytes;
           if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-            memcpy(dst, data, varDataTLen(data));
+            if (data == NULL) {
+              setVardataNull(dst, type);
+            } else {
+              memcpy(dst, data, varDataTLen(data));
+            }
           } else {
-            memcpy(dst, data, bytes);
+            if (data == NULL) {
+              setNull(dst, type, bytes);
+            } else {
+              memcpy(dst, data, pExprInfo[j].bytes);
+            }
           }
         }
       }
