@@ -1358,6 +1358,7 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
     if (pMsg != NULL) {
       pTagData = (STagData *)pMsg->schema;
       tagDataLen = ntohl(pTagData->dataLen);
+      contLen += tagDataLen;
     }
   } else {
     totalCols = pTable->numOfColumns;
