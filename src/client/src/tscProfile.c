@@ -100,7 +100,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   
   char *sql = malloc(sqlSize);
   if (sql == NULL) {
-    tscError("%p failed to allocate memory to sent slow to dnode", pSql);
+    tscError("%p failed to allocate memory to sent slow query to dnode", pSql);
     return;
   }
   
@@ -112,8 +112,8 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   } else {
     sqlLen += len;
   }
+  
   strcpy(sql + sqlLen, "')");
-
   taosTmrStart(tscSaveSlowQueryFp, 200, sql, tscTmr);
 }
 
