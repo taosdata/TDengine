@@ -370,7 +370,7 @@ static int tsdbUpdateTableTagSchema(STable *pTable, STSchema *newSchema) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int tsdbCheckAndUpdateTable(STable *pTable, STableCfg *pCfg) {
+int tsdbUpdateTable(STable *pTable, STableCfg *pCfg) {
   ASSERT(pTable->type != TSDB_CHILD_TABLE);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
@@ -411,7 +411,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
     } else {
       if (super->type != TSDB_SUPER_TABLE) return -1;
       if (super->tableId.uid != pCfg->superUid) return -1;
-      tsdbCheckAndUpdateTable(super, pCfg);
+      tsdbUpdateTable(super, pCfg);
     }
   }
 

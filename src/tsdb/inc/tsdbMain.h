@@ -506,6 +506,7 @@ int     tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
 void    tsdbAdjustCacheBlocks(STsdbCache *pCache);
 int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
 int     tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
+int     tsdbUpdateTable(STable *pTable, STableCfg *pCfg);
 
 #ifdef __cplusplus
 }

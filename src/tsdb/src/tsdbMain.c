@@ -429,10 +429,20 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbTrace("vgId:%d server tag version %d is older than client tag version %d, try to config", pRepo->config.tsdbId,
               schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)), tversion);
     void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, htonl(pMsg->tid));
+    if (msg == NULL) {
+      return terrno;
+    }
     // Deal with error her
     STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
+    STable *super = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
+    ASSERT(super != NULL);
 
-    ASSERT(pTableCfg != NULL);
+    int32_t code = tsdbUpdateTable(super, pTableCfg);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    tsdbClearTableCfg(pTableCfg);
+    rpcFreeCont(msg);
   }
 
   if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) > tversion) {
@@ -595,12 +605,15 @@ int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
 }
 
 void tsdbClearTableCfg(STableCfg *config) {
-  if (config->schema) tdFreeSchema(config->schema);
-  if (config->tagSchema) tdFreeSchema(config->tagSchema);
-  if (config->tagValues) kvRowFree(config->tagValues);
-  tfree(config->name);
-  tfree(config->sname);
-  tfree(config->sql);
+  if (config) {
+    if (config->schema) tdFreeSchema(config->schema);
+    if (config->tagSchema) tdFreeSchema(config->tagSchema);
+    if (config->tagValues) kvRowFree(config->tagValues);
+    tfree(config->name);
+    tfree(config->sname);
+    tfree(config->sql);
+    free(config);
+  }
 }
 
 int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
