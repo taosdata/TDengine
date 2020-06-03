@@ -509,6 +509,10 @@ void    tsdbAdjustCacheBlocks(STsdbCache *pCache);
 int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
 int     tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
 int     tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg);
+int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
+int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
+
+#define DEFAULT_TAG_INDEX_COLUMN 0  // skip list built based on the first column of tags
 
 #ifdef __cplusplus
 }

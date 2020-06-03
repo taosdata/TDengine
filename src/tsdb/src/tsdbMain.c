@@ -445,14 +445,23 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
     rpcFreeCont(msg);
   }
 
-  if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) > tversion) {
+  STSchema *pTagSchema = tsdbGetTableTagSchema(pMeta, pTable);
+
+  if (schemaVersion(pTagSchema) > tversion) {
     tsdbError(
         "vgId:%d failed to update tag value of table %s since version out of date, client tag version:%d server tag "
         "version:%d",
         pRepo->config.tsdbId, varDataVal(pTable->name), tversion, schemaVersion(pTable->tagSchema));
     return TSDB_CODE_TAG_VER_OUT_OF_DATE;
   }
+  if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
+    tsdbRemoveTableFromIndex(pMeta, pTable);
+  }
+  // TODO: remove table from index if it is the first column of tag
   tdSetKVRowDataOfCol(&pTable->tagVal, htons(pMsg->colId), htons(pMsg->type), pMsg->data);
+  if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
+    tsdbAddTableIntoIndex(pMeta, pTable);
+  }
   return TSDB_CODE_SUCCESS;
 }
 

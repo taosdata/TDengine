@@ -8,13 +8,10 @@
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
 // #define TSDB_META_FILE_NAME "META"
 
-const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;   // skip list built based on the first column of tags
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
 static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx);
-static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
-static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx);
 
 /**
@@ -719,7 +716,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFrom
   return 0;
 }
 
-static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
+int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
   STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
   assert(pSTable != NULL);
@@ -744,7 +741,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   return 0;
 }
 
-static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
+int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
   
   STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
