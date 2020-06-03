@@ -539,6 +539,8 @@ SMDCreateVnodeMsg *mnodeBuildCreateVnodeMsg(SVgObj *pVgroup) {
   SMDCreateVnodeMsg *pVnode = rpcMallocCont(sizeof(SMDCreateVnodeMsg));
   if (pVnode == NULL) return NULL;
 
+  strcpy(pVnode->db, pVgroup->dbName);
+
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
   pCfg->cfgVersion          = htonl(pDb->cfgVersion);
@@ -594,7 +596,7 @@ SRpcIpSet mnodeGetIpSetFromIp(char *ep) {
 }
 
 void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
-  mTrace("vgId:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, pVgroup->vgId, ahandle);
+  mTrace("vgId:%d, send create vnode:%d msg, ahandle:%p db:%s", pVgroup->vgId, pVgroup->vgId, ahandle, pVgroup->dbName);
   SMDCreateVnodeMsg *pCreate = mnodeBuildCreateVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
     .handle  = ahandle,

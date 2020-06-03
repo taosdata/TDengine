@@ -496,7 +496,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   }
 
   len += snprintf(content + len, maxLen - len, "{\n");
-
+  len += snprintf(content + len, maxLen - len, "  \"db\": \"%s\",\n", pVnodeCfg->db);
   len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pVnodeCfg->cfg.cfgVersion);
   len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pVnodeCfg->cfg.cacheBlockSize);
   len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pVnodeCfg->cfg.totalBlocks);
@@ -568,6 +568,13 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     goto PARSE_OVER;
   }
 
+  cJSON *db = cJSON_GetObjectItem(root, "db");
+  if (!db || db->type != cJSON_String || db->valuestring == NULL) {
+    vError("vgId:%d, failed to read vnode cfg, db not found", pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  strcpy(pVnode->db, db->valuestring);
+  
   cJSON *cfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
   if (!cfgVersion || cfgVersion->type != cJSON_Number) {
     vError("vgId:%d, failed to read vnode cfg, cfgVersion not found", pVnode->vgId);

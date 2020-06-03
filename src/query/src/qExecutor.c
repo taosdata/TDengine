@@ -4122,7 +4122,6 @@ static int64_t queryOnDataBlocks(SQInfo *pQInfo) {
   
     assert(pTableQueryInfo != NULL);
     restoreIntervalQueryRange(pRuntimeEnv, pTableQueryInfo);
-    printf("table:%d, groupIndex:%d, rows:%d\n", pTableQueryInfo->id.tid, pTableQueryInfo->groupIndex, blockInfo.tid);
 
     SDataStatis *pStatis = NULL;
     
