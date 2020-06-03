@@ -248,6 +248,32 @@ STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
+static int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 < (*(STSchema **)key2)->version) {
+    return -1;
+  } else if (*(int16_t *)key1 > (*(STSchema **)key2)->version) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+STSchema *tsdbGetTableSchemaByVersion(STsdbMeta *pMeta, STable *pTable, int16_t version) {
+  STable *pSearchTable = NULL;
+  if (pTable->type == TSDB_CHILD_TABLE) {
+    pSearchTable = tsdbGetTableByUid(pMeta, pTable->superUid);
+  } else {
+    pSearchTable = pTable;
+  }
+  ASSERT(pSearchTable != NULL);
+
+  void *ptr = taosbsearch(&version, pSearchTable->schema, pSearchTable->numOfSchemas, sizeof(STSchema *),
+                          tsdbCompareSchemaVersion, TD_EQ);
+  if (ptr == NULL) return NULL;
+
+  return (STSchema *)ptr;
+}
+
 STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     return pTable->tagSchema;
@@ -392,9 +418,21 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
     isChanged = true;
   }
 
-  {
-    // TODO: try to update the data schema
+  STSchema *pTSchema = tsdbGetTableSchema(pMeta, pTable);
+  if (schemaVersion(pTSchema) < schemaVersion(pCfg->schema)) {
+    if (pTable->numOfSchemas < TSDB_MAX_TABLE_SCHEMAS) {
+      pTable->schema[pTable->numOfSchemas++] = tdDupSchema(pCfg->schema);
+    } else {
+      ASSERT(pTable->numOfSchemas == TSDB_MAX_TABLE_SCHEMAS);
+      STSchema *tSchema = tdDupSchema(pCfg->schema);
+      tdFreeSchema(pTable->schema[0]);
+      memmove(pTable->schema, pTable->schema+1, sizeof(STSchema *) * (TSDB_MAX_TABLE_SCHEMAS - 1));
+      pTable->schema[pTable->numOfSchemas-1] = tSchema;
+    }
+
+    isChanged = true;
   }
+
   if (isChanged) {
     char *buf = malloc(1024 * 1024);
     int bufLen = 0;

@@ -974,9 +974,10 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   return TSDB_CODE_SUCCESS;
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
+static int tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
   ASSERT(maxRowsToRead > 0);
   if (pIter == NULL) return 0;
+  STSchema *pSchema = NULL;
 
   int numOfRows = 0;
 
@@ -989,7 +990,15 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
 
-    tdAppendDataRowToDataCol(row, pCols);
+    if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
+      pSchema = tsdbGetTableSchemaByVersion(pMeta, pTable, dataRowVersion(row));
+      if (pSchema == NULL) {
+        // TODO: deal with the error here
+        ASSERT(false);
+      }
+    }
+
+    tdAppendDataRowToDataCol(row, pSchema, pCols);
     numOfRows++;
   } while (tSkipListIterNext(pIter));
 
@@ -1139,7 +1148,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
     int nLoop = 0;
     while (true) {
-      int rowsRead = tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pDataCols);
+      int rowsRead = tsdbReadRowsFromCache(pMeta, pTable, pIter, maxKey, maxRowsToRead, pDataCols);
       assert(rowsRead >= 0);
       if (pDataCols->numOfRows == 0) break;
       nLoop++;

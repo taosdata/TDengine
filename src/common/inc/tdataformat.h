@@ -248,7 +248,7 @@ void       tdResetDataCols(SDataCols *pCols);
 void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
-void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
+void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);  //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);

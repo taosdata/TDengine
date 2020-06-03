@@ -265,25 +265,29 @@ bool isNEleNull(SDataCol *pCol, int nEle) {
   }
 }
 
-void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
-  char *ptr = NULL;
-  switch (pCol->type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      pCol->len = 0;
-      for (int i = 0; i < nEle; i++) {
-        pCol->dataOff[i] = pCol->len;
-        ptr = (char *)pCol->pData + pCol->len;
-        varDataLen(ptr) = (pCol->type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : TSDB_NCHAR_SIZE;
-        setNull(ptr + sizeof(VarDataLenT), pCol->type, pCol->bytes);
-        pCol->len += varDataTLen(ptr);
-      }
+void dataColSetNullAt(SDataCol *pCol, int index) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->dataOff[index] = pCol->len;
+    char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
+    varDataLen(ptr) = (pCol->type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : TSDB_NCHAR_SIZE;
+    setNull(varDataVal(ptr), pCol->type, pCol->bytes);
+    pCol->len += varDataTLen(ptr);
+  } else {
+    setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
+    pCol->len += TYPE_BYTES[pCol->type];
+  }
+}
 
-      break;
-    default:
-      setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
-      pCol->len = TYPE_BYTES[pCol->type] * nEle;
-      break;
+void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
+
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->len = 0;
+    for (int i = 0; i < nEle; i++) {
+      dataColSetNullAt(pCol, i);
+    }
+  } else {
+    setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
+    pCol->len = TYPE_BYTES[pCol->type] * nEle;
   }
 }
 
@@ -380,14 +384,32 @@ void tdResetDataCols(SDataCols *pCols) {
   }
 }
 
-void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
+void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols) {
   ASSERT(dataColsKeyLast(pCols) < dataRowKey(row));
 
-  for (int i = 0; i < pCols->numOfCols; i++) {
-    SDataCol *pCol = pCols->cols + i;
-    void *    value = tdGetRowDataOfCol(row, pCol->type, pCol->offset);
+  int rcol = 0;
+  int dcol = 0;
 
-    dataColAppendVal(pCol, value, pCols->numOfRows, pCols->maxPoints);
+  while (dcol < pCols->numOfCols) {
+    SDataCol *pDataCol = &(pCols->cols[dcol]);
+    if (rcol >= schemaNCols(pSchema)) {
+      dataColSetNullAt(pDataCol, pCols->numOfRows);
+      dcol++;
+      continue;
+    }
+
+    STColumn *pRowCol = schemaColAt(pSchema, rcol);
+    if (pRowCol->colId == pDataCol->colId) {
+      dataColAppendVal(pDataCol, tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset), pCols->numOfRows,
+                       pCols->maxPoints);
+      dcol++;
+      rcol++;
+    } else if (pRowCol->colId < pDataCol->colId) {
+      rcol++;
+    } else {
+      dataColSetNullAt(pDataCol, pCols->numOfRows);
+      dcol++;
+    }
   }
   pCols->numOfRows++;
 }
