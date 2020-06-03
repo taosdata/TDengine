@@ -296,7 +296,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   SThreadObj *    pThreadObj = shandle;
 
   int fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
-  if (fd <= 0) return NULL;
+  if (fd < 0) return NULL;
 
   SFdObj *pFdObj = taosMallocFdObj(pThreadObj, fd);
   
