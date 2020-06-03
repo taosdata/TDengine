@@ -271,7 +271,7 @@ STSchema *tsdbGetTableSchemaByVersion(STsdbMeta *pMeta, STable *pTable, int16_t 
                           tsdbCompareSchemaVersion, TD_EQ);
   if (ptr == NULL) return NULL;
 
-  return (STSchema *)ptr;
+  return *(STSchema **)ptr;
 }
 
 STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
