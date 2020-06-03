@@ -122,9 +122,9 @@ void* taos_execute(void *param) {
   int64_t timestamp = 1530374400000L;
 
   sprintf(sql, "insert into db.t%d values(%ld, %d, %d, %d)", pThread->index, timestamp, 0, 0, 0);
-  int code = taos_query(taos, sql);
-  if (code != 0) printf("error code:%d, sql:%s\n", code, sql);
-  int affectrows = taos_affected_rows(taos);
+  void *result = taos_query(taos, sql);
+  if (result == NULL) printf("error , sql:%s\n",  sql);
+  int affectrows = taos_affected_rows(result);
   if (affectrows != 1) printf("affect rows:%d, sql:%s\n", affectrows, sql);
 
   timestamp -= 1000;
@@ -133,9 +133,9 @@ void* taos_execute(void *param) {
 
   for (int i = 1; i < rowNum; ++i) {
     sprintf(sql, "import into db.t%d values(%ld, %d, %d, %d)", pThread->index, timestamp, i, i, i);
-    code = taos_query(taos, sql);
-    if (code != 0) printf("error code:%d, sql:%s\n", code, sql);
-    int affectrows = taos_affected_rows(taos);
+    void * result = taos_query(taos, sql);
+    if (result == NULL) printf("error , sql:%s\n", sql);
+    int affectrows = taos_affected_rows(result);
     if (affectrows != 1) printf("affect rows:%d, sql:%s\n", affectrows, sql);
 
     total_affect_rows += affectrows;

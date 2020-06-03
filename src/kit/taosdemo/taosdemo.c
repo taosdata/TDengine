@@ -708,13 +708,14 @@ void *readTable(void *sarg) {
       sprintf(command, "select %s from %s%d where ts>= %" PRId64, aggreFunc[j], tb_prefix, i, sTime);
 
       double t = getCurrentTime();
+/*
       if (taos_query(taos, command) != 0) {
         fprintf(stderr, "Failed to query\n");
         taos_close(taos);
         exit(EXIT_FAILURE);
       }
-
-      TAOS_RES *result = taos_use_result(taos);
+*/
+      TAOS_RES *result = taos_query(taos, command) ;
       if (result == NULL) {
         fprintf(stderr, "Failed to retreive results:%s\n", taos_errstr(taos));
         taos_close(taos);
@@ -779,13 +780,13 @@ void *readMetric(void *sarg) {
       fprintf(fp, "%s\n", command);
 
       double t = getCurrentTime();
-      if (taos_query(taos, command) != 0) {
-        fprintf(stderr, "Failed to query\n");
-        taos_close(taos);
-        exit(EXIT_FAILURE);
-      }
+//      if (taos_query(taos, command) != 0) {
+//       fprintf(stderr, "Failed to query\n");
+//        taos_close(taos);
+//        exit(EXIT_FAILURE);
+//      }
 
-      TAOS_RES *result = taos_use_result(taos);
+      TAOS_RES *result = taos_query(taos,command);
       if (result == NULL) {
         fprintf(stderr, "Failed to retreive results:%s\n", taos_errstr(taos));
         taos_close(taos);

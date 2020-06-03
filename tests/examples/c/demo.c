@@ -26,13 +26,13 @@
 void taosMsleep(int mseconds);
 
 static int32_t doQuery(TAOS* taos, const char* sql) {
-  int32_t code = taos_query(taos, sql);
-  if (code != 0) {
+   TAOS_RES* res = taos_query(taos, sql);
+  if (res == NULL) {
     printf("failed to execute query, reason:%s\n", taos_errstr(taos));
     return -1;
   }
   
-  TAOS_RES* res = taos_use_result(taos);
+  //TAOS_RES* res = taos_use_result(taos);
   TAOS_ROW row = NULL;
   char buf[512] = {0};
   
@@ -167,15 +167,8 @@ int main(int argc, char *argv[]) {
   
   // query the records
   sprintf(qstr, "SELECT * FROM m1");
-  if (taos_query(taos, qstr) != 0) {
-    printf("failed to select, reason:%s\n", taos_errstr(taos));
-    exit(1);
-  }
   
-  
-  result = taos_use_result(taos);
-  
-  
+  result = taos_query(taos, qstr);
   if (result == NULL) {
     printf("failed to get result, reason:%s\n", taos_errstr(taos));
     exit(1);
