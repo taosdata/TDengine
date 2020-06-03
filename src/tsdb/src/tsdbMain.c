@@ -425,8 +425,14 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
     return TSDB_CODE_INVALID_TABLE_TYPE;
   }
 
-  if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) > tversion) {
-    // TODO: Need to update
+  if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) < tversion) {
+    tsdbTrace("vgId:%d server tag version %d is older than client tag version %d, try to config", pRepo->config.tsdbId,
+              schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)), tversion);
+    void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, htonl(pMsg->tid));
+    // Deal with error her
+    STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
+
+    ASSERT(pTableCfg != NULL);
   }
 
   if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) > tversion) {
