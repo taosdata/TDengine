@@ -497,46 +497,18 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
 
   pSql->signature = pSql;
+  pSql->param = pSql;
   pSql->pTscObj = pObj;
+  pSql->fp = asyncCallback;
+
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-  int ret = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
-  if (TSDB_CODE_SUCCESS != ret) {
-    setErrorInfo(pSql, ret, NULL);
-    free(pSql);
-    return NULL;
-  }
-
-  pSql->sqlstr = strdup(sqlstr);
-  if (pSql->sqlstr == NULL) {
-    setErrorInfo(pSql, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
-
-    tfree(pSql);
-    return NULL;
-  }
 
   tsem_init(&pSql->rspSem, 0, 0);
-
-  SSqlInfo SQLInfo = {0};
-  tSQLParse(&SQLInfo, pSql->sqlstr);
-
-  tscResetSqlCmdObj(&pSql->cmd);
-  ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
-  if (TSDB_CODE_SUCCESS != ret) {
-    setErrorInfo(pSql, ret, NULL);
-    tscError("%p open stream failed, sql:%s, code:%d", pSql, sqlstr, TSDB_CODE_CLI_OUT_OF_MEMORY);
-    tscFreeSqlObj(pSql);
-    return NULL;
-  }
-  
-  pSql->param = pSql;
-  pSql->fp = asyncCallback;
-  pRes->code = tscToSQLCmd(pSql, &SQLInfo);
-  if (pRes->code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  int32_t code = doAsyncParseSql(pSql, sqlstr, strlen(sqlstr));
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     sem_wait(&pSql->rspSem);
   }
-  
-  SQLInfoDestroy(&SQLInfo);
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
     setErrorInfo(pSql, pRes->code, pCmd->payload);
@@ -575,6 +547,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   pStream->stime = tscGetStreamStartTimestamp(pSql, pStream, stime);
 
   int64_t starttime = tscGetLaunchTimestamp(pStream);
+  pCmd->command = TSDB_SQL_SELECT;
   taosTmrReset(tscProcessStreamTimer, starttime, pStream, tscTmr, &pStream->pTimer);
 
   tscTrace("%p stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql,

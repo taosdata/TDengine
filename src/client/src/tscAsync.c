@@ -40,30 +40,23 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen) {
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-  
-  pSql->signature = pSql;
-  pSql->param     = param;
-  pSql->pTscObj   = pObj;
-  pSql->maxRetry  = TSDB_MAX_REPLICA_NUM;
-  pSql->fp        = fp;
-  
-  sem_init(&pSql->rspSem, 0, 0);
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
+int doAsyncParseSql(SSqlObj* pSql, const char* sqlstr, size_t sqlLen) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
+  int32_t code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
+  if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to malloc payload");
-    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
-    return;
+    tscQueueAsyncError(pSql->fp, pSql->param, TSDB_CODE_CLI_OUT_OF_MEMORY);
+    return code;
   }
   
   // todo check for OOM problem
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
-    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
+    tscQueueAsyncError(pSql->fp, pSql->param, TSDB_CODE_CLI_OUT_OF_MEMORY);
     free(pCmd->payload);
-    return;
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
   
   pRes->qhandle = 0;
@@ -72,7 +65,17 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   strtolower(pSql->sqlstr, sqlstr);
   tscDump("%p SQL: %s", pSql, pSql->sqlstr);
   
-  int32_t code = tsParseSql(pSql, true);
+  return tsParseSql(pSql, true);
+}
+
+void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen) {
+  pSql->signature = pSql;
+  pSql->param     = param;
+  pSql->pTscObj   = pObj;
+  pSql->maxRetry  = TSDB_MAX_REPLICA_NUM;
+  pSql->fp        = fp;
+  
+  int32_t code = doAsyncParseSql(pSql, sqlstr, sqlLen);
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
   
   if (code != TSDB_CODE_SUCCESS) {

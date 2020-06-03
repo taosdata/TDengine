@@ -75,7 +75,14 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 
   strcpy(pContext->user, pCfg->user);
   strcpy(pContext->pass, pCfg->pass);
-  strcpy(pContext->db, pCfg->db);
+  const char* db = pCfg->db;
+  for (const char* p = db; *p != 0; p++) {
+    if (*p == '.') {
+      db = p + 1;
+      break;
+    }
+  }
+  strcpy(pContext->db, db);
   pContext->vgId = pCfg->vgId;
   pContext->cqWrite = pCfg->cqWrite;
   pContext->ahandle = ahandle;
