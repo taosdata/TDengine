@@ -1408,7 +1408,7 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
     pSchema++;
   }
 
-  if (pTable->info.type == TSDB_CHILD_TABLE && pTagData != NULL) {
+  if (pTable->info.type == TSDB_CHILD_TABLE && pMsg != NULL) {
     memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData->data, tagDataLen);
   }
 

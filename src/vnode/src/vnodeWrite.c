@@ -112,7 +112,6 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   int32_t code = tsdbCreateTable(pVnode->tsdb, pCfg);
 
   tsdbClearTableCfg(pCfg);
-  free(pCfg);
   return code;
 }
 
@@ -136,7 +135,6 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   if (pCfg == NULL) return terrno;
   int32_t code = tsdbAlterTable(pVnode->tsdb, pCfg);
   tsdbClearTableCfg(pCfg);
-  free(pCfg);
   return code;
 }
 
