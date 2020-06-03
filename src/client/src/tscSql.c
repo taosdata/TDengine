@@ -264,7 +264,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   return pRes->code;
 }
 
-static void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
+void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSqlObj *pSql = ((STscObj *)param)->pSql;
   

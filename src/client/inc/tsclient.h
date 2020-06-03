@@ -317,6 +317,7 @@ typedef struct SSqlObj {
   SRpcIpSet        ipList;
   char             freed : 4;
   char             listed : 4;
+  uint32_t         insertType;
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
@@ -402,6 +403,7 @@ void tscCloseTscObj(STscObj *pObj);
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
+void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
 
