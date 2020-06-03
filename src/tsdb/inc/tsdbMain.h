@@ -69,11 +69,13 @@ typedef struct {
 } SMemTable;
 
 // ---------- TSDB TABLE DEFINITION
+#define TSDB_MAX_TABLE_SCHEMAS 16
 typedef struct STable {
   int8_t         type;
   STableId       tableId;
   uint64_t       superUid;  // Super table UID
-  STSchema *     schema;
+  int16_t        numOfSchemas;
+  STSchema **    schema;
   STSchema *     tagSchema;
   SKVRow         tagVal;
   SMemTable *    mem;
