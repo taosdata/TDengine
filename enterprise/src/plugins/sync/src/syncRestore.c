@@ -23,14 +23,40 @@
 #include "tsync.h"
 #include "syncInt.h"
 
+static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eindex) {
+  char       name[TSDB_FILENAME_LEN*2] = {0};
+  char       fname[TSDB_FILENAME_LEN*2] = {0};
+  uint32_t   magic; 
+  uint64_t   fversion;
+  int32_t    size;
+  uint32_t   index = sindex;
+  SSyncNode *pNode = pPeer->pSyncNode;
+
+  if (sindex < 0 || eindex < sindex) return;
+
+  while (1) {
+    name[0] = 0;
+    magic = (*pNode->getFileInfo)(pNode->ahandle, name, &index, eindex, &size, &fversion);
+    if (magic == 0) break;
+
+    sprintf(fname, "%s/%s", pNode->path, name);
+    remove(fname);
+    sTrace("%s, %s is removed", pPeer->id, fname);
+
+    index++;
+    if (index > eindex) break;
+  }        
+}
+
 static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
   SFileInfo  minfo; memset(&minfo, 0, sizeof(minfo)); /* = {0}; */  // master file info
   SFileInfo  sinfo; memset(&sinfo, 0, sizeof(sinfo)); /* = {0}; */  // slave file info
-  SFileAck   fileAck;
+  SFileAck   fileAck; 
   int        code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
+  uint32_t   pindex = 0;    // index in last restore
 
   *fversion = 0;
   sinfo.index = 0;
@@ -42,36 +68,25 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
     // if no more file from master, break;
     if (minfo.name[0] == 0 || minfo.magic == 0) {
       sTrace("%s, no more files to restore", pPeer->id);
-     
-      // remove extra files on slave
-      sinfo.index = minfo.index;
-      while (1) {
-        sinfo.name[0] = 0;
-        sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size, &sinfo.fversion);
-        if (sinfo.magic == 0) break;
 
-        sprintf(name, "%s/%s", pNode->path, sinfo.name);
-        remove(name);
-        sTrace("%s, %s is removed", pPeer->id, name);
-        sinfo.index++;
-      }        
-
+      // remove extra files after the current index
+      syncRemoveExtraFile(pPeer, sinfo.index+1, TAOS_SYNC_MAX_INDEX);
       code = 0; 
       break;
     }
    
-    fileAck.sync = 0;
-    //minfo.index = htonl(minfo.index);
-    //minfo.size = htonl(minfo.size);
-
-    sTrace("%s, get file info:%s", pPeer->id, minfo.name);
+    // remove extra files on slave between the current and last index
+    syncRemoveExtraFile(pPeer, pindex+1, minfo.index-1);
+    pindex = minfo.index;
 
     // check the file info
-    strcpy(sinfo.name, minfo.name);
-    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, &sinfo.size, &sinfo.fversion);
+    sinfo = minfo;
+    sTrace("%s, get file info:%s", pPeer->id, minfo.name);
+    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size, &sinfo.fversion);
 
     // if file not there or magic is not the same, file shall be synced
-    if (sinfo.magic != minfo.magic || sinfo.name[0] == 0) fileAck.sync =1;
+    memset(&fileAck, 0, sizeof(fileAck));
+    fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1:0;
 
     // send file ack
     ret = taosWriteMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
@@ -99,6 +114,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
     if (ret<0) break;
 
     sTrace("%s, %s is received, size:%d", pPeer->id, minfo.name, minfo.size);
+
   }
 
   if (code == 0 && (minfo.fversion != sinfo.fversion)) {
