@@ -817,9 +817,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     tblName[len] = '\0';
 
     str = nextStr + 1;
-
-    strtrim(tblName);
-    len = (uint32_t)strlen(tblName);
+    len = strtrim(tblName);
 
     SSQLToken sToken = {.n = len, .type = TK_ID, .z = tblName};
     tSQLGetToken(tblName, &sToken.type);
@@ -831,7 +829,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
       return code;
     }
 
-    if ((code = tscSetTableId(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableFullName(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
       return code;
     }
 

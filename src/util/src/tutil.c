@@ -60,7 +60,7 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
-void strtrim(char *z) {
+size_t strtrim(char *z) {
   int32_t i = 0;
   int32_t j = 0;
 
@@ -71,7 +71,7 @@ void strtrim(char *z) {
 
   if (z[j] == 0) {
     z[0] = 0;
-    return;
+    return 0;
   }
 
   delta = j;
@@ -89,9 +89,12 @@ void strtrim(char *z) {
 
   if (stop > 0) {
     z[stop - delta] = 0;
+    return (stop - delta);
   } else if (j != i) {
     z[i] = 0;
   }
+  
+  return i;
 }
 
 char **strsplit(char *z, const char *delim, int32_t *num) {

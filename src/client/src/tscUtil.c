@@ -1231,9 +1231,8 @@ void tscColumnListDestroy(SArray* pColumnList) {
  *
  */
 static int32_t validateQuoteToken(SSQLToken* pToken) {
-  pToken->n = strdequote(pToken->z);
-  strtrim(pToken->z);
-  pToken->n = (uint32_t)strlen(pToken->z);
+  strdequote(pToken->z);
+  pToken->n = strtrim(pToken->z);
 
   int32_t k = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1255,9 +1254,8 @@ int32_t tscValidateName(SSQLToken* pToken) {
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
-      pToken->n = strdequote(pToken->z);
-      strtrim(pToken->z);
-      pToken->n = (uint32_t)strlen(pToken->z);
+      strdequote(pToken->z);
+      pToken->n = strtrim(pToken->z);
 
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1282,8 +1280,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
     char*   pStr = pToken->z;
 
     if (pToken->type == TK_SPACE) {
-      strtrim(pToken->z);
-      pToken->n = (uint32_t)strlen(pToken->z);
+      pToken->n = strtrim(pToken->z);
     }
 
     pToken->n = tSQLGetToken(pToken->z, &pToken->type);

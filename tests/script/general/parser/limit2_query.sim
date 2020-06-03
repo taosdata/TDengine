@@ -133,6 +133,7 @@ $limit = $rowNum
 $offset = $limit / 2
 sql select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2) limit $limit offset $offset
 if $rows != $limit then
+  print expect $limit, actual $rows
   return -1
 endi
 if $data01 != 0 then
@@ -147,6 +148,7 @@ $limit = $rowNum
 $offset = $limit / 2
 sql select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(linear) limit $limit offset $offset
 if $rows != $limit then
+  print expect $limit, actual $rows
   return -1
 endi
 if $data01 != 0 then
@@ -182,6 +184,7 @@ $limit = $rowNum
 $offset = $limit / 2
 sql select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev) limit $limit offset $offset
 if $rows != $limit then
+  print expect $limit, actual: $rows
   return -1
 endi
 

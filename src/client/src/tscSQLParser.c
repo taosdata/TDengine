@@ -163,8 +163,7 @@ static int32_t handlePassword(SSqlCmd* pCmd, SSQLToken* pPwd) {
   }
 
   strdequote(pPwd->z);
-  strtrim(pPwd->z);  // trim space before and after passwords
-  pPwd->n = strlen(pPwd->z);
+  pPwd->n = strtrim(pPwd->z);  // trim space before and after passwords
 
   if (pPwd->n <= 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -226,7 +225,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
         assert(pInfo->pDCLInfo->nTokens == 1);
 
-        if (tscSetTableId(pTableMetaInfo, pzName, pSql) != TSDB_CODE_SUCCESS) {
+        if (tscSetTableFullName(pTableMetaInfo, pzName, pSql) != TSDB_CODE_SUCCESS) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
@@ -353,7 +352,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      if (tscSetTableId(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
+      if (tscSetTableFullName(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -686,7 +685,7 @@ int32_t parseSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscSetTableId(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql) {
+int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql) {
   const char* msg = "name too long";
 
   SSqlCmd* pCmd = &pSql->cmd;
@@ -1465,7 +1464,6 @@ static int32_t setExprInfoForFunctions(SQueryInfo* pQueryInfo, SSchema* pSchema,
 
 int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult) {
   STableMetaInfo* pTableMetaInfo = NULL;
-  
   int32_t optr = pItem->pNode->nSQLOptr;
 
   const char* msg1 = "not support column types";
@@ -4294,7 +4292,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
 
-  if (tscSetTableId(pTableMetaInfo, &(pAlterSQL->name), pSql) != TSDB_CODE_SUCCESS) {
+  if (tscSetTableFullName(pTableMetaInfo, &(pAlterSQL->name), pSql) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
 
@@ -4646,8 +4644,7 @@ int32_t validateColumnName(char* name) {
 
   if (token.type == TK_STRING) {
     strdequote(token.z);
-    strtrim(token.z);
-    token.n = (uint32_t)strlen(token.z);
+    token.n = strtrim(token.z);
 
     int32_t k = tSQLGetToken(token.z, &token.type);
     if (k != token.n) {
@@ -5491,7 +5488,7 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (tscSetTableId(pTableMetaInfo, pzTableName, pSql) != TSDB_CODE_SUCCESS) {
+  if (tscSetTableFullName(pTableMetaInfo, pzTableName, pSql) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -5546,7 +5543,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (tscSetTableId(pStableMeterMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
+  if (tscSetTableFullName(pStableMeterMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -5592,7 +5589,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   STableMetaInfo* pTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-  ret = tscSetTableId(pTableMeterMetaInfo, &pInfo->pCreateTableInfo->name, pSql);
+  ret = tscSetTableFullName(pTableMeterMetaInfo, &pInfo->pCreateTableInfo->name, pSql);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
@@ -5635,7 +5632,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
 
-  if (tscSetTableId(pTableMetaInfo, &srcToken, pSql) != TSDB_CODE_SUCCESS) {
+  if (tscSetTableFullName(pTableMetaInfo, &srcToken, pSql) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
 
@@ -5666,7 +5663,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   // set the created table[stream] name
-  if (tscSetTableId(pTableMetaInfo, pzTableName, pSql) != TSDB_CODE_SUCCESS) {
+  if (tscSetTableFullName(pTableMetaInfo, pzTableName, pSql) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
 
@@ -5775,7 +5772,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     STableMetaInfo* pMeterInfo1 = tscGetMetaInfo(pQueryInfo, i);
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
-    if (tscSetTableId(pMeterInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
+    if (tscSetTableFullName(pMeterInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
