@@ -651,6 +651,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
   for (int32_t i = 0; i < numOfRows; ++i) {
     SDataRow trow = (SDataRow)pDataBlock;
     dataRowSetLen(trow, TD_DATA_ROW_HEAD_SIZE + flen);
+    dataRowSetVersion(trow, pTableMeta->sversion);
 
     int toffset = 0;
     for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
@@ -759,10 +760,6 @@ void tscCloseTscObj(STscObj* pObj) {
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 
-  if (pSql) {
-    sem_destroy(&pSql->rspSem);
-  }
-  
   pthread_mutex_destroy(&pObj->mutex);
   
   if (pObj->pDnodeConn != NULL) {
