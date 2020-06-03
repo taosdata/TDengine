@@ -370,19 +370,29 @@ static int tsdbUpdateTableTagSchema(STable *pTable, STSchema *newSchema) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsdbUpdateTable(STable *pTable, STableCfg *pCfg) {
+int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
   ASSERT(pTable->type != TSDB_CHILD_TABLE);
+  bool isChanged = false;
 
   if (pTable->type == TSDB_SUPER_TABLE) {
     if (schemaVersion(pTable->tagSchema) < schemaVersion(pCfg->tagSchema)) {
       int32_t code = tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
+    isChanged = true;
   }
 
   {
     // TODO: try to update the data schema
   }
+  if (isChanged) {
+    char *buf = malloc(1024 * 1024);
+    int bufLen = 0;
+    tsdbEncodeTable(pTable, buf, &bufLen);
+    tsdbInsertMetaRecord(pMeta->mfh, pTable->tableId.uid, buf, bufLen);
+    free(buf);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -411,7 +421,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
     } else {
       if (super->type != TSDB_SUPER_TABLE) return -1;
       if (super->tableId.uid != pCfg->superUid) return -1;
-      tsdbUpdateTable(super, pCfg);
+      tsdbUpdateTable(pMeta, super, pCfg);
     }
   }
 

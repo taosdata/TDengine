@@ -437,7 +437,7 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
     STable *super = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
     ASSERT(super != NULL);
 
-    int32_t code = tsdbUpdateTable(super, pTableCfg);
+    int32_t code = tsdbUpdateTable(pMeta, super, pTableCfg);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
