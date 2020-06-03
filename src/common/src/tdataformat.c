@@ -400,8 +400,8 @@ void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols)
 
     STColumn *pRowCol = schemaColAt(pSchema, rcol);
     if (pRowCol->colId == pDataCol->colId) {
-      dataColAppendVal(pDataCol, tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset), pCols->numOfRows,
-                       pCols->maxPoints);
+      void *value = tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset+TD_DATA_ROW_HEAD_SIZE);
+      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
       dcol++;
       rcol++;
     } else if (pRowCol->colId < pDataCol->colId) {
