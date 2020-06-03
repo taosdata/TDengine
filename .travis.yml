@@ -38,6 +38,7 @@ matrix:
       - make > /dev/null
 
     after_success:
+      - travis_wait 20
       - |-
         case $TRAVIS_OS_NAME in
           linux)
