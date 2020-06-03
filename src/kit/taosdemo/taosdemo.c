@@ -708,25 +708,12 @@ void *readTable(void *sarg) {
       sprintf(command, "select %s from %s%d where ts>= %" PRId64, aggreFunc[j], tb_prefix, i, sTime);
 
       double t = getCurrentTime();
-<<<<<<< HEAD
-/*
-      if (taos_query(taos, command) != 0) {
-        fprintf(stderr, "Failed to query\n");
-        taos_close(taos);
-        exit(EXIT_FAILURE);
-      }
-*/
-      TAOS_RES *result = taos_query(taos, command) ;
-      if (result == NULL) {
-        fprintf(stderr, "Failed to retreive results:%s\n", taos_errstr(taos));
-=======
       TAOS_RES *pSql = taos_query(taos, command);
       int32_t code = taos_errno(pSql);
 
       if (code != 0) {
         fprintf(stderr, "Failed to query:%s\n", taos_errstr(taos));
         taos_free_result(pSql);
->>>>>>> 2f976c4f62b7a68626350e3ac15eddff20035b59
         taos_close(taos);
         exit(EXIT_FAILURE);
       }
