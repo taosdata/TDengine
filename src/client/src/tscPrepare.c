@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
 #include "taos.h"
 #include "tsclient.h"
@@ -20,6 +21,7 @@
 #include "taosmsg.h"
 #include "tstrbuild.h"
 #include "tscLog.h"
+#include "tscSubquery.h"
 
 int tsParseInsertSql(SSqlObj *pSql);
 int taos_query_imp(STscObj* pObj, SSqlObj* pSql);
@@ -262,7 +264,11 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
 
 static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
   if (bind->is_null != NULL && *(bind->is_null)) {
-    setNull(data, param->type, param->bytes);
+    if (param->type == TSDB_DATA_TYPE_BINARY || param->type == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(data + param->offset, param->type);
+    } else {
+      setNull(data + param->offset, param->type, param->bytes);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -297,14 +303,17 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
         return TSDB_CODE_INVALID_VALUE;
       }
       size = (short)*bind->length;
-      break;
-    
-    case TSDB_DATA_TYPE_NCHAR:
-      if (!taosMbsToUcs4(bind->buffer, *bind->length, data + param->offset, param->bytes, NULL)) {
-        return TSDB_CODE_INVALID_VALUE;
-      }
+      STR_WITH_SIZE_TO_VARSTR(data + param->offset, bind->buffer, size);
       return TSDB_CODE_SUCCESS;
-
+    
+    case TSDB_DATA_TYPE_NCHAR: {
+      size_t output = 0;
+      if (!taosMbsToUcs4(bind->buffer, *bind->length, varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
+        return TSDB_CODE_INVALID_VALUE;
+      }      
+      varDataSetLen(data + param->offset, output);
+      return TSDB_CODE_SUCCESS;
+    }
     default:
       assert(false);
       return TSDB_CODE_INVALID_VALUE;
@@ -383,14 +392,6 @@ static int insertStmtAddBatch(STscStmt* stmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int insertStmtPrepare(STscStmt* stmt) {
-  SSqlObj *pSql = stmt->pSql;
-  pSql->cmd.numOfParams = 0;
-  pSql->cmd.batchSize = 0;
-
-  return tsParseInsertSql(pSql);
-}
-
 static int insertStmtReset(STscStmt* pStmt) {
   SSqlCmd* pCmd = &pStmt->pSql->cmd;
   if (pCmd->batchSize > 2) {
@@ -451,14 +452,16 @@ static int insertStmtExecute(STscStmt* stmt) {
   
   pRes->qhandle = 0;
 
+  pSql->insertType = 0;
+  pSql->fetchFp    = waitForQueryRsp;
+  pSql->fp         = (void(*)())tscHandleMultivnodeInsert;
+
   tscDoQuery(pSql);
 
-  // tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
-  if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscPartiallyFreeSqlObj(pSql);
-  }
+  // wait for the callback function to post the semaphore
+  tsem_wait(&pSql->rspSem);
+  return pSql->res.code;
 
-  return pRes->code;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,6 +481,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
     tscError("failed to allocate memory for statement");
     return NULL;
   }
+  pStmt->taos = pObj;
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
@@ -488,8 +492,10 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   }
 
   tsem_init(&pSql->rspSem, 0, 0);
-  pSql->signature = pSql;
-  pSql->pTscObj = pObj;
+  pSql->signature     = pSql;
+  pSql->pTscObj       = pObj;
+  pSql->pTscObj->pSql = pSql;
+  pSql->maxRetry      = TSDB_MAX_REPLICA_NUM;
 
   pStmt->pSql = pSql;
   return pStmt;
@@ -497,22 +503,55 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
 
 int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (length == 0) {
-    length = strlen(sql);
+
+  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
+    terrno = TSDB_CODE_DISCONNECTED;
+    return TSDB_CODE_DISCONNECTED;
   }
-  char* sqlstr = (char*)malloc(length + 1);
-  if (sqlstr == NULL) {
-    tscError("failed to malloc sql string buffer");
+
+  SSqlObj* pSql = pStmt->pSql;
+  size_t   sqlLen = strlen(sql);
+  
+  //doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
+  SSqlCmd *pCmd    = &pSql->cmd;
+  SSqlRes *pRes    = &pSql->res;
+  pSql->param      = (void*)pStmt->taos;
+  pSql->fp         = waitForQueryRsp;
+  pSql->insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
+    tscError("%p failed to malloc payload buffer", pSql);
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
-  memcpy(sqlstr, sql, length);
-  sqlstr[length] = 0;
-  strtolower(sqlstr, sqlstr);
+  
+  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  
+  if (pSql->sqlstr == NULL) {
+    tscError("%p failed to malloc sql string buffer", pSql);
+    free(pCmd->payload);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+  
+  pRes->qhandle = 0;
+  pRes->numOfRows = 1;
+  
+  strtolower(pSql->sqlstr, sql);
+  tscDump("%p SQL: %s", pSql, pSql->sqlstr);
 
-  pStmt->pSql->sqlstr = sqlstr;
-  if (tscIsInsertData(sqlstr)) {
+  if (tscIsInsertData(pSql->sqlstr)) {  
     pStmt->isInsert = true;
-    return insertStmtPrepare(pStmt);
+    
+    pSql->cmd.numOfParams = 0;
+    pSql->cmd.batchSize   = 0;
+    
+    int32_t code = tsParseSql(pSql, true);
+    if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+      // wait for the callback function to post the semaphore
+      tsem_wait(&pSql->rspSem);
+      return pSql->res.code;
+    }
+    
+    return code;
   }
 
   pStmt->isInsert = false;
@@ -574,7 +613,7 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     } else {
       tfree(pStmt->pSql->sqlstr);
       pStmt->pSql->sqlstr = sql;
-      ret = taos_query_imp(pStmt->taos, pStmt->pSql);
+      ret = taos_query(pStmt->taos, pStmt->pSql->sqlstr);
     }
   }
   return ret;

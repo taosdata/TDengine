@@ -508,6 +508,8 @@ void    tsdbAdjustCacheBlocks(STsdbCache *pCache);
 int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
 int     tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
 
+int compFGroupKey(const void *key, const void *fgroup);
+
 #ifdef __cplusplus
 }
 #endif
