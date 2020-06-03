@@ -159,7 +159,10 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
 /**
  * Initialize a data row
  */
-void tdInitDataRow(SDataRow row, STSchema *pSchema) { dataRowSetLen(row, TD_DATA_ROW_HEAD_SIZE + schemaFLen(pSchema)); }
+void tdInitDataRow(SDataRow row, STSchema *pSchema) {
+  dataRowSetLen(row, TD_DATA_ROW_HEAD_SIZE + schemaFLen(pSchema));
+  dataRowSetVersion(row, schemaVersion(pSchema));
+}
 
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
   int32_t size = dataRowMaxBytesFromSchema(pSchema);

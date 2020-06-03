@@ -119,22 +119,24 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
- * |<------------------------------------- len ---------------------------------->|
- * |<--Head ->|<---------   flen -------------->|                                 |
- * +----------+---------------------------------+---------------------------------+
- * | int32_t  |                                 |                                 |
- * +----------+---------------------------------+---------------------------------+
- * |   len    |           First part            |             Second part         |
- * +----------+---------------------------------+---------------------------------+
+ * |<--------------------+--------------------------- len ---------------------------------->|
+ * |<--     Head      -->|<---------   flen -------------->|                                 |
+ * +---------------------+---------------------------------+---------------------------------+
+ * | int16_t  |  int16_t |                                 |                                 |
+ * +----------+----------+---------------------------------+---------------------------------+
+ * |   len    | sversion |           First part            |             Second part         |
+ * +----------+----------+---------------------------------+---------------------------------+
  */
 typedef void *SDataRow;
 
-#define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
+#define TD_DATA_ROW_HEAD_SIZE sizeof(int16_t)*2
 
-#define dataRowLen(r) (*(int32_t *)(r))
+#define dataRowLen(r) (*(int16_t *)(r))
+#define dataRowVersion(r) *(int16_t *)POINTER_SHIFT(r, sizeof(int16_t))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
+#define dataRowSetVersion(r, v) (dataRowVersion(r) = (v))
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
 #define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
 
