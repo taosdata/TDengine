@@ -109,8 +109,8 @@ int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 int  tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
-int32_t    tsdbGetTableTagVal(TsdbRepoT *repo, STableId *id, int32_t colId, int16_t *type, int16_t *bytes, char **val);
-char *     tsdbGetTableName(TsdbRepoT *repo, const STableId *id, int16_t *bytes);
+void* tsdbGetTableTagVal(TsdbRepoT* repo, const STableId* id, int32_t colId, int16_t type, int16_t bytes);
+char* tsdbGetTableName(TsdbRepoT *repo, const STableId *id);
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
 int   tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);

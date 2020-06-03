@@ -245,45 +245,33 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
+void* tsdbGetTableTagVal(TsdbRepoT* repo, const STableId* id, int32_t colId, int16_t type, int16_t bytes) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
 
   STSchema *pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   STColumn *pCol = tdGetColOfID(pSchema, colId);
   if (pCol == NULL) {
-    return -1; // No matched tag volumn
+    return NULL;  // No matched tag volumn
   }
   
-  *val = tdGetKVRowValOfCol(pTable->tagVal, colId);
-  *type = pCol->type;
+  char* val = tdGetKVRowValOfCol(pTable->tagVal, colId);
+  assert(type == pCol->type && bytes == pCol->bytes);
   
-  if (*val != NULL) {
-    if (IS_VAR_DATA_TYPE(*type)) {
-      *bytes = varDataLen(*val);
-    } else {
-      *bytes = TYPE_BYTES[*type];
-    }
+  if (val != NULL && IS_VAR_DATA_TYPE(type)) {
+    assert(varDataLen(val) < pCol->bytes);
   }
   
-  return TSDB_CODE_SUCCESS;
+  return val;
 }
 
-char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes) {
+char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
   if (pTable == NULL) {
-    if (bytes != NULL) {
-      *bytes = 0;
-    }
-    
     return NULL;
   } else {
-    if (bytes != NULL) {
-      *bytes = varDataLen(pTable->name);
-    }
-    
     return (char*) pTable->name;
   }
 }
