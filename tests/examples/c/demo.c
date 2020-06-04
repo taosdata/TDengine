@@ -26,13 +26,12 @@
 void taosMsleep(int mseconds);
 
 static int32_t doQuery(TAOS* taos, const char* sql) {
-  int32_t code = taos_query(taos, sql);
-  if (code != 0) {
+  TAOS_RES* res = taos_query(taos, sql);
+  if (taos_errno(res) != 0) {
     printf("failed to execute query, reason:%s\n", taos_errstr(taos));
     return -1;
   }
   
-  TAOS_RES* res = taos_use_result(taos);
   TAOS_ROW row = NULL;
   char buf[512] = {0};
   
@@ -46,7 +45,6 @@ static int32_t doQuery(TAOS* taos, const char* sql) {
   }
   
   taos_free_result(res);
-
   return 0;
 }
 
@@ -81,6 +79,7 @@ static __attribute__((unused)) void multiThreadTest(int32_t numOfThreads, void* 
     pthread_join(threadId[i], NULL);
   }
   
+  free(threadId);
   pthread_attr_destroy(&thattr);
 }
 
@@ -114,19 +113,6 @@ int main(int argc, char *argv[]) {
 //    doQuery(taos, "insert into t1 values(now, 2)");
 //  }
 //  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
-
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 'abc')");
-//  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:3', 3);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:4', 4);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:5', 5);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:6', 6);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:7', 7);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:8', 8);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:9', 9);");
-//  doQuery(taos, "select sum(k),count(*) from m1 group by a");
   
   taos_close(taos);
   return 0;
@@ -172,10 +158,6 @@ int main(int argc, char *argv[]) {
     printf("failed to select, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
-  
-  
-  result = taos_use_result(taos);
-  
   
   if (result == NULL) {
     printf("failed to get result, reason:%s\n", taos_errstr(taos));

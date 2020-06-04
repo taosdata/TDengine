@@ -294,7 +294,6 @@ typedef struct STscObj {
   char               sversion[TSDB_VERSION_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
-  struct SSqlObj *   pSql;
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
@@ -411,7 +410,7 @@ void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const
 void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
 void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
-bool tscIsUpdateQuery(STscObj *pObj);
+bool tscIsUpdateQuery(SSqlObj* pSql);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);

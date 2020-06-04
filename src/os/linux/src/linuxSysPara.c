@@ -245,10 +245,10 @@ static void taosGetSystemLocale() {  // get and set default locale
       strncpy(tsCharset, revisedCharset, tListLen(tsCharset));
 
       free(revisedCharset);
-      uError("charset not configured, set to system default:%s", tsCharset);
+      uWarn("charset not configured, set to system default:%s", tsCharset);
     } else {
       strcpy(tsCharset, "UTF-8");
-      uError("can't get locale and charset from system, set it to UTF-8");
+      uWarn("can't get locale and charset from system, set it to UTF-8");
     }
   }
 }
