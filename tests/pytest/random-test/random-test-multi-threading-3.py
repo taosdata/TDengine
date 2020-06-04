@@ -131,7 +131,6 @@ class Test (threading.Thread):
 
         tdDnodes.stop(1)
         tdDnodes.start(1)
-        tdLog.sleep(5)
 
     def force_restart_database(self):
         tdLog.info("force_restart_database")
@@ -140,7 +139,6 @@ class Test (threading.Thread):
 
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
-        tdLog.sleep(10)
 
     def drop_table(self):
         tdLog.info("drop_table")
@@ -203,7 +201,6 @@ class Test (threading.Thread):
         last_tb = ""
         written = 0
         tdDnodes.start(1)
-        tdLog.sleep(10)
         tdSql.prepare()
 
     def run(self):
@@ -225,6 +222,11 @@ class Test (threading.Thread):
             9: self.drop_stable,
         }
 
+        queryOp = {
+            1: self.query_data,
+            2: self.query_data_from_stable,
+        }
+
         if (self.threadId == 1):
             while True:
                 self.threadLock.acquire()
@@ -240,6 +242,13 @@ class Test (threading.Thread):
                 randDbOp = random.randint(1, 9)
                 dbOp.get(randDbOp, lambda: "ERROR")()
                 self.threadLock.release()
+        elif (self.threadId == 3):
+            while True:
+                tdLog.notice("third thread")
+                self.threadLock.acquire()
+                randQueryOp = random.randint(1, 9)
+                queryOp.get(randQueryOp, lambda: "ERROR")()
+                self.threadLock.release()
 
 
 class TDTestCase:
@@ -252,11 +261,14 @@ class TDTestCase:
 
         test1 = Test(1, "data operation")
         test2 = Test(2, "db operation")
+        test2 = Test(3, "query operation")
 
         test1.start()
         test2.start()
+        test3.start()
         test1.join()
         test2.join()
+        test3.join()
 
         tdLog.info("end of test")
 
