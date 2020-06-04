@@ -19,6 +19,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "taosmsg.h"
 
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
 void *tscSlowQueryConn = NULL;
@@ -96,9 +97,9 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   char *sql = malloc(200);
   int   len = snprintf(sql, 200, "insert into %s.slowquery values(now, '%s', %" PRId64 ", %" PRId64 ", '", tsMonitorDbName,
           pSql->pTscObj->user, pSql->stime, pSql->res.useconds);
-  int sqlLen = snprintf(sql + len, TSDB_SHOW_SQL_LEN, "%s", pSql->sqlstr);
-  if (sqlLen > TSDB_SHOW_SQL_LEN - 1) {
-    sqlLen = len + TSDB_SHOW_SQL_LEN - 1;
+  int sqlLen = snprintf(sql + len, TSDB_SLOW_QUERY_SQL_LEN, "%s", pSql->sqlstr);
+  if (sqlLen > TSDB_SLOW_QUERY_SQL_LEN - 1) {
+    sqlLen = len + TSDB_SLOW_QUERY_SQL_LEN - 1;
   } else {
     sqlLen += len;
   }
@@ -206,72 +207,60 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
   taos_close_stream(pStream);
 }
 
-int tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
-  char *  pStart = pMsg;
-  char *  pMax = pMsg + TSDB_PAYLOAD_SIZE - 256;
-  
-  SQqueryList *pQList = (SQqueryList *)pMsg;
-  pQList->numOfQueries = 0;
+int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
+  SCMHeartBeatMsg *pHeartbeat = pMsg;
+  pHeartbeat->connId = htonl(pObj->connId);
 
-  SQueryDesc *pQdesc = (SQueryDesc*)(pMsg + sizeof(SQqueryList));
+  pHeartbeat->numOfQueries = 0;
+  SQueryDesc *pQdesc = (SQueryDesc *)pHeartbeat->pData;
 
   // We extract the lock to tscBuildHeartBeatMsg function.
-  /* pthread_mutex_lock (&pObj->mutex); */
-  pMsg += sizeof(SQqueryList);
-  SSqlObj *pSql = pObj->sqlList;
-  while (pSql) {
+  
+  //SSqlObj *pSql = pObj->sqlList;
+  //while (pSql) {
     /*
      * avoid sqlobj may not be correctly removed from sql list
      * e.g., forgetting to free the sql result may cause the sql object still in sql list
      */
-    if (pSql->sqlstr == NULL) {
-      pSql = pSql->next;
-      continue;
-    }
+    // if (pSql->sqlstr == NULL) {
+    //   pSql = pSql->next;
+    //   continue;
+    // }
 
-    strncpy(pQdesc->sql, pSql->sqlstr, TSDB_SHOW_SQL_LEN - 1);
+    strncpy(pQdesc->sql, "select * from d1.t1", TSDB_SHOW_SQL_LEN - 1);
     pQdesc->sql[TSDB_SHOW_SQL_LEN - 1] = 0;
-    pQdesc->stime = pSql->stime;
-    pQdesc->queryId = pSql->queryId;
-    pQdesc->useconds = pSql->res.useconds;
+    pQdesc->stime = htobe64(taosGetTimestampMs());
+    pQdesc->queryId = htonl(12);
+    pQdesc->useconds = htonl(34567);
 
-    pQList->numOfQueries++;
+    pHeartbeat->numOfQueries++;
     pQdesc++;
-    pSql = pSql->next;
-    pMsg += sizeof(SQueryDesc);
-    if (pMsg > pMax) break;
-  }
+    //pSql = pSql->next;
+  //}
 
-  SStreamList *pSList = (SStreamList *)pMsg;
-  pSList->numOfStreams = 0;
-  
-  SStreamDesc *pSdesc = (SStreamDesc*) (pMsg + sizeof(SStreamList));
+  pHeartbeat->numOfStreams = 0;
+  SStreamDesc *pSdesc = (SStreamDesc *)pQdesc;
 
-  pMsg += sizeof(SStreamList);
-  SSqlStream *pStream = pObj->streamList;
-  while (pStream) {
-    strncpy(pSdesc->sql, pStream->pSql->sqlstr, TSDB_SHOW_SQL_LEN - 1);
+  //SSqlStream *pStream = pObj->streamList;
+  //while (pStream) {
+    strncpy(pSdesc->sql, "select * from d1.s1", TSDB_SHOW_SQL_LEN - 1);
     pSdesc->sql[TSDB_SHOW_SQL_LEN - 1] = 0;
-    pSdesc->streamId = pStream->streamId;
-    pSdesc->num = pStream->num;
+    pSdesc->streamId = htonl(98);
+    pSdesc->num = htobe64(76543);
 
-    pSdesc->useconds = pStream->useconds;
-    pSdesc->stime = pStream->stime - pStream->interval;
-    pSdesc->ctime = pStream->ctime;
+    pSdesc->useconds = htobe64(21);
+    pSdesc->stime = htobe64(taosGetTimestampMs()-1000);
+    pSdesc->ctime = htobe64(taosGetTimestampMs());
 
-    pSdesc->slidingTime = pStream->slidingTime;
-    pSdesc->interval = pStream->interval;
+    pSdesc->slidingTime = htobe64(567);
+    pSdesc->interval = htobe64(89);
 
-    pSList->numOfStreams++;
+    pHeartbeat->numOfStreams++;
     pSdesc++;
-    pStream = pStream->next;
-    pMsg += sizeof(SStreamDesc);
-    if (pMsg > pMax) break;
-  }
+    //pStream = pStream->next;
+  //}
 
-  /* pthread_mutex_unlock (&pObj->mutex); */
-
-  return pMsg - pStart;
+  return pHeartbeat->numOfQueries * sizeof(SQueryDesc) + pHeartbeat->numOfStreams * sizeof(SStreamDesc) + sizeof(SCMHeartBeatMsg);
 }
 
 void tscKillConnection(STscObj *pObj) {

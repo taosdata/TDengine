@@ -1747,52 +1747,45 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {
-  int      size = 0;
-  STscObj *pObj = pSql->pTscObj;
-
-  size += tsRpcHeadSize;
-  size += sizeof(SQqueryList);
-
-  SSqlObj *tpSql = pObj->sqlList;
-  while (tpSql) {
-    size += sizeof(SQueryDesc);
-    tpSql = tpSql->next;
-  }
-
-  size += sizeof(SStreamList);
-  SSqlStream *pStream = pObj->streamList;
-  while (pStream) {
-    size += sizeof(SStreamDesc);
-    pStream = pStream->next;
-  }
-
-  return size + TSDB_EXTRA_PAYLOAD_SIZE;
-}
-
 int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
 
   pthread_mutex_lock(&pObj->mutex);
 
-  int size = tscEstimateHeartBeatMsgLength(pSql);
+  int32_t  numOfQueries = 0;
+  SSqlObj *tpSql = pObj->sqlList;
+  while (tpSql) {
+    tpSql = tpSql->next;
+    numOfQueries++;
+  }
+
+  int32_t     numOfStreams = 0;
+  SSqlStream *pStream = pObj->streamList;
+  while (pStream) {
+    pStream = pStream->next;
+    numOfStreams++;
+  }
+
+  // ==>
+  numOfQueries = 1;
+  numOfStreams = 1;
+
+  int size = numOfQueries * sizeof(SQueryDesc) + numOfStreams * sizeof(SStreamDesc) + sizeof(SCMHeartBeatMsg) + 100;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     pthread_mutex_unlock(&pObj->mutex);
     tscError("%p failed to malloc for heartbeat msg", pSql);
     return -1;
   }
 
-  SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg*)pCmd->payload;
-  pHeartbeat->connId = htonl(pSql->pTscObj->connId);
+  SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;
+  int msgLen = tscBuildQueryStreamDesc(pHeartbeat, pObj);
 
-  int msgLen = tscBuildQueryStreamDesc((char*)pHeartbeat + sizeof(pHeartbeat->connId), pObj);
   pthread_mutex_unlock(&pObj->mutex);
 
-  pCmd->payloadLen = msgLen + sizeof(pHeartbeat->connId);
+  pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_CM_HEARTBEAT;
 
-  assert(msgLen + minMsgSize() <= size);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -243,22 +243,26 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     // pHBRsp->killConnection = 1;
   } else {
     pHBRsp->connId = htonl(pConn->connId);
+    mnodeSaveQueryStreamList(pConn, pHBMsg);
+    
     if (pConn->killed != 0) {
       pHBRsp->killConnection = 1;
+    }
+
+    if (pConn->streamId != 0) {
+      pHBRsp->streamId = htonl(pConn->streamId);
+      pConn->streamId = 0;
+    }
+
+    if (pConn->queryId != 0) {
+      pHBRsp->queryId = htonl(pConn->queryId);
+      pConn->queryId = 0;
     }
   }
 
   pHBRsp->onlineDnodes = htonl(mnodeGetOnlinDnodesNum());
   pHBRsp->totalDnodes = htonl(mnodeGetDnodesNum());
   mnodeGetMnodeIpSetForShell(&pHBRsp->ipList);
-
-  /*
-   * TODO
-   * Dispose kill stream or kill query message
-   */
-  // pHBRsp->queryId = 0;
-  // pHBRsp->streamId = 0;
-  // pHBRsp->killConnection = 0;
 
   pMsg->rpcRsp.rsp = pHBRsp;
   pMsg->rpcRsp.len = sizeof(SCMHeartBeatRsp);

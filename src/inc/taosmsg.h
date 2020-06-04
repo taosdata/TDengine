@@ -708,17 +708,10 @@ typedef struct {
 } SStreamDesc;
 
 typedef struct {
-  int32_t    numOfQueries;
-} SQqueryList;
-
-typedef struct {
-  int32_t     numOfStreams;
-} SStreamList;
-
-typedef struct {
   uint32_t connId;
-  SQqueryList qlist;
-  SStreamList slist;
+  int32_t  numOfQueries;
+  int32_t  numOfStreams;
+  char     pData[];
 } SCMHeartBeatMsg;
 
 typedef struct {
