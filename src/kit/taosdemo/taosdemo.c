@@ -461,8 +461,7 @@ int main(int argc, char *argv[]) {
   taos_init();
   TAOS *taos = taos_connect(ip_addr, user, pass, NULL, port);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(taos));
-    taos_close(taos);
+    fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
     return 1;
   }
   char command[BUFFER_SIZE] = "\0";

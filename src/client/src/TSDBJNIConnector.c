@@ -305,14 +305,21 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(
   return (jlong)pSql;
 }
 
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getErrCodeImp(JNIEnv *env, jobject jobj, jlong con) {
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getErrCodeImp(JNIEnv *env, jobject jobj, jlong con, jlong tres) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
     jniError("jobj:%p, connection is closed", jobj);
-    return (jint)-TSDB_CODE_INVALID_CONNECTION;
+    return (jint)TSDB_CODE_INVALID_CONNECTION;
   }
 
-  return (jint)-taos_errno(tscon);
+  if ((void *)tres == NULL) {
+    jniError("jobj:%p, conn:%p, resultset is null", jobj, tscon);
+    return JNI_RESULT_SET_NULL;
+  }
+
+  TAOS_RES *pSql = (TAOS_RES *)tres;
+
+  return (jint)taos_errno(pSql);
 }
 
 JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getErrMsgImp(JNIEnv *env, jobject jobj, jlong tres) {
@@ -464,7 +471,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
 
   TAOS_ROW row = taos_fetch_row(result);
   if (row == NULL) {
-    int tserrno = taos_errno(tscon);
+    int tserrno = taos_errno(result);
     if (tserrno == 0) {
       jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
       return JNI_FETCH_END;

@@ -71,7 +71,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp
  * Signature: (J)I
  */
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getErrCodeImp
-  (JNIEnv *, jobject, jlong);
+  (JNIEnv *, jobject, jlong, jlong);
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
