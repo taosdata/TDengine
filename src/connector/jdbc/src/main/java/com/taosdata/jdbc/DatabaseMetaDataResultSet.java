@@ -160,6 +160,7 @@ public class DatabaseMetaDataResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
+        columnIndex--;
         return rowCursor.getTimestamp(columnIndex);
     }
 
