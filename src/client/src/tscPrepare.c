@@ -494,7 +494,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   tsem_init(&pSql->rspSem, 0, 0);
   pSql->signature     = pSql;
   pSql->pTscObj       = pObj;
-  pSql->pTscObj->pSql = pSql;
+  //pSql->pTscObj->pSql = pSql;
   pSql->maxRetry      = TSDB_MAX_REPLICA_NUM;
 
   pStmt->pSql = pSql;
@@ -515,7 +515,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   //doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
   SSqlCmd *pCmd    = &pSql->cmd;
   SSqlRes *pRes    = &pSql->res;
-  pSql->param      = (void*)pStmt->taos;
+  pSql->param      = (void*)pSql;
   pSql->fp         = waitForQueryRsp;
   pSql->insertType = TSDB_QUERY_TYPE_STMT_INSERT;
   
@@ -613,7 +613,12 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     } else {
       tfree(pStmt->pSql->sqlstr);
       pStmt->pSql->sqlstr = sql;
-      ret = taos_query(pStmt->taos, pStmt->pSql->sqlstr);
+      SSqlObj* pSql = taos_query((TAOS*)pStmt->taos, pStmt->pSql->sqlstr);
+      if (pSql != NULL) {
+        ret = pSql->res.code;
+      } else {
+        ret = terrno;
+      } 
     }
   }
   return ret;

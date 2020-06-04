@@ -487,7 +487,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           assert(code == TSDB_CODE_SUCCESS && pTableMetaInfo->pTableMeta != NULL);
-          (*pSql->fp)(pSql->param, NULL, code);
+          (*pSql->fp)(pSql->param, pSql, code);
           return;
         }
         
