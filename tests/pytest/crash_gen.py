@@ -609,7 +609,8 @@ class StateDbOnly(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
-        self.assertAtMostOneSuccess(tasks, DropDbTask) # not true in massively parralel cases
+        if ( not self.hasTask(tasks, CreateDbTask) ):
+            self.assertAtMostOneSuccess(tasks, DropDbTask) # only if we don't create any more
         self.assertIfExistThenSuccess(tasks, DropDbTask)
         # self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # not true in massively parrallel cases
         # Nothing to be said about adding data task
@@ -619,7 +620,8 @@ class StateDbOnly(AnyState):
             # self._state = self.STATE_EMPTY
         elif ( self.hasSuccess(tasks, CreateFixedSuperTableTask) ): # did not drop db, create table success
             # self.assertHasTask(tasks, CreateFixedTableTask) # tried to create table
-            self.assertAtMostOneSuccess(tasks, CreateFixedSuperTableTask) # at most 1 attempt is successful
+            if ( not self.hasTask(tasks, DropFixedSuperTableTask) ): 
+                self.assertAtMostOneSuccess(tasks, CreateFixedSuperTableTask) # at most 1 attempt is successful, if we don't drop anything
             self.assertNoTask(tasks, DropDbTask) # should have have tried
             # if ( not self.hasSuccess(tasks, AddFixedDataTask) ): # just created table, no data yet
             #     # can't say there's add-data attempts, since they may all fail
@@ -674,7 +676,7 @@ class StateHasData(AnyState):
             if ( not self.hasTask(tasks, CreateDbTask)): # without a create_db task
                 self.assertNoTask(tasks, DropDbTask) # we must have drop_db task
             self.hasSuccess(tasks, DropFixedSuperTableTask)
-            self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask) # TODO: dicy
+            # self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask) # TODO: dicy
         elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
             self.assertNoTask(tasks, DropDbTask)
             self.assertNoTask(tasks, DropFixedSuperTableTask)
@@ -689,9 +691,9 @@ class StateHasData(AnyState):
 # State of the database as we believe it to be
 class DbState():
     
-    def __init__(self):
+    def __init__(self, resetDb = True):
         self.tableNumQueue = LinearQueue()
-        self._lastTick = datetime.datetime(2019, 1, 1) # initial date time tick
+        self._lastTick = self.setupLastTick() # datetime.datetime(2019, 1, 1) # initial date time tick
         self._lastInt  = 0 # next one is initial integer 
         self._lock = threading.RLock()
 
@@ -712,11 +714,31 @@ class DbState():
         except:
             print("[=] Unexpected exception")
             raise        
-        self._dbConn.resetDb() # drop and recreate DB
-        self._state = StateEmpty() # initial state, the result of above
+
+        if resetDb :
+            self._dbConn.resetDb() # drop and recreate DB            
+        self._state = self._findCurrentState()
 
     def getDbConn(self):
         return self._dbConn
+
+    def getState(self):
+        return self._state
+
+    # We aim to create a starting time tick, such that, whenever we run our test here once
+    # We should be able to safely create 100,000 records, which will not have any repeated time stamp
+    # when we re-run the test in 3 minutes (180 seconds), basically we should expand time duration
+    # by a factor of 500.
+    # TODO: what if it goes beyond 10 years into the future
+    def setupLastTick(self):
+        t1 = datetime.datetime(2020, 5, 30)
+        t2 = datetime.datetime.now()
+        elSec = t2.timestamp() - t1.timestamp()
+        # print("elSec = {}".format(elSec))
+        t3 = datetime.datetime(2012, 1, 1) # default "keep" is 10 years
+        t4 = datetime.datetime.fromtimestamp( t3.timestamp() + elSec * 500) # see explanation above
+        logger.info("Setting up TICKS to start from: {}".format(t4))
+        return t4
 
     def pickAndAllocateTable(self): # pick any table, and "use" it
         return self.tableNumQueue.pickAndAllocate()
@@ -743,7 +765,7 @@ class DbState():
             return self._lastInt
 
     def getNextBinary(self):
-        return "Los_Angeles_{}".format(self.getNextInt())
+        return "Beijing_Shanghai_Los_Angeles_New_York_San_Francisco_Chicago_Beijing_Shanghai_Los_Angeles_New_York_San_Francisco_Chicago_{}".format(self.getNextInt())
 
     def getNextFloat(self):
         return 0.9 + self.getNextInt()
@@ -1089,7 +1111,7 @@ class CreateFixedSuperTableTask(StateTransitionTask):
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         tblName = self._dbState.getFixedSuperTableName()        
-        wt.execSql("create table db.{} (ts timestamp, speed int) tags (b binary(20), f float) ".format(tblName))
+        wt.execSql("create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that automatically
 
 
@@ -1148,12 +1170,13 @@ class AddFixedDataTask(StateTransitionTask):
         ds = self._dbState
         wt.execSql("use db") # TODO: seems to be an INSERT bug to require this
         for i in range(10): # 0 to 9
-            sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
-                i, 
-                ds.getFixedSuperTableName(), 
-                ds.getNextBinary(), ds.getNextFloat(),
-                ds.getNextTick(), ds.getNextInt())
-            wt.execSql(sql) 
+            for j in range(10) :
+                sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
+                    i, 
+                    ds.getFixedSuperTableName(), 
+                    ds.getNextBinary(), ds.getNextFloat(),
+                    ds.getNextTick(), ds.getNextInt())
+                wt.execSql(sql) 
 
 
 #---------- Non State-Transition Related Tasks ----------#
@@ -1301,13 +1324,52 @@ def main():
     ch = logging.StreamHandler()
     logger.addHandler(ch)
 
-    dbState = DbState()
+    # resetDb = False # DEBUG only
+    # dbState = DbState(resetDb)  # DBEUG only!
+    dbState = DbState() # Regular function
     Dice.seed(0) # initial seeding of dice
     tc = ThreadCoordinator(
         ThreadPool(dbState, gConfig.num_threads, gConfig.max_steps, 0), 
         # WorkDispatcher(dbState), # Obsolete?
         dbState
         )
+
+    # # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
+    # dbc = dbState.getDbConn()
+    # sTbName = dbState.getFixedSuperTableName()   
+    # dbc.execute("create database if not exists db")
+    # if not dbState.getState().equals(StateEmpty()):
+    #     dbc.execute("use db")     
+
+    # rTables = None
+    # try: # the super table may not exist
+    #     sql = "select TBNAME from db.{}".format(sTbName)
+    #     logger.info("Finding out tables in super table: {}".format(sql))
+    #     dbc.query(sql) # TODO: analyze result set later
+    #     logger.info("Fetching result")
+    #     rTables = dbc.getQueryResult()
+    #     logger.info("Result: {}".format(rTables))
+    # except taos.error.ProgrammingError as err:
+    #     logger.info("Initial Super table OPS error: {}".format(err))
+    
+    # # sys.exit()
+    # if ( not rTables == None):
+    #     # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
+    #     try:
+    #         for rTbName in rTables : # regular tables
+    #             ds = dbState
+    #             logger.info("Inserting into table: {}".format(rTbName[0]))
+    #             sql = "insert into db.{} values ('{}', {});".format(
+    #                 rTbName[0],                    
+    #                 ds.getNextTick(), ds.getNextInt())
+    #             dbc.execute(sql)
+    #         for rTbName in rTables : # regular tables        
+    #             dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
+    #         logger.info("Initial READING operation is successful")       
+    #     except taos.error.ProgrammingError as err:
+    #         logger.info("Initial WRITE/READ error: {}".format(err))   
+    
+    
 
     # Sandbox testing code
     # dbc = dbState.getDbConn()

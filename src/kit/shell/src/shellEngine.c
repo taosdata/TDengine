@@ -275,22 +275,28 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   st = taosGetTimestampUs();
 
-  if (taos_query(con, command)) {
-    taos_error(con);
+  TAOS_RES* pSql = taos_query(con, command);
+  if (taos_errno(pSql)) {
+    taos_error(pSql);
     return;
   }
 
   if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
+    
+    taos_free_result(pSql);
     return;
   }
 
-  int num_fields = taos_field_count(con);
+  int num_fields = taos_field_count(pSql);
   if (num_fields != 0) {  // select and show kinds of commands
     int error_no = 0;
-    int numOfRows = shellDumpResult(con, fname, &error_no, printMode);
-    if (numOfRows < 0) return;
+    int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
+    if (numOfRows < 0) {
+      taos_free_result(pSql);
+      return;
+    }
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
@@ -299,7 +305,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
       printf("Query interrupted (%s), %d row(s) in set (%.6fs)\n", taos_errstr(con), numOfRows, (et - st) / 1E6);
     }
   } else {
-    int num_rows_affacted = taos_affected_rows(con);
+    int num_rows_affacted = taos_affected_rows(pSql);
     et = taosGetTimestampUs();
     printf("Query OK, %d row(s) affected (%.6fs)\n", num_rows_affacted, (et - st) / 1E6);
   }
@@ -309,6 +315,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   if (fname != NULL) {
     wordfree(&full_path);
   }
+  
+  taos_free_result(pSql);
 }
 
 /* Function to do regular expression check */
@@ -461,6 +469,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
   } while( row != NULL);
 
   fclose(fp);
+  taos_free_result(result);
   return numOfRows;
 }
 
@@ -548,15 +557,15 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
 }
 
 
-static int verticalPrintResult(TAOS_RES* result) {
-  TAOS_ROW row = taos_fetch_row(result);
+static int verticalPrintResult(TAOS_RES* tres) {
+  TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
   }
 
-  int num_fields = taos_num_fields(result);
-  TAOS_FIELD *fields = taos_fetch_fields(result);
-  int precision = taos_result_precision(result);
+  int num_fields = taos_num_fields(tres);
+  TAOS_FIELD *fields = taos_fetch_fields(tres);
+  int precision = taos_result_precision(tres);
 
   int maxColNameLen = 0;
   for (int col = 0; col < num_fields; col++) {
@@ -569,7 +578,7 @@ static int verticalPrintResult(TAOS_RES* result) {
   int numOfRows = 0;
   do {
     printf("*************************** %d.row ***************************\n", numOfRows + 1);
-    int32_t* length = taos_fetch_lengths(result);
+    int32_t* length = taos_fetch_lengths(tres);
     for (int i = 0; i < num_fields; i++) {
       TAOS_FIELD* field = fields + i;
 
@@ -581,7 +590,7 @@ static int verticalPrintResult(TAOS_RES* result) {
     }
 
     numOfRows++;
-    row = taos_fetch_row(result);
+    row = taos_fetch_row(tres);
   } while(row != NULL);
 
   return numOfRows;
@@ -656,15 +665,15 @@ static void printHeader(TAOS_FIELD* fields, int* width, int num_fields) {
 }
 
 
-static int horizontalPrintResult(TAOS_RES* result) {
-  TAOS_ROW row = taos_fetch_row(result);
+static int horizontalPrintResult(TAOS_RES* tres) {
+  TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
   }
 
-  int num_fields = taos_num_fields(result);
-  TAOS_FIELD *fields = taos_fetch_fields(result);
-  int precision = taos_result_precision(result);
+  int num_fields = taos_num_fields(tres);
+  TAOS_FIELD *fields = taos_fetch_fields(tres);
+  int precision = taos_result_precision(tres);
 
   int width[TSDB_MAX_COLUMNS];
   for (int col = 0; col < num_fields; col++) {
@@ -675,7 +684,7 @@ static int horizontalPrintResult(TAOS_RES* result) {
 
   int numOfRows = 0;
   do {
-    int32_t* length = taos_fetch_lengths(result);
+    int32_t* length = taos_fetch_lengths(tres);
     for (int i = 0; i < num_fields; i++) {
       putchar(' ');
       printField(row[i], fields + i, width[i], length[i], precision);
@@ -684,32 +693,24 @@ static int horizontalPrintResult(TAOS_RES* result) {
     }
     putchar('\n');
     numOfRows++;
-    row = taos_fetch_row(result);
+    row = taos_fetch_row(tres);
   } while(row != NULL);
 
   return numOfRows;
 }
 
 
-int shellDumpResult(TAOS *con, char *fname, int *error_no, bool vertical) {
+int shellDumpResult(TAOS_RES *tres, char *fname, int *error_no, bool vertical) {
   int numOfRows = 0;
-
-  TAOS_RES* result = taos_use_result(con);
-  if (result == NULL) {
-    taos_error(con);
-    return -1;
-  }
-
   if (fname != NULL) {
-    numOfRows = dumpResultToFile(fname, result);
+    numOfRows = dumpResultToFile(fname, tres);
   } else if(vertical) {
-    numOfRows = verticalPrintResult(result);
+    numOfRows = verticalPrintResult(tres);
   } else {
-    numOfRows = horizontalPrintResult(result);
+    numOfRows = horizontalPrintResult(tres);
   }
 
-  *error_no = taos_errno(con);
-  taos_free_result(result);
+  *error_no = taos_errno(tres);
   return numOfRows;
 }
 
@@ -771,12 +772,11 @@ void write_history() {
   fclose(f);
 }
 
-void taos_error(TAOS *con) {
-  fprintf(stderr, "\nDB error: %s\n", taos_errstr(con));
+void taos_error(TAOS_RES *tres) {
+  fprintf(stderr, "\nDB error: %s\n", taos_errstr(tres));
 
   /* free local resouce: allocated memory/metric-meta refcnt */
-  TAOS_RES *pRes = taos_use_result(con);
-  taos_free_result(pRes);
+  taos_free_result(tres);
 }
 
 int isCommentLine(char *line) {
@@ -858,8 +858,9 @@ void shellGetGrantInfo(void *con) {
 
   char sql[] = "show grants";
 
-  int code = taos_query(con, sql);
-
+  TAOS_RES* pSql = taos_query(con, sql);
+  int code = taos_errno(pSql);
+  
   if (code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
       fprintf(stdout, "Server is Community Edition, version is %s\n\n", taos_get_server_info(con));
@@ -869,12 +870,11 @@ void shellGetGrantInfo(void *con) {
     return;
   }
 
-  int num_fields = taos_field_count(con);
+  int num_fields = taos_field_count(result);
   if (num_fields == 0) {
     fprintf(stderr, "\nInvalid grant information.\n");
     exit(0);
   } else {
-    result = taos_use_result(con);
     if (result == NULL) {
       fprintf(stderr, "\nGrant information is null.\n");
       exit(0);

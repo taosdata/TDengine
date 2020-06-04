@@ -88,14 +88,13 @@ int        taos_stmt_execute(TAOS_STMT *stmt);
 TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
 int        taos_stmt_close(TAOS_STMT *stmt);
 
-DLL_EXPORT int taos_query(TAOS *taos, const char *sql);
-DLL_EXPORT TAOS_RES *taos_use_result(TAOS *taos);
+DLL_EXPORT TAOS_RES *taos_query(TAOS *taos, const char *sql);
 DLL_EXPORT TAOS_ROW taos_fetch_row(TAOS_RES *res);
 DLL_EXPORT int taos_result_precision(TAOS_RES *res);  // get the time precision of result
 DLL_EXPORT void taos_free_result(TAOS_RES *res);
-DLL_EXPORT int taos_field_count(TAOS *taos);
+DLL_EXPORT int taos_field_count(TAOS_RES *tres);
 DLL_EXPORT int taos_num_fields(TAOS_RES *res);
-DLL_EXPORT int taos_affected_rows(TAOS *taos);
+DLL_EXPORT int taos_affected_rows(TAOS_RES *taos);
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
@@ -112,9 +111,9 @@ int* taos_fetch_lengths(TAOS_RES *res);
 // TODO: the return value should be `const`
 DLL_EXPORT char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT char *taos_get_client_info();
-DLL_EXPORT char *taos_errstr(TAOS *taos);
+DLL_EXPORT char *taos_errstr(TAOS_RES *tres);
 
-DLL_EXPORT int taos_errno(TAOS *taos);
+DLL_EXPORT int taos_errno(TAOS_RES *tres);
 
 DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);
 DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);

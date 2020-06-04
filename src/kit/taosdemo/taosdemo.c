@@ -461,8 +461,7 @@ int main(int argc, char *argv[]) {
   taos_init();
   TAOS *taos = taos_connect(ip_addr, user, pass, NULL, port);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(taos));
-    taos_close(taos);
+    fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
     return 1;
   }
   char command[BUFFER_SIZE] = "\0";
@@ -708,27 +707,24 @@ void *readTable(void *sarg) {
       sprintf(command, "select %s from %s%d where ts>= %" PRId64, aggreFunc[j], tb_prefix, i, sTime);
 
       double t = getCurrentTime();
-      if (taos_query(taos, command) != 0) {
-        fprintf(stderr, "Failed to query\n");
+      TAOS_RES *pSql = taos_query(taos, command);
+      int32_t code = taos_errno(pSql);
+
+      if (code != 0) {
+        fprintf(stderr, "Failed to query:%s\n", taos_errstr(taos));
+        taos_free_result(pSql);
         taos_close(taos);
         exit(EXIT_FAILURE);
       }
 
-      TAOS_RES *result = taos_use_result(taos);
-      if (result == NULL) {
-        fprintf(stderr, "Failed to retreive results:%s\n", taos_errstr(taos));
-        taos_close(taos);
-        exit(1);
-      }
-
-      while (taos_fetch_row(result) != NULL) {
+      while (taos_fetch_row(pSql) != NULL) {
         count++;
       }
 
       t = getCurrentTime() - t;
       totalT += t;
 
-      taos_free_result(result);
+      taos_free_result(pSql);
     }
 
     fprintf(fp, "|%10s  |   %10d   |  %12.2f   |   %10.2f  |\n",
@@ -779,20 +775,18 @@ void *readMetric(void *sarg) {
       fprintf(fp, "%s\n", command);
 
       double t = getCurrentTime();
-      if (taos_query(taos, command) != 0) {
-        fprintf(stderr, "Failed to query\n");
-        taos_close(taos);
-        exit(EXIT_FAILURE);
-      }
 
-      TAOS_RES *result = taos_use_result(taos);
-      if (result == NULL) {
-        fprintf(stderr, "Failed to retreive results:%s\n", taos_errstr(taos));
+      TAOS_RES *pSql = taos_query(taos, command);
+      int32_t code = taos_errno(pSql);
+
+      if (code != 0) {
+        fprintf(stderr, "Failed to query:%s\n", taos_errstr(taos));
+        taos_free_result(pSql);
         taos_close(taos);
         exit(1);
       }
       int count = 0;
-      while (taos_fetch_row(result) != NULL) {
+      while (taos_fetch_row(pSql) != NULL) {
         count++;
       }
       t = getCurrentTime() - t;
@@ -800,7 +794,7 @@ void *readMetric(void *sarg) {
       fprintf(fp, "| Speed: %12.2f(per s) | Latency: %.4f(ms) |\n", num_of_tables * num_of_DPT / t, t * 1000);
       printf("select %10s took %.6f second(s)\n\n", aggreFunc[j], t);
 
-      taos_free_result(result);
+      taos_free_result(pSql);
     }
     fprintf(fp, "\n");
   }
@@ -811,10 +805,19 @@ void *readMetric(void *sarg) {
 
 void queryDB(TAOS *taos, char *command) {
   int i = 5;
-  while (i > 0) {
-    if (taos_query(taos, command) == 0) break;
+  TAOS_RES *pSql = NULL;
+  int32_t code = -1;
+  while (i > 0 && code != 0) {
+    pSql = taos_query(taos, command);
+    code = taos_errno(pSql);
+    taos_free_result(pSql);
+    pSql = NULL;
+    if (code == 0) {
+      break;
+    }
     i--; 
   }
+
   if (i == 0) {
     fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(taos));
     taos_close(taos);
@@ -947,6 +950,7 @@ void callBack(void *param, TAOS_RES *res, int code) {
       break;
     }
   }
+   tb_info->timestamp = tmp_time;
 
   taos_query_a(tb_info->taos, buffer, callBack, tb_info);
 

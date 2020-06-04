@@ -1715,6 +1715,7 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
     pParentObj->res.numOfRows += numOfRows;
   }
   
+  taos_free_result(tres);
   int32_t completed = atomic_add_fetch_32(&pState->numOfCompleted, 1);
   if (completed < total) {
     return;
@@ -1732,7 +1733,7 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
   pParentObj->fp = pParentObj->fetchFp;
   
   // all data has been sent to vnode, call user function
-  (*pParentObj->fp)(pParentObj->param, tres, numOfRows);
+  (*pParentObj->fp)(pParentObj->param, pParentObj, numOfRows);
 }
 
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
