@@ -52,6 +52,7 @@ typedef struct {
   SSyncHead syncHead;
   uint16_t  port;
   char      fqdn[TSDB_FQDN_LEN];
+  int32_t   sourceId;  // only for arbitrator
 } SFirstPkt;
 
 typedef struct {

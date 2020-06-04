@@ -469,7 +469,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
   int ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     sTrace("%s, start to check peer connection", pPeer->id);
-    taosTmrReset(syncCheckPeerConnection, 10, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, 100, pPeer, syncTmrCtrl, &pPeer->timer);
   }
   
   syncAddNodeRef(pNode);
@@ -568,7 +568,7 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
         index = i;
       } else { // multiple masters, it shall not happen 
         if ( i == pNode->selfIndex ) {
-          sError("%s: is master, work as slave instead", pNode->vgId, pTemp->id);
+          sError("%s, peer is master, work as slave instead", pTemp->id);
           nodeRole = TAOS_SYNC_ROLE_SLAVE;
           (*pNode->notifyRole)(pNode->ahandle, nodeRole);
         }
@@ -936,6 +936,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   firstPkt.syncHead.type = TAOS_SMSG_STATUS;
   strcpy(firstPkt.fqdn, tsNodeFqdn); 
   firstPkt.port = tsSyncPort;
+  firstPkt.sourceId = pNode->vgId;  // tell arbitrator its vgId
 
   if ( write(connFd, &firstPkt, sizeof(firstPkt)) == sizeof(firstPkt)) {
     sTrace("%s, connection to peer server is setup", pPeer->id);
@@ -1001,12 +1002,6 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   }
 
   int32_t vgId = firstPkt.syncHead.vgId;
-  if (vgId == 0) {  // work as arbitrator
-    sTrace("work as arbitrator for ip:%s", ipstr);
-    taosAllocateTcpThread(tsTcpPool, NULL, connFd);
-    return;
-  }
-
   SSyncNode **ppNode = (SSyncNode **)taosHashGet(vgIdHash, (const char *)&vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
