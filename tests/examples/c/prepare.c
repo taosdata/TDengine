@@ -19,15 +19,15 @@ int main(int argc, char *argv[])
   TAOS_STMT *stmt;
 
   // connect to server
-  //if (argc < 2) {
-  //  printf("please input server ip \n");
-  //  return 0;
-  //}
+  if (argc < 2) {
+    printf("please input server ip \n");
+    return 0;
+  }
 
   // init TAOS
   taos_init();
 
-  taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
+  taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
     exit(1);
