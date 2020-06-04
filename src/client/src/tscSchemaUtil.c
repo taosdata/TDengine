@@ -168,6 +168,8 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->sid = pTableMetaMsg->sid;
   pTableMeta->uid = pTableMetaMsg->uid;
   pTableMeta->vgroupInfo = pTableMetaMsg->vgroup;
+  pTableMeta->sversion = pTableMetaMsg->sversion;
+  pTableMeta->tversion = pTableMetaMsg->tversion;
   
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
   

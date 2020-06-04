@@ -43,7 +43,7 @@ enum {
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SUBMIT, "submit" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_QUERY, "query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_FETCH, "fetch" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY0, "dummy0" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_UPDATE_TAG_VAL, "update-tag-val" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY1, "dummy1" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY2, "dummy2" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY3, "dummy3" )
@@ -275,6 +275,18 @@ typedef struct {
   // tagVal is padded after schema
   // char    tagVal[];
 } SCMAlterTableMsg;
+
+typedef struct {
+  SMsgHead  head;
+  int64_t   uid;
+  int32_t   tid;
+  int16_t   tversion;
+  int16_t   colId;
+  int16_t   type;
+  int16_t   bytes;
+  int32_t   tagValLen;
+  char      data[];
+} SUpdateTableTagValMsg;
 
 typedef struct {
   char clientVersion[TSDB_VERSION_LEN];

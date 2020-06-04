@@ -56,6 +56,7 @@ typedef struct STableMeta {
   STableComInfo tableInfo;
   uint8_t       tableType;
   int16_t       sversion;
+  int16_t       tversion;
   SCMVgroupInfo vgroupInfo;
   int32_t       sid;       // the index of one table in a virtual node
   uint64_t      uid;       // unique id of a table

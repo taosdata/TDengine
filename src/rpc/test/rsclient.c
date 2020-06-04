@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       ipSet.port[0] = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
-      tstrncpy(ipSet.fqdn[0], argv[++i], sizeof(ipSet.fqdn)); 
+      tstrncpy(ipSet.fqdn[0], argv[++i], sizeof(ipSet.fqdn[0])); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
