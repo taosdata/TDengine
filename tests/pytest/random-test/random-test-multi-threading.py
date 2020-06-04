@@ -44,11 +44,15 @@ class Test (threading.Thread):
             return
         else:
             tdLog.info("will create table %s" % current_tb)
-            tdSql.execute(
-                'create table %s (ts timestamp, speed int)' %
-                current_tb)
-            last_tb = current_tb
-            written = 0
+
+            try:
+                tdSql.execute(
+                    'create table %s (ts timestamp, speed int)' %
+                    current_tb)
+                last_tb = current_tb
+                written = 0
+            except Exception as e:
+                tdLog.info(repr(e))
 
     def insert_data(self):
         tdLog.info("insert_data")
@@ -85,6 +89,7 @@ class Test (threading.Thread):
         global last_tb
         global last_stb
         global written
+
         current_stb = "stb%d" % int(round(time.time() * 1000))
 
         if (current_stb == last_stb):
@@ -104,7 +109,7 @@ class Test (threading.Thread):
             tdSql.execute(
                 "insert into %s values (now, 27, '我是nchar字符串')" %
                 last_tb)
-            self.written = self.written + 1
+            written = written + 1
 
 
     def drop_stable(self):
@@ -135,7 +140,7 @@ class Test (threading.Thread):
 
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
-        tdLog.sleep(5)
+        tdLog.sleep(10)
 
     def drop_table(self):
         tdLog.info("drop_table")
@@ -148,7 +153,6 @@ class Test (threading.Thread):
                 tdSql.execute("drop table %s" % last_tb)
                 last_tb = ""
                 written = 0
-            tdLog.sleep(self.sleepTime)
 
 
     def query_data_from_stable(self):
@@ -175,11 +179,13 @@ class Test (threading.Thread):
     def reset_database(self):
         tdLog.info("reset_database")
         global last_tb
+        global last_stb
         global written
 
         tdDnodes.forcestop(1)
         tdDnodes.deploy(1)
         last_tb = ""
+        last_stb = ""
         written = 0
         tdDnodes.start(1)
         tdSql.prepare()
@@ -197,6 +203,7 @@ class Test (threading.Thread):
         last_tb = ""
         written = 0
         tdDnodes.start(1)
+        tdLog.sleep(10)
         tdSql.prepare()
 
     def run(self):
