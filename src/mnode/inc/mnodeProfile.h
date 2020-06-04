@@ -24,6 +24,9 @@ extern "C" {
 int32_t mnodeInitProfile();
 void    mnodeCleanupProfile();
 
+uint32_t mnodeCreateConn(char *user, uint32_t ip, uint16_t port);
+bool     mnodeCheckConn(uint32_t connId, char *user, uint32_t ip, uint16_t port);
+
 #ifdef __cplusplus
 }
 #endif

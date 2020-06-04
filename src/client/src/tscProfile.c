@@ -206,7 +206,8 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
   taos_close_stream(pStream);
 }
 
-char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
+int tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
+  char *  pStart = pMsg;
   char *  pMax = pMsg + TSDB_PAYLOAD_SIZE - 256;
   
   SQqueryList *pQList = (SQqueryList *)pMsg;
@@ -270,7 +271,7 @@ char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
 
   /* pthread_mutex_unlock (&pObj->mutex); */
 
-  return pMsg;
+  return pMsg - pStart;
 }
 
 void tscKillConnection(STscObj *pObj) {

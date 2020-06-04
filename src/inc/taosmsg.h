@@ -137,6 +137,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_SCORES,
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VNODES,
+  TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -287,6 +288,9 @@ typedef struct {
   char      serverVersion[TSDB_VERSION_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;
+  int8_t    reserved1;
+  int8_t    reserved2;
+  int32_t   connId;
   SRpcIpSet ipList;
 } SCMConnectRsp;
 
@@ -712,6 +716,7 @@ typedef struct {
 } SStreamList;
 
 typedef struct {
+  uint32_t connId;
   SQqueryList qlist;
   SStreamList slist;
 } SCMHeartBeatMsg;
@@ -721,6 +726,7 @@ typedef struct {
   uint32_t  streamId;
   uint32_t  totalDnodes;
   uint32_t  onlineDnodes;
+  uint32_t  connId;
   int8_t    killConnection;
   SRpcIpSet ipList;
 } SCMHeartBeatRsp;

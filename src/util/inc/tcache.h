@@ -112,6 +112,15 @@ void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, siz
 void *taosCacheAcquireByName(SCacheObj *pCacheObj, const char *key);
 
 /**
+ * update the expire time of data in cache 
+ * @param pCacheObj     cache object
+ * @param key           key
+ * @param expireTime    new expire time of data
+ * @return
+ */ 
+void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, uint64_t expireTime);
+
+/**
  * Add one reference count for the exist data, and assign this data for a new owner.
  * The new owner needs to invoke the taosCacheRelease when it does not need this data anymore.
  * This procedure is a faster version of taosCacheAcquireByName function, which avoids the sideeffect of the problem of

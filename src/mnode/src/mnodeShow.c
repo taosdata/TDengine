@@ -227,6 +227,23 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
+  SCMHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo);
+    
+  int32_t connId = htonl(pHBMsg->connId);
+  if (!mnodeCheckConn(connId, connInfo.user, connInfo.clientIp, connInfo.clientPort)) {
+    connId = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+    if (connId == 0) {
+#if 0 
+      // do not close existing links, otherwise     
+      mError("failed to create connId, close connect");
+      pHBRsp->killConnection = 1;
+#endif      
+    } 
+  }
+
+  pHBRsp->connId = htonl(connId);
   pHBRsp->onlineDnodes = htonl(mnodeGetOnlinDnodesNum());
   pHBRsp->totalDnodes = htonl(mnodeGetDnodesNum());
   mnodeGetMnodeIpSetForShell(&pHBRsp->ipList);
@@ -235,9 +252,9 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
    * TODO
    * Dispose kill stream or kill query message
    */
-  pHBRsp->queryId = 0;
-  pHBRsp->streamId = 0;
-  pHBRsp->killConnection = 0;
+  // pHBRsp->queryId = 0;
+  // pHBRsp->streamId = 0;
+  // pHBRsp->killConnection = 0;
 
   pMsg->rpcRsp.rsp = pHBRsp;
   pMsg->rpcRsp.len = sizeof(SCMHeartBeatRsp);
@@ -281,10 +298,14 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     goto connect_over;
   }
 
+  int32_t connId = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+  if (connId == 0) code = terrno;
+
   sprintf(pConnectRsp->acctId, "%x", pAcct->acctId);
   strcpy(pConnectRsp->serverVersion, version);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
+  pConnectRsp->connId = htonl(connId);
 
   mnodeGetMnodeIpSetForShell(&pConnectRsp->ipList);
 
@@ -357,4 +378,12 @@ static void mnodeFreeShowObj(void *data) {
 static void mnodeReleaseShowObj(void *pShow, bool forceRemove) {
   mTrace("%p, show is released, force:%s", pShow, forceRemove ? "true" : "false");
   taosCacheRelease(tsMnodeShowCache, &pShow, forceRemove);
+}
+
+void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
+  if (rows < capacity) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
+    }
+  }
 }

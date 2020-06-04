@@ -2250,12 +2250,6 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   char* ipStr = strtok(ip->z, &delim);
   char* portStr = strtok(NULL, &delim);
 
-  if (!validateIpAddress(ipStr, strlen(ipStr))) {
-    memset(pCmd->payload, 0, strlen(pCmd->payload));
-
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  }
-
   uint16_t port = (uint16_t)strtol(portStr, NULL, 10);
   if (port <= 0 || port > 65535) {
     memset(pCmd->payload, 0, strlen(pCmd->payload));

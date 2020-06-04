@@ -114,6 +114,8 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     if (pIpList->numOfIps > 0) 
       tscSetMgmtIpList(pIpList);
 
+    pSql->pTscObj->connId = htonl(pRsp->connId);
+
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
     } else {
@@ -1769,30 +1771,25 @@ int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {
 }
 
 int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  char *pMsg, *pStart;
-  int   msgLen = 0;
-  int   size = 0;
-
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
 
   pthread_mutex_lock(&pObj->mutex);
 
-  size = tscEstimateHeartBeatMsgLength(pSql);
+  int size = tscEstimateHeartBeatMsgLength(pSql);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     pthread_mutex_unlock(&pObj->mutex);
     tscError("%p failed to malloc for heartbeat msg", pSql);
     return -1;
   }
 
-  pMsg = pCmd->payload;
-  pStart = pMsg;
+  SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg*)pCmd->payload;
+  pHeartbeat->connId = htonl(pSql->pTscObj->connId);
 
-  pMsg = tscBuildQueryStreamDesc(pMsg, pObj);
+  int msgLen = tscBuildQueryStreamDesc((char*)pHeartbeat + sizeof(pHeartbeat->connId), pObj);
   pthread_mutex_unlock(&pObj->mutex);
 
-  msgLen = pMsg - pStart;
-  pCmd->payloadLen = msgLen;
+  pCmd->payloadLen = msgLen + sizeof(pHeartbeat->connId);
   pCmd->msgType = TSDB_MSG_TYPE_CM_HEARTBEAT;
 
   assert(msgLen + minMsgSize() <= size);
@@ -2206,6 +2203,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
   pObj->superAuth = pConnect->superAuth;
+  pObj->connId = htonl(pConnect->connId);
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;

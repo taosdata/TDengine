@@ -45,7 +45,7 @@ typedef struct {
   void              (*cleanup)();
 } SDnodeComponent;
 
-static const SDnodeComponent SDnodeComponents[] = {
+static const SDnodeComponent tsDnodeComponents[] = {
   {"storage", dnodeInitStorage,    dnodeCleanupStorage},
   {"vread",   dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
   {"vwrite",  dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},
@@ -61,14 +61,14 @@ static const SDnodeComponent SDnodeComponents[] = {
 
 static void dnodeCleanupComponents(int32_t stepId) {
   for (int32_t i = stepId; i >= 0; i--) {
-    SDnodeComponents[i].cleanup();
+    tsDnodeComponents[i].cleanup();
   }
 }
 
 static int32_t dnodeInitComponents() {
   int32_t code = 0;
-  for (int32_t i = 0; i < sizeof(SDnodeComponents) / sizeof(SDnodeComponents[0]); i++) {
-    if (SDnodeComponents[i].init() != 0) {
+  for (int32_t i = 0; i < sizeof(tsDnodeComponents) / sizeof(tsDnodeComponents[0]); i++) {
+    if (tsDnodeComponents[i].init() != 0) {
       dnodeCleanupComponents(i);
       code = -1;
       break;
@@ -122,7 +122,7 @@ int32_t dnodeInitSystem() {
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
-    dnodeCleanupComponents(sizeof(SDnodeComponents) / sizeof(SDnodeComponents[0]) - 1);
+    dnodeCleanupComponents(sizeof(tsDnodeComponents) / sizeof(tsDnodeComponents[0]) - 1);
     taos_cleanup();
     taosCloseLog();
   }

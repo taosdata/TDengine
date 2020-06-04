@@ -293,6 +293,7 @@ typedef struct STscObj {
   char               sversion[TSDB_VERSION_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
+  uint32_t           connId;
   struct SSqlObj *   pSql;
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
