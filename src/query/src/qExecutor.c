@@ -5858,7 +5858,7 @@ _over:
   taosArrayDestroy(pTableIdList);
 
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(*pQInfo);
+    //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null; 
     *pQInfo = NULL;
   }
 
