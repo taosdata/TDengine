@@ -286,7 +286,7 @@ static void tscProcessCurrentUser(SSqlObj *pSql) {
 }
 
 static void tscProcessCurrentDB(SSqlObj *pSql) {
-  char db[TSDB_DB_NAME_LEN + 1] = {0};
+  char db[TSDB_DB_NAME_LEN] = {0};
   extractDBName(pSql->pTscObj->db, db);
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);

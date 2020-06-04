@@ -102,7 +102,7 @@ typedef struct {
 extern char version[];
 
 typedef struct {
-  char name[TSDB_DB_NAME_LEN + 1];
+  char name[TSDB_DB_NAME_LEN];
   int32_t replica;
   int32_t days;
   int32_t keep;

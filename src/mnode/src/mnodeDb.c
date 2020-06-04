@@ -328,8 +328,8 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   if (code != 0) return code;
 
   pDb = calloc(1, sizeof(SDbObj));
-  strncpy(pDb->name, pCreate->db, TSDB_DB_NAME_LEN);
-  strncpy(pDb->acct, pAcct->user, TSDB_USER_LEN); 
+  tstrncpy(pDb->name, pCreate->db, sizeof(pDb->name));
+  tstrncpy(pDb->acct, pAcct->user, sizeof(pDb->acct)); 
   pDb->createdTime = taosGetTimestampMs(); 
   pDb->cfg = (SDbCfg) {
     .cacheBlockSize      = pCreate->cacheBlockSize,
@@ -373,7 +373,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
 }
 
 bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
-  char dbName[TSDB_DB_NAME_LEN + 1] = {0};
+  char dbName[TSDB_DB_NAME_LEN] = {0};
   extractDBName(db, dbName);
 
   size_t len = strlen(dbName);
@@ -453,7 +453,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  pShow->bytes[cols] = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -610,7 +610,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     
     char* name = mnodeGetDbStr(pDb->name);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, TSDB_DB_NAME_LEN);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, TSDB_DB_NAME_LEN - 1);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

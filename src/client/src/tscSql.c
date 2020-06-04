@@ -92,15 +92,15 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   if (db) {
     int32_t len = strlen(db);
     /* db name is too long */
-    if (len > TSDB_DB_NAME_LEN) {
+    if (len >= TSDB_DB_NAME_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       rpcClose(pDnodeConn);
       free(pObj);
       return NULL;
     }
 
-    char tmp[TSDB_DB_NAME_LEN + 1] = {0};
-    strcpy(tmp, db);
+    char tmp[TSDB_DB_NAME_LEN] = {0};
+    tstrncpy(tmp, db, sizeof(tmp));
 
     strdequote(tmp);
     strtolower(pObj->db, tmp);

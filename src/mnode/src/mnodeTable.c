@@ -1160,7 +1160,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
   
-    int16_t len = strnlen(stableName, TSDB_DB_NAME_LEN);
+    int16_t len = strnlen(stableName, TSDB_DB_NAME_LEN - 1);
     *(int16_t*) pWrite = len;
     pWrite += sizeof(int16_t); // todo refactor
   
