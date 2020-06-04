@@ -941,6 +941,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
 
 static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
@@ -948,6 +949,39 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
     tsdbError("vgId:%d, failed to get table for insert, uid:" PRIu64 ", tid:%d", pRepo->config.tsdbId, pBlock->uid,
               pBlock->tid);
     return TSDB_CODE_INVALID_TABLE_ID;
+  }
+
+  // Check schema version
+  int32_t tversion = pBlock->sversion;
+  int16_t nversion = schemaVersion(tsdbGetTableSchema(pMeta, pTable));
+  if (tversion > nversion) {
+    tsdbTrace("vgId:%d table:%s tid:%d server schema version %d is older than clien version %d, try to config.",
+              pRepo->config.tsdbId, varDataVal(pTable->name), pTable->tableId.tid, nversion, tversion);
+    void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, pTable->tableId.tid);
+    if (msg == NULL) {
+      return terrno;
+    }
+    // Deal with error her
+    STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
+    STable *pTableUpdate = NULL;
+    if (pTable->type == TSDB_CHILD_TABLE) {
+      pTableUpdate = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
+    } else {
+      pTableUpdate = pTable;
+    }
+
+    int32_t code = tsdbUpdateTable(pMeta, pTableUpdate, pTableCfg);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    tsdbClearTableCfg(pTableCfg);
+    rpcFreeCont(msg);
+  } else {
+    if (tsdbGetTableSchemaByVersion(pMeta, pTable, tversion) == NULL) {
+      tsdbError("vgId:%d table:%s tid:%d invalid schema version %d from client", pRepo->config.tsdbId,
+                varDataVal(pTable->name), pTable->tableId.tid, tversion);
+      return TSDB_CODE_TABLE_SCHEMA_VERSION;
+    }
   }
 
   SSubmitBlkIter blkIter = {0};
