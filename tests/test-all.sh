@@ -1,5 +1,22 @@
 #!/bin/bash
 
+function runSimCaseOneByOne {
+  while read -r line; do
+    if [[ $line =~ ^run.* ]]; then
+      case=`echo $line | awk '{print $2}'`
+      ./test.sh -f $case 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee -a out.log
+    fi
+  done < $1
+}
+
+function runPyCaseOneByOne {
+  while read -r line; do
+    if [[ $line =~ ^python.* ]]; then
+      $line 2>&1 | grep 'successfully executed\|failed\|fault' | grep -v 'default'| tee -a pytest-out.log
+    fi
+  done < $1
+}
+
 # Color setting
 RED='\033[0;31m'
 GREEN='\033[1;32m'
@@ -9,10 +26,13 @@ NC='\033[0m'
 
 echo "### run TSIM script ###"
 cd script
+
+[ -f out.log ] && rm -f out.log
+
 if [ "$1" == "cron" ]; then
-  ./test.sh -f fullGeneralSuite.sim 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee out.log
+  runSimCaseOneByOne fullGeneralSuite.sim
 else
-  ./test.sh -f basicSuite.sim 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee out.log
+  runSimCaseOneByOne basicSuite.sim
 fi
 
 totalSuccess=`grep 'success' out.log | wc -l`
@@ -36,10 +56,12 @@ fi
 echo "### run Python script ###"
 cd ../pytest
 
+[ -f pytest-out.log ] && rm -f pytest-out.log
+
 if [ "$1" == "cron" ]; then
-  ./fulltest.sh 2>&1 | grep 'successfully executed\|failed\|fault' | grep -v 'default'| tee pytest-out.log
+  runPyCaseOneByOne fulltest.sh
 else
-  ./smoketest.sh 2>&1 | grep 'successfully executed\|failed\|fault' | grep -v 'default'| tee pytest-out.log
+  runPyCaseOneByOne smoketest.sh
 fi
 totalPySuccess=`grep 'successfully executed' pytest-out.log | wc -l`
 
