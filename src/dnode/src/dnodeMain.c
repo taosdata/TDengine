@@ -38,6 +38,7 @@ static void dnodeCheckDataDirOpenned(char *dir);
 static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
 static int32_t dnodeInitComponents();
 static void dnodeCleanupComponents(int32_t stepId);
+static int dnodeCreateDir(const char *dir);
 
 typedef struct {
   const char *const name;
@@ -58,6 +59,16 @@ static const SDnodeComponent SDnodeComponents[] = {
   {"modules", dnodeInitModules,    dnodeCleanupModules},
   {"shell",   dnodeInitShell,      dnodeCleanupShell}
 };
+
+static int dnodeCreateDir(const char *dir) {
+  struct stat dirstat;
+  if (stat(dir, &dirstat) < 0) {
+    if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+      return -1;
+    } 
+  }
+  return 0;
+}
 
 static void dnodeCleanupComponents(int32_t stepId) {
   for (int32_t i = stepId; i >= 0; i--) {
@@ -87,9 +98,9 @@ int32_t dnodeInitSystem() {
   taosSetCoreDump();
   signal(SIGPIPE, SIG_IGN);
 
-  struct stat dirstat;
-  if (stat(tsLogDir, &dirstat) < 0) {
-    mkdir(tsLogDir, 0755);
+  if (dnodeCreateDir(tsLogDir) < 0) {
+   printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+   return -1;
   }
 
   char temp[TSDB_FILENAME_LEN];
@@ -140,7 +151,11 @@ static void dnodeCheckDataDirOpenned(char *dir) {
   char filepath[256] = {0};
   sprintf(filepath, "%s/.running", dir);
 
-  int32_t fd  = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  if (fd < 0) {
+    dError("failed to open lock file:%s, reason: %s, quit", filepath, strerror(errno));
+    exit(0);
+  }
   int32_t ret = flock(fd, LOCK_EX | LOCK_NB);
   if (ret != 0) {
     dError("failed to lock file:%s ret:%d, database may be running, quit", filepath, ret);
@@ -150,16 +165,28 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  struct stat dirstat;
-  if (stat(tsDataDir, &dirstat) < 0) {
-    mkdir(tsDataDir, 0755);
+  if (dnodeCreateDir(tsDataDir) < 0) {
+   dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
+   return -1;
   }
-
   sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
-  mkdir(tsVnodeDir, 0755);
-  mkdir(tsDnodeDir, 0755);
+
+  //TODO(dengyihao): no need to init here 
+  if (dnodeCreateDir(tsMnodeDir) < 0) {
+   dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
+   return -1;
+  } 
+  //TODO(dengyihao): no need to init here
+  if (dnodeCreateDir(tsVnodeDir) < 0) {
+   dError("failed to create dir: %s, reason: %s", tsVnodeDir, strerror(errno));
+   return -1;
+  }
+  if (dnodeCreateDir(tsDnodeDir) < 0) {
+   dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
+   return -1;
+  } 
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
 

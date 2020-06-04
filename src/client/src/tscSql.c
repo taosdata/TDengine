@@ -256,13 +256,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
-  assert(param != NULL);
-  SSqlObj *pSql = ((STscObj *)param)->pSql;
-  
-  // valid error code is less than 0
-  if (code < 0) {
-    pSql->res.code = code;
-  }
+  assert(tres != NULL);
   
   SSqlObj *pSql = (SSqlObj *) tres;
   sem_post(&pSql->rspSem);
