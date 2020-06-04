@@ -130,9 +130,9 @@ _CONVERT_FUNC = {
 
 # Corresponding TAOS_FIELD structure in C
 class TaosField(ctypes.Structure):
-    _fields_ = [('name', ctypes.c_char * 64),
-                ('bytes', ctypes.c_short),
-                ('type', ctypes.c_char)]
+    _fields_ = [('name', ctypes.c_char * 65),
+                ('type', ctypes.c_char),
+                ('bytes', ctypes.c_short)]
 
 # C interface class
 class CTaosInterface(object):

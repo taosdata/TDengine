@@ -951,7 +951,7 @@ static int32_t mnodeModifySuperTableTagName(SSuperTableObj *pStable, char *oldTa
 
   // update
   SSchema *schema = (SSchema *) (pStable->schema + pStable->numOfColumns + col);
-  strncpy(schema->name, newTagName, TSDB_COL_NAME_LEN);
+  tstrncpy(schema->name, newTagName, sizeof(schema->name));
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -1228,7 +1228,7 @@ static int32_t mnodeSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pT
   assert(numOfCols <= TSDB_MAX_COLUMNS);
   
   for (int32_t i = 0; i < numOfCols; ++i) {
-    strncpy(pSchema->name, pTable->schema[i].name, TSDB_COL_NAME_LEN);
+    tstrncpy(pSchema->name, pTable->schema[i].name, sizeof(pSchema->name));
     pSchema->type  = pTable->schema[i].type;
     pSchema->bytes = htons(pTable->schema[i].bytes);
     pSchema->colId = htons(pTable->schema[i].colId);

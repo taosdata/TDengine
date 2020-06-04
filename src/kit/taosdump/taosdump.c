@@ -88,14 +88,14 @@ enum _describe_table_index {
 };
 
 typedef struct {
-  char field[TSDB_COL_NAME_LEN + 1];
+  char field[TSDB_COL_NAME_LEN];
   char type[16];
   int length;
   char note[128];
 } SColDes;
 
 typedef struct {
-  char name[TSDB_COL_NAME_LEN + 1];
+  char name[TSDB_COL_NAME_LEN];
   SColDes cols[];
 } STableDef;
 
