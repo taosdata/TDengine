@@ -69,12 +69,13 @@ typedef struct {
 } SMemTable;
 
 // ---------- TSDB TABLE DEFINITION
+#define TSDB_MAX_TABLE_SCHEMAS 16
 typedef struct STable {
   int8_t         type;
   STableId       tableId;
   uint64_t       superUid;  // Super table UID
-  int32_t        sversion;
-  STSchema *     schema;
+  int16_t        numOfSchemas;
+  STSchema **    schema;
   STSchema *     tagSchema;
   SKVRow         tagVal;
   SMemTable *    mem;
@@ -122,7 +123,6 @@ typedef struct STableIndexElem {
 
 STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables, void *pRepo);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
-STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
 
 // ---- Operation on STable
@@ -502,11 +502,20 @@ int tsdbWriteCompInfo(SRWHelper *pHelper);
 int tsdbWriteCompIdx(SRWHelper *pHelper);
 
 // --------- Other functions need to further organize
-void    tsdbFitRetention(STsdbRepo *pRepo);
-int     tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
-void    tsdbAdjustCacheBlocks(STsdbCache *pCache);
-int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
-int     tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
+void      tsdbFitRetention(STsdbRepo *pRepo);
+int       tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
+void      tsdbAdjustCacheBlocks(STsdbCache *pCache);
+int32_t   tsdbGetMetaFileName(char *rootDir, char *fname);
+int       tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
+int       tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg);
+int       tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
+int       tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
+STSchema *tsdbGetTableSchemaByVersion(STsdbMeta *pMeta, STable *pTable, int16_t version);
+STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
+
+#define DEFAULT_TAG_INDEX_COLUMN 0  // skip list built based on the first column of tags
+
+int compFGroupKey(const void *key, const void *fgroup);
 
 #ifdef __cplusplus
 }

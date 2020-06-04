@@ -45,6 +45,7 @@ typedef struct {
   int (*eventCallBack)(void *);
   void *(*cqCreateFunc)(void *handle, int sid, char *sqlStr, STSchema *pSchema);
   void (*cqDropFunc)(void *handle);
+  void *(*configFunc)(int32_t vgId, int32_t sid);
 } STsdbAppH;
 
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
@@ -108,16 +109,17 @@ int  tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 int  tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
 void tsdbClearTableCfg(STableCfg *config);
 
-int32_t    tsdbGetTableTagVal(TsdbRepoT *repo, STableId *id, int32_t colId, int16_t *type, int16_t *bytes, char **val);
-char *     tsdbGetTableName(TsdbRepoT *repo, const STableId *id, int16_t *bytes);
+void* tsdbGetTableTagVal(TsdbRepoT* repo, const STableId* id, int32_t colId, int16_t type, int16_t bytes);
+char* tsdbGetTableName(TsdbRepoT *repo, const STableId *id);
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
 int   tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg);
 int   tsdbDropTable(TsdbRepoT *pRepo, STableId tableId);
 int   tsdbAlterTable(TsdbRepoT *repo, STableCfg *pCfg);
+int   tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg);
 TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, uint64_t uid);
 
-uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size);
+uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, uint32_t eindex, int32_t *size);
 
 // the TSDB repository info
 typedef struct STsdbRepoInfo {

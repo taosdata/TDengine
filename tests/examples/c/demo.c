@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
   
   // init TAOS
   taos_init();
@@ -107,7 +107,8 @@ int main(int argc, char *argv[]) {
   printf("success to connect to server\n");
   
 //  multiThreadTest(1, taos);
-   doQuery(taos, "insert into tb9 (ts, c1, c2) using stb (t1, t2) tags ('tag4', 4)   values ( now + 4s, 'binary4', 4);");
+  doQuery(taos, "use test");
+  doQuery(taos, "alter table tm99 set tag a=99");
 //  for(int32_t i = 0; i < 100000; ++i) {
 //    doQuery(taos, "insert into t1 values(now, 2)");
 //  }

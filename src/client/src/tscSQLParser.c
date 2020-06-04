@@ -4400,7 +4400,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
     // Note: update can only be applied to table not super table.
-    // the following is handle display tags value for meters created according to super table
+    // the following is used to handle tags value for table created according to super table
+    pCmd->command = TSDB_SQL_UPDATE_TAGS_VAL;
+    
     tVariantList* pVarList = pAlterSQL->varList;
     tVariant*     pTagName = &pVarList->a[0].pVar;
 
@@ -4423,15 +4425,38 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     // validate the length of binary
     if ((pTagsSchema->type == TSDB_DATA_TYPE_BINARY || pTagsSchema->type == TSDB_DATA_TYPE_NCHAR) &&
-        pVarList->a[1].pVar.nLen > pTagsSchema->bytes) {
+        (pVarList->a[1].pVar.nLen + VARSTR_HEADER_SIZE) > pTagsSchema->bytes) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg14);
     }
-
-    char name1[128] = {0};
-    strncpy(name1, pTagName->pz, pTagName->nLen);
   
-    TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
-    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
+    int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + TSDB_EXTRA_PAYLOAD_SIZE;
+    if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
+      tscError("%p failed to malloc for alter table msg", pSql);
+      return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    }
+
+    SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) (pCmd->payload + tsRpcHeadSize);
+    pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
+    pUpdateMsg->tid = htonl(pTableMeta->sid);
+    pUpdateMsg->uid = htobe64(pTableMeta->uid);
+    pUpdateMsg->colId = htons(pTagsSchema->colId);
+    pUpdateMsg->type  = htons(pTagsSchema->type);
+    pUpdateMsg->bytes = htons(pTagsSchema->bytes);
+    pUpdateMsg->tversion = htons(pTableMeta->tversion);
+    
+    tVariantDump(&pVarList->a[1].pVar, pUpdateMsg->data, pTagsSchema->type, true);
+    
+    int32_t len = 0;
+    if (pTagsSchema->type != TSDB_DATA_TYPE_BINARY && pTagsSchema->type != TSDB_DATA_TYPE_NCHAR) {
+      len = tDataTypeDesc[pTagsSchema->type].nSize;
+    } else {
+      len = varDataLen(pUpdateMsg->data);
+    }
+    
+    pUpdateMsg->tagValLen = htonl(len);  // length may be changed after dump data
+    
+    int32_t total = sizeof(SUpdateTableTagValMsg) + len;
+    pUpdateMsg->head.contLen = htonl(total);
     
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN) {
     tFieldList* pFieldList = pAlterSQL->pAddColumns;
