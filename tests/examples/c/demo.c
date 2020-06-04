@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
   
   // init TAOS
   taos_init();
@@ -108,7 +108,8 @@ int main(int argc, char *argv[]) {
   printf("success to connect to server\n");
   
 //  multiThreadTest(1, taos);
-  doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1, -2) group by t1 limit 2 offset 10;");
+  doQuery(taos, "use test");
+  doQuery(taos, "alter table tm99 set tag a=99");
 //  for(int32_t i = 0; i < 100000; ++i) {
 //    doQuery(taos, "insert into t1 values(now, 2)");
 //  }

@@ -39,7 +39,7 @@ static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
 static int32_t  vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
@@ -224,6 +224,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
+  appH.configFunc = dnodeSendCfgTableToRecv;
   sprintf(temp, "%s/tsdb", rootDir);
   pVnode->tsdb = tsdbOpenRepo(temp, &appH);
   if (pVnode->tsdb == NULL) {
@@ -433,10 +434,10 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   return 0; 
 }
 
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) {
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion) {
   SVnodeObj *pVnode = ahandle;
   *fversion = pVnode->fversion;
-  return tsdbGetFileInfo(pVnode->tsdb, name, index, size);
+  return tsdbGetFileInfo(pVnode->tsdb, name, index, eindex, size);
 }
 
 static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
@@ -473,6 +474,7 @@ static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
+  appH.configFunc = dnodeSendCfgTableToRecv;
   pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
 }
 
@@ -496,7 +498,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   }
 
   len += snprintf(content + len, maxLen - len, "{\n");
-
+  len += snprintf(content + len, maxLen - len, "  \"db\": \"%s\",\n", pVnodeCfg->db);
   len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pVnodeCfg->cfg.cfgVersion);
   len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pVnodeCfg->cfg.cacheBlockSize);
   len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pVnodeCfg->cfg.totalBlocks);
@@ -568,6 +570,13 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     goto PARSE_OVER;
   }
 
+  cJSON *db = cJSON_GetObjectItem(root, "db");
+  if (!db || db->type != cJSON_String || db->valuestring == NULL) {
+    vError("vgId:%d, failed to read vnode cfg, db not found", pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  strcpy(pVnode->db, db->valuestring);
+  
   cJSON *cfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
   if (!cfgVersion || cfgVersion->type != cJSON_Number) {
     vError("vgId:%d, failed to read vnode cfg, cfgVersion not found", pVnode->vgId);

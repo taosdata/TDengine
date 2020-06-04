@@ -8,13 +8,10 @@
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
 // #define TSDB_META_FILE_NAME "META"
 
-const int32_t DEFAULT_TAG_INDEX_COLUMN = 0;   // skip list built based on the first column of tags
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
 static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx);
-static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
-static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx);
 
 /**
@@ -37,19 +34,24 @@ void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
   ptr = (char *)ptr + sizeof(int);
   memcpy(ptr, varDataVal(pTable->name), varDataLen(pTable->name));
   ptr = (char *)ptr + varDataLen(pTable->name);
-  
+
   T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, uid);
   T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, tid);
   T_APPEND_MEMBER(ptr, pTable, STable, superUid);
-  T_APPEND_MEMBER(ptr, pTable, STable, sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
-    ptr = tdEncodeSchema(ptr, pTable->schema);
+    T_APPEND_MEMBER(ptr, pTable, STable, numOfSchemas);
+    for (int i = 0; i < pTable->numOfSchemas; i++) {
+      ptr = tdEncodeSchema(ptr, pTable->schema[i]);
+    }
     ptr = tdEncodeSchema(ptr, pTable->tagSchema);
   } else if (pTable->type == TSDB_CHILD_TABLE) {
     ptr = tdEncodeKVRow(ptr, pTable->tagVal);
   } else {
-    ptr = tdEncodeSchema(ptr, pTable->schema);
+    T_APPEND_MEMBER(ptr, pTable, STable, numOfSchemas);
+    for (int i = 0; i < pTable->numOfSchemas; i++) {
+      ptr = tdEncodeSchema(ptr, pTable->schema[i]);
+    }
   }
 
   if (pTable->type == TSDB_STREAM_TABLE) {
@@ -72,6 +74,11 @@ void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
 STable *tsdbDecodeTable(void *cont, int contLen) {
   STable *pTable = (STable *)calloc(1, sizeof(STable));
   if (pTable == NULL) return NULL;
+  pTable->schema = (STSchema **)malloc(sizeof(STSchema *) * TSDB_MAX_TABLE_SCHEMAS);
+  if (pTable->schema == NULL) {
+    free(pTable);
+    return NULL;
+  }
 
   void *ptr = cont;
   T_READ_MEMBER(ptr, int8_t, pTable->type);
@@ -79,29 +86,34 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   ptr = (char *)ptr + sizeof(int);
   pTable->name = calloc(1, len + VARSTR_HEADER_SIZE + 1);
   if (pTable->name == NULL) return NULL;
-  
+
   varDataSetLen(pTable->name, len);
   memcpy(pTable->name->data, ptr, len);
-  
+
   ptr = (char *)ptr + len;
   T_READ_MEMBER(ptr, uint64_t, pTable->tableId.uid);
   T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
   T_READ_MEMBER(ptr, uint64_t, pTable->superUid);
-  T_READ_MEMBER(ptr, int32_t, pTable->sversion);
 
   if (pTable->type == TSDB_SUPER_TABLE) {
-    pTable->schema = tdDecodeSchema(&ptr);
+    T_READ_MEMBER(ptr, int16_t, pTable->numOfSchemas);
+    for (int i = 0; i < pTable->numOfSchemas; i++) {
+      pTable->schema[i] = tdDecodeSchema(&ptr);
+    }
     pTable->tagSchema = tdDecodeSchema(&ptr);
   } else if (pTable->type == TSDB_CHILD_TABLE) {
     ptr = tdDecodeKVRow(ptr, &pTable->tagVal);
   } else {
-    pTable->schema = tdDecodeSchema(&ptr);
+    T_READ_MEMBER(ptr, int16_t, pTable->numOfSchemas);
+    for (int i = 0; i < pTable->numOfSchemas; i++) {
+      pTable->schema[i] = tdDecodeSchema(&ptr);
+    }
   }
 
   if (pTable->type == TSDB_STREAM_TABLE) {
     ptr = taosDecodeString(ptr, &(pTable->sql));
   }
-  
+
   pTable->lastKey = TSKEY_INITIAL_VAL;
   return pTable;
 }
@@ -223,16 +235,43 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
   return 0;
 }
 
+// Get the newest table schema
 STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable) {
   if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_STREAM_TABLE) {
-    return pTable->schema;
+    return pTable->schema[pTable->numOfSchemas - 1];
   } else if (pTable->type == TSDB_CHILD_TABLE) {
     STable *pSuper = tsdbGetTableByUid(pMeta, pTable->superUid);
     if (pSuper == NULL) return NULL;
-    return pSuper->schema;
+    return pSuper->schema[pSuper->numOfSchemas-1];
   } else {
     return NULL;
   }
+}
+
+static int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 < (*(STSchema **)key2)->version) {
+    return -1;
+  } else if (*(int16_t *)key1 > (*(STSchema **)key2)->version) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+STSchema *tsdbGetTableSchemaByVersion(STsdbMeta *pMeta, STable *pTable, int16_t version) {
+  STable *pSearchTable = NULL;
+  if (pTable->type == TSDB_CHILD_TABLE) {
+    pSearchTable = tsdbGetTableByUid(pMeta, pTable->superUid);
+  } else {
+    pSearchTable = pTable;
+  }
+  ASSERT(pSearchTable != NULL);
+
+  void *ptr = taosbsearch(&version, pSearchTable->schema, pSearchTable->numOfSchemas, sizeof(STSchema *),
+                          tsdbCompareSchemaVersion, TD_EQ);
+  if (ptr == NULL) return NULL;
+
+  return *(STSchema **)ptr;
 }
 
 STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
@@ -247,45 +286,33 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-int32_t tsdbGetTableTagVal(TsdbRepoT* repo, STableId* id, int32_t colId, int16_t* type, int16_t* bytes, char** val) {
+void* tsdbGetTableTagVal(TsdbRepoT* repo, const STableId* id, int32_t colId, int16_t type, int16_t bytes) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
 
   STSchema *pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   STColumn *pCol = tdGetColOfID(pSchema, colId);
   if (pCol == NULL) {
-    return -1; // No matched tag volumn
+    return NULL;  // No matched tag volumn
   }
   
-  *val = tdGetKVRowValOfCol(pTable->tagVal, colId);
-  *type = pCol->type;
+  char* val = tdGetKVRowValOfCol(pTable->tagVal, colId);
+  assert(type == pCol->type && bytes == pCol->bytes);
   
-  if (*val != NULL) {
-    if (IS_VAR_DATA_TYPE(*type)) {
-      *bytes = varDataLen(*val);
-    } else {
-      *bytes = TYPE_BYTES[*type];
-    }
+  if (val != NULL && IS_VAR_DATA_TYPE(type)) {
+    assert(varDataLen(val) < pCol->bytes);
   }
   
-  return TSDB_CODE_SUCCESS;
+  return val;
 }
 
-char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id, int16_t* bytes) {
+char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
   if (pTable == NULL) {
-    if (bytes != NULL) {
-      *bytes = 0;
-    }
-    
     return NULL;
   } else {
-    if (bytes != NULL) {
-      *bytes = varDataLen(pTable->name);
-    }
-    
     return (char*) pTable->name;
   }
 }
@@ -301,13 +328,16 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
   }
 
   pTable->type = pCfg->type;
+  pTable->numOfSchemas = 0;
 
   if (isSuper) {
     pTable->type = TSDB_SUPER_TABLE;
     pTable->tableId.uid = pCfg->superUid;
     pTable->tableId.tid = -1;
     pTable->superUid = TSDB_INVALID_SUPER_TABLE_ID;
-    pTable->schema = tdDupSchema(pCfg->schema);
+    pTable->schema = (STSchema **)malloc(sizeof(STSchema *) * TSDB_MAX_TABLE_SCHEMAS);
+    pTable->numOfSchemas = 1;
+    pTable->schema[0] = tdDupSchema(pCfg->schema);
     pTable->tagSchema = tdDupSchema(pCfg->tagSchema);
 
     tsize = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
@@ -342,14 +372,18 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     if (pCfg->type == TSDB_CHILD_TABLE) {
       pTable->superUid = pCfg->superUid;
       pTable->tagVal = tdKVRowDup(pCfg->tagValues);
-    } else if (pCfg->type == TSDB_NORMAL_TABLE) {
-      pTable->superUid = -1;
-      pTable->schema = tdDupSchema(pCfg->schema);
     } else {
-      ASSERT(pCfg->type == TSDB_STREAM_TABLE);
-      pTable->superUid = -1;
-      pTable->schema = tdDupSchema(pCfg->schema);
-      pTable->sql = strdup(pCfg->sql);
+      pTable->schema = (STSchema **)malloc(sizeof(STSchema *) * TSDB_MAX_TABLE_SCHEMAS);
+      pTable->numOfSchemas = 1;
+      pTable->schema[0] = tdDupSchema(pCfg->schema);
+
+      if (pCfg->type == TSDB_NORMAL_TABLE) {
+        pTable->superUid = -1;
+      } else {
+        ASSERT(pCfg->type == TSDB_STREAM_TABLE);
+        pTable->superUid = -1;
+        pTable->sql = strdup(pCfg->sql);
+      }
     }
   }
 
@@ -358,6 +392,56 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
 _err:
   tsdbFreeTable(pTable);
   return NULL;
+}
+
+static int tsdbUpdateTableTagSchema(STable *pTable, STSchema *newSchema) {
+  ASSERT(pTable->type == TSDB_SUPER_TABLE);
+  ASSERT(schemaVersion(pTable->tagSchema) < schemaVersion(newSchema));
+  STSchema *pOldSchema = pTable->tagSchema;
+  STSchema *pNewSchema = tdDupSchema(newSchema);
+  if (pNewSchema == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  pTable->tagSchema = pNewSchema;
+  tdFreeSchema(pOldSchema);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
+  ASSERT(pTable->type != TSDB_CHILD_TABLE);
+  bool isChanged = false;
+
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    if (schemaVersion(pTable->tagSchema) < schemaVersion(pCfg->tagSchema)) {
+      int32_t code = tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    isChanged = true;
+  }
+
+  STSchema *pTSchema = tsdbGetTableSchema(pMeta, pTable);
+  if (schemaVersion(pTSchema) < schemaVersion(pCfg->schema)) {
+    if (pTable->numOfSchemas < TSDB_MAX_TABLE_SCHEMAS) {
+      pTable->schema[pTable->numOfSchemas++] = tdDupSchema(pCfg->schema);
+    } else {
+      ASSERT(pTable->numOfSchemas == TSDB_MAX_TABLE_SCHEMAS);
+      STSchema *tSchema = tdDupSchema(pCfg->schema);
+      tdFreeSchema(pTable->schema[0]);
+      memmove(pTable->schema, pTable->schema+1, sizeof(STSchema *) * (TSDB_MAX_TABLE_SCHEMAS - 1));
+      pTable->schema[pTable->numOfSchemas-1] = tSchema;
+    }
+
+    isChanged = true;
+  }
+
+  if (isChanged) {
+    char *buf = malloc(1024 * 1024);
+    int bufLen = 0;
+    tsdbEncodeTable(pTable, buf, &bufLen);
+    tsdbInsertMetaRecord(pMeta->mfh, pTable->tableId.uid, buf, bufLen);
+    free(buf);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
@@ -384,6 +468,8 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
       if (super == NULL) return -1;
     } else {
       if (super->type != TSDB_SUPER_TABLE) return -1;
+      if (super->tableId.uid != pCfg->superUid) return -1;
+      tsdbUpdateTable(pMeta, super, pCfg);
     }
   }
 
@@ -458,23 +544,30 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
   if (tsdbTableSetName(pCfg, pMsg->tableId, true) < 0) goto _err;
 
   if (numOfTags > 0) {
-    int   accBytes = 0;
-    char *pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
-
-    SKVRowBuilder kvRowBuilder = {0};
+    // Decode tag schema
     tdResetTSchemaBuilder(&schemaBuilder, htonl(pMsg->tversion));
-    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) goto _err;
     for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
       tdAddColToSchema(&schemaBuilder, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
-      tdAddColToKVRow(&kvRowBuilder, htons(pSchema[i].colId), pSchema[i].type, pTagData + accBytes);
-      accBytes += htons(pSchema[i].bytes);
     }
     if (tsdbTableSetTagSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
     if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
     if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
 
-    tsdbTableSetTagValue(pCfg, tdGetKVRowFromBuilder(&kvRowBuilder), false);
-    tdDestroyKVRowBuilder(&kvRowBuilder);
+    // Decode tag values
+    if (pMsg->tagDataLen) {
+      int   accBytes = 0;
+      char *pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
+
+      SKVRowBuilder kvRowBuilder = {0};
+      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) goto _err;
+      for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
+        tdAddColToKVRow(&kvRowBuilder, htons(pSchema[i].colId), pSchema[i].type, pTagData + accBytes);
+        accBytes += htons(pSchema[i].bytes);
+      }
+
+      tsdbTableSetTagValue(pCfg, tdGetKVRowFromBuilder(&kvRowBuilder), false);
+      tdDestroyKVRowBuilder(&kvRowBuilder);
+    }
   }
 
   if (pMsg->tableType == TSDB_STREAM_TABLE) {
@@ -535,7 +628,7 @@ static int tsdbFreeTable(STable *pTable) {
   if (pTable->type == TSDB_CHILD_TABLE) {
     kvRowFree(pTable->tagVal);
   } else {
-    tdFreeSchema(pTable->schema);
+    for (int i = 0; i < pTable->numOfSchemas; i++) tdFreeSchema(pTable->schema[i]);
   }
 
   if (pTable->type == TSDB_STREAM_TABLE) {
@@ -597,9 +690,10 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   }
 
   // Update the pMeta->maxCols and pMeta->maxRowBytes
-  if (pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_NORMAL_TABLE) {
-    if (schemaNCols(pTable->schema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pTable->schema);
-    int bytes = dataRowMaxBytesFromSchema(pTable->schema);
+  if (pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_STREAM_TABLE) {
+    if (schemaNCols(pTable->schema[pTable->numOfSchemas - 1]) > pMeta->maxCols)
+      pMeta->maxCols = schemaNCols(pTable->schema[pTable->numOfSchemas - 1]);
+    int bytes = dataRowMaxBytesFromSchema(pTable->schema[pTable->numOfSchemas - 1]);
     if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
   }
 
@@ -648,7 +742,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFrom
   return 0;
 }
 
-static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
+int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
   STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
   assert(pSTable != NULL);
@@ -673,7 +767,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   return 0;
 }
 
-static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
+int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
   
   STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);

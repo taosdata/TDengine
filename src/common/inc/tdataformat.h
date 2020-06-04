@@ -119,22 +119,24 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
- * |<------------------------------------- len ---------------------------------->|
- * |<--Head ->|<---------   flen -------------->|                                 |
- * +----------+---------------------------------+---------------------------------+
- * | int32_t  |                                 |                                 |
- * +----------+---------------------------------+---------------------------------+
- * |   len    |           First part            |             Second part         |
- * +----------+---------------------------------+---------------------------------+
+ * |<--------------------+--------------------------- len ---------------------------------->|
+ * |<--     Head      -->|<---------   flen -------------->|                                 |
+ * +---------------------+---------------------------------+---------------------------------+
+ * | int16_t  |  int16_t |                                 |                                 |
+ * +----------+----------+---------------------------------+---------------------------------+
+ * |   len    | sversion |           First part            |             Second part         |
+ * +----------+----------+---------------------------------+---------------------------------+
  */
 typedef void *SDataRow;
 
-#define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
+#define TD_DATA_ROW_HEAD_SIZE sizeof(int16_t)*2
 
-#define dataRowLen(r) (*(int32_t *)(r))
+#define dataRowLen(r) (*(int16_t *)(r))
+#define dataRowVersion(r) *(int16_t *)POINTER_SHIFT(r, sizeof(int16_t))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
+#define dataRowSetVersion(r, v) (dataRowVersion(r) = (v))
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
 #define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
 
@@ -246,7 +248,7 @@ void       tdResetDataCols(SDataCols *pCols);
 void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
-void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
+void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);  //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows);
@@ -278,9 +280,10 @@ typedef struct {
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
 #define kvRowFree(r) tfree(r)
+#define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 
 SKVRow tdKVRowDup(SKVRow row);
-SKVRow tdSetKVRowDataOfCol(SKVRow row, int16_t colId, int8_t type, void *value);
+int    tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
 void * tdEncodeKVRow(void *buf, SKVRow row);
 void * tdDecodeKVRow(void *buf, SKVRow *row);
 

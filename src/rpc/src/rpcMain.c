@@ -218,9 +218,9 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc->localPort = pInit->localPort;
   pRpc->afp = pInit->afp;
   pRpc->sessions = pInit->sessions+1;
-  if (pInit->user) strcpy(pRpc->user, pInit->user);
-  if (pInit->secret) strcpy(pRpc->secret, pInit->secret);
-  if (pInit->ckey) strcpy(pRpc->ckey, pInit->ckey);
+  if (pInit->user) tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
+  if (pInit->secret) memcpy(pRpc->secret, pInit->secret, sizeof(pRpc->secret));
+  if (pInit->ckey) tstrncpy(pRpc->ckey, pInit->ckey, sizeof(pRpc->ckey));
   pRpc->spi = pInit->spi;
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
@@ -434,7 +434,8 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
 }
 
 void rpcSendRedirectRsp(void *thandle, const SRpcIpSet *pIpSet) {
-  SRpcMsg  rpcMsg;
+  SRpcMsg  rpcMsg; 
+  memset(&rpcMsg, 0, sizeof(rpcMsg));
   
   rpcMsg.contLen = sizeof(SRpcIpSet);
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);

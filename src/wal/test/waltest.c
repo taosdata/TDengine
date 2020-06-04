@@ -15,6 +15,7 @@
 
 //#define _DEFAULT_SOURCE
 #include "os.h"
+#include "tutil.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "twal.h"
@@ -45,7 +46,7 @@ int main(int argc, char *argv[]) {
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
-      strcpy(path, argv[++i]);
+      tstrncpy(path, argv[++i], sizeof(path));
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
       max = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-l")==0 && i < argc-1) {
