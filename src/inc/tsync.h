@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #define TAOS_SYNC_MAX_REPLICA 5
+#define TAOS_SYNC_MAX_INDEX   0x7FFFFFFF
 
 typedef enum _TAOS_SYNC_ROLE {
   TAOS_SYNC_ROLE_OFFLINE,
@@ -53,11 +54,16 @@ typedef struct {
   uint32_t  nodeId[TAOS_SYNC_MAX_REPLICA];
   int       role[TAOS_SYNC_MAX_REPLICA];  
 } SNodesRole;
- 
-// if name is empty(name[0] is zero), get the file from index or after, used by master
-// if name is provided(name[0] is not zero), get the named file at the specified index, used by unsynced node
-// it returns the file magic number and size, if file not there, magic shall be 0.
-typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion); 
+
+/* 
+  if name is empty(name[0] is zero), get the file from index or after, but not larger than eindex. If a file
+  is found between index and eindex, index shall be updated, name shall be set, size shall be set to 
+  file size, and file magic number shall be returned. 
+
+  if name is provided(name[0] is not zero), get the named file at the specified index. If not there, return
+  zero. If it is there, set the size to file size, and return file magic number. Index shall not be updated.
+*/
+typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion); 
 
 // get the wal file from index or after
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file

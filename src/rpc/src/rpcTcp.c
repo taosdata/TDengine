@@ -253,12 +253,14 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
 
   if (pthread_mutex_init(&(pThreadObj->mutex), NULL) < 0) {
     tError("%s failed to init TCP client mutex(%s)", label, strerror(errno));
+    free(pThreadObj);
     return NULL;
   }
 
   pThreadObj->pollFd = epoll_create(10);  // size does not matter
   if (pThreadObj->pollFd < 0) {
     tError("%s failed to create TCP client epoll", label);
+    free(pThreadObj);
     return NULL;
   }
 
@@ -269,6 +271,8 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   int code = pthread_create(&(pThreadObj->thread), &thattr, taosProcessTcpData, (void *)(pThreadObj));
   pthread_attr_destroy(&thattr);
   if (code != 0) {
+    close(pThreadObj->pollFd);
+    free(pThreadObj);
     tError("%s failed to create TCP read data thread(%s)", label, strerror(errno));
     return NULL;
   }
@@ -292,7 +296,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   SThreadObj *    pThreadObj = shandle;
 
   int fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
-  if (fd <= 0) return NULL;
+  if (fd < 0) return NULL;
 
   SFdObj *pFdObj = taosMallocFdObj(pThreadObj, fd);
   

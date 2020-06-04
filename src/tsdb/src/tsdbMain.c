@@ -1300,46 +1300,71 @@ static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
 }
 
-uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, int32_t *size) {
-  // TODO: need to refactor this function
-
+#define TSDB_META_FILE_INDEX 10000000
+uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, uint32_t eindex, int32_t *size) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   // STsdbMeta *pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
-  uint32_t   magic = 0;
-  char       fname[256] = "\0";
+  uint32_t    magic = 0;
+  char        fname[256] = "\0";
 
   struct stat fState;
-  char *spath = strdup(pRepo->rootDir);
-  char *prefixDir = dirname(spath);
 
-  if (name[0] == 0) {
-    // Map index to the file name
+  tsdbTrace("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *index, eindex);
+  ASSERT(*index <= eindex);
+
+  char *sdup = strdup(pRepo->rootDir);
+  char *prefix = dirname(sdup);
+
+  if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
     int fid = (*index) / 3;
 
-    if (fid >= pFileH->numOfFGroups) {
-      // return meta data file
-      if ((*index) % 3 > 0) { // it is finished
-        tfree(spath);
-        return 0;
-      } else {
+    if (pFileH->numOfFGroups == 0 || fid > pFileH->fGroup[pFileH->numOfFGroups - 1].fileId) {
+      if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
         tsdbGetMetaFileName(pRepo->rootDir, fname);
+        *index = TSDB_META_FILE_INDEX;
+      } else {
+        tfree(sdup);
+        return 0;
       }
     } else {
-      // return data file name
-      strcpy(fname, pFileH->fGroup[fid].files[(*index) % 3].fname);
+      SFileGroup *pFGroup =
+          taosbsearch(&fid, pFileH->fGroup, pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey, TD_GE);
+      if (pFGroup->fileId == fid) {
+        strcpy(fname, pFGroup->files[(*index) % 3].fname);
+      } else {
+        if (pFGroup->fileId * 3 + 2 < eindex) {
+          strcpy(fname, pFGroup->files[0].fname);
+          *index = pFGroup->fileId * 3;
+        } else {
+          tfree(sdup);
+          return 0;
+        }
+      }
     }
-    strcpy(name, fname + strlen(spath));
-  } else {
-    // Name is provided, need to get the file info
-    sprintf(fname, "%s/%s", prefixDir, name);
+    strcpy(name, fname + strlen(prefix));
+  } else {                                 // get the named file at the specified index. If not there, return 0
+    if (*index == TSDB_META_FILE_INDEX) {  // get meta file
+      tsdbGetMetaFileName(pRepo->rootDir, fname);
+    } else {
+      int         fid = (*index) / 3;
+      SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid);
+      if (pFGroup == NULL) {  // not found
+        tfree(sdup);
+        return 0;
+      }
+
+      SFile *pFile = &pFGroup->files[(*index) % 3];
+      strcpy(fname, pFile->fname);
+    }
   }
 
   if (stat(fname, &fState) < 0) {
-    tfree(spath);
+    tfree(sdup);
     return 0;
   }
 
+  tfree(sdup);
   *size = fState.st_size;
   magic = *size;
 

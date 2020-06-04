@@ -515,6 +515,8 @@ STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 
 #define DEFAULT_TAG_INDEX_COLUMN 0  // skip list built based on the first column of tags
 
+int compFGroupKey(const void *key, const void *fgroup);
+
 #ifdef __cplusplus
 }
 #endif

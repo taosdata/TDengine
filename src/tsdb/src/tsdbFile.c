@@ -35,7 +35,6 @@ const char *tsdbFileSuffix[] = {
     ".last"   // TSDB_FILE_TYPE_LAST
 };
 
-static int compFGroupKey(const void *key, const void *fgroup);
 static int compFGroup(const void *arg1, const void *arg2);
 static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid);
 
@@ -285,7 +284,7 @@ int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInf
   return 0;
 }
 
-static int compFGroupKey(const void *key, const void *fgroup) {
+int compFGroupKey(const void *key, const void *fgroup) {
   int         fid = *(int *)key;
   SFileGroup *pFGroup = (SFileGroup *)fgroup;
   if (fid == pFGroup->fileId) {

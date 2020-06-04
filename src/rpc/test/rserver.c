@@ -69,6 +69,7 @@ void processShellMsg() {
       taosGetQitem(qall, &type, (void **)&pRpcMsg);
       rpcFreeCont(pRpcMsg->pCont);
 
+      memset(&rpcMsg, 0, sizeof(rpcMsg));
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
       rpcMsg.handle = pRpcMsg->handle;

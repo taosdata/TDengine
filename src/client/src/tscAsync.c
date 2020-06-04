@@ -482,6 +482,14 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         }
       } else {
         code = tsParseSql(pSql, false);
+        if ((pQueryInfo->type & TSDB_QUERY_TYPE_STMT_INSERT) == TSDB_QUERY_TYPE_STMT_INSERT) {
+          STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+          code = tscGetTableMeta(pSql, pTableMetaInfo);
+          assert(code == TSDB_CODE_SUCCESS && pTableMetaInfo->pTableMeta != NULL);
+          (*pSql->fp)(pSql->param, NULL, code);
+          return;
+        }
+        
         if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
       }
     }
