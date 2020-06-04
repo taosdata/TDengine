@@ -614,11 +614,8 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
       tfree(pStmt->pSql->sqlstr);
       pStmt->pSql->sqlstr = sql;
       SSqlObj* pSql = taos_query((TAOS*)pStmt->taos, pStmt->pSql->sqlstr);
-      if (pSql != NULL) {
-        ret = pSql->res.code;
-      } else {
-        ret = terrno;
-      } 
+      ret = taos_errno(pSql);
+      taos_free_result(pSql);
     }
   }
   return ret;

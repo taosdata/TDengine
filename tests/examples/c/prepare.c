@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+// # #include "taos.h"  // TAOS header file
 #include "taos.h"
 
 
@@ -14,38 +15,49 @@ int main(int argc, char *argv[])
 {
   TAOS     *taos;
   TAOS_RES *result;
+  int      code;
   TAOS_STMT *stmt;
 
   // connect to server
-  if (argc < 2) {
-    printf("please input server ip \n");
-    return 0;
-  }
+  //if (argc < 2) {
+  //  printf("please input server ip \n");
+  //  return 0;
+  //}
 
   // init TAOS
   taos_init();
 
-  taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
+  taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
     exit(1);
-  }
+  }   
 
-  taos_query(taos, "drop database demo");
-  if (taos_query(taos, "create database demo") != 0) {
-    printf("failed to create database, reason:%s\n", taos_errstr(taos));
+  result = taos_query(taos, "drop database demo"); 
+  taos_free_result(result);
+
+  result = taos_query(taos, "create database demo");
+  code = taos_errno(result);
+  if (code != 0) {
+    printf("failed to create database, reason:%s\n", taos_errstr(result));
+    taos_free_result(result);
     exit(1);
   }
+  taos_free_result(result);
 
-  taos_query(taos, "use demo");
-
+  result = taos_query(taos, "use demo");
+  taos_free_result(result);
 
   // create table
   const char* sql = "create table m1 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), blob nchar(10))";
-  if (taos_query(taos, sql) != 0) {
-    printf("failed to create table, reason:%s\n", taos_errstr(taos));
+  result = taos_query(taos, sql);
+  code = taos_errno(result);
+  if (code != 0) {
+    printf("failed to create table, reason:%s\n", taos_errstr(result));
+    taos_free_result(result);
     exit(1);
   }
+  taos_free_result(result);
 
   // sleep for one second to make sure table is created on data node
   // taosMsleep(1000);
@@ -130,7 +142,7 @@ int main(int argc, char *argv[])
   int is_null = 1;
 
   sql = "insert into m1 values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
+  code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
   }
@@ -159,7 +171,6 @@ int main(int argc, char *argv[])
     exit(1);
   }
   taos_stmt_close(stmt);
-  printf("==== success inset data ====.\n");
 
   // query the records
   stmt = taos_stmt_init(taos);
