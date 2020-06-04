@@ -15,6 +15,7 @@
 
 
 #include "os.h"
+#include "tutil.h"
 #include "tglobal.h"
 #include "rpcLog.h"
 #include "trpc.h"
@@ -106,7 +107,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       ipSet.port[0] = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
-      strcpy(ipSet.fqdn[0], argv[++i]); 
+      tstrncpy(ipSet.fqdn[0], argv[++i], sizeof(ipSet.fqdn[0])); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {

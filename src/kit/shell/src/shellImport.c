@@ -192,11 +192,14 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     }
 
     memcpy(cmd + cmd_len, line, read_len);
-    if (taos_query(con, cmd)) {
+    
+    TAOS_RES* pSql = taos_query(con, cmd);
+    int32_t code = taos_errno(pSql);
+    
+    if (code != 0) {
       fprintf(stderr, "DB error: %s: %s (%d)\n", taos_errstr(con), fname, lineNo);
       /* free local resouce: allocated memory/metric-meta refcnt */
-      TAOS_RES *pRes = taos_use_result(con);
-      taos_free_result(pRes);
+      taos_free_result(pSql);
     }
 
     memset(cmd, 0, MAX_COMMAND_SIZE);

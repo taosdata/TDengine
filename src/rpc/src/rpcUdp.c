@@ -192,7 +192,7 @@ static void *taosRecvUdpData(void *param) {
 
     char *tmsg = malloc(dataLen + tsRpcOverhead);
     if (NULL == tmsg) {
-      tError("%s failed to allocate memory, size:%d", pConn->label, dataLen);
+      tError("%s failed to allocate memory, size:%ld", pConn->label, dataLen);
       continue;
     }
 

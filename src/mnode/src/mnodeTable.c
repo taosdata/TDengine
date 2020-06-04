@@ -1352,11 +1352,14 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
   int32_t tagDataLen = 0;
   int32_t totalCols = 0;
   int32_t contLen = 0;
-  if (pTable->info.type == TSDB_CHILD_TABLE && pMsg != NULL) {
-    pTagData = (STagData*)pMsg->schema;
-    tagDataLen = ntohl(pTagData->dataLen);
+  if (pTable->info.type == TSDB_CHILD_TABLE) {
     totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
     contLen = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen + pTable->sqlLen;
+    if (pMsg != NULL) {
+      pTagData = (STagData *)pMsg->schema;
+      tagDataLen = ntohl(pTagData->dataLen);
+      contLen += tagDataLen;
+    }
   } else {
     totalCols = pTable->numOfColumns;
     contLen = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
@@ -1410,7 +1413,7 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
     memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData->data, tagDataLen);
   }
 
-  if (pTable->info.type == TSDB_STREAM_TABLE && pMsg != NULL) {
+  if (pTable->info.type == TSDB_STREAM_TABLE) {
     memcpy(pCreate->data + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
   }
 

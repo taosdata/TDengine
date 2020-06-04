@@ -410,6 +410,61 @@ int tsdbAlterTable(TsdbRepoT *pRepo, STableCfg *pCfg) {
   return 0;
 }
 
+int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  int16_t    tversion = htons(pMsg->tversion);
+
+  STable *pTable = tsdbGetTableByUid(pMeta, htobe64(pMsg->uid));
+  if (pTable == NULL) return TSDB_CODE_INVALID_TABLE_ID;
+  if (pTable->tableId.tid != htonl(pMsg->tid)) return TSDB_CODE_INVALID_TABLE_ID;
+
+  if (pTable->type != TSDB_CHILD_TABLE) {
+    tsdbError("vgId:%d failed to update tag value of table %s since its type is %d", pRepo->config.tsdbId,
+              varDataVal(pTable->name), pTable->type);
+    return TSDB_CODE_INVALID_TABLE_TYPE;
+  }
+
+  if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) < tversion) {
+    tsdbTrace("vgId:%d server tag version %d is older than client tag version %d, try to config", pRepo->config.tsdbId,
+              schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)), tversion);
+    void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, htonl(pMsg->tid));
+    if (msg == NULL) {
+      return terrno;
+    }
+    // Deal with error her
+    STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
+    STable *super = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
+    ASSERT(super != NULL);
+
+    int32_t code = tsdbUpdateTable(pMeta, super, pTableCfg);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    tsdbClearTableCfg(pTableCfg);
+    rpcFreeCont(msg);
+  }
+
+  STSchema *pTagSchema = tsdbGetTableTagSchema(pMeta, pTable);
+
+  if (schemaVersion(pTagSchema) > tversion) {
+    tsdbError(
+        "vgId:%d failed to update tag value of table %s since version out of date, client tag version:%d server tag "
+        "version:%d",
+        pRepo->config.tsdbId, varDataVal(pTable->name), tversion, schemaVersion(pTable->tagSchema));
+    return TSDB_CODE_TAG_VER_OUT_OF_DATE;
+  }
+  if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
+    tsdbRemoveTableFromIndex(pMeta, pTable);
+  }
+  // TODO: remove table from index if it is the first column of tag
+  tdSetKVRowDataOfCol(&pTable->tagVal, htons(pMsg->colId), htons(pMsg->type), pMsg->data);
+  if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
+    tsdbAddTableIntoIndex(pMeta, pTable);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 TSKEY tsdbGetTableLastKey(TsdbRepoT *repo, uint64_t uid) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
@@ -559,12 +614,15 @@ int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
 }
 
 void tsdbClearTableCfg(STableCfg *config) {
-  if (config->schema) tdFreeSchema(config->schema);
-  if (config->tagSchema) tdFreeSchema(config->tagSchema);
-  if (config->tagValues) kvRowFree(config->tagValues);
-  tfree(config->name);
-  tfree(config->sname);
-  tfree(config->sql);
+  if (config) {
+    if (config->schema) tdFreeSchema(config->schema);
+    if (config->tagSchema) tdFreeSchema(config->tagSchema);
+    if (config->tagValues) kvRowFree(config->tagValues);
+    tfree(config->name);
+    tfree(config->sname);
+    tfree(config->sql);
+    free(config);
+  }
 }
 
 int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
@@ -883,6 +941,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
 
 static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
@@ -890,6 +949,39 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
     tsdbError("vgId:%d, failed to get table for insert, uid:" PRIu64 ", tid:%d", pRepo->config.tsdbId, pBlock->uid,
               pBlock->tid);
     return TSDB_CODE_INVALID_TABLE_ID;
+  }
+
+  // Check schema version
+  int32_t tversion = pBlock->sversion;
+  int16_t nversion = schemaVersion(tsdbGetTableSchema(pMeta, pTable));
+  if (tversion > nversion) {
+    tsdbTrace("vgId:%d table:%s tid:%d server schema version %d is older than clien version %d, try to config.",
+              pRepo->config.tsdbId, varDataVal(pTable->name), pTable->tableId.tid, nversion, tversion);
+    void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, pTable->tableId.tid);
+    if (msg == NULL) {
+      return terrno;
+    }
+    // Deal with error her
+    STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
+    STable *pTableUpdate = NULL;
+    if (pTable->type == TSDB_CHILD_TABLE) {
+      pTableUpdate = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
+    } else {
+      pTableUpdate = pTable;
+    }
+
+    int32_t code = tsdbUpdateTable(pMeta, pTableUpdate, pTableCfg);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    tsdbClearTableCfg(pTableCfg);
+    rpcFreeCont(msg);
+  } else {
+    if (tsdbGetTableSchemaByVersion(pMeta, pTable, tversion) == NULL) {
+      tsdbError("vgId:%d table:%s tid:%d invalid schema version %d from client", pRepo->config.tsdbId,
+                varDataVal(pTable->name), pTable->tableId.tid, tversion);
+      return TSDB_CODE_TABLE_SCHEMA_VERSION;
+    }
   }
 
   SSubmitBlkIter blkIter = {0};
@@ -916,9 +1008,10 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   return TSDB_CODE_SUCCESS;
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
+static int tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
   ASSERT(maxRowsToRead > 0);
   if (pIter == NULL) return 0;
+  STSchema *pSchema = NULL;
 
   int numOfRows = 0;
 
@@ -931,7 +1024,15 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
 
-    tdAppendDataRowToDataCol(row, pCols);
+    if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
+      pSchema = tsdbGetTableSchemaByVersion(pMeta, pTable, dataRowVersion(row));
+      if (pSchema == NULL) {
+        // TODO: deal with the error here
+        ASSERT(false);
+      }
+    }
+
+    tdAppendDataRowToDataCol(row, pSchema, pCols);
     numOfRows++;
   } while (tSkipListIterNext(pIter));
 
@@ -1081,7 +1182,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
     int nLoop = 0;
     while (true) {
-      int rowsRead = tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pDataCols);
+      int rowsRead = tsdbReadRowsFromCache(pMeta, pTable, pIter, maxKey, maxRowsToRead, pDataCols);
       assert(rowsRead >= 0);
       if (pDataCols->numOfRows == 0) break;
       nLoop++;

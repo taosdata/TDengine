@@ -220,9 +220,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
-    if (pSql != pObj->pSql) {
-      tscFreeSqlObj(pSql);
-    }
+    tscFreeSqlObj(pSql);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -257,6 +255,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
         rpcMsg->code = TSDB_CODE_NOT_READY;
         rpcFreeCont(rpcMsg->pCont);
         return;
+      } else if (pCmd->command == TSDB_SQL_META) {
+//        rpcFreeCont(rpcMsg->pCont);
+//        return;
       } else {
         tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
         
@@ -331,21 +332,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   
   if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    void *taosres = tscKeepConn[pCmd->command] ? pSql : NULL;
     rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
     
     tscTrace("%p SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
-
-    /*
-     * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
-     * may be freed in UDF, and reused by other threads before tscShouldBeFreed called, in which case
-     * tscShouldBeFreed checks an object which is actually allocated by other threads.
-     *
-     * If this block of memory is re-allocated for an insert thread, in which tscKeepConn[command] equals to 0,
-     * the tscShouldBeFreed will success and tscFreeSqlObj free it immediately.
-     */
     bool shouldFree = tscShouldBeFreed(pSql);
-    (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
+    (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
 
     if (shouldFree) {
       tscTrace("%p sqlObj is automatically freed", pSql);
@@ -1260,27 +1251,23 @@ int tscEstimateAlterTableMsgLength(SSqlCmd *pCmd) {
 }
 
 int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCMAlterTableMsg *pAlterTableMsg;
-  char *          pMsg;
-  int             msgLen = 0;
-  int             size = 0;
+  char *pMsg;
+  int   msgLen = 0;
 
-  SSqlCmd *   pCmd = &pSql->cmd;
+  SSqlCmd    *pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  size = tscEstimateAlterTableMsgLength(pCmd);
+  
+  SAlterTableSQL *pAlterInfo = pInfo->pAlterInfo;
+  int size = tscEstimateAlterTableMsgLength(pCmd);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for alter table msg", pSql);
     return -1;
   }
-
-  pAlterTableMsg = (SCMAlterTableMsg *)pCmd->payload;
-
+  
+  SCMAlterTableMsg *pAlterTableMsg = (SCMAlterTableMsg *)pCmd->payload;
   tscGetDBInfoFromMeterId(pTableMetaInfo->name, pAlterTableMsg->db);
-
-  SAlterTableSQL *pAlterInfo = pInfo->pAlterInfo;
 
   strcpy(pAlterTableMsg->tableId, pTableMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
@@ -1289,7 +1276,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSchema *pSchema = pAlterTableMsg->schema;
   for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-
+  
     pSchema->type = pField->type;
     strcpy(pSchema->name, pField->name);
     pSchema->bytes = htons(pField->bytes);
@@ -1302,11 +1289,22 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += pAlterInfo->tagData.dataLen;
 
   msgLen = pMsg - (char*)pAlterTableMsg;
+
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_TABLE;
 
   assert(msgLen + minMsgSize() <= size);
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  pCmd->msgType = TSDB_MSG_TYPE_UPDATE_TAG_VAL;
+  
+  SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) (pCmd->payload + tsRpcHeadSize);
+  pCmd->payloadLen = htonl(pUpdateMsg->head.contLen);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1804,7 +1802,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
   pMetaMsg->sid = htonl(pMetaMsg->sid);
   pMetaMsg->sversion = htons(pMetaMsg->sversion);
-  
+  pMetaMsg->tversion = htons(pMetaMsg->tversion);
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
   
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
@@ -2552,6 +2550,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_DROP_DNODE] = tscBuildDropDnodeMsg;
   tscBuildMsg[TSDB_SQL_CFG_DNODE] = tscBuildCfgDnodeMsg;
   tscBuildMsg[TSDB_SQL_ALTER_TABLE] = tscBuildAlterTableMsg;
+  tscBuildMsg[TSDB_SQL_UPDATE_TAGS_VAL] = tscBuildUpdateTagMsg;
   tscBuildMsg[TSDB_SQL_ALTER_DB] = tscAlterDbMsg;
 
   tscBuildMsg[TSDB_SQL_CONNECT] = tscBuildConnectMsg;

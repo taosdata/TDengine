@@ -181,21 +181,23 @@ static SArray* getTableList( SSqlObj* pSql ) {
   const char* p = strstr( pSql->sqlstr, " from " );
   char* sql = alloca(strlen(p) + 32);
   sprintf(sql, "select tbid(tbname)%s", p);
-  int code = taos_query( pSql->pTscObj, sql );
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("failed to retrieve table id: %s", tstrerror(code));
+  
+  SSqlObj* pSql1 = taos_query(pSql->pTscObj, sql);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    tscError("failed to retrieve table id: %s", tstrerror(terrno));
     return NULL;
   }
 
-  TAOS_RES* res = taos_use_result( pSql->pTscObj );
   TAOS_ROW row;
   SArray* result = taosArrayInit( 128, sizeof(STidTags) );
-  while ((row = taos_fetch_row(res))) {
+  while ((row = taos_fetch_row(pSql1))) {
     STidTags tags;
     memcpy(&tags, row[0], sizeof(tags));
     taosArrayPush(result, &tags);
   }
 
+  taos_free_result(pSql1);
+  
   return result;
 }
 

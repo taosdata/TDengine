@@ -159,7 +159,10 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
 /**
  * Initialize a data row
  */
-void tdInitDataRow(SDataRow row, STSchema *pSchema) { dataRowSetLen(row, TD_DATA_ROW_HEAD_SIZE + schemaFLen(pSchema)); }
+void tdInitDataRow(SDataRow row, STSchema *pSchema) {
+  dataRowSetLen(row, TD_DATA_ROW_HEAD_SIZE + schemaFLen(pSchema));
+  dataRowSetVersion(row, schemaVersion(pSchema));
+}
 
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
   int32_t size = dataRowMaxBytesFromSchema(pSchema);
@@ -262,25 +265,29 @@ bool isNEleNull(SDataCol *pCol, int nEle) {
   }
 }
 
-void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
-  char *ptr = NULL;
-  switch (pCol->type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      pCol->len = 0;
-      for (int i = 0; i < nEle; i++) {
-        pCol->dataOff[i] = pCol->len;
-        ptr = (char *)pCol->pData + pCol->len;
-        varDataLen(ptr) = (pCol->type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : TSDB_NCHAR_SIZE;
-        setNull(ptr + sizeof(VarDataLenT), pCol->type, pCol->bytes);
-        pCol->len += varDataTLen(ptr);
-      }
+void dataColSetNullAt(SDataCol *pCol, int index) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->dataOff[index] = pCol->len;
+    char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
+    varDataLen(ptr) = (pCol->type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : TSDB_NCHAR_SIZE;
+    setNull(varDataVal(ptr), pCol->type, pCol->bytes);
+    pCol->len += varDataTLen(ptr);
+  } else {
+    setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
+    pCol->len += TYPE_BYTES[pCol->type];
+  }
+}
 
-      break;
-    default:
-      setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
-      pCol->len = TYPE_BYTES[pCol->type] * nEle;
-      break;
+void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
+
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->len = 0;
+    for (int i = 0; i < nEle; i++) {
+      dataColSetNullAt(pCol, i);
+    }
+  } else {
+    setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
+    pCol->len = TYPE_BYTES[pCol->type] * nEle;
   }
 }
 
@@ -377,14 +384,32 @@ void tdResetDataCols(SDataCols *pCols) {
   }
 }
 
-void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
+void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols) {
   ASSERT(dataColsKeyLast(pCols) < dataRowKey(row));
 
-  for (int i = 0; i < pCols->numOfCols; i++) {
-    SDataCol *pCol = pCols->cols + i;
-    void *    value = tdGetRowDataOfCol(row, pCol->type, pCol->offset);
+  int rcol = 0;
+  int dcol = 0;
 
-    dataColAppendVal(pCol, value, pCols->numOfRows, pCols->maxPoints);
+  while (dcol < pCols->numOfCols) {
+    SDataCol *pDataCol = &(pCols->cols[dcol]);
+    if (rcol >= schemaNCols(pSchema)) {
+      dataColSetNullAt(pDataCol, pCols->numOfRows);
+      dcol++;
+      continue;
+    }
+
+    STColumn *pRowCol = schemaColAt(pSchema, rcol);
+    if (pRowCol->colId == pDataCol->colId) {
+      void *value = tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset+TD_DATA_ROW_HEAD_SIZE);
+      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
+      dcol++;
+      rcol++;
+    } else if (pRowCol->colId < pDataCol->colId) {
+      rcol++;
+    } else {
+      dataColSetNullAt(pDataCol, pCols->numOfRows);
+      dcol++;
+    }
   }
   pCols->numOfRows++;
 }
@@ -477,69 +502,103 @@ SKVRow tdKVRowDup(SKVRow row) {
   return trow;
 }
 
-SKVRow tdSetKVRowDataOfCol(SKVRow row, int16_t colId, int8_t type, void *value) {
-  // TODO
-  return NULL;
-  // SColIdx *pColIdx = NULL;
-  // SKVRow rrow = row;
-  // SKVRow nrow = NULL;
-  // void *ptr = taosbsearch(&colId, kvDataRowColIdx(row), kvDataRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
+int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
+  SColIdx *pColIdx = NULL;
+  SKVRow   row = *orow;
+  SKVRow   nrow = NULL;
+  void *   ptr = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
 
-  // if (ptr == NULL || ((SColIdx *)ptr)->colId < colId) { // need to add a column value to the row
-  //   int tlen = kvDataRowLen(row) + sizeof(SColIdx) + (IS_VAR_DATA_TYPE(type) ? varDataTLen(value) :
-  //   TYPE_BYTES[type]); nrow = malloc(tlen); if (nrow == NULL) return NULL;
+  if (ptr == NULL || ((SColIdx *)ptr)->colId < colId) { // need to add a column value to the row
+    int diff = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+    nrow = malloc(kvRowLen(row) + sizeof(SColIdx) + diff);
+    if (nrow == NULL) return -1;
 
-  //   kvDataRowSetNCols(nrow, kvDataRowNCols(row)+1);
-  //   kvDataRowSetLen(nrow, tlen);
+    kvRowSetLen(nrow, kvRowLen(row) + sizeof(SColIdx) + diff);
+    kvRowSetNCols(nrow, kvRowNCols(row) + 1);
 
-  //   if (ptr == NULL) ptr = kvDataRowValues(row);
+    if (ptr == NULL) {
+      memcpy(kvRowColIdx(nrow), kvRowColIdx(row), sizeof(SColIdx) * kvRowNCols(row));
+      memcpy(kvRowValues(nrow), kvRowValues(row), POINTER_DISTANCE(kvRowEnd(row), kvRowValues(row)));
+      int colIdx = kvRowNCols(nrow) - 1;
+      kvRowColIdxAt(nrow, colIdx)->colId = colId;
+      kvRowColIdxAt(nrow, colIdx)->offset = POINTER_DISTANCE(kvRowEnd(row), kvRowValues(row));
+      memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx)), value, diff);
+    } else {
+      int16_t tlen = POINTER_DISTANCE(ptr, kvRowColIdx(row));
+      if (tlen > 0) {
+        memcpy(kvRowColIdx(nrow), kvRowColIdx(row), tlen);
+        memcpy(kvRowValues(nrow), kvRowValues(row), ((SColIdx *)ptr)->offset);
+      }
 
-  //   // Copy the columns before the col
-  //   if (POINTER_DISTANCE(ptr, kvDataRowColIdx(row)) > 0) {
-  //     memcpy(kvDataRowColIdx(nrow), kvDataRowColIdx(row), POINTER_DISTANCE(ptr, kvDataRowColIdx(row)));
-  //     memcpy(kvDataRowValues(nrow), kvDataRowValues(row), ((SColIdx *)ptr)->offset); // TODO: here is not correct
-  //   }
+      int colIdx = tlen / sizeof(SColIdx);
+      kvRowColIdxAt(nrow, colIdx)->colId = colId;
+      kvRowColIdxAt(nrow, colIdx)->offset = ((SColIdx *)ptr)->offset;
+      memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx)), value, diff);
 
-  //   // Set the new col value
-  //   pColIdx = (SColIdx *)POINTER_SHIFT(nrow, POINTER_DISTANCE(ptr, row));
-  //   pColIdx->colId = colId;
-  //   pColIdx->offset = ((SColIdx *)ptr)->offset; // TODO: here is not correct
+      for (int i = colIdx; i < kvRowNCols(row); i++) {
+        kvRowColIdxAt(nrow, i + 1)->colId = kvRowColIdxAt(row, i)->colId;
+        kvRowColIdxAt(nrow, i + 1)->offset = kvRowColIdxAt(row, i)->offset + diff;
+      }
+      memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx + 1)), kvRowColVal(row, kvRowColIdxAt(row, colIdx)),
+             POINTER_DISTANCE(kvRowEnd(row), kvRowColVal(row, kvRowColIdxAt(row, colIdx)))
 
-  //   if (IS_VAR_DATA_TYPE(type)) {
-  //     memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, varDataLen(value));
-  //   } else {
-  //     memcpy(POINTER_SHIFT(kvDataRowValues(nrow), pColIdx->offset), value, TYPE_BYTES[type]);
-  //   }
+      );
+    }
 
-  //   // Copy the columns after the col
-  //   if (POINTER_DISTANCE(kvDataRowValues(row), ptr) > 0) {
-  //     // TODO: memcpy();
-  //   }
-  // } else {
-  //   // TODO
-  //   ASSERT(((SColIdx *)ptr)->colId == colId);
-  //   if (IS_VAR_DATA_TYPE(type)) {
-  //     void *pOldVal = kvDataRowColVal(row, (SColIdx *)ptr);
+    *orow = nrow;
+    free(row);
+  } else {
+    ASSERT(((SColIdx *)ptr)->colId == colId);
+    if (IS_VAR_DATA_TYPE(type)) {
+      void *pOldVal = kvRowColVal(row, (SColIdx *)ptr);
 
-  //     if (varDataTLen(value) == varDataTLen(pOldVal)) { // just update the column value in place
-  //       memcpy(pOldVal, value, varDataTLen(value));
-  //     } else { // enlarge the memory
-  //       // rrow = realloc(rrow, kvDataRowLen(rrow) + varDataTLen(value) - varDataTLen(pOldVal));
-  //       // if (rrow == NULL) return NULL;
-  //       // memmove();
-  //       // for () {
-  //       //   ((SColIdx *)ptr)->offset += balabala;
-  //       // }
+      if (varDataTLen(value) == varDataTLen(pOldVal)) { // just update the column value in place
+        memcpy(pOldVal, value, varDataTLen(value));
+      } else { // need to reallocate the memory
+        int16_t diff = varDataTLen(value) - varDataTLen(pOldVal);
+        int16_t nlen = kvRowLen(row) + diff;
+        ASSERT(nlen > 0);
+        nrow = malloc(nlen);
+        if (nrow == NULL) return -1;
 
-  //       // kvDataRowSetLen();
+        kvRowSetLen(nrow, nlen);
+        kvRowSetNCols(nrow, kvRowNCols(row));
 
-  //     }
-  //   } else {
-  //     memcpy(kvDataRowColVal(row, (SColIdx *)ptr), value, TYPE_BYTES[type]);
-  //   }
-  // }
+        // Copy part ahead
+        nlen = POINTER_DISTANCE(ptr, kvRowColIdx(row));
+        ASSERT(nlen % sizeof(SColIdx) == 0);
+        if (nlen > 0) {
+          ASSERT(((SColIdx *)ptr)->offset > 0);
+          memcpy(kvRowColIdx(nrow), kvRowColIdx(row), nlen);
+          memcpy(kvRowValues(nrow), kvRowValues(row), ((SColIdx *)ptr)->offset);
+        }
 
-  // return rrow;
+        // Construct current column value
+        int colIdx = nlen / sizeof(SColIdx);
+        pColIdx = kvRowColIdxAt(nrow, colIdx);
+        pColIdx->colId = ((SColIdx *)ptr)->colId;
+        pColIdx->offset = ((SColIdx *)ptr)->offset;
+        memcpy(kvRowColVal(nrow, pColIdx), value, varDataTLen(value));
+ 
+        // Construct columns after
+        if (kvRowNCols(nrow) - colIdx - 1 > 0) {
+          for (int i = colIdx + 1; i < kvRowNCols(nrow); i++) {
+            kvRowColIdxAt(nrow, i)->colId = kvRowColIdxAt(row, i)->colId;
+            kvRowColIdxAt(nrow, i)->offset += diff;
+          }
+          memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx + 1)), kvRowColVal(row, kvRowColIdxAt(row, colIdx + 1)),
+                 POINTER_DISTANCE(kvRowEnd(row), kvRowColVal(row, kvRowColIdxAt(row, colIdx + 1))));
+        }
+
+        *orow = nrow;
+        free(row);
+      }
+    } else {
+      memcpy(kvRowColVal(row, (SColIdx *)ptr), value, TYPE_BYTES[type]);
+    }
+  }
+
+  return 0;
 }
 
 void *tdEncodeKVRow(void *buf, SKVRow row) {

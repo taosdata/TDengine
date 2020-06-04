@@ -168,8 +168,10 @@ class Test:
         os.system(deleteCmd)
 
         self.last_tb = ""
+        self.last_stb = ""
         self.written = 0
         tdDnodes.start(1)
+        tdLog.sleep(10)
         tdSql.prepare()
 
 

@@ -116,11 +116,14 @@ typedef struct SQueryCostInfo {
   uint64_t loadDataInCacheSize;
   
   uint64_t loadDataTime;
-  uint64_t dataInRows;
-  uint64_t checkRows;
-  uint32_t dataBlocks;
+  uint64_t totalRows;
+  uint64_t totalCheckedRows;
+  uint32_t totalBlocks;
+  uint32_t loadBlocks;
   uint32_t loadBlockStatis;
   uint32_t discardBlocks;
+  uint64_t elapsedTime;
+  uint64_t computTime;
 } SQueryCostInfo;
 
 typedef struct SGroupItem {
@@ -168,7 +171,7 @@ typedef struct SQueryRuntimeEnv {
   SWindowResInfo       windowResInfo;
   STSBuf*              pTSBuf;
   STSCursor            cur;
-  SQueryCostInfo    summary;
+  SQueryCostInfo       summary;
   bool                 stableQuery;  // super table query or not
   void*                pQueryHandle;
   void*                pSecQueryHandle;  // another thread for
@@ -177,8 +180,6 @@ typedef struct SQueryRuntimeEnv {
 
 typedef struct SQInfo {
   void*   signature;
-  TSKEY   startTime;
-  TSKEY   elapsedTime;
   int32_t pointsInterpo;
   int32_t code;  // error code to returned to client
   sem_t   dataReady;
