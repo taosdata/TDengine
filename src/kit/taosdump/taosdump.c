@@ -544,7 +544,7 @@ int taosDumpOut(SDumpArguments *arguments) {
       taosDumpCreateDbClause(dbInfos[0], arguments->with_property, fp);
 
       sprintf(command, "use %s", dbInfos[0]->name);
-      if (taos_query(taos, command) != 0) {
+      if (taos_query(taos, command) == NULL ) {
         fprintf(stderr, "invalid database %s\n", dbInfos[0]->name);
         goto _exit_failure;
       }
@@ -1174,7 +1174,7 @@ int taosDumpIn(SDumpArguments *arguments) {
           tcommand = command;
         }
         taosReplaceCtrlChar(tcommand);
-        if (taos_query(taos, tcommand) != 0)
+        if (taos_query(taos, tcommand) == NULL)
           fprintf(stderr, "linenu: %" PRId64 " failed to run command %s reason:%s \ncontinue...\n", linenu, command,
                   taos_errstr(taos));
 
@@ -1250,7 +1250,7 @@ int taosDumpIn(SDumpArguments *arguments) {
       tcommand = command;
     }
     taosReplaceCtrlChar(lcommand);
-    if (taos_query(taos, tcommand) != 0)
+    if (taos_query(taos, tcommand) == NULL)
       fprintf(stderr, "linenu:%" PRId64 " failed to run command %s reason:%s \ncontinue...\n", linenu, command,
               taos_errstr(taos));
   }
