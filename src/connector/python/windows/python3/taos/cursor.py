@@ -110,7 +110,8 @@ class TDengineCursor(object):
             pass
         
         self._result = CTaosInterface.query(self._connection._conn, stmt)
-        if self._result is not None:
+        errno = CTaosInterface.libtaos.taos_errno(self._result)
+        if errno == 0:
             if CTaosInterface.fieldsCount(self._result) == 0:
                 self._affected_rows += CTaosInterface.affectedRows(self._result )
                 return CTaosInterface.affectedRows(self._result )

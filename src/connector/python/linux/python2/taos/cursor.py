@@ -126,7 +126,8 @@ class TDengineCursor(object):
             with open(self._logfile, "a") as logfile:
                 logfile.write("%s;\n" % operation)
 
-        if self._result is not None:
+        errno = CTaosInterface.libtaos.taos_errno(self._result)
+        if errno == 0:
             if CTaosInterface.fieldsCount(self._result) == 0:
                 self._affected_rows += CTaosInterface.affectedRows(
                     self._result )

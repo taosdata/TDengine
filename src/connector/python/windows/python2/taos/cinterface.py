@@ -149,6 +149,7 @@ class CTaosInterface(object):
     libtaos.taos_consume.restype = ctypes.c_void_p
     libtaos.taos_fetch_lengths.restype = ctypes.c_void_p
     libtaos.taos_free_result.restype = None
+    libtaos.taos_errno.restype = ctypes.c_int
 
     def __init__(self, config=None):
         '''
