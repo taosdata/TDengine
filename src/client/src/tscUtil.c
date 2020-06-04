@@ -759,10 +759,6 @@ void tscCloseTscObj(STscObj* pObj) {
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 
-  if (pSql) {
-    sem_destroy(&pSql->rspSem);
-  }
-  
   pthread_mutex_destroy(&pObj->mutex);
   
   if (pObj->pDnodeConn != NULL) {
