@@ -88,13 +88,23 @@ void tscSaveSlowQueryFp(void *handle, void *tmrId) {
 }
 
 void tscSaveSlowQuery(SSqlObj *pSql) {
-  const static int64_t SLOW_QUERY_INTERVAL = 3000000L;
-  if (pSql->res.useconds < SLOW_QUERY_INTERVAL) return;
+  const static int64_t SLOW_QUERY_INTERVAL = 3000000L; // todo configurable
+  size_t size = 200;  // other part of sql string, expect the main sql str
+  
+  if (pSql->res.useconds < SLOW_QUERY_INTERVAL) {
+    return;
+  }
 
   tscTrace("%p query time:%" PRId64 " sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
-
-  char *sql = malloc(200);
-  int   len = snprintf(sql, 200, "insert into %s.slowquery values(now, '%s', %" PRId64 ", %" PRId64 ", '", tsMonitorDbName,
+  int32_t sqlSize = TSDB_SHOW_SQL_LEN + size;
+  
+  char *sql = malloc(sqlSize);
+  if (sql == NULL) {
+    tscError("%p failed to allocate memory to sent slow query to dnode", pSql);
+    return;
+  }
+  
+  int len = snprintf(sql, size, "insert into %s.slowquery values(now, '%s', %" PRId64 ", %" PRId64 ", '", tsMonitorDbName,
           pSql->pTscObj->user, pSql->stime, pSql->res.useconds);
   int sqlLen = snprintf(sql + len, TSDB_SHOW_SQL_LEN, "%s", pSql->sqlstr);
   if (sqlLen > TSDB_SHOW_SQL_LEN - 1) {
@@ -102,8 +112,8 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   } else {
     sqlLen += len;
   }
+  
   strcpy(sql + sqlLen, "')");
-
   taosTmrStart(tscSaveSlowQueryFp, 200, sql, tscTmr);
 }
 

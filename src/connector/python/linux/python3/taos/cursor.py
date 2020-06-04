@@ -122,26 +122,26 @@ class TDengineCursor(object):
         # querySeqNum += 1
         # localSeqNum = querySeqNum # avoid raice condition
         # print("   >> Exec Query ({}): {}".format(localSeqNum, str(stmt)))
-        res = CTaosInterface.query(self._connection._conn, stmt)
+        self._result = CTaosInterface.query(self._connection._conn, stmt)
         # print("   << Query ({}) Exec Done".format(localSeqNum))
-
         if (self._logfile):
             with open(self._logfile, "a") as logfile:
                 logfile.write("%s;\n" % operation)
 
-        if res == 0:
-            if CTaosInterface.fieldsCount(self._connection._conn) == 0:
+        errno = CTaosInterface.libtaos.taos_errno(self._result)
+        if errno == 0:
+            if CTaosInterface.fieldsCount(self._result) == 0:
                 self._affected_rows += CTaosInterface.affectedRows(
-                    self._connection._conn)
-                return CTaosInterface.affectedRows(self._connection._conn)
+                    self._result )
+                return CTaosInterface.affectedRows(self._result )
             else:
-                self._result, self._fields = CTaosInterface.useResult(
-                    self._connection._conn)
+                self._fields = CTaosInterface.useResult(
+                    self._result)
                 return self._handle_result()
         else:
             raise ProgrammingError(
                 CTaosInterface.errStr(
-                    self._connection._conn))
+                    self._result ))
 
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.

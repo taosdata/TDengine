@@ -409,8 +409,10 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
-  if (pSql == NULL || pSql->signature != pSql) return;
-
+  if (pSql == NULL || pSql->signature != pSql) {
+    return;
+  }
+  
   tscTrace("%p start to free sql object", pSql);
   tscPartiallyFreeSqlObj(pSql);
 
@@ -424,6 +426,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pCmd->allocSize = 0;
   
   tfree(pSql->sqlstr);
+  sem_destroy(&pSql->rspSem);
   free(pSql);
 }
 
@@ -750,16 +753,7 @@ void tscCloseTscObj(STscObj* pObj) {
   assert(pObj != NULL);
   
   pObj->signature = NULL;
-  SSqlObj* pSql = pObj->pSql;
-  
-  if (pSql) {
-    terrno = pSql->res.code;
-    sem_destroy(&pSql->rspSem);
-  }
-  
   taosTmrStopA(&(pObj->pTimer));
-  tscFreeSqlObj(pSql);
-
   pthread_mutex_destroy(&pObj->mutex);
   
   if (pObj->pDnodeConn != NULL) {
@@ -1238,9 +1232,8 @@ void tscColumnListDestroy(SArray* pColumnList) {
  *
  */
 static int32_t validateQuoteToken(SSQLToken* pToken) {
-  pToken->n = strdequote(pToken->z);
-  strtrim(pToken->z);
-  pToken->n = (uint32_t)strlen(pToken->z);
+  strdequote(pToken->z);
+  pToken->n = strtrim(pToken->z);
 
   int32_t k = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1262,9 +1255,8 @@ int32_t tscValidateName(SSQLToken* pToken) {
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
-      pToken->n = strdequote(pToken->z);
-      strtrim(pToken->z);
-      pToken->n = (uint32_t)strlen(pToken->z);
+      strdequote(pToken->z);
+      pToken->n = strtrim(pToken->z);
 
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1289,8 +1281,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
     char*   pStr = pToken->z;
 
     if (pToken->type == TK_SPACE) {
-      strtrim(pToken->z);
-      pToken->n = (uint32_t)strlen(pToken->z);
+      pToken->n = strtrim(pToken->z);
     }
 
     pToken->n = tSQLGetToken(pToken->z, &pToken->type);
@@ -1471,22 +1462,24 @@ bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
  * If connection need to be recycled, the SqlObj also should be freed.
  */
 bool tscShouldBeFreed(SSqlObj* pSql) {
-  if (pSql == NULL || pSql->signature != pSql || pSql->fp == NULL) {
+  if (pSql == NULL || pSql->signature != pSql) {
     return false;
   }
-
+  
+  assert(pSql->fp != NULL);
+  
   STscObj* pTscObj = pSql->pTscObj;
-  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pTscObj->pSql == pSql || pSql->pSubscription != NULL) {
+  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pSql->pSubscription != NULL) {
     return false;
   }
 
+  // only the table meta and super table vgroup query will free resource automatically
   int32_t command = pSql->cmd.command;
-  if (command == TSDB_SQL_CONNECT || command == TSDB_SQL_INSERT) {
+  if (command == TSDB_SQL_META || command == TSDB_SQL_STABLEVGROUP) {
     return true;
-  } else {
-    return tscKeepConn[command] == 0 ||
-           (pSql->res.code != TSDB_CODE_ACTION_IN_PROGRESS && pSql->res.code != TSDB_CODE_SUCCESS);
   }
+
+  return false;
 }
 
 /**
@@ -1949,15 +1942,14 @@ int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid) {
   }
 }
 
-bool tscIsUpdateQuery(STscObj* pObj) {
-  if (pObj == NULL || pObj->signature != pObj) {
+bool tscIsUpdateQuery(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
     terrno = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 
-  SSqlCmd* pCmd = &pObj->pSql->cmd;
-  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) ||
-          TSDB_SQL_USE_DB == pCmd->command);
+  SSqlCmd* pCmd = &pSql->cmd;
+  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
 }
 
 int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {

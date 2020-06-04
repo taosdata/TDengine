@@ -77,7 +77,7 @@ static FORCE_INLINE void taosFreeNode(void *data) {
  * @param lifespan total survial expiredTime from now
  * @return         SCacheDataNode
  */
-static SCacheDataNode *taosCreateHashNode(const char *key, size_t keyLen, const char *pData, size_t size,
+static SCacheDataNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pData, size_t size,
                                           uint64_t duration) {
   size_t totalSize = size + sizeof(SCacheDataNode) + keyLen + 1;
   
@@ -242,13 +242,14 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
   
   // only a node is not referenced by any other object, in-place update it
   if (T_REF_VAL_GET(pNode) == 0) {
-    size_t newSize = sizeof(SCacheDataNode) + dataSize + keyLen;
+    size_t newSize = sizeof(SCacheDataNode) + dataSize + keyLen + 1;
     
     pNewNode = (SCacheDataNode *)realloc(pNode, newSize);
     if (pNewNode == NULL) {
       return NULL;
     }
     
+    memset(pNewNode, 0, newSize);
     pNewNode->signature = (uint64_t)pNewNode;
     memcpy(pNewNode->data, pData, dataSize);
     
@@ -267,7 +268,7 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
   } else {
     taosCacheMoveToTrash(pCacheObj, pNode);
     
-    pNewNode = taosCreateHashNode(key, keyLen, pData, dataSize, duration);
+    pNewNode = taosCreateCacheNode(key, keyLen, pData, dataSize, duration);
     if (pNewNode == NULL) {
       return NULL;
     }
@@ -293,7 +294,7 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
  */
 static FORCE_INLINE SCacheDataNode *taosAddToCacheImpl(SCacheObj *pCacheObj, const char *key, size_t keyLen, const void *pData,
                                                        size_t dataSize, uint64_t duration) {
-  SCacheDataNode *pNode = taosCreateHashNode(key, keyLen, pData, dataSize, duration);
+  SCacheDataNode *pNode = taosCreateCacheNode(key, keyLen, pData, dataSize, duration);
   if (pNode == NULL) {
     return NULL;
   }

@@ -99,7 +99,7 @@ public class TSDBJNIConnector {
 
         this.taos = this.connectImp(host, port, dbName, user, password);
         if (this.taos == TSDBConstants.JNI_NULL_POINTER) {
-            throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg()), "", this.getErrCode());
+            throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(null)), "", this.getErrCode(null));
         }
 
         return true;
@@ -117,52 +117,57 @@ public class TSDBJNIConnector {
             freeResultSet(taosResultSetPointer);
         }
 
-        int code;
+        long pSql = 0l;
         try {
-            code = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
+            pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
         } catch (Exception e) {
             e.printStackTrace();
+            this.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.WrapErrMsg("Unsupported encoding"));
         }
+        int code = this.getErrCode(pSql);
+
         affectedRows = code;
         if (code < 0) {
             affectedRows = -1;
             if (code == TSDBConstants.JNI_TDENGINE_ERROR) {
-                throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg()), "", this.getErrCode());
+                this.freeResultSet(pSql);
+                throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(pSql)), "", this.getErrCode(pSql));
             } else {
-                throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode());
+                this.freeResultSet(pSql);
+                throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode(pSql));
             }
         }
 
         // Try retrieving result set for the executed SQL using the current connection pointer. If the executed
         // SQL is a DML/DDL which doesn't return a result set, then taosResultSetPointer should be 0L. Otherwise,
         // taosResultSetPointer should be a non-zero value.
-        taosResultSetPointer = this.getResultSetImp(this.taos);
+        taosResultSetPointer = this.getResultSetImp(this.taos, pSql);
         if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
             isResultsetClosed = false;
         }
         return code;
     }
 
-    private native int executeQueryImp(byte[] sqlBytes, long connection);
+    private native long executeQueryImp(byte[] sqlBytes, long connection);
 
     /**
      * Get recent error code by connection
      */
-    public int getErrCode() {
-        return Math.abs(this.getErrCodeImp(this.taos));
+    public int getErrCode(Long pSql) {
+        return Math.abs(this.getErrCodeImp(this.taos, pSql));
     }
 
-    private native int getErrCodeImp(long connection);
+    private native int getErrCodeImp(long connection, Long pSql);
 
     /**
      * Get recent error message by connection
      */
-    public String getErrMsg() {
-        return this.getErrMsgImp(this.taos);
+    public String getErrMsg(Long pSql) {
+        return this.getErrMsgImp(this.taos, pSql);
     }
 
-    private native String getErrMsgImp(long connection);
+    private native String getErrMsgImp(long connection, Long pSql);
 
     /**
      * Get resultset pointer
@@ -172,7 +177,7 @@ public class TSDBJNIConnector {
         return taosResultSetPointer;
     }
 
-    private native long getResultSetImp(long connection);
+    private native long getResultSetImp(long connection, long pSql);
 
     /**
      * Free resultset operation from C to release resultset pointer by JNI
@@ -212,15 +217,15 @@ public class TSDBJNIConnector {
     /**
      * Get affected rows count
      */
-    public int getAffectedRows() {
+    public int getAffectedRows(Long pSql) {
         int affectedRows = this.affectedRows;
         if (affectedRows < 0) {
-            affectedRows = this.getAffectedRowsImp(this.taos);
+            affectedRows = this.getAffectedRowsImp(this.taos, pSql);
         }
         return affectedRows;
     }
 
-    private native int getAffectedRowsImp(long connection);
+    private native int getAffectedRowsImp(long connection, Long pSql);
 
     /**
      * Get schema metadata
@@ -248,7 +253,7 @@ public class TSDBJNIConnector {
     public void closeConnection() throws SQLException {
         int code = this.closeConnectionImp(this.taos);
         if (code < 0) {
-            throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode());
+            throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode(null));
         } else if (code == 0) {
             this.taos = TSDBConstants.JNI_NULL_POINTER;
         } else {
