@@ -1430,9 +1430,9 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
   db = (db == NULL) ? pObj->db : db + 1;
-  strcpy(pConnect->db, db);
-  strcpy(pConnect->clientVersion, version);
-  strcpy(pConnect->msgVersion, "");
+  tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
+  tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
 
   return TSDB_CODE_SUCCESS;
 }

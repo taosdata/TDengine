@@ -348,7 +348,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      if (pToken->n > TSDB_TABLE_NAME_LEN) {
+      if (pToken->n >= TSDB_TABLE_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -1401,7 +1401,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
     }
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE};
+      SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE};
       strcpy(colSchema.name, TSQL_TBNAME_L);
 
       tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, true);
@@ -2229,7 +2229,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      if (pCmd->payloadLen > TSDB_TABLE_NAME_LEN) {
+      if (pCmd->payloadLen >= TSDB_TABLE_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
     }
@@ -5232,7 +5232,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
     int16_t colIndex = pColIndex->colIndex;
     if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       type = TSDB_DATA_TYPE_BINARY;
-      bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE; // todo extract method
+      bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE; // todo extract method
       name = TSQL_TBNAME_L;
     } else {
       if (TSDB_COL_IS_TAG(pColIndex->flag)) {

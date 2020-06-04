@@ -18,9 +18,7 @@ class TDTestCase:
         tdSql.prepare()
 
         getTableNameLen = "grep -w '#define TSDB_TABLE_NAME_LEN' ../../src/inc/taosdef.h|awk '{print $3}'"
-        tableNameMaxLen = int(
-            subprocess.check_output(
-                getTableNameLen, shell=True))
+        tableNameMaxLen = int( subprocess.check_output(getTableNameLen, shell=True)) - 1
         tdLog.info("table name max length is %d" % tableNameMaxLen)
         chars = string.ascii_uppercase + string.ascii_lowercase
         tb_name = ''.join(random.choices(chars, k=tableNameMaxLen))

@@ -96,14 +96,14 @@ class TDTestCase:
         tdLog.notice("table name max length is %d" % maxTableNameLen)
 
         # create a super table with name exceed max length
-        sname = self.generateString(maxTableNameLen + 1)
+        sname = self.generateString(maxTableNameLen)
         tdLog.info("create a super table with length %d" % len(sname))
         tdSql.error(
             "create table %s (ts timestamp, value int) tags(id int)" %
             sname)
 
         # create a super table with name of max length
-        sname = self.generateString(maxTableNameLen)
+        sname = self.generateString(maxTableNameLen - 1)
         tdLog.info("create a super table with length %d" % len(sname))
         tdSql.execute(
             "create table %s (ts timestamp, value int) tags(id int)" %
@@ -113,12 +113,12 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         # create a child table with name exceed max length
-        name = self.generateString(maxTableNameLen + 1)
+        name = self.generateString(maxTableNameLen)
         tdLog.info("create a child table with length %d" % len(name))
         tdSql.error("create table %s using %s tags(0)" % (name, sname))
 
         # create a child table with name of max length
-        name = self.generateString(maxTableNameLen)
+        name = self.generateString(maxTableNameLen - 1)
         tdLog.info("create a child table with length %d" % len(name))
         tdSql.execute("create table %s using %s tags(0)" % (name, sname))
         tdSql.query('show tables')

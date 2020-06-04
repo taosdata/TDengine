@@ -189,7 +189,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_USERID_LEN           9
 #define TS_PATH_DELIMITER_LEN     1
 
-#define TSDB_METER_ID_LEN_MARGIN  10
+#define TSDB_METER_ID_LEN_MARGIN  9
 #define TSDB_TABLE_ID_LEN         (TSDB_DB_NAME_LEN+TSDB_TABLE_NAME_LEN+2*TS_PATH_DELIMITER_LEN+TSDB_USERID_LEN+TSDB_METER_ID_LEN_MARGIN) //TSDB_DB_NAME_LEN+TSDB_TABLE_NAME_LEN+2*strlen(TS_PATH_DELIMITER)+strlen(USERID)
 #define TSDB_UNI_LEN              24
 #define TSDB_USER_LEN             TSDB_UNI_LEN
@@ -200,7 +200,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN        64
-#define TSDB_TABLE_NAME_LEN       192
+#define TSDB_TABLE_NAME_LEN       193
 #define TSDB_DB_NAME_LEN          32
 #define TSDB_COL_NAME_LEN         64
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
