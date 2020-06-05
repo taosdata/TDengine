@@ -73,7 +73,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   pServerObj = (SServerObj *)calloc(sizeof(SServerObj), 1);
   pServerObj->ip = ip;
   pServerObj->port = port;
-  strcpy(pServerObj->label, label);
+  tstrncpy(pServerObj->label, label, sizeof(pServerObj->label));
   pServerObj->numOfThreads = numOfThreads;
 
   pServerObj->pThreadObj = (SThreadObj *)calloc(sizeof(SThreadObj), numOfThreads);
@@ -87,7 +87,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   pThreadObj = pServerObj->pThreadObj;
   for (int i = 0; i < numOfThreads; ++i) {
     pThreadObj->processData = fp;
-    strcpy(pThreadObj->label, label);
+    tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
     pThreadObj->shandle = shandle;
 
     code = pthread_mutex_init(&(pThreadObj->mutex), NULL);
@@ -247,7 +247,7 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
 
   pThreadObj = (SThreadObj *)malloc(sizeof(SThreadObj));
   memset(pThreadObj, 0, sizeof(SThreadObj));
-  strcpy(pThreadObj->label, label);
+  tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
   pThreadObj->ip = ip;
   pThreadObj->shandle = shandle;
 
