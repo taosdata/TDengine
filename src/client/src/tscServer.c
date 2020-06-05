@@ -114,6 +114,8 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     if (pIpList->numOfIps > 0) 
       tscSetMgmtIpList(pIpList);
 
+    pSql->pTscObj->connId = htonl(pRsp->connId);
+
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
     } else {
@@ -1129,13 +1131,6 @@ int32_t tscBuildKillMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCMKillQueryMsg);
 
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-
-  SCMKillQueryMsg *pKill = (SCMKillQueryMsg*)pCmd->payload;
-  strncpy(pKill->queryId, pInfo->pDCLInfo->ip.z, pInfo->pDCLInfo->ip.n);
   switch (pCmd->command) {
     case TSDB_SQL_KILL_QUERY:
       pCmd->msgType = TSDB_MSG_TYPE_CM_KILL_QUERY;
@@ -1743,57 +1738,43 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {
-  int      size = 0;
-  STscObj *pObj = pSql->pTscObj;
-
-  size += tsRpcHeadSize;
-  size += sizeof(SQqueryList);
-
-  SSqlObj *tpSql = pObj->sqlList;
-  while (tpSql) {
-    size += sizeof(SQueryDesc);
-    tpSql = tpSql->next;
-  }
-
-  size += sizeof(SStreamList);
-  SSqlStream *pStream = pObj->streamList;
-  while (pStream) {
-    size += sizeof(SStreamDesc);
-    pStream = pStream->next;
-  }
-
-  return size + TSDB_EXTRA_PAYLOAD_SIZE;
-}
-
 int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  char *pMsg, *pStart;
-  int   msgLen = 0;
-  int   size = 0;
-
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
 
   pthread_mutex_lock(&pObj->mutex);
 
-  size = tscEstimateHeartBeatMsgLength(pSql);
+  int32_t numOfQueries = 2;
+  SSqlObj *tpSql = pObj->sqlList;
+  while (tpSql) {
+    tpSql = tpSql->next;
+    numOfQueries++;
+  }
+
+  int32_t numOfStreams = 2;
+  SSqlStream *pStream = pObj->streamList;
+  while (pStream) {
+    pStream = pStream->next;
+    numOfStreams++;
+  }
+
+  int size = numOfQueries * sizeof(SQueryDesc) + numOfStreams * sizeof(SStreamDesc) + sizeof(SCMHeartBeatMsg) + 100;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     pthread_mutex_unlock(&pObj->mutex);
     tscError("%p failed to malloc for heartbeat msg", pSql);
     return -1;
   }
 
-  pMsg = pCmd->payload;
-  pStart = pMsg;
+  SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;
+  pHeartbeat->numOfQueries = numOfQueries;
+  pHeartbeat->numOfStreams = numOfStreams;
+  int msgLen = tscBuildQueryStreamDesc(pHeartbeat, pObj);
 
-  pMsg = tscBuildQueryStreamDesc(pMsg, pObj);
   pthread_mutex_unlock(&pObj->mutex);
 
-  msgLen = pMsg - pStart;
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_CM_HEARTBEAT;
 
-  assert(msgLen + minMsgSize() <= size);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2204,6 +2185,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
   pObj->superAuth = pConnect->superAuth;
+  pObj->connId = htonl(pConnect->connId);
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;

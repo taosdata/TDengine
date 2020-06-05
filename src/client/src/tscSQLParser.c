@@ -93,7 +93,7 @@ static int32_t validateArithmeticSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo
 static int32_t validateDNodeConfig(tDCLSQL* pOptions);
 static int32_t validateLocalConfig(tDCLSQL* pOptions);
 static int32_t validateColumnName(char* name);
-static int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
+static int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType);
 
 static bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
 static bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo);
@@ -531,7 +531,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case TSDB_SQL_KILL_QUERY:
     case TSDB_SQL_KILL_STREAM:
     case TSDB_SQL_KILL_CONNECTION: {
-      if ((code = setKillInfo(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
+      if ((code = setKillInfo(pSql, pInfo, pInfo->type)) != TSDB_CODE_SUCCESS) {
         return code;
       }
 
@@ -2229,37 +2229,45 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
-  const char* msg1 = "invalid ip address";
-  const char* msg2 = "invalid port";
+int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
+  const char* msg1 = "invalid connection ID";
+  const char* msg2 = "invalid query ID";
+  const char* msg3 = "invalid stream ID";
 
   SSqlCmd* pCmd = &pSql->cmd;
   pCmd->command = pInfo->type;
-
-  SSQLToken* ip = &(pInfo->pDCLInfo->ip);
-  if (ip->n > TSDB_KILL_MSG_LEN) {
+  
+  SSQLToken* idStr = &(pInfo->pDCLInfo->ip);
+  if (idStr->n > TSDB_KILL_MSG_LEN) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  strncpy(pCmd->payload, ip->z, ip->n);
+  strncpy(pCmd->payload, idStr->z, idStr->n);
 
   const char delim = ':';
+  char* connIdStr = strtok(idStr->z, &delim);
+  char* queryIdStr = strtok(NULL, &delim);
 
-  char* ipStr = strtok(ip->z, &delim);
-  char* portStr = strtok(NULL, &delim);
-
-  if (!validateIpAddress(ipStr, strlen(ipStr))) {
+  int32_t connId = (int32_t)strtol(connIdStr, NULL, 10);
+  if (connId <= 0) {
     memset(pCmd->payload, 0, strlen(pCmd->payload));
-
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  uint16_t port = (uint16_t)strtol(portStr, NULL, 10);
-  if (port <= 0 || port > 65535) {
-    memset(pCmd->payload, 0, strlen(pCmd->payload));
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  if (killType == TSDB_SQL_KILL_CONNECTION) {
+    return TSDB_CODE_SUCCESS;
   }
 
+  int32_t queryId = (int32_t)strtol(queryIdStr, NULL, 10);
+  if (queryId <= 0) {
+    memset(pCmd->payload, 0, strlen(pCmd->payload));
+    if (killType == TSDB_SQL_KILL_QUERY) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    } else {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 

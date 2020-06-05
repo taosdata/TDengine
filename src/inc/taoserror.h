@@ -150,6 +150,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISK_PERMISSIONS,        0, 0x0405, "no disk perm
 TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,             0, 0x0406, "file corrupted")
 TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,           0, 0x0407, "memory corrupted")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUCH_FILE_OR_DIR,       0, 0x0408, "no such file or directory")
+TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_SHELL_CONNS,       0, 0x0409, "too many shell conns")
 
 // client
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CLIENT_VERSION,     0, 0x0481, "invalid client version")
