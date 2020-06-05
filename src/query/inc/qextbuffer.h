@@ -28,7 +28,7 @@ extern "C" {
 #include "tdataformat.h"
 #include "talgo.h"
 
-#define DEFAULT_PAGE_SIZE (1024L*56)  // 16k larger than the SHistoInfo
+#define DEFAULT_PAGE_SIZE (1024L*64)  // 16k larger than the SHistoInfo
 #define MAX_TMPFILE_PATH_LENGTH PATH_MAX
 #define INITIAL_ALLOCATION_BUFFER_SIZE 64
 
@@ -96,7 +96,7 @@ typedef struct SColumnOrderInfo {
 typedef struct tOrderDescriptor {
   SColumnModel *   pColumnModel;
   int32_t          tsOrder;  // timestamp order type if exists
-  SColumnOrderInfo orderIdx;
+  SColumnOrderInfo orderInfo;
 } tOrderDescriptor;
 
 typedef struct tExtMemBuffer {

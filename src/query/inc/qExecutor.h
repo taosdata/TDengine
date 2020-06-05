@@ -172,10 +172,11 @@ typedef struct SQueryRuntimeEnv {
   STSBuf*              pTSBuf;
   STSCursor            cur;
   SQueryCostInfo       summary;
-  bool                 stableQuery;  // super table query or not
+  bool                 stableQuery;      // super table query or not
   void*                pQueryHandle;
   void*                pSecQueryHandle;  // another thread for
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
+  bool                 topBotQuery;      // false;
 } SQueryRuntimeEnv;
 
 typedef struct SQInfo {
