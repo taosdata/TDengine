@@ -87,7 +87,7 @@ class TDTestCase:
 
         # <> for timestamp type
         tdSql.query("select * from db.st where ts <> '2020-05-13 10:00:00.002'")
-        #tdSql.checkRows(4)
+        # tdSql.checkRows(4)
 
         # <> for numeric type
         tdSql.query("select * from db.st where tagtype <> 2")
@@ -96,7 +96,7 @@ class TDTestCase:
         # <> for nchar type
         tdSql.query("select * from db.st where name <> 'first'")
         tdSql.checkRows(4)
-        
+
         # % for nchar type
         tdSql.query("select * from db.st where name like 'fi%'")
         tdSql.checkRows(2)
