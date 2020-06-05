@@ -4942,9 +4942,12 @@ static bool validateQuerySourceCols(SQueryTableMsg *pQueryMsg, SSqlFuncMsg** pEx
     return false;
   } else if (numOfTotal == 0) {
     for(int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
-      if (pExprMsg[i]->functionId != TSDB_FUNC_TAGPRJ) {
-        return false;
+      if ((pExprMsg[i]->functionId == TSDB_FUNC_TAGPRJ) ||
+          (pExprMsg[i]->functionId == TSDB_FUNC_TID_TAG && pExprMsg[i]->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX)) {
+        continue;
       }
+      
+      return false;
     }
   }
 
@@ -6035,53 +6038,58 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
   num = taosArrayGetSize(pa);
 
   assert(num == pQInfo->groupInfo.numOfTables);
-//  int16_t type, bytes;
-
   int32_t functionId = pQuery->pSelectExpr[0].base.functionId;
   if (functionId == TSDB_FUNC_TID_TAG) { // return the tags & table Id
     assert(pQuery->numOfOutput == 1);
+    
     SExprInfo* pExprInfo = &pQuery->pSelectExpr[0];
-
     int32_t rsize = pExprInfo->bytes;
 
     for(int32_t i = 0; i < num; ++i) {
-      SGroupItem* item = taosArrayGet(pa, i);
+      SGroupItem *item = taosArrayGet(pa, i);
 
-      char* output = pQuery->sdata[0]->data + i * rsize;
+      char *output = pQuery->sdata[0]->data + i * rsize;
       varDataSetLen(output, rsize - VARSTR_HEADER_SIZE);
-      
+
       output = varDataVal(output);
-      *(int64_t*) output = item->id.uid;  // memory align problem, todo serialize
+      *(int64_t *)output = item->id.uid;  // memory align problem, todo serialize
       output += sizeof(item->id.uid);
 
-      *(int32_t*) output = item->id.tid;
+      *(int32_t *)output = item->id.tid;
       output += sizeof(item->id.tid);
 
-      *(int32_t*) output = pQInfo->vgId;
+      *(int32_t *)output = pQInfo->vgId;
       output += sizeof(pQInfo->vgId);
 
       int16_t bytes = pExprInfo->bytes;
       int16_t type = pExprInfo->type;
-      
-      char* val = tsdbGetTableTagVal(pQInfo->tsdb, &item->id, pExprInfo->base.colInfo.colId, type, bytes);
-      
-      // todo refactor
-      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-        if (val == NULL) {
-          setVardataNull(output, type);
-        } else {
-          memcpy(output, val, varDataTLen(val));
-        }
+
+      if (pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+        char *data = tsdbGetTableName(pQInfo->tsdb, &item->id);
+        memcpy(output, data, varDataTLen(data));
       } else {
-        if (val == NULL) {
-          setNull(output, type, bytes);
+        char *val = tsdbGetTableTagVal(pQInfo->tsdb, &item->id, pExprInfo->base.colInfo.colId, type, bytes);
+
+        // todo refactor
+        if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+          if (val == NULL) {
+            setVardataNull(output, type);
+          } else {
+            memcpy(output, val, varDataTLen(val));
+          }
         } else {
-          memcpy(output, val, bytes);
+          if (val == NULL) {
+            setNull(output, type, bytes);
+          } else {
+            memcpy(output, val, bytes);
+          }
         }
       }
     }
-
+  
+    pQInfo->tableIndex = pQInfo->groupInfo.numOfTables;
     qTrace("QInfo:%p create (tableId, tag) info completed, rows:%d", pQInfo, num);
+    
   } else {  // return only the tags|table name etc.
     for(int32_t i = 0; i < num; ++i) {
       SExprInfo* pExprInfo = pQuery->pSelectExpr;

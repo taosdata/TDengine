@@ -1881,22 +1881,38 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
   
       // functions can not be applied to normal columns
       int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-      if (index.columnIndex < numOfCols) {
+      if (index.columnIndex < numOfCols && index.columnIndex != TSDB_TBNAME_COLUMN_INDEX) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg6);
       }
     
-      index.columnIndex -= numOfCols;
+      if (index.columnIndex > 0) {
+        index.columnIndex -= numOfCols;
+      }
       
       // 2. valid the column type
-      int16_t colType = pSchema[index.columnIndex].type;
-      if (colType == TSDB_DATA_TYPE_BOOL || colType >= TSDB_DATA_TYPE_BINARY) {
+      int16_t colType = 0;
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        colType = TSDB_DATA_TYPE_BINARY;
+      } else {
+        colType = pSchema[index.columnIndex].type;
+      }
+      
+      if (colType == TSDB_DATA_TYPE_BOOL) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
       }
 
       tscColumnListInsert(pTableMetaInfo->tagColList, &index);
       SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-      SSchema s = pTagSchema[index.columnIndex];
-
+      
+      SSchema s = {0};
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        s.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+        s.type  = TSDB_DATA_TYPE_BINARY;
+        s.colId = TSDB_TBNAME_COLUMN_INDEX;
+      } else {
+        s = pTagSchema[index.columnIndex];
+      }
+      
       int16_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
