@@ -181,15 +181,16 @@ class Test (threading.Thread):
 
         tdDnodes.forcestop(1)
         tdDnodes.deploy(1)
+        tdDnodes.start(1)
+        tdSql.prepare()
         last_tb = ""
         last_stb = ""
         written = 0
-        tdDnodes.start(1)
-        tdSql.prepare()
 
     def delete_datafiles(self):
         tdLog.info("delete_data_files")
         global last_tb
+        global last_stb
         global written
 
         dnodesDir = tdDnodes.getDnodesRootDir()
@@ -197,11 +198,12 @@ class Test (threading.Thread):
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
 
-        last_tb = ""
-        written = 0
         tdDnodes.start(1)
         tdLog.sleep(10)
         tdSql.prepare()
+        last_tb = ""
+        last_stb = ""
+        written = 0
 
     def run(self):
         dataOp = {
