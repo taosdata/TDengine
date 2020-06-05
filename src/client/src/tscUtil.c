@@ -2104,7 +2104,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
 }
 
 void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-  SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, columnIndex);
+  SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, columnIndex);//tscFieldInfoGetSupp(pFieldInfo, columnIndex);
   assert(pInfo->pSqlExpr != NULL);
 
   int32_t type = pInfo->pSqlExpr->resType;

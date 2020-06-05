@@ -356,17 +356,15 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
 static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
-      int32_t first = *(int32_t *)f1;
-      int32_t second = *(int32_t *)f2;
+      int32_t first  = *(int32_t *) f1;
+      int32_t second = *(int32_t *) f2;
       if (first == second) {
         return 0;
       }
       return (first < second) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
-      //double first = *(double *)f1;
-      double first = GET_DOUBLE_VAL(f1);
-      //double second = *(double *)f2;
+      double first  = GET_DOUBLE_VAL(f1);
       double second = GET_DOUBLE_VAL(f2);
       if (first == second) {
         return 0;
@@ -374,9 +372,7 @@ static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, i
       return (first < second) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_FLOAT: {
-      //float first = *(float *)f1;
-      //float second = *(float *)f2;
-      float first = GET_FLOAT_VAL(f1);
+      float first  = GET_FLOAT_VAL(f1);
       float second = GET_FLOAT_VAL(f2);
       if (first == second) {
         return 0;
@@ -439,9 +435,9 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
                   int32_t s2, char *data2) {
   assert(numOfRows1 == numOfRows2);
 
-  int32_t cmpCnt = pDescriptor->orderIdx.numOfCols;
+  int32_t cmpCnt = pDescriptor->orderInfo.numOfCols;
   for (int32_t i = 0; i < cmpCnt; ++i) {
-    int32_t colIdx = pDescriptor->orderIdx.pData[i];
+    int32_t colIdx = pDescriptor->orderInfo.pData[i];
 
     char *f1 = COLMODEL_GET_VAL(data1, pDescriptor->pColumnModel, numOfRows1, s1, colIdx);
     char *f2 = COLMODEL_GET_VAL(data2, pDescriptor->pColumnModel, numOfRows2, s2, colIdx);
@@ -471,9 +467,9 @@ int32_t compare_d(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
                   int32_t s2, char *data2) {
   assert(numOfRows1 == numOfRows2);
 
-  int32_t cmpCnt = pDescriptor->orderIdx.numOfCols;
+  int32_t cmpCnt = pDescriptor->orderInfo.numOfCols;
   for (int32_t i = 0; i < cmpCnt; ++i) {
-    int32_t colIdx = pDescriptor->orderIdx.pData[i];
+    int32_t colIdx = pDescriptor->orderInfo.pData[i];
 
     char *f1 = COLMODEL_GET_VAL(data1, pDescriptor->pColumnModel, numOfRows1, s1, colIdx);
     char *f2 = COLMODEL_GET_VAL(data2, pDescriptor->pColumnModel, numOfRows2, s2, colIdx);
@@ -563,13 +559,13 @@ static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   int32_t midIdx = ((end - start) >> 1) + start;
 
 #if defined(_DEBUG_VIEW)
-  int32_t f = pDescriptor->orderIdx.pData[0];
+  int32_t f = pDescriptor->orderInfo.pData[0];
 
   char *midx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, midIdx, f);
   char *startx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, start, f);
   char *endx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, end, f);
 
-  int32_t colIdx = pDescriptor->orderIdx.pData[0];
+  int32_t colIdx = pDescriptor->orderInfo.pData[0];
   tSortDataPrint(pDescriptor->pColumnModel->pFields[colIdx].field.type, "before", startx, midx, endx);
 #endif
 
@@ -596,7 +592,7 @@ static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
 }
 
 static UNUSED_FUNC void tRowModelDisplay(tOrderDescriptor *pDescriptor, int32_t numOfRows, char *d, int32_t len) {
-  int32_t colIdx = pDescriptor->orderIdx.pData[0];
+  int32_t colIdx = pDescriptor->orderInfo.pData[0];
 
   for (int32_t i = 0; i < len; ++i) {
     char *startx = COLMODEL_GET_VAL(d, pDescriptor->pColumnModel, numOfRows, i, colIdx);
@@ -1062,9 +1058,9 @@ tOrderDescriptor *tOrderDesCreate(const int32_t *orderColIdx, int32_t numOfOrder
   desc->pColumnModel = pModel;
   desc->tsOrder = tsOrderType;
 
-  desc->orderIdx.numOfCols = numOfOrderCols;
+  desc->orderInfo.numOfCols = numOfOrderCols;
   for (int32_t i = 0; i < numOfOrderCols; ++i) {
-    desc->orderIdx.pData[i] = orderColIdx[i];
+    desc->orderInfo.pData[i] = orderColIdx[i];
   }
 
   return desc;
