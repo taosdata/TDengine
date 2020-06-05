@@ -63,19 +63,21 @@ typedef struct SLocalReducer {
 //  char *                 pBufForInterpo;  // intermediate buffer for interpolation
   tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
-  int32_t                rowSize;     // size of each intermediate result.
-  int32_t                status;      // denote it is in reduce process, in reduce process, it
-  bool                   hasPrevRow;  // cannot be released
+  int32_t                rowSize;      // size of each intermediate result.
+  int32_t                finalRowSize; // final result row size
+  int32_t                status;       // denote it is in reduce process, in reduce process, it
+  bool                   hasPrevRow;   // cannot be released
   bool                   hasUnprocessedRow;
   tOrderDescriptor *     pDesc;
   SColumnModel *         resColModel;
   tExtMemBuffer **       pExtMemBuffer;      // disk-based buffer
-  SFillInfo*             pFillInfo;         // interpolation support structure
+  SFillInfo*             pFillInfo;          // interpolation support structure
   char *                 pFinalRes;          // result data after interpo
   tFilePage *            discardData;
   SResultInfo *          pResInfo;
   bool                   discard;
   int32_t                offset;             // limit offset value
+  bool                   orderPrjOnSTable;   // projection query on stable
 } SLocalReducer;
 
 typedef struct SSubqueryState {

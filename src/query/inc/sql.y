@@ -647,9 +647,9 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
 }
 
 ////////////////////////////////////////kill statement///////////////////////////////////////
-cmd ::= KILL CONNECTION IPTOKEN(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setKillSQL(pInfo, TSDB_SQL_KILL_CONNECTION, &X);}
-cmd ::= KILL STREAM IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setKillSQL(pInfo, TSDB_SQL_KILL_STREAM, &X);}
-cmd ::= KILL QUERY IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setKillSQL(pInfo, TSDB_SQL_KILL_QUERY, &X);}
+cmd ::= KILL CONNECTION INTEGER(Y).   {setKillSQL(pInfo, TSDB_SQL_KILL_CONNECTION, &Y);}
+cmd ::= KILL STREAM INTEGER(X) COLON(Z) INTEGER(Y).       {X.n += (Z.n + Y.n); setKillSQL(pInfo, TSDB_SQL_KILL_STREAM, &X);}
+cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); setKillSQL(pInfo, TSDB_SQL_KILL_QUERY, &X);}
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
