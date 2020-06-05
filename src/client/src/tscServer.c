@@ -332,7 +332,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   
   if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
+    rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? pRes->numOfRows: pRes->code;
     
     tscTrace("%p SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
     bool shouldFree = tscShouldBeFreed(pSql);
@@ -2330,7 +2330,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscTrace("%p numOfRows:%d, offset:%d", pSql, pRes->numOfRows, pRes->offset);
+  tscTrace("%p numOfRows:%d, offset:%d, complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
 
   return 0;
 }
