@@ -99,7 +99,7 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
   }
 
   tscTrace("%p stream:%p start stream query on:%s", pSql, pStream, pTableMetaInfo->name);
-  tscProcessSql(pStream->pSql);
+  tscDoQuery(pStream->pSql);
 
   tscIncStreamExecutionCount(pStream);
 }
@@ -477,14 +477,6 @@ static void setErrorInfo(SSqlObj* pSql, int32_t code, char* info) {
   }
 }
 
-static void asyncCallback(void *param, TAOS_RES *tres, int code) {
-  assert(param != NULL);
-  SSqlObj *pSql = ((SSqlObj *)param);
-  
-  pSql->res.code = code;
-  sem_post(&pSql->rspSem);
-}
-
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {
   STscObj *pObj = (STscObj *)taos;
@@ -492,35 +484,40 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
-    setErrorInfo(pSql, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
     return NULL;
   }
 
   pSql->signature = pSql;
   pSql->param = pSql;
   pSql->pTscObj = pObj;
-  pSql->fp = asyncCallback;
 
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
+  SSqlStream *pStream = (SSqlStream *)calloc(1, sizeof(SSqlStream));
+  if (pStream == NULL) {
+    tscError("%p open stream failed, sql:%s, reason:%s, code:%d", pSql, sqlstr, pCmd->payload, pRes->code);
+    tscFreeSqlObj(pSql);
+    return NULL;
+  }
+  pSql->pStream = pStream;
+
+  pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
+  if (pSql->sqlstr == NULL) {
+    tscError("%p failed to malloc sql string buffer", pSql);
+    tscFreeSqlObj(pSql);
+    return NULL;;
+  }
+  strtolower(pSql->sqlstr, sqlstr);
+
   tsem_init(&pSql->rspSem, 0, 0);
-  int32_t code = doAsyncParseSql(pSql, sqlstr, strlen(sqlstr));
+  int32_t code = doAsyncParseSql(pSql);
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     sem_wait(&pSql->rspSem);
   }
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
     setErrorInfo(pSql, pRes->code, pCmd->payload);
-
-    tscError("%p open stream failed, sql:%s, reason:%s, code:%d", pSql, sqlstr, pCmd->payload, pRes->code);
-    tscFreeSqlObj(pSql);
-    return NULL;
-  }
-
-  SSqlStream *pStream = (SSqlStream *)calloc(1, sizeof(SSqlStream));
-  if (pStream == NULL) {
-    setErrorInfo(pSql, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
 
     tscError("%p open stream failed, sql:%s, reason:%s, code:%d", pSql, sqlstr, pCmd->payload, pRes->code);
     tscFreeSqlObj(pSql);
@@ -540,7 +537,6 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   pStream->ctime = taosGetTimestamp(pStream->precision);
   pStream->etime = pQueryInfo->window.ekey;
 
-  pSql->pStream = pStream;
   tscAddIntoStreamList(pStream);
 
   tscSetSlidingWindowInfo(pSql, pStream);

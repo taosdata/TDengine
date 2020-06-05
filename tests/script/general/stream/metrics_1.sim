@@ -205,8 +205,8 @@ if $data01 != 20 then
 endi
 
 print =============== step21
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step22
 $st = $stPrefix . c1

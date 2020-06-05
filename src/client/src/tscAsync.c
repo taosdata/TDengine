@@ -40,7 +40,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-int doAsyncParseSql(SSqlObj* pSql, const char* sqlstr, size_t sqlLen) {
+int doAsyncParseSql(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
   int32_t code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
@@ -50,21 +50,10 @@ int doAsyncParseSql(SSqlObj* pSql, const char* sqlstr, size_t sqlLen) {
     return code;
   }
   
-  // todo check for OOM problem
-  pSql->sqlstr = calloc(1, sqlLen + 1);
-  if (pSql->sqlstr == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
-    tscQueueAsyncError(pSql->fp, pSql->param, TSDB_CODE_CLI_OUT_OF_MEMORY);
-    free(pCmd->payload);
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-  
   pRes->qhandle = 0;
   pRes->numOfRows = 1;
   
-  strtolower(pSql->sqlstr, sqlstr);
   tscDump("%p SQL: %s", pSql, pSql->sqlstr);
-  
   return tsParseSql(pSql, true);
 }
 
@@ -74,8 +63,15 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->pTscObj   = pObj;
   pSql->maxRetry  = TSDB_MAX_REPLICA_NUM;
   pSql->fp        = fp;
+  pSql->sqlstr = calloc(1, sqlLen + 1);
+  if (pSql->sqlstr == NULL) {
+    tscError("%p failed to malloc sql string buffer", pSql);
+    tscQueueAsyncError(pSql->fp, pSql->param, TSDB_CODE_CLI_OUT_OF_MEMORY);
+    return;
+  }
+  strtolower(pSql->sqlstr, sqlstr);
   
-  int32_t code = doAsyncParseSql(pSql, sqlstr, sqlLen);
+  int32_t code = doAsyncParseSql(pSql);
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
   
   if (code != TSDB_CODE_SUCCESS) {
@@ -521,15 +517,9 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   if (pSql->pStream) {
     tscTrace("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
-    /*
-     * NOTE:
-     * transfer the sql function for super table query before get meter/metric meta,
-     * since in callback functions, only tscProcessSql(pStream->pSql) is executed!
-     */
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-    
-    tscTansformSQLFuncForSTableQuery(pQueryInfo);
-    tscIncStreamExecutionCount(pSql->pStream);
+    tsParseSql(pSql, false);
+    sem_post(&pSql->rspSem);
+    return;
   } else {
     tscTrace("%p get tableMeta successfully", pSql);
   }

@@ -246,13 +246,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   cTrace("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
-  int32_t flen = 0;
-  for (int32_t i = 0; i < pSchema->numOfCols; i++) {
-    flen += TYPE_BYTES[pSchema->columns[i].type];
-  }
-
-  // construct data
-  int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + flen;
+  int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
   char *buffer = calloc(size, 1);
 
   SWalHead   *pHead = (SWalHead *)buffer;
@@ -260,12 +254,15 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
 
   SDataRow trow = (SDataRow)pBlk->data;
-  dataRowSetLen(trow, TD_DATA_ROW_HEAD_SIZE + flen);
+  tdInitDataRow(trow, pSchema);
 
-  int toffset = 0;
   for (int32_t i = 0; i < pSchema->numOfCols; i++) {
-    tdAppendColVal(trow, row[i], pSchema->columns[i].type, pSchema->columns[i].bytes, toffset);
-    toffset += TYPE_BYTES[pSchema->columns[i].type];
+    STColumn *c = pSchema->columns + i;
+    char* val = (char*)row[i];
+    if (IS_VAR_DATA_TYPE(c->type)) {
+      val -= sizeof(VarDataLenT);
+    }
+    tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
   }
   pBlk->len = htonl(dataRowLen(trow));
 
