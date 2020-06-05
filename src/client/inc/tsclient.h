@@ -285,8 +285,6 @@ typedef struct {
 typedef struct STscObj {
   void *             signature;
   void *             pTimer;
-  char               mnodeIp[TSDB_USER_LEN];
-  uint16_t           mnodePort;
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_KEY_LEN];
   char               acctId[TSDB_DB_NAME_LEN];
@@ -294,6 +292,7 @@ typedef struct STscObj {
   char               sversion[TSDB_VERSION_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
+  uint32_t           connId;
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;

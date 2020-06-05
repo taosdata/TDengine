@@ -41,18 +41,17 @@ class TDTestCase:
             ('2020-05-13 10:00:00.002', 3, 'third') dev_002 VALUES('2020-05-13 10:00:00.003', 1, 'first'), ('2020-05-13 10:00:00.004', 2, 'second'),
             ('2020-05-13 10:00:00.005', 3, 'third')""")
 
-        
         # query first .. as ..
-        tdSql.error("select first(*) as one from st")    
+        tdSql.error("select first(*) as one from st")
 
         # query last .. as ..
-        tdSql.error("select last(*) as latest from st")        
+        tdSql.error("select last(*) as latest from st")
 
         # query last row .. as ..
-        tdSql.error("select last_row as latest from st") 
+        tdSql.error("select last_row as latest from st")
 
         # query distinct on normal colnum
-        tdSql.error("select distinct tagtype from st")     
+        tdSql.error("select distinct tagtype from st")
 
         # query .. order by non-time field
         tdSql.error("select * from st order by name")

@@ -92,12 +92,14 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
 }
 
 void* taosArrayGetP(const SArray* pArray, size_t index) {
-  void* ret = taosArrayGet(pArray, index);
-  if (ret == NULL) {
+  assert(index < pArray->size);
+  
+  void* d = TARRAY_GET_ELEM(pArray, index);
+  if (d == NULL) {
     return NULL;
   }
   
-  return *(void**)ret;
+  return *(void**)d;
 }
 
 size_t taosArrayGetSize(const SArray* pArray) { return pArray->size; }

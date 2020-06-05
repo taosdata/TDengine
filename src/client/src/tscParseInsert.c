@@ -48,7 +48,7 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
   
   int32_t radix = 10;
   
-  int32_t radixList[3] = {16, 8, 2};
+  int32_t radixList[3] = {16, 8, 2}; // the integer number with different radix: hex, oct, bin
   if (pToken->type == TK_HEX || pToken->type == TK_OCT || pToken->type == TK_BIN) {
     radix = radixList[pToken->type - TK_HEX];
   }

@@ -21,8 +21,29 @@ extern "C" {
 #endif
 #include "mnodeDef.h"
 
+typedef struct {
+  char     user[TSDB_USER_LEN + 1];
+  int8_t   killed;
+  uint16_t port;
+  uint32_t ip;
+  uint32_t connId;
+  uint64_t stime;
+  uint64_t lastAccess;
+  uint32_t queryId;
+  uint32_t streamId;
+  int32_t  numOfQueries;
+  int32_t  numOfStreams;
+  SStreamDesc *pStreams;
+  SQueryDesc * pQueries;
+} SConnObj;
+
 int32_t mnodeInitProfile();
 void    mnodeCleanupProfile();
+
+SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port);
+SConnObj *mnodeAccquireConn(uint32_t connId, char *user, uint32_t ip, uint16_t port);
+void      mnodeReleaseConn(SConnObj *pConn);
+int32_t   mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg);
 
 #ifdef __cplusplus
 }

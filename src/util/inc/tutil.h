@@ -153,6 +153,8 @@ bool taosMbsToUcs4(char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, 
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes);
 
+void taosRandStr(char* str, int32_t size);
+
 int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
 bool taosValidateEncodec(const char *encodec);

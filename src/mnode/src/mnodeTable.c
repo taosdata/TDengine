@@ -61,8 +61,8 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
 static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
  
 static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg);
@@ -568,8 +568,8 @@ int32_t mnodeInitTables() {
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mnodeRetrieveShowTables);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mnodeGetShowSuperTableMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mnodeRetrieveShowSuperTables);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mnodeGetStreamMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mnodeRetrieveStreams);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMTABLES, mnodeGetStreamTableMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMTABLES, mnodeRetrieveStreamTables);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1284,7 +1284,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   char *msg = (char *)pRsp + sizeof(SCMSTableVgroupRspMsg);
 
   for (int32_t i = 0; i < numOfTable; ++i) {
-    char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
+    char *          stableName = (char *)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN)*i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
     if (pTable == NULL) {
       mError("stable:%s, not exist while get stable vgroup info", stableName);
@@ -1294,41 +1294,48 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
     if (pTable->vgHash == NULL) {
       mError("stable:%s, not vgroup exist while get stable vgroup info", stableName);
       mnodeDecTableRef(pTable);
-      continue;
-    }
 
-    SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
+      // even this super table has no corresponding table, still return
+      pRsp->numOfTables++;
 
-    SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
-    int32_t vgSize = 0;
-    while (taosHashIterNext(pIter)) {
-      int32_t *pVgId = taosHashIterGet(pIter);
-      SVgObj * pVgroup = mnodeGetVgroup(*pVgId);
-      if (pVgroup == NULL) continue;
+      SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
+      pVgroupInfo->numOfVgroups = 0;
+      
+      msg += sizeof(SVgroupsInfo);
+    } else {
+      SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
 
-      pVgroupInfo->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
-      for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
-        SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
-        if (pDnode == NULL) break;
+      SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
+      int32_t               vgSize = 0;
+      while (taosHashIterNext(pIter)) {
+        int32_t *pVgId = taosHashIterGet(pIter);
+        SVgObj * pVgroup = mnodeGetVgroup(*pVgId);
+        if (pVgroup == NULL) continue;
 
-        strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
-        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
+        pVgroupInfo->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
+        for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
+          SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
+          if (pDnode == NULL) break;
 
-        pVgroupInfo->vgroups[vgSize].numOfIps++;
+          strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
+          pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
+
+          pVgroupInfo->vgroups[vgSize].numOfIps++;
+        }
+
+        vgSize++;
+        mnodeDecVgroupRef(pVgroup);
       }
 
-      vgSize++;
-      mnodeDecVgroupRef(pVgroup);
+      taosHashDestroyIter(pIter);
+      mnodeDecTableRef(pTable);
+
+      pVgroupInfo->numOfVgroups = htonl(vgSize);
+
+      // one table is done, try the next table
+      msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
+      pRsp->numOfTables++;
     }
-
-    taosHashDestroyIter(pIter);
-    mnodeDecTableRef(pTable);
-
-    pVgroupInfo->numOfVgroups = htonl(vgSize);
-
-    // one table is done, try the next table
-    msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
-    pRsp->numOfTables++;
   }
 
   if (pRsp->numOfTables != numOfTable) {
@@ -2111,14 +2118,6 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   return 0;
 }
 
-static void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
-  if (rows < capacity) {
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
-    }
-  }
-}
-
 static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
@@ -2262,7 +2261,7 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
   return code;
 }
 
-static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
 
@@ -2308,7 +2307,7 @@ static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   return 0;
 }
 
-static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
 

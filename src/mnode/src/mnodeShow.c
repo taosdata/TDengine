@@ -227,21 +227,47 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
+  SCMHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo);
+    
+  int32_t connId = htonl(pHBMsg->connId);
+  SConnObj *pConn = mnodeAccquireConn(connId, connInfo.user, connInfo.clientIp, connInfo.clientPort);
+  if (pConn == NULL) {
+    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+  }
+
+  if (pConn == NULL) {
+    // do not close existing links, otherwise
+    // mError("failed to create connId, close connect");
+    // pHBRsp->killConnection = 1;
+  } else {
+    pHBRsp->connId = htonl(pConn->connId);
+    mnodeSaveQueryStreamList(pConn, pHBMsg);
+    
+    if (pConn->killed != 0) {
+      pHBRsp->killConnection = 1;
+    }
+
+    if (pConn->streamId != 0) {
+      pHBRsp->streamId = htonl(pConn->streamId);
+      pConn->streamId = 0;
+    }
+
+    if (pConn->queryId != 0) {
+      pHBRsp->queryId = htonl(pConn->queryId);
+      pConn->queryId = 0;
+    }
+  }
+
   pHBRsp->onlineDnodes = htonl(mnodeGetOnlinDnodesNum());
   pHBRsp->totalDnodes = htonl(mnodeGetDnodesNum());
   mnodeGetMnodeIpSetForShell(&pHBRsp->ipList);
-  
-  /*
-   * TODO
-   * Dispose kill stream or kill query message
-   */
-  pHBRsp->queryId = 0;
-  pHBRsp->streamId = 0;
-  pHBRsp->killConnection = 0;
 
   pMsg->rpcRsp.rsp = pHBRsp;
   pMsg->rpcRsp.len = sizeof(SCMHeartBeatRsp);
   
+  mnodeReleaseConn(pConn);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -281,11 +307,19 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     goto connect_over;
   }
 
+  SConnObj *pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+  if (pConn == NULL) {
+    code = terrno;
+  } else {
+    pConnectRsp->connId = htonl(pConn->connId);
+    mnodeReleaseConn(pConn);
+  }
+
   sprintf(pConnectRsp->acctId, "%x", pAcct->acctId);
   strcpy(pConnectRsp->serverVersion, version);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
-
+  
   mnodeGetMnodeIpSetForShell(&pConnectRsp->ipList);
 
 connect_over:
@@ -357,4 +391,12 @@ static void mnodeFreeShowObj(void *data) {
 static void mnodeReleaseShowObj(void *pShow, bool forceRemove) {
   mTrace("%p, show is released, force:%s", pShow, forceRemove ? "true" : "false");
   taosCacheRelease(tsMnodeShowCache, &pShow, forceRemove);
+}
+
+void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
+  if (rows < capacity) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
+    }
+  }
 }

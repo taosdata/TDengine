@@ -450,7 +450,8 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
 
     int iter1 = 0;
     int iter2 = 0;
-    tdMergeTwoDataCols(target, pTarget, &iter1, source, &iter2, pTarget->numOfRows + rowsToMerge);
+    tdMergeTwoDataCols(target, pTarget, &iter1, pTarget->numOfRows, source, &iter2, source->numOfRows,
+                       pTarget->numOfRows + rowsToMerge);
   }
 
   tdFreeDataCols(pTarget);
@@ -461,15 +462,15 @@ _err:
   return -1;
 }
 
-void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, SDataCols *src2, int *iter2, int tRows) {
-  // TODO: add resolve duplicate key here
+void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2, int limit2, int tRows) {
   tdResetDataCols(target);
+  ASSERT(limit1 <= src1->numOfRows && limit2 <= src2->numOfRows);
 
   while (target->numOfRows < tRows) {
-    if (*iter1 >= src1->numOfRows && *iter2 >= src2->numOfRows) break;
+    if (*iter1 >= limit1 && *iter2 >= limit2) break;
 
-    TSKEY key1 = (*iter1 >= src1->numOfRows) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
-    TSKEY key2 = (*iter2 >= src2->numOfRows) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
+    TSKEY key1 = (*iter1 >= limit1) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
+    TSKEY key2 = (*iter2 >= limit2) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
 
     if (key1 <= key2) {
       for (int i = 0; i < src1->numOfCols; i++) {
