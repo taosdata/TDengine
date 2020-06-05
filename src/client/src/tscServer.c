@@ -336,7 +336,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? pRes->numOfRows: pRes->code;
     
-    tscTrace("%p SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
     bool shouldFree = tscShouldBeFreed(pSql);
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
 
