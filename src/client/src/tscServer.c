@@ -1140,13 +1140,6 @@ int32_t tscBuildKillMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCMKillQueryMsg);
 
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-
-  SCMKillQueryMsg *pKill = (SCMKillQueryMsg*)pCmd->payload;
-  strncpy(pKill->queryId, pInfo->pDCLInfo->ip.z, pInfo->pDCLInfo->ip.n);
   switch (pCmd->command) {
     case TSDB_SQL_KILL_QUERY:
       pCmd->msgType = TSDB_MSG_TYPE_CM_KILL_QUERY;
@@ -1753,23 +1746,19 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pthread_mutex_lock(&pObj->mutex);
 
-  int32_t  numOfQueries = 0;
+  int32_t numOfQueries = 0;
   SSqlObj *tpSql = pObj->sqlList;
   while (tpSql) {
     tpSql = tpSql->next;
     numOfQueries++;
   }
 
-  int32_t     numOfStreams = 0;
+  int32_t numOfStreams = 0;
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
     pStream = pStream->next;
     numOfStreams++;
   }
-
-  // ==>
-  numOfQueries = 1;
-  numOfStreams = 1;
 
   int size = numOfQueries * sizeof(SQueryDesc) + numOfStreams * sizeof(SStreamDesc) + sizeof(SCMHeartBeatMsg) + 100;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
@@ -1779,6 +1768,8 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;
+  pHeartbeat->numOfQueries = numOfQueries;
+  pHeartbeat->numOfStreams = numOfStreams;
   int msgLen = tscBuildQueryStreamDesc(pHeartbeat, pObj);
 
   pthread_mutex_unlock(&pObj->mutex);

@@ -269,8 +269,8 @@ int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
     memcpy(pConn->pQueries, pHBMsg->pData, pConn->numOfQueries * sizeof(SQueryDesc));
   }
 
-  pConn->numOfQueries = htonl(pHBMsg->numOfQueries);
-  if (pConn->numOfQueries > 0) {
+  pConn->numOfStreams = htonl(pHBMsg->numOfStreams);
+  if (pConn->numOfStreams > 0) {
     pConn->pStreams = calloc(sizeof(SStreamDesc), pConn->numOfStreams);
     memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc),
            pConn->numOfStreams * sizeof(SStreamDesc));
@@ -504,7 +504,7 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int32_t *)pWrite = htonl(pDesc->num);
+      *(int32_t *)pWrite = (int32_t)htobe64(pDesc->num);
       cols++;
 
       numOfRows++;
@@ -522,13 +522,18 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
-  char* connIdStr = pKill->queryId;
+  mPrint("kill query msg is received, queryId:%s", pKill->queryId);
 
-  char *chr = strchr(connIdStr, ':');
-  if (chr == NULL) return TSDB_CODE_INVALID_QUERY_ID;
-  *chr = 0;
+  const char delim = ':';
+  char* connIdStr = strtok(pKill->queryId, &delim);
+  char* queryIdStr = strtok(NULL, &delim);
 
-  uint32_t queryId = atoi(chr + 1);
+  if (queryIdStr == NULL || connIdStr == NULL) {
+    mPrint("failed to kill query, queryId:%s", pKill->queryId);
+   return TSDB_CODE_INVALID_QUERY_ID;
+  }
+
+  int32_t queryId = (int32_t)strtol(queryIdStr, NULL, 10);
 
   SConnObj *pConn = taosCacheAcquireByName(tsMnodeConnCache, connIdStr);
   if (pConn == NULL) {
@@ -547,13 +552,18 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
-  char* connIdStr = pKill->queryId;
-  
-  char *chr = strchr(connIdStr, ':');
-  if (chr == NULL) return TSDB_CODE_INVALID_QUERY_ID;
-  *chr = 0;
+  mPrint("kill stream msg is received, streamId:%s", pKill->queryId);
 
-  uint32_t streamId = atoi(chr + 1);
+  const char delim = ':';
+  char* connIdStr = strtok(pKill->queryId, &delim);
+  char* streamIdStr = strtok(NULL, &delim);
+
+  if (streamIdStr == NULL || connIdStr == NULL) {
+    mPrint("failed to kill stream, streamId:%s", pKill->queryId);
+   return TSDB_CODE_INVALID_STREAM_ID;
+  }
+
+  int32_t streamId = (int32_t)strtol(streamIdStr, NULL, 10);
 
   SConnObj *pConn = taosCacheAcquireByName(tsMnodeConnCache, connIdStr);
   if (pConn == NULL) {

@@ -2238,13 +2238,14 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
 
   SSqlCmd* pCmd = &pSql->cmd;
   pCmd->command = pInfo->type;
-
+  
   SSQLToken* idStr = &(pInfo->pDCLInfo->ip);
   if (idStr->n > TSDB_KILL_MSG_LEN) {
     return TSDB_CODE_INVALID_SQL;
   }
 
   strncpy(pCmd->payload, idStr->z, idStr->n);
+
   const char delim = ':';
   char* connIdStr = strtok(idStr->z, &delim);
   char* queryIdStr = strtok(NULL, &delim);
@@ -2256,7 +2257,6 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
   }
 
   if (killType == TSDB_SQL_KILL_CONNECTION) {
-    strncpy(pCmd->payload, idStr->z, idStr->n);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2269,8 +2269,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
-
-  strncpy(pCmd->payload, idStr->z, idStr->n);
+  
   return TSDB_CODE_SUCCESS;
 }
 
