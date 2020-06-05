@@ -112,7 +112,6 @@ class Test:
             tdSql.execute('drop table %s' % self.last_stb)
             self.last_stb = ""
 
-
     def query_data_from_stable(self):
         tdLog.info("query_data_from_stable")
         if (self.last_stb == ""):
@@ -122,13 +121,11 @@ class Test:
             tdLog.info("will query data from super table")
             tdSql.execute('select * from %s' % self.last_stb)
 
-
     def restart_database(self):
         tdLog.info("restart_databae")
         tdDnodes.stop(1)
         tdDnodes.start(1)
         tdLog.sleep(5)
-
 
     def force_restart_database(self):
         tdLog.info("force_restart_database")
@@ -136,6 +133,9 @@ class Test:
         tdDnodes.start(1)
         tdLog.sleep(5)
         tdSql.prepare()
+        self.last_tb = ""
+        self.last_stb = ""
+        self.written = 0
 
     def drop_table(self):
         tdLog.info("drop_table")
@@ -159,6 +159,9 @@ class Test:
         tdDnodes.start(1)
         tdLog.sleep(5)
         tdSql.prepare()
+        self.last_tb = ""
+        self.last_stb = ""
+        self.written = 0
 
     def delete_datafiles(self):
         tdLog.info("delete_datafiles")
@@ -173,6 +176,9 @@ class Test:
         tdDnodes.start(1)
         tdLog.sleep(10)
         tdSql.prepare()
+        self.last_tb = ""
+        self.last_stb = ""
+        self.written = 0
 
 
 class TDTestCase:

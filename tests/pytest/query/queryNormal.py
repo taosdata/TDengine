@@ -28,17 +28,20 @@ class TDTestCase:
 
         print("==============step1")
 
-        tdSql.execute("create table stb1 (ts timestamp, c1 int, c2 float) tags(t1 int, t2 binary(10), t3 nchar(10))")
-        tdSql.execute("insert into tb1 using stb1 tags(1,'tb1', '表1') values ('2020-04-18 15:00:00.000', 1, 0.1), ('2020-04-18 15:00:01.000', 2, 0.1)")
-        tdSql.execute("insert into tb2 using stb1 tags(2,'tb2', '表2') values ('2020-04-18 15:00:02.000', 3, 2.1), ('2020-04-18 15:00:03.000', 4, 2.2)")        
-        
-        # inner join --- bug 
+        tdSql.execute(
+            "create table stb1 (ts timestamp, c1 int, c2 float) tags(t1 int, t2 binary(10), t3 nchar(10))")
+        tdSql.execute(
+            "insert into tb1 using stb1 tags(1,'tb1', '表1') values ('2020-04-18 15:00:00.000', 1, 0.1), ('2020-04-18 15:00:01.000', 2, 0.1)")
+        tdSql.execute(
+            "insert into tb2 using stb1 tags(2,'tb2', '表2') values ('2020-04-18 15:00:02.000', 3, 2.1), ('2020-04-18 15:00:03.000', 4, 2.2)")
+
+        # inner join --- bug
         tdSql.query("select * from tb1 a, tb2 b where a.ts = b.ts")
         tdSql.checkRows(1)
 
         # join 3 tables -- bug exists
         tdSql.query("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
-        
+
         # query show stable
         tdSql.query("show stables")
         tdSql.checkRows(1)
@@ -51,15 +54,15 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 4)
 
-        # query first 
+        # query first
         tdSql.query("select first(*) from stb1")
         tdSql.checkData(0, 1, 1)
-        
-        # query last 
+
+        # query last
         tdSql.query("select last(*) from stb1")
         tdSql.checkData(0, 1, 4)
 
-        # query last_row 
+        # query last_row
         tdSql.query("select last_row(*) from stb1")
         tdSql.checkData(0, 1, 4)
 
@@ -70,7 +73,7 @@ class TDTestCase:
         # query first ... as
         tdSql.query("select first(*) as begin from stb1")
         tdSql.checkData(0, 1, 1)
-        
+
         # query last ... as
         tdSql.query("select last(*) as end from stb1")
         tdSql.checkData(0, 1, 4)
@@ -93,7 +96,7 @@ class TDTestCase:
 
         # query ... alias for table ---- bug
         tdSql.query("select t.ts from tb1 t")
-        tdSql.checkRows(2)       
+        tdSql.checkRows(2)
 
         # query ... tbname
         tdSql.query("select tbname from stb1")
