@@ -977,7 +977,8 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
       // tdResetDataCols(pHelper->pDataCols[1]);
       while (true) {
         if (iter1 >= pHelper->pDataCols[0]->numOfRows && iter2 >= rows3) break;
-        tdMergeTwoDataCols(pHelper->pDataCols[1], pHelper->pDataCols[0], &iter1, pDataCols, &iter2, pHelper->config.maxRowsPerFileBlock * 4 / 5);
+        tdMergeTwoDataCols(pHelper->pDataCols[1], pHelper->pDataCols[0], &iter1, pHelper->pDataCols[0]->numOfRows,
+                           pDataCols, &iter2, rowsWritten, pHelper->config.maxRowsPerFileBlock * 4 / 5);
         ASSERT(pHelper->pDataCols[1]->numOfRows > 0);
         if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.dataF), pHelper->pDataCols[1],
                                  pHelper->pDataCols[1]->numOfRows, &compBlock, false, true) < 0)
@@ -989,54 +990,6 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
         }
         round++;
         blkIdx++;
-        // TODO: the blkIdx here is not correct
-
-        // if (iter1 >= pHelper->pDataCols[0]->numOfRows && iter2 >= rows3) {
-        //   if (pHelper->pDataCols[1]->numOfRows > 0) {
-        //     if (tsdbWriteBlockToFile(pHelper, &pHelper->files.dataF, pHelper->pDataCols[1],
-        //                              pHelper->pDataCols[1]->numOfRows, &compBlock, false, true) < 0)
-        //       goto _err;
-        //     // TODO: the blkIdx here is not correct
-        //     tsdbAddSubBlock(pHelper, &compBlock, blkIdx, pHelper->pDataCols[1]->numOfRows);
-        //   }
-        // }
-
-        // TSKEY key1 = iter1 >= pHelper->pDataCols[0]->numOfRows
-        //                  ? INT64_MAX
-        //                  : ((int64_t *)(pHelper->pDataCols[0]->cols[0].pData))[iter1];
-        // TSKEY key2 = iter2 >= rowsWritten ? INT64_MAX : ((int64_t *)(pDataCols->cols[0].pData))[iter2];
-
-        // if (key1 < key2) {
-        //   for (int i = 0; i < pDataCols->numOfCols; i++) {
-        //     SDataCol *pDataCol = pHelper->pDataCols[1]->cols + i;
-        //     memcpy(((char *)pDataCol->pData + TYPE_BYTES[pDataCol->type] * pHelper->pDataCols[1]->numOfRows),
-        //            ((char *)pHelper->pDataCols[0]->cols[i].pData + TYPE_BYTES[pDataCol->type] * iter1),
-        //            TYPE_BYTES[pDataCol->type]);
-        //   }
-        //   pHelper->pDataCols[1]->numOfRows++;
-        //   iter1++;
-        // } else if (key1 == key2) {
-        //   // TODO: think about duplicate key cases
-        //   ASSERT(false);
-        // } else {
-        //   for (int i = 0; i < pDataCols->numOfCols; i++) {
-        //     SDataCol *pDataCol = pHelper->pDataCols[1]->cols + i;
-        //     memcpy(((char *)pDataCol->pData + TYPE_BYTES[pDataCol->type] * pHelper->pDataCols[1]->numOfRows),
-        //            ((char *)pDataCols->cols[i].pData +
-        //             TYPE_BYTES[pDataCol->type] * iter2),
-        //            TYPE_BYTES[pDataCol->type]);
-        //   }
-        //   pHelper->pDataCols[1]->numOfRows++;
-        //   iter2++;
-        // }
-
-        // if (pHelper->pDataCols[0]->numOfRows >= pHelper->config.maxRowsPerFileBlock * 4 / 5) {
-        //   if (tsdbWriteBlockToFile(pHelper, &pHelper->files.dataF, pHelper->pDataCols[1], pHelper->pDataCols[1]->numOfRows, &compBlock, false, true) < 0) goto _err;
-        //   // TODO: blkIdx here is not correct, fix it
-        //   tsdbInsertSuperBlock(pHelper, &compBlock, blkIdx);
-
-        //   tdResetDataCols(pHelper->pDataCols[1]);
-        // }
       }
     }
   }

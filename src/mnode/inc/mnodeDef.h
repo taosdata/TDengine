@@ -182,8 +182,6 @@ typedef struct SUserObj {
   int8_t            updateEnd[1];
   int32_t           refCount;
   struct SAcctObj * pAcct;
-  SQqueryList *     pQList;  // query list
-  SStreamList *     pSList;  // stream list
 } SUserObj;
 
 typedef struct {

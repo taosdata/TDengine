@@ -111,7 +111,6 @@ class Test (threading.Thread):
                 last_tb)
             written = written + 1
 
-
     def drop_stable(self):
         tdLog.info("drop_stable")
         global last_stb
@@ -152,7 +151,6 @@ class Test (threading.Thread):
                 last_tb = ""
                 written = 0
 
-
     def query_data_from_stable(self):
         tdLog.info("query_data_from_stable")
         global last_stb
@@ -163,7 +161,6 @@ class Test (threading.Thread):
         else:
             tdLog.info("will query data from super table")
             tdSql.execute('select * from %s' % last_stb)
-
 
     def reset_query_cache(self):
         tdLog.info("reset_query_cache")
@@ -232,7 +229,7 @@ class Test (threading.Thread):
                 self.threadLock.acquire()
                 tdLog.notice("first thread")
                 randDataOp = random.randint(1, 3)
-                dataOp.get(randDataOp , lambda: "ERROR")()
+                dataOp.get(randDataOp, lambda: "ERROR")()
                 self.threadLock.release()
 
         elif (self.threadId == 2):

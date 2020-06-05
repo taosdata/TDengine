@@ -148,8 +148,8 @@
 #define TK_SET                            130
 #define TK_KILL                           131
 #define TK_CONNECTION                     132
-#define TK_COLON                          133
-#define TK_STREAM                         134
+#define TK_STREAM                         133
+#define TK_COLON                          134
 #define TK_ABORT                          135
 #define TK_AFTER                          136
 #define TK_ATTACH                         137

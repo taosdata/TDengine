@@ -33,13 +33,53 @@
 #include "mnodeUser.h"
 #include "mnodeTable.h"
 #include "mnodeShow.h"
+#include "mnodeProfile.h"
+
+typedef struct {
+  const char *const name;
+  int               (*init)();
+  void              (*cleanup)();
+} SMnodeComponent;
 
 void *tsMnodeTmr;
 static bool tsMgmtIsRunning = false;
 
+static const SMnodeComponent tsMnodeComponents[] = {
+  {"profile", mnodeInitProfile, mnodeCleanupProfile},
+  {"accts",   mnodeInitAccts,   mnodeCleanupAccts},
+  {"users",   mnodeInitUsers,   mnodeCleanupUsers},
+  {"dnodes",  mnodeInitDnodes,  mnodeCleanupDnodes},
+  {"dbs",     mnodeInitDbs,     mnodeCleanupDbs},
+  {"vgroups", mnodeInitVgroups, mnodeCleanupVgroups},
+  {"tables",  mnodeInitTables,  mnodeCleanupTables},  
+  {"mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes},
+  {"sdb",     sdbInit,          sdbCleanUp},
+  {"balance", balanceInit,      balanceCleanUp},
+  {"grant",   grantInit,        grantCleanUp},
+  {"show",    mnodeInitShow,    mnodeCleanUpShow}
+};
+
 static void mnodeInitTimer();
 static void mnodeCleanupTimer();
 static bool mnodeNeedStart() ;
+
+static void mnodeCleanupComponents(int32_t stepId) {
+  for (int32_t i = stepId; i >= 0; i--) {
+    tsMnodeComponents[i].cleanup();
+  }
+}
+
+static int32_t mnodeInitComponents() {
+  int32_t code = 0;
+  for (int32_t i = 0; i < sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]); i++) {
+    if (tsMnodeComponents[i].init() != 0) {
+      mnodeCleanupComponents(i);
+      code = -1;
+      break;
+    }
+  }
+  return code;
+}
 
 int32_t mnodeStartSystem() {
   if (tsMgmtIsRunning) {
@@ -57,57 +97,7 @@ int32_t mnodeStartSystem() {
   dnodeAllocateMnodeRqueue();
   dnodeAllocateMnodePqueue();
 
-  if (mnodeInitAccts() < 0) {
-    mError("failed to init accts");
-    return -1;
-  }
-
-  if (mnodeInitUsers() < 0) {
-    mError("failed to init users");
-    return -1;
-  }
-
-  if (mnodeInitDnodes() < 0) {
-    mError("failed to init dnodes");
-    return -1;
-  }
-
-  if (mnodeInitDbs() < 0) {
-    mError("failed to init dbs");
-    return -1;
-  }
-
-  if (mnodeInitVgroups() < 0) {
-    mError("failed to init vgroups");
-    return -1;
-  }
-
-  if (mnodeInitTables() < 0) {
-    mError("failed to init tables");
-    return -1;
-  }
-
-  if (mnodeInitMnodes() < 0) {
-    mError("failed to init mnodes");
-    return -1;
-  }
-
-  if (sdbInit() < 0) {
-    mError("failed to init sdb");
-    return -1;
-  }
-
-  if (balanceInit() < 0) {
-    mError("failed to init balance")
-  }
-
-  if (grantInit() < 0) {
-    mError("failed to init grant");
-    return -1;
-  }
-
-  if (mnodeInitShow() < 0) {
-    mError("failed to init show");
+  if (mnodeInitComponents() != 0) {
     return -1;
   }
 
@@ -115,7 +105,6 @@ int32_t mnodeStartSystem() {
   tsMgmtIsRunning = true;
 
   mPrint("mnode is initialized successfully");
-
   return 0;
 }
 
@@ -133,17 +122,8 @@ void mnodeCleanupSystem() {
   dnodeFreeMnodeRqueue();
   dnodeFreeMnodePqueue();
   mnodeCleanupTimer();
-  mnodeCleanUpShow();
-  grantCleanUp();
-  balanceCleanUp();
-  sdbCleanUp();
-  mnodeCleanupMnodes();
-  mnodeCleanupTables();
-  mnodeCleanupVgroups();
-  mnodeCleanupDbs();
-  mnodeCleanupDnodes();
-  mnodeCleanupUsers();
-  mnodeCleanupAccts();
+  mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
+
   mPrint("mnode is cleaned up");
 }
 
