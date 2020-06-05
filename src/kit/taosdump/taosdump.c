@@ -372,14 +372,12 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo) {
   memset(pTableRecordInfo, 0, sizeof(STableRecordInfo));
 
   sprintf(command, "show tables like %s", table);
-  if (taos_query(taos, command) != 0) {
-    fprintf(stderr, "failed to run command %s\n", command);
-    return -1;
-  }
+  TAOS_RES *result = taos_query(taos, command);\
+  int32_t code = taos_errno(result);
 
-  result = taos_use_result(taos);
-  if (result == NULL) {
-    fprintf(stderr, "failed to use result\n");
+  if (code != 0) {
+    fprintf(stderr, "failed to run command %s, error: %s\n", command, taos_errstr(result));
+    taos_free_result(result);
     return -1;
   }
 
@@ -400,14 +398,12 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo) {
   if (isSet) return 0;
 
   sprintf(command, "show stables like %s", table);
-  if (taos_query(taos, command) != 0) {
-    fprintf(stderr, "failed to run command %s\n", command);
-    return -1;
-  }
 
-  result = taos_use_result(taos);
-  if (result == NULL) {
-    fprintf(stderr, "failed to use result\n");
+  result = taos_query(taos, command);
+  code = taos_errno(result);
+  if (code != 0) {
+    fprintf(stderr, "failed to run command %s, error: %s\n", command, taos_errstr(result));
+    taos_free_result(result);
     return -1;
   }
 
@@ -467,14 +463,11 @@ int taosDumpOut(SDumpArguments *arguments) {
   taosDumpCharset(fp);
 
   sprintf(command, "show databases");
-  if (taos_query(taos, command) != 0) {
+  result = taos_query(taos, command);
+  int32_t code = taos_errno(result);
+  if (code != 0) {
     fprintf(stderr, "failed to run command: %s, reason: %s\n", command, taos_errstr(taos));
-    goto _exit_failure;
-  }
-
-  result = taos_use_result(taos);
-  if (result == NULL) {
-    fprintf(stderr, "failed to use result\n");
+    taos_free_result(result);
     goto _exit_failure;
   }
 
@@ -551,7 +544,7 @@ int taosDumpOut(SDumpArguments *arguments) {
       taosDumpCreateDbClause(dbInfos[0], arguments->with_property, fp);
 
       sprintf(command, "use %s", dbInfos[0]->name);
-      if (taos_query(taos, command) != 0) {
+      if (taos_query(taos, command) == NULL ) {
         fprintf(stderr, "invalid database %s\n", dbInfos[0]->name);
         goto _exit_failure;
       }
@@ -612,7 +605,7 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   taosDumpCreateDbClause(dbInfo, arguments->with_property, fp);
 
   sprintf(command, "use %s", dbInfo->name);
-  if (taos_query(taos, command) != 0) {
+  if (taos_errno(taos_query(taos, command)) != 0) {
     fprintf(stderr, "invalid database %s\n", dbInfo->name);
     return -1;
   }
@@ -620,14 +613,11 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   fprintf(fp, "USE %s\n\n", dbInfo->name);
 
   sprintf(command, "show tables");
-  if (taos_query(taos, command) != 0) {
-    fprintf(stderr, "failed to run command %s\n", command);
-    return -1;
-  }
-
-  result = taos_use_result(taos);
-  if (result == NULL) {
-    fprintf(stderr, "failed to use result\n");
+  result = taos_query(taos,command);
+  int32_t code = taos_errno(result);
+  if (code != 0) {
+    fprintf(stderr, "failed to run command %s, error: %s\n", command, taos_errstr(result));
+    taos_free_result(result);
     return -1;
   }
 
@@ -725,14 +715,11 @@ void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols
     TAOS_ROW row = NULL;
 
     sprintf(command, "select %s from %s limit 1", tableDes->cols[counter].field, tableDes->name);
-    if (taos_query(taos, command) != 0) {
-      fprintf(stderr, "failed to run command %s\n", command);
-      return;
-    }
 
-    result = taos_use_result(taos);
-    if (result == NULL) {
-      fprintf(stderr, "failed to use result\n");
+    result = taos_query(taos, command);
+    int32_t code = taos_errno(result);
+    if (code != 0) {
+      fprintf(stderr, "failed to run command %s, error: %s\n", command, taos_errstr(result));
       return;
     }
 
@@ -806,14 +793,12 @@ int taosGetTableDes(char *table, STableDef *tableDes) {
   int count = 0;
 
   sprintf(command, "describe %s", table);
-  if (taos_query(taos, command) != 0) {
-    fprintf(stderr, "failed to run command %s\n", command);
-    return -1;
-  }
 
-  result = taos_use_result(taos);
-  if (result == NULL) {
-    fprintf(stderr, "failed to use result\n");
+  result = taos_query(taos, command);
+  int32_t code = taos_errno(result);
+  if (code != 0) {
+    fprintf(stderr, "failed to run command %s, error: %s\n", command, taos_errstr(result));
+    taos_free_result(result);
     return -1;
   }
 
@@ -889,14 +874,11 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   strcpy(tableRecord.metric, metric);
 
   sprintf(command, "select tbname from %s", metric);
-  if (taos_query(taos, command) != 0) {
-    fprintf(stderr, "failed to run command %s\n", command);
-    return -1;
-  }
-
-  result = taos_use_result(taos);
-  if (result == NULL) {
-    fprintf(stderr, "failed to use result\n");
+  result = taos_query(taos, command);
+  int32_t code = taos_errno(result);
+  if (code != 0) {
+    fprintf(stderr, "failed to run command %s, error: %s\n", command, taos_errstr(result));
+    taos_free_result(result);
     return -1;
   }
 
@@ -942,18 +924,16 @@ int taosDumpTableData(FILE *fp, char *tbname, SDumpArguments *arguments) {
 
   sprintf(command, "select * from %s where _c0 >= %" PRId64 " and _c0 <= %" PRId64 " order by _c0 asc", tbname, arguments->start_time,
           arguments->end_time);
-  if (taos_query(taos, command) != 0) {
-    fprintf(stderr, "failed to run command %s, reason: %s\n", command, taos_errstr(taos));
+          
+  result = taos_query(taos, command);
+  int32_t code = taos_errno(result);
+  if (code != 0) {
+    fprintf(stderr, "failed to run command %s, reason: %s\n", command, taos_errstr(result));
+    taos_free_result(result);
     return -1;
   }
 
-  result = taos_use_result(taos);
-  if (result == NULL) {
-    fprintf(stderr, "failed to use result\n");
-    return -1;
-  }
-
-  numFields = taos_field_count(taos);
+  numFields = taos_field_count(result);
   assert(numFields > 0);
   TAOS_FIELD *fields = taos_fetch_fields(result);
   tbuf = (char *)malloc(COMMAND_SIZE);
@@ -1194,7 +1174,7 @@ int taosDumpIn(SDumpArguments *arguments) {
           tcommand = command;
         }
         taosReplaceCtrlChar(tcommand);
-        if (taos_query(taos, tcommand) != 0)
+        if (taos_query(taos, tcommand) == NULL)
           fprintf(stderr, "linenu: %" PRId64 " failed to run command %s reason:%s \ncontinue...\n", linenu, command,
                   taos_errstr(taos));
 
@@ -1242,9 +1222,14 @@ int taosDumpIn(SDumpArguments *arguments) {
         tcommand = command;
       }
       taosReplaceCtrlChar(tcommand);
-      if (taos_query(taos, tcommand) != 0)
+      result = taos_query(taos, tcommand);
+      int32_t code = taos_errno(result);
+      if (code != 0) 
+      {
         fprintf(stderr, "linenu:%" PRId64 " failed to run command %s reason: %s \ncontinue...\n", linenu, command,
                 taos_errstr(taos));
+      }
+      taos_free_result(result);
     }
 
     pstr = command;
@@ -1265,7 +1250,7 @@ int taosDumpIn(SDumpArguments *arguments) {
       tcommand = command;
     }
     taosReplaceCtrlChar(lcommand);
-    if (taos_query(taos, tcommand) != 0)
+    if (taos_query(taos, tcommand) == NULL)
       fprintf(stderr, "linenu:%" PRId64 " failed to run command %s reason:%s \ncontinue...\n", linenu, command,
               taos_errstr(taos));
   }

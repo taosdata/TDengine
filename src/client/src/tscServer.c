@@ -220,9 +220,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (pObj->signature != pObj) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
-    if (pSql != pObj->pSql) {
-      tscFreeSqlObj(pSql);
-    }
+    tscFreeSqlObj(pSql);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -257,6 +255,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
         rpcMsg->code = TSDB_CODE_NOT_READY;
         rpcFreeCont(rpcMsg->pCont);
         return;
+      } else if (pCmd->command == TSDB_SQL_META) {
+//        rpcFreeCont(rpcMsg->pCont);
+//        return;
       } else {
         tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
         
@@ -331,21 +332,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   
   if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    void *taosres = tscKeepConn[pCmd->command] ? pSql : NULL;
     rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
     
     tscTrace("%p SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
-
-    /*
-     * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
-     * may be freed in UDF, and reused by other threads before tscShouldBeFreed called, in which case
-     * tscShouldBeFreed checks an object which is actually allocated by other threads.
-     *
-     * If this block of memory is re-allocated for an insert thread, in which tscKeepConn[command] equals to 0,
-     * the tscShouldBeFreed will success and tscFreeSqlObj free it immediately.
-     */
     bool shouldFree = tscShouldBeFreed(pSql);
-    (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
+    (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
 
     if (shouldFree) {
       tscTrace("%p sqlObj is automatically freed", pSql);

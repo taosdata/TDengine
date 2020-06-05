@@ -110,6 +110,14 @@ void taosDestoryFillInfo(SFillInfo* pFillInfo) {
   tfree(pFillInfo->prevValues);
   tfree(pFillInfo->nextValues);
   tfree(pFillInfo->pTags);
+  
+  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+    tfree(pFillInfo->pData[i]);
+  }
+  
+  tfree(pFillInfo->pData);
+  tfree(pFillInfo->pFillCol);
+  
   tfree(pFillInfo);
 }
 
@@ -247,7 +255,7 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
 }
 
 static void setTagsValue(SFillInfo* pColInfo, tFilePage** data, char** pTags, int32_t start, int32_t num) {
-  for (int32_t j = 0, i = start; i < pColInfo->numOfCols + pColInfo->numOfTags; ++i, ++j) {
+  for (int32_t j = 0, i = start; i < pColInfo->numOfCols; ++i, ++j) {
     SFillColInfo* pCol = &pColInfo->pFillCol[i];
     
     char* val1 = elePtrAt(data[i]->data, pCol->col.bytes, num);
@@ -344,7 +352,7 @@ static void doInterpoResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t*
       setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
   
     }
-  } else { /* default value interpolation */
+  } else { /* fill the default value */
     for (int32_t i = 1; i < numOfValCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       

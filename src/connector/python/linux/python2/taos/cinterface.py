@@ -142,12 +142,14 @@ class CTaosInterface(object):
     libtaos.taos_fetch_fields.restype = ctypes.POINTER(TaosField)
     libtaos.taos_init.restype = None
     libtaos.taos_connect.restype = ctypes.c_void_p
-    libtaos.taos_use_result.restype = ctypes.c_void_p
+    #libtaos.taos_use_result.restype = ctypes.c_void_p
     libtaos.taos_fetch_row.restype = ctypes.POINTER(ctypes.c_void_p)
     libtaos.taos_errstr.restype = ctypes.c_char_p
     libtaos.taos_subscribe.restype = ctypes.c_void_p
     libtaos.taos_consume.restype = ctypes.c_void_p
     libtaos.taos_fetch_lengths.restype = ctypes.c_void_p
+    libtaos.taos_free_result.restype = None
+    libtaos.taos_errno.restype = ctypes.c_int
 
     def __init__(self, config=None):
         '''
@@ -249,12 +251,12 @@ class CTaosInterface(object):
             raise AttributeError("sql is expected as a string")
         # finally:
         #     CTaosInterface.libtaos.close(connection)
-
+      
     @staticmethod
-    def affectedRows(connection):
+    def affectedRows(result):
         """The affected rows after runing query
         """
-        return CTaosInterface.libtaos.taos_affected_rows(connection)
+        return CTaosInterface.libtaos.taos_affected_rows(result)
 
     @staticmethod
     def subscribe(connection, restart, topic, sql, interval):
@@ -292,18 +294,17 @@ class CTaosInterface(object):
         CTaosInterface.libtaos.taos_unsubscribe(sub, 1 if keepProgress else 0)
 
     @staticmethod
-    def useResult(connection):
+    def useResult(result):
         '''Use result after calling self.query
         '''
-        result = ctypes.c_void_p(CTaosInterface.libtaos.taos_use_result(connection))
         fields = []
         pfields = CTaosInterface.fetchFields(result)
-        for i in range(CTaosInterface.fieldsCount(connection)):
+        for i in range(CTaosInterface.fieldsCount(result)):
             fields.append({'name': pfields[i].name.decode('utf-8'),
                            'bytes': pfields[i].bytes,
                            'type': ord(pfields[i].type)})
 
-        return result, fields
+        return fields
 
     @staticmethod
     def fetchBlock(result, fields):
@@ -337,8 +338,8 @@ class CTaosInterface(object):
         result.value = None
 
     @staticmethod
-    def fieldsCount(connection):
-        return CTaosInterface.libtaos.taos_field_count(connection)
+    def fieldsCount(result):
+        return CTaosInterface.libtaos.taos_field_count(result)
 
     @staticmethod
     def fetchFields(result):
@@ -386,29 +387,30 @@ class CTaosInterface(object):
     #         return (ctypes.cast(data,  ctypes.c_char_p).value).rstrip('\x00')
 
     @staticmethod
-    def errno(connection):
+    def errno(result):
         """Return the error number.
         """
-        return CTaosInterface.libtaos.taos_errno(connection)
+        return CTaosInterface.libtaos.taos_errno(result)
 
     @staticmethod
-    def errStr(connection):
+    def errStr(result):
         """Return the error styring
         """
-        return CTaosInterface.libtaos.taos_errstr(connection)
+        return CTaosInterface.libtaos.taos_errstr(result)
 
 
 if __name__ == '__main__':
     cinter = CTaosInterface()
     conn = cinter.connect()
+    result = cinter.query(conn, 'show databases')
 
-    print('Query return value: {}'.format(cinter.query(conn, 'show databases')))
-    print('Affected rows: {}'.format(cinter.affectedRows(conn)))
+    print('Query Affected rows: {}'.format(cinter.affectedRows(result)))
 
-    result, des = CTaosInterface.useResult(conn)
+    fields = CTaosInterface.useResult(result)
 
-    data, num_of_rows = CTaosInterface.fetchBlock(result, des)
+    data, num_of_rows = CTaosInterface.fetchBlock(result, fields)
 
     print(data)
 
+    cinter.freeresult(result)
     cinter.close(conn)
