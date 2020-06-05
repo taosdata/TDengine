@@ -1746,14 +1746,14 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pthread_mutex_lock(&pObj->mutex);
 
-  int32_t numOfQueries = 0;
+  int32_t numOfQueries = 2;
   SSqlObj *tpSql = pObj->sqlList;
   while (tpSql) {
     tpSql = tpSql->next;
     numOfQueries++;
   }
 
-  int32_t numOfStreams = 0;
+  int32_t numOfStreams = 2;
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
     pStream = pStream->next;
