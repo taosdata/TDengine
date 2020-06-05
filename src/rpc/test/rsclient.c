@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
   int      numOfReqs = 0;
   int      appThreads = 1;
   char     serverIp[40] = "127.0.0.1";
+  char     secret[TSDB_KEY_LEN] = "mypassword";
   struct   timeval systemTime;
   int64_t  startTime, endTime;
   pthread_attr_t thattr;
@@ -98,7 +99,7 @@ int main(int argc, char *argv[]) {
   rpcInit.sessions     = 100;
   rpcInit.idleTime     = tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
-  rpcInit.secret       = "mypassword";
+  rpcInit.secret       = secret;
   rpcInit.ckey         = "key";
   rpcInit.spi          = 1;
   rpcInit.connType     = TAOS_CONN_CLIENT;

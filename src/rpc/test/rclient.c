@@ -76,6 +76,7 @@ int main(int argc, char *argv[]) {
   int      numOfReqs = 0;
   int      appThreads = 1;
   char     serverIp[40] = "127.0.0.1";
+  char     secret[TSDB_KEY_LEN] = "mypassword";
   struct   timeval systemTime;
   int64_t  startTime, endTime;
   pthread_attr_t thattr;
@@ -97,7 +98,7 @@ int main(int argc, char *argv[]) {
   rpcInit.sessions     = 100;
   rpcInit.idleTime     = tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
-  rpcInit.secret       = "mypassword";
+  rpcInit.secret       = secret;
   rpcInit.ckey         = "key";
   rpcInit.spi          = 1;
   rpcInit.connType     = TAOS_CONN_CLIENT;
@@ -106,7 +107,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       ipSet.port[0] = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
-      tstrncpy(ipSet.fqdn[0], argv[++i], sizeof(ipSet.fqdn)); 
+      tstrncpy(ipSet.fqdn[0], argv[++i], sizeof(ipSet.fqdn[0])); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
