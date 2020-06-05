@@ -23,16 +23,27 @@ system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode5 -c balanceInterval -v 10
 
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 200
+system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
 
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
+
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 200
 #system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 200
 #system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 200
 #system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 200
+
+system sh/cfg.sh -n dnode1 -c alternativeRole -v 1
+system sh/cfg.sh -n dnode2 -c alternativeRole -v 2
+system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
+system sh/cfg.sh -n dnode4 -c alternativeRole -v 2
 
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
@@ -40,11 +51,11 @@ system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode5 -c arbitrator -v $arbitrator
 
-system sh/cfg.sh -n dnode1 -c offlineThreshold -v 20
-system sh/cfg.sh -n dnode2 -c offlineThreshold -v 20
-system sh/cfg.sh -n dnode3 -c offlineThreshold -v 20
-system sh/cfg.sh -n dnode4 -c offlineThreshold -v 20
-system sh/cfg.sh -n dnode5 -c offlineThreshold -v 20
+system sh/cfg.sh -n dnode1 -c offlineThreshold -v 10
+system sh/cfg.sh -n dnode2 -c offlineThreshold -v 10
+system sh/cfg.sh -n dnode3 -c offlineThreshold -v 10
+system sh/cfg.sh -n dnode4 -c offlineThreshold -v 10
+system sh/cfg.sh -n dnode5 -c offlineThreshold -v 10
 
 system sh/cfg.sh -n dnode1 -c enableCoreFile -v 1
 system sh/cfg.sh -n dnode2 -c enableCoreFile -v 1
@@ -63,9 +74,9 @@ sql connect
 print ============== step2: start dnode2/dnode3 and add into cluster, then create database, create table , and insert data
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 1000
 sql create dnode $hostname2
 sql create dnode $hostname3
+sleep 3000
 
 $rowNum = 100
 $tblNum = 16
@@ -151,7 +162,7 @@ endi
 #  return -1
 #endi
 
-sleep 30000
+sleep 15000
 
 wait_drop:
 sql show dnodes
@@ -174,22 +185,36 @@ endi
 if $dnode2Status != ready then
   return -1
 endi
+if $dnode3Status != null then
+  return -1
+endi
 if $dnode4Status != ready then
   return -1
 endi
 
-
-print ============== step5: start dnode5 and add into cluster , drop database
-sql drop database $db
-sleep 1000
-system sh/exec.sh -n dnode5 -s start
-sql create dnode $hostname5
+print ============== step4-1: restart dnode3, adn add into cluster
+system rm -rf ../../sim/dnode3
 sleep 3000
-wait_dnode5:
+
+system sh/deploy.sh -n dnode3 -i 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c walLevel -v 1
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode3 -c offlineThreshold -v 10
+system sh/cfg.sh -n dnode3 -c enableCoreFile -v 1
+
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname3
+sleep 3000
+
+wait_dnode3_ready:
 sql show dnodes
+print rows: $rows
 if $rows != 4 then
   sleep 3000
-  goto wait_dnode5
+  goto wait_dnode3_ready
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -198,6 +223,7 @@ print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
 print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
 $dnode1Status = $data4_1  
 $dnode2Status = $data4_2
+$dnode3Status = $data4_3  
 $dnode4Status = $data4_4  
 $dnode5Status = $data4_5
 
@@ -207,6 +233,9 @@ endi
 if $dnode2Status != ready then
   return -1
 endi
+if $dnode3Status != null then
+  return -1
+endi
 if $dnode4Status != ready then
   return -1
 endi
@@ -214,10 +243,58 @@ if $dnode5Status != ready then
   return -1
 endi
 
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+print ============== step5: start dnode5 and add into cluster , drop database
+sql drop database $db
+sleep 1000
+system sh/exec.sh -n dnode5 -s start
+sql create dnode $hostname5
+sleep 3000
+wait_dnode5:
+sql show dnodes
+if $rows != 5 then
+  sleep 3000
+  goto wait_dnode5
+endi
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+$dnode1Status = $data4_1  
+$dnode2Status = $data4_2
+$dnode4Status = $data4_4  
+$dnode5Status = $data4_5 
+$dnode6Status = $data4_6
+
+if $dnode1Status != ready then
+  return -1
+endi
+if $dnode2Status != ready then
+  return -1
+endi
+if $dnode3Status != null then
+  return -1
+endi
+if $dnode4Status != ready then
+  return -1
+endi
+if $dnode5Status != ready then
+  return -1
+endi
+if $dnode6Status != ready then
+  return -1
+endi
 
 print ============== step6: create database and table until not free vnodes 
 $rowNum = 100
-$tblNum = 24
+$tblNum = 32
 $totalRows = 0
 $tsStart = 1420041600000
 
@@ -259,8 +336,9 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-print ============== step7: drop dnode3, and system should prompt cannot drop dnodes 
-sql_error drop dnode $hostname3
-print ============== step8: add one new table, and system should prompt 'need more dnode' 
+print ============== step7: drop dnode $hostname5, system should prompt "DB error: no enough dnodes" 
+sql_error drop dnode $hostname5
+print error: $error 
+print ============== step8: create table tb_more using $stb tags( 1000 ), system should prompt 'DB error: no enough dnodes' 
 sql_error create table tb_more using $stb tags( 1000 )
-
+print error: $error 
