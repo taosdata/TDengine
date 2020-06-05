@@ -84,6 +84,14 @@ public class TSDBConnection implements Connection {
 		}
 	}
 
+	public TSDBSubscribe createSubscribe() throws SQLException {
+		if (!this.connector.isClosed()) {
+			return new TSDBSubscribe(this.connector);
+		} else {
+			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+		}
+	}
+
 	public PreparedStatement prepareStatement(String sql) throws SQLException {
 		if (!this.connector.isClosed()) {
 			return new TSDBPreparedStatement(this.connector, sql);

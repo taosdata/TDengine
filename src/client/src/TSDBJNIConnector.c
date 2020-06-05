@@ -551,8 +551,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeConnectionIm
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNIEnv *env, jobject jobj, jlong con,
-                                                                             jboolean restart, jstring jtopic,
-                                                                             jstring jsql, jint jinterval) {
+                                                                             jboolean restart, jstring jtopic, jstring jsql, jint jinterval) {
   jlong sub = 0;
   TAOS *taos = (TAOS *)con;
   char *topic = NULL;
@@ -583,106 +582,20 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
   return sub;
 }
 
-static jobject convert_one_row(JNIEnv *env, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
-  jobject rowobj = (*env)->NewObject(env, g_rowdataClass, g_rowdataConstructor, num_fields);
-  jniTrace("created a rowdata object, rowobj:%p", rowobj);
-
-  for (int i = 0; i < num_fields; i++) {
-    if (row[i] == NULL) {
-      continue;
-    }
-
-    switch (fields[i].type) {
-      case TSDB_DATA_TYPE_BOOL:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetBooleanFp, i, (jboolean)(*((char *)row[i]) == 1));
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteFp, i, (jbyte) * ((char *)row[i]));
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetShortFp, i, (jshort) * ((short *)row[i]));
-        break;
-      case TSDB_DATA_TYPE_INT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetIntFp, i, (jint) * (int *)row[i]);
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetLongFp, i, (jlong) * ((int64_t *)row[i]));
-        break;
-      case TSDB_DATA_TYPE_FLOAT: {
-        float fv = 0;
-        fv = GET_FLOAT_VAL(row[i]);
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat)fv);
-      } break;
-      case TSDB_DATA_TYPE_DOUBLE: {
-        double dv = 0;
-        dv = GET_DOUBLE_VAL(row[i]);
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble)dv);
-      } break;
-      case TSDB_DATA_TYPE_BINARY: {
-        char tmp[TSDB_MAX_BYTES_PER_ROW] = {0};
-        strncpy(tmp, row[i], (size_t)fields[i].bytes);  // handle the case that terminated does not exist
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, tmp));
-
-        memset(tmp, 0, (size_t)fields[i].bytes);
-        break;
-      }
-      case TSDB_DATA_TYPE_NCHAR:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteArrayFp, i,
-                               jniFromNCharToByteArray(env, (char *)row[i], fields[i].bytes));
-        break;
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetTimestampFp, i, (jlong) * ((int64_t *)row[i]));
-        break;
-      default:
-        break;
-    }
-  }
-  return rowobj;
-}
-
-JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub,
-                                                                             jint timeout) {
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub) {
   jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%ld", jobj, sub);
   jniGetGlobalMethod(env);
 
   TAOS_SUB *tsub = (TAOS_SUB *)sub;
-  jobject   rows = (*env)->NewObject(env, g_arrayListClass, g_arrayListConstructFp);
 
-  int64_t start = taosGetTimestampMs();
-  int     count = 0;
+  TAOS_RES *res = taos_consume(tsub);
 
-  while (true) {
-    TAOS_RES *res = taos_consume(tsub);
-    if (res == NULL) {
-      jniError("jobj:%p, tsub:%p, taos_consume returns NULL", jobj, tsub);
-      return NULL;
-    }
-
-    TAOS_FIELD *fields = taos_fetch_fields(res);
-    int         num_fields = taos_num_fields(res);
-    while (true) {
-      TAOS_ROW row = taos_fetch_row(res);
-      if (row == NULL) {
-        break;
-      }
-      jobject rowobj = convert_one_row(env, row, fields, num_fields);
-      (*env)->CallBooleanMethod(env, rows, g_arrayListAddFp, rowobj);
-      count++;
-    }
-
-    if (count > 0) {
-      break;
-    }
-    if (timeout == -1) {
-      continue;
-    }
-    if (((int)(taosGetTimestampMs() - start)) >= timeout) {
-      jniTrace("jobj:%p, sub:%ld, timeout", jobj, sub);
-      break;
-    }
+  if (res == NULL) {
+    jniError("jobj:%p, tsub:%p, taos_consume returns NULL", jobj, tsub);
+    return 0l;
   }
 
-  return rows;
+  return (long)res;
 }
 
 JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_unsubscribeImp(JNIEnv *env, jobject jobj, jlong sub,
