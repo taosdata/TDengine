@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
       debugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
       if (strlen(argv[++i]) > TSDB_FILENAME_LEN) continue; 
-      strcpy(arbLogPath, argv[i]);
+      tstrncpy(arbLogPath, argv[i], sizeof(arbLogPath));
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", tsServerPort);

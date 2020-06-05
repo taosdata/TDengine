@@ -423,7 +423,7 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_DATA;
   firstPkt.syncHead.vgId = pNode->vgId;
-  strcpy(firstPkt.fqdn, tsNodeFqdn);
+  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
 
   if (write(pPeer->syncFd, (char *) &firstPkt, sizeof(firstPkt)) < 0) {
