@@ -404,8 +404,6 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   pSql->numOfSubs = 0;
   
   tscResetSqlCmdObj(pCmd);
-  
-  tscTrace("%p partially free sqlObj completed", pSql);
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {

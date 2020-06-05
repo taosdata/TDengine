@@ -1284,7 +1284,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   char *msg = (char *)pRsp + sizeof(SCMSTableVgroupRspMsg);
 
   for (int32_t i = 0; i < numOfTable; ++i) {
-    char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN) * i;
+    char *          stableName = (char *)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_ID_LEN)*i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
     if (pTable == NULL) {
       mError("stable:%s, not exist while get stable vgroup info", stableName);
@@ -1294,41 +1294,48 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
     if (pTable->vgHash == NULL) {
       mError("stable:%s, not vgroup exist while get stable vgroup info", stableName);
       mnodeDecTableRef(pTable);
-      continue;
-    }
 
-    SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
+      // even this super table has no corresponding table, still return
+      pRsp->numOfTables++;
 
-    SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
-    int32_t vgSize = 0;
-    while (taosHashIterNext(pIter)) {
-      int32_t *pVgId = taosHashIterGet(pIter);
-      SVgObj * pVgroup = mnodeGetVgroup(*pVgId);
-      if (pVgroup == NULL) continue;
+      SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
+      pVgroupInfo->numOfVgroups = 0;
+      
+      msg += sizeof(SVgroupsInfo);
+    } else {
+      SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
 
-      pVgroupInfo->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
-      for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
-        SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
-        if (pDnode == NULL) break;
+      SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
+      int32_t               vgSize = 0;
+      while (taosHashIterNext(pIter)) {
+        int32_t *pVgId = taosHashIterGet(pIter);
+        SVgObj * pVgroup = mnodeGetVgroup(*pVgId);
+        if (pVgroup == NULL) continue;
 
-        strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
-        pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
+        pVgroupInfo->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
+        for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
+          SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
+          if (pDnode == NULL) break;
 
-        pVgroupInfo->vgroups[vgSize].numOfIps++;
+          strncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, tListLen(pDnode->dnodeFqdn));
+          pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
+
+          pVgroupInfo->vgroups[vgSize].numOfIps++;
+        }
+
+        vgSize++;
+        mnodeDecVgroupRef(pVgroup);
       }
 
-      vgSize++;
-      mnodeDecVgroupRef(pVgroup);
+      taosHashDestroyIter(pIter);
+      mnodeDecTableRef(pTable);
+
+      pVgroupInfo->numOfVgroups = htonl(vgSize);
+
+      // one table is done, try the next table
+      msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
+      pRsp->numOfTables++;
     }
-
-    taosHashDestroyIter(pIter);
-    mnodeDecTableRef(pTable);
-
-    pVgroupInfo->numOfVgroups = htonl(vgSize);
-
-    // one table is done, try the next table
-    msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
-    pRsp->numOfTables++;
   }
 
   if (pRsp->numOfTables != numOfTable) {
