@@ -364,7 +364,7 @@ char tTokenTypeSwitcher[13] = {
 };
 
 bool isValidDataType(int32_t type, int32_t length) {
-  if (type < TSDB_DATA_TYPE_BOOL || type > TSDB_DATA_TYPE_NCHAR) {
+  if (type < TSDB_DATA_TYPE_NULL || type > TSDB_DATA_TYPE_NCHAR) {
     return false;
   }
 

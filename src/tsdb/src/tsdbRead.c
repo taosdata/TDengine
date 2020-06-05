@@ -193,7 +193,7 @@ TsdbQueryHandleT* tsdbQueryTables(TsdbRepoT* tsdb, STsdbQueryCond* pCond, STable
     }
   }
   
-  uTrace("%p total numOfTable:%d in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
+  tsdbTrace("%p total numOfTable:%d in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
 
   tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
@@ -282,10 +282,10 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   
     SDataRow row = SL_GET_NODE_DATA(node);
     TSKEY key = dataRowKey(row);  // first timestamp in buffer
-    uTrace("%p uid:%" PRId64", tid:%d check data in mem from skey:%" PRId64 ", order:%d, %p", pHandle,
+    tsdbTrace("%p uid:%" PRId64", tid:%d check data in mem from skey:%" PRId64 ", order:%d, %p", pHandle,
            pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, key, order, pHandle->qinfo);
   } else {
-    uTrace("%p uid:%" PRId64 ", tid:%d no data in mem", pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid);
+    tsdbTrace("%p uid:%" PRId64 ", tid:%d no data in mem", pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid);
   }
   
   if (!imemEmpty) {
@@ -294,10 +294,10 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   
     SDataRow row = SL_GET_NODE_DATA(node);
     TSKEY key = dataRowKey(row);  // first timestamp in buffer
-    uTrace("%p uid:%" PRId64", tid:%d check data in imem from skey:%" PRId64 ", order:%d, %p", pHandle,
+    tsdbTrace("%p uid:%" PRId64", tid:%d check data in imem from skey:%" PRId64 ", order:%d, %p", pHandle,
            pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, key, order, pHandle->qinfo);
   } else {
-    uTrace("%p uid:%"PRId64", tid:%d no data in imem", pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid);
+    tsdbTrace("%p uid:%"PRId64", tid:%d no data in imem", pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid);
   }
   
   return true;
@@ -338,7 +338,7 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
 
   SDataRow row = SL_GET_NODE_DATA(node);
   pCheckInfo->lastKey = dataRowKey(row);  // first timestamp in buffer
-  uTrace("%p uid:%" PRId64", tid:%d check data in buffer from skey:%" PRId64 ", order:%d, %p", pHandle,
+  tsdbTrace("%p uid:%" PRId64", tid:%d check data in buffer from skey:%" PRId64 ", order:%d, %p", pHandle,
       pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, pCheckInfo->lastKey, pHandle->order, pHandle->qinfo);
   
   // all data in mem are checked already.
@@ -1038,7 +1038,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
   cur->rows = numOfRows;
   cur->pos = pos;
 
-  uTrace("%p uid:%" PRIu64",tid:%d data block created, brange:%"PRIu64"-%"PRIu64" %p", pQueryHandle, cur->win.skey,
+  tsdbTrace("%p uid:%" PRIu64",tid:%d data block created, brange:%"PRIu64"-%"PRIu64" %p", pQueryHandle, cur->win.skey,
       cur->win.ekey, cur->rows, pQueryHandle->qinfo);
 }
 
@@ -1138,7 +1138,7 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   if (pLeftBlockInfoEx->compBlock->offset == pRightBlockInfoEx->compBlock->offset &&
       pLeftBlockInfoEx->compBlock->last == pRightBlockInfoEx->compBlock->last) {
     // todo add more information
-    uError("error in header file, two block with same offset:%p", pLeftBlockInfoEx->compBlock->offset);
+    tsdbError("error in header file, two block with same offset:%p", pLeftBlockInfoEx->compBlock->offset);
   }
 
   return pLeftBlockInfoEx->compBlock->offset > pRightBlockInfoEx->compBlock->offset ? 1 : -1;
@@ -1200,7 +1200,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     numOfQualTables++;
   }
 
-  uTrace("%p create data blocks info struct completed, %d blocks in %d tables", pQueryHandle, cnt, numOfQualTables);
+  tsdbTrace("%p create data blocks info struct completed, %d blocks in %d tables", pQueryHandle, cnt, numOfQualTables);
 
   assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pTableQueryInfo[j]->numOfBlocks may be 0
   sup.numOfTables = numOfQualTables;
@@ -1236,7 +1236,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
    * }
    */
 
-  uTrace("%p %d data blocks sort completed", pQueryHandle, cnt);
+  tsdbTrace("%p %d data blocks sort completed", pQueryHandle, cnt);
   cleanBlockOrderSupporter(&sup, numOfTables);
   free(pTree);
 
@@ -1257,7 +1257,7 @@ static bool getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle) {
       break;
     }
     
-    uTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks,
+    tsdbTrace("%p %d blocks found in file for %d table(s), fid:%d", pQueryHandle, numOfBlocks,
            numOfTables, pQueryHandle->pFileGroup->fileId);
     
     assert(numOfBlocks >= 0);
@@ -1583,7 +1583,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator* pIter, STable* pTable, TSKEY
     if ((key > maxKey && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
         (key < maxKey && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
       
-      uTrace("%p key:%"PRIu64" beyond qrange:%"PRId64" - %"PRId64", no more data in buffer", pQueryHandle, key, pQueryHandle->window.skey,
+      tsdbTrace("%p key:%"PRIu64" beyond qrange:%"PRId64" - %"PRId64", no more data in buffer", pQueryHandle, key, pQueryHandle->window.skey,
           pQueryHandle->window.ekey);
       
       break;
@@ -1958,7 +1958,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   
   size_t size = taosArrayGetSize(pTableList);
   if (size == 0) {
-    uTrace("no qualified tables");
+    tsdbTrace("no qualified tables");
     return pTableGroup;
   }
   
@@ -1970,7 +1970,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
     }
     
     taosArrayPush(pTableGroup, &sa);
-    uTrace("all %d tables belong to one group", size);
+    tsdbTrace("all %d tables belong to one group", size);
   } else {
     STableGroupSupporter *pSupp = (STableGroupSupporter *) calloc(1, sizeof(STableGroupSupporter));
     pSupp->tsdbMeta = tsdbGetMeta(tsdb);
@@ -2069,12 +2069,12 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
                                  SColIndex* pColIndex, int32_t numOfCols) {
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pTable == NULL) {
-    uError("%p failed to get stable, uid:%" PRIu64, tsdb, uid);
+    tsdbError("%p failed to get stable, uid:%" PRIu64, tsdb, uid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
   
   if (pTable->type != TSDB_SUPER_TABLE) {
-    uError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s",
+    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s",
            tsdb, uid, pTable->tableId.tid, pTable->name);
     
     return TSDB_CODE_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
@@ -2090,7 +2090,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
       pGroupInfo->numOfTables = taosArrayGetSize(res);
       pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, tsdb);
       
-      uTrace("no tbname condition or tagcond, all tables belongs to one group, numOfTables:%d", pGroupInfo->numOfTables);
+      tsdbTrace("no tbname condition or tagcond, all tables belongs to one group, numOfTables:%d", pGroupInfo->numOfTables);
     } else {
       // todo add error
     }

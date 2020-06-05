@@ -42,6 +42,11 @@ extern "C" {
     }            \
   }
 
+#define tstrncpy(dst, src, size) do { \
+    strncpy((dst), (src), (size)); \
+    (dst)[(size) - 1] = 0; \
+} while (0);
+
 #define tclose(x) taosCloseSocket(x)
 
 // Pointer p drift right by b bytes
@@ -113,7 +118,7 @@ extern "C" {
 
 int32_t strdequote(char *src);
 
-void strtrim(char *src);
+size_t strtrim(char *src);
 
 char *strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 

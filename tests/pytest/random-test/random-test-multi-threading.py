@@ -20,63 +20,62 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import *
 
-current_tb = ""
 last_tb = ""
+last_stb = ""
 written = 0
 
 
 class Test (threading.Thread):
-    def __init__(self, threadId, name, sleepTime):
+    def __init__(self, threadId, name):
         threading.Thread.__init__(self)
         self.threadId = threadId
         self.name = name
-        self.sleepTime = sleepTime
 
         self.threadLock = threading.Lock()
 
     def create_table(self):
-        global current_tb
+        tdLog.info("create_table")
         global last_tb
         global written
 
-        tdLog.info("create a table")
         current_tb = "tb%d" % int(round(time.time() * 1000))
-        tdLog.info("current table %s" % current_tb)
 
         if (current_tb == last_tb):
             return
         else:
-            tdSql.execute(
-                'create table %s (ts timestamp, speed int)' %
-                current_tb)
-            last_tb = current_tb
-            written = 0
+            tdLog.info("will create table %s" % current_tb)
+
+            try:
+                tdSql.execute(
+                    'create table %s (ts timestamp, speed int)' %
+                    current_tb)
+                last_tb = current_tb
+                written = 0
+            except Exception as e:
+                tdLog.info(repr(e))
 
     def insert_data(self):
-        global current_tb
+        tdLog.info("insert_data")
         global last_tb
         global written
 
-        tdLog.info("will insert data to table")
-        if (current_tb == ""):
+        if (last_tb == ""):
             tdLog.info("no table, create first")
             self.create_table()
 
-        tdLog.info("insert data to table")
+        tdLog.info("will insert data to table")
         for i in range(0, 10):
-            self.threadLock.acquire()
             insertRows = 1000
-            tdLog.info("insert %d rows to %s" % (insertRows, current_tb))
+            tdLog.info("insert %d rows to %s" % (insertRows, last_tb))
 
             for j in range(0, insertRows):
                 ret = tdSql.execute(
                     'insert into %s values (now + %dm, %d)' %
-                    (current_tb, j, j))
+                    (last_tb, j, j))
                 written = written + 1
-            self.threadLock.release()
 
     def query_data(self):
-        global current_tb
+        tdLog.info("query_data")
         global last_tb
         global written
 
@@ -86,53 +85,90 @@ class Test (threading.Thread):
             tdSql.checkRows(written)
 
     def create_stable(self):
-        global current_tb
+        tdLog.info("create_stable")
         global last_tb
+        global last_stb
         global written
 
-        tdLog.info("create a super table")
+        current_stb = "stb%d" % int(round(time.time() * 1000))
+
+        if (current_stb == last_stb):
+            return
+        else:
+            tdLog.info("will create stable %s" % current_stb)
+            tdSql.execute(
+                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))' %
+                current_stb)
+            last_stb = current_stb
+
+            current_tb = "tb%d" % int(round(time.time() * 1000))
+            tdSql.execute(
+                "create table %s using %s tags (1, '表1')" %
+                (current_tb, last_stb))
+            last_tb = current_tb
+            tdSql.execute(
+                "insert into %s values (now, 27, '我是nchar字符串')" %
+                last_tb)
+            written = written + 1
+
+
+    def drop_stable(self):
+        tdLog.info("drop_stable")
+        global last_stb
+
+        if (last_stb == ""):
+            tdLog.info("no super table")
+            return
+        else:
+            tdLog.info("will drop last super table")
+            tdSql.execute('drop table %s' % last_stb)
+            last_stb = ""
 
     def restart_database(self):
-        global current_tb
+        tdLog.info("restart_database")
         global last_tb
         global written
 
-        tdLog.info("restart databae")
         tdDnodes.stop(1)
         tdDnodes.start(1)
         tdLog.sleep(5)
 
-    def force_restart(self):
-        global current_tb
+    def force_restart_database(self):
+        tdLog.info("force_restart_database")
         global last_tb
         global written
 
-        tdLog.info("force restart database")
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
-        tdLog.sleep(5)
+        tdLog.sleep(10)
 
     def drop_table(self):
-        global current_tb
+        tdLog.info("drop_table")
         global last_tb
         global written
 
         for i in range(0, 10):
-            self.threadLock.acquire()
-
-            tdLog.info("current_tb %s" % current_tb)
-
-            if (current_tb != ""):
-                tdLog.info("drop current tb %s" % current_tb)
-                tdSql.execute("drop table %s" % current_tb)
-                current_tb = ""
+            if (last_tb != ""):
+                tdLog.info("drop last_tb %s" % last_tb)
+                tdSql.execute("drop table %s" % last_tb)
                 last_tb = ""
                 written = 0
-            tdLog.sleep(self.sleepTime)
-            self.threadLock.release()
+
+
+    def query_data_from_stable(self):
+        tdLog.info("query_data_from_stable")
+        global last_stb
+
+        if (last_stb == ""):
+            tdLog.info("no super table")
+            return
+        else:
+            tdLog.info("will query data from super table")
+            tdSql.execute('select * from %s' % last_stb)
+
 
     def reset_query_cache(self):
-        global current_tb
+        tdLog.info("reset_query_cache")
         global last_tb
         global written
 
@@ -141,51 +177,69 @@ class Test (threading.Thread):
         tdLog.sleep(1)
 
     def reset_database(self):
-        global current_tb
+        tdLog.info("reset_database")
         global last_tb
+        global last_stb
         global written
 
-        tdLog.info("reset database")
         tdDnodes.forcestop(1)
         tdDnodes.deploy(1)
-        current_tb = ""
         last_tb = ""
+        last_stb = ""
         written = 0
         tdDnodes.start(1)
         tdSql.prepare()
 
     def delete_datafiles(self):
-        global current_tb
+        tdLog.info("delete_data_files")
         global last_tb
         global written
 
-        tdLog.info("delete data files")
         dnodesDir = tdDnodes.getDnodesRootDir()
         dataDir = dnodesDir + '/dnode1/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
 
-        current_tb = ""
         last_tb = ""
         written = 0
         tdDnodes.start(1)
+        tdLog.sleep(10)
         tdSql.prepare()
 
     def run(self):
-        switch = {
-            1: self.create_table,
-            2: self.insert_data,
-            3: self.query_data,
-            4: self.create_stable,
-            5: self.restart_database,
-            6: self.force_restart,
-            7: self.drop_table,
-            8: self.reset_query_cache,
-            9: self.reset_database,
-            10: self.delete_datafiles,
+        dataOp = {
+            1: self.insert_data,
+            2: self.query_data,
+            3: self.query_data_from_stable,
         }
 
-        switch.get(self.threadId, lambda: "ERROR")()
+        dbOp = {
+            1: self.create_table,
+            2: self.create_stable,
+            3: self.restart_database,
+            4: self.force_restart_database,
+            5: self.drop_table,
+            6: self.reset_query_cache,
+            7: self.reset_database,
+            8: self.delete_datafiles,
+            9: self.drop_stable,
+        }
+
+        if (self.threadId == 1):
+            while True:
+                self.threadLock.acquire()
+                tdLog.notice("first thread")
+                randDataOp = random.randint(1, 3)
+                dataOp.get(randDataOp , lambda: "ERROR")()
+                self.threadLock.release()
+
+        elif (self.threadId == 2):
+            while True:
+                tdLog.notice("second thread")
+                self.threadLock.acquire()
+                randDbOp = random.randint(1, 9)
+                dbOp.get(randDbOp, lambda: "ERROR")()
+                self.threadLock.release()
 
 
 class TDTestCase:
@@ -196,8 +250,8 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        test1 = Test(2, "insert_data", 1)
-        test2 = Test(7, "drop_table", 2)
+        test1 = Test(1, "data operation")
+        test2 = Test(2, "db operation")
 
         test1.start()
         test2.start()

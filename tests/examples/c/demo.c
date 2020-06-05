@@ -26,13 +26,12 @@
 void taosMsleep(int mseconds);
 
 static int32_t doQuery(TAOS* taos, const char* sql) {
-  int32_t code = taos_query(taos, sql);
-  if (code != 0) {
+  TAOS_RES* res = taos_query(taos, sql);
+  if (taos_errno(res) != 0) {
     printf("failed to execute query, reason:%s\n", taos_errstr(taos));
     return -1;
   }
   
-  TAOS_RES* res = taos_use_result(taos);
   TAOS_ROW row = NULL;
   char buf[512] = {0};
   
@@ -46,7 +45,6 @@ static int32_t doQuery(TAOS* taos, const char* sql) {
   }
   
   taos_free_result(res);
-
   return 0;
 }
 
@@ -81,6 +79,7 @@ static __attribute__((unused)) void multiThreadTest(int32_t numOfThreads, void* 
     pthread_join(threadId[i], NULL);
   }
   
+  free(threadId);
   pthread_attr_destroy(&thattr);
 }
 
@@ -95,7 +94,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
   
   // init TAOS
   taos_init();
@@ -108,24 +107,12 @@ int main(int argc, char *argv[]) {
   printf("success to connect to server\n");
   
 //  multiThreadTest(1, taos);
-  doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1, -2) group by t1 limit 2 offset 10;");
+  doQuery(taos, "use test");
+  doQuery(taos, "alter table tm99 set tag a=99");
 //  for(int32_t i = 0; i < 100000; ++i) {
 //    doQuery(taos, "insert into t1 values(now, 2)");
 //  }
 //  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
-
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 'abc')");
-//  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:3', 3);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:4', 4);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:5', 5);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:6', 6);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:7', 7);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:8', 8);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:9', 9);");
-//  doQuery(taos, "select sum(k),count(*) from m1 group by a");
   
   taos_close(taos);
   return 0;
@@ -171,10 +158,6 @@ int main(int argc, char *argv[]) {
     printf("failed to select, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
-  
-  
-  result = taos_use_result(taos);
-  
   
   if (result == NULL) {
     printf("failed to get result, reason:%s\n", taos_errstr(taos));

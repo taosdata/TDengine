@@ -75,7 +75,7 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "ab1234567890123456789012345678ab1234567890123456789012345678","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"errors":[{"datapoint":{"metric":"ab1234567890123456789012345678ab1234567890123456789012345678","stable":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb","table":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb_lga_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web01"},"status":"error","code":-2147483389}}],"failed":1,"success":0,"affected_rows":0}@ then
+if $system_content != @{"errors":[{"datapoint":{"metric":"ab1234567890123456789012345678ab1234567890123456789012345678","stable":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb","table":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb_lga_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web01"},"status":"error","code":-2147482999}}],"failed":1,"success":0,"affected_rows":0}@ then
   return -1
 endi
 
@@ -125,7 +125,7 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","group1": "1","group1": "1","group1": "1","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"errors":[{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbbbbbb","table":"sys_cpu_d_bbbbbbb_lga_1_1_1_1_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","group1":"1","group1":"1","group1":"1","group1":"1","host":"web01"},"status":"error","code":-2147483445}}],"failed":1,"success":0,"affected_rows":0}@ then
+if $system_content != @{"errors":[{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbbbbbb","table":"sys_cpu_d_bbbbbbb_lga_1_1_1_1_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","group1":"1","group1":"1","group1":"1","group1":"1","host":"web01"},"status":"error","code":-2147483135}}],"failed":1,"success":0,"affected_rows":0}@ then
   return -1
 endi
 
