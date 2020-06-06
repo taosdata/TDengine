@@ -45,6 +45,10 @@ int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen,
   if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
     return TSDB_CODE_VND_INVALID_VGROUP_ID; 
 
+  // TODO: Later, let slave to support query
+  if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
+    return TSDB_CODE_NOT_READY;
+
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pCont, contLen, ret);
 }
 
