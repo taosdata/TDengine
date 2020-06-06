@@ -103,7 +103,7 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
 
   if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
     if (cmd->cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
-      if (code == TSDB_CODE_DB_NOT_SELECTED || code == TSDB_CODE_INVALID_DB) {
+      if (code == TSDB_CODE_MND_DB_NOT_SELECTED || code == TSDB_CODE_MND_INVALID_DB) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[0].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)-1;
@@ -111,7 +111,7 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
                     pContext->ipstr);
           return false;
         }
-      } else if (code == TSDB_CODE_INVALID_TABLE_ID) {
+      } else if (code == TSDB_CODE_MND_INVALID_TABLE_ID) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)(multiCmds->pos - 2);

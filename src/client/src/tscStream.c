@@ -78,13 +78,13 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
   int code = tscGetTableMeta(pSql, pTableMetaInfo);
   pSql->res.code = code;
 
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
 
   if (code == 0 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     code = tscGetSTableVgroupInfo(pSql, 0);
     pSql->res.code = code;
 
-    if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
   }
 
   tscTansformSQLFuncForSTableQuery(pQueryInfo);
@@ -512,7 +512,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   tsem_init(&pSql->rspSem, 0, 0);
   int32_t code = doAsyncParseSql(pSql);
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     sem_wait(&pSql->rspSem);
   }
 

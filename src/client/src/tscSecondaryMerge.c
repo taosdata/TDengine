@@ -161,7 +161,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
   
     tscError("%p pMemBuffer is NULL", pMemBuffer);
-    pRes->code = TSDB_CODE_APP_ERROR;
+    pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
  
@@ -169,7 +169,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
 
     tscError("%p no local buffer or intermediate result format model", pSql);
-    pRes->code = TSDB_CODE_APP_ERROR;
+    pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
 
@@ -196,7 +196,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
              pMemBuffer[0]->pageSize);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
-    pRes->code = TSDB_CODE_APP_ERROR;
+    pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
 
@@ -207,7 +207,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tscError("%p failed to create local merge structure, out of memory", pSql);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;
   }
 
@@ -229,7 +229,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
       SLocalDataSource *ds = (SLocalDataSource *)malloc(sizeof(SLocalDataSource) + pMemBuffer[0]->pageSize);
       if (ds == NULL) {
         tscError("%p failed to create merge structure", pSql);
-        pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+        pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         return;
       }
       
@@ -327,7 +327,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 //    tfree(pReducer->pBufForInterpo);
     tfree(pReducer->prevRowOfInput);
 
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;
   }
   
@@ -561,7 +561,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
 
   int32_t *orderIdx = (int32_t *)calloc(numOfGroupByCols, sizeof(int32_t));
   if (orderIdx == NULL) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   if (numOfGroupByCols > 0) {
@@ -582,7 +582,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
   tfree(orderIdx);
 
   if (*pOrderDesc == NULL) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   } else {
     return TSDB_CODE_SUCCESS;
   }
@@ -647,7 +647,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pSql->numOfSubs);
   if (*pMemBuffer == NULL) {
     tscError("%p failed to allocate memory", pSql);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
   
@@ -656,7 +656,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
   if (pSchema == NULL) {
     tscError("%p failed to allocate memory", pSql);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
 
@@ -684,7 +684,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   }
 
   if (createOrderDescriptor(pOrderDesc, pCmd, pModel) != TSDB_CODE_SUCCESS) {
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
 

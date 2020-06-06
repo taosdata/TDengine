@@ -240,7 +240,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
 
   if ( count != (maxId-minId+1) ) {
     wError("wal:%s, messed up, count:%d max:%d min:%d", opath, count, maxId, minId);
-    terrno = TAOS_SYSTEM_ERROR(TSDB_CODE_APP_ERROR);
+    terrno = TSDB_CODE_WAL_APP_ERROR;
   } else {
     wTrace("wal:%s, %d files will be restored", opath, count);
 

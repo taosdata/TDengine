@@ -84,7 +84,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
   if (connSize > tsMaxShellConns) {
     mError("failed to create conn for user:%s ip:%s:%u, conns:%d larger than maxShellConns:%d, ", user, taosIpStr(ip),
            port, connSize, tsMaxShellConns);
-    terrno = TSDB_CODE_TOO_MANY_SHELL_CONNS;
+    terrno = TSDB_CODE_MND_TOO_MANY_SHELL_CONNS;
     return NULL;
   }
 
@@ -168,7 +168,7 @@ static void *mnodeGetNextConn(SHashMutableIterator *pIter, SConnObj **pConn) {
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
   
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -282,7 +282,7 @@ int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
 static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -391,7 +391,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
 static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -519,7 +519,7 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
 
 static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mPrint("kill query msg is received, queryId:%s", pKill->queryId);
@@ -530,7 +530,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
 
   if (queryIdStr == NULL || connIdStr == NULL) {
     mPrint("failed to kill query, queryId:%s", pKill->queryId);
-   return TSDB_CODE_INVALID_QUERY_ID;
+   return TSDB_CODE_MND_INVALID_QUERY_ID;
   }
 
   int32_t queryId = (int32_t)strtol(queryIdStr, NULL, 10);
@@ -538,7 +538,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   SConnObj *pConn = taosCacheAcquireByName(tsMnodeConnCache, connIdStr);
   if (pConn == NULL) {
     mError("connId:%s, failed to kill queryId:%d, conn not exist", connIdStr, queryId);
-    return TSDB_CODE_INVALID_CONNECTION;
+    return TSDB_CODE_MND_INVALID_CONN_ID;
   } else {
     mPrint("connId:%s, queryId:%d is killed by user:%s", connIdStr, queryId, pUser->user);
     pConn->queryId = queryId;
@@ -549,7 +549,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
 
 static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mPrint("kill stream msg is received, streamId:%s", pKill->queryId);
@@ -560,7 +560,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
 
   if (streamIdStr == NULL || connIdStr == NULL) {
     mPrint("failed to kill stream, streamId:%s", pKill->queryId);
-   return TSDB_CODE_INVALID_STREAM_ID;
+   return TSDB_CODE_MND_INVALID_STREAM_ID;
   }
 
   int32_t streamId = (int32_t)strtol(streamIdStr, NULL, 10);
@@ -568,7 +568,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   SConnObj *pConn = taosCacheAcquireByName(tsMnodeConnCache, connIdStr);
   if (pConn == NULL) {
     mError("connId:%s, failed to kill streamId:%d, conn not exist", connIdStr, streamId);
-    return TSDB_CODE_INVALID_CONNECTION;
+    return TSDB_CODE_MND_INVALID_CONN_ID;
   } else {
     mPrint("connId:%s, streamId:%d is killed by user:%s", connIdStr, streamId, pUser->user);
     pConn->streamId = streamId;
@@ -579,13 +579,13 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
 
 static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillConnMsg *pKill = pMsg->rpcMsg.pCont;
   SConnObj *      pConn = taosCacheAcquireByName(tsMnodeConnCache, pKill->queryId);
   if (pConn == NULL) {
     mError("connId:%s, failed to kill, conn not exist", pKill->queryId);
-    return TSDB_CODE_INVALID_CONNECTION;
+    return TSDB_CODE_MND_INVALID_CONN_ID;
   } else {
     mPrint("connId:%s, is killed by user:%s", pKill->queryId, pUser->user);
     pConn->killed = 1;

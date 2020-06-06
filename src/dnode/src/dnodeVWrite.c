@@ -115,7 +115,7 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
       .handle  = pMsg->handle,
       .pCont   = NULL,
       .contLen = 0,
-      .code    = TSDB_CODE_INVALID_VGROUP_ID,
+      .code    = TSDB_CODE_VND_INVALID_VGROUP_ID,
       .msgType = 0
     };
     rpcSendResponse(&rpcRsp);

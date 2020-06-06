@@ -124,7 +124,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     strtolower(pSql->sqlstr, pSql->sqlstr);
 
     code = tsParseSql(pSql, false);
-    if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       // wait for the callback function to post the semaphore
       sem_wait(&pSql->rspSem);
       code = pSql->res.code;
@@ -148,7 +148,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     pSub->topic[sizeof(pSub->topic) - 1] = 0;
     pSub->progress = taosArrayInit(32, sizeof(SSubscriptionProgress));
     if (pSub->progress == NULL) {
-      THROW(TSDB_CODE_CLI_OUT_OF_MEMORY);
+      THROW(TSDB_CODE_TSC_OUT_OF_MEMORY);
     }
 
     CLEANUP_EXECUTE();
@@ -324,7 +324,7 @@ void tscSaveSubscriptionProgress(void* sub) {
 TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval) {
   STscObj* pObj = (STscObj*)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    terrno = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("connection disconnected");
     return NULL;
   }

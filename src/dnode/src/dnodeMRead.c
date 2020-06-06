@@ -84,7 +84,7 @@ void dnodeCleanupMnodeRead() {
 
 int32_t dnodeAllocateMnodeRqueue() {
   tsMReadQueue = taosOpenQueue();
-  if (tsMReadQueue == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (tsMReadQueue == NULL) return TSDB_CODE_DND_OUT_OF_MEMORY;
 
   taosAddIntoQset(tsMReadQset, tsMReadQueue, NULL);
 
@@ -130,8 +130,8 @@ static void dnodeFreeMnodeReadMsg(SMnodeMsg *pRead) {
 }
 
 static void dnodeSendRpcMnodeReadRsp(SMnodeMsg *pRead, int32_t code) {
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
-  if (code == TSDB_CODE_ACTION_NEED_REPROCESSED) {
+  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
     // may be a auto create req, should put into write queue
     dnodeReprocessMnodeWriteMsg(pRead);
     return;

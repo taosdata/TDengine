@@ -110,12 +110,12 @@ static char *mnodeGetShowType(int32_t showType) {
 static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   SCMShowMsg *pShowMsg = pMsg->rpcMsg.pCont;
   if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
-    return TSDB_CODE_INVALID_MSG_TYPE;
+    return TSDB_CODE_MND_INVALID_MSG_TYPE;
   }
 
   if (!tsMnodeShowMetaFp[pShowMsg->type] || !tsMnodeShowRetrieveFp[pShowMsg->type]) {
     mError("show type:%s is not support", mnodeGetShowType(pShowMsg->type));
-    return TSDB_CODE_OPS_NOT_SUPPORT;
+    return TSDB_CODE_COM_OPS_NOT_SUPPORT;
   }
 
   int32_t showObjSize = sizeof(SShowObj) + htons(pShowMsg->payloadLen);
@@ -127,14 +127,14 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
 
   pShow = mnodePutShowObj(pShow, showObjSize);
   if (pShow == NULL) {    
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
   int32_t size = sizeof(SCMShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
   SCMShowRsp *pShowRsp = rpcMallocCont(size);
   if (pShowRsp == NULL) {
     mnodeReleaseShowObj(pShow, true);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
@@ -169,7 +169,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
    */
   if (!mnodeAccquireShowObj(pShow)) {
     mError("%p, show is invalid", pShow);
-    return TSDB_CODE_INVALID_QHANDLE;
+    return TSDB_CODE_MND_INVALID_SHOWOBJ;
   }
   
   if (mnodeCheckShowFinished(pShow)) {
@@ -202,7 +202,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
     rpcFreeCont(pRsp);
     mnodeReleaseShowObj(pShow, false);
     assert(false);
-    return TSDB_CODE_ACTION_IN_PROGRESS;
+    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   pRsp->numOfRows = htonl(rowsRead);
@@ -224,7 +224,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
   if (pHBRsp == NULL) {
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
   SCMHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
@@ -278,7 +278,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   SRpcConnInfo connInfo;
   if (rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo) != 0) {
     mError("thandle:%p is already released while process connect msg", pMsg->rpcMsg.handle);
-    code = TSDB_CODE_INVALID_MSG_CONTENT;
+    code = TSDB_CODE_MND_INVALID_CONNECTION;
     goto connect_over;
   }
 
@@ -295,7 +295,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     SDbObj *pDb = mnodeGetDb(dbName);
     if (pDb == NULL) {
-      code = TSDB_CODE_INVALID_DB;
+      code = TSDB_CODE_MND_INVALID_DB;
       goto connect_over;
     }
     mnodeDecDbRef(pDb);
@@ -303,7 +303,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
 
   SCMConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
   if (pConnectRsp == NULL) {
-    code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
     goto connect_over;
   }
 
@@ -340,7 +340,7 @@ static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pUseDbMsg->db);
   if (pMsg->pDb == NULL) {
-    code = TSDB_CODE_INVALID_DB;
+    code = TSDB_CODE_MND_INVALID_DB;
   }
 
   return code;

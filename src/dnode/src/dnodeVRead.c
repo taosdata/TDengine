@@ -134,7 +134,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
         .handle  = pMsg->handle,
         .pCont   = NULL,
         .contLen = 0,
-        .code    = TSDB_CODE_INVALID_VGROUP_ID,
+        .code    = TSDB_CODE_VND_INVALID_VGROUP_ID,
         .msgType = 0
     };
     rpcSendResponse(&rpcRsp);
@@ -189,8 +189,8 @@ static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMs
 }
 
 void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
-  if (code == TSDB_CODE_ACTION_NEED_REPROCESSED) {
+  if (code == TSDB_CODE_VND_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_VND_ACTION_NEED_REPROCESSED) {
     dnodeContinueExecuteQuery(pVnode, pRead->rspRet.qhandle, pRead);
   }
 

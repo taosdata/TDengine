@@ -180,7 +180,7 @@ void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
     SRpcMsg  rsp;
     rsp.handle = pMsg->handle;
     rsp.pCont  = NULL;
-    rsp.code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    rsp.code = TSDB_CODE_DND_OUT_OF_MEMORY;
     rpcSendResponse(&rsp);
     rpcFreeCont(pMsg->pCont);
   }
@@ -202,7 +202,7 @@ static void *dnodeProcessMgmtQueue(void *param) {
     if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
       rsp.code = (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
     } else {
-      rsp.code = TSDB_CODE_MSG_NOT_PROCESSED;
+      rsp.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
     }
 
     rsp.handle = pMsg->handle;
@@ -219,7 +219,7 @@ static void *dnodeProcessMgmtQueue(void *param) {
 static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
   DIR *dir = opendir(tsVnodeDir);
   if (dir == NULL) {
-    return TSDB_CODE_NO_WRITE_ACCESS;
+    return TSDB_CODE_DND_NO_WRITE_ACCESS;
   }
 
   *numOfVnodes = 0;
