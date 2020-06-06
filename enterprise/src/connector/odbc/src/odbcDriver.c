@@ -4228,17 +4228,17 @@ odbcExecuteSql(STMT *s)
     odbcError("failed to query from taos:%p, code:%d, reason:%s", s->dbc->con, code, taos_errstr(s->dbc->con));
     char *sqlState = NULL;
     switch (code) {
-    case TSDB_CODE_INVALID_SQL:
+    case TSDB_CODE_TSC_INVALID_SQL:
       sqlState = "42000";
       break;
-    case TSDB_CODE_DB_NOT_SELECTED:
-    case TSDB_CODE_INVALID_DB:
+    case TSDB_CODE_MND_DB_NOT_SELECTED:
+    case TSDB_CODE_MND_INVALID_DB:
       sqlState = "3D000";
       break;
-    case TSDB_CODE_TABLE_ALREADY_EXIST:
+    case TSDB_CODE_MND_TABLE_ALREADY_EXIST:
       sqlState = "42S01";
       break;
-    case TSDB_CODE_INVALID_TABLE_ID:
+    case TSDB_CODE_MND_INVALID_TABLE_ID:
       sqlState = "42S02";
       break;
     default:

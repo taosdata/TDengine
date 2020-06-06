@@ -128,7 +128,7 @@ void *syncStart(const SSyncInfo *pInfo)
 
   if (pNode->selfIndex < 0) {
     sPrint("vgId:%d, this node is not configured", pNode->vgId);
-    terrno = TSDB_CODE_INVALID_CONFIG;
+    terrno = TSDB_CODE_SYN_INVALID_CONFIG;
     free (pNode);
     return NULL;
   }
@@ -194,7 +194,7 @@ int32_t syncReconfig(void *param, const SSyncCfg *pNewCfg)
   SSyncNode  *pNode = param;
   int         i, j;
 
-  if (pNode == NULL) return TSDB_CODE_INVALID_CONFIG;
+  if (pNode == NULL) return TSDB_CODE_SYN_INVALID_CONFIG;
   sPrint("vgId:%d, reconfig, role:%s replica:%d old:%d", pNode->vgId, syncRole[nodeRole], 
          pNewCfg->replica, pNode->replica);
 
@@ -1138,7 +1138,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId)
     for (int i=0; i<pSyncFwds->fwds; ++i) {
       SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + (pSyncFwds->first+i) % tsMaxFwdInfo; 
       if (time - pFwdInfo->time < 2000) break;
-      syncProcessFwdAck(pNode, pFwdInfo, TSDB_CODE_NETWORK_UNAVAIL);
+      syncProcessFwdAck(pNode, pFwdInfo, TSDB_CODE_RPC_NETWORK_UNAVAIL);
     }
 
     syncRemoveConfirmedFwdInfo(pNode);

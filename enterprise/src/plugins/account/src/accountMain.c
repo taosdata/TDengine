@@ -189,18 +189,18 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   if (pAcct != NULL) {
     mWarn("acct:%s, is already there", name);
     mnodeDecAcctRef(pAcct);
-    return TSDB_CODE_ACCT_ALREADY_EXIST;
+    return TSDB_CODE_MND_ACCT_ALREADY_EXIST;
   }
 
   SUserObj *pUser = mnodeGetUser(name);
   if (pUser != NULL) {
     mWarn("user:%s, is already there", name);
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_USER_ALREADY_EXIST;
+    return TSDB_CODE_MND_USER_ALREADY_EXIST;
   }
 
   if (acctCheckAcctParams(pCfg) < 0) {
-    return TSDB_CODE_INVALID_ACCT_PARAMETER;
+    return TSDB_CODE_MND_INVALID_ACCT_PARA;
   }
 
   pAcct = malloc(sizeof(SAcctObj));
@@ -238,7 +238,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   int32_t code = sdbInsertRow(&oper);
 
   if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
     tfree(pAcct);
   } else {
     // create a user in the same name and pass
@@ -256,7 +256,7 @@ int32_t acctDropAcct(char *name) {
   SAcctObj *pAcct = mnodeGetAcct(name);
   if (pAcct == NULL) {
     mWarn("acct:%s, is not there", name);
-    return TSDB_CODE_INVALID_ACCT;
+    return TSDB_CODE_MND_INVALID_ACCT;
   }
 
   SSdbOper oper = {
@@ -267,7 +267,7 @@ int32_t acctDropAcct(char *name) {
 
   int32_t code = sdbDeleteRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   mnodeDecAcctRef(pAcct);
@@ -287,7 +287,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t  cols = 0;
@@ -493,7 +493,7 @@ static int32_t acctUpdateAcct(SAcctObj *pAcct) {
   int32_t code = sdbUpdateRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pAcct);
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   return code;
@@ -505,10 +505,10 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
   pAcct = mnodeGetAcct(name);
   if (pAcct == NULL) {
     mTrace("account: %s not exists", name);
-    return TSDB_CODE_INVALID_ACCT;
+    return TSDB_CODE_MND_INVALID_ACCT;
   }
 
-  if (acctCheckAlterAcctParams(pAcct, pCfg) < 0) return TSDB_CODE_INVALID_OPTION;
+  if (acctCheckAlterAcctParams(pAcct, pCfg) < 0) return TSDB_CODE_MND_INVALID_ACCT_OPTION;
 
   if (pCfg->maxUsers > 0) {
     mTrace("account: %s maxUsers is modified from %d to %d", name, pAcct->cfg.maxUsers, pCfg->maxUsers);
@@ -638,7 +638,7 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
     mError("acct:%s, failed to create account, no rights", pCreate->user);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t code = acctCreateAcct(pCreate->user, pCreate->pass, &(pCreate->cfg));
@@ -657,7 +657,7 @@ static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
     mError("acct:%s, failed to drop account, invalid user", pDrop->user);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t code = acctDropAcct(pDrop->user);
@@ -686,7 +686,7 @@ static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
     mError("acct:%s, failed to alter account, no rights", pAlter->user);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t code = acctAlterAcct(pAlter->user, pAlter->pass, &(pAlter->cfg));;
@@ -702,7 +702,7 @@ static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
 static int32_t acctCheckUserLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxUsers != 0 && pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
     mError("acct:%s, users:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
-    return TSDB_CODE_TOO_MANY_USERS;
+    return TSDB_CODE_MND_TOO_MANY_USERS;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -710,7 +710,7 @@ static int32_t acctCheckUserLimit(SAcctObj *pAcct) {
 static int32_t acctrCheckDbLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxDbs != 0 && pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
     mError("acct:%s, dbs:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
-    return TSDB_CODE_TOO_MANY_DATABASES;
+    return TSDB_CODE_MND_TOO_MANY_DATABASES;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -718,7 +718,7 @@ static int32_t acctrCheckDbLimit(SAcctObj *pAcct) {
 static int32_t acctCheckTableLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxTimeSeries != 0 && pAcct->acctInfo.numOfTimeSeries >= pAcct->cfg.maxTimeSeries) {
     mError("acct:%s, timeSeries:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
-    return TSDB_CODE_TOO_MANY_TIME_SERIES;
+    return TSDB_CODE_MND_TOO_MANY_TIMESERIES;
   }
   return TSDB_CODE_SUCCESS;
 }
