@@ -111,7 +111,6 @@ class TDengineCursor(object):
             # TODO : change the exception raised here
             raise ProgrammingError("Cursor is not connected")
 
-        self._connection.clear_result_set()
         self._reset_result()
 
         stmt = operation
@@ -204,7 +203,7 @@ class TDengineCursor(object):
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
 
-        self._connection.clear_result_set()
+        self._reset_result()
 
         return list(map(tuple, zip(*buffer)))
 
@@ -224,6 +223,8 @@ class TDengineCursor(object):
         """
         self._description = None
         self._rowcount = -1
+        if self._result is not None:
+            CTaosInterface.freeResult(self._result)
         self._result = None
         self._fields = None
         self._block = None
@@ -240,3 +241,4 @@ class TDengineCursor(object):
                 (ele['name'], ele['type'], None, None, None, None, False))
 
         return self._result
+

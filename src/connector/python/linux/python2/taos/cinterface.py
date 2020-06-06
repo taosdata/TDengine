@@ -413,5 +413,5 @@ if __name__ == '__main__':
 
     print(data)
 
-    cinter.freeresult(result)
+    cinter.freeResult(result)
     cinter.close(conn)
