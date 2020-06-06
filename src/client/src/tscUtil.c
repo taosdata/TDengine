@@ -189,18 +189,13 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   
   /*
    * In following cases, return false for non ordered project query on super table
-   * 1. failed to get metermeta from server; 2. not a super table; 3. limitation is 0;
+   * 1. failed to get tableMeta from server; 2. not a super table; 3. limitation is 0;
    * 4. show queries, instead of a select query
    */
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   if (pTableMetaInfo == NULL || !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) ||
       pQueryInfo->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || numOfExprs == 0) {
     return false;
-  }
-  
-  // only query on tag, a project query
-  if (tscQueryTags(pQueryInfo)) {
-    return true;
   }
   
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -221,7 +216,7 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableI
   }
   
   // order by columnIndex exists, not a non-ordered projection query
-  return pQueryInfo->order.orderColId < 0 && pQueryInfo->order.orderColId != TSDB_TBNAME_COLUMN_INDEX;
+  return pQueryInfo->order.orderColId < 0;
 }
 
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {

@@ -789,10 +789,9 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
     sas->data    = calloc(pQuery->numOfCols, POINTER_BYTES);
 
     // here the pQuery->colList and sas->colList are identical
+    int32_t numOfCols = taosArrayGetSize(pDataBlock);
     for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
       SColumnInfo *pColMsg = &pQuery->colList[i];
-
-      int32_t numOfCols = taosArrayGetSize(pDataBlock);
 
       dataBlock = NULL;
       for (int32_t k = 0; k < numOfCols; ++k) {  //todo refactor
@@ -2102,7 +2101,8 @@ static void ensureOutputBuffer(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pB
       
       for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
         int32_t bytes = pQuery->pSelectExpr[i].bytes;
-        
+        assert(bytes > 0 && newSize > 0);
+
         char *tmp = realloc(pQuery->sdata[i], bytes * newSize + sizeof(tFilePage));
         if (tmp == NULL) {  // todo handle the oom
           assert(0);
@@ -5501,7 +5501,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   }
 
   // set the output buffer capacity
-  pQuery->rec.capacity = 2;
+  pQuery->rec.capacity = 4096;
   pQuery->rec.threshold = 4000;
 
   for (int32_t col = 0; col < pQuery->numOfOutput; ++col) {
