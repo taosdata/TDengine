@@ -41,7 +41,7 @@
 #define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_TBNAME_COLUMN_INDEX))
 #define TBNAME_LIST_SEP ","
 
-typedef struct SColumnList {
+typedef struct SColumnList {  // todo refactor
   int32_t      num;
   SColumnIndex ids[TSDB_MAX_COLUMNS];
 } SColumnList;
@@ -1517,12 +1517,14 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
           pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
           // count tag is equalled to count(tbname)
-          if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
+          bool isTag = false;
+          if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta) || index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
             index.columnIndex = TSDB_TBNAME_COLUMN_INDEX;
+            isTag = true;
           }
 
           int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
-          pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, size, false);
+          pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, size, isTag);
         }
       } else {  // count(*) is equalled to count(primary_timestamp_key)
         index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
@@ -1543,10 +1545,13 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
           tscColumnListInsert(pQueryInfo->colList, &(ids.ids[i]));
         }
       }
-  
-      SColumnIndex tsCol = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-      tscColumnListInsert(pQueryInfo->colList, &tsCol);
-  
+
+      // the time stamp may be always needed
+      if (index.tableIndex > 0 && index.tableIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
+        SColumnIndex tsCol = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+        tscColumnListInsert(pQueryInfo->colList, &tsCol);
+      }
+
       return TSDB_CODE_SUCCESS;
     }
     case TK_SUM:

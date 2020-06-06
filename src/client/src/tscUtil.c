@@ -79,8 +79,14 @@ bool tscQueryOnSTable(SSqlCmd* pCmd) {
 
 bool tscQueryTags(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    int32_t functId = tscSqlExprGet(pQueryInfo, i)->functionId;
-    
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    int32_t functId = pExpr->functionId;
+
+    // "select count(tbname)" query
+    if (functId == TSDB_FUNC_COUNT && pExpr->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+      continue;
+    }
+
     if (functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_TID_TAG) {
       return false;
     }
@@ -208,13 +214,14 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   return true;
 }
 
+// not order by timestamp projection query on super table
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (!tscIsProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
     return false;
   }
   
   // order by columnIndex exists, not a non-ordered projection query
-  return pQueryInfo->order.orderColId < 0;
+  return pQueryInfo->order.orderColId < 0 && pQueryInfo->order.orderColId != TSDB_TBNAME_COLUMN_INDEX;
 }
 
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
@@ -983,7 +990,6 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   if (pTableMetaInfo->pTableMeta) {
     pExpr->uid = pTableMetaInfo->pTableMeta->uid;
   }
-  
   
   return pExpr;
 }
