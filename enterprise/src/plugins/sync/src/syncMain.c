@@ -105,7 +105,7 @@ void *syncStart(const SSyncInfo *pInfo)
   SSyncNode *pNode = (SSyncNode *) calloc(sizeof(SSyncNode), 1);
   const SSyncCfg *pCfg = &pInfo->syncCfg;
 
-  strcpy(pNode->path, pInfo->path);
+  tstrncpy(pNode->path, pInfo->path, sizeof(pNode->path));
 
   pNode->ahandle = pInfo->ahandle;
   pNode->getFileInfo = pInfo->getFileInfo;
@@ -454,7 +454,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
   if (pPeer == NULL) return NULL;
 
   pPeer->nodeId = pInfo->nodeId;
-  strcpy(pPeer->fqdn, pInfo->nodeFqdn);
+  tstrncpy(pPeer->fqdn, pInfo->nodeFqdn, sizeof(pPeer->fqdn));
   pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
   sprintf(pPeer->id, "vgId:%d peer:%s:%d", pNode->vgId, pPeer->fqdn, pPeer->port);
@@ -761,7 +761,7 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer)
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_REQ;
   firstPkt.syncHead.vgId = pNode->vgId;
   firstPkt.syncHead.len = sizeof(firstPkt) - sizeof(SSyncHead);
-  strcpy(firstPkt.fqdn, tsNodeFqdn);
+  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
   taosTmrReset(syncNotStarted, tsSyncTimer*1000, pPeer, syncTmrCtrl, &pPeer->timer);
 
@@ -934,7 +934,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.vgId = pPeer->nodeId ? pNode->vgId:0;
   firstPkt.syncHead.type = TAOS_SMSG_STATUS;
-  strcpy(firstPkt.fqdn, tsNodeFqdn); 
+  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn)); 
   firstPkt.port = tsSyncPort;
   firstPkt.sourceId = pNode->vgId;  // tell arbitrator its vgId
 
