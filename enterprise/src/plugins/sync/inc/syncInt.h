@@ -124,7 +124,7 @@ typedef struct SsyncPeer {
   int         syncFd;
   int         peerFd;     // forward FD
   void       *timer;
-  void       *pThread;
+  void       *pConn;
   int         notifyFd;
   int         watchNum;
   int        *watchFd;

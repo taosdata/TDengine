@@ -17,6 +17,7 @@
 #include "tulog.h"
 #include "tutil.h"
 #include "tsocket.h"
+#include "taoserror.h"
 #include "taosTcpPool.h"
 
 typedef struct SThreadObj {
@@ -34,6 +35,13 @@ typedef struct SThreadPool {
   int          nextId;
   int          acceptFd;  // FD for accept new connection
 } SThreadPool;
+
+typedef struct {
+  SThreadObj *pThread;
+  void       *ahandle;
+  int         fd;
+  int         closedByApp; 
+} SConnObj;
 
 static void *taosAcceptPeerTcpConnection(void *argv);
 static void *taosProcessTcpData(void *param);
@@ -84,41 +92,64 @@ void taosCloseTcpThreadPool(void *param)
   tfree(pPool);
 }
 
-void *taosAllocateTcpThread(void *param, void *pPeer, int connFd)
+void *taosAllocateTcpConn(void *param, void *pPeer, int connFd)
 {
   struct epoll_event event;
   SThreadPool *pPool = (SThreadPool *)param;
 
-  event.events = EPOLLIN | EPOLLPRI;
-  event.data.ptr = pPeer;
-
-  SThreadObj *pThread = taosGetTcpThread(pPool);
-
-  if (pThread ) {
-    if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
-      uError("failed to add fd:%d(%s)", connFd, strerror(errno));
-      pThread = NULL;
-    } else {
-      pThread->numOfFds++;
-      //uTrace("fd:%d is added, num:%d", connFd, pThread->numOfFds);
-    }
+  SConnObj *pConn = (SConnObj *) calloc(sizeof(SConnObj), 1);
+  if (pConn == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno); 
+    return NULL;
   }
 
-  return pThread;
+  SThreadObj *pThread = taosGetTcpThread(pPool);
+  if (pThread == NULL) {
+    free(pConn);
+    return NULL;
+  }
+
+  pConn->fd = connFd;
+  pConn->pThread = pThread;
+  pConn->ahandle = pPeer;
+  pConn->closedByApp = 0;
+
+  event.events = EPOLLIN | EPOLLRDHUP;
+  event.data.ptr = pConn;
+
+  if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
+    uError("failed to add fd:%d(%s)", connFd, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno); 
+    free(pConn);
+    pConn = NULL;
+  } else {
+    pThread->numOfFds++;
+    uTrace("fd:%d is added to thread:%p, num:%d", connFd, pThread, pThread->numOfFds);
+  }
+
+  return pConn;
 }
 
-void taosFreeTcpThread(void *param, int *pfd)
+void taosFreeTcpConn(void *param)
 {
-  if (*pfd < 0) return;
+  SConnObj *pConn = (SConnObj *)param;
+  pConn->closedByApp = 1;
+  shutdown(pConn->fd, SHUT_WR);
+}
 
-  SThreadObj *pThread = (SThreadObj *)param;
-
-  epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, *pfd, NULL);
-  taosCloseSocket(*pfd);
-  pThread->numOfFds--;
-  //uTrace("fd:%d is removed, num:%d", *pfd, pThread->numOfFds);
+static void taosProcessBrokenLink(SConnObj *pConn) {
+  SThreadObj   *pThread = pConn->pThread;
+  SThreadPool  *pPool = pThread->pPool;
+  SPoolInfo    *pInfo = &pPool->info;
   
-  *pfd = -1;
+  if (pConn->closedByApp == 0) shutdown(pConn->fd, SHUT_WR);
+  (*pInfo->processBrokenLink)(pConn->ahandle);
+
+  pThread->numOfFds--;
+  epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pConn->fd, NULL);
+  uTrace("fd:%d is removed from thread:%p, num:%d", pConn->fd, pThread, pThread->numOfFds);
+  tclose(pConn->fd);
+  free(pConn);
 }
 
 #define maxEvents 10
@@ -127,6 +158,7 @@ static void *taosProcessTcpData(void *param) {
   SThreadObj        *pThread = (SThreadObj *) param;
   SThreadPool       *pPool = pThread->pPool;
   SPoolInfo         *pInfo = &pPool->info;
+  SConnObj          *pConn = NULL;
   struct epoll_event events[maxEvents];
 
   void *buffer = malloc(pInfo->bufferSize);
@@ -145,23 +177,30 @@ static void *taosProcessTcpData(void *param) {
     }
 
     for (int i = 0; i < fdNum; ++i) {
-      void *ahandle = events[i].data.ptr;
-      assert(ahandle);
+      pConn = events[i].data.ptr;
+      assert(pConn);
 
       if (events[i].events & EPOLLERR) {
-        (*pInfo->processBrokenLink)(ahandle);
+        taosProcessBrokenLink(pConn);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
-        (*pInfo->processBrokenLink)(ahandle);
+        taosProcessBrokenLink(pConn);
         continue;
       }
 
-      if ((*pInfo->processIncomingMsg)(ahandle, buffer) < 0) {
-        (*pInfo->processBrokenLink)(ahandle);
+      if (events[i].events & EPOLLRDHUP) {
+        taosProcessBrokenLink(pConn);
         continue;
       }
+
+      if (pConn->closedByApp == 0) {
+        if ((*pInfo->processIncomingMsg)(pConn->ahandle, buffer) < 0) {
+          taosFreeTcpConn(pConn);
+          continue;
+        }
+      } 
     }
   }
 
@@ -245,10 +284,12 @@ static void taosStopPoolThread(SThreadObj* pThread) {
   struct epoll_event event = { .events = EPOLLIN };
   eventfd_t fd = eventfd(1, 0);
   if (fd == -1) {
-    uError("failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s", strerror(errno));
+    // failed to create eventfd, call pthread_cancel instead, which may result in data corruption
+    uError("failed to create eventfd(%s)", strerror(errno));
     pthread_cancel(pThread->thread);
   } else if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-    uError("failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s", strerror(errno));
+    // failed to call epoll_ctl, call pthread_cancel instead, which may result in data corruption
+    uError("failed to call epoll_ctl(%s)", strerror(errno));
     pthread_cancel(pThread->thread);
   }
 
