@@ -127,7 +127,7 @@ void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, in
 
   hash = rpcHashConn(pCache, fqdn, port, connType);
   pNode = (SConnHash *)taosMemPoolMalloc(pCache->connHashMemPool);
-  strcpy(pNode->fqdn, fqdn);
+  tstrncpy(pNode->fqdn, fqdn, sizeof(pNode->fqdn));
   pNode->port = port;
   pNode->connType = connType;
   pNode->data = data;

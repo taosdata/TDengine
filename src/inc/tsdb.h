@@ -188,9 +188,10 @@ typedef void *TsdbPosT;
  * @param tsdb       tsdb handle
  * @param pCond      query condition, including time window, result set order, and basic required columns for each block
  * @param groupInfo  tableId list in the form of set, seperated into different groups according to group by condition
+ * @param qinfo      query info handle from query processor
  * @return
  */
-TsdbQueryHandleT *tsdbQueryTables(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo);
+TsdbQueryHandleT *tsdbQueryTables(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo, void* qinfo);
 
 /**
  * Get the last row of the given query time window for all the tables in STableGroupInfo object.
@@ -202,11 +203,11 @@ TsdbQueryHandleT *tsdbQueryTables(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STable
  * @param groupInfo   tableId list.
  * @return
  */
-TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo);
+TsdbQueryHandleT tsdbQueryLastRow(TsdbRepoT *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupInfo, void* qinfo);
 
 SArray* tsdbGetQueriedTableIdList(TsdbQueryHandleT *pHandle);
 
-TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TsdbRepoT *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList);
+TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TsdbRepoT *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, void* qinfo);
 
 /**
  * move to next block if exists

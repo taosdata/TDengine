@@ -60,7 +60,7 @@ typedef struct {
 
   void     *idPool;   // handle to ID pool
   void     *tmrCtrl;  // handle to timer
-  void     *hash;     // handle returned by hash utility
+  SHashObj *hash;     // handle returned by hash utility
   void     *tcphandle;// returned handle from TCP initialization
   void     *udphandle;// returned handle from UDP initialization
   void     *pCache;   // connection cache
@@ -211,7 +211,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
 
-  if(pInit->label) strcpy(pRpc->label, pInit->label);
+  if(pInit->label) tstrncpy(pRpc->label, pInit->label, sizeof(pRpc->label));
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
   pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
@@ -228,7 +228,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   size_t size = sizeof(SRpcConn) * pRpc->sessions;
   pRpc->connList = (SRpcConn *)calloc(1, size);
   if (pRpc->connList == NULL) {
-    tError("%s failed to allocate memory for taos connections, size:%d", pRpc->label, size);
+    tError("%s failed to allocate memory for taos connections, size:%ld", pRpc->label, size);
     rpcClose(pRpc);
     return NULL;
   }
@@ -459,7 +459,7 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   pInfo->clientPort = pConn->peerPort;
   // pInfo->serverIp = pConn->destIp;
 
-  strcpy(pInfo->user, pConn->user);
+  strncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
   return 0;
 }
 
@@ -503,10 +503,10 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
   pConn = rpcAllocateClientConn(pRpc); 
 
   if (pConn) { 
-    strcpy(pConn->peerFqdn, peerFqdn);
+    tstrncpy(pConn->peerFqdn, peerFqdn, sizeof(pConn->peerFqdn));
     pConn->peerIp = peerIp;
     pConn->peerPort = peerPort;
-    strcpy(pConn->user, pRpc->user);
+    tstrncpy(pConn->user, pRpc->user, sizeof(pConn->user));
     pConn->connType = connType;
 
     if (taosOpenConn[connType]) {
@@ -804,7 +804,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
 
   pConn = rpcGetConnObj(pRpc, sid, pRecv);
   if (pConn == NULL) {
-    tTrace("%s %p, failed to get connection obj(%s)", pRpc->label, pHead->ahandle, tstrerror(terrno)); 
+    tTrace("%s %p, failed to get connection obj(%s)", pRpc->label, (void *)pHead->ahandle, tstrerror(terrno)); 
     return NULL;
   } else {
     if (rpcIsReq(pHead->msgType)) {

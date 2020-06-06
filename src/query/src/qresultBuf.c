@@ -50,12 +50,6 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
   return TSDB_CODE_SUCCESS;
 }
 
-tFilePage* getResultBufferPageById(SDiskbasedResultBuf* pResultBuf, int32_t id) {
-  assert(id < pResultBuf->numOfPages && id >= 0);
-
-  return (tFilePage*)(pResultBuf->pBuf + DEFAULT_INTERN_BUF_PAGE_SIZE * id);
-}
-
 int32_t getNumOfResultBufGroupId(SDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->idsTable); }
 
 int32_t getResBufSize(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->totalBufSize; }
@@ -169,7 +163,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   *pageId = (pResultBuf->allocateId++);
   registerPageId(pResultBuf, groupId, *pageId);
 
-  tFilePage* page = getResultBufferPageById(pResultBuf, *pageId);
+  tFilePage* page = GET_RES_BUF_PAGE_BY_ID(pResultBuf, *pageId);
   
   // clear memory for the new page
   memset(page, 0, DEFAULT_INTERN_BUF_PAGE_SIZE);

@@ -1557,8 +1557,8 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
     
-//    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%u,vid:%d,orderOfSub:%d", pPObj, pSql,
-//             pRes->numOfRows, pState->numOfRetrievedRows, pSvd->ip, pSvd->vnode, idx);
+    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%s, orderOfSub:%d", pPObj, pSql,
+             pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
     
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId64 " , current:%" PRId64,
@@ -1713,6 +1713,11 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
   // increase the total inserted rows
   if (numOfRows > 0) {
     pParentObj->res.numOfRows += numOfRows;
+  } else {
+    SSqlObj* pSql = (SSqlObj*) tres;
+    assert(pSql != NULL && pSql->res.code == numOfRows);
+    
+    pParentObj->res.code = pSql->res.code;
   }
   
   taos_free_result(tres);
@@ -1947,7 +1952,8 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
-  for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
+  size_t size = tscNumOfFields(pQueryInfo);
+  for (int i = 0; i < size; ++i) {
     SFieldSupInfo* pSup = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, i);
     if (pSup->pSqlExpr != NULL) {
       tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);

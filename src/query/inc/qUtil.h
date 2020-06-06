@@ -31,7 +31,8 @@ void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
 void    closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
 void    removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order);
 SWindowResult *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot);
-int32_t curTimeWindow(SWindowResInfo *pWindowResInfo);
+
+#define curTimeWindow(_winres)  ((_winres)->curIndex)
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
 
 void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo);

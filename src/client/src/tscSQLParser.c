@@ -1881,22 +1881,38 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
   
       // functions can not be applied to normal columns
       int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-      if (index.columnIndex < numOfCols) {
+      if (index.columnIndex < numOfCols && index.columnIndex != TSDB_TBNAME_COLUMN_INDEX) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg6);
       }
     
-      index.columnIndex -= numOfCols;
+      if (index.columnIndex > 0) {
+        index.columnIndex -= numOfCols;
+      }
       
       // 2. valid the column type
-      int16_t colType = pSchema[index.columnIndex].type;
-      if (colType == TSDB_DATA_TYPE_BOOL || colType >= TSDB_DATA_TYPE_BINARY) {
+      int16_t colType = 0;
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        colType = TSDB_DATA_TYPE_BINARY;
+      } else {
+        colType = pSchema[index.columnIndex].type;
+      }
+      
+      if (colType == TSDB_DATA_TYPE_BOOL) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
       }
 
       tscColumnListInsert(pTableMetaInfo->tagColList, &index);
       SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-      SSchema s = pTagSchema[index.columnIndex];
-
+      
+      SSchema s = {0};
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        s.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+        s.type  = TSDB_DATA_TYPE_BINARY;
+        s.colId = TSDB_TBNAME_COLUMN_INDEX;
+      } else {
+        s = pTagSchema[index.columnIndex];
+      }
+      
       int16_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
@@ -5379,20 +5395,15 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 
   switch (index) {
     case 0:
-      pQueryInfo->command = TSDB_SQL_CURRENT_DB;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_CURRENT_DB;break;
     case 1:
-      pQueryInfo->command = TSDB_SQL_SERV_VERSION;
-      return TSDB_CODE_SUCCESS;
-    case 2:
-      pQueryInfo->command = TSDB_SQL_SERV_STATUS;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_SERV_VERSION;break;
+      case 2:
+      pQueryInfo->command = TSDB_SQL_SERV_STATUS;break;
     case 3:
-      pQueryInfo->command = TSDB_SQL_CLI_VERSION;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_CLI_VERSION;break;
     case 4:
-      pQueryInfo->command = TSDB_SQL_CURRENT_USER;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_CURRENT_USER;break;
     default: { return invalidSqlErrMsg(pQueryInfo->msg, msg3); }
   }
   
@@ -5402,6 +5413,8 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   
   const char* name = (pExprList->a[0].aliasName != NULL)? pExprList->a[0].aliasName:functionsInfo[index].name;
   strncpy(pExpr1->aliasName, name, tListLen(pExpr1->aliasName));
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 // can only perform the parameters based on the macro definitation

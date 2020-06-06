@@ -333,10 +333,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   
+
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    rpcMsg->code = pRes->code ? pRes->code : pRes->numOfRows;
+    rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? pRes->numOfRows: pRes->code;
     
-    tscTrace("%p SQL result:%s res:%p", pSql, tstrerror(pRes->code), pSql);
     bool shouldFree = tscShouldBeFreed(pSql);
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
 
@@ -1392,22 +1392,9 @@ int tscProcessDescribeTableRsp(SSqlObj *pSql) {
   return tscLocalResultCommonBuilder(pSql, numOfRes);
 }
 
-int tscProcessTagRetrieveRsp(SSqlObj *pSql) {
-//  SSqlCmd *pCmd = &pSql->cmd;
-
-//  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-//  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  int32_t numOfRes = 0;
-#if 0
-  if (tscSqlExprGet(pQueryInfo, 0)->functionId == TSDB_FUNC_TAGPRJ) {
-    numOfRes = pTableMetaInfo->pMetricMeta->numOfTables;
-  } else {
-    numOfRes = 1;  // for count function, there is only one output.
-  }
-  
-#endif
-
+int tscProcessLocalRetrieveRsp(SSqlObj *pSql) {
+  int32_t numOfRes = 1;
+  pSql->res.completed = true;
   return tscLocalResultCommonBuilder(pSql, numOfRes);
 }
 
@@ -2312,7 +2299,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscTrace("%p numOfRows:%d, offset:%d", pSql, pRes->numOfRows, pRes->offset);
+  tscTrace("%p numOfRows:%d, offset:%d, complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
 
   return 0;
 }
@@ -2563,11 +2550,11 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
 
-  tscProcessMsgRsp[TSDB_SQL_CURRENT_DB] = tscProcessTagRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_CURRENT_USER] = tscProcessTagRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_SERV_VERSION] = tscProcessTagRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_CLI_VERSION] = tscProcessTagRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_SERV_STATUS] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CURRENT_DB]   = tscProcessLocalRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CURRENT_USER] = tscProcessLocalRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_SERV_VERSION] = tscProcessLocalRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CLI_VERSION]  = tscProcessLocalRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_SERV_STATUS]  = tscProcessLocalRetrieveRsp;
 
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_EMPTY_RESULT] = tscProcessEmptyResultRsp;
 

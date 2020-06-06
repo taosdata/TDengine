@@ -341,16 +341,6 @@ bool stableQueryFunctChanged(int32_t funcId) {
  */
 void resetResultInfo(SResultInfo *pResInfo) { pResInfo->initialized = false; }
 
-void initResultInfo(SResultInfo *pResInfo) {
-  pResInfo->initialized = true;  // the this struct has been initialized flag
-  
-  pResInfo->complete = false;
-  pResInfo->hasResult = false;
-  pResInfo->numOfRes = 0;
-  
-  memset(pResInfo->interResultBuf, 0, (size_t)pResInfo->bufLen);
-}
-
 void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable) {
   assert(pResInfo->interResultBuf == NULL);
   
@@ -387,9 +377,7 @@ static bool function_setup(SQLFunctionCtx *pCtx) {
  */
 static void function_finalizer(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  
   if (pResInfo->hasResult != DATA_SET_FLAG) {
-    tscTrace("no result generated, result is set to NULL");
     if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
       setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
     } else {
