@@ -965,7 +965,8 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
       strncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, TSDB_COL_NAME_LEN);
-    } else {
+    } else if (pTableMetaInfo->pTableMeta != NULL) {
+      // in handling select database/version/server_status(), the pTableMeta is NULL
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       pExpr->colInfo.colId = pSchema->colId;
       strncpy(pExpr->colInfo.name, pSchema->name, TSDB_COL_NAME_LEN);
@@ -977,8 +978,12 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   pExpr->colInfo.colIndex = pColIndex->columnIndex;
   pExpr->resType       = type;
   pExpr->resBytes      = size;
-  pExpr->interBytes = interSize;
-  pExpr->uid           = pTableMetaInfo->pTableMeta->uid;
+  pExpr->interBytes    = interSize;
+  
+  if (pTableMetaInfo->pTableMeta) {
+    pExpr->uid = pTableMetaInfo->pTableMeta->uid;
+  }
+  
   
   return pExpr;
 }

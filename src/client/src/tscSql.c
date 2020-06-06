@@ -414,10 +414,6 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
 static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
-  
-  if (numOfRows < 0) { // set the error code
-    pSql->res.code = -numOfRows;
-  }
   sem_post(&pSql->rspSem);
 }
 
@@ -445,7 +441,12 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
        pCmd->command == TSDB_SQL_SELECT ||
-       pCmd->command == TSDB_SQL_DESCRIBE_TABLE)) {
+       pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
+       pCmd->command == TSDB_SQL_SERV_STATUS ||
+       pCmd->command == TSDB_SQL_CURRENT_DB ||
+       pCmd->command == TSDB_SQL_SERV_VERSION ||
+       pCmd->command == TSDB_SQL_CLI_VERSION ||
+       pCmd->command == TSDB_SQL_CURRENT_USER )) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     sem_wait(&pSql->rspSem);
   }
