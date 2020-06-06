@@ -79,6 +79,7 @@ public class TSDBStatement implements Statement {
 			throw new SQLException("The executed SQL is not a DML or a DDL");
 		} else {
 			int num = this.connecter.getAffectedRows(res);
+			this.connecter.freeResultSet(res);
 			return num;
 		}
 	}

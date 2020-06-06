@@ -21,9 +21,12 @@ public class TestPreparedStatement {
                     System.out.printf("%d: %s\n", i, resSet.getString(i));
                 }
             }
+            resSet.close();
+            connection.close();
 
         } catch (Exception e) {
             e.printStackTrace();
+
         }
     }
 }
