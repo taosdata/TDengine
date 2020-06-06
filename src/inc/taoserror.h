@@ -194,7 +194,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_DISKSPACE,             0, 0x0702, "query no d
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_OUT_OF_MEMORY,            0, 0x0703, "query out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_APP_ERROR,                0, 0x0704, "query app error")
 
-// gran
+// grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "grant expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,          0, 0x0801, "grant dnode limited")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ACCT_LIMITED,           0, 0x0802, "grant account limited")
@@ -208,8 +208,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STORAGE_LIMITED,        0, 0x0809, "grant stor
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUERYTIME_LIMITED,      0, 0x080A, "grant query time limited")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            0, 0x080B, "grant cpu limited")
 
-// sync 0x1400
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x1900, "sync invalid configuration")
+// sync
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "sync invalid configuration")
+
+// wal
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "wal app error")
 
 #ifdef TAOS_ERROR_C
 };
