@@ -24,7 +24,6 @@
 #include "tscSubquery.h"
 
 int tsParseInsertSql(SSqlObj *pSql);
-int taos_query_imp(STscObj* pObj, SSqlObj* pSql);
 
 ////////////////////////////////////////////////////////////////////////////////
 // functions for normal statement preparation

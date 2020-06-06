@@ -212,48 +212,6 @@ void taos_close(TAOS *taos) {
   }
 }
 
-int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  
-  pRes->numOfRows  = 1;
-  pRes->numOfTotal = 0;
-  pRes->numOfClauseTotal = 0;
-
-  pCmd->curSql = NULL;
-  if (NULL != pCmd->pTableList) {
-    taosHashCleanup(pCmd->pTableList);
-    pCmd->pTableList = NULL;
-  }
-
-  tscDump("%p pObj:%p, SQL: %s", pSql, pObj, pSql->sqlstr);
-
-  pRes->code = (uint8_t)tsParseSql(pSql, false);
-
-  /*
-   * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
-   * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscProcessSql()
-   * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
-   */
-  pRes->qhandle = 0;
-
-  if (pRes->code == TSDB_CODE_SUCCESS) {
-    tscDoQuery(pSql);
-  }
-
-  if (pRes->code == TSDB_CODE_SUCCESS) {
-    tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
-  } else {
-    tscError("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
-  }
-
-  if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscPartiallyFreeSqlObj(pSql);
-  }
-
-  return pRes->code;
-}
-
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   assert(tres != NULL);
   
