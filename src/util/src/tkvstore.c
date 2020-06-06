@@ -41,6 +41,7 @@ static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void
 static char *    tdGetKVStoreSnapshotFname(char *fdata);
 static char *    tdGetKVStoreNewFname(char *fdata);
 static void      tdFreeKVStore(SKVStore *pStore);
+static int       tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo);
 
 int tdCreateKVStore(char *fname) {
   char *tname = strdup(fname);
@@ -163,6 +164,9 @@ _err:
 
 int tdKVStoreEndCommit(SKVStore *pStore) {
   ASSERT(pStore->fd > 0);
+
+  terrno = tdUpdateKVStoreHeader(pStore->fd, pStore->fname, &(pStore->info));
+  if (terrno != TSDB_CODE_SUCCESS) return -1;
 
   if (fsync(pStore->fd) < 0) {
     uError("failed to fsync file %s since %s", pStore->fname, strerror(errno));
