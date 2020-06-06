@@ -86,7 +86,6 @@ class TDengineCursor(object):
         if self._connection is None:
             return False
         
-        self._connection.clear_result_set()
         self._reset_result()
         self._connection = None
 
@@ -148,7 +147,6 @@ class TDengineCursor(object):
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
 
-        self._reset_result()
         
         return list(map(tuple, zip(*buffer)))
 
