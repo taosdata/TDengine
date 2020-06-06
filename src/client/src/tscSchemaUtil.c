@@ -131,13 +131,6 @@ SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t startCol)
   assert(pTableMeta != NULL);
   
   SSchema* pSchema = (SSchema*) pTableMeta->schema;
-#if 0
-  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-    assert (pTableMeta->pSTable != NULL);
-    pSchema = pTableMeta->pSTable->schema;
-  }
-#endif
-
   return &pSchema[startCol];
 }
 

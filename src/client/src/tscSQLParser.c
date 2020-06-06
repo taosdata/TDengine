@@ -5395,20 +5395,15 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 
   switch (index) {
     case 0:
-      pQueryInfo->command = TSDB_SQL_CURRENT_DB;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_CURRENT_DB;break;
     case 1:
-      pQueryInfo->command = TSDB_SQL_SERV_VERSION;
-      return TSDB_CODE_SUCCESS;
-    case 2:
-      pQueryInfo->command = TSDB_SQL_SERV_STATUS;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_SERV_VERSION;break;
+      case 2:
+      pQueryInfo->command = TSDB_SQL_SERV_STATUS;break;
     case 3:
-      pQueryInfo->command = TSDB_SQL_CLI_VERSION;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_CLI_VERSION;break;
     case 4:
-      pQueryInfo->command = TSDB_SQL_CURRENT_USER;
-      return TSDB_CODE_SUCCESS;
+      pQueryInfo->command = TSDB_SQL_CURRENT_USER;break;
     default: { return invalidSqlErrMsg(pQueryInfo->msg, msg3); }
   }
   
@@ -5418,6 +5413,8 @@ int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   
   const char* name = (pExprList->a[0].aliasName != NULL)? pExprList->a[0].aliasName:functionsInfo[index].name;
   strncpy(pExpr1->aliasName, name, tListLen(pExpr1->aliasName));
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 // can only perform the parameters based on the macro definitation
