@@ -518,7 +518,7 @@ static int sdbWrite(void *param, void *data, int type) {
       sdbError("table:%s, failed to restore %s record:%s from wal, version:%" PRId64 " too large, sdb version:%" PRId64,
                pTable->tableName, sdbGetActionStr(action), sdbGetKeyStr(pTable, pHead->cont), pHead->version,
                tsSdbObj.version);
-      return TSDB_CODE_OTHERS;
+      return TSDB_CODE_MND_APP_ERROR;
     } else {
       tsSdbObj.version = pHead->version;
     }
@@ -561,7 +561,7 @@ static int sdbWrite(void *param, void *data, int type) {
     SSdbOper oper = {.rowSize = pHead->len, .rowData = pHead->cont, .table = pTable};
     code = (*pTable->decodeFp)(&oper);
     return sdbUpdateHash(pTable, &oper);
-  } else { return TSDB_CODE_INVALID_MSG_TYPE; }
+  } else { return TSDB_CODE_MND_INVALID_MSG_TYPE; }
 }
 
 int32_t sdbInsertRow(SSdbOper *pOper) {
@@ -571,7 +571,7 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
   if (sdbGetRowFromObj(pTable, pOper->pObj)) {
     sdbError("table:%s, failed to insert record:%s, already exist", pTable->tableName, sdbGetKeyStrFromObj(pTable, pOper->pObj));
     sdbDecRef(pTable, pOper->pObj);
-    return TSDB_CODE_ALREADY_THERE;
+    return TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE;
   }
 
   if (pTable->keyType == SDB_KEY_AUTO) {

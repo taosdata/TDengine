@@ -71,7 +71,7 @@ static int32_t mnodeDbActionInsert(SSdbOper *pOper) {
   }
   else {
     mError("db:%s, acct:%s info not exist in sdb", pDb->name, pDb->acct);
-    return TSDB_CODE_INVALID_ACCT;
+    return TSDB_CODE_MND_INVALID_ACCT;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -111,7 +111,7 @@ static int32_t mnodeDbActionEncode(SSdbOper *pOper) {
 
 static int32_t mnodeDbActionDecode(SSdbOper *pOper) {
   SDbObj *pDb = (SDbObj *) calloc(1, sizeof(SDbObj));
-  if (pDb == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (pDb == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
   
   memcpy(pDb, pOper->rowData, tsDbUpdateSize);
   pOper->pObj = pDb;
@@ -189,102 +189,102 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
   if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) {
     mError("invalid db option cacheBlockSize:%d valid range: [%d, %d]", pCfg->cacheBlockSize, TSDB_MIN_CACHE_BLOCK_SIZE,
            TSDB_MAX_CACHE_BLOCK_SIZE);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) {
     mError("invalid db option totalBlocks:%d valid range: [%d, %d]", pCfg->totalBlocks, TSDB_MIN_TOTAL_BLOCKS,
            TSDB_MAX_TOTAL_BLOCKS);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->maxTables < TSDB_MIN_TABLES || pCfg->maxTables > TSDB_MAX_TABLES) {
     mError("invalid db option maxTables:%d valid range: [%d, %d]", pCfg->maxTables, TSDB_MIN_TABLES, TSDB_MAX_TABLES);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) {
     mError("invalid db option daysPerFile:%d valid range: [%d, %d]", pCfg->daysPerFile, TSDB_MIN_DAYS_PER_FILE,
            TSDB_MAX_DAYS_PER_FILE);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->daysToKeep < TSDB_MIN_KEEP || pCfg->daysToKeep > TSDB_MAX_KEEP) {
     mError("invalid db option daysToKeep:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->daysToKeep < pCfg->daysPerFile) {
     mError("invalid db option daysToKeep:%d should larger than daysPerFile:%d", pCfg->daysToKeep, pCfg->daysPerFile);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
     mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, pCfg->daysToKeep);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > pCfg->daysToKeep2) {
     mError("invalid db option daysToKeep1:%d valid range: [%d, %d]", pCfg->daysToKeep1, TSDB_MIN_KEEP, pCfg->daysToKeep2);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
     mError("invalid db option maxRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->maxRowsPerFileBlock,
            TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
     mError("invalid db option minRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->minRowsPerFileBlock,
            TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
     mError("invalid db option minRowsPerFileBlock:%d should smaller than maxRowsPerFileBlock:%d",
            pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->commitTime < TSDB_MIN_COMMIT_TIME || pCfg->commitTime > TSDB_MAX_COMMIT_TIME) {
     mError("invalid db option commitTime:%d valid range: [%d, %d]", pCfg->commitTime, TSDB_MIN_COMMIT_TIME,
            TSDB_MAX_COMMIT_TIME);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) {
     mError("invalid db option timePrecision:%d valid value: [%d, %d]", pCfg->precision, TSDB_MIN_PRECISION,
            TSDB_MAX_PRECISION);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) {
     mError("invalid db option compression:%d valid range: [%d, %d]", pCfg->compression, TSDB_MIN_COMP_LEVEL,
            TSDB_MAX_COMP_LEVEL);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) {
     mError("invalid db option walLevel:%d, valid range: [%d, %d]", pCfg->walLevel, TSDB_MIN_WAL_LEVEL, TSDB_MAX_WAL_LEVEL);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->replications < TSDB_MIN_REPLICA_NUM || pCfg->replications > TSDB_MAX_REPLICA_NUM) {
     mError("invalid db option replications:%d valid range: [%d, %d]", pCfg->replications, TSDB_MIN_REPLICA_NUM,
            TSDB_MAX_REPLICA_NUM);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL) {
     mError("invalid db option walLevel:%d must be greater than 0", pCfg->walLevel);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
 #ifndef _SYNC
   if (pCfg->replications != 1) {
     mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
-    return TSDB_CODE_INVALID_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 #endif
 
@@ -320,7 +320,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
       return TSDB_CODE_SUCCESS;
     } else {
       mError("db:%s, is already exist, ignore exist not set", pCreate->db);
-      return TSDB_CODE_DB_ALREADY_EXIST;
+      return TSDB_CODE_MND_DB_ALREADY_EXIST;
     }
   }
 
@@ -366,7 +366,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pDb);
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   return code;
@@ -743,7 +743,7 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
 
   int32_t code = sdbUpdateRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_SDB_ERROR;
+    return TSDB_CODE_MND_SDB_ERROR;
   }
 
   return code;
@@ -766,7 +766,7 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
   } else if (!pMsg->pUser->writeAuth) {
-    code = TSDB_CODE_NO_RIGHTS;
+    code = TSDB_CODE_MND_NO_RIGHTS;
   } else {
     code = mnodeCreateDb(pMsg->pUser->pAcct, pCreate);
     if (code == TSDB_CODE_SUCCESS) {
@@ -800,7 +800,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
   if (cacheBlockSize > 0 && cacheBlockSize != pDb->cfg.cacheBlockSize) {
     mError("db:%s, can't alter cache option", pDb->name);
-    terrno = TSDB_CODE_INVALID_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (totalBlocks > 0 && totalBlocks != pDb->cfg.totalBlocks) {
@@ -813,13 +813,13 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     newCfg.maxTables = maxTables;
     if (newCfg.maxTables < pDb->cfg.maxTables) {
       mError("db:%s, tables:%d should larger than origin:%d", pDb->name, newCfg.maxTables, pDb->cfg.maxTables);
-      terrno = TSDB_CODE_INVALID_OPTION;
+      terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
   }
 
   if (daysPerFile > 0 && daysPerFile != pDb->cfg.daysPerFile) {
     mError("db:%s, can't alter days option", pDb->name);
-    terrno = TSDB_CODE_INVALID_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (daysToKeep > 0 && daysToKeep != pDb->cfg.daysToKeep) {
@@ -839,22 +839,22 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
   if (minRows > 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
     mError("db:%s, can't alter minRows option", pDb->name);
-    terrno = TSDB_CODE_INVALID_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (maxRows > 0 && maxRows != pDb->cfg.maxRowsPerFileBlock) {
     mError("db:%s, can't alter maxRows option", pDb->name);
-    terrno = TSDB_CODE_INVALID_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (commitTime > 0 && commitTime != pDb->cfg.commitTime) {
     mError("db:%s, can't alter commitTime option", pDb->name);
-    terrno = TSDB_CODE_INVALID_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (precision > 0 && precision != pDb->cfg.precision) {
     mError("db:%s, can't alter precision option", pDb->name);
-    terrno = TSDB_CODE_INVALID_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (compression >= 0 && compression != pDb->cfg.compression) {
@@ -864,7 +864,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
   if (walLevel > 0 && walLevel != pDb->cfg.walLevel) {
     mError("db:%s, can't alter walLevel option", pDb->name);
-    terrno = TSDB_CODE_INVALID_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
   if (replications > 0 && replications != pDb->cfg.replications) {
@@ -873,17 +873,17 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
     if (pDb->cfg.walLevel < TSDB_MIN_WAL_LEVEL) {
       mError("db:%s, walLevel:%d must be greater than 0", pDb->name, pDb->cfg.walLevel);
-      terrno = TSDB_CODE_INVALID_OPTION;
+      terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
 
     if (replications > mnodeGetDnodesNum()) {
       mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
-      terrno = TSDB_CODE_NO_ENOUGH_DNODES;
+      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     }
 
     if (pDb->cfg.replications - replications >= 2) {
       mError("db:%s, replica number can't change from 3 to 1", pDb->name, replications);
-      terrno = TSDB_CODE_INVALID_OPTION;
+      terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
   }
 
@@ -914,7 +914,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
     int32_t code = sdbUpdateRow(&oper);
     if (code != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_SDB_ERROR;
+      return TSDB_CODE_MND_SDB_ERROR;
     }
   }
 
@@ -942,7 +942,7 @@ static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pAlter->db);
   if (pMsg->pDb == NULL) {
     mError("db:%s, failed to alter, invalid db", pAlter->db);
-    return TSDB_CODE_INVALID_DB;
+    return TSDB_CODE_MND_INVALID_DB;
   }
 
   int32_t code = mnodeAlterDb(pMsg->pDb, pAlter);
@@ -966,7 +966,7 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   };
   int32_t code = sdbDeleteRow(&oper);
   if (code != 0) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   return code;
@@ -983,13 +983,13 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_SUCCESS;
     } else {
       mError("db:%s, failed to drop, invalid db", pDrop->db);
-      return TSDB_CODE_INVALID_DB;
+      return TSDB_CODE_MND_INVALID_DB;
     }
   }
 
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("db:%s, can't drop monitor database", pDrop->db);
-    return TSDB_CODE_MONITOR_DB_FORBIDDEN;
+    return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
 
   int32_t code = mnodeSetDbDropping(pMsg->pDb);

@@ -1434,7 +1434,7 @@ _clean:
   tfree(pRuntimeEnv->resultInfo);
   tfree(pRuntimeEnv->pCtx);
 
-  return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  return TSDB_CODE_QRY_OUT_OF_MEMORY;
 }
 
 static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -1475,7 +1475,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 }
 
 static bool isQueryKilled(SQInfo *pQInfo) {
-  return (pQInfo->code == TSDB_CODE_QUERY_CANCELLED);
+  return (pQInfo->code == TSDB_CODE_TSC_QUERY_CANCELLED);
 #if 0
   /*
    * check if the queried meter is going to be deleted.
@@ -1491,7 +1491,7 @@ static bool isQueryKilled(SQInfo *pQInfo) {
 #endif
 }
 
-static void setQueryKilled(SQInfo *pQInfo) { pQInfo->code = TSDB_CODE_QUERY_CANCELLED; }
+static void setQueryKilled(SQInfo *pQInfo) { pQInfo->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
 
 static bool isFixedOutputQuery(SQuery *pQuery) {
   if (pQuery->intervalTime != 0) {
@@ -4973,7 +4973,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
 
   // query msg safety check
   if (!validateQueryMsg(pQueryMsg)) {
-    return TSDB_CODE_INVALID_QUERY_MSG;
+    return TSDB_CODE_QRY_INVALID_MSG;
   }
 
   char *pMsg = (char *)(pQueryMsg->colList) + sizeof(SColumnInfo) * pQueryMsg->numOfCols;
@@ -5046,11 +5046,11 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     if (pExprMsg->functionId == TSDB_FUNC_TAG || pExprMsg->functionId == TSDB_FUNC_TAGPRJ ||
                pExprMsg->functionId == TSDB_FUNC_TAG_DUMMY) {
       if (pExprMsg->colInfo.flag != TSDB_COL_TAG) {  // ignore the column  index check for arithmetic expression.
-        return TSDB_CODE_INVALID_QUERY_MSG;
+        return TSDB_CODE_QRY_INVALID_MSG;
       }
     } else {
 //      if (!validateExprColumnInfo(pQueryMsg, pExprMsg)) {
-//        return TSDB_CODE_INVALID_QUERY_MSG;
+//        return TSDB_CODE_QRY_INVALID_MSG;
 //      }
     }
 
@@ -5060,7 +5060,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   if (!validateQuerySourceCols(pQueryMsg, *pExpr)) {
     tfree(*pExpr);
 
-    return TSDB_CODE_INVALID_QUERY_MSG;
+    return TSDB_CODE_QRY_INVALID_MSG;
   }
 
   pMsg = createTableIdList(pQueryMsg, pMsg, pTableIdList);
@@ -5149,7 +5149,7 @@ static int32_t buildAirthmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTable
 
   if (pExprNode == NULL) {
     qError("qmsg:%p failed to create arithmetic expression string from:%s", pQueryMsg, pArithExprInfo->base.arg[0].argValue.pz);
-    return TSDB_CODE_APP_ERROR;
+    return TSDB_CODE_QRY_APP_ERROR;
   }
 
   pArithExprInfo->pExpr = pExprNode;
@@ -5163,7 +5163,7 @@ static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo
 
   SExprInfo *pExprs = (SExprInfo *)calloc(1, sizeof(SExprInfo) * pQueryMsg->numOfOutput);
   if (pExprs == NULL) {
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
   bool    isSuperTable = QUERY_IS_STABLE_QUERY(pQueryMsg->queryType);
@@ -5203,7 +5203,7 @@ static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo
     if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
                           &pExprs[i].interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
-      return TSDB_CODE_INVALID_QUERY_MSG;
+      return TSDB_CODE_QRY_INVALID_MSG;
     }
 
     if (pExprs[i].base.functionId == TSDB_FUNC_TAG_DUMMY || pExprs[i].base.functionId == TSDB_FUNC_TS_DUMMY) {
@@ -5244,7 +5244,7 @@ static SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SCol
   // using group by tag columns
   SSqlGroupbyExpr *pGroupbyExpr = (SSqlGroupbyExpr *)calloc(1, sizeof(SSqlGroupbyExpr));
   if (pGroupbyExpr == NULL) {
-    *code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    *code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -5292,7 +5292,7 @@ static int32_t createFilterInfo(void *pQInfo, SQuery *pQuery) {
 
         if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
           qError("QInfo:%p invalid filter info", pQInfo);
-          return TSDB_CODE_INVALID_QUERY_MSG;
+          return TSDB_CODE_QRY_INVALID_MSG;
         }
 
         int16_t type  = pQuery->colList[i].type;
@@ -5304,7 +5304,7 @@ static int32_t createFilterInfo(void *pQInfo, SQuery *pQuery) {
 
         if (rangeFilterArray == NULL && filterArray == NULL) {
           qError("QInfo:%p failed to get filter function, invalid data type:%d", pQInfo, type);
-          return TSDB_CODE_INVALID_QUERY_MSG;
+          return TSDB_CODE_QRY_INVALID_MSG;
         }
 
         if ((lower == TSDB_RELATION_GREATER_EQUAL || lower == TSDB_RELATION_GREATER) &&
@@ -5328,7 +5328,7 @@ static int32_t createFilterInfo(void *pQInfo, SQuery *pQuery) {
 
             if (upper != TSDB_RELATION_INVALID) {
               qError("pQInfo:%p failed to get filter function, invalid filter condition", pQInfo, type);
-              return TSDB_CODE_INVALID_QUERY_MSG;
+              return TSDB_CODE_QRY_INVALID_MSG;
             }
           } else {
             pSingleColFilter->fp = filterArray[upper];
@@ -5777,13 +5777,13 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
 
   if (pQueryMsg->numOfTables <= 0) {
     qError("Invalid number of tables to query, numOfTables:%d", pQueryMsg->numOfTables);
-    code = TSDB_CODE_INVALID_QUERY_MSG;
+    code = TSDB_CODE_QRY_INVALID_MSG;
     goto _over;
   }
 
   if (pTableIdList == NULL || taosArrayGetSize(pTableIdList) == 0) {
     qError("qmsg:%p, SQueryTableMsg wrong format", pQueryMsg);
-    code = TSDB_CODE_INVALID_QUERY_MSG;
+    code = TSDB_CODE_QRY_INVALID_MSG;
     goto _over;
   }
 
@@ -5846,7 +5846,7 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
 
   (*pQInfo) = createQInfoImpl(pQueryMsg, pTableIdList, pGroupbyExpr, pExprs, &groupInfo, pTagColumnInfo);
   if ((*pQInfo) == NULL) {
-    code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _over;
   }
 
@@ -5905,7 +5905,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
-    return TSDB_CODE_INVALID_QHANDLE;
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -5944,7 +5944,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
-    return TSDB_CODE_INVALID_QHANDLE;
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -5980,12 +5980,6 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   return code;
-
-  //  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS)) {
-  //    qTrace("QInfo:%p %s free qhandle code:%d", pObj->qhandle, __FUNCTION__, code);
-  //    vnodeDecRefCount(pObj->qhandle);
-  //    pObj->qhandle = NULL;
-  //  }
 }
 
 static void buildTagQueryResult(SQInfo* pQInfo) {

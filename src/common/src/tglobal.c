@@ -234,7 +234,7 @@ bool taosCfgDynamicOptions(char *msg) {
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return TSDB_CODE_INVALID_MSG_CONTENT;
+  if (olen == 0) return TSDB_CODE_COM_INVALID_CFG_MSG;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)

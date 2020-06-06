@@ -48,7 +48,7 @@ void mnodeAddPeerRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
 int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
     mError("%p, msg:%s in mpeer queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-    return TSDB_CODE_INVALID_MSG_LEN;
+    return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
   if (!sdbIsMaster()) {
@@ -63,12 +63,12 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
 
-    return TSDB_CODE_REDIRECT;
+    return TSDB_CODE_RPC_REDIRECT;
   }
 
   if (tsMnodeProcessPeerMsgFp[pMsg->rpcMsg.msgType] == NULL) {
     mError("%p, msg:%s in mpeer queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-    return TSDB_CODE_MSG_NOT_PROCESSED;
+    return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
   return (*tsMnodeProcessPeerMsgFp[pMsg->rpcMsg.msgType])(pMsg);

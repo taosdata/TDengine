@@ -443,9 +443,9 @@ void httpJsonPairStatus(JsonBuf* buf, int code) {
     httpJsonPairIntVal(buf, "code", 4, code);
     if (code >= 0) {
       httpJsonItemToken(buf);
-      if (code == TSDB_CODE_DB_NOT_SELECTED) {
+      if (code == TSDB_CODE_MND_DB_NOT_SELECTED) {
         httpJsonPair(buf, "desc", 4, "failed to create database", 23);
-      } else if (code == TSDB_CODE_INVALID_TABLE_ID) {
+      } else if (code == TSDB_CODE_MND_INVALID_TABLE_ID) {
         httpJsonPair(buf, "desc", 4, "failed to create table", 22);
       } else
         httpJsonPair(buf, "desc", 4, (char*)tstrerror(code), (int)strlen(tstrerror(code)));

@@ -51,14 +51,14 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   SWalHead  *pHead = param2;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
-    return TSDB_CODE_MSG_NOT_PROCESSED; 
+    return TSDB_CODE_VND_MSG_NOT_PROCESSED; 
 
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) 
-      return TSDB_CODE_INVALID_VGROUP_ID;  // it may be in deleting or closing state
+      return TSDB_CODE_VND_INVALID_VGROUP_ID;  // it may be in deleting or closing state
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
-      return TSDB_CODE_NOT_READY;
+      return TSDB_CODE_RPC_NOT_READY;
 
     // assign version
     pVnode->version++;

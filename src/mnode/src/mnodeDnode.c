@@ -107,7 +107,7 @@ static int32_t mnodeDnodeActionEncode(SSdbOper *pOper) {
 
 static int32_t mnodeDnodeActionDecode(SSdbOper *pOper) {
   SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
-  if (pDnode == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (pDnode == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   memcpy(pDnode, pOper->rowData, tsDnodeUpdateSize);
   pOper->pObj = pDnode;
@@ -249,7 +249,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   }
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   SRpcIpSet ipSet = mnodeGetIpSetFromIp(pCmCfgDnode->ep);
@@ -286,7 +286,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   uint32_t version = htonl(pStatus->version);
   if (version != tsVersion) {
     mError("status msg version:%d not equal with mnode:%d", version, tsVersion);
-    return TSDB_CODE_INVALID_MSG_VERSION;
+    return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 
   SDnodeObj *pDnode = NULL;
@@ -294,13 +294,13 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode == NULL) {
       mTrace("dnode %s not created", pStatus->dnodeEp);
-      return TSDB_CODE_DNODE_NOT_EXIST;
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
     }
   } else {
     pDnode = mnodeGetDnode(pStatus->dnodeId);
     if (pDnode == NULL) {
       mError("dnode id:%d, %s not exist", pStatus->dnodeId, pStatus->dnodeEp);
-      return TSDB_CODE_DNODE_NOT_EXIST;
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
     }
   }
 
@@ -347,7 +347,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SDMVgroupAccess);
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
   mnodeGetMnodeInfos(&pRsp->mnodes);
@@ -376,7 +376,7 @@ static int32_t mnodeCreateDnode(char *ep) {
   if (pDnode != NULL) {
     mnodeDecDnodeRef(pDnode);
     mError("dnode:%d is alredy exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
-    return TSDB_CODE_DNODE_ALREADY_EXIST;
+    return TSDB_CODE_MND_DNODE_ALREADY_EXIST;
   }
 
   pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
@@ -398,7 +398,7 @@ static int32_t mnodeCreateDnode(char *ep) {
     int dnodeId = pDnode->dnodeId;
     tfree(pDnode);
     mError("failed to create dnode:%d, result:%s", dnodeId, tstrerror(code));
-    return TSDB_CODE_SDB_ERROR;
+    return TSDB_CODE_MND_SDB_ERROR;
   }
 
   mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
@@ -414,7 +414,7 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode) {
 
   int32_t code = sdbDeleteRow(&oper); 
   if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   mLPrint("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
@@ -425,13 +425,13 @@ static int32_t mnodeDropDnodeByEp(char *ep) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
     mError("dnode:%s, is not exist", ep);
-    return TSDB_CODE_DNODE_NOT_EXIST;
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
   }
 
   mnodeDecDnodeRef(pDnode);
   if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
-    return TSDB_CODE_NO_REMOVE_MASTER;
+    return TSDB_CODE_MND_NO_REMOVE_MASTER;
   }
 
   mPrint("dnode:%d, start to drop it", pDnode->dnodeId);
@@ -446,7 +446,7 @@ static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   SCMCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   } else {
     int32_t code = mnodeCreateDnode(pCreate->ep);
 
@@ -466,7 +466,7 @@ static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg) {
   SCMDropDnodeMsg *pDrop = pMsg->rpcMsg.pCont;
 
   if (strcmp(pMsg->pUser->user, "root") != 0) {
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   } else {
     int32_t code = mnodeDropDnodeByEp(pDrop->ep);
 
@@ -486,7 +486,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t  cols = 0;
@@ -615,7 +615,7 @@ static int32_t mnodeGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   if (strcmp(pUser->user, "root") != 0)  {
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   SSchema *pSchema = pMeta->schema;
@@ -725,7 +725,7 @@ static int32_t mnodeGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   if (strcmp(pUser->user, "root") != 0)  {
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   SSchema *pSchema = pMeta->schema;
@@ -812,7 +812,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   
   if (strcmp(pUser->user, "root") != 0)  {
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   SSchema *pSchema = pMeta->schema;

@@ -312,12 +312,12 @@ static void tscProcessServStatus(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
   
   if (pObj->pHb != NULL) {
-    if (pObj->pHb->res.code == TSDB_CODE_NETWORK_UNAVAIL) {
-      pSql->res.code = TSDB_CODE_NETWORK_UNAVAIL;
+    if (pObj->pHb->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      pSql->res.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
       return;
     }
   } else {
-    if (pSql->res.code == TSDB_CODE_NETWORK_UNAVAIL) {
+    if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       return;
     }
   }
@@ -378,7 +378,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SERV_STATUS) {
     tscProcessServStatus(pSql);
   } else {
-    pSql->res.code = TSDB_CODE_INVALID_SQL;
+    pSql->res.code = TSDB_CODE_TSC_INVALID_SQL;
     tscError("%p not support command:%d", pSql, pCmd->command);
   }
 
