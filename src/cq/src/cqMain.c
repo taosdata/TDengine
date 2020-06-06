@@ -175,7 +175,7 @@ void *cqCreate(void *handle, uint64_t uid, int tid, char *sqlStr, STSchema *pSch
   strcpy(pObj->sqlStr, sqlStr);
 
   pObj->pSchema = tdDupSchema(pSchema);
-  pObj->rowSize = pSchema->tlen;
+  pObj->rowSize = schemaTLen(pSchema);
 
   cTrace("vgId:%d, id:%d CQ:%s is created", pContext->vgId, pObj->tid, pObj->sqlStr);
 
@@ -272,13 +272,14 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pBlk->sversion = htonl(pSchema->version);
   pBlk->padding = 0;
 
+  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + dataRowLen(trow);
+
   pMsg->header.vgId = htonl(pContext->vgId);
-  pMsg->header.contLen = htonl(size - sizeof(SWalHead));
+  pMsg->header.contLen = htonl(pHead->len);
   pMsg->length = pMsg->header.contLen;
   pMsg->numOfBlocks = htonl(1);
 
   pHead->msgType = TSDB_MSG_TYPE_SUBMIT;
-  pHead->len = size - sizeof(SWalHead);
   pHead->version = 0;
 
   // write into vnode write queue
