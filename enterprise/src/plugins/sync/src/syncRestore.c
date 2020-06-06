@@ -25,7 +25,7 @@
 
 static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eindex) {
   char       name[TSDB_FILENAME_LEN*2] = {0};
-  char       fname[TSDB_FILENAME_LEN*2] = {0};
+  char       fname[TSDB_FILENAME_LEN*3] = {0};
   uint32_t   magic; 
   uint64_t   fversion;
   int32_t    size;
