@@ -38,7 +38,7 @@ static ttpool_h tsArbTcpPool;
 typedef struct {
   char  id[TSDB_EP_LEN];
   int   nodeFd;
-  void *pThread;
+  void *pConn;
 } SNodeConn;
 
 int main(int argc, char *argv[]) {
@@ -135,7 +135,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
 
   sTrace("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
-  pNode->pThread = taosAllocateTcpThread(tsArbTcpPool, pNode, connFd);
+  pNode->pConn = taosAllocateTcpConn(tsArbTcpPool, pNode, connFd);
 
   return;
 }
@@ -144,7 +144,7 @@ static void arbProcessBrokenLink(void *param) {
   SNodeConn *pNode = param;
 
   sTrace("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
-  taosFreeTcpThread(pNode->pThread, &pNode->nodeFd);
+  taosFreeTcpConn(pNode->pConn);
 
   tfree(pNode);
 }
