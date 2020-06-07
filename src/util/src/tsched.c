@@ -14,6 +14,7 @@
  */
 
 #include "os.h"
+#include "taosdef.h"
 #include "tulog.h"
 #include "tsched.h"
 #include "ttimer.h"
@@ -21,7 +22,7 @@
 #define DUMP_SCHEDULER_TIME_WINDOW 30000 //every 30sec, take a snap shot of task queue.
 
 typedef struct {
-  char            label[16];
+  char            label[TSDB_LABEL_LEN];
   tsem_t          emptySem;
   tsem_t          fullSem;
   pthread_mutex_t queueMutex;
