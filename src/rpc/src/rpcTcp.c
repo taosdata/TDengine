@@ -47,6 +47,8 @@ typedef struct SThreadObj {
   char            label[12];
   void           *shandle;  // handle passed by upper layer during server initialization
   void           *(*processData)(SRecvInfo *pPacket);
+  struct epoll_event event;
+  eventfd_t          fd_event;
 } SThreadObj;
 
 typedef struct {
@@ -86,6 +88,8 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   int code = 0;
   pThreadObj = pServerObj->pThreadObj;
   for (int i = 0; i < numOfThreads; ++i) {
+    pThreadObj->fd_event = -1;
+    pThreadObj->pollFd = -1;
     pThreadObj->processData = fp;
     tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
     pThreadObj->shandle = shandle;
@@ -96,9 +100,21 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
       break;;
     }
 
+    pThreadObj->event.events = EPOLLIN;
+    pThreadObj->fd_event     = eventfd(1, 0);
+    if (pThreadObj->fd_event < 0) {
+      tError("%s failed to create fd_event for epoll event", label);
+      pthread_mutex_destroy(&(pThreadObj->mutex));
+      code = -1;
+      break;
+    }
+
     pThreadObj->pollFd = epoll_create(10);  // size does not matter
     if (pThreadObj->pollFd < 0) {
       tError("%s failed to create TCP epoll", label);
+      close(pThreadObj->fd_event);
+      pThreadObj->fd_event = -1;
+      pthread_mutex_destroy(&(pThreadObj->mutex));
       code = -1;
       break;
     }
@@ -110,6 +126,11 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     pthread_attr_destroy(&thattr);
     if (code != 0) {
       tError("%s failed to create TCP process data thread(%s)", label, strerror(errno));
+      close(pThreadObj->pollFd);
+      pThreadObj->pollFd = -1;
+      close(pThreadObj->fd_event);
+      pThreadObj->fd_event = -1;
+      pthread_mutex_destroy(&(pThreadObj->mutex));
       break;
     }
 
@@ -117,7 +138,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     pThreadObj++;
   }
 
-  if (code == 0) { 
+  if (code == 0) {
     pthread_attr_t thattr;
     pthread_attr_init(&thattr);
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -140,24 +161,25 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
 }
 
 static void taosStopTcpThread(SThreadObj* pThreadObj) {
+  assert(pThreadObj->stop == false); // assertion failure indicates internal logic error
   pThreadObj->stop = true;
 
   // signal the thread to stop, try graceful method first,
   // and use pthread_cancel when failed
-  struct epoll_event event = { .events = EPOLLIN };
-  eventfd_t fd = eventfd(1, 0);
-  if (fd == -1) {
-    tError("%s, failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s", pThreadObj->label, strerror(errno));
-    pthread_cancel(pThreadObj->thread);
-  } else if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
+  if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, pThreadObj->fd_event, &pThreadObj->event) < 0) {
     tError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s", pThreadObj->label, strerror(errno));
     pthread_cancel(pThreadObj->thread);
   }
 
   pthread_join(pThreadObj->thread, NULL);
-  close(pThreadObj->pollFd);
-  if (fd != -1) {
-    close(fd);
+  if (pThreadObj->pollFd >= 0) {
+    close(pThreadObj->pollFd);
+    pThreadObj->pollFd = -1;
+  }
+
+  if (pThreadObj->fd_event >= 0) {
+    close(pThreadObj->fd_event);
+    pThreadObj->fd_event = -1;
   }
 
   while (pThreadObj->pHead) {
@@ -166,7 +188,6 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
     taosFreeFdObj(pFdObj);
   }
 }
-
 
 void taosCleanUpTcpServer(void *handle) {
   SServerObj *pServerObj = handle;
@@ -245,11 +266,13 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   SThreadObj    *pThreadObj;
   pthread_attr_t thattr;
 
-  pThreadObj = (SThreadObj *)malloc(sizeof(SThreadObj));
-  memset(pThreadObj, 0, sizeof(SThreadObj));
+  pThreadObj = (SThreadObj *)calloc(1, sizeof(SThreadObj));
+  if (!pThreadObj) return NULL;
   tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
   pThreadObj->ip = ip;
   pThreadObj->shandle = shandle;
+  pThreadObj->fd_event = -1;
+  pThreadObj->pollFd = -1;
 
   if (pthread_mutex_init(&(pThreadObj->mutex), NULL) < 0) {
     tError("%s failed to init TCP client mutex(%s)", label, strerror(errno));
@@ -257,9 +280,19 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
     return NULL;
   }
 
+  pThreadObj->event.events = EPOLLIN;
+  pThreadObj->fd_event     = eventfd(1, 0);
+  if (pThreadObj->fd_event < 0) {
+    tError("%s failed to create fd_event for epoll event", label);
+    free(pThreadObj);
+    return NULL;
+  }
+
   pThreadObj->pollFd = epoll_create(10);  // size does not matter
   if (pThreadObj->pollFd < 0) {
     tError("%s failed to create TCP client epoll", label);
+    close(pThreadObj->fd_event);
+    pThreadObj->fd_event = -1;
     free(pThreadObj);
     return NULL;
   }
@@ -272,6 +305,9 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   pthread_attr_destroy(&thattr);
   if (code != 0) {
     close(pThreadObj->pollFd);
+    pThreadObj->pollFd = -1;
+    close(pThreadObj->fd_event);
+    pThreadObj->fd_event = -1;
     free(pThreadObj);
     tError("%s failed to create TCP read data thread(%s)", label, strerror(errno));
     return NULL;
@@ -458,7 +494,6 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, int fd) {
 }
 
 static void taosFreeFdObj(SFdObj *pFdObj) {
-
   if (pFdObj == NULL) return;
   if (pFdObj->signature != pFdObj) return;
 
