@@ -93,7 +93,7 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 127.0.0.1:6020/rest/sql
 print 13-> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"database aleady exist"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"mnode database aleady exist"}@ then
   return -1
 endi
 
@@ -126,7 +126,7 @@ endi
 #18
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 127.0.0.1:6020/rest/sql
 print 18-> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"db not selected"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"mnode db not selected"}@ then
   return -1
 endi
 
@@ -147,7 +147,7 @@ print ===============  step3 - db
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1;' 127.0.0.1:6020/rest/sql
 print 21-> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"invalid table id"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"mnode invalid table id"}@ then
   return -1
 endi
 
