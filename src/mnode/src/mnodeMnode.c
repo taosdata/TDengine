@@ -63,7 +63,7 @@ static int32_t mnodeMnodeActionDestroy(SSdbOper *pOper) {
 static int32_t mnodeMnodeActionInsert(SSdbOper *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
   SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
-  if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
+  if (pDnode == NULL) return TSDB_CODE_MND_DNODE_NOT_EXIST;
 
   pDnode->isMgmt = true;
   mnodeDecDnodeRef(pDnode);
@@ -75,7 +75,7 @@ static int32_t mnodeMnodeActionDelete(SSdbOper *pOper) {
   SMnodeObj *pMnode = pOper->pObj;
 
   SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
-  if (pDnode == NULL) return TSDB_CODE_DNODE_NOT_EXIST;
+  if (pDnode == NULL) return TSDB_CODE_MND_DNODE_NOT_EXIST;
   pDnode->isMgmt = false;
   mnodeDecDnodeRef(pDnode);
 
@@ -103,7 +103,7 @@ static int32_t mnodeMnodeActionEncode(SSdbOper *pOper) {
 
 static int32_t mnodeMnodeActionDecode(SSdbOper *pOper) {
   SMnodeObj *pMnode = calloc(1, sizeof(SMnodeObj));
-  if (pMnode == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (pMnode == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   memcpy(pMnode, pOper->rowData, tsMnodeUpdateSize);
   pOper->pObj = pMnode;
@@ -285,7 +285,7 @@ int32_t mnodeAddMnode(int32_t dnodeId) {
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pMnode);
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   mnodeUpdateMnodeIpSet();
@@ -307,7 +307,7 @@ void mnodeDropMnodeLocal(int32_t dnodeId) {
 int32_t mnodeDropMnode(int32_t dnodeId) {
   SMnodeObj *pMnode = mnodeGetMnode(dnodeId);
   if (pMnode == NULL) {
-    return TSDB_CODE_DNODE_NOT_EXIST;
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
   }
   
   SSdbOper oper = {
@@ -318,7 +318,7 @@ int32_t mnodeDropMnode(int32_t dnodeId) {
 
   int32_t code = sdbDeleteRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   sdbDecRef(tsMnodeSdb, pMnode);
@@ -335,7 +335,7 @@ static int32_t mnodeGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   if (strcmp(pUser->pAcct->user, "root") != 0)  {
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t  cols = 0;

@@ -55,7 +55,7 @@ taos_queue taosOpenQueue() {
   
   STaosQueue *queue = (STaosQueue *) calloc(sizeof(STaosQueue), 1);
   if (queue == NULL) {
-    terrno = TSDB_CODE_NO_RESOURCE;
+    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -216,7 +216,7 @@ taos_qset taosOpenQset() {
 
   STaosQset *qset = (STaosQset *) calloc(sizeof(STaosQset), 1);
   if (qset == NULL) {
-    terrno = TSDB_CODE_NO_RESOURCE;
+    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     return NULL;
   }
 

@@ -89,7 +89,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   rspMsg.contLen = 0;
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
-    rspMsg.code = TSDB_CODE_NOT_READY;
+    rspMsg.code = TSDB_CODE_RPC_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
     dTrace("RPC %p, msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
@@ -97,7 +97,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   }
 
   if (pMsg->pCont == NULL) {
-    rspMsg.code = TSDB_CODE_INVALID_MSG_LEN;
+    rspMsg.code = TSDB_CODE_DND_INVALID_MSG_LEN;
     rpcSendResponse(&rspMsg);
     return;
   }
@@ -106,7 +106,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
     (*dnodeProcessReqMsgFp[pMsg->msgType])(pMsg);
   } else {
     dTrace("RPC %p, message:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
-    rspMsg.code = TSDB_CODE_MSG_NOT_PROCESSED;
+    rspMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
   }

@@ -70,7 +70,7 @@ static int32_t mnodeActionActionEncode(SSdbOper *pOper) {
 
 static int32_t mnodeAcctActionDecode(SSdbOper *pOper) {
   SAcctObj *pAcct = (SAcctObj *) calloc(1, sizeof(SAcctObj));
-  if (pAcct == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (pAcct == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   memcpy(pAcct, pOper->rowData, tsAcctUpdateSize);
   pOper->pObj = pAcct;

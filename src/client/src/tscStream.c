@@ -77,13 +77,13 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
   int code = tscGetTableMeta(pSql, pTableMetaInfo);
   pSql->res.code = code;
 
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
 
   if (code == 0 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     code = tscGetSTableVgroupInfo(pSql, 0);
     pSql->res.code = code;
 
-    if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
   }
 
   tscTansformSQLFuncForSTableQuery(pQueryInfo);
@@ -480,7 +480,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
-    setErrorInfo(pSql, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
+    setErrorInfo(pSql, TSDB_CODE_TSC_OUT_OF_MEMORY, NULL);
     return NULL;
   }
 
@@ -497,7 +497,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   pSql->sqlstr = strdup(sqlstr);
   if (pSql->sqlstr == NULL) {
-    setErrorInfo(pSql, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
+    setErrorInfo(pSql, TSDB_CODE_TSC_OUT_OF_MEMORY, NULL);
 
     tfree(pSql);
     return NULL;
@@ -512,7 +512,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (TSDB_CODE_SUCCESS != ret) {
     setErrorInfo(pSql, ret, NULL);
-    tscError("%p open stream failed, sql:%s, code:%d", pSql, sqlstr, TSDB_CODE_CLI_OUT_OF_MEMORY);
+    tscError("%p open stream failed, sql:%s, code:%d", pSql, sqlstr, TSDB_CODE_TSC_OUT_OF_MEMORY);
     tscFreeSqlObj(pSql);
     return NULL;
   }
@@ -530,7 +530,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   SSqlStream *pStream = (SSqlStream *)calloc(1, sizeof(SSqlStream));
   if (pStream == NULL) {
-    setErrorInfo(pSql, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
+    setErrorInfo(pSql, TSDB_CODE_TSC_OUT_OF_MEMORY, NULL);
 
     tscError("%p open stream failed, sql:%s, reason:%s, code:%d", pSql, sqlstr, pCmd->payload, pRes->code);
     tscFreeSqlObj(pSql);

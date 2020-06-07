@@ -56,7 +56,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
 
   if (pSelDnode == NULL) {
     mError("failed to alloc vnode to vgroup");
-    return TSDB_CODE_NO_ENOUGH_DNODES;
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
   pVgroup->vnodeGid[0].dnodeId = pSelDnode->dnodeId;

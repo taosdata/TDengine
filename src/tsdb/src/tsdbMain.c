@@ -92,16 +92,15 @@ STsdbCfg *tsdbGetCfg(const TsdbRepoT *repo) {
  * @return a TSDB repository handle on success, NULL for failure
  */
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) {
-
   if (mkdir(rootDir, 0755) != 0) {
     tsdbError("vgId:%d, failed to create rootDir! rootDir:%s, reason:%s", pCfg->tsdbId, rootDir, strerror(errno));
     if (errno == EACCES) {
-      return TSDB_CODE_NO_DISK_PERMISSIONS;
+      return TSDB_CODE_TDB_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
-      return TSDB_CODE_SERV_NO_DISKSPACE;
+      return TSDB_CODE_TDB_NO_DISKSPACE;
     } else if (errno == EEXIST) {
     } else {
-      return TSDB_CODE_VG_INIT_FAILED;
+      return TSDB_CODE_TDB_INIT_FAILED;
     }
   }
 
@@ -315,7 +314,7 @@ int32_t tsdbConfigRepo(TsdbRepoT *repo, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbCfg * pRCfg = &pRepo->config;
 
-  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return TSDB_CODE_INVALID_CONFIG;
+  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return TSDB_CODE_TDB_INVALID_CONFIG;
 
   ASSERT(pRCfg->tsdbId == pCfg->tsdbId);
   ASSERT(pRCfg->cacheBlockSize == pCfg->cacheBlockSize);
@@ -416,13 +415,13 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
   int16_t    tversion = htons(pMsg->tversion);
 
   STable *pTable = tsdbGetTableByUid(pMeta, htobe64(pMsg->uid));
-  if (pTable == NULL) return TSDB_CODE_INVALID_TABLE_ID;
-  if (pTable->tableId.tid != htonl(pMsg->tid)) return TSDB_CODE_INVALID_TABLE_ID;
+  if (pTable == NULL) return TSDB_CODE_TDB_INVALID_TABLE_ID;
+  if (pTable->tableId.tid != htonl(pMsg->tid)) return TSDB_CODE_TDB_INVALID_TABLE_ID;
 
   if (pTable->type != TSDB_CHILD_TABLE) {
     tsdbError("vgId:%d failed to update tag value of table %s since its type is %d", pRepo->config.tsdbId,
               varDataVal(pTable->name), pTable->type);
-    return TSDB_CODE_INVALID_TABLE_TYPE;
+    return TSDB_CODE_TDB_INVALID_TABLE_TYPE;
   }
 
   if (schemaVersion(tsdbGetTableTagSchema(pMeta, pTable)) < tversion) {
@@ -452,7 +451,7 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
         "vgId:%d failed to update tag value of table %s since version out of date, client tag version:%d server tag "
         "version:%d",
         pRepo->config.tsdbId, varDataVal(pTable->name), tversion, schemaVersion(pTable->tagSchema));
-    return TSDB_CODE_TAG_VER_OUT_OF_DATE;
+    return TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE;
   }
   if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
     tsdbRemoveTableFromIndex(pMeta, pTable);
@@ -948,7 +947,7 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   if (pTable == NULL) {
     tsdbError("vgId:%d, failed to get table for insert, uid:" PRIu64 ", tid:%d", pRepo->config.tsdbId, pBlock->uid,
               pBlock->tid);
-    return TSDB_CODE_INVALID_TABLE_ID;
+    return TSDB_CODE_TDB_INVALID_TABLE_ID;
   }
 
   // Check schema version
@@ -980,7 +979,7 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
     if (tsdbGetTableSchemaByVersion(pMeta, pTable, tversion) == NULL) {
       tsdbError("vgId:%d table:%s tid:%d invalid schema version %d from client", pRepo->config.tsdbId,
                 varDataVal(pTable->name), pTable->tableId.tid, tversion);
-      return TSDB_CODE_TABLE_SCHEMA_VERSION;
+      return TSDB_CODE_TDB_TABLE_SCHEMA_VERSION;
     }
   }
 
@@ -996,7 +995,7 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
       tsdbError("vgId:%d, table:%s, tid:%d, talbe uid:%ld timestamp is out of range. now:" PRId64 ", maxKey:" PRId64
                 ", minKey:" PRId64,
                 pRepo->config.tsdbId, varDataVal(pTable->name), pTable->tableId.tid, pTable->tableId.uid, now, minKey, maxKey);
-      return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
+      return TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
     }
 
     if (tdInsertRowToTable(pRepo, row, pTable) < 0) {
