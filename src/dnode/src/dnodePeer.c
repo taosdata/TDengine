@@ -113,6 +113,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
 }
 
 int32_t dnodeInitClient() {
+  char secret[TSDB_KEY_LEN] = "secret";
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.label        = "DND-C";
@@ -123,7 +124,7 @@ int32_t dnodeInitClient() {
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.user         = "t";
   rpcInit.ckey         = "key";
-  rpcInit.secret       = "secret";
+  rpcInit.secret       = secret;
 
   tsDnodeClientRpc = rpcOpen(&rpcInit);
   if (tsDnodeClientRpc == NULL) {
