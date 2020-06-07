@@ -60,7 +60,7 @@ static void  syncProcessIncommingConnection(int connFd, uint32_t sourceIp);
 static void  syncRemovePeer(SSyncPeer *pPeer);
 static void  syncAddArbitrator(SSyncNode *pNode);
 static void  syncAddNodeRef(SSyncNode *pNode);
-static int   syncDecNodeRef(SSyncNode *pNode);
+static void  syncDecNodeRef(SSyncNode *pNode);
 static void  syncRemoveConfirmedFwdInfo(SSyncNode *pNode);
 static void  syncMonitorFwdInfos(void *param, void *tmrId);
 static void  syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code);
@@ -177,16 +177,6 @@ void syncStop(void *param)
   pthread_mutex_unlock(&(pNode->mutex));
 
   syncDecNodeRef(pNode);
-  atomic_sub_fetch_32(&tsNodeNum, 1);
-  
-  if (tsNodeNum <=0) {
-    sTrace("all sync resources are freed");
-    taosTmrCleanUp(syncTmrCtrl);
-    taosCloseTcpThreadPool(tsTcpPool);
-    taosHashCleanup(vgIdHash);
-    vgIdHash = NULL;
-    syncModuleInit = PTHREAD_ONCE_INIT;
-  }
 }
 
 int32_t syncReconfig(void *param, const SSyncCfg *pNewCfg) 
@@ -395,17 +385,23 @@ static void syncAddNodeRef(SSyncNode *pNode)
    atomic_add_fetch_8(&pNode->refCount, 1);
 }
 
-static int syncDecNodeRef(SSyncNode *pNode)
+static void syncDecNodeRef(SSyncNode *pNode)
 {
   if (atomic_sub_fetch_8(&pNode->refCount, 1) == 0) {
     pthread_mutex_destroy(&pNode->mutex);
     tfree(pNode->pRecv);
     free(pNode->pSyncFwds);
     free(pNode);
-    return 0;
-  }
 
-  return 1;
+    if (atomic_sub_fetch_32(&tsNodeNum, 1) == 0) { 
+      sTrace("all sync resources are freed");
+      taosTmrCleanUp(syncTmrCtrl);
+      taosCloseTcpThreadPool(tsTcpPool);
+      taosHashCleanup(vgIdHash);
+      vgIdHash = NULL;
+      syncModuleInit = PTHREAD_ONCE_INIT;
+    }
+  }
 }
 
 void syncAddPeerRef(SSyncPeer *pPeer)
