@@ -24,43 +24,37 @@ int taosGetFqdn(char *fqdn) {
   hostname[1023] = '\0';
   gethostname(hostname, 1023);
 
-  struct hostent* h;
-  h = gethostbyname(hostname);
-  if (h != NULL) {
-    strcpy(fqdn, h->h_name);
+  struct addrinfo hints = {0};
+  struct addrinfo *result = NULL;
+
+  hints.ai_flags = AI_CANONNAME;
+
+  getaddrinfo(hostname, NULL, &hints, &result);
+  if (result) {
+    strcpy(fqdn, result->ai_canonname);
+    freeaddrinfo(result);
   } else {
-    uError("failed to get host name(%s)", strerror(errno));
     code = -1;
   }
-
-  // to do: free the resources
-  // free(h);
 
   return code;
 }
 
 uint32_t taosGetIpFromFqdn(const char *fqdn) {
-  struct   addrinfo hints, *servinfo, *p;
-  struct   sockaddr_in *h;
-  uint32_t ip = -1;
+  struct addrinfo hints = {0};
+  struct addrinfo *result = NULL;
 
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC; // use AF_INET6 to force IPv6
-  hints.ai_socktype = SOCK_STREAM;
-
-  if (getaddrinfo(fqdn, "http", &hints, &servinfo) != 0) {
-    uError("failed to get IP from %s(%s)", fqdn, strerror(errno));
+  getaddrinfo(fqdn, NULL, &hints, &result);
+  if (result) {
+    struct sockaddr *sa = result->ai_addr;
+    struct sockaddr_in *si = (struct sockaddr_in*)sa;
+    struct in_addr ia = si->sin_addr;
+    uint32_t ip = ia.s_addr;
+    freeaddrinfo(result);
+    return ip;
+  } else {
     return -1;
   }
-
-  // to do: loop through all the results and connect to the first we can
-  for(p = servinfo; p != NULL; p = p->ai_next) {
-    h = (struct sockaddr_in *) p->ai_addr;
-    ip = h->sin_addr.s_addr;
-  }
-        
-  freeaddrinfo(servinfo); // all done with this structure
-  return ip;
 }
 
 // Function converting an IP address string to an unsigned int.
