@@ -16,6 +16,7 @@
 #include "os.h"
 #include "tsocket.h"
 #include "tutil.h"
+#include "taosdef.h"
 #include "taoserror.h" 
 #include "rpcLog.h"
 #include "rpcHead.h"
@@ -46,7 +47,7 @@ typedef struct SThreadObj {
   int             pollFd;
   int             numOfFds;
   int             threadId;
-  char            label[12];
+  char            label[TSDB_LABEL_LEN];
   void           *shandle;  // handle passed by upper layer during server initialization
   void           *(*processData)(SRecvInfo *pPacket);
 } SThreadObj;
@@ -55,7 +56,7 @@ typedef struct {
   int         fd;
   uint32_t    ip;
   uint16_t    port;
-  char        label[12];
+  char        label[TSDB_LABEL_LEN];
   int         numOfThreads;
   void *      shandle;
   SThreadObj *pThreadObj;
@@ -79,6 +80,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     return NULL;
   }
 
+  pServerObj->thread = 0;
   pServerObj->ip = ip;
   pServerObj->port = port;
   tstrncpy(pServerObj->label, label, sizeof(pServerObj->label));
@@ -93,8 +95,14 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   }
 
   int code = 0;
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+
   pThreadObj = pServerObj->pThreadObj;
   for (int i = 0; i < numOfThreads; ++i) {
+    pThreadObj->pollFd = -1;
+    pThreadObj->thread = 0;
     pThreadObj->processData = fp;
     tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
     pThreadObj->shandle = shandle;
@@ -114,11 +122,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
       break;
     }
 
-    pthread_attr_t thattr;
-    pthread_attr_init(&thattr);
-    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
     code = pthread_create(&(pThreadObj->thread), &thattr, taosProcessTcpData, (void *)(pThreadObj));
-    pthread_attr_destroy(&thattr);
     if (code != 0) {
       tError("%s failed to create TCP process data thread(%s)", label, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno); 
@@ -130,11 +134,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   }
 
   if (code == 0) { 
-    pthread_attr_t thattr;
-    pthread_attr_init(&thattr);
-    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
     code = pthread_create(&(pServerObj->thread), &thattr, (void *)taosAcceptTcpConnection, (void *)(pServerObj));
-    pthread_attr_destroy(&thattr);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno); 
       tError("%s failed to create TCP accept thread(%s)", label, strerror(errno));
@@ -142,38 +142,39 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   }
 
   if (code != 0) {
-    free(pServerObj->pThreadObj);
-    free(pServerObj);
+    taosCleanUpTcpServer(pServerObj);
     pServerObj = NULL;
   } else {
     tTrace("%s TCP server is initialized, ip:0x%x port:%hu numOfThreads:%d", label, ip, port, numOfThreads);
   }
 
+  pthread_attr_destroy(&thattr);
   return (void *)pServerObj;
 }
 
 static void taosStopTcpThread(SThreadObj* pThreadObj) {
   pThreadObj->stop = true;
+  eventfd_t fd = -1;
 
-  // signal the thread to stop, try graceful method first,
-  // and use pthread_cancel when failed
-  struct epoll_event event = { .events = EPOLLIN };
-  eventfd_t fd = eventfd(1, 0);
-  if (fd == -1) {
-    // failed to create eventfd, call pthread_cancel instead, which may result in data corruption:
-    tError("%s, failed to create eventfd(%s)", pThreadObj->label, strerror(errno));
-    pthread_cancel(pThreadObj->thread);
-  } else if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-    // failed to call epoll_ctl, call pthread_cancel instead, which may result in data corruption:
-    tError("%s, failed to call epoll_ctl(%s)", pThreadObj->label, strerror(errno));
-    pthread_cancel(pThreadObj->thread);
+  if (pThreadObj->thread && pThreadObj->pollFd >=0) {
+    // signal the thread to stop, try graceful method first,
+    // and use pthread_cancel when failed
+    struct epoll_event event = { .events = EPOLLIN };
+    fd = eventfd(1, 0);
+    if (fd == -1) {
+      // failed to create eventfd, call pthread_cancel instead, which may result in data corruption:
+      tError("%s, failed to create eventfd(%s)", pThreadObj->label, strerror(errno));
+      pthread_cancel(pThreadObj->thread);
+    } else if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
+      // failed to call epoll_ctl, call pthread_cancel instead, which may result in data corruption:
+      tError("%s, failed to call epoll_ctl(%s)", pThreadObj->label, strerror(errno));
+      pthread_cancel(pThreadObj->thread);
+    }
   }
 
-  pthread_join(pThreadObj->thread, NULL);
-  close(pThreadObj->pollFd);
-  if (fd != -1) {
-    close(fd);
-  }
+  if (pThreadObj->thread) pthread_join(pThreadObj->thread, NULL);
+  if (pThreadObj->pollFd >=0) close(pThreadObj->pollFd);
+  if (fd != -1) close(fd);
 
   while (pThreadObj->pHead) {
     SFdObj *pFdObj = pThreadObj->pHead;
@@ -188,9 +189,8 @@ void taosCleanUpTcpServer(void *handle) {
   SThreadObj *pThreadObj;
 
   if (pServerObj == NULL) return;
-
-  shutdown(pServerObj->fd, SHUT_RD);
-  pthread_join(pServerObj->thread, NULL);
+  if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
+  if(pServerObj->thread) pthread_join(pServerObj->thread, NULL);
 
   for (int i = 0; i < pServerObj->numOfThreads; ++i) {
     pThreadObj = pServerObj->pThreadObj + i;
