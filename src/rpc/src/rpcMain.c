@@ -805,16 +805,16 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   if (pConn == NULL) {
     tTrace("%s %p, failed to get connection obj(%s)", pRpc->label, (void *)pHead->ahandle, tstrerror(terrno)); 
     return NULL;
-  } else {
-    if (rpcIsReq(pHead->msgType)) {
-      pConn->ahandle = (void *)pHead->ahandle;
-      sprintf(pConn->info, "%s %p %p", pRpc->label, pConn, pConn->ahandle);
-    }
-  }
+  } 
 
   rpcLockConn(pConn);
-  sid = pConn->sid;
 
+  if (rpcIsReq(pHead->msgType)) {
+    pConn->ahandle = (void *)pHead->ahandle;
+    sprintf(pConn->info, "%s %p %p", pRpc->label, pConn, pConn->ahandle);
+  }
+
+  sid = pConn->sid;
   pConn->chandle = pRecv->chandle;
   pConn->peerIp = pRecv->ip; 
   pConn->peerPort = pRecv->port;
@@ -847,10 +847,11 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
 }
 
 static void rpcProcessBrokenLink(SRpcConn *pConn) {
+  if (pConn == NULL) return;
   SRpcInfo *pRpc = pConn->pRpc;
-  
   tTrace("%s, link is broken", pConn->info);
-  // pConn->chandle = NULL;
+
+  rpcLockConn(pConn);
 
   if (pConn->outType) {
     SRpcReqContext *pContext = pConn->pContext;
@@ -871,7 +872,8 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     (*(pRpc->cfp))(&rpcMsg);
 */
   }
- 
+
+  rpcUnlockConn(pConn);
   rpcCloseConn(pConn);
 }
 
@@ -885,7 +887,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   // underlying UDP layer does not know it is server or client
   pRecv->connType = pRecv->connType | pRpc->connType;  
 
-  if (pRecv->ip == 0 && pConn) {
+  if (pRecv->ip == 0) {
     rpcProcessBrokenLink(pConn);
     return NULL;
   }
