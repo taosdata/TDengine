@@ -111,7 +111,7 @@ matrix:
           description: TDengine
 
         # Where email notification of build analysis results will be sent
-        notification_email: sdsang@taosdata.com
+        notification_email: sdsang@taosdata.com, slguan@taosdata.com
 
         # Commands to prepare for build_command
         # ** likely specific to your build **
