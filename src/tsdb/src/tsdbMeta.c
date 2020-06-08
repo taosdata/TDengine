@@ -620,7 +620,10 @@ static int tsdbFreeTable(STable *pTable) {
   if (pTable->type == TSDB_CHILD_TABLE) {
     kvRowFree(pTable->tagVal);
   } else {
-    for (int i = 0; i < pTable->numOfSchemas; i++) tdFreeSchema(pTable->schema[i]);
+    if (pTable->schema) {
+      for (int i = 0; i < pTable->numOfSchemas; i++) tdFreeSchema(pTable->schema[i]);
+      free(pTable->schema);
+    }
   }
 
   if (pTable->type == TSDB_STREAM_TABLE) {
