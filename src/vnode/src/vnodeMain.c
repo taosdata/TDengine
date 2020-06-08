@@ -75,19 +75,29 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  mkdir(tsVnodeDir, 0755);
-
-  char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
-  if (mkdir(rootDir, 0755) != 0) {
-    vPrint("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
+  if (mkdir(tsVnodeDir, 0755) != 0 && errno != EEXIST) {
+    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), tsVnodeDir);
     if (errno == EACCES) {
       return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
       return TSDB_CODE_VND_NO_DISKSPACE;
     } else if (errno == ENOENT) {
       return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
-    } else if (errno == EEXIST) {
+    } else {
+      return TSDB_CODE_VND_INIT_FAILED;
+    }
+  }
+
+  char rootDir[TSDB_FILENAME_LEN] = {0};
+  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  if (mkdir(rootDir, 0755) != 0 && errno != EEXIST) {
+    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
+    if (errno == EACCES) {
+      return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_VND_NO_DISKSPACE;
+    } else if (errno == ENOENT) {
+      return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
     } else {
       return TSDB_CODE_VND_INIT_FAILED;
     }
