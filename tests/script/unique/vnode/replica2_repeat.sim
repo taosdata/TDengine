@@ -37,22 +37,20 @@ run_back unique/vnode/back_insert.sim
 sleep 3000
 
 print ======== step3
-system sh/exec.sh -n dnode2 -s stop
-sleep 5000
 
 $x = 0
 loop:
 
 print ======== step4
-system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode2 -s stop
 sleep 5000
-system sh/exec.sh -n dnode3 -s stop
+system sh/exec.sh -n dnode2 -s start
 sleep 5000
 
 print ======== step5
-system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode3 -s stop
 sleep 5000
-system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s start
 sleep 5000
 
 print ======== step6
