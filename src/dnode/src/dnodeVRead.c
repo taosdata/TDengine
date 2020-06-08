@@ -192,13 +192,14 @@ void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
   if (code == TSDB_CODE_VND_ACTION_IN_PROGRESS) return;
   if (code == TSDB_CODE_VND_ACTION_NEED_REPROCESSED) {
     dnodeContinueExecuteQuery(pVnode, pRead->rspRet.qhandle, pRead);
+    code = TSDB_CODE_SUCCESS;
   }
 
   SRpcMsg rpcRsp = {
     .handle  = pRead->rpcMsg.handle,
     .pCont   = pRead->rspRet.rsp,
     .contLen = pRead->rspRet.len,
-    .code    = pRead->rspRet.code,
+    .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
@@ -216,7 +217,7 @@ static void *dnodeProcessReadQueue(void *param) {
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);
+    dTrace("%p, msg:%s will be processed in vread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);
     int32_t code = vnodeProcessRead(pVnode, pReadMsg->rpcMsg.msgType, pReadMsg->pCont, pReadMsg->contLen, &pReadMsg->rspRet);
     dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     taosFreeQitem(pReadMsg);

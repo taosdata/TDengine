@@ -404,6 +404,7 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
                      void *param, void **taos);
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
 
+int doAsyncParseSql(SSqlObj* pSql);
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
 
 void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
