@@ -430,7 +430,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
 
     /*
      * here, we cannot set the command = TSDB_SQL_KILL_QUERY. Otherwise, it may cause
-     * sub-queries not correctly released and master sql object of metric query reaches an abnormal state.
+     * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
     pSql->pSubs[i]->res.code = TSDB_CODE_QUERY_CANCELLED;
     //taosStopRpcConn(pSql->pSubs[i]->thandle);
@@ -564,7 +564,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
 
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
     pMsg += sizeof(STableIdInfo);
-  } else {
+  } else { // it is a subquery of the super table query, this IP info is acquired from vgroupInfo
     int32_t index = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     assert(index >= 0 && index < numOfVgroups);
@@ -1821,7 +1821,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  tscTrace("%p recv table meta: %"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
+  tscTrace("%p recv table meta, uid:%"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
   free(pTableMeta);
   
   return TSDB_CODE_SUCCESS;
@@ -2388,56 +2388,26 @@ int tscGetMeterMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
   return tscGetTableMeta(pSql, pTableMetaInfo);
 }
 
-/*
- * in handling the renew metermeta problem during insertion,
- *
- * If the meter is created on demand during insertion, the routine usually waits for a short
- * period to re-issue the getMeterMeta msg, in which makes a greater change that vnode has
- * successfully created the corresponding table.
- */
-static void tscWaitingForCreateTable(SSqlCmd *pCmd) {
-  if (pCmd->command == TSDB_SQL_INSERT) {
-    taosMsleep(50);  // todo: global config
-  }
-}
-
 /**
- * in renew metermeta, do not retrieve metadata in cache.
+ * retrieve table meta from mnode, and update the local table meta cache.
  * @param pSql          sql object
- * @param tableId       meter id
+ * @param tableId       table full name
  * @return              status code
  */
 int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
-  int code = 0;
-
-  // handle table meta renew process
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  /*
-   * 1. only update the metermeta in force model metricmeta is not updated
-   * 2. if get metermeta failed, still get the metermeta
-   */
-  if (pTableMetaInfo->pTableMeta == NULL || !tscQueryOnSTable(pCmd)) {
-    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    if (pTableMetaInfo->pTableMeta) {
-      tscTrace("%p update table meta, old: numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
-               tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->uid, pTableMeta);
-    }
-
-    tscWaitingForCreateTable(pCmd);
-    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
-
-    code = getTableMetaFromMgmt(pSql, pTableMetaInfo);  // todo ??
-  } else {
-    tscTrace("%p metric query not update metric meta, numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
-             tscGetNumOfTags(pTableMetaInfo->pTableMeta), pCmd->numOfCols, pTableMetaInfo->pTableMeta->uid,
-             pTableMetaInfo->pTableMeta);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+  if (pTableMetaInfo->pTableMeta) {
+    tscTrace("%p update table meta, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
+             tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->uid, pTableMeta);
   }
 
-  return code;
+  taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
+  return getTableMetaFromMgmt(pSql, pTableMetaInfo);
 }
 
 static bool allVgroupInfoRetrieved(SSqlCmd* pCmd, int32_t clauseIndex) {
