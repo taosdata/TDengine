@@ -45,7 +45,7 @@ static int       tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo);
 
 int tdCreateKVStore(char *fname) {
   char *tname = strdup(fname);
-  if (tname == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (tname == NULL) return TSDB_CODE_COM_OUT_OF_MEMORY;
 
   int fd = open(fname, O_RDWR | O_CREAT, 0755);
   if (fd < 0) {
@@ -247,14 +247,14 @@ static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void
   pStore->appH = appH;
   pStore->map = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
   if (pStore->map == NULL) {
-    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     goto _err;
   }
 
   return pStore;
 
 _err:
-  terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+  terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
   tdFreeKVStore(pStore);
   return NULL;
 }
@@ -273,7 +273,7 @@ static char *tdGetKVStoreSnapshotFname(char *fdata) {
   size_t size = strlen(fdata) + strlen(TD_KVSTORE_SNAP_SUFFIX) + 1;
   char * fname = malloc(size);
   if (fname == NULL) {
-    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     return NULL;
   }
   sprintf(fname, "%s%s", fdata, TD_KVSTORE_SNAP_SUFFIX);
@@ -284,7 +284,7 @@ static char *tdGetKVStoreNewFname(char *fdata) {
   size_t size = strlen(fdata) + strlen(TD_KVSTORE_NEW_SUFFIX) + 1;
   char * fname = malloc(size);
   if (fname == NULL) {
-    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     return NULL;
   }
   sprintf(fname, "%s%s", fdata, TD_KVSTORE_NEW_SUFFIX);

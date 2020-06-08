@@ -764,8 +764,8 @@ static bool tsdbShouldCreateNewLast(SRWHelper *pHelper) {
 
 static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDataCols, int rowsToWrite, SCompBlock *pCompBlock,
                                 bool isLast, bool isSuperBlock) {
-  ASSERT(rowsToWrite > 0 && rowsToWrite <= pDataCols->numOfRows &&
-         rowsToWrite <= pHelper->config.maxRowsPerFileBlock);
+  ASSERT(rowsToWrite > 0 && rowsToWrite <= pDataCols->numOfRows && rowsToWrite <= pHelper->config.maxRowsPerFileBlock);
+  ASSERT(isLast ? rowsToWrite < pHelper->config.minRowsPerFileBlock : true);
 
   SCompData *pCompData = (SCompData *)(pHelper->pBuffer);
   int64_t offset = 0;
@@ -905,7 +905,8 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 
     rowsWritten = MIN((defaultRowsToWrite - blockAtIdx(pHelper, blkIdx)->numOfRows), pDataCols->numOfRows);
     if ((blockAtIdx(pHelper, blkIdx)->numOfSubBlocks < TSDB_MAX_SUBBLOCKS) &&
-        (blockAtIdx(pHelper, blkIdx)->numOfRows + rowsWritten < pHelper->config.minRowsPerFileBlock) && (pHelper->files.nLastF.fd) > 0) {
+        (blockAtIdx(pHelper, blkIdx)->numOfRows + rowsWritten < pHelper->config.minRowsPerFileBlock) &&
+        (pHelper->files.nLastF.fd) < 0) {
       if (tsdbWriteBlockToFile(pHelper, &(pHelper->files.lastF), pDataCols, rowsWritten, &compBlock, true, false) < 0)
         goto _err;
       if (tsdbAddSubBlock(pHelper, &compBlock, blkIdx, rowsWritten) < 0) goto _err;
@@ -936,21 +937,21 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
     // Key must overlap with the block
     ASSERT(keyFirst <= blockAtIdx(pHelper, blkIdx)->keyLast);
 
-    TSKEY keyLimit =
-        (blkIdx == pIdx->numOfBlocks - 1) ? INT64_MAX : pHelper->pCompInfo->blocks[blkIdx + 1].keyFirst - 1;
+    TSKEY keyLimit = (blkIdx == pIdx->numOfBlocks - 1) ? INT64_MAX : blockAtIdx(pHelper, blkIdx + 1)->keyFirst - 1;
 
     // rows1: number of rows must merge in this block
     int rows1 = tsdbGetRowsInRange(pDataCols, blockAtIdx(pHelper, blkIdx)->keyFirst, blockAtIdx(pHelper, blkIdx)->keyLast);
-    // rows2: max nuber of rows the block can have more
+    // rows2: max number of rows the block can have more
     int rows2 = pHelper->config.maxRowsPerFileBlock - blockAtIdx(pHelper, blkIdx)->numOfRows;
     // rows3: number of rows between this block and the next block
     int rows3 = tsdbGetRowsInRange(pDataCols, blockAtIdx(pHelper, blkIdx)->keyFirst, keyLimit);
 
     ASSERT(rows3 >= rows1);
 
-    if ((rows2 >= rows1) &&
-        (( blockAtIdx(pHelper, blkIdx)->last) ||
-         ((rows1 + blockAtIdx(pHelper, blkIdx)->numOfRows < pHelper->config.minRowsPerFileBlock) && (pHelper->files.nLastF.fd < 0)))) {
+    if ((rows2 >= rows1) && (blockAtIdx(pHelper, blkIdx)->numOfSubBlocks < TSDB_MAX_SUBBLOCKS) &&
+        ((!blockAtIdx(pHelper, blkIdx)->last) ||
+         ((rows1 + blockAtIdx(pHelper, blkIdx)->numOfRows < pHelper->config.minRowsPerFileBlock) &&
+          (pHelper->files.nLastF.fd < 0)))) {
       rowsWritten = rows1;
       bool   isLast = false;
       SFile *pFile = NULL;
@@ -964,7 +965,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
 
       if (tsdbWriteBlockToFile(pHelper, pFile, pDataCols, rows1, &compBlock, isLast, false) < 0) goto _err;
       if (tsdbAddSubBlock(pHelper, &compBlock, blkIdx, rowsWritten) < 0) goto _err;
-    } else { // Load-Merge-Write
+    } else {  // Load-Merge-Write
       // Load
       if (tsdbLoadBlockData(pHelper, blockAtIdx(pHelper, blkIdx), NULL) < 0) goto _err;
       if (blockAtIdx(pHelper, blkIdx)->last) pHelper->hasOldLastBlock = false;
