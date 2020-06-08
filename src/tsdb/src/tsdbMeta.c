@@ -323,7 +323,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
 
   pTable = (STable *)calloc(1, sizeof(STable));
   if (pTable == NULL) {
-    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
   }
 
@@ -343,7 +343,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     tsize = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
     pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
     if (pTable->name == NULL) {
-      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
     }
     STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, tsize);
@@ -352,7 +352,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes, 1, 0, 0,
                                      getTagIndexKey);  // Allow duplicate key, no lock
     if (pTable->pIndex == NULL) {
-      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
     }
   } else {
@@ -364,7 +364,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     tsize = strnlen(pCfg->name, TSDB_TABLE_NAME_LEN);
     pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
     if (pTable->name == NULL) {
-      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
     }
     STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->name, tsize);
@@ -399,7 +399,7 @@ static int tsdbUpdateTableTagSchema(STable *pTable, STSchema *newSchema) {
   ASSERT(schemaVersion(pTable->tagSchema) < schemaVersion(newSchema));
   STSchema *pOldSchema = pTable->tagSchema;
   STSchema *pNewSchema = tdDupSchema(newSchema);
-  if (pNewSchema == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (pNewSchema == NULL) return TSDB_CODE_TDB_OUT_OF_MEMORY;
   pTable->tagSchema = pNewSchema;
   tdFreeSchema(pOldSchema);
 
@@ -454,7 +454,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
   if (pTable != NULL) {
     tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
               pTable->tableId.tid, pTable->tableId.uid);
-    return TSDB_CODE_TABLE_ALREADY_EXIST;
+    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
   STable *super = NULL;

@@ -80,7 +80,7 @@ void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
   HttpSqlCmd *singleCmd = multiCmds->cmds + multiCmds->pos;
   char *      sql = httpGetCmdsString(pContext, singleCmd->sql);
 
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     httpWarn("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, code:%s:inprogress, sql:%s",
              pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, tstrerror(code), sql);
     return;
@@ -234,7 +234,7 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
 
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s:inprogress, sqlObj:%p",
               pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), (SSqlObj *)result);
     return;
@@ -242,7 +242,7 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
 
   if (code < 0) {
     SSqlObj *pObj = (SSqlObj *)result;
-    if (code == TSDB_CODE_INVALID_SQL) {
+    if (code == TSDB_CODE_TSC_INVALID_SQL) {
       httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s, sqlObj:%p, error:%s",
                 pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), pObj, pObj->cmd.payload);
       httpSendTaosdInvalidSqlErrorResp(pContext, pObj->cmd.payload);

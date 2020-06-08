@@ -44,7 +44,7 @@ void mnodeAddReadMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *pMsg)) {
 int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
     mError("%p, msg:%s in mread queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-    return TSDB_CODE_INVALID_MSG_LEN;
+    return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
   if (!sdbIsMaster()) {
@@ -59,12 +59,12 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
 
-    return TSDB_CODE_REDIRECT;
+    return TSDB_CODE_RPC_REDIRECT;
   }
 
   if (tsMnodeProcessReadMsgFp[pMsg->rpcMsg.msgType] == NULL) {
     mError("%p, msg:%s in mread queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-    return TSDB_CODE_MSG_NOT_PROCESSED;
+    return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
   int32_t code = mnodeInitMsg(pMsg);

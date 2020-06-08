@@ -68,7 +68,7 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
   // refer to db
   SDbObj *pDb = mnodeGetDb(pVgroup->dbName);
   if (pDb == NULL) {
-    return TSDB_CODE_INVALID_DB;
+    return TSDB_CODE_MND_INVALID_DB;
   }
 
   pVgroup->pDb = pDb;
@@ -185,7 +185,7 @@ static int32_t mnodeVgroupActionEncode(SSdbOper *pOper) {
 
 static int32_t mnodeVgroupActionDecode(SSdbOper *pOper) {
   SVgObj *pVgroup = (SVgObj *) calloc(1, sizeof(SVgObj));
-  if (pVgroup == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (pVgroup == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   memcpy(pVgroup, pOper->rowData, tsVgUpdateSize);
   pOper->pObj = pVgroup;
@@ -307,7 +307,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   if (balanceAllocVnodes(pVgroup) != 0) {
     mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
-    return TSDB_CODE_NO_ENOUGH_DNODES;
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
   SSdbOper oper = {
@@ -320,7 +320,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pVgroup);
-    return TSDB_CODE_SDB_ERROR;
+    return TSDB_CODE_MND_SDB_ERROR;
   }
 
   mPrint("vgId:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
@@ -333,7 +333,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   pMsg->expected = pVgroup->numOfVnodes;
   mnodeSendCreateVgroupMsg(pVgroup, pMsg);
 
-  return TSDB_CODE_ACTION_IN_PROGRESS;
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
 void mnodeDropVgroup(SVgObj *pVgroup, void *ahandle) {
@@ -358,7 +358,7 @@ void mnodeCleanupVgroups() {
 int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) {
-    return TSDB_CODE_DB_NOT_SELECTED;
+    return TSDB_CODE_MND_DB_NOT_SELECTED;
   }
 
   int32_t cols = 0;
@@ -383,11 +383,11 @@ int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
     pTable = mnodeGetTable(pShow->payload);
     if (NULL == pTable || pTable->type == TSDB_SUPER_TABLE) {
       mnodeDecTableRef(pTable);
-      return TSDB_CODE_INVALID_TABLE_ID;
+      return TSDB_CODE_MND_INVALID_TABLE_ID;
     }
     mnodeDecTableRef(pTable);
     pVgroup = mnodeGetVgroup(((SChildTableObj*)pTable)->vgId);
-    if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
+    if (NULL == pVgroup) return TSDB_CODE_MND_INVALID_TABLE_ID;
     mnodeDecVgroupRef(pVgroup);
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
   } else {
@@ -643,7 +643,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     };
     int32_t code = sdbDeleteRow(&oper);
     if (code != 0) {
-      code = TSDB_CODE_SDB_ERROR;
+      code = TSDB_CODE_MND_SDB_ERROR;
     }
 
     dnodeSendRpcMnodeWriteRsp(mnodeMsg, code);
@@ -704,7 +704,7 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   };
   int32_t code = sdbDeleteRow(&oper);
   if (code != 0) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   dnodeReprocessMnodeWriteMsg(mnodeMsg);
@@ -718,14 +718,14 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnode(pCfg->dnodeId);
   if (pDnode == NULL) {
     mTrace("dnode:%s, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
-    return TSDB_CODE_INVALID_VGROUP_ID;
+    return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
   mnodeDecDnodeRef(pDnode);
 
   SVgObj *pVgroup = mnodeGetVgroup(pCfg->vgId);
   if (pVgroup == NULL) {
     mTrace("dnode:%s, vgId:%d, no vgroup info", taosIpStr(pCfg->dnodeId), pCfg->vgId);
-    return TSDB_CODE_INVALID_VGROUP_ID;
+    return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
   mnodeDecVgroupRef(pVgroup);
 

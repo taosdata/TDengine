@@ -40,10 +40,14 @@ int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen,
   SVnodeObj *pVnode = (SVnodeObj *)param;
 
   if (vnodeProcessReadMsgFp[msgType] == NULL)
-    return TSDB_CODE_MSG_NOT_PROCESSED;
+    return TSDB_CODE_VND_MSG_NOT_PROCESSED;
 
   if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
-    return TSDB_CODE_INVALID_VGROUP_ID; 
+    return TSDB_CODE_VND_INVALID_VGROUP_ID; 
+
+  // TODO: Later, let slave to support query
+  if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
+    return TSDB_CODE_RPC_NOT_READY;
 
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pCont, contLen, ret);
 }
@@ -69,7 +73,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   } else {
     assert(pCont != NULL);
     pQInfo = pCont;
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
+    code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
   }
 
   if (pQInfo != NULL) {
@@ -99,7 +103,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
 
     if (qHasMoreResultsToRetrieve(pQInfo)) {
       pRet->qhandle = pQInfo;
-      code = TSDB_CODE_ACTION_NEED_REPROCESSED;
+      code = TSDB_CODE_VND_ACTION_NEED_REPROCESSED;
     } else {
       // no further execution invoked, release the ref to vnode
       qDestroyQueryInfo(pQInfo);

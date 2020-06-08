@@ -79,7 +79,7 @@ void dnodeCleanupMnodePeer() {
 
 int32_t dnodeAllocateMnodePqueue() {
   tsMPeerQueue = taosOpenQueue();
-  if (tsMPeerQueue == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (tsMPeerQueue == NULL) return TSDB_CODE_DND_OUT_OF_MEMORY;
 
   taosAddIntoQset(tsMPeerQset, tsMPeerQueue, NULL);
 
@@ -125,7 +125,7 @@ static void dnodeFreeMnodePeerMsg(SMnodeMsg *pPeer) {
 }
 
 static void dnodeSendRpcMnodePeerRsp(SMnodeMsg *pPeer, int32_t code) {
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
 
   SRpcMsg rpcRsp = {
     .handle  = pPeer->rpcMsg.handle,
