@@ -78,30 +78,23 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
   int code = tscGetTableMeta(pSql, pTableMetaInfo);
   pSql->res.code = code;
 
-  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
-
   if (code == 0 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     code = tscGetSTableVgroupInfo(pSql, 0);
     pSql->res.code = code;
-
-    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
   }
-
-  tscTansformSQLFuncForSTableQuery(pQueryInfo);
 
   // failed to get meter/metric meta, retry in 10sec.
   if (code != TSDB_CODE_SUCCESS) {
     int64_t retryDelayTime = tscGetRetryDelayTime(pStream->slidingTime, pStream->precision);
     tscError("%p stream:%p,get metermeta failed, retry in %" PRId64 "ms", pStream->pSql, pStream, retryDelayTime);
-  
     tscSetRetryTimer(pStream, pSql, retryDelayTime);
-    return;
+
+  } else {
+    tscTansformSQLFuncForSTableQuery(pQueryInfo);
+    tscTrace("%p stream:%p start stream query on:%s", pSql, pStream, pTableMetaInfo->name);
+    tscDoQuery(pStream->pSql);
+    tscIncStreamExecutionCount(pStream);
   }
-
-  tscTrace("%p stream:%p start stream query on:%s", pSql, pStream, pTableMetaInfo->name);
-  tscDoQuery(pStream->pSql);
-
-  tscIncStreamExecutionCount(pStream);
 }
 
 static void tscProcessStreamTimer(void *handle, void *tmrId) {
