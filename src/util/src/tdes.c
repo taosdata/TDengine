@@ -18,6 +18,7 @@ void generate_key(unsigned char* key);
 void generate_sub_keys(unsigned char* main_key, key_set* key_sets);
 void process_message(unsigned char* message_piece, unsigned char* processed_piece, key_set* key_sets, int mode);
 
+#if 0
 int64_t taosDesGenKey() {
   unsigned int iseed = (unsigned int)time(NULL);
   srand(iseed);
@@ -27,6 +28,7 @@ int64_t taosDesGenKey() {
 
   return *((int64_t*)key);
 }
+#endif
 
 char* taosDesImp(unsigned char* key, char* src, unsigned int len, int process_mode) {
   unsigned int  number_of_blocks = len / 8;
