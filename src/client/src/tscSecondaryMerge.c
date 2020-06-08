@@ -161,7 +161,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
   
     tscError("%p pMemBuffer is NULL", pMemBuffer);
-    pRes->code = TSDB_CODE_APP_ERROR;
+    pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
  
@@ -169,7 +169,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
 
     tscError("%p no local buffer or intermediate result format model", pSql);
-    pRes->code = TSDB_CODE_APP_ERROR;
+    pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
 
@@ -196,7 +196,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
              pMemBuffer[0]->pageSize);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
-    pRes->code = TSDB_CODE_APP_ERROR;
+    pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
 
@@ -207,7 +207,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tscError("%p failed to create local merge structure, out of memory", pSql);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;
   }
 
@@ -217,7 +217,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   pReducer->numOfBuffer = numOfFlush;
   pReducer->numOfVnode = numOfBuffer;
-
+  
   pReducer->pDesc = pDesc;
   tscTrace("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
 
@@ -229,7 +229,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
       SLocalDataSource *ds = (SLocalDataSource *)malloc(sizeof(SLocalDataSource) + pMemBuffer[0]->pageSize);
       if (ds == NULL) {
         tscError("%p failed to create merge structure", pSql);
-        pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+        pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         return;
       }
       
@@ -278,6 +278,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   param->groupOrderType = pQueryInfo->groupbyExpr.orderType;
+  pReducer->orderPrjOnSTable = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
 
   pRes->code = tLoserTreeCreate(&pReducer->pLoserTree, pReducer->numOfBuffer, param, treeComparator);
   if (pReducer->pLoserTree == NULL || pRes->code != 0) {
@@ -309,10 +310,10 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->nResultBufSize = pMemBuffer[0]->pageSize * 16;
   pReducer->pResultBuf = (tFilePage *)calloc(1, pReducer->nResultBufSize + sizeof(tFilePage));
 
-  int32_t finalRowLength = tscGetResRowLength(pQueryInfo->exprList);
+  pReducer->finalRowSize = tscGetResRowLength(pQueryInfo->exprList);
   pReducer->resColModel = finalmodel;
-  pReducer->resColModel->capacity = pReducer->nResultBufSize / finalRowLength;
-  assert(finalRowLength <= pReducer->rowSize);
+  pReducer->resColModel->capacity = pReducer->nResultBufSize / pReducer->finalRowSize;
+  assert(pReducer->finalRowSize <= pReducer->rowSize);
 
   pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
 //  pReducer->pBufForInterpo = calloc(1, pReducer->nResultBufSize);
@@ -326,7 +327,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 //    tfree(pReducer->pBufForInterpo);
     tfree(pReducer->prevRowOfInput);
 
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;
   }
   
@@ -389,7 +390,7 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
   assert(pPage->num <= pDesc->pColumnModel->capacity);
 
   // sort before flush to disk, the data must be consecutively put on tFilePage.
-  if (pDesc->orderIdx.numOfCols > 0) {
+  if (pDesc->orderInfo.numOfCols > 0) {
     tColDataQSort(pDesc, pPage->num, 0, pPage->num - 1, pPage->data, orderType);
   }
 
@@ -560,7 +561,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
 
   int32_t *orderIdx = (int32_t *)calloc(numOfGroupByCols, sizeof(int32_t));
   if (orderIdx == NULL) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   if (numOfGroupByCols > 0) {
@@ -581,7 +582,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
   tfree(orderIdx);
 
   if (*pOrderDesc == NULL) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   } else {
     return TSDB_CODE_SUCCESS;
   }
@@ -590,12 +591,10 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
 bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage *tmpBuffer) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
-  int16_t functionId = tscSqlExprGet(pQueryInfo, 0)->functionId;
-
   // disable merge procedure for column projection query
+  int16_t functionId = pReducer->pCtx[0].functionId;
   assert(functionId != TSDB_FUNC_ARITHM);
-
-  if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+  if (pReducer->orderPrjOnSTable) {
     return true;
   }
 
@@ -604,26 +603,33 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
   }
 
   tOrderDescriptor *pOrderDesc = pReducer->pDesc;
-  int32_t           numOfCols = pOrderDesc->orderIdx.numOfCols;
-
+  SColumnOrderInfo* orderInfo = &pOrderDesc->orderInfo;
+  
   // no group by columns, all data belongs to one group
+  int32_t numOfCols = orderInfo->numOfCols;
   if (numOfCols <= 0) {
     return true;
   }
 
-  if (pOrderDesc->orderIdx.pData[numOfCols - 1] == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  //<= 0
-    // super table interval query
+  if (orderInfo->pData[numOfCols - 1] == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    /*
+     * super table interval query
+     * if the order columns is the primary timestamp, all result data belongs to one group
+     */
     assert(pQueryInfo->intervalTime > 0);
-    pOrderDesc->orderIdx.numOfCols -= 1;
+    if (numOfCols == 1) {
+      return true;
+    }
   } else {  // simple group by query
     assert(pQueryInfo->intervalTime == 0);
   }
 
   // only one row exists
-  int32_t ret = compare_a(pOrderDesc, 1, 0, pPrev, 1, 0, tmpBuffer->data);
-  pOrderDesc->orderIdx.numOfCols = numOfCols;
-
-  return (ret == 0);
+  int32_t index = orderInfo->pData[0];
+  int32_t offset = (pOrderDesc->pColumnModel)->pFields[index].offset;
+  
+  int32_t ret = memcmp(pPrev + offset, tmpBuffer->data + offset, pOrderDesc->pColumnModel->rowSize - offset);
+  return ret == 0;
 }
 
 int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOrderDescriptor **pOrderDesc,
@@ -641,7 +647,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pSql->numOfSubs);
   if (*pMemBuffer == NULL) {
     tscError("%p failed to allocate memory", pSql);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
   
@@ -650,7 +656,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
   if (pSchema == NULL) {
     tscError("%p failed to allocate memory", pSql);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
 
@@ -678,7 +684,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   }
 
   if (createOrderDescriptor(pOrderDesc, pCmd, pModel) != TSDB_CODE_SUCCESS) {
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
 
@@ -873,24 +879,24 @@ static void reversedCopyFromInterpolationToDstBuf(SQueryInfo *pQueryInfo, SSqlRe
  * Note: pRes->pLocalReducer may be null, due to the fact that "tscDestroyLocalReducer" is called
  * by "interuptHandler" function in shell
  */
-static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneOutput) {
+static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneOutput) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SSqlRes *   pRes = &pSql->res;
   
   tFilePage * pFinalDataPage = pLocalReducer->pResultBuf;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
-  if (pRes->pLocalReducer != pLocalReducer) {
-    /*
-     * Release the SSqlObj is called, and it is int destroying function invoked by other thread.
-     * However, the other thread will WAIT until current process fully completes.
-     * Since the flag of release struct is set by doLocalReduce function
-     */
-    assert(pRes->pLocalReducer == NULL);
-  }
+//  if (pRes->pLocalReducer != pLocalReducer) {
+//    /*
+//     * Release the SSqlObj is called, and it is int destroying function invoked by other thread.
+//     * However, the other thread will WAIT until current process fully completes.
+//     * Since the flag of release struct is set by doLocalReduce function
+//     */
+//    assert(pRes->pLocalReducer == NULL);
+//  }
 
+  // no interval query, no fill operation
   if (pQueryInfo->intervalTime == 0 || pQueryInfo->fillType == TSDB_FILL_NONE) {
-    // no interval query, no fill operation
     pRes->data = pLocalReducer->pFinalRes;
     pRes->numOfRows = pFinalDataPage->num;
     pRes->numOfClauseTotal += pRes->numOfRows;
@@ -929,9 +935,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
       savePrevRecordAndSetupInterpoInfo(pLocalReducer, pQueryInfo, pLocalReducer->pFillInfo);
     }
 
-    int32_t rowSize = tscGetResRowLength(pQueryInfo->exprList);
-    memcpy(pRes->data, pFinalDataPage->data, pRes->numOfRows * rowSize);
-
+    memcpy(pRes->data, pFinalDataPage->data, pRes->numOfRows * pLocalReducer->finalRowSize);
     pFinalDataPage->num = 0;
     return;
   }
@@ -1037,16 +1041,13 @@ static void savePreviousRow(SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) 
 static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer, bool needInit) {
   // the tag columns need to be set before all functions execution
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
-
   for (int32_t j = 0; j < size; ++j) {
-    SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, j);
     SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[j];
 
-    tVariantAssign(&pCtx->param[0], &pExpr->param[0]);
-
     // tags/tags_dummy function, the tag field of SQLFunctionCtx is from the input buffer
-    int32_t functionId = pExpr->functionId;
+    int32_t functionId = pCtx->functionId;
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS_DUMMY) {
       tVariantDestroy(&pCtx->tag);
       char* input = pCtx->aInputElemBuf;
@@ -1057,17 +1058,20 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
       } else {
         tVariantCreateFromBinary(&pCtx->tag, input, pCtx->inputBytes, pCtx->inputType);
       }
+    } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
+      SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, j);
+      pCtx->param[0].i64Key = pExpr->param[0].i64Key;
     }
 
     pCtx->currentStage = SECONDARY_STAGE_MERGE;
 
     if (needInit) {
-      aAggs[pExpr->functionId].init(pCtx);
+      aAggs[pCtx->functionId].init(pCtx);
     }
   }
 
   for (int32_t j = 0; j < size; ++j) {
-    int32_t functionId = tscSqlExprGet(pQueryInfo, j)->functionId;
+    int32_t functionId = pLocalReducer->pCtx[j].functionId;
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
@@ -1101,8 +1105,7 @@ static int64_t getNumOfResultLocal(SQueryInfo *pQueryInfo, SQLFunctionCtx *pCtx)
      * ts, tag, tagprj function can not decide the output number of current query
      * the number of output result is decided by main output
      */
-    SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, j);
-    int32_t   functionId = pExpr->functionId;
+    int32_t functionId = pCtx[j].functionId;
     if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ) {
       continue;
     }
@@ -1136,15 +1139,13 @@ static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLo
 
   char *buf = malloc((size_t)maxBufSize);
   for (int32_t k = 0; k < size; ++k) {
-    SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, k);
-    if (pExpr->functionId != TSDB_FUNC_TAG) {
+    SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[k];
+    if (pCtx->functionId != TSDB_FUNC_TAG) {
       continue;
     }
 
     int32_t inc = numOfRes - 1;  // tsdb_func_tag function only produce one row of result
     memset(buf, 0, (size_t)maxBufSize);
-
-    SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[k];
     memcpy(buf, pCtx->aOutputBuf, (size_t)pCtx->outputBytes);
 
     for (int32_t i = 0; i < inc; ++i) {
@@ -1160,8 +1161,8 @@ int32_t finalizeRes(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   
   for (int32_t k = 0; k < size; ++k) {
-    SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, k);
-    aAggs[pExpr->functionId].xFinalize(&pLocalReducer->pCtx[k]);
+    SQLFunctionCtx* pCtx = &pLocalReducer->pCtx[k];
+    aAggs[pCtx->functionId].xFinalize(pCtx);
   }
 
   pLocalReducer->hasPrevRow = false;
@@ -1182,13 +1183,13 @@ int32_t finalizeRes(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {
  */
 bool needToMerge(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) {
   int32_t ret = 0;  // merge all result by default
-  int16_t functionId = tscSqlExprGet(pQueryInfo, 0)->functionId;
-
+  
+  int16_t functionId = pLocalReducer->pCtx[0].functionId;
   if (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_ARITHM) {  // column projection query
     ret = 1;                                                            // disable merge procedure
   } else {
     tOrderDescriptor *pDesc = pLocalReducer->pDesc;
-    if (pDesc->orderIdx.numOfCols > 0) {
+    if (pDesc->orderInfo.numOfCols > 0) {
       if (pDesc->tsOrder == TSDB_ORDER_ASC) {  // asc
         // todo refactor comparator
         ret = compare_a(pLocalReducer->pDesc, 1, 0, pLocalReducer->prevRowOfInput, 1, 0, tmpBuffer->data);
@@ -1274,7 +1275,7 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
     taosFillCopyInputDataFromOneFilePage(pFillInfo, pResBuf);
   }
   
-  doInterpolateResult(pSql, pLocalReducer, noMoreCurrentGroupRes);
+  doFillResult(pSql, pLocalReducer, noMoreCurrentGroupRes);
   return true;
 }
 
@@ -1341,7 +1342,7 @@ static bool doBuildFilledResultForGroup(SSqlObj *pSql) {
     // the first column must be the timestamp column
     int32_t rows = taosGetNumOfResultWithFill(pFillInfo, remain, ekey, pLocalReducer->resColModel->capacity);
     if (rows > 0) {  // do interpo
-      doInterpolateResult(pSql, pLocalReducer, false);
+      doFillResult(pSql, pLocalReducer, false);
     }
 
     return true;
@@ -1374,7 +1375,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
                                    pQueryInfo->slidingTimeUnit, tinfo.precision);
       int32_t rows = taosGetNumOfResultWithFill(pFillInfo, 0, etime, pLocalReducer->resColModel->capacity);
       if (rows > 0) {  // do interpo
-        doInterpolateResult(pSql, pLocalReducer, true);
+        doFillResult(pSql, pLocalReducer, true);
       }
     }
 
@@ -1408,13 +1409,11 @@ static void doProcessResultInNextWindow(SSqlObj *pSql, int32_t numOfRes) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
 
   for (int32_t k = 0; k < size; ++k) {
-    SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, k);
     SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[k];
-
     pCtx->aOutputBuf += pCtx->outputBytes * numOfRes;
 
     // set the correct output timestamp column position
-    if (pExpr->functionId == TSDB_FUNC_TOP || pExpr->functionId == TSDB_FUNC_BOTTOM) {
+    if (pCtx->functionId == TSDB_FUNC_TOP || pCtx->functionId == TSDB_FUNC_BOTTOM) {
       pCtx->ptsOutputBuf = ((char *)pCtx->ptsOutputBuf + TSDB_KEYSIZE * numOfRes);
     }
   }

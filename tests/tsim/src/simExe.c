@@ -538,7 +538,7 @@ int simExecuteRestFulCommand(SScript *script, char *command) {
   FILE *fp = popen(buf, "r");
   if (fp == NULL) {
     simError("failed to execute %s", buf);
-    return TSDB_CODE_OTHERS;
+    return -1;
   }
 
   int mallocSize = 2000;
@@ -642,7 +642,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
     pSql = taos_query(script->taos, rest);
     ret = taos_errno(pSql);
     
-    if (ret == TSDB_CODE_TABLE_ALREADY_EXIST || ret == TSDB_CODE_DB_ALREADY_EXIST) {
+    if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST || ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
       simTrace("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
       ret = 0;
       break;
@@ -791,8 +791,8 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
   int ret = -1;
   for (int attempt = 0; attempt < 10; ++attempt) {
     ret = simExecuteRestFulCommand(script, command);
-    if (ret == TSDB_CODE_TABLE_ALREADY_EXIST ||
-        ret == TSDB_CODE_DB_ALREADY_EXIST) {
+    if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST ||
+        ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
       simTrace("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
       ret = 0;
       break;

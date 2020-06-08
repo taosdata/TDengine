@@ -53,7 +53,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   sem_init(&pSql->rspSem, 0, 0);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("failed to malloc payload");
-    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return;
   }
   
@@ -61,7 +61,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
-    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     free(pCmd->payload);
     return;
   }
@@ -73,7 +73,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   tscDump("%p SQL: %s", pSql, pSql->sqlstr);
   
   int32_t code = tsParseSql(pSql, true);
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
   
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
@@ -89,16 +89,16 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     tscError("bug!!! pObj:%p", pObj);
-    terrno = TSDB_CODE_DISCONNECTED;
-    tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
     return;
   }
   
   int32_t sqlLen = strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
-    terrno = TSDB_CODE_INVALID_SQL;
-    tscQueueAsyncError(fp, param, TSDB_CODE_INVALID_SQL);
+    terrno = TSDB_CODE_TSC_INVALID_SQL;
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_SQL);
     return;
   }
   
@@ -107,8 +107,8 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
-    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    tscQueueAsyncError(fp, param, TSDB_CODE_CLI_OUT_OF_MEMORY);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return;
   }
   
@@ -203,7 +203,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
     return;
   }
 
@@ -212,7 +212,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_INVALID_QHANDLE);
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_QHANDLE);
     return;
   }
 
@@ -260,7 +260,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_DISCONNECTED);
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
     return;
   }
 
@@ -269,7 +269,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_INVALID_QHANDLE);
+    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_QHANDLE);
     return;
   }
 
@@ -466,7 +466,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscGetSTableVgroupInfo(pSql, 0);
       pRes->code = code;
 
-      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
     } else {  // normal async query continues
       if (pCmd->parseFinished) {
         tscTrace("%p re-send data to vnode in table Meta callback since sql parsed completed", pSql);
@@ -491,7 +491,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           return;
         }
         
-        if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
       }
     }
 
@@ -500,13 +500,13 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     code = tscGetTableMeta(pSql, pTableMetaInfo);
     pRes->code = code;
 
-    if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
 
     if (code == TSDB_CODE_SUCCESS && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       code = tscGetSTableVgroupInfo(pSql, pCmd->clauseIndex);
       pRes->code = code;
 
-      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
     }
   }
 

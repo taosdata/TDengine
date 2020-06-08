@@ -348,7 +348,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   
   //prepare the subqueries object failed, abort
   if (!success) {
-    pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to prepare subqueries objs for secondary phase query, numOfSub:%d, code:%d", pSql,
         pSql->numOfSubs, pSql->res.code);
     freeJoinSubqueryObj(pSql);
@@ -698,7 +698,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
     if (pBuf == NULL) {
       tscError("%p invalid ts comp file from vnode, abort subquery, file size:%d", pSql, numOfRows);
 
-      pSupporter->pState->code = TSDB_CODE_APP_ERROR;  // todo set the informative code
+      pSupporter->pState->code = TSDB_CODE_TSC_APP_ERROR;  // todo set the informative code
       quitAllSubquery(pParentSql, pSupporter);
       return;
     }
@@ -1019,13 +1019,13 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   if (pSql->pSubs == NULL) {
     pSql->pSubs = calloc(pSupporter->pState->numOfTotal, POINTER_BYTES);
     if (pSql->pSubs == NULL) {
-      return TSDB_CODE_CLI_OUT_OF_MEMORY;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
   
   SSqlObj *pNew = createSubqueryObj(pSql, tableIndex, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
   if (pNew == NULL) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   
   pSql->pSubs[pSql->numOfSubs++] = pNew;
@@ -1163,7 +1163,7 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
     if (pSupporter == NULL) {  // failed to create support struct, abort current query
       tscError("%p tableIndex:%d, failed to allocate join support object, abort further query", pSql, i);
       pState->numOfCompleted = pQueryInfo->numOfTables - i - 1;
-      pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       
       return pSql->res.code;
     }
@@ -1171,7 +1171,7 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
     int32_t code = tscLaunchJoinSubquery(pSql, i, pSupporter);
     if (code != TSDB_CODE_SUCCESS) {  // failed to create subquery object, quit query
       tscDestroyJoinSupporter(pSupporter);
-      pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       
       break;
     }
@@ -1209,7 +1209,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   
   // pRes->code check only serves in launching metric sub-queries
-  if (pRes->code == TSDB_CODE_QUERY_CANCELLED) {
+  if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
     pCmd->command = TSDB_SQL_RETRIEVE_LOCALMERGE;  // enable the abort of kill super table function.
     return pRes->code;
   }
@@ -1230,7 +1230,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
   if (ret != 0) {
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscQueueAsyncRes(pSql);
     return ret;
   }
@@ -1291,14 +1291,14 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   if (i < pSql->numOfSubs) {
     tscError("%p failed to prepare subquery structure and launch subqueries", pSql);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     
     tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->numOfSubs);
     doCleanupSubqueries(pSql, i, pState);
     return pRes->code;   // free all allocated resource
   }
   
-  if (pRes->code == TSDB_CODE_QUERY_CANCELLED) {
+  if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
     tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->numOfSubs);
     doCleanupSubqueries(pSql, i, pState);
     return pRes->code;
@@ -1369,7 +1369,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     
     /*
      * kill current sub-query connection, which may retrieve data from vnodes;
-     * Here we get: pPObj->res.code == TSDB_CODE_QUERY_CANCELLED
+     * Here we get: pPObj->res.code == TSDB_CODE_TSC_QUERY_CANCELLED
      */
     pSql->res.numOfRows = 0;
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;  // disable retry efforts
@@ -1401,7 +1401,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
         tscError("%p sub:%p failed to create new subquery sqlObj due to out of memory, abort retry",
                  trsupport->pParentSqlObj, pSql);
         
-        pState->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+        pState->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
         return;
       }
@@ -1475,7 +1475,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
     tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pPObj, pSql,
              tsAvailTmpDirGB, tsMinimalTmpDirGB);
-    tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_CLI_NO_DISKSPACE);
+    tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_TSC_NO_DISKSPACE);
     return;
   }
   
@@ -1484,7 +1484,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   int32_t ret = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer,
                                   pQueryInfo->groupbyExpr.orderType);
   if (ret != 0) { // set no disk space error info, and abort retry
-    return tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_CLI_NO_DISKSPACE);
+    return tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_TSC_NO_DISKSPACE);
   }
   
   // keep this value local variable, since the pState variable may be released by other threads, if atomic_add opertion
@@ -1557,13 +1557,13 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
     
-//    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%u,vid:%d,orderOfSub:%d", pPObj, pSql,
-//             pRes->numOfRows, pState->numOfRetrievedRows, pSvd->ip, pSvd->vnode, idx);
+    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%s, orderOfSub:%d", pPObj, pSql,
+             pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
     
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId64 " , current:%" PRId64,
                pPObj, pSql, tsMaxNumOfOrderedResults, num);
-      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_SORTED_RES_TOO_MANY);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
       return;
     }
 
@@ -1578,14 +1578,14 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
       tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pPObj, pSql,
                tsAvailTmpDirGB, tsMinimalTmpDirGB);
-      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
       return;
     }
     
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pRes->data,
                                pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
     if (ret < 0) { // set no disk space error info, and abort retry
-      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
       
     } else if (pRes->completed) {
       tscAllDataRetrievedFromDnode(trsupport, pSql);
@@ -1672,7 +1672,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
         tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vgId:%d, orderOfSub:%d",
                  trsupport->pParentSqlObj, pSql, pVgroup->vgId, trsupport->subqueryIndex);
         
-        pState->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+        pState->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
       } else {
         SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
@@ -1713,6 +1713,11 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
   // increase the total inserted rows
   if (numOfRows > 0) {
     pParentObj->res.numOfRows += numOfRows;
+  } else {
+    SSqlObj* pSql = (SSqlObj*) tres;
+    assert(pSql != NULL && pSql->res.code == numOfRows);
+    
+    pParentObj->res.code = pSql->res.code;
   }
   
   taos_free_result(tres);
@@ -1778,7 +1783,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   
   if (i < pSql->numOfSubs) {
     tscError("%p failed to prepare subObj structure and launch sub-insertion", pSql);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;  // free all allocated resource
   }
   
@@ -1947,7 +1952,8 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
-  for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
+  size_t size = tscNumOfFields(pQueryInfo);
+  for (int i = 0; i < size; ++i) {
     SFieldSupInfo* pSup = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, i);
     if (pSup->pSqlExpr != NULL) {
       tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);

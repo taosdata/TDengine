@@ -28,19 +28,19 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
 
   if (!FD_VALID(pResBuf->fd)) {
     qError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
-    return TSDB_CODE_CLI_NO_DISKSPACE;
+    return TSDB_CODE_QRY_NO_DISKSPACE;
   }
 
   int32_t ret = ftruncate(pResBuf->fd, pResBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE);
   if (ret != TSDB_CODE_SUCCESS) {
     qError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
-    return TSDB_CODE_CLI_NO_DISKSPACE;
+    return TSDB_CODE_QRY_NO_DISKSPACE;
   }
 
   pResBuf->pBuf = mmap(NULL, pResBuf->totalBufSize, PROT_READ | PROT_WRITE, MAP_SHARED, pResBuf->fd, 0);
   if (pResBuf->pBuf == MAP_FAILED) {
     qError("QInfo:%p failed to map temp file: %s. %s", handle, pResBuf->path, strerror(errno));
-    return TSDB_CODE_CLI_OUT_OF_MEMORY; // todo change error code
+    return TSDB_CODE_QRY_OUT_OF_MEMORY; // todo change error code
   }
 
   qTrace("QInfo:%p create tmp file for output result, %s, %" PRId64 "bytes", handle, pResBuf->path,
@@ -48,12 +48,6 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
   
   *pResultBuf = pResBuf;
   return TSDB_CODE_SUCCESS;
-}
-
-tFilePage* getResultBufferPageById(SDiskbasedResultBuf* pResultBuf, int32_t id) {
-  assert(id < pResultBuf->numOfPages && id >= 0);
-
-  return (tFilePage*)(pResultBuf->pBuf + DEFAULT_INTERN_BUF_PAGE_SIZE * id);
 }
 
 int32_t getNumOfResultBufGroupId(SDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->idsTable); }
@@ -74,7 +68,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOf
   if (ret != 0) {
     //    dError("QInfo:%p failed to create intermediate result output file:%s. %s", pQInfo, pSupporter->extBufFile,
     //           strerror(errno));
-    return -TSDB_CODE_SERV_NO_DISKSPACE;
+    return -TSDB_CODE_QRY_NO_DISKSPACE;
   }
 
   pResultBuf->totalBufSize = pResultBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE;
@@ -82,7 +76,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOf
 
   if (pResultBuf->pBuf == MAP_FAILED) {
     //    dError("QInfo:%p failed to map temp file: %s. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
-    return -TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return -TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -169,7 +163,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   *pageId = (pResultBuf->allocateId++);
   registerPageId(pResultBuf, groupId, *pageId);
 
-  tFilePage* page = getResultBufferPageById(pResultBuf, *pageId);
+  tFilePage* page = GET_RES_BUF_PAGE_BY_ID(pResultBuf, *pageId);
   
   // clear memory for the new page
   memset(page, 0, DEFAULT_INTERN_BUF_PAGE_SIZE);

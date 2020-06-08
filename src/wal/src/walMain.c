@@ -68,11 +68,19 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
   pWal->num = 0;
   pWal->level = pCfg->walLevel;
   pWal->keep = pCfg->keep;
-  strcpy(pWal->path, path);
+  tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
 
-  if (access(path, F_OK) != 0) mkdir(path, 0755);
-  
+  if (access(path, F_OK) != 0) {
+    if (mkdir(path, 0755) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      wError("wal:%s, failed to create directory(%s)", path, strerror(errno));
+      pthread_mutex_destroy(&pWal->mutex);
+      free(pWal);
+      pWal = NULL;
+    }
+  }
+     
   if (pCfg->keep == 1) return pWal;
 
   if (walHandleExistingFiles(path) == 0) 
@@ -80,7 +88,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
 
   if (pWal->fd <0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    wError("wal:%s, failed to open", path);
+    wError("wal:%s, failed to open(%s)", path, strerror(errno));
     pthread_mutex_destroy(&pWal->mutex);
     free(pWal);
     pWal = NULL;
@@ -119,7 +127,8 @@ void walClose(void *handle) {
 int walRenew(void *handle) {
   if (handle == NULL) return 0;
   SWal *pWal = handle;
-  int   code = 0;
+
+  terrno = 0;
 
   pthread_mutex_lock(&pWal->mutex);
 
@@ -135,8 +144,8 @@ int walRenew(void *handle) {
   pWal->fd = open(pWal->name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (pWal->fd < 0) {
-    wError("wal:%d, failed to open(%s)", pWal->name, strerror(errno));
-    code = -1;
+    wError("wal:%s, failed to open(%s)", pWal->name, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
   } else {
     wTrace("wal:%s, it is created", pWal->name);
 
@@ -156,13 +165,14 @@ int walRenew(void *handle) {
   
   pthread_mutex_unlock(&pWal->mutex);
 
-  return code;
+  return terrno;
 }
 
 int walWrite(void *handle, SWalHead *pHead) {
   SWal *pWal = handle;
-  int   code = 0;
   if (pWal == NULL) return -1;
+
+  terrno = 0;
 
   // no wal  
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
@@ -174,12 +184,12 @@ int walWrite(void *handle, SWalHead *pHead) {
 
   if(write(pWal->fd, pHead, contLen) != contLen) {
     wError("wal:%s, failed to write(%s)", pWal->name, strerror(errno));
-    code = -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
   } else {
     pWal->version = pHead->version;
   }
 
-  return code;
+  return terrno;
 }
 
 void walFsync(void *handle) {
@@ -196,11 +206,11 @@ void walFsync(void *handle) {
 
 int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) {
   SWal    *pWal = handle;
-  int      code = 0;
   struct   dirent *ent;
   int      count = 0;
   uint32_t maxId = 0, minId = -1, index =0;
 
+  terrno = 0;
   int   plen = strlen(walPrefix);
   char  opath[TSDB_FILENAME_LEN+5];
    
@@ -224,30 +234,30 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
   closedir(dir);
 
   if (count == 0) {
-    if (pWal->keep) code = walRenew(pWal);
-    return code;
+    if (pWal->keep) terrno = walRenew(pWal);
+    return terrno;
   }
 
   if ( count != (maxId-minId+1) ) {
     wError("wal:%s, messed up, count:%d max:%d min:%d", opath, count, maxId, minId);
-    code = -1;
+    terrno = TSDB_CODE_WAL_APP_ERROR;
   } else {
     wTrace("wal:%s, %d files will be restored", opath, count);
 
     for (index = minId; index<=maxId; ++index) {
       sprintf(pWal->name, "%s/%s%d", opath, walPrefix, index);
-      code = walRestoreWalFile(pWal, pVnode, writeFp);
-      if (code < 0) break;
+      terrno = walRestoreWalFile(pWal, pVnode, writeFp);
+      if (terrno < 0) break;
     }
   }
 
-  if (code == 0) {
+  if (terrno == 0) {
     if (pWal->keep == 0) {
-      code = walRemoveWalFiles(opath);
-      if (code == 0) {
+      terrno = walRemoveWalFiles(opath);
+      if (terrno == 0) {
         if (remove(opath) < 0) {
           wError("wal:%s, failed to remove directory(%s)", opath, strerror(errno));
-          code = -1;
+          terrno = TAOS_SYSTEM_ERROR(errno);
         }
       }
     } else { 
@@ -258,12 +268,12 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
       pWal->fd = open(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
       if (pWal->fd < 0) {
         wError("wal:%s, failed to open file(%s)", pWal->name, strerror(errno));
-        code = -1;
+        terrno = TAOS_SYSTEM_ERROR(errno);
       }
     }
   }
 
-  return code;
+  return terrno;
 }
 
 int walGetWalFile(void *handle, char *name, uint32_t *index) {
@@ -292,40 +302,47 @@ int walGetWalFile(void *handle, char *name, uint32_t *index) {
 }  
 
 static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
-  int   code = 0;
   char *name = pWal->name;
 
+  terrno = 0;
   char *buffer = malloc(1024000);  // size for one record
-  if (buffer == NULL) return -1;
+  if (buffer == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);   
+    return terrno;
+  }
 
   SWalHead *pHead = (SWalHead *)buffer;
 
   int fd = open(name, O_RDONLY);
   if (fd < 0) {
     wError("wal:%s, failed to open for restore(%s)", name, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
     free(buffer);
-    return -1;
+    return terrno;
   }
 
   wTrace("wal:%s, start to restore", name);
 
   while (1) {
     int ret = read(fd, pHead, sizeof(SWalHead));
-    if ( ret == 0) { code = 0; break;}  
+    if ( ret == 0)  break;  
 
     if (ret != sizeof(SWalHead)) {
       wWarn("wal:%s, failed to read head, skip, ret:%d(%s)", name, ret, strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(errno);
       break;
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wWarn("wal:%s, cksum is messed up, skip the rest of file", name);
+      terrno = TAOS_SYSTEM_ERROR(errno);
       break;
     } 
 
     ret = read(fd, pHead->cont, pHead->len);
     if ( ret != pHead->len) {
       wWarn("wal:%s, failed to read body, skip, len:%d ret:%d", name, pHead->len, ret);
+      terrno = TAOS_SYSTEM_ERROR(errno);
       break;
     }
 
@@ -336,11 +353,10 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
   close(fd);
   free(buffer);
 
-  return code;
+  return terrno;
 }
 
 int walHandleExistingFiles(const char *path) {
-  int    code = 0;
   char   oname[TSDB_FILENAME_LEN * 3];
   char   nname[TSDB_FILENAME_LEN * 3];
   char   opath[TSDB_FILENAME_LEN];
@@ -350,6 +366,7 @@ int walHandleExistingFiles(const char *path) {
   struct dirent *ent;
   DIR   *dir = opendir(path);
   int    plen = strlen(walPrefix);
+  terrno = 0;
 
   if (access(opath, F_OK) == 0) {
     // old directory is there, it means restore process is not finished
@@ -360,13 +377,19 @@ int walHandleExistingFiles(const char *path) {
     int count = 0;
     while ((ent = readdir(dir))!= NULL) {  
       if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
-        if (access(opath, F_OK) != 0) mkdir(opath, 0755);
-
         sprintf(oname, "%s/%s", path, ent->d_name);
         sprintf(nname, "%s/old/%s", path, ent->d_name);
+        if (access(opath, F_OK) != 0) {
+          if (mkdir(opath, 0755) != 0) {
+            wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
+            terrno = TAOS_SYSTEM_ERROR(errno);
+            break;
+          } 
+        }
+
         if (rename(oname, nname) < 0) {
           wError("wal:%s, failed to move to new:%s", oname, nname);
-          code = -1;
+          terrno = TAOS_SYSTEM_ERROR(errno);
           break;
         } 
 
@@ -378,14 +401,14 @@ int walHandleExistingFiles(const char *path) {
   }
   
   closedir(dir);
-  return code;
+  return terrno;
 }
 
 static int walRemoveWalFiles(const char *path) {
   int    plen = strlen(walPrefix);
   char   name[TSDB_FILENAME_LEN * 3];
-  int    code = 0;
-
+ 
+  terrno = 0;
   if (access(path, F_OK) != 0) return 0;
 
   struct dirent *ent;
@@ -396,13 +419,13 @@ static int walRemoveWalFiles(const char *path) {
       sprintf(name, "%s/%s", path, ent->d_name);
       if (remove(name) <0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
-        code = -1; break;
+        terrno = TAOS_SYSTEM_ERROR(errno);
       }
     }
   } 
 
   closedir(dir);
 
-  return code;
+  return terrno;
 }
 

@@ -44,7 +44,7 @@ void mnodeAddWriteMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg))
 int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
     mError("%p, msg:%s  in mwrite queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-    return TSDB_CODE_INVALID_MSG_LEN;
+    return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
   if (!sdbIsMaster()) {
@@ -59,12 +59,12 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
       mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
     }
 
-    return TSDB_CODE_REDIRECT;
+    return TSDB_CODE_RPC_REDIRECT;
   }
 
   if (tsMnodeProcessWriteMsgFp[pMsg->rpcMsg.msgType] == NULL) {
     mError("%p, msg:%s in mwrite queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-    return TSDB_CODE_MSG_NOT_PROCESSED;
+    return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
   int32_t code = mnodeInitMsg(pMsg);
@@ -75,7 +75,7 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
 
   if (!pMsg->pUser->writeAuth) {
     mError("%p, msg:%s  in mwrite queue, not processed, no write auth", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   return (*tsMnodeProcessWriteMsgFp[pMsg->rpcMsg.msgType])(pMsg);

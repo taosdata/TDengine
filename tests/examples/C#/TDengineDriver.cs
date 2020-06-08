@@ -79,8 +79,6 @@ namespace TDengineDriver
   class TDengine
   {
     public const int TSDB_CODE_SUCCESS = 0;
-    public const int TSDB_CODE_DB_ALREADY_EXIST = 33;
-    public const int TSDB_CODE_TABLE_ALREADY_EXIST = 34;
     
     [DllImport("taos.dll", EntryPoint = "taos_init", CallingConvention = CallingConvention.StdCall)]
     static extern public void Init();

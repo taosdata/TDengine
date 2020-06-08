@@ -18,6 +18,10 @@
 #include "taosmsg.h"
 #include "taoserror.h"
 #include "tutil.h"
+#include "ttime.h"
+#include "tcache.h"
+#include "tglobal.h"
+#include "tdataformat.h"
 #include "mnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
@@ -32,468 +36,156 @@
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 
-int32_t mnodeSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
+#define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
+#define CONN_CHECK_TIME (tsShellActivityTimer * 2)
+#define QUERY_ID_SIZE   20
 
-int32_t mnodeKillQuery(char *qidstr, void *pConn);
-int32_t mnodeKillStream(char *qidstr, void *pConn);
-int32_t mnodeKillConnection(char *qidstr, void *pConn);
+extern void *tsMnodeTmr;
+static SCacheObj *tsMnodeConnCache = NULL;
+static uint32_t tsConnIndex = 0;
 
-typedef struct {
-  char     user[TSDB_TABLE_ID_LEN + 1];
-  uint64_t stime;
-  uint32_t ip;
-  uint16_t port;
-} SConnInfo;
+static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mnodeFreeConn(void *data);
+static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg);
 
-typedef struct {
-  int       numOfConns;
-  int       index;
-  SConnInfo connInfo[];
-} SConnShow;
+int32_t mnodeInitProfile() {
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mnodeGetQueryMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mnodeRetrieveQueries);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mnodeGetConnsMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mnodeRetrieveConns);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mnodeGetStreamMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mnodeRetrieveStreams);
 
-typedef struct {
-  uint32_t ip;
-  uint16_t port;
-  char     user[TSDB_TABLE_ID_LEN+ 1];
-} SCDesc;
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mnodeProcessKillQueryMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mnodeProcessKillStreamMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mnodeProcessKillConnectionMsg);
 
-typedef struct {
-  int32_t      index;
-  int32_t      numOfQueries;
-  SCDesc * connInfo;
-  SCDesc **cdesc;
-  SQueryDesc   qdesc[];
-} SQueryShow;
-
-typedef struct {
-  int32_t      index;
-  int32_t      numOfStreams;
-  SCDesc * connInfo;
-  SCDesc **cdesc;
-  SStreamDesc   sdesc[];
-} SStreamShow;
-
-int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
-//  SAcctObj *pAcct = pConn->pAcct;
-//
-//  if (contLen <= 0 || pAcct == NULL) {
-//    return 0;
-//  }
-//
-//  pthread_mutex_lock(&pAcct->mutex);
-//
-//  if (pConn->pQList) {
-//    pAcct->acctInfo.numOfQueries -= pConn->pQList->numOfQueries;
-//    pAcct->acctInfo.numOfStreams -= pConn->pSList->numOfStreams;
-//  }
-//
-//  pConn->pQList = realloc(pConn->pQList, contLen);
-//  memcpy(pConn->pQList, cont, contLen);
-//
-//  pConn->pSList = (SStreamList *)(((char *)pConn->pQList) + pConn->pQList->numOfQueries * sizeof(SQueryDesc) + sizeof(SQqueryList));
-//
-//  pAcct->acctInfo.numOfQueries += pConn->pQList->numOfQueries;
-//  pAcct->acctInfo.numOfStreams += pConn->pSList->numOfStreams;
-//
-//  pthread_mutex_unlock(&pAcct->mutex);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t mnodeGetQueries(SShowObj *pShow, void *pConn) {
-//  SAcctObj *  pAcct = pConn->pAcct;
-//  SQueryShow *pQueryShow;
-//
-//  pthread_mutex_lock(&pAcct->mutex);
-//
-//  pQueryShow = malloc(sizeof(SQueryDesc) * pAcct->acctInfo.numOfQueries + sizeof(SQueryShow));
-//  pQueryShow->numOfQueries = 0;
-//  pQueryShow->index = 0;
-//  pQueryShow->connInfo = NULL;
-//  pQueryShow->cdesc = NULL;
-//
-//  if (pAcct->acctInfo.numOfQueries > 0) {
-//    pQueryShow->connInfo = (SCDesc *)malloc(pAcct->acctInfo.numOfConns * sizeof(SCDesc));
-//    pQueryShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfQueries * sizeof(SCDesc *));
-//
-//    pConn = pAcct->pConn;
-//    SQueryDesc * pQdesc = pQueryShow->qdesc;
-//    SCDesc * pCDesc = pQueryShow->connInfo;
-//    SCDesc **ppCDesc = pQueryShow->cdesc;
-//
-//    while (pConn) {
-//      if (pConn->pQList && pConn->pQList->numOfQueries > 0) {
-//        pCDesc->ip = pConn->ip;
-//        pCDesc->port = pConn->port;
-//        strcpy(pCDesc->user, pConn->pUser->user);
-//
-//        memcpy(pQdesc, pConn->pQList->qdesc, sizeof(SQueryDesc) * pConn->pQList->numOfQueries);
-//        pQdesc += pConn->pQList->numOfQueries;
-//        pQueryShow->numOfQueries += pConn->pQList->numOfQueries;
-//        for (int32_t i = 0; i < pConn->pQList->numOfQueries; ++i, ++ppCDesc) *ppCDesc = pCDesc;
-//
-//        pCDesc++;
-//      }
-//      pConn = pConn->next;
-//    }
-//  }
-//
-//  pthread_mutex_unlock(&pAcct->mutex);
-//
-//  // sorting based on useconds
-//
-//  pShow->pIter = pQueryShow;
-
+  tsMnodeConnCache = taosCacheInitWithCb(tsMnodeTmr, CONN_CHECK_TIME, mnodeFreeConn);
   return 0;
 }
 
-int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  int32_t cols = 0;
+void mnodeCleanupProfile() {
+  if (tsMnodeConnCache != NULL) {
+    mPrint("conn cache is cleanup");
+    taosCacheCleanup(tsMnodeConnCache);
+    tsMnodeConnCache = NULL;
+  }
+}
 
+SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
+  int32_t connSize = taosHashGetSize(tsMnodeConnCache->pHashTable);
+  if (connSize > tsMaxShellConns) {
+    mError("failed to create conn for user:%s ip:%s:%u, conns:%d larger than maxShellConns:%d, ", user, taosIpStr(ip),
+           port, connSize, tsMaxShellConns);
+    terrno = TSDB_CODE_MND_TOO_MANY_SHELL_CONNS;
+    return NULL;
+  }
+
+  uint32_t connId = atomic_add_fetch_32(&tsConnIndex, 1);
+  if (connId == 0) atomic_add_fetch_32(&tsConnIndex, 1);
+
+  SConnObj connObj = {
+    .ip     = ip,
+    .port   = port,
+    .connId = connId,
+    .stime  = taosGetTimestampMs()
+  };
+  strcpy(connObj.user, user);
+  
+  char key[10];
+  sprintf(key, "%u", connId);  
+  SConnObj *pConn = taosCachePut(tsMnodeConnCache, key, &connObj, sizeof(connObj), CONN_KEEP_TIME);
+  
+  mTrace("connId:%d, is created, user:%s ip:%s:%u", connId, user, taosIpStr(ip), port);
+  return pConn;
+}
+
+void mnodeReleaseConn(SConnObj *pConn) {
+  if(pConn == NULL) return;
+  taosCacheRelease(tsMnodeConnCache, (void**)&pConn, false);
+}
+
+SConnObj *mnodeAccquireConn(uint32_t connId, char *user, uint32_t ip, uint16_t port) {
+  char key[10];
+  sprintf(key, "%u", connId);
+  uint64_t expireTime = CONN_KEEP_TIME * 1000 + (uint64_t)taosGetTimestampMs();
+
+  SConnObj *pConn = taosCacheUpdateExpireTimeByName(tsMnodeConnCache, key, expireTime);
+  if (pConn == NULL) {
+    mError("connId:%d, is already destroyed, user:%s ip:%s:%u", connId, user, taosIpStr(ip), port);
+    return NULL;
+  }
+
+  if (pConn->ip != ip || pConn->port != port /* || strcmp(pConn->user, user) != 0 */) {
+    mError("connId:%d, incoming conn user:%s ip:%s:%u, not match exist conn user:%s ip:%s:%u", connId, user,
+           taosIpStr(ip), port, pConn->user, taosIpStr(pConn->ip), pConn->port);
+    taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
+    return NULL;
+  }
+
+  // mTrace("connId:%d, is incoming, user:%s ip:%s:%u", connId, pConn->user, taosIpStr(pConn->ip), pConn->port);
+  pConn->lastAccess = expireTime;
+  return pConn;
+}
+
+static void mnodeFreeConn(void *data) {
+  SConnObj *pConn = data;
+  tfree(pConn->pQueries);
+  tfree(pConn->pQueries);
+
+  mTrace("connId:%d, is destroyed", pConn->connId);
+}
+
+static void *mnodeGetNextConn(SHashMutableIterator *pIter, SConnObj **pConn) {
+  *pConn = NULL;
+
+  if (pIter == NULL) {
+    pIter = taosHashCreateIter(tsMnodeConnCache->pHashTable);
+  }
+
+  if (!taosHashIterNext(pIter)) {
+    taosHashDestroyIter(pIter);
+    return NULL;
+  }
+
+  SCacheDataNode **pNode = taosHashIterGet(pIter);
+  if (pNode == NULL || *pNode == NULL) {
+    taosHashDestroyIter(pIter);
+    return NULL;
+  }
+
+  *pConn = (SConnObj*)((*pNode)->data);
+  return pIter;
+}
+
+static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SUserObj *pUser = mnodeGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  
+  int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_USER_LEN;
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "connId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 14;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "ip:port:id");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created_time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
-  strcpy(pSchema[cols].name, "time(us)");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = TSDB_SHOW_SQL_LEN;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "sql");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-
-  pShow->numOfRows = 1000000;
-  pShow->pIter = NULL;
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-
-  mnodeGetQueries(pShow, pConn);
-  return 0;
-}
-
-int32_t mnodeKillQuery(char *qidstr, void *pConn) {
-//  char *temp, *chr, idstr[64];
-//  strcpy(idstr, qidstr);
-//
-//  temp = idstr;
-//  chr = strchr(temp, ':');
-//  if (chr == NULL) goto _error;
-//  *chr = 0;
-//  uint32_t ip = inet_addr(temp);
-//
-//  temp = chr + 1;
-//  chr = strchr(temp, ':');
-//  if (chr == NULL) goto _error;
-//  *chr = 0;
-//  uint16_t port = htons(atoi(temp));
-//
-//  temp = chr + 1;
-//  uint32_t queryId = atoi(temp);
-//
-//  SAcctObj *pAcct = pConn->pAcct;
-//
-//  pthread_mutex_lock(&pAcct->mutex);
-//
-//  pConn = pAcct->pConn;
-//  while (pConn) {
-//    if (pConn->ip == ip && pConn->port == port && pConn->pQList) {
-//      int32_t     i;
-//      SQueryDesc *pQDesc = pConn->pQList->qdesc;
-//      for (i = 0; i < pConn->pQList->numOfQueries; ++i, ++pQDesc) {
-//        if (pQDesc->queryId == queryId) break;
-//      }
-//
-//      if (i < pConn->pQList->numOfQueries) break;
-//    }
-//
-//    pConn = pConn->next;
-//  }
-//
-//  if (pConn) pConn->queryId = queryId;
-//
-//  pthread_mutex_unlock(&pAcct->mutex);
-//
-//  if (pConn == NULL || pConn->pQList == NULL || pConn->pQList->numOfQueries == 0) goto _error;
-//
-//  mTrace("query:%s is there, kill it", qidstr);
-//  return 0;
-//
-//_error:
-//  mTrace("query:%s is not there", qidstr);
-
-  return TSDB_CODE_INVALID_QUERY_ID;
-}
-
-int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t   numOfRows = 0;
-  char *pWrite;
-  int32_t   cols = 0;
-
-  SQueryShow *pQueryShow = (SQueryShow *)pShow->pIter;
-
-  if (rows > pQueryShow->numOfQueries - pQueryShow->index) rows = pQueryShow->numOfQueries - pQueryShow->index;
-
-  while (numOfRows < rows) {
-    SQueryDesc *pNode = pQueryShow->qdesc + pQueryShow->index;
-    SCDesc *pCDesc = pQueryShow->cdesc[pQueryShow->index];
-    cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pCDesc->user);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    uint32_t ip = pCDesc->ip;
-    sprintf(pWrite, "%d.%d.%d.%d:%hu:%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24, htons(pCDesc->port),
-            pNode->queryId);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pNode->stime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pNode->useconds;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pNode->sql);
-    cols++;
-
-    numOfRows++;
-    pQueryShow->index++;
-  }
-
-  if (numOfRows == 0) {
-    tfree(pQueryShow->cdesc);
-    tfree(pQueryShow->connInfo);
-    tfree(pQueryShow);
-  }
-
-  pShow->numOfReads += numOfRows;
-  return numOfRows;
-}
-
-int32_t mnodeGetStreams(SShowObj *pShow, void *pConn) {
-//  SAcctObj *   pAcct = pConn->pAcct;
-//  SStreamShow *pStreamShow;
-//
-//  pthread_mutex_lock(&pAcct->mutex);
-//
-//  pStreamShow = malloc(sizeof(SStreamDesc) * pAcct->acctInfo.numOfStreams + sizeof(SQueryShow));
-//  pStreamShow->numOfStreams = 0;
-//  pStreamShow->index = 0;
-//  pStreamShow->connInfo = NULL;
-//  pStreamShow->cdesc = NULL;
-//
-//  if (pAcct->acctInfo.numOfStreams > 0) {
-//    pStreamShow->connInfo = (SCDesc *)malloc(pAcct->acctInfo.numOfConns * sizeof(SCDesc));
-//    pStreamShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfStreams * sizeof(SCDesc *));
-//
-//    pConn = pAcct->pConn;
-//    SStreamDesc * pSdesc = pStreamShow->sdesc;
-//    SCDesc * pCDesc = pStreamShow->connInfo;
-//    SCDesc **ppCDesc = pStreamShow->cdesc;
-//
-//    while (pConn) {
-//      if (pConn->pSList && pConn->pSList->numOfStreams > 0) {
-//        pCDesc->ip = pConn->ip;
-//        pCDesc->port = pConn->port;
-//        strcpy(pCDesc->user, pConn->pUser->user);
-//
-//        memcpy(pSdesc, pConn->pSList->sdesc, sizeof(SStreamDesc) * pConn->pSList->numOfStreams);
-//        pSdesc += pConn->pSList->numOfStreams;
-//        pStreamShow->numOfStreams += pConn->pSList->numOfStreams;
-//        for (int32_t i = 0; i < pConn->pSList->numOfStreams; ++i, ++ppCDesc) *ppCDesc = pCDesc;
-//
-//        pCDesc++;
-//      }
-//      pConn = pConn->next;
-//    }
-//  }
-//
-//  pthread_mutex_unlock(&pAcct->mutex);
-//
-//  // sorting based on useconds
-//
-//  pShow->pIter = pStreamShow;
-
-  return 0;
-}
-
-
-int32_t mnodeKillStream(char *qidstr, void *pConn) {
-//  char *temp, *chr, idstr[64];
-//  strcpy(idstr, qidstr);
-//
-//  temp = idstr;
-//  chr = strchr(temp, ':');
-//  if (chr == NULL) goto _error;
-//  *chr = 0;
-//  uint32_t ip = inet_addr(temp);
-//
-//  temp = chr + 1;
-//  chr = strchr(temp, ':');
-//  if (chr == NULL) goto _error;
-//  *chr = 0;
-//  uint16_t port = htons(atoi(temp));
-//
-//  temp = chr + 1;
-//  uint32_t streamId = atoi(temp);
-//
-//  SAcctObj *pAcct = pConn->pAcct;
-//
-//  pthread_mutex_lock(&pAcct->mutex);
-//
-//  pConn = pAcct->pConn;
-//  while (pConn) {
-//    if (pConn->ip == ip && pConn->port == port && pConn->pSList) {
-//      int32_t     i;
-//      SStreamDesc *pSDesc = pConn->pSList->sdesc;
-//      for (i = 0; i < pConn->pSList->numOfStreams; ++i, ++pSDesc) {
-//        if (pSDesc->streamId == streamId) break;
-//      }
-//
-//      if (i < pConn->pSList->numOfStreams) break;
-//    }
-//
-//    pConn = pConn->next;
-//  }
-//
-//  if (pConn) pConn->streamId = streamId;
-//
-//  pthread_mutex_unlock(&pAcct->mutex);
-//
-//  if (pConn == NULL || pConn->pSList == NULL || pConn->pSList->numOfStreams == 0) goto _error;
-//
-//  mTrace("stream:%s is there, kill it", qidstr);
-//  return 0;
-//
-//_error:
-//  mTrace("stream:%s is not there", qidstr);
-
-  return TSDB_CODE_INVALID_STREAM_ID;
-}
-
-int32_t mnodeKillConnection(char *qidstr, void *pConn) {
-//  void *pConn1 = NULL;
-//  char *    temp, *chr, idstr[64];
-//  strcpy(idstr, qidstr);
-//
-//  temp = idstr;
-//  chr = strchr(temp, ':');
-//  if (chr == NULL) goto _error;
-//  *chr = 0;
-//  uint32_t ip = inet_addr(temp);
-//
-//  temp = chr + 1;
-//  uint16_t port = htons(atoi(temp));
-//  SAcctObj *pAcct = pConn->pAcct;
-//
-//  pthread_mutex_lock(&pAcct->mutex);
-//
-//  pConn = pAcct->pConn;
-//  while (pConn) {
-//    if (pConn->ip == ip && pConn->port == port) {
-//      // there maybe two connections from a shell
-//      if (pConn1 == NULL)
-//        pConn1 = pConn;
-//      else
-//        break;
-//    }
-//
-//    pConn = pConn->next;
-//  }
-//
-//  if (pConn1) pConn1->killConnection = 1;
-//  if (pConn) pConn->killConnection = 1;
-//
-//  pthread_mutex_unlock(&pAcct->mutex);
-//
-//  if (pConn1 == NULL) goto _error;
-//
-//  mTrace("connection:%s is there, kill it", qidstr);
-//  return 0;
-//
-//_error:
-//  mTrace("connection:%s is not there", qidstr);
-
-  return TSDB_CODE_INVALID_CONNECTION;
-}
-
-
-int mnodeGetConns(SShowObj *pShow, void *pConn) {
-  //  SAcctObj * pAcct = pConn->pAcct;
-  //  SConnShow *pConnShow;
-  //
-  //  pthread_mutex_lock(&pAcct->mutex);
-  //
-  //  pConnShow = malloc(sizeof(SConnInfo) * pAcct->acctInfo.numOfConns + sizeof(SConnShow));
-  //  pConnShow->index = 0;
-  //  pConnShow->numOfConns = 0;
-  //
-  //  if (pAcct->acctInfo.numOfConns > 0) {
-  //    pConn = pAcct->pConn;
-  //    SConnInfo *pConnInfo = pConnShow->connInfo;
-  //
-  //    while (pConn && pConn->pUser) {
-  //      strcpy(pConnInfo->user, pConn->pUser->user);
-  //      pConnInfo->ip = pConn->ip;
-  //      pConnInfo->port = pConn->port;
-  //      pConnInfo->stime = pConn->stime;
-  //
-  //      pConnShow->numOfConns++;
-  //      pConnInfo++;
-  //      pConn = pConn->next;
-  //    }
-  //  }
-  //
-  //  pthread_mutex_unlock(&pAcct->mutex);
-  //
-  //  // sorting based on useconds
-  //
-  //  pShow->pIter = pConnShow;
-
-  return 0;
-}
-
-int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  int32_t cols = 0;
-
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
-  SSchema *pSchema = pMeta->schema;
-
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "user");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6;
+  pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ip:port");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -505,144 +197,399 @@ int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "last access");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
 
-  pShow->numOfRows = 1000000;
-  pShow->pIter = NULL;
+  pShow->numOfRows = taosHashGetSize(tsMnodeConnCache->pHashTable);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mnodeGetConns(pShow, pConn);
   return 0;
 }
 
-int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
-  char      *pWrite;
+  SConnObj *pConnObj = NULL;
   int32_t   cols = 0;
-
-  SConnShow *pConnShow = (SConnShow *)pShow->pIter;
-
-  if (rows > pConnShow->numOfConns - pConnShow->index) rows = pConnShow->numOfConns - pConnShow->index;
+  char *    pWrite;
+  char      ipStr[TSDB_IPv4ADDR_LEN + 7];
 
   while (numOfRows < rows) {
-    SConnInfo *pNode = pConnShow->connInfo + pConnShow->index;
+    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    if (pConnObj == NULL) break;
+    
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pNode->user);
+    *(int32_t *) pWrite = pConnObj->connId;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    uint32_t ip = pNode->ip;
-    sprintf(pWrite, "%d.%d.%d.%d:%hu", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24, htons(pNode->port));
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, TSDB_USER_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pNode->stime;
+    snprintf(ipStr, TSDB_IPv4ADDR_LEN + 6, "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, TSDB_IPv4ADDR_LEN + 6);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pConnObj->stime;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pConnObj->lastAccess;
     cols++;
 
     numOfRows++;
-    pConnShow->index++;
-  }
-
-  if (numOfRows == 0) {
-    tfree(pConnShow);
   }
 
   pShow->numOfReads += numOfRows;
+  const int32_t NUM_OF_COLUMNS = 5;
+  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  
   return numOfRows;
 }
 
-int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
-  // SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  
-  // SUserObj *pUser = mnodeGetUserFromConn(pMsg->thandle);
-  // if (pUser == NULL) {
-  //   rpcRsp.code = TSDB_CODE_INVALID_USER;
-  //   rpcSendResponse(&rpcRsp);
-  //   return;
-  // }
+// not thread safe, need optimized
+int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
+  pConn->numOfQueries = htonl(pHBMsg->numOfQueries);
+  if (pConn->numOfQueries > 0) {
+    pConn->pQueries = calloc(sizeof(SQueryDesc), pConn->numOfQueries);
+    memcpy(pConn->pQueries, pHBMsg->pData, pConn->numOfQueries * sizeof(SQueryDesc));
+  }
 
-  // SCMKillQueryMsg *pKill = pMsg->pCont;
-  // int32_t code;
+  pConn->numOfStreams = htonl(pHBMsg->numOfStreams);
+  if (pConn->numOfStreams > 0) {
+    pConn->pStreams = calloc(sizeof(SStreamDesc), pConn->numOfStreams);
+    memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc),
+           pConn->numOfStreams * sizeof(SStreamDesc));
+  }
 
-  // if (!pUser->writeAuth) {
-  //   code = TSDB_CODE_NO_RIGHTS;
-  // } else {
-  //   code = mgmtKillQuery(pKill->queryId, pMsg->thandle);
-  // }
-
-  // rpcRsp.code = code;
-  // rpcSendResponse(&rpcRsp);
-  // mnodeDecUserRef(pUser);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
-  // SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  
-  // SUserObj *pUser = mnodeGetUserFromConn(pMsg->thandle);
-  // if (pUser == NULL) {
-  //   rpcRsp.code = TSDB_CODE_INVALID_USER;
-  //   rpcSendResponse(&rpcRsp);
-  //   return;
-  // }
+static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SUserObj *pUser = mnodeGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
-  // SCMKillStreamMsg *pKill = pMsg->pCont;
-  // int32_t code;
+  int32_t cols = 0;
+  SSchema *pSchema = pMeta->schema;
 
-  // if (!pUser->writeAuth) {
-  //   code = TSDB_CODE_NO_RIGHTS;
-  // } else {
-  //   code = mgmtKillStream(pKill->queryId, pMsg->thandle);
-  // }
+  pShow->bytes[cols] = QUERY_ID_SIZE + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "queryId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
-  // rpcRsp.code = code;
-  // rpcSendResponse(&rpcRsp);
-  // mnodeDecUserRef(pUser);
-  return TSDB_CODE_SUCCESS;
-}
+  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "user");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
-int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
-  // SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  
-  // SUserObj *pUser = mnodeGetUserFromConn(pMsg->thandle);
-  // if (pUser == NULL) {
-  //   rpcRsp.code = TSDB_CODE_INVALID_USER;
-  //   rpcSendResponse(&rpcRsp);
-  //   return;
-  // }
+  pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "ip:port");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
-  // SCMKillConnMsg *pKill = pMsg->pCont;
-  // int32_t code;
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "created time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
-  // if (!pUser->writeAuth) {
-  //   code = TSDB_CODE_NO_RIGHTS;
-  // } else {
-  //   code = mgmtKillConnection(pKill->queryId, pMsg->thandle);
-  // }
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
+  strcpy(pSchema[cols].name, "time(us)");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
-  // rpcRsp.code = code;
-  // rpcSendResponse(&rpcRsp);
-  // mnodeDecUserRef(pUser);
-  return TSDB_CODE_SUCCESS;
-}
+  pShow->bytes[cols] = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sql");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
 
-int32_t mnodeInitProfile() {
-  // mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mnodeGetQueryMeta);
-  // mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mnodeRetrieveQueries);
-  // mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mnodeGetConnsMeta);
-  // mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mnodeRetrieveConns);
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
 
-  // mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mnodeProcessKillQueryMsg);
-  // mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mnodeProcessKillStreamMsg);
-  // mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mnodeProcessKillConnectionMsg);
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->numOfRows = 1000000;
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
 }
 
-void mnodeCleanupProfile() {}
+static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t   numOfRows = 0;
+  SConnObj *pConnObj = NULL;
+  int32_t   cols = 0;
+  char *    pWrite;
+  char      ipStr[TSDB_IPv4ADDR_LEN + 7];
+
+  while (numOfRows < rows) {
+    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    if (pConnObj == NULL) break;
+
+    for (int32_t i = 0; i < pConnObj->numOfQueries; ++i) {
+      SQueryDesc *pDesc = pConnObj->pQueries + i;
+      cols = 0;
+
+      snprintf(ipStr, QUERY_ID_SIZE + 1, "%u:%u", pConnObj->connId, htonl(pDesc->queryId));
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, QUERY_ID_SIZE);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, TSDB_USER_LEN);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      snprintf(ipStr, TSDB_IPv4ADDR_LEN + 6, "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, TSDB_IPv4ADDR_LEN + 6);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int64_t *)pWrite = htobe64(pDesc->stime);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int64_t *)pWrite = htobe64(pDesc->useconds);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->sql, TSDB_SHOW_SQL_LEN);
+      cols++;
+
+      numOfRows++;
+    }
+  }
+
+  pShow->numOfReads += numOfRows;
+  const int32_t NUM_OF_COLUMNS = 6;
+  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  return numOfRows;
+}
+
+static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SUserObj *pUser = mnodeGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+
+  int32_t cols = 0;
+  SSchema *pSchema = pMeta->schema;
+
+  pShow->bytes[cols] = QUERY_ID_SIZE + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "streamId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "user");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "ip:port");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "created time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "exec time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
+  strcpy(pSchema[cols].name, "time(us)");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sql");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "cycles");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->numOfRows = 1000000;
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  return 0;
+}
+
+static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t   numOfRows = 0;
+  SConnObj *pConnObj = NULL;
+  int32_t   cols = 0;
+  char *    pWrite;
+  char      ipStr[TSDB_IPv4ADDR_LEN + 7];
+
+  while (numOfRows < rows) {
+    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    if (pConnObj == NULL) break;
+
+    for (int32_t i = 0; i < pConnObj->numOfStreams; ++i) {
+      SStreamDesc *pDesc = pConnObj->pStreams + i;
+      cols = 0;
+
+      snprintf(ipStr, QUERY_ID_SIZE + 1, "%u:%u", pConnObj->connId, htonl(pDesc->streamId));
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, QUERY_ID_SIZE);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, TSDB_USER_LEN);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      snprintf(ipStr, TSDB_IPv4ADDR_LEN + 6, "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, TSDB_IPv4ADDR_LEN + 6);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int64_t *)pWrite = htobe64(pDesc->ctime);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int64_t *)pWrite = htobe64(pDesc->stime);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int64_t *)pWrite = htobe64(pDesc->useconds);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->sql, TSDB_SHOW_SQL_LEN);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int32_t *)pWrite = (int32_t)htobe64(pDesc->num);
+      cols++;
+
+      numOfRows++;
+    }
+  }
+
+  pShow->numOfReads += numOfRows;
+  const int32_t NUM_OF_COLUMNS = 8;
+  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  return numOfRows;
+}
+
+static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
+  SUserObj *pUser = pMsg->pUser;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+
+  SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
+  mPrint("kill query msg is received, queryId:%s", pKill->queryId);
+
+  const char delim = ':';
+  char* connIdStr = strtok(pKill->queryId, &delim);
+  char* queryIdStr = strtok(NULL, &delim);
+
+  if (queryIdStr == NULL || connIdStr == NULL) {
+    mPrint("failed to kill query, queryId:%s", pKill->queryId);
+   return TSDB_CODE_MND_INVALID_QUERY_ID;
+  }
+
+  int32_t queryId = (int32_t)strtol(queryIdStr, NULL, 10);
+
+  SConnObj *pConn = taosCacheAcquireByName(tsMnodeConnCache, connIdStr);
+  if (pConn == NULL) {
+    mError("connId:%s, failed to kill queryId:%d, conn not exist", connIdStr, queryId);
+    return TSDB_CODE_MND_INVALID_CONN_ID;
+  } else {
+    mPrint("connId:%s, queryId:%d is killed by user:%s", connIdStr, queryId, pUser->user);
+    pConn->queryId = queryId;
+    taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
+  SUserObj *pUser = pMsg->pUser;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+
+  SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
+  mPrint("kill stream msg is received, streamId:%s", pKill->queryId);
+
+  const char delim = ':';
+  char* connIdStr = strtok(pKill->queryId, &delim);
+  char* streamIdStr = strtok(NULL, &delim);
+
+  if (streamIdStr == NULL || connIdStr == NULL) {
+    mPrint("failed to kill stream, streamId:%s", pKill->queryId);
+   return TSDB_CODE_MND_INVALID_STREAM_ID;
+  }
+
+  int32_t streamId = (int32_t)strtol(streamIdStr, NULL, 10);
+
+  SConnObj *pConn = taosCacheAcquireByName(tsMnodeConnCache, connIdStr);
+  if (pConn == NULL) {
+    mError("connId:%s, failed to kill streamId:%d, conn not exist", connIdStr, streamId);
+    return TSDB_CODE_MND_INVALID_CONN_ID;
+  } else {
+    mPrint("connId:%s, streamId:%d is killed by user:%s", connIdStr, streamId, pUser->user);
+    pConn->streamId = streamId;
+    taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
+  SUserObj *pUser = pMsg->pUser;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+
+  SCMKillConnMsg *pKill = pMsg->rpcMsg.pCont;
+  SConnObj *      pConn = taosCacheAcquireByName(tsMnodeConnCache, pKill->queryId);
+  if (pConn == NULL) {
+    mError("connId:%s, failed to kill, conn not exist", pKill->queryId);
+    return TSDB_CODE_MND_INVALID_CONN_ID;
+  } else {
+    mPrint("connId:%s, is killed by user:%s", pKill->queryId, pUser->user);
+    pConn->killed = 1;
+    taosCacheRelease(tsMnodeConnCache, (void**)&pConn, false);
+    return TSDB_CODE_SUCCESS;
+  }
+}

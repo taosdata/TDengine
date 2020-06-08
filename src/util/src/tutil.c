@@ -27,8 +27,6 @@
 #include "tulog.h"
 #include "taoserror.h"
 
-int32_t tmpFileSerialNum = 0;
-
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -433,12 +431,24 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
 #else
   char *tmpDir = "/tmp/";
 #endif
-  int64_t ts = taosGetTimestampUs();
+  
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
   strcat(tmpPath, fileNamePrefix);
-  strcat(tmpPath, "-%d-%"PRIu64"-%u-%"PRIu64);
-  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1), ts);
+  strcat(tmpPath, "-%d-%s");
+  
+  char rand[8] = {0};
+  taosRandStr(rand, tListLen(rand) - 1);
+  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+}
+
+void taosRandStr(char* str, int32_t size) {
+  const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
+  int32_t len = 39;
+  
+  for(int32_t i = 0; i < size; ++i) {
+    str[i] = set[rand()%len];
+  }
 }
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
@@ -582,18 +592,18 @@ int taosCheckVersion(char *input_client_version, char *input_server_version, int
 
   if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
     uError("invalid client version:%s", client_version);
-    return TSDB_CODE_INVALID_CLIENT_VERSION;
+    return TSDB_CODE_TSC_INVALID_VERSION;
   }
 
   if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
     uError("invalid server version:%s", server_version);
-    return TSDB_CODE_INVALID_CLIENT_VERSION;
+    return TSDB_CODE_TSC_INVALID_VERSION;
   }
 
   for(int32_t i = 0; i < comparedSegments; ++i) {
     if (clientVersionNumber[i] != serverVersionNumber[i]) {
       uError("the %d-th number of server version:%s not matched with client version:%s", i, server_version, version);
-      return TSDB_CODE_INVALID_CLIENT_VERSION;
+      return TSDB_CODE_TSC_INVALID_VERSION;
     }
   }
 

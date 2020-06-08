@@ -89,11 +89,8 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-
-
-
-print ============== step2-1: start dnode2 for falling disc, then restart dnode2, and check rows
-system sh/exec.sh -n dnode2 -s stop
+print ============== step2-1: stop dnode2 for falling disc, then restart dnode2, and check rows
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep $sleepTimer
 wait_dnode2_offline_0:
 sql show dnodes
@@ -149,10 +146,6 @@ print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
-
-
-
-
 
 
 print ============== step3: start dnode3 and add into cluster , then alter replica from 1 to 2, and waiting sync

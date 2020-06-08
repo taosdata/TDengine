@@ -18,6 +18,7 @@
 #include "tsystem.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "taosdef.h"
 #include "rpcLog.h"
 #include "rpcUdp.h"
 #include "rpcHead.h"
@@ -33,7 +34,7 @@ typedef struct {
   int             fd;
   uint16_t        port;       // peer port
   uint16_t        localPort;  // local port
-  char            label[12];  // copy from udpConnSet;
+  char            label[TSDB_LABEL_LEN];  // copy from udpConnSet;
   pthread_t       thread;
   void           *hash;
   void           *shandle;  // handle passed by upper layer during server initialization
@@ -49,7 +50,7 @@ typedef struct {
   uint16_t  port;     // local Port
   void     *shandle;  // handle passed by upper layer during server initialization
   int       threads;
-  char      label[12];
+  char      label[TSDB_LABEL_LEN];
   void     *(*fp)(SRecvInfo *pPacket);
   SUdpConn  udpConn[];
 } SUdpConnSet;
@@ -72,7 +73,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   pSet->port = port;
   pSet->shandle = shandle;
   pSet->fp = fp;
-  strcpy(pSet->label, label);
+  tstrncpy(pSet->label, label, sizeof(pSet->label));
 
   uint16_t ownPort;
   for (int i = 0; i < threads; ++i) {
@@ -93,13 +94,13 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     }
 
     struct sockaddr_in sin;
-    unsigned int       addrlen = sizeof(sin);
+    unsigned int addrlen = sizeof(sin);
     if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && sin.sin_family == AF_INET &&
         addrlen == sizeof(sin)) {
       pConn->localPort = (uint16_t)ntohs(sin.sin_port);
     }
 
-    strcpy(pConn->label, label);
+    tstrncpy(pConn->label, label, sizeof(pConn->label));
     pConn->shandle = shandle;
     pConn->processData = fp;
     pConn->index = i;

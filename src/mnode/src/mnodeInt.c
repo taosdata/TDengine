@@ -41,7 +41,7 @@ void mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg) {
 int32_t mnodeInitMsg(SMnodeMsg *pMsg) {
   pMsg->pUser = mnodeGetUserFromConn(pMsg->rpcMsg.handle);
   if (pMsg->pUser == NULL) {
-    return TSDB_CODE_INVALID_USER;
+    return TSDB_CODE_MND_INVALID_USER;
   }
 
   return TSDB_CODE_SUCCESS;

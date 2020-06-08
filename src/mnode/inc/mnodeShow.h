@@ -28,6 +28,7 @@ typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 void mnodeAddShowMetaHandle(uint8_t showType, SShowMetaFp fp);
 void mnodeAddShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
+void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow);
 
 #ifdef __cplusplus
 }

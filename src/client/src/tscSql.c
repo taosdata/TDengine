@@ -57,12 +57,12 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   taos_init();
   
   if (!validUserName(user)) {
-    terrno = TSDB_CODE_INVALID_ACCT;
+    terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
     return NULL;
   }
 
   if (!validPassword(pass)) {
-    terrno = TSDB_CODE_INVALID_PASS;
+    terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
     return NULL;
   }
 
@@ -73,13 +73,13 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
  
   void *pDnodeConn = NULL;
   if (tscInitRpc(user, pass, &pDnodeConn) != 0) {
-    terrno = TSDB_CODE_NETWORK_UNAVAIL;
+    terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return NULL;
   }
  
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
-    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     rpcClose(pDnodeConn);
     return NULL;
   }
@@ -88,13 +88,12 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
-  pObj->mnodePort = port ? port : tsDnodeShellPort;
 
   if (db) {
     int32_t len = strlen(db);
     /* db name is too long */
     if (len > TSDB_DB_NAME_LEN) {
-      terrno = TSDB_CODE_INVALID_DB;
+      terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       rpcClose(pDnodeConn);
       free(pObj);
       return NULL;
@@ -111,7 +110,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (NULL == pSql) {
-    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     rpcClose(pDnodeConn);
     free(pObj);
     return NULL;
@@ -132,7 +131,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   pSql->cmd.command = TSDB_SQL_CONNECT;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
-    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     rpcClose(pDnodeConn);
     free(pSql);
     free(pObj);
@@ -213,48 +212,6 @@ void taos_close(TAOS *taos) {
   }
 }
 
-int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  
-  pRes->numOfRows  = 1;
-  pRes->numOfTotal = 0;
-  pRes->numOfClauseTotal = 0;
-
-  pCmd->curSql = NULL;
-  if (NULL != pCmd->pTableList) {
-    taosHashCleanup(pCmd->pTableList);
-    pCmd->pTableList = NULL;
-  }
-
-  tscDump("%p pObj:%p, SQL: %s", pSql, pObj, pSql->sqlstr);
-
-  pRes->code = (uint8_t)tsParseSql(pSql, false);
-
-  /*
-   * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
-   * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscProcessSql()
-   * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
-   */
-  pRes->qhandle = 0;
-
-  if (pRes->code == TSDB_CODE_SUCCESS) {
-    tscDoQuery(pSql);
-  }
-
-  if (pRes->code == TSDB_CODE_SUCCESS) {
-    tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
-  } else {
-    tscError("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
-  }
-
-  if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscPartiallyFreeSqlObj(pSql);
-  }
-
-  return pRes->code;
-}
-
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   assert(tres != NULL);
   
@@ -265,14 +222,14 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
 TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    terrno = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
   
   int32_t sqlLen = strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
-    terrno = TSDB_CODE_INVALID_SQL;
+    terrno = TSDB_CODE_TSC_INVALID_SQL;
     return NULL;
   }
   
@@ -281,7 +238,7 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
-    terrno = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
   
@@ -414,17 +371,13 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
 static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
-  
-  if (numOfRows < 0) { // set the error code
-    pSql->res.code = -numOfRows;
-  }
   sem_post(&pSql->rspSem);
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) {
-    terrno = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
   
@@ -445,7 +398,12 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
        pCmd->command == TSDB_SQL_SELECT ||
-       pCmd->command == TSDB_SQL_DESCRIBE_TABLE)) {
+       pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
+       pCmd->command == TSDB_SQL_SERV_STATUS ||
+       pCmd->command == TSDB_SQL_CURRENT_DB ||
+       pCmd->command == TSDB_SQL_SERV_VERSION ||
+       pCmd->command == TSDB_SQL_CLI_VERSION ||
+       pCmd->command == TSDB_SQL_CURRENT_USER )) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     sem_wait(&pSql->rspSem);
   }
@@ -462,7 +420,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   int nRows = 0;
 
   if (pSql == NULL || pSql->signature != pSql) {
-    terrno = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
     *rows = NULL;
     return 0;
   }
@@ -505,8 +463,8 @@ int taos_select_db(TAOS *taos, const char *db) {
 
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    terrno = TSDB_CODE_DISCONNECTED;
-    return TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
   }
 
   snprintf(sql, tListLen(sql), "use %s", db);
@@ -587,7 +545,7 @@ int taos_errno(TAOS_RES *tres) {
  * why the sql is invalid
  */
 static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
-  if (code != TSDB_CODE_INVALID_SQL) {
+  if (code != TSDB_CODE_TSC_INVALID_SQL) {
     return false;
   }
 
@@ -649,7 +607,7 @@ void taos_stop_query(TAOS_RES *res) {
   if (pSql->signature != pSql) return;
   tscTrace("%p start to cancel query", res);
 
-  pSql->res.code = TSDB_CODE_QUERY_CANCELLED;
+  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
@@ -734,8 +692,8 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 int taos_validate_sql(TAOS *taos, const char *sql) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    terrno = TSDB_CODE_DISCONNECTED;
-    return TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
@@ -752,13 +710,13 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   int32_t sqlLen = strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
-    pRes->code = TSDB_CODE_INVALID_SQL;
+    pRes->code = TSDB_CODE_TSC_INVALID_SQL;
     return pRes->code;
   }
 
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
     tscTrace("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
     return pRes->code;
@@ -790,7 +748,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   pCmd->command = TSDB_SQL_MULTI_META;
   pCmd->count = 0;
 
-  int   code = TSDB_CODE_INVALID_TABLE_ID;
+  int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)tblNameList;
 
   SQueryInfo *pQueryInfo = NULL;
@@ -824,7 +782,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
 
     // Check if the table name available or not
     if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_INVALID_TABLE_ID;
+      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pCmd->payload, "table name is invalid");
       return code;
     }
@@ -834,7 +792,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     }
 
     if (++pCmd->count > TSDB_MULTI_METERMETA_MAX_NUM) {
-      code = TSDB_CODE_INVALID_TABLE_ID;
+      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pCmd->payload, "tables over the max number");
       return code;
     }
@@ -842,7 +800,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     if (payloadLen + strlen(pTableMetaInfo->name) + 128 >= pCmd->allocSize) {
       char *pNewMem = realloc(pCmd->payload, pCmd->allocSize + tblListLen);
       if (pNewMem == NULL) {
-        code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         sprintf(pCmd->payload, "failed to allocate memory");
         return code;
       }
@@ -866,8 +824,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    terrno = TSDB_CODE_DISCONNECTED;
-    return TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
@@ -884,13 +842,13 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   int32_t tblListLen = strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
     tscError("%p tableNameList too long, length:%d, maximum allowed:%d", pSql, tblListLen, MAX_TABLE_NAME_LENGTH);
-    pRes->code = TSDB_CODE_INVALID_SQL;
+    pRes->code = TSDB_CODE_TSC_INVALID_SQL;
     return pRes->code;
   }
 
   char *str = calloc(1, tblListLen + 1);
   if (str == NULL) {
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
     return pRes->code;
   }

@@ -112,7 +112,7 @@ int32_t tsMaxShellConns = 5000;
 char    tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
 char    tsDefaultUser[64] = "root";
 char    tsDefaultPass[64] = "taosdata";
-int32_t tsMaxConnections = 50;
+int32_t tsMaxConnections = 5000;
 
 int32_t tsBalanceInterval = 300;  // seconds
 int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
@@ -234,7 +234,7 @@ bool taosCfgDynamicOptions(char *msg) {
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return TSDB_CODE_INVALID_MSG_CONTENT;
+  if (olen == 0) return TSDB_CODE_COM_INVALID_CFG_MSG;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -840,7 +840,7 @@ static void doInitGlobalConfig() {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
-  cfg.maxValue = 100;
+  cfg.maxValue = 100000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

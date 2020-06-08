@@ -156,7 +156,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType, dataBytes)) {
     tscError("Illegal data type %d or data type length %d", dataType, dataBytes);
-    return TSDB_CODE_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
   
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
@@ -325,7 +325,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *bytes = (int16_t)dataBytes;
     *interBytes = dataBytes + sizeof(SLastrowInfo);
   } else {
-    return TSDB_CODE_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -340,16 +340,6 @@ bool stableQueryFunctChanged(int32_t funcId) {
  * and allow the ResultInfo to be re initialized
  */
 void resetResultInfo(SResultInfo *pResInfo) { pResInfo->initialized = false; }
-
-void initResultInfo(SResultInfo *pResInfo) {
-  pResInfo->initialized = true;  // the this struct has been initialized flag
-  
-  pResInfo->complete = false;
-  pResInfo->hasResult = false;
-  pResInfo->numOfRes = 0;
-  
-  memset(pResInfo->interResultBuf, 0, (size_t)pResInfo->bufLen);
-}
 
 void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable) {
   assert(pResInfo->interResultBuf == NULL);
@@ -387,9 +377,7 @@ static bool function_setup(SQLFunctionCtx *pCtx) {
  */
 static void function_finalizer(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  
   if (pResInfo->hasResult != DATA_SET_FLAG) {
-    tscTrace("no result generated, result is set to NULL");
     if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
       setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
     } else {

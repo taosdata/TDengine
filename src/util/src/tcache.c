@@ -488,6 +488,35 @@ void *taosCacheAcquireByName(SCacheObj *pCacheObj, const char *key) {
   return (ptNode != NULL) ? (*ptNode)->data : NULL;
 }
 
+void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, uint64_t expireTime) {
+  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0) {
+    return NULL;
+  }
+  
+  uint32_t keyLen = (uint32_t)strlen(key);
+  
+  __cache_rd_lock(pCacheObj);
+  
+  SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
+  if (ptNode != NULL) {
+     T_REF_INC(*ptNode);
+    (*ptNode)->expiredTime = expireTime;
+  }
+  
+  __cache_unlock(pCacheObj);
+  
+  if (ptNode != NULL) {
+    atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
+    uTrace("key:%s expireTime is updated in cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
+  } else {
+    atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
+    uTrace("key:%s not in cache, retrieved failed", key);
+  }
+  
+  atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
+  return (ptNode != NULL) ? (*ptNode)->data : NULL;
+}
+
 void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   if (pCacheObj == NULL || data == NULL) return NULL;
   

@@ -206,11 +206,6 @@ bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot) {
   return (getWindowResult(pWindowResInfo, slot)->status.closed == true);
 }
 
-int32_t curTimeWindow(SWindowResInfo *pWindowResInfo) {
-  assert(pWindowResInfo->curIndex >= 0 && pWindowResInfo->curIndex < pWindowResInfo->size);
-  return pWindowResInfo->curIndex;
-}
-
 void closeTimeWindow(SWindowResInfo *pWindowResInfo, int32_t slot) {
   getWindowResult(pWindowResInfo, slot)->status.closed = true;
 }

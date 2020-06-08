@@ -19,27 +19,42 @@
 #include "tutil.h"
 
 int taosGetFqdn(char *fqdn) {
+  int  code = 0;
   char hostname[1024];
   hostname[1023] = '\0';
   gethostname(hostname, 1023);
 
-  struct hostent* h;
-  h = gethostbyname(hostname);
-  if (h != NULL) {
-    strcpy(fqdn, h->h_name);
-    return 0;
+  struct addrinfo hints = {0};
+  struct addrinfo *result = NULL;
+
+  hints.ai_flags = AI_CANONNAME;
+
+  getaddrinfo(hostname, NULL, &hints, &result);
+  if (result) {
+    strcpy(fqdn, result->ai_canonname);
+    freeaddrinfo(result);
   } else {
-    uError("failed to get host name");
-    return -1;
+    code = -1;
   }
 
-  free(h);
+  return code;
 }
 
 uint32_t taosGetIpFromFqdn(const char *fqdn) {
-  struct hostent * record = gethostbyname(fqdn);
-  if(record == NULL) return -1;
-  return ((struct in_addr *)record->h_addr)->s_addr;
+  struct addrinfo hints = {0};
+  struct addrinfo *result = NULL;
+
+  getaddrinfo(fqdn, NULL, &hints, &result);
+  if (result) {
+    struct sockaddr *sa = result->ai_addr;
+    struct sockaddr_in *si = (struct sockaddr_in*)sa;
+    struct in_addr ia = si->sin_addr;
+    uint32_t ip = ia.s_addr;
+    freeaddrinfo(result);
+    return ip;
+  } else {
+    return -1;
+  }
 }
 
 // Function converting an IP address string to an unsigned int.
@@ -47,7 +62,7 @@ uint32_t ip2uint(const char *const ip_addr) {
   char ip_addr_cpy[20];
   char ip[5];
 
-  strcpy(ip_addr_cpy, ip_addr);
+  tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
 
   char *s_start, *s_end;
   s_start = ip_addr_cpy;
@@ -206,7 +221,7 @@ int taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   int                reuse, nocheck;
   int                bufSize = 8192000;
 
-  uTrace("open udp socket:%s:%hu", ip, port);
+  uTrace("open udp socket:0x%x:%hu", ip, port);
 
   memset((char *)&localAddr, 0, sizeof(localAddr));
   localAddr.sin_family = AF_INET;
@@ -257,7 +272,7 @@ int taosOpenUdpSocket(uint32_t ip, uint16_t port) {
 
   /* bind socket to local address */
   if (bind(sockFd, (struct sockaddr *)&localAddr, sizeof(localAddr)) < 0) {
-    uError("failed to bind udp socket: %d (%s), %s:%hu", errno, strerror(errno), ip, port);
+    uError("failed to bind udp socket: %d (%s), 0x%x:%hu", errno, strerror(errno), ip, port);
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -363,7 +378,7 @@ int taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   int                sockFd;
   int                reuse;
 
-  uTrace("open tcp server socket:%s:%hu", ip, port);
+  uTrace("open tcp server socket:0x%x:%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sin_family = AF_INET;

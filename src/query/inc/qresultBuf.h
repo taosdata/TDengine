@@ -85,7 +85,7 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId);
  * @param id
  * @return
  */
-tFilePage* getResultBufferPageById(SDiskbasedResultBuf* pResultBuf, int32_t id);
+#define GET_RES_BUF_PAGE_BY_ID(buf, id)  ((tFilePage*)((buf)->pBuf + DEFAULT_INTERN_BUF_PAGE_SIZE*(id)))
 
 /**
  * get the total buffer size in the format of disk file

@@ -150,6 +150,7 @@ class CTaosInterface(object):
     libtaos.taos_fetch_lengths.restype = ctypes.c_void_p
     libtaos.taos_free_result.restype = None
     libtaos.taos_errno.restype = ctypes.c_int
+    libtaos.taos_query.restype = ctypes.POINTER(ctypes.c_void_p)
 
     def __init__(self, config=None):
         '''
@@ -412,5 +413,5 @@ if __name__ == '__main__':
 
     print(data)
 
-    cinter.freeresult(result)
+    cinter.freeResult(result)
     cinter.close(conn)

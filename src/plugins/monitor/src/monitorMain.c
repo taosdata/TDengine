@@ -183,7 +183,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.slowquery(ts timestamp, username "
              "binary(%d), created_time timestamp, time bigint, sql binary(%d))",
-             tsMonitorDbName, TSDB_TABLE_ID_LEN, TSDB_SHOW_SQL_LEN);
+             tsMonitorDbName, TSDB_TABLE_ID_LEN, TSDB_SLOW_QUERY_SQL_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_LOG) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.log(ts timestamp, level tinyint, "
@@ -207,7 +207,7 @@ static void monitorInitDatabase() {
 }
 
 static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
-  if (-code == TSDB_CODE_TABLE_ALREADY_EXIST || -code == TSDB_CODE_DB_ALREADY_EXIST || code >= 0) {
+  if (-code == TSDB_CODE_MND_TABLE_ALREADY_EXIST || -code == TSDB_CODE_MND_DB_ALREADY_EXIST || code >= 0) {
     monitorTrace("monitor:%p, sql success, reason:%d, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
     if (tsMonitorConn.cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
       monitorPrint("dnode:%s is started", tsLocalEp);

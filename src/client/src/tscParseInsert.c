@@ -48,7 +48,7 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
   
   int32_t radix = 10;
   
-  int32_t radixList[3] = {16, 8, 2};
+  int32_t radixList[3] = {16, 8, 2}; // the integer number with different radix: hex, oct, bin
   if (pToken->type == TK_HEX || pToken->type == TK_OCT || pToken->type == TK_BIN) {
     radix = radixList[pToken->type - TK_HEX];
   }
@@ -134,7 +134,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
     }
 
     if (getTimestampInUsFromStr(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_SQL;
     }
 
     if (timePrec == TSDB_TIME_PRECISION_MILLI) {
@@ -423,7 +423,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       }
 
       strcpy(error, "client out of memory");
-      *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      *code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       return -1;
     }
 
@@ -431,7 +431,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
          type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (sToken.n == 0) || (type == TK_RP)) {
       tscInvalidSQLErrMsg(error, "invalid data or symbol", sToken.z);
-      *code = TSDB_CODE_INVALID_SQL;
+      *code = TSDB_CODE_TSC_INVALID_SQL;
       return -1;
     }
 
@@ -463,13 +463,13 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t ret = tsParseOneColumnData(pSchema, &sToken, start, error, str, isPrimaryKey, timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
-      *code = TSDB_CODE_INVALID_SQL;
+      *code = TSDB_CODE_TSC_INVALID_SQL;
       return -1;  // NOTE: here 0 mean error!
     }
 
     if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
       tscInvalidSQLErrMsg(error, "client time/server time can not be mixed up", sToken.z);
-      *code = TSDB_CODE_INVALID_TIME_STAMP;
+      *code = TSDB_CODE_TSC_INVALID_TIME_STAMP;
       return -1;
     }
   }
@@ -526,7 +526,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
 
   if (spd->hasVal[0] == false) {
     strcpy(error, "primary timestamp column can not be null");
-    *code = TSDB_CODE_INVALID_SQL;
+    *code = TSDB_CODE_TSC_INVALID_SQL;
     return -1;
   }
 
@@ -560,7 +560,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
     *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
       tscInvalidSQLErrMsg(error, ") expected", *str);
-      *code = TSDB_CODE_INVALID_SQL;
+      *code = TSDB_CODE_TSC_INVALID_SQL;
       return -1;
     }
 
@@ -569,7 +569,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
 
   if (numOfRows <= 0) {
     strcpy(error, "no any data points");
-    *code = TSDB_CODE_INVALID_SQL;
+    *code = TSDB_CODE_TSC_INVALID_SQL;
     return -1;
   } else {
     return numOfRows;
@@ -611,7 +611,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
       // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
       *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
-      return TSDB_CODE_CLI_OUT_OF_MEMORY;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
 
@@ -687,13 +687,13 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   int32_t maxNumOfRows;
   ret = tscAllocateMemIfNeed(dataBuf, tinfo.rowSize, &maxNumOfRows);
   if (TSDB_CODE_SUCCESS != ret) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  int32_t code = TSDB_CODE_INVALID_SQL;
+  int32_t code = TSDB_CODE_TSC_INVALID_SQL;
   char *  tmpTokenBuf = calloc(1, 4096);  // used for deleting Escape character: \\, \', \"
   if (NULL == tmpTokenBuf) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   int32_t numOfRows = tsParseValues(str, dataBuf, pTableMeta, maxNumOfRows, spd, pCmd->payload, &code, tmpTokenBuf);
@@ -772,7 +772,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   }
 
   if (numOfColList == 0 && cstart != NULL) {
-    return TSDB_CODE_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
   
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
@@ -954,7 +954,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
     createTable = true;
     code = tscGetMeterMetaEx(pSql, pTableMetaInfo, true);
-    if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+    if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
     }
     
@@ -967,7 +967,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     code = tscGetMeterMetaEx(pSql, pTableMetaInfo, false);
     
     if (pCmd->curSql == NULL) {
-      assert(code == TSDB_CODE_ACTION_IN_PROGRESS);
+      assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
     }
   }
 
@@ -981,7 +981,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   }
 
   if (*sqlstr == NULL) {
-    code = TSDB_CODE_INVALID_SQL;
+    code = TSDB_CODE_TSC_INVALID_SQL;
   }
   
   return code;
@@ -1046,7 +1046,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
 
     pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
     if (NULL == pCmd->pTableList || NULL == pSql->cmd.pDataBlocks) {
-      code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error_clean;
     }
   } else {
@@ -1075,7 +1075,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * Otherwise, create the first submit block and submit to virtual node.
        */
       if (totalNum == 0) {
-        code = TSDB_CODE_INVALID_SQL;
+        code = TSDB_CODE_TSC_INVALID_SQL;
         goto _error_clean;
       } else {
         break;
@@ -1103,7 +1103,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * And during the getMeterMetaCallback function, the sql string will be parsed from the
        * interrupted position.
        */
-      if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+      if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
         tscTrace("%p waiting for get table meta during insert, then resume from offset: %" PRId64 " , %s", pSql,
             pos, pCmd->curSql);
         return code;
@@ -1297,7 +1297,7 @@ _clean:
 
 int tsParseInsertSql(SSqlObj *pSql) {
   if (!pSql->pTscObj->writeAuth) {
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_TSC_NO_WRITE_AUTH;
   }
 
   int32_t  index = 0;

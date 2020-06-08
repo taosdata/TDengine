@@ -23,6 +23,7 @@ from util.dnodes import *
 last_tb = ""
 last_stb = ""
 written = 0
+last_timestamp = 0
 
 
 class Test (threading.Thread):
@@ -47,7 +48,7 @@ class Test (threading.Thread):
 
             try:
                 tdSql.execute(
-                    'create table %s (ts timestamp, speed int)' %
+                    'create table %s (ts timestamp, speed int, c1 nchar(10))' %
                     current_tb)
                 last_tb = current_tb
                 written = 0
@@ -58,10 +59,13 @@ class Test (threading.Thread):
         tdLog.info("insert_data")
         global last_tb
         global written
+        global last_timestamp
 
         if (last_tb == ""):
             tdLog.info("no table, create first")
             self.create_table()
+
+        start_time = 1500000000000
 
         tdLog.info("will insert data to table")
         for i in range(0, 10):
@@ -69,10 +73,14 @@ class Test (threading.Thread):
             tdLog.info("insert %d rows to %s" % (insertRows, last_tb))
 
             for j in range(0, insertRows):
-                ret = tdSql.execute(
-                    'insert into %s values (now + %dm, %d)' %
-                    (last_tb, j, j))
+                if (last_tb == ""):
+                    tdLog.info("no table, return")
+                    return
+                tdSql.execute(
+                    'insert into %s values (%d + %da, %d, "test")' %
+                    (last_tb, start_time, last_timestamp, last_timestamp))
                 written = written + 1
+                last_timestamp = last_timestamp + 1
 
     def query_data(self):
         tdLog.info("query_data")
@@ -89,6 +97,7 @@ class Test (threading.Thread):
         global last_tb
         global last_stb
         global written
+        global last_timestamp
 
         current_stb = "stb%d" % int(round(time.time() * 1000))
 
@@ -106,11 +115,15 @@ class Test (threading.Thread):
                 "create table %s using %s tags (1, '表1')" %
                 (current_tb, last_stb))
             last_tb = current_tb
-            tdSql.execute(
-                "insert into %s values (now, 27, '我是nchar字符串')" %
-                last_tb)
-            written = written + 1
+            written = 0
 
+            start_time = 1500000000000
+
+            tdSql.execute(
+                "insert into %s values (%d+%da, 27, '我是nchar字符串')" %
+                (last_tb, start_time, last_timestamp))
+            written = written + 1
+            last_timestamp = last_timestamp + 1
 
     def drop_stable(self):
         tdLog.info("drop_stable")
@@ -131,7 +144,7 @@ class Test (threading.Thread):
 
         tdDnodes.stop(1)
         tdDnodes.start(1)
-        tdLog.sleep(5)
+#        tdLog.sleep(5)
 
     def force_restart_database(self):
         tdLog.info("force_restart_database")
@@ -140,7 +153,7 @@ class Test (threading.Thread):
 
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
-        tdLog.sleep(10)
+#        tdLog.sleep(10)
 
     def drop_table(self):
         tdLog.info("drop_table")
@@ -154,7 +167,6 @@ class Test (threading.Thread):
                 last_tb = ""
                 written = 0
 
-
     def query_data_from_stable(self):
         tdLog.info("query_data_from_stable")
         global last_stb
@@ -166,7 +178,6 @@ class Test (threading.Thread):
             tdLog.info("will query data from super table")
             tdSql.execute('select * from %s' % last_stb)
 
-
     def reset_query_cache(self):
         tdLog.info("reset_query_cache")
         global last_tb
@@ -174,7 +185,7 @@ class Test (threading.Thread):
 
         tdLog.info("reset query cache")
         tdSql.execute("reset query cache")
-        tdLog.sleep(1)
+#        tdLog.sleep(1)
 
     def reset_database(self):
         tdLog.info("reset_database")
@@ -184,15 +195,16 @@ class Test (threading.Thread):
 
         tdDnodes.forcestop(1)
         tdDnodes.deploy(1)
+        tdDnodes.start(1)
+        tdSql.prepare()
         last_tb = ""
         last_stb = ""
         written = 0
-        tdDnodes.start(1)
-        tdSql.prepare()
 
     def delete_datafiles(self):
         tdLog.info("delete_data_files")
         global last_tb
+        global last_stb
         global written
 
         dnodesDir = tdDnodes.getDnodesRootDir()
@@ -200,11 +212,12 @@ class Test (threading.Thread):
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
 
-        last_tb = ""
-        written = 0
         tdDnodes.start(1)
-        tdLog.sleep(10)
+#        tdLog.sleep(10)
         tdSql.prepare()
+        last_tb = ""
+        last_stb = ""
+        written = 0
 
     def run(self):
         dataOp = {
@@ -230,7 +243,7 @@ class Test (threading.Thread):
                 self.threadLock.acquire()
                 tdLog.notice("first thread")
                 randDataOp = random.randint(1, 3)
-                dataOp.get(randDataOp , lambda: "ERROR")()
+                dataOp.get(randDataOp, lambda: "ERROR")()
                 self.threadLock.release()
 
         elif (self.threadId == 2):
