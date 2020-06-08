@@ -646,10 +646,9 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
     taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
   }
 
-  tclose(fd);
-  remove(".table.tmp");
+  close(fd);
 
-  return 0;
+  return remove(".table.tmp");
 }
 
 void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, SDumpArguments *arguments, FILE *fp) {
