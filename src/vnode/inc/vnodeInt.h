@@ -39,6 +39,9 @@ typedef struct {
   int8_t       role;   
   int64_t      version;   // current version 
   int64_t      fversion;  // version on saved data file
+  int64_t      totalStorage; //total bytes occupie
+  int64_t      compStorage;
+  int64_t      pointsWritten; //total data points written
   void        *wqueue;
   void        *rqueue;
   void        *wal;
