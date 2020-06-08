@@ -169,6 +169,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 
