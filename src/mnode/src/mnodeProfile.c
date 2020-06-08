@@ -264,13 +264,13 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
 // not thread safe, need optimized
 int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
   pConn->numOfQueries = htonl(pHBMsg->numOfQueries);
-  if (pConn->numOfQueries > 0) {
+  if (pConn->numOfQueries > 0 && pConn->numOfQueries < 20) {
     pConn->pQueries = calloc(sizeof(SQueryDesc), pConn->numOfQueries);
     memcpy(pConn->pQueries, pHBMsg->pData, pConn->numOfQueries * sizeof(SQueryDesc));
   }
 
   pConn->numOfStreams = htonl(pHBMsg->numOfStreams);
-  if (pConn->numOfStreams > 0) {
+  if (pConn->numOfStreams > 0 && pConn->numOfStreams < 20) {
     pConn->pStreams = calloc(sizeof(SStreamDesc), pConn->numOfStreams);
     memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc),
            pConn->numOfStreams * sizeof(SStreamDesc));

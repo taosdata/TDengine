@@ -111,7 +111,7 @@ matrix:
           description: TDengine
 
         # Where email notification of build analysis results will be sent
-        notification_email: sdsang@taosdata.com
+        notification_email: sdsang@taosdata.com, slguan@taosdata.com
 
         # Commands to prepare for build_command
         # ** likely specific to your build **
@@ -178,7 +178,7 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}
           lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info
-          lcov --remove coverage.info '*tests*' '*deps*' -o coverage.info
+          lcov --remove coverage.info '*/tests/*' '*/test/*' '*/deps/*' -o coverage.info
           lcov -l --rc lcov_branch_coverage=1 coverage.info || travis_terminate $?
 
           gem install coveralls-lcov

@@ -16,9 +16,26 @@ function echoInfo   { local args="$@"; white_brackets $(green_printf "INFO") && 
 function echoWarn   { local args="$@";  echo "$(white_brackets "$(yellow_printf "WARN")" && echo " ${args}";)" 1>&2; }  #
 function echoError  { local args="$@"; echo "$(white_brackets "$(red_printf    "ERROR")" && echo " ${args}";)" 1>&2; }  #
 
-function set-Wal {
+function setMaxConnections {
+	echo "/etc/taos/taos.cfg maxConnection will be set to $1"
+
+	hasText=`grep "maxConnections" /etc/taos/taos.cfg`
+	if [[ -z "$hasText" ]]; then
+		echo "maxConnections $1" >> /etc/taos/taos.cfg
+	else
+		sed -i 's/^maxConnections.*$/maxConnections '"$1"'/g' /etc/taos/taos.cfg
+	fi
+}
+
+function setWal {
 	echo "/etc/taos/taos.cfg walLevel will be set to $1"
-	sed -i 's/^walLevel.*$/walLevel '"$1"'/g' /etc/taos/taos.cfg
+
+	hasText=`grep "walLevel" /etc/taos/taos.cfg`
+	if [[ -z "$hasText" ]]; then
+		echo "walLevel $1" >> /etc/taos/taos.cfg
+	else
+		sed -i 's/^walLevel.*$/walLevel '"$1"'/g' /etc/taos/taos.cfg
+	fi
 }
 
 function collectSysInfo {
@@ -70,15 +87,25 @@ function sendReport {
 	mimebody="MIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\n"
 
 	echo -e "to: ${receiver}\nsubject: Perf test report ${today}, commit ID: ${LOCAL_COMMIT}\n" | \
-		(cat - && uuencode perftest-1d-$today.log perftest-1d-$today.log)| \
-		(cat - && uuencode perftest-1d-report.csv perftest-1d-report-$today.csv) | \
-		(cat - && uuencode perftest-1d-report.png perftest-1d-report-$today.png) | \
-		(cat - && uuencode perftest-13d-$today.log perftest-13d-$today.log)| \
-		(cat - && uuencode perftest-13d-report.csv perftest-13d-report-$today.csv) | \
-		(cat - && uuencode perftest-13d-report.png perftest-13d-report-$today.png) | \
-		(cat - && uuencode taosdemo-$today.log taosdemo-$today.log) | \
-		(cat - && uuencode taosdemo-report.csv taosdemo-report-$today.csv) | \
-		(cat - && uuencode taosdemo-report.png taosdemo-report-$today.png) | \
+		(cat - && uuencode perftest-1d-wal1-$today.log perftest-1d-wal1-$today.log)| \
+		(cat - && uuencode perftest-1d-wal1-report.csv perftest-1d-wal1-report-$today.csv) | \
+		(cat - && uuencode perftest-1d-wal1-report.png perftest-1d-wal1-report-$today.png) | \
+		(cat - && uuencode perftest-13d-wal1-$today.log perftest-13d-wal1-$today.log)| \
+		(cat - && uuencode perftest-13d-wal1-report.csv perftest-13d-wal1-report-$today.csv) | \
+		(cat - && uuencode perftest-13d-wal1-report.png perftest-13d-wal1-report-$today.png) | \
+		(cat - && uuencode taosdemo-wal1-$today.log taosdemo-wal1-$today.log) | \
+		(cat - && uuencode taosdemo-wal1-report.csv taosdemo-wal1-report-$today.csv) | \
+		(cat - && uuencode taosdemo-rps-wal1-report.csv taosdemo-rps-wal1-report-$today.csv) | \
+		(cat - && uuencode taosdemo-wal1-report.png taosdemo-wal1-report-$today.png) | \
+		(cat - && uuencode perftest-1d-wal2-$today.log perftest-1d-wal2-$today.log)| \
+		(cat - && uuencode perftest-1d-wal2-report.csv perftest-1d-wal2-report-$today.csv) | \
+		(cat - && uuencode perftest-1d-wal2-report.png perftest-1d-wal2-report-$today.png) | \
+		(cat - && uuencode perftest-13d-wal2-$today.log perftest-13d-wal2-$today.log)| \
+		(cat - && uuencode perftest-13d-wal2-report.csv perftest-13d-wal2-report-$today.csv) | \
+		(cat - && uuencode perftest-13d-wal2-report.png perftest-13d-wal2-report-$today.png) | \
+		(cat - && uuencode taosdemo-wal2-$today.log taosdemo-wal2-$today.log) | \
+		(cat - && uuencode taosdemo-wal2-report.csv taosdemo-wal2-report-$today.csv) | \
+		(cat - && uuencode taosdemo-rps-wal2-report.csv taosdemo-rps-wal2-report-$today.csv) | \
 		(cat - && uuencode sysinfo.log sysinfo.txt) | \
 		(cat - && uuencode taos.cfg taos-cfg-$today.txt) | \
 		ssmtp "${receiver}"
@@ -91,17 +118,34 @@ echo -e "cron-ran-at-${today}" >> cron.log
 echoInfo "Build TDengine"
 buildTDengine
 
-set-Wal "2"
+############################
+setMaxConnections 100
+
+############################
+setWal "2"
 
 cd /root
-./perftest-tsdb-compare-1d.sh
+./perftest-tsdb-compare-1d.sh "wal2"
 
 cd /root
-./perftest-tsdb-compare-13d.sh
+./perftest-tsdb-compare-13d.sh "wal2"
 
 cd /root
-./perftest-taosdemo.sh
+./perftest-taosdemo.sh "wal2"
 
+#############################
+setWal "1"
+
+cd /root
+./perftest-tsdb-compare-1d.sh "wal1"
+
+cd /root
+./perftest-tsdb-compare-13d.sh "wal1"
+
+cd /root
+./perftest-taosdemo.sh "wal1"
+
+#############################
 collectSysInfo
 
 echoInfo "Send Report"

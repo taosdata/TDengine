@@ -25,8 +25,8 @@ sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bi
 
 $count = 0
 while $count < $N
-   $ms = $count . a
-   sql insert into $tb values( now+ $ms , 1, 0, $count , $count , $count ,'it is a string')
+   $ms = 1591200000000 + $count
+   sql insert into $tb values(  $ms , 1, 0, $count , $count , $count ,'it is a string')
    $count = $count + 1
 endw
 
@@ -46,8 +46,8 @@ sql create table $tb (ts timestamp, f float, d double, str binary(256))
 
 $count = 0
 while $count < $N
-   $ms = $count . a
-   sql insert into $tb values( now+ $ms , $count , $count ,'it is a string')
+   $ms = 1591286400000 + $count
+   sql insert into $tb values(  $ms , $count , $count ,'it is a string')
    $count = $count + 1
 endw
 
@@ -75,8 +75,8 @@ sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bi
 
 $count = 0
 while $count < $N
-   $ms = $count . a
-   sql insert into $tb values( now+ $ms , 1 , 0 , $count , $count , $count , $count , $count ,'it is a string')
+   $ms = 1591372800000 + $count
+   sql insert into $tb values(  $ms , 1 , 0 , $count , $count , $count , $count , $count ,'it is a string')
    $count = $count + 1
 endw
 

@@ -33,26 +33,26 @@ function runPerfTest13d {
 	restartTaosd
 
 	cd /home/taos/tliu/timeseriesdatabase-comparisons/build/tsdbcompare
-	./runreal-13d-csv.sh 2>&1 | tee /root/perftest-13d-$today.log
+	./runreal-13d-csv.sh $1 2>&1 | tee /root/perftest-13d-$1-$today.log
 }
 
 function generatePerfPlot13d {
 	cd /root
 
-	csvLines=`cat perftest-13d-report.csv | wc -l`
+	csvLines=`cat perftest-13d-$1-report.csv | wc -l`
 
 	if [ "$csvLines" -gt "10" ]; then
-		sed -i '1d' perftest-13d-report.csv
+		sed -i '1d' perftest-13d-$1-report.csv
 	fi
 
-	gnuplot -e "filename='perftest-13d-report'" -p perftest-csv2png.gnuplot
+	gnuplot -e "filename='perftest-13d-$1-report'" -p perftest-csv2png.gnuplot
 }
 
 today=`date +"%Y%m%d"`
 cd /root
 
 echoInfo "run Performance Test with 13 days data"
-runPerfTest13d
+runPerfTest13d $1
 echoInfo "Generate plot of 13 days data"
-generatePerfPlot13d
+generatePerfPlot13d $1
 echoInfo "End of TSDB-Compare 13-days-data Test"

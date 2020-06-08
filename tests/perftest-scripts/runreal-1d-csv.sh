@@ -143,7 +143,7 @@ echo    "------------------------------------------------------"
 echo
 
 today=`date +"%Y%m%d"`
-echo "${today}, ${TDWTM}, ${TDQ1}, ${TDQ2}, ${TDQ3}, ${TDQ4}" >> /root/perftest-1d-report.csv
+echo "${today}, ${TDWTM}, ${TDQ1}, ${TDQ2}, ${TDQ3}, ${TDQ4}" >> /root/perftest-1d-$1-report.csv
 
 #bulk_query_gen/bulk_query_gen  -format influx-http -query-type 1-host-1-hr -scale-var 10 -queries 1000 | query_benchmarker_influxdb/query_benchmarker_influxdb  -urls="http://172.26.89.231:8086" 
 #bulk_query_gen/bulk_query_gen  -format tdengine -query-type 1-host-1-hr -scale-var 10 -queries 1000 | query_benchmarker_tdengine/query_benchmarker_tdengine  -urls="http://172.26.89.231:6020" 

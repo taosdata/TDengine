@@ -145,6 +145,7 @@ void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
+// offset here not include dataRow header length
 static FORCE_INLINE int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
