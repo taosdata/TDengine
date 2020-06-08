@@ -1452,7 +1452,8 @@ int vnodeForwardStartPosition(SQuery *pQuery, SCompBlock *pBlock, int32_t slotId
   int step = QUERY_IS_ASC_QUERY(pQuery) ? 1 : -1;
 
   if (pQuery->limit.offset > 0 && pQuery->numOfFilterCols == 0) {
-    int maxReads = QUERY_IS_ASC_QUERY(pQuery) ? pBlock->numOfPoints - pQuery->pos : pQuery->pos + 1;
+    assert(pBlock[slotIdx].numOfPoints > pQuery->pos);
+    int maxReads = QUERY_IS_ASC_QUERY(pQuery) ? pBlock[slotIdx].numOfPoints - pQuery->pos : pQuery->pos + 1;
 
     if (pQuery->limit.offset < maxReads) {  // start position in current block
       if (QUERY_IS_ASC_QUERY(pQuery)) {
