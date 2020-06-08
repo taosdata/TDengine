@@ -913,7 +913,7 @@ static int tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDa
     } else {
       // Load
       if (tsdbLoadBlockData(pHelper, blockAtIdx(pHelper, blkIdx), NULL) < 0) goto _err;
-      ASSERT(pHelper->pDataCols[0]->numOfRows == blockAtIdx(pHelper, blkIdx)->numOfRows);
+      ASSERT(pHelper->pDataCols[0]->numOfRows <= blockAtIdx(pHelper, blkIdx)->numOfRows);
       // Merge
       if (tdMergeDataCols(pHelper->pDataCols[0], pDataCols, rowsWritten) < 0) goto _err;
       // Write
@@ -1107,16 +1107,16 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
     for (int i = blkIdx + 1; i < pIdx->numOfBlocks; i++) {
       SCompBlock *pTCompBlock = pHelper->pCompInfo->blocks + i;
       if (pTCompBlock->numOfSubBlocks > 1) {
-        ptr = (void *)((char *)(pHelper->pCompInfo) + pTCompBlock->offset + pTCompBlock->len);
+        ptr = POINTER_SHIFT(pHelper->pCompInfo, pTCompBlock->offset);
         break;
       }
     }
 
-    if (ptr == NULL) ptr = (void *)((char *)(pHelper->pCompInfo) + pIdx->len - sizeof(TSCKSUM));
+    if (ptr == NULL) ptr = POINTER_SHIFT(pHelper->pCompInfo, pIdx->len-sizeof(TSCKSUM));
 
     size_t tsize = pIdx->len - ((char *)ptr - (char *)(pHelper->pCompInfo));
     if (tsize > 0) {
-      memmove((void *)((char *)ptr + sizeof(SCompBlock) * 2), ptr, tsize);
+      memmove(POINTER_SHIFT(ptr, sizeof(SCompBlock) * 2), ptr, tsize);
       for (int i = blkIdx + 1; i < pIdx->numOfBlocks; i++) {
         SCompBlock *pTCompBlock = pHelper->pCompInfo->blocks + i;
         if (pTCompBlock->numOfSubBlocks > 1) pTCompBlock->offset += (sizeof(SCompBlock) * 2);
