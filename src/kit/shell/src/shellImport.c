@@ -148,7 +148,11 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   }
 
   char *fname = full_path.we_wordv[0];
-  
+  if (fname == NULL) {
+    fprintf(stderr, "ERROR: invalid filename\n");
+    return;
+  }
+
   if (access(fname, F_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
     
