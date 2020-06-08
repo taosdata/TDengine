@@ -132,6 +132,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
       pThreadObj->fd_event     = eventfd(1, 0);
       if (pThreadObj->fd_event < 0) {
         tError("%s failed to create fd_event for epoll event", label);
+        terrno = TAOS_SYSTEM_ERROR(errno);
         code = -1;
         break;
       }
@@ -139,7 +140,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
       pThreadObj->pollFd = epoll_create(10);  // size does not matter
       if (pThreadObj->pollFd < 0) {
         tError("%s failed to create TCP epoll", label);
-        terrno = TAOS_SYSTEM_ERROR(errno); 
+        terrno = TAOS_SYSTEM_ERROR(errno);
         code = -1;
         break;
       }
@@ -147,7 +148,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
       code = pthread_create(&(pThreadObj->thread), &thattr, taosProcessTcpData, (void *)(pThreadObj));
       if (code != 0) {
         tError("%s failed to create TCP process data thread(%s)", label, strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(errno); 
+        terrno = TAOS_SYSTEM_ERROR(errno);
         break;
       }
 
