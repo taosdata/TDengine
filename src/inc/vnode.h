@@ -30,7 +30,6 @@ typedef enum _VN_STATUS {
 
 typedef struct {
   int   len;
-  int   code;
   void *rsp;
   void *qhandle; //used by query and retrieve msg
 } SRspRet;
