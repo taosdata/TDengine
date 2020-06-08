@@ -2,7 +2,7 @@
 reset
 set terminal png
 
-set title "Performance Test Report" font ",20"
+set title filename font ",20"
 
 set ylabel "Time in Seconds"
 
