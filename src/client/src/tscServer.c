@@ -239,16 +239,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
     if (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID || 
         rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      /*
-       * not_active_table: 1. the virtual node may fail to create table, since the procedure of create table is asynchronized,
-       *                   the virtual node may have not create table till now, so try again by using the new metermeta.
-       *                   2. this requested table may have been removed by other client, so we need to renew the
-       *                   metermeta here.
-       *
-       * not_active_vnode: current vnode is move to other node due to node balance procedure or virtual node have been
-       *                   removed. So, renew metermeta and try again.
-       * not_active_session: db has been move to other node, the vnode does not exist on this dnode anymore.
-       */
       if (pCmd->command == TSDB_SQL_CONNECT) {
         rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         rpcFreeCont(rpcMsg->pCont);
@@ -258,8 +248,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
         rpcFreeCont(rpcMsg->pCont);
         return;
       } else if (pCmd->command == TSDB_SQL_META) {
-//        rpcFreeCont(rpcMsg->pCont);
-//        return;
+        // get table meta query will not retry, do nothing
       } else {
         tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
         
@@ -267,13 +256,14 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
         if (pSql->retry > pSql->maxRetry) {
           tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
         } else {
-          rpcMsg->code = tscRenewMeterMeta(pSql, pTableMetaInfo->name);
-          if (pTableMetaInfo->pTableMeta) {
-            tscSendMsgToServer(pSql);
+          rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
+
+          // if there is an error occurring, proceed to the following error handling procedure.
+          // todo add test cases
+          if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            rpcFreeCont(rpcMsg->pCont);
+            return;
           }
-  
-          rpcFreeCont(rpcMsg->pCont);
-          return;
         }
       }
     }
@@ -330,9 +320,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     }
   }
   
-  if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
+  if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command]) {
+    assert(pRes->pRsp != NULL);
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
-  
+  }
 
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? pRes->numOfRows: pRes->code;
@@ -2358,7 +2349,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
 
   int32_t code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;
+    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify upper application that current process need to be terminated
   }
 
   return code;
@@ -2395,7 +2386,7 @@ int tscGetMeterMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
  * @param tableId       table full name
  * @return              status code
  */
-int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
+int tscRenewTableMeta(SSqlObj *pSql, char *tableId) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);

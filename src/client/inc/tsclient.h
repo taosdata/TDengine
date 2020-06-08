@@ -358,7 +358,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
-int  tscRenewMeterMeta(SSqlObj *pSql, char *tableId);
+int  tscRenewTableMeta(SSqlObj *pSql, char *tableId);
 void tscQueueAsyncRes(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
