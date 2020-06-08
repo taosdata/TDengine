@@ -321,7 +321,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   }
   
   if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command]) {
-    assert(pRes->pRsp != NULL);
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
