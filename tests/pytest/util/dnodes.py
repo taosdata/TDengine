@@ -319,6 +319,7 @@ class TDDnodes:
         self.dnodes.append(TDDnode(8))
         self.dnodes.append(TDDnode(9))
         self.dnodes.append(TDDnode(10))
+        self.simDeployed = False
 
     def init(self, path):
         psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
@@ -378,7 +379,10 @@ class TDDnodes:
         self.sim = TDSimClient()
         self.sim.init(self.path)
         self.sim.setTestCluster(self.testCluster)
-        self.sim.deploy()
+
+        if (self.simDeployed == False):
+            self.sim.deploy()
+            self.simDeployed = True
 
         self.check(index)
         self.dnodes[index - 1].setTestCluster(self.testCluster)
