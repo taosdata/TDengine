@@ -66,7 +66,7 @@ endi
 
 system_content curl 127.0.0.1:6020/grafana/login/xx/xx/
 print 3-> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"invalid user"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"mnode invalid user"}@ then
   return -1
 endi
 
@@ -78,7 +78,7 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:6020/grafana/login/1/root/1/
 print 5-> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"invalid user"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"mnode invalid user"}@ then
   return -1
 endi
 
