@@ -4238,7 +4238,7 @@ odbcExecuteSql(STMT *s)
     case TSDB_CODE_MND_TABLE_ALREADY_EXIST:
       sqlState = "42S01";
       break;
-    case TSDB_CODE_MND_INVALID_TABLE_ID:
+    case TSDB_CODE_MND_INVALID_TABLE_NAME:
       sqlState = "42S02";
       break;
     default:
