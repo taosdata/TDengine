@@ -147,7 +147,7 @@ print ===============  step3 - db
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1;' 127.0.0.1:6020/rest/sql
 print 21-> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"mnode invalid table id"}@ then
+if $system_content != @{"status":"error","code":1000,"desc":"mnode invalid table name"}@ then
   return -1
 endi
 
