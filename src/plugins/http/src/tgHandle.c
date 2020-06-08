@@ -303,7 +303,7 @@ bool tgGetUserFromUrl(HttpContext *pContext) {
     return false;
   }
 
-  strcpy(pContext->user, pParser->path[TG_USER_URL_POS].pos);
+  tstrncpy(pContext->user, pParser->path[TG_USER_URL_POS].pos, TSDB_USER_LEN);
   return true;
 }
 
