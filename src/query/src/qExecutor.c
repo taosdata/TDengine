@@ -5820,10 +5820,11 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
 _over:
   tfree(tagCond);
   tfree(tbnameCond);
+  tfree(pGroupColIndex);
   taosArrayDestroy(pTableIdList);
 
+  //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
   if (code != TSDB_CODE_SUCCESS) {
-    //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null; 
     *pQInfo = NULL;
   }
 
