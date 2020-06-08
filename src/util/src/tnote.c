@@ -87,6 +87,10 @@ void *taosThreadToOpenNewNote(void *param)
     umask(0);
 
     int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+    if (fd < 0) {
+      return NULL;
+    }
+
     taosLockNote(fd, pNote);
     lseek(fd, 0, SEEK_SET);
 
