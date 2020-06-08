@@ -1153,7 +1153,7 @@ SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numO
   for (int32_t j = 0; j < numOfFilters; ++j) {
     
     if (pFilter[j].filterstr) {
-      size_t len = (size_t) pFilter[j].len + 1;
+      size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
       pFilter[j].pz = (int64_t) calloc(1, len);
       
       memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t)len);

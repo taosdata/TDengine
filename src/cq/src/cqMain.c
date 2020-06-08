@@ -38,6 +38,7 @@ typedef struct {
   int      vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
+  char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
   void    *ahandle;
   int      num;      // number of continuous streams
@@ -48,7 +49,8 @@ typedef struct {
 } SCqContext;
 
 typedef struct SCqObj {
-  int            tid;      // table ID
+  uint64_t       uid;
+  int32_t        tid;      // table ID
   int            rowSize;  // bytes of a row
   char *         sqlStr;   // SQL string
   STSchema *     pSchema;  // pointer to schema array
@@ -73,6 +75,14 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 
   strcpy(pContext->user, pCfg->user);
   strcpy(pContext->pass, pCfg->pass);
+  const char* db = pCfg->db;
+  for (const char* p = db; *p != 0; p++) {
+    if (*p == '.') {
+      db = p + 1;
+      break;
+    }
+  }
+  strcpy(pContext->db, db);
   pContext->vgId = pCfg->vgId;
   pContext->cqWrite = pCfg->cqWrite;
   pContext->ahandle = ahandle;
@@ -153,17 +163,19 @@ void cqStop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
-void *cqCreate(void *handle, int tid, char *sqlStr, STSchema *pSchema) {
+void *cqCreate(void *handle, uint64_t uid, int tid, char *sqlStr, STSchema *pSchema) {
   SCqContext *pContext = handle;
 
   SCqObj *pObj = calloc(sizeof(SCqObj), 1);
   if (pObj == NULL) return NULL;
 
+  pObj->uid = uid;
   pObj->tid = tid;
   pObj->sqlStr = malloc(strlen(sqlStr)+1);
   strcpy(pObj->sqlStr, sqlStr);
 
   pObj->pSchema = tdDupSchema(pSchema);
+  pObj->rowSize = schemaTLen(pSchema);
 
   cTrace("vgId:%d, id:%d CQ:%s is created", pContext->vgId, pObj->tid, pObj->sqlStr);
 
@@ -207,16 +219,16 @@ void cqDrop(void *handle) {
 }
 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
-
   if (pContext->dbConn == NULL) {
-    pContext->dbConn = taos_connect("localhost", pContext->user, pContext->pass, NULL, 0);
+    pContext->dbConn = taos_connect("localhost", pContext->user, pContext->pass, pContext->db, 0);
     if (pContext->dbConn == NULL) {
       cError("vgId:%d, failed to connect to TDengine(%s)", pContext->vgId, tstrerror(terrno));
+      return;
     }
-    return;
   }
 
   int64_t lastKey = 0;
+  pObj->pContext = pContext;
   pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, lastKey, pObj, NULL);
   if (pObj->pStream) {
     pContext->num++;
@@ -229,29 +241,49 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SCqObj     *pObj = (SCqObj *)param;
   SCqContext *pContext = pObj->pContext;
+  STSchema   *pSchema = pObj->pSchema;
   if (pObj->pStream == NULL) return;
 
   cTrace("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
-  // construct data
-  int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + pObj->rowSize;
+  int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
   char *buffer = calloc(size, 1);
 
   SWalHead   *pHead = (SWalHead *)buffer;
-  pHead->msgType = TSDB_MSG_TYPE_SUBMIT;
-  pHead->len = size - sizeof(SWalHead);
-  
-  SSubmitMsg *pSubmit = (SSubmitMsg *) (buffer + sizeof(SWalHead));
-  // to do: fill in the SSubmitMsg structure
-  pSubmit->numOfBlocks = 1;
-
-
+  SSubmitMsg *pMsg = (SSubmitMsg *) (buffer + sizeof(SWalHead));
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
-  // to do: fill in the SSubmitBlk strucuture
-  pBlk->tid = pObj->tid;
 
+  SDataRow trow = (SDataRow)pBlk->data;
+  tdInitDataRow(trow, pSchema);
+
+  for (int32_t i = 0; i < pSchema->numOfCols; i++) {
+    STColumn *c = pSchema->columns + i;
+    char* val = (char*)row[i];
+    if (IS_VAR_DATA_TYPE(c->type)) {
+      val -= sizeof(VarDataLenT);
+    }
+    tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
+  }
+  pBlk->len = htonl(dataRowLen(trow));
+
+  pBlk->uid = htobe64(pObj->uid);
+  pBlk->tid = htonl(pObj->tid);
+  pBlk->numOfRows = htons(1);
+  pBlk->sversion = htonl(pSchema->version);
+  pBlk->padding = 0;
+
+  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + dataRowLen(trow);
+
+  pMsg->header.vgId = htonl(pContext->vgId);
+  pMsg->header.contLen = htonl(pHead->len);
+  pMsg->length = pMsg->header.contLen;
+  pMsg->numOfBlocks = htonl(1);
+
+  pHead->msgType = TSDB_MSG_TYPE_SUBMIT;
+  pHead->version = 0;
 
   // write into vnode write queue
   pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ);
+  free(buffer);
 }
 

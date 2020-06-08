@@ -69,6 +69,8 @@ print ====== tables created
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+return
 sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
