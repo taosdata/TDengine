@@ -180,7 +180,7 @@ if $data03 != 0 then
 endi
 
 print $data04
-if $data04 != 0.0000 then
+if $data04 != 0.00000 then
   return -1
 endi
 
@@ -201,7 +201,8 @@ if $data13 != 1 then
   return -1
 endi
 
-if $data14 != 1.0000 then
+if $data14 != 1.00000 then
+  print expect 1.00000, actual:$data14
   return -1
 endi
 
@@ -342,6 +343,19 @@ if $data95 != 7200 then
 endi
 
 if $data94 != 9 then
+  return -1
+endi
+
+sql select c1,sum(c1),avg(c1),count(*) from group_mt0 where c1<5 group by c1;
+if $row != 5 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data01 != 800 then
   return -1
 endi
 

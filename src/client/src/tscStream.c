@@ -505,10 +505,9 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   tsem_init(&pSql->rspSem, 0, 0);
 
-  SSqlInfo SQLInfo = {0};
-  tSQLParse(&SQLInfo, pSql->sqlstr);
-
+  SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
   tscResetSqlCmdObj(&pSql->cmd);
+
   ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (TSDB_CODE_SUCCESS != ret) {
     setErrorInfo(pSql, ret, NULL);

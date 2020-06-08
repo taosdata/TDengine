@@ -517,6 +517,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       }
 
+      pSql->cmd.parseFinished = true;
       return TSDB_CODE_SUCCESS;  // do not build query message here
     }
 
@@ -542,6 +543,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "not support sql expression");
   }
 
+  pSql->cmd.parseFinished = true;
   return tscBuildMsg[pCmd->command](pSql, pInfo);
 }
 
