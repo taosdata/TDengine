@@ -74,14 +74,16 @@ void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
 STable *tsdbDecodeTable(void *cont, int contLen) {
   STable *pTable = (STable *)calloc(1, sizeof(STable));
   if (pTable == NULL) return NULL;
-  pTable->schema = (STSchema **)malloc(sizeof(STSchema *) * TSDB_MAX_TABLE_SCHEMAS);
-  if (pTable->schema == NULL) {
-    free(pTable);
-    return NULL;
-  }
 
   void *ptr = cont;
   T_READ_MEMBER(ptr, int8_t, pTable->type);
+  if (pTable->type != TSDB_CHILD_TABLE) {
+    pTable->schema = (STSchema **)malloc(sizeof(STSchema *) * TSDB_MAX_TABLE_SCHEMAS);
+    if (pTable->schema == NULL) {
+      free(pTable);
+      return NULL;
+    }
+  }
   int len = *(int *)ptr;
   ptr = (char *)ptr + sizeof(int);
   pTable->name = calloc(1, len + VARSTR_HEADER_SIZE + 1);
@@ -620,7 +622,10 @@ static int tsdbFreeTable(STable *pTable) {
   if (pTable->type == TSDB_CHILD_TABLE) {
     kvRowFree(pTable->tagVal);
   } else {
-    for (int i = 0; i < pTable->numOfSchemas; i++) tdFreeSchema(pTable->schema[i]);
+    if (pTable->schema) {
+      for (int i = 0; i < pTable->numOfSchemas; i++) tdFreeSchema(pTable->schema[i]);
+      free(pTable->schema);
+    }
   }
 
   if (pTable->type == TSDB_STREAM_TABLE) {

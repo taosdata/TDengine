@@ -21,14 +21,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <taos.h>  // TAOS header file
-#include <unistd.h>
-
-void taosMsleep(int mseconds);
+#include <sys/time.h>
+#include <inttypes.h>
 
 static int32_t doQuery(TAOS* taos, const char* sql) {
+  struct timeval t1 = {0};
+  gettimeofday(&t1, NULL);
+  
   TAOS_RES* res = taos_query(taos, sql);
   if (taos_errno(res) != 0) {
-    printf("failed to execute query, reason:%s\n", taos_errstr(taos));
+    printf("failed to execute query, reason:%s\n", taos_errstr(res));
     return -1;
   }
   
@@ -38,13 +40,19 @@ static int32_t doQuery(TAOS* taos, const char* sql) {
   int32_t numOfFields = taos_num_fields(res);
   TAOS_FIELD* pFields = taos_fetch_fields(res);
   
+  int32_t i = 0;
   while((row = taos_fetch_row(res)) != NULL) {
     taos_print_row(buf, row, pFields, numOfFields);
-    printf("%s\n", buf);
+    printf("%d:%s\n", ++i, buf);
     memset(buf, 0, 512);
   }
   
   taos_free_result(res);
+  
+  struct timeval t2 = {0};
+  gettimeofday(&t2, NULL);
+  
+  printf("elapsed time:%"PRId64 " ms\n", ((t2.tv_sec*1000000 + t2.tv_usec) - (t1.tv_sec*1000000 + t1.tv_usec))/1000);
   return 0;
 }
 
@@ -101,14 +109,18 @@ int main(int argc, char *argv[]) {
   
   taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
-    printf("failed to connect to server, reason:%s\n", taos_errstr(taos));
+    printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
     exit(1);
   }
-  printf("success to connect to server\n");
   
+  printf("success to connect to server\n");
+//  doQuery(taos, "select c1,count(*) from group_db0.group_mt0 where c1<8 group by c1");
+  doQuery(taos, "select * from test.m1");
+
 //  multiThreadTest(1, taos);
-  doQuery(taos, "use test");
-  doQuery(taos, "alter table tm99 set tag a=99");
+//  doQuery(taos, "select tbname from test.m1");
+//   doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and tbname in ('lm2_tb0') interval(1s) group by t1");
+//   doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and tbname in ('lm2_tb0', 'lm2_tb1', 'lm2_tb2') interval(1s)");
 //  for(int32_t i = 0; i < 100000; ++i) {
 //    doQuery(taos, "insert into t1 values(now, 2)");
 //  }

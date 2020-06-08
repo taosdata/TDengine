@@ -194,13 +194,13 @@ class TDDnode:
         selfPath = os.path.dirname(os.path.realpath(__file__))
         binPath = ""
 
-        if ("TDinternal" in selfPath):
+        if ("community" in selfPath):
             projPath = selfPath + "/../../../../"
 
             for root, dirs, files in os.walk(projPath):
                 if ("taosd" in files):
                     rootRealPath = os.path.dirname(os.path.realpath(root))
-                    if ("community" not in rootRealPath):
+                    if ("packaging" not in rootRealPath):
                         binPath = os.path.join(root, "taosd")
                         break
         else:
@@ -213,7 +213,7 @@ class TDDnode:
                         break
 
         if (binPath == ""):
-            tdLog.exit("taosd not found!s")
+            tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % rootRealPath)
 
