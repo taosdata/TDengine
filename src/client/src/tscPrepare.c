@@ -451,7 +451,7 @@ static int insertStmtExecute(STscStmt* stmt) {
   
   pRes->qhandle = 0;
 
-  pSql->insertType = 0;
+  pSql->cmd.insertType = 0;
   pSql->fetchFp    = waitForQueryRsp;
   pSql->fp         = (void(*)())tscHandleMultivnodeInsert;
 
@@ -515,7 +515,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   SSqlRes *pRes    = &pSql->res;
   pSql->param      = (void*) pSql;
   pSql->fp         = waitForQueryRsp;
-  pSql->insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  pSql->cmd.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
   
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("%p failed to malloc payload buffer", pSql);

@@ -1314,7 +1314,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
-  TSDB_QUERY_SET_TYPE(pQueryInfo->type, pSql->insertType);
+  TSDB_QUERY_SET_TYPE(pQueryInfo->type, pCmd->insertType);
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false, 0, NULL);
   if (sToken.type != TK_INTO) {
@@ -1342,7 +1342,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
      * Set the fp before parse the sql string, in case of getTableMeta failed, in which
      * the error handle callback function can rightfully restore the user-defined callback function (fp).
      */
-    if (initialParse && (pSql->insertType != TSDB_QUERY_TYPE_STMT_INSERT)) {
+    if (initialParse && (pSql->cmd.insertType != TSDB_QUERY_TYPE_STMT_INSERT)) {
       pSql->fetchFp = pSql->fp;
       pSql->fp = (void(*)())tscHandleMultivnodeInsert;
     }
@@ -1354,9 +1354,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
       return ret;
     }
     
-    SSqlInfo SQLInfo = {0};
-    tSQLParse(&SQLInfo, pSql->sqlstr);
-
+    SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     SQLInfoDestroy(&SQLInfo);
   }
