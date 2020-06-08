@@ -22,6 +22,7 @@ extern "C" {
 
 int32_t dnodeInitModules();
 void    dnodeStartModules();
+void    dnodeStartStream();
 void    dnodeCleanupModules();
 void    dnodeProcessModuleStatus(uint32_t moduleStatus);
 

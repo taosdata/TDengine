@@ -27,6 +27,7 @@ typedef struct {
   int      vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
+  char     db[TSDB_DB_NAME_LEN + 1];
   FCqWrite cqWrite;
 } SCqCfg;
 
@@ -41,7 +42,7 @@ void  cqStart(void *handle);
 void  cqStop(void *handle);
 
 // cqCreate is called by TSDB to start an instance of CQ 
-void *cqCreate(void *handle, int sid, char *sqlStr, STSchema *pSchema);
+void *cqCreate(void *handle, uint64_t uid, int sid, char *sqlStr, STSchema *pSchema);
 
 // cqDrop is called by TSDB to stop an instance of CQ, handle is the return value of cqCreate
 void  cqDrop(void *handle);

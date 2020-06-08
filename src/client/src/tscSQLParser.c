@@ -515,8 +515,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         if (ret != 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
         }
-      }
+      } 
 
+      pCmd->parseFinished = 1;
       return TSDB_CODE_SUCCESS;  // do not build query message here
     }
 

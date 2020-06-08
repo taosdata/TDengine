@@ -191,8 +191,8 @@ $st = $stPrefix . as
 #sql create table $st as select avg(tbcol) as a1, sum(tbcol) as a2, min(tbcol) as a3, max(tbcol) as a4,  first(tbcol) as a5, last(tbcol) as a6, stddev(tbcol) as a7, percentile(tbcol, 1) as a8, count(tbcol) as a9, leastsquares(tbcol, 1, 1) as a10 from $tb where ts < now + 4m interval(1d)
 
 print =============== step10
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step11
 $st = $stPrefix . c3
