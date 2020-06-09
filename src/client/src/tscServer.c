@@ -2150,7 +2150,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SCMConnectRsp *pConnect = (SCMConnectRsp *)pRes->pRsp;
-  strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
+  tstrncpy(pObj->acctId, pConnect->acctId, sizeof(pObj->acctId));  // copy acctId from response
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 
   assert(len <= sizeof(pObj->db));
@@ -2172,7 +2172,7 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
   STscObj *       pObj = pSql->pTscObj;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
-  strcpy(pObj->db, pTableMetaInfo->name);
+  tstrncpy(pObj->db, pTableMetaInfo->name, sizeof(pObj->db));
   return 0;
 }
 
