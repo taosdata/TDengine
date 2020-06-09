@@ -48,6 +48,7 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
         Parse(pParser, 0, t0, pSQLInfo);
         goto abort_parse;
       }
+      case TK_QUESTION:
       case TK_ILLEGAL: {
         snprintf(pSQLInfo->pzErrMsg, tListLen(pSQLInfo->pzErrMsg), "unrecognized token: \"%s\"", t0.z);
         pSQLInfo->valid = false;
@@ -815,6 +816,7 @@ void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBI
   pInfo->pDCLInfo->dbOpt.dbname = *pToken;
 
   tTokenListAppend(pInfo->pDCLInfo, pIgExists);
+  pInfo->pDCLInfo->existsCheck = (pIgExists->n == 1);
 }
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo) {

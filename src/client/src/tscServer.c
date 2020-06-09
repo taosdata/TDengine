@@ -106,12 +106,12 @@ static int32_t tscGetMgmtConnMaxRetryTimes() {
   return tscMgmtIpList.numOfIps * factor;
 }
 
-void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
+int32_t tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
-  if (pObj == NULL) return;
+  if (pObj == NULL) return TSDB_CODE_APP_ERROR;
   if (pObj != pObj->signature) {
     tscError("heart beat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
-    return;
+    return TSDB_CODE_APP_ERROR;
   }
 
   SSqlObj *pSql = pObj->pHb;
@@ -128,11 +128,19 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->queryId) tscKillQuery(pObj, pRsp->queryId);
       if (pRsp->streamId) tscKillStream(pObj, pRsp->streamId);
     }
+    
+    if (pRes->data == NULL) {
+      pRes->data = calloc(2, sizeof(int32_t));
+    }
+    
+    ((int32_t*)pRes->data)[0] = htonl(pRsp->totalDnodes);
+    ((int32_t*)pRes->data)[1] = htonl(pRsp->onlineDnodes);
   } else {
     tscTrace("heart beat failed, code:%d", code);
   }
 
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+  return code;
 }
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
@@ -710,15 +718,21 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
 int doProcessSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
+  int32_t  code = TSDB_CODE_SUCCESS;
 
   void *asyncFp = pSql->fp;
   if (pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_FETCH || pCmd->command == TSDB_SQL_RETRIEVE ||
       pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_CONNECT || pCmd->command == TSDB_SQL_HB ||
       pCmd->command == TSDB_SQL_META || pCmd->command == TSDB_SQL_METRIC) {
-    tscBuildMsg[pCmd->command](pSql, NULL);
+    code = tscBuildMsg[pCmd->command](pSql, NULL);
   }
 
-  int32_t code = tscSendMsgToServer(pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRes->code = code;
+    return code;
+  }
+
+  code = tscSendMsgToServer(pSql);
 
   if (asyncFp) {
     if (code != TSDB_CODE_SUCCESS) {
@@ -1005,7 +1019,13 @@ int tscLaunchSTableSubqueries(SSqlObj *pSql) {
     SRetrieveSupport* pSupport = pSub->param;
     
     tscTrace("%p sub:%p launch subquery, orderOfSub:%d.", pSql, pSub, pSupport->subqueryIndex);
-    tscProcessSql(pSub);
+    int code = tscProcessSql(pSub);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, numOfSubQueries);
+      doCleanupSubqueries(pSql, i, pState);
+      pRes->code = code;
+      return pRes->code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2713,7 +2733,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tscTrace("%p build load multi-metermeta msg completed, numOfMeters:%d, msg size:%d", pSql, pCmd->count,
            pCmd->payloadLen);
 
-  return pCmd->payloadLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
@@ -2940,7 +2960,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = TSDB_MSG_TYPE_HEARTBEAT;
 
   assert(msgLen + minMsgSize() <= size);
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int tscProcessMeterMetaRsp(SSqlObj *pSql) {
@@ -3700,7 +3720,8 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SMeterMetaInfo *pMMInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
 
-    SMeterMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMMInfo->name);
+    SMeterMeta *pMeterMeta = (SMeterMeta *)taosGetDataFromExists(tscCacheHandle, pQueryInfo->pMeterInfo[i]->pMeterMeta);
+    assert(pMeterMeta != NULL);
     tscAddMeterMetaInfo(pNewQueryInfo, pMMInfo->name, pMeterMeta, NULL, pMMInfo->numOfTags, pMMInfo->tagColumnIndex);
   }
 

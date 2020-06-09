@@ -577,7 +577,7 @@ static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   const wchar_t* pattern = pRight;
   const wchar_t* str = pLeft;
 
-  int32_t ret = WCSPatternMatch(pattern, str, wcslen(str), &pInfo);
+  int32_t ret = WCSPatternMatch(pattern, str, twcslen(str), &pInfo);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }

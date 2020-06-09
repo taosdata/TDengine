@@ -93,7 +93,11 @@ long interlocked_add_fetch_32(long volatile* ptr, long val) {
 }
 
 __int64 interlocked_add_fetch_64(__int64 volatile* ptr, __int64 val) {
+#ifdef _WIN64
   return _InterlockedExchangeAdd64(ptr, val) + val;
+#else
+  return _InterlockedExchangeAdd(ptr, val) + val;
+#endif
 }
 
 // and
@@ -377,9 +381,29 @@ int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
   return writeLen;
 }
 
+unsigned char _MyBitScanForward64(unsigned long *ret, uint64_t x) {
+  unsigned long x0 = (unsigned long)x, top, bottom;
+  _BitScanForward(&top, (unsigned long)(x >> 32));
+  _BitScanForward(&bottom, x0);
+  *ret = x0 ? bottom : 32 + top;
+  return x != 0;
+}
+
+unsigned char _MyBitScanReverse64(unsigned long *ret, uint64_t x) {
+  unsigned long x1 = (unsigned long)(x >> 32), top, bottom;
+  _BitScanReverse(&top, x1);
+  _BitScanReverse(&bottom, (unsigned long)x);
+  *ret = x1 ? top + 32 : bottom;
+  return x != 0;
+}
+
 int32_t BUILDIN_CLZL(uint64_t val) {
   unsigned long r = 0;
+#ifdef _WIN64
   _BitScanReverse64(&r, val);
+#else
+  _MyBitScanReverse64(&r, val);
+#endif
   return (int)(r >> 3);
 }
 
@@ -391,7 +415,11 @@ int32_t BUILDIN_CLZ(uint32_t val) {
 
 int32_t BUILDIN_CTZL(uint64_t val) {
   unsigned long r = 0;
+#ifdef _WIN64
   _BitScanForward64(&r, val);
+#else
+  _MyBitScanForward64(&r, val);
+#endif
   return (int)(r >> 3);
 }
 

@@ -87,6 +87,7 @@ int mgmtInitShell() {
   rpcInit.idleTime = tsShellActivityTimer * 2000;
   rpcInit.qhandle = mgmtQhandle;
   rpcInit.afp = mgmtRetriveUserAuthInfo;
+  rpcInit.ufp = mgmtGetSetUserAuthFailInfo;
 
   pShellConn = taosOpenRpc(&rpcInit);
   if (pShellConn == NULL) {
@@ -1184,7 +1185,7 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   char *    pStart, *pMsg;
   int       msgLen;
   STaosRsp *pRsp;
-
+  
   mgmtSaveQueryStreamList(cont, contLen, pConn);
 
   pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_HEARTBEAT_RSP, 128);
@@ -1201,6 +1202,10 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   pHBRsp->streamId = pConn->streamId;
   pConn->streamId = 0;
   pHBRsp->killConnection = pConn->killConnection;
+
+  mgmtGetDnodeOnlineNum(&pHBRsp->totalDnodes, &pHBRsp->onlineDnodes);
+  pHBRsp->totalDnodes = htonl(pHBRsp->totalDnodes);
+  pHBRsp->onlineDnodes = htonl(pHBRsp->onlineDnodes);
 
   if (pConn->usePublicIp) {
     if (pSdbPublicIpList != NULL) {
@@ -1268,6 +1273,21 @@ int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secre
   *encrypt = 0;
   memcpy(secret, pUser->pass, TSDB_KEY_LEN);
 
+  return 0;
+}
+
+int mgmtGetSetUserAuthFailInfo(char *user, int32_t *failCount, int32_t *allowTime, bool opSet) {
+  SUserObj *pUser = NULL;
+
+  pUser = mgmtGetUser(user);
+  if (pUser == NULL) return TSDB_CODE_INVALID_USER;
+  if (opSet) {
+    pUser->authAllowTime = *allowTime;
+    pUser->authFailCount = *failCount;
+  }else {
+    *allowTime = pUser->authAllowTime;
+    *failCount = pUser->authFailCount;
+  }  
   return 0;
 }
 

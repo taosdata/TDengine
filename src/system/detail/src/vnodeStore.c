@@ -24,6 +24,8 @@
 #include "vnodeUtil.h"
 #include "vnodeStatus.h"
 
+#include <dirent.h>
+
 int        tsMaxVnode = -1;
 int        tsOpenVnodes = 0;
 SVnodeObj *vnodeList = NULL;

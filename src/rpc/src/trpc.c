@@ -30,6 +30,7 @@
 #include "tudp.h"
 #include "tutil.h"
 #include "lz4.h"
+#include "tglobalcfg.h"
 
 typedef struct _msg_node {
   struct _msg_node *next;
@@ -101,6 +102,7 @@ typedef struct rpc_server {
   void *(*fp)(char *, void *ahandle, void *thandle);
   void (*efp)(int);                                                                     // FP to report error
   int (*afp)(char *meterId, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey);  // FP to retrieve auth info
+  int (*ufp)(char *user, int32_t *failCount, int32_t *allowTime, bool opSet);           // FP to update auth fail retry info
   SRpcChann *channList;
 } STaosRpc;
 
@@ -408,6 +410,7 @@ void *taosOpenRpc(SRpcInit *pRpc) {
   pServer->qhandle = pRpc->qhandle;
   pServer->efp = pRpc->efp;
   pServer->afp = pRpc->afp;
+  pServer->ufp = pRpc->ufp;
 
   int size = (int)sizeof(SRpcChann) * pRpc->numOfChanns;
   pServer->channList = (SRpcChann *)malloc((size_t)size);
@@ -894,9 +897,11 @@ int taosProcessMsgHeader(STaosHeader *pHeader, SRpcConn **ppConn, STaosRpc *pSer
       // authentication
       STaosDigest *pDigest = (STaosDigest *)((char *)pHeader + dataLen - sizeof(STaosDigest));
 
-      int32_t delta;
+      int32_t delta, authTime,failedCount,authAllowTime;
       delta = (int32_t)htonl(pDigest->timeStamp);
       delta -= (int32_t)taosGetTimestampSec();
+      authTime = (int32_t)taosGetTimestampSec();
+
       if (abs(delta) > 900) {
         tWarn("%s cid:%d sid:%d id:%s, time diff:%d is too big, msg discarded pConn:%p, timestamp:%d", pServer->label,
               chann, sid, pConn->meterId, delta, pConn, htonl(pDigest->timeStamp));
@@ -904,10 +909,37 @@ int taosProcessMsgHeader(STaosHeader *pHeader, SRpcConn **ppConn, STaosRpc *pSer
         code = TSDB_CODE_INVALID_TIME_STAMP;
         goto _exit;
       }
-
+      
+      if (pServer->ufp) {
+        int ret = (*pServer->ufp)(pHeader->meterId,&failedCount,&authAllowTime,false);
+        if (0 == ret) {
+          if (authTime < authAllowTime) {
+            char ipstr[24];
+            tinet_ntoa(ipstr, ip);
+            char timestr[50];
+            taosTimeSecToString((time_t)authAllowTime,timestr);
+            mLError("user:%s login from %s, authentication not allowed until %s", pHeader->meterId, ipstr,timestr);
+            tTrace("%s cid:%d sid:%d id:%s, auth not allowed because failed authentication exceeds max limit, msg discarded pConn:%p, until %s", pServer->label, chann, sid,
+               pConn->meterId, pConn, timestr);
+            code = TSDB_CODE_AUTH_BANNED_PERIOD;
+            goto _exit;        
+          }          
+        }else {
+          code = ret;
+          goto _exit;
+        }
+      }
+      
       if (taosAuthenticateMsg((uint8_t *)pHeader, dataLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
         char ipstr[24];
         tinet_ntoa(ipstr, ip);
+        failedCount++;
+        if (failedCount >= tsMaxAuthRetry) {
+          authAllowTime = authTime + 600;//ban the user for 600 seconds
+          failedCount = 0;
+        }
+        (*pServer->ufp)(pHeader->meterId,&failedCount,&authAllowTime,true);
+        
         mLError("user:%s login from %s, authentication failed", pHeader->meterId, ipstr);
         tError("%s cid:%d sid:%d id:%s, authentication failed, msg discarded pConn:%p", pServer->label, chann, sid,
                pConn->meterId, pConn);
@@ -1152,9 +1184,9 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, uint16_t por
     taosTmrReset(taosProcessIdleTimer, pServer->idleTime, pConn, pChann->tmrCtrl, &pConn->pIdleTimer);
   }
 
-  if (code == TSDB_CODE_ALREADY_PROCESSED) {
-    tTrace("%s cid:%d sid:%d id:%s, %s wont be processed, source:0x%08x dest:0x%08x tranId:%d pConn:%p", pServer->label,
-           chann, sid, pHeader->meterId, taosMsg[pHeader->msgType], pHeader->sourceId, htonl(pHeader->destId),
+  if (code == TSDB_CODE_ALREADY_PROCESSED || code == TSDB_CODE_LAST_SESSION_NOT_FINISHED) {
+    tTrace("%s code:%d, cid:%d sid:%d id:%s, %s wont be processed, source:0x%08x dest:0x%08x tranId:%d pConn:%p", pServer->label,
+           code, chann, sid, pHeader->meterId, taosMsg[pHeader->msgType], pHeader->sourceId, htonl(pHeader->destId),
            pHeader->tranId, pConn);
     free(data);
     return pConn;

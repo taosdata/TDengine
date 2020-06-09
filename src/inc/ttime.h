@@ -44,6 +44,7 @@ int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts);
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec);
 void deltaToUtcInitOnce();
 
+int32_t taosTimeSecToString(time_t ts, char* outstr);
 #ifdef __cplusplus
 }
 #endif

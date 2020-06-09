@@ -35,6 +35,8 @@
 #include "vnodeQueryImpl.h"
 #include "vnodeStatus.h"
 
+#include <dirent.h>
+
 enum {
   TS_JOIN_TS_EQUAL = 0,
   TS_JOIN_TS_NOT_EQUALS = 1,
@@ -1529,7 +1531,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
     w.ekey = w.skey + pQuery->intervalTime - 1;
   }
 
-  assert(ts >= w.skey && ts <= w.ekey && w.skey != 0);
+  assert(ts >= w.skey && ts <= w.ekey/* && w.skey != 0*/);
 
   return w;
 }
@@ -1646,7 +1648,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     setQueryStatus(pQuery, QUERY_COMPLETED | QUERY_RESBUF_FULL);
   } else {  // set the current index to be the last unclosed window
     int32_t i = 0;
-    int64_t skey = 0;
+    int64_t skey = INT64_MIN;
 
     for (i = 0; i < pWindowResInfo->size; ++i) {
       SWindowResult *pResult = &pWindowResInfo->pResult[i];
@@ -1668,7 +1670,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     }
 
     // all windows are closed, set the last one to be the skey
-    if (skey == 0) {
+    if (skey == INT64_MIN) {
       assert(i == pWindowResInfo->size);
       pWindowResInfo->curIndex = pWindowResInfo->size - 1;
     } else {
@@ -1686,7 +1688,7 @@ static void doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, 
     dTrace("QInfo:%p total window:%d, closed:%d", GET_QINFO_ADDR(pQuery), pWindowResInfo->size, n);
   }
 
-  assert(pWindowResInfo->prevSKey != 0);
+  assert(pWindowResInfo->prevSKey != INT64_MIN);
 }
 
 static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SBlockInfo *pBlockInfo, TSKEY *pPrimaryColumn, int32_t startPos,
@@ -2798,14 +2800,16 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
       break;
     }
   }
-  
-  // save the last accessed row of current data block for interpolation
-  int32_t index = GET_COL_DATA_POS(pQuery, lastIndex, step);
-  for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
-    SColumnInfo* pColInfo = &pQuery->colList[i].data;
-    int32_t s = pColInfo->bytes * index;
+ 
+  if (lastIndex >= 0) { 
+    // save the last accessed row of current data block for interpolation
+    int32_t index = GET_COL_DATA_POS(pQuery, lastIndex, step);
+    for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
+      SColumnInfo* pColInfo = &pQuery->colList[i].data;
+      int32_t s = pColInfo->bytes * index;
     
-    memcpy(pRuntimeEnv->lastRowInBlock[i], pRuntimeEnv->colDataBuffer[i]->data + s, pColInfo->bytes);
+      memcpy(pRuntimeEnv->lastRowInBlock[i], pRuntimeEnv->colDataBuffer[i]->data + s, pColInfo->bytes);
+    }
   }
 
   free(sasArray);
@@ -3305,7 +3309,6 @@ static int64_t getOldestKey(int32_t numOfFiles, int64_t fileId, SVnodeCfg *pCfg)
 }
 
 bool isQueryKilled(SQuery *pQuery) {
-  return false;
   SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
 
   /*
@@ -4019,16 +4022,7 @@ bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, STableQuerySup
         *key = nextKey;
       }
       
-      // needs the data before the begin timestamp of query time window
-      if (nextKey != pQuery->skey) {
-        if (!pRuntimeEnv->hasTimeWindow) {
-          pQuery->skey = nextKey;  // change the query skey
-          pQuery->lastKey = pQuery->skey;
-        }
-        return true;
-      } else {
-        return doGetQueryPos(nextKey, pSupporter, pPointInterpSupporter);
-      }
+      return doGetQueryPos(nextKey, pSupporter, pPointInterpSupporter);
     }
 
     // set no data in file
@@ -4655,7 +4649,7 @@ static void doSetInterpVal(SQLFunctionCtx *pCtx, TSKEY ts, int16_t type, int32_t
     len = t + 1 + TSDB_KEYSIZE;
     pCtx->param[index].pz = calloc(1, len);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    t = wcslen((const wchar_t *)data);
+    t = twcslen((const wchar_t *)data);
 
     len = (t + 1) * TSDB_NCHAR_SIZE + TSDB_KEYSIZE;
     pCtx->param[index].pz = calloc(1, len);

@@ -812,11 +812,10 @@ void sdbResetTable(SSdbTable *pTable) {
   SRowHead *rowHead = NULL;
   void *    pMetaRow = NULL;
   int64_t   oldId = pTable->id;
-  //TODO: check
-  //int       oldNumOfRows = pTable->numOfRows;
+  int       oldNumOfRows = pTable->numOfRows;
 
   if (sdbOpenSdbFile(pTable) < 0) return;
-  //pTable->numOfRows = oldNumOfRows;
+  pTable->numOfRows = oldNumOfRows;
 
   total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
   rowHead = (SRowHead *)malloc(total_size);

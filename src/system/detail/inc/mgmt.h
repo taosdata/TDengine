@@ -177,6 +177,8 @@ typedef struct _user_obj {
   char              reserved[16];
   char              updateEnd[1];
   struct _user_obj *prev, *next;
+  int32_t           authAllowTime;
+  int32_t           authFailCount;
 } SUserObj;
 
 typedef struct {
@@ -272,6 +274,7 @@ int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid);
 int  mgmtInitShell();
 void mgmtCleanUpShell();
 int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey);
+int mgmtGetSetUserAuthFailInfo(char *user, int32_t *failedCount, int32_t *allowTime, bool opSet);
 
 // acct API
 int       mgmtInitAccts();
@@ -428,6 +431,8 @@ bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
 
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
 int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
+
+void mgmtGetDnodeOnlineNum(int32_t *totalDnodes, int32_t *onlineDnodes);
 
 extern int (*mgmtGetMetaFp[])(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 extern int (*mgmtRetrieveFp[])(SShowObj *pShow, char *data, int rows, SConnObj *pConn);

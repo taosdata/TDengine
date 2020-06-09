@@ -1442,6 +1442,9 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
       pTableDataBlock->size = sizeof(SShellSubmitBlock);
       pTableDataBlock->rowSize = pMeterMeta->rowSize;
 
+      code = tscAllocateMemIfNeed(pTableDataBlock, rowSize, &maxRows);
+      if (TSDB_CODE_SUCCESS != code) return -1;
+
       numOfRows += pSql->res.numOfRows;
       pSql->res.numOfRows = 0;
       count = 0;
