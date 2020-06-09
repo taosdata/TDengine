@@ -51,13 +51,17 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-		this.connecter.executeQuery(sql);
+		System.out.println(sql);
+		long res = this.connecter.executeQuery(sql);
 
 		long resultSetPointer = this.connecter.getResultSet();
 
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
+			this.connecter.freeResultSet(res);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 		} else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
+//			create/insert/update/del/alter
+			this.connecter.freeResultSet(res);
 			return null;
 		} else {
 			return new TSDBResultSet(this.connecter, resultSetPointer);

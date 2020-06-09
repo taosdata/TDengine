@@ -21,7 +21,7 @@ public class TSDBAsyncSubscribeTest {
     String topic = "test";
     long subscribId = 0;
 
-//    @Before
+    @Before
     public void createDatabase() throws SQLException {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -43,7 +43,7 @@ public class TSDBAsyncSubscribeTest {
         }
     }
 
-//    @Test
+    @Test
     public void subscribe() throws Exception {
         TSDBSubscribe subscribe = null;
         try {
@@ -70,7 +70,6 @@ public class TSDBAsyncSubscribeTest {
 
         @Override
         public void invoke(TSDBResultSet resultSet) {
-             System.out.println("resultSet");
             try {
                 while (null != resultSet && resultSet.next()) {
                     System.out.print("callback_" + name + ": ");
@@ -87,7 +86,7 @@ public class TSDBAsyncSubscribeTest {
         }
     }
 
-//    @After
+    @After
     public void close() throws Exception {
         statement.executeQuery("drop database test");
         statement.close();

@@ -4,10 +4,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
@@ -40,20 +37,33 @@ public class TSDBImportTest {
 
     @Test
     public void insertInto() throws Exception {
-        long ts = System.currentTimeMillis();
+        long ts = 1496732686000l;
 
         for (int i = 0; i < 50; i++) {
-            ts += i;
+            ts ++;
             int row = statement.executeUpdate("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")");
-            System.out.println("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")" + "\t" + row);
+            System.out.println("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")\t" + row);
             assertEquals(1, row);
         }
     }
 
     @Test
+    public void selectData() throws Exception {
+        String sql = "select * from test.t0";
+        ResultSet resSet = statement.executeQuery(sql);
+
+        while (resSet.next()) {
+            for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
+                System.out.printf(i + ": " + resSet.getString(i) + "\t");
+            }
+        }
+        resSet.close();
+    }
+
+    @Test
     public void importInto() throws Exception {
         // 避免时间重复
-        long ts = System.currentTimeMillis() + 1000;
+        long ts = 1496732686000l;
 
         StringBuilder sqlBuilder = new StringBuilder("insert into ").append(dbName).append(".").append(tName).append(" values ");
 
@@ -68,9 +78,9 @@ public class TSDBImportTest {
         assertEquals(10, rows);
     }
 
-    @After
+//    @After
     public void close() throws Exception {
-        statement.executeQuery("drop database " + dbName);
+        statement.executeUpdate("drop database " + dbName);
         statement.close();
         connection.close();
     }
