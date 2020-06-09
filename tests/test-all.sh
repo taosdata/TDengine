@@ -24,14 +24,19 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
-echo "### run TSIM script ###"
+echo "### run TSIM test case ###"
 cd script
 
 [ -f out.log ] && rm -f out.log
 
 if [ "$1" == "cron" ]; then
+  echo "### run TSIM regression test ###"
+  runSimCaseOneByOne regressionSuite.sim
+elif [ "$1" == "full" ]; then
+  echo "### run TSIM full test ###"
   runSimCaseOneByOne fullGeneralSuite.sim
 else
+  echo "### run TSIM smoke test ###"
   runSimCaseOneByOne basicSuite.sim
 fi
 
@@ -53,14 +58,19 @@ if [ "$totalFailed" -ne "0" ]; then
 #  exit $totalFailed
 fi
 
-echo "### run Python script ###"
+echo "### run Python test case ###"
 cd ../pytest
 
 [ -f pytest-out.log ] && rm -f pytest-out.log
 
 if [ "$1" == "cron" ]; then
+  echo "### run Python regression test ###"
+  runPyCaseOneByOne regressiontest.sh
+elif [ "$1" == "full" ]; then
+  echo "### run Python full test ###"
   runPyCaseOneByOne fulltest.sh
 else
+  echo "### run Python smoke test ###"
   runPyCaseOneByOne smoketest.sh
 fi
 totalPySuccess=`grep 'successfully executed' pytest-out.log | wc -l`

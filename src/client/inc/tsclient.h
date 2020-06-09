@@ -191,14 +191,14 @@ typedef struct SDataBlockList {  // todo remove
 } SDataBlockList;
 
 typedef struct SQueryInfo {
-  int16_t  command;  // the command may be different for each subclause, so keep it seperately.
-  uint32_t type;     // query/insert/import type
-  char     slidingTimeUnit;
-
-  STimeWindow     window;
-  int64_t         intervalTime;  // aggregation time interval
-  int64_t         slidingTime;   // sliding window in mseconds
-  SSqlGroupbyExpr groupbyExpr;   // group by tags info
+  int16_t          command;  // the command may be different for each subclause, so keep it seperately.
+  uint32_t         type;     // query/insert/import type
+  char             slidingTimeUnit;
+                   
+  STimeWindow      window;
+  int64_t          intervalTime;  // aggregation time interval
+  int64_t          slidingTime;   // sliding window in mseconds
+  SSqlGroupbyExpr  groupbyExpr;   // group by tags info
 
   SArray *         colList;      // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
@@ -207,11 +207,11 @@ typedef struct SQueryInfo {
   SLimitVal        slimit;
   STagCond         tagCond;
   SOrderVal        order;
-  int16_t          fillType;  // interpolate type
+  int16_t          fillType;    // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
-  int64_t *        fillVal;      // default value for interpolation
+  int64_t *        fillVal;      // default value for fill
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;  // limit for current sub clause
 
@@ -222,15 +222,15 @@ typedef struct SQueryInfo {
 typedef struct {
   int     command;
   uint8_t msgType;
-
-  bool   autoCreated;        // if the table is missing, on-the-fly create it. during getmeterMeta
-  int8_t dataSourceType;     // load data from file or not
+  bool    autoCreated;        // if the table is missing, on-the-fly create it. during getmeterMeta
+  int8_t  dataSourceType;     // load data from file or not
 
   union {
     int32_t count;
     int32_t numOfTablesInSubmit;
   };
 
+  int32_t      insertType;
   int32_t      clauseIndex;  // index of multiple subclause query
   int8_t       parseFinished;
   short        numOfCols;
@@ -239,14 +239,12 @@ typedef struct {
   int32_t      payloadLen;
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
+  char *       curSql;       // current sql, resume position of sql after parsing paused
+  void *       pTableList;   // referred table involved in sql
+  int32_t      batchSize;    // for parameter ('?') binding and batch processing
+  int32_t      numOfParams;
 
   SDataBlockList *pDataBlocks;  // submit data blocks after parsing sql
-  char *          curSql;       // current sql, resume position of sql after parsing paused
-  void *          pTableList;   // referred table involved in sql
-
-  // for parameter ('?') binding and batch processing
-  int32_t batchSize;
-  int32_t numOfParams;
 } SSqlCmd;
 
 typedef struct SResRec {
@@ -316,7 +314,6 @@ typedef struct SSqlObj {
   SRpcIpSet        ipList;
   char             freed : 4;
   char             listed : 4;
-  uint32_t         insertType;
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
@@ -361,7 +358,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
-int  tscRenewMeterMeta(SSqlObj *pSql, char *tableId);
+int  tscRenewTableMeta(SSqlObj *pSql, char *tableId);
 void tscQueueAsyncRes(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);

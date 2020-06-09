@@ -117,8 +117,8 @@ typedef struct {
 } SDbInfo;
 
 typedef struct {
-  char name[TSDB_TABLE_NAME_LEN + 1];
-  char metric[TSDB_TABLE_NAME_LEN + 1];
+  char name[TSDB_TABLE_NAME_LEN];
+  char metric[TSDB_TABLE_NAME_LEN];
 } STableRecord;
 
 typedef struct {
@@ -871,7 +871,7 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   int fd = -1;
   STableRecord tableRecord;
 
-  strcpy(tableRecord.metric, metric);
+  tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
   sprintf(command, "select tbname from %s", metric);
   result = taos_query(taos, command);
