@@ -953,6 +953,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
 static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
+  int64_t    points = 0;
 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
@@ -964,7 +965,9 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
 
   // Check schema version
   int32_t tversion = pBlock->sversion;
-  int16_t nversion = schemaVersion(tsdbGetTableSchema(pMeta, pTable));
+  STSchema * pSchema = tsdbGetTableSchema(pMeta, pTable);
+  ASSERT(pSchema != NULL);
+  int16_t nversion = schemaVersion(pSchema);
   if (tversion > nversion) {
     tsdbTrace("vgId:%d table:%s tid:%d server schema version %d is older than clien version %d, try to config.",
               pRepo->config.tsdbId, varDataVal(pTable->name), pTable->tableId.tid, nversion, tversion);
@@ -1014,7 +1017,10 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
       return -1;
     }
      (*affectedrows)++;
+     points++;
   }
+  atomic_fetch_add_64(&(pRepo->stat.pointsWritten), points * (pSchema->numOfCols));
+  atomic_fetch_add_64(&(pRepo->stat.totalStorage), points * pSchema->vlen);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1380,4 +1386,12 @@ uint32_t tsdbGetFileInfo(TsdbRepoT *repo, char *name, uint32_t *index, uint32_t 
   magic = *size;
 
   return magic;
+}
+
+void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage){
+    ASSERT(repo != NULL);
+    STsdbRepo * pRepo = repo;
+    *totalPoints = pRepo->stat.pointsWritten;
+    *totalStorage = pRepo->stat.totalStorage;
+    *compStorage = pRepo->stat.compStorage;
 }
