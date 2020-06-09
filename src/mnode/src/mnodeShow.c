@@ -324,6 +324,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
 
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pConnectRsp);
     mLError("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));
   } else {
     mLPrint("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));

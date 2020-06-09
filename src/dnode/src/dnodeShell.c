@@ -203,7 +203,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid) {
     int16_t   numOfTags = htons(pTable->numOfTags);
     int32_t   sid = htonl(pTable->sid);
     uint64_t  uid = htobe64(pTable->uid);
-    dPrint("table:%s, numOfColumns:%d numOfTags:%d sid:%d uid:" PRIu64, pTable->tableId, numOfColumns, numOfTags, sid, uid);
+    dPrint("table:%s, numOfColumns:%d numOfTags:%d sid:%d uid:%" PRIu64, pTable->tableId, numOfColumns, numOfTags, sid, uid);
 
     return rpcRsp.pCont;
   }
