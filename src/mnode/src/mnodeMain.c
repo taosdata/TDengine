@@ -88,9 +88,9 @@ int32_t mnodeStartSystem() {
   }
 
   mPrint("starting to initialize mnode ...");
-  struct stat dirstat;
-  if (stat(tsMnodeDir, &dirstat) < 0) {
-    mkdir(tsMnodeDir, 0755);
+  if (mkdir(tsMnodeDir, 0755) != 0 && errno != EEXIST) {
+    mError("failed to init mnode dir:%s, reason:%s", tsMnodeDir, strerror(errno));
+    return -1;
   }
 
   dnodeAllocateMnodeWqueue();

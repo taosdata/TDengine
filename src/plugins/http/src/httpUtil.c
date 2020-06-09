@@ -32,12 +32,12 @@ bool httpCheckUsedbSql(char *sql) {
 
 void httpTimeToString(time_t t, char *buf, int buflen) {
   memset(buf, 0, (size_t)buflen);
-  char ts[30] = {0};
+  char ts[32] = {0};
 
   struct tm *ptm;
   time_t     tt = t / 1000;
   ptm = localtime(&tt);
-  strftime(ts, 64, "%Y-%m-%d %H:%M:%S", ptm);
+  strftime(ts, 31, "%Y-%m-%d %H:%M:%S", ptm);
   sprintf(buf, "%s.%03ld", ts, t % 1000);
 }
 
