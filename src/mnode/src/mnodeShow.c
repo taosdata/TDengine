@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInitWithCb(tsMnodeTmr, 10, mnodeFreeShowObj);
+  tsMnodeShowCache = taosCacheInitWithCb(10, mnodeFreeShowObj);
   return 0;
 }
 

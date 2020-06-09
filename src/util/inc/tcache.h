@@ -37,8 +37,8 @@ typedef struct SCacheDataNode {
   uint64_t expiredTime;  // expiredTime expiredTime when this element should be remove from cache
   uint64_t signature;
   uint32_t size;         // allocated size for current SCacheDataNode
-  uint16_t keySize : 15;
-  bool     inTrash : 1;  // denote if it is in trash or not
+  uint16_t keySize: 15;
+  bool     inTrashCan: 1;// denote if it is in trash or not
   T_REF_DECLARE()
   char *key;
   char  data[];
@@ -50,46 +50,49 @@ typedef struct STrashElem {
   SCacheDataNode    *pData;
 } STrashElem;
 
+/*
+ * to accommodate the old data which has the same key value of new one in hashList
+ * when an new node is put into cache, if an existed one with the same key:
+ * 1. if the old one does not be referenced, update it.
+ * 2. otherwise, move the old one to pTrash, addedTime the new one.
+ *
+ * when the node in pTrash does not be referenced, it will be release at the expired expiredTime
+ */
 typedef struct {
-  int64_t totalSize;  // total allocated buffer in this hash table, SCacheObj is not included.
-  int64_t refreshTime;
-  
-  /*
-   * to accommodate the old datanode which has the same key value of new one in hashList
-   * when an new node is put into cache, if an existed one with the same key:
-   * 1. if the old one does not be referenced, update it.
-   * 2. otherwise, move the old one to pTrash, addedTime the new one.
-   *
-   * when the node in pTrash does not be referenced, it will be release at the expired expiredTime
-   */
-  STrashElem * pTrash;
-  void *       tmrCtrl;
-  void *       pTimer;
-  SCacheStatis statistics;
-  SHashObj *   pHashTable;
+  int64_t         totalSize;          // total allocated buffer in this hash table, SCacheObj is not included.
+  int64_t         refreshTime;
+  STrashElem *    pTrash;
+  void *          tmrCtrl;
+  void *          pTimer;
+  SCacheStatis    statistics;
+  SHashObj *      pHashTable;
   _hash_free_fn_t freeFp;
-  int          numOfElemsInTrash;  // number of element in trash
-  int16_t      deleting;           // set the deleting flag to stop refreshing ASAP.
-  T_REF_DECLARE()
+  uint32_t        numOfElemsInTrash;  // number of element in trash
+  uint8_t         deleting;           // set the deleting flag to stop refreshing ASAP.
+  pthread_t       refreshWorker;
 
 #if defined(LINUX)
   pthread_rwlock_t lock;
 #else
   pthread_mutex_t lock;
 #endif
-
 } SCacheObj;
 
 /**
- *
- * @param maxSessions       maximum slots available for hash elements
- * @param tmrCtrl           timer ctrl
+ * initialize the cache object
  * @param refreshTime       refresh operation interval time, the maximum survival time when one element is expired and
  *                          not referenced by other objects
  * @return
  */
-SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTimeInSeconds);
-SCacheObj *taosCacheInitWithCb(void *tmrCtrl, int64_t refreshTimeInSeconds, void (*freeCb)(void *data));
+SCacheObj *taosCacheInit(int64_t refreshTimeInSeconds);
+
+/**
+ * initialize the cache object and set the free object callback function
+ * @param refreshTimeInSeconds
+ * @param freeCb
+ * @return
+ */
+SCacheObj *taosCacheInitWithCb(int64_t refreshTimeInSeconds, void (*freeCb)(void *data));
 
 /**
  * add data into cache
