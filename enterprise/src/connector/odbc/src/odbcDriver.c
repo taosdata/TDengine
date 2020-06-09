@@ -595,8 +595,7 @@ odbcPrimaryKeys(SQLHSTMT stmt, char *cat, char *schema, char *table)
     strcpy(taosStmt->dbc->dbname, cat);
   }
   if (table != NULL) {
-    strncpy(taosStmt->dbc->tbname, table, TSDB_TABLE_NAME_LEN);
-    taosStmt->dbc->tbname[TSDB_TABLE_NAME_LEN] = 0;
+    tstrncpy(taosStmt->dbc->tbname, table, sizeof(taosStmt->dbc->tbname));
   }
 
   if (strlen(taosStmt->dbc->dbname) != 0) {
@@ -2375,7 +2374,7 @@ odbcGetInfo(SQLHDBC dbc, SQLUSMALLINT type, SQLPOINTER val, SQLSMALLINT valMax, 
 #endif
 #ifdef SQL_MAX_IDENTIFIER_LEN  
   case SQL_MAX_IDENTIFIER_LEN:        //checked
-    *((SQLUSMALLINT *)val) = TSDB_TABLE_NAME_LEN;
+    *((SQLUSMALLINT *)val) = TSDB_TABLE_NAME_LEN - 1;
     *valLen = sizeof(SQLUSMALLINT);
     break;
 #endif
@@ -2415,10 +2414,10 @@ odbcGetInfo(SQLHDBC dbc, SQLUSMALLINT type, SQLPOINTER val, SQLSMALLINT valMax, 
     strmak(val, "", valMax, valLen);
     break;
   case SQL_MAX_TABLE_NAME_LEN:        //checked
-    *((SQLSMALLINT *)val) = TSDB_TABLE_NAME_LEN;
+    *((SQLSMALLINT *)val) = TSDB_TABLE_NAME_LEN - 1;
     *valLen = sizeof(SQLSMALLINT);
   case SQL_MAX_COLUMN_NAME_LEN:       //checked
-    *((SQLSMALLINT *)val) = TSDB_COL_NAME_LEN;
+    *((SQLSMALLINT *)val) = TSDB_COL_NAME_LEN - 1;
     *valLen = sizeof(SQLSMALLINT);
     break;
   case SQL_MAX_CURSOR_NAME_LEN:       //checked
@@ -2432,13 +2431,13 @@ odbcGetInfo(SQLHDBC dbc, SQLUSMALLINT type, SQLPOINTER val, SQLSMALLINT valMax, 
   case SQL_MAX_QUALIFIER_NAME_LEN:    //checked
     //same as SQL_MAX_CATALOG_NAME_LEN
     //in function SQLTables, used as database name
-    *((SQLSMALLINT *)val) = TSDB_DB_NAME_LEN;
+    *((SQLSMALLINT *)val) = TSDB_DB_NAME_LEN - 1;
     *valLen = sizeof(SQLSMALLINT);
     break;
   case SQL_MAX_OWNER_NAME_LEN:        //checked
     //same as SQL_MAX_SCHEMA_NAME_LEN
     //in function SQLTables, used as schema name
-    *((SQLSMALLINT *)val) = TSDB_DB_NAME_LEN;
+    *((SQLSMALLINT *)val) = TSDB_DB_NAME_LEN - 1;
     *valLen = sizeof(SQLSMALLINT);
     break;
   case SQL_OWNER_TERM:                //checked
@@ -3682,23 +3681,19 @@ odbcTaosConnect(DBC *d, char *dsn, char *serverInput, char *dbnameInput, char * 
   char user[TSDB_USER_LEN + 1] = { 0 };
   char pass[TSDB_PASSWORD_LEN + 1] = { 0 };
   char server[TSDB_IPv4ADDR_LEN + 1] = { 0 };
-  char dbname[TSDB_DB_NAME_LEN + 1] = { 0 };
+  char dbname[TSDB_DB_NAME_LEN] = { 0 };
 
   if (serverInput != NULL) {
-    strncpy(server, serverInput, TSDB_IPv4ADDR_LEN);
-    server[TSDB_IPv4ADDR_LEN] = 0;
+    tstrncpy(server, serverInput, sizeof(server));
   }
   if (dbnameInput != NULL) {
-    strncpy(dbname, dbnameInput, TSDB_DB_NAME_LEN);
-    dbname[TSDB_DB_NAME_LEN] = 0;
+    tstrncpy(dbname, dbnameInput, sizeof(dbname));
   }
   if (userInput != NULL) {
-    strncpy(user, userInput, TSDB_USER_LEN);
-    user[TSDB_USER_LEN] = 0;
+    tstrncpy(user, userInput, sizeof(user));
   }
   if (passInput != NULL) {
-    strncpy(pass, passInput, TSDB_PASSWORD_LEN);
-    pass[TSDB_PASSWORD_LEN] = 0;
+    tstrncpy(pass, passInput, sizeof(pass));
   }
 
   if (strlen(server) == 0) {
@@ -4352,24 +4347,24 @@ odbcExecuteSql(STMT *s)
     strcpy((s->cols + 16)->fieldName, "ORDINAL_POSITION");
     strcpy((s->cols + 17)->fieldName, "IS_NULLABLE");
 
-    (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 3)->fieldSize = TSDB_COL_NAME_LEN;
+    (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 3)->fieldSize = TSDB_COL_NAME_LEN - 1;
     (s->cols + 4)->fieldSize = s->fields[1].bytes;
-    (s->cols + 5)->fieldSize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 5)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 6)->fieldSize = s->fields[2].bytes;
     (s->cols + 7)->fieldSize = 4;
     (s->cols + 8)->fieldSize = 2;
     (s->cols + 9)->fieldSize = 2;
     (s->cols + 10)->fieldSize = 2;
-    (s->cols + 11)->fieldSize = TSDB_COL_NAME_LEN;
-    (s->cols + 12)->fieldSize = TSDB_COL_NAME_LEN;
+    (s->cols + 11)->fieldSize = TSDB_COL_NAME_LEN - 1;
+    (s->cols + 12)->fieldSize = TSDB_COL_NAME_LEN - 1;
     (s->cols + 13)->fieldSize = 2;
     (s->cols + 14)->fieldSize = 2;
     (s->cols + 15)->fieldSize = 4;
     (s->cols + 16)->fieldSize = 4;
-    (s->cols + 17)->fieldSize = TSDB_COL_NAME_LEN;
+    (s->cols + 17)->fieldSize = TSDB_COL_NAME_LEN - 1;
 
     (s->cols + 0)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 1)->fieldType = TSDB_DATA_TYPE_BINARY;
@@ -4390,24 +4385,24 @@ odbcExecuteSql(STMT *s)
     (s->cols + 16)->fieldType = TSDB_DATA_TYPE_INT;
     (s->cols + 17)->fieldType = TSDB_DATA_TYPE_BINARY;
     
-    (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 3)->fieldDisplaySize = TSDB_COL_NAME_LEN;
+    (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 3)->fieldDisplaySize = TSDB_COL_NAME_LEN - 1;
     (s->cols + 4)->fieldDisplaySize = 4;
-    (s->cols + 5)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 5)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 6)->fieldDisplaySize = 5;
     (s->cols + 7)->fieldDisplaySize = 5;
     (s->cols + 8)->fieldDisplaySize = 5;
     (s->cols + 9)->fieldDisplaySize = 5;
     (s->cols + 10)->fieldDisplaySize = 5;
-    (s->cols + 11)->fieldDisplaySize = TSDB_COL_NAME_LEN;
-    (s->cols + 12)->fieldDisplaySize = TSDB_COL_NAME_LEN;
+    (s->cols + 11)->fieldDisplaySize = TSDB_COL_NAME_LEN - 1;
+    (s->cols + 12)->fieldDisplaySize = TSDB_COL_NAME_LEN - 1;
     (s->cols + 13)->fieldDisplaySize = 5;
     (s->cols + 14)->fieldDisplaySize = 5;
     (s->cols + 15)->fieldDisplaySize = 5;
     (s->cols + 16)->fieldDisplaySize = 5;
-    (s->cols + 17)->fieldDisplaySize = TSDB_COL_NAME_LEN;
+    (s->cols + 17)->fieldDisplaySize = TSDB_COL_NAME_LEN - 1;
 
     (s->cols + 0)->fieldScale = 0;
     (s->cols + 1)->fieldScale = 0;
@@ -4439,21 +4434,21 @@ odbcExecuteSql(STMT *s)
     strcpy((s->cols + 2)->fieldName, "TABLE_NAME");
     strcpy((s->cols + 3)->fieldName, "TABLE_TYPE");
     strcpy((s->cols + 4)->fieldName, "REMARKS");
-    (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 3)->fieldSize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 4)->fieldSize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 3)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 4)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 0)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 1)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 2)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 3)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 4)->fieldType = TSDB_DATA_TYPE_BINARY;
-    (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 3)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 4)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 3)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 4)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 0)->fieldScale = 0;
     (s->cols + 1)->fieldScale = 0;
     (s->cols + 2)->fieldScale = 0;
@@ -4467,24 +4462,24 @@ odbcExecuteSql(STMT *s)
     strcpy((s->cols + 3)->fieldName, "COLUMN_NAME");
     strcpy((s->cols + 4)->fieldName, "KEY_SEQ");
     strcpy((s->cols + 5)->fieldName, "PK_NAME");
-    (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 3)->fieldSize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 3)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 4)->fieldSize = 5;
-    (s->cols + 5)->fieldSize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 5)->fieldSize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 0)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 1)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 2)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 3)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 4)->fieldType = TSDB_DATA_TYPE_SMALLINT;
     (s->cols + 5)->fieldType = TSDB_DATA_TYPE_BINARY;
-    (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
-    (s->cols + 3)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN - 1;
+    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
+    (s->cols + 3)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 4)->fieldDisplaySize = 5;
-    (s->cols + 5)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 5)->fieldDisplaySize = TSDB_TABLE_NAME_LEN - 1;
     (s->cols + 0)->fieldScale = 0;
     (s->cols + 1)->fieldScale = 0;
     (s->cols + 2)->fieldScale = 0;
@@ -4665,8 +4660,7 @@ odbcColumns(SQLHSTMT stmt, char *cat, char *schema, char *table, char *columns)
     strcpy(taosStmt->dbc->dbname, cat);
   }
   if (table != NULL) {
-    strncpy(taosStmt->dbc->tbname, table, TSDB_TABLE_NAME_LEN);
-    taosStmt->dbc->tbname[TSDB_TABLE_NAME_LEN] = 0;
+    tstrncpy(taosStmt->dbc->tbname, table, sizeof(taosStmt->dbc->tbname));
   }
 
   if (strlen(taosStmt->dbc->dbname) != 0) {

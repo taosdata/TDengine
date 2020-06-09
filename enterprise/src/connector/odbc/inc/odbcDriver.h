@@ -66,10 +66,10 @@ typedef struct dbc {
   TAOS*con;
   char dsn[TSDB_USER_LEN + 1];
   char server[TSDB_IPv4ADDR_LEN + 1];
-  char dbname[TSDB_DB_NAME_LEN + 1];
+  char dbname[TSDB_DB_NAME_LEN];
   char user[TSDB_USER_LEN + 1];
   char pwd[TSDB_PASSWORD_LEN + 1];
-  char tbname[TSDB_TABLE_NAME_LEN + 1];  //for sql columns
+  char tbname[TSDB_TABLE_NAME_LEN];  //for sql columns
   
   int naterr;
   SQLCHAR logmsg[MAX_ERROR_LEN + 1];
@@ -88,7 +88,7 @@ typedef struct {
   SQLLEN* len;
   int type;
   //raw info
-  char fieldName[TSDB_COL_NAME_LEN + 1];
+  char fieldName[TSDB_COL_NAME_LEN];
   int fieldSize;
   int fieldType;
   int fieldDisplaySize;

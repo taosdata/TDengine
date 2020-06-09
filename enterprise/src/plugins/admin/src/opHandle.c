@@ -118,7 +118,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
-  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 10) {
+  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 11) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
@@ -179,7 +179,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_NULL);
       return false;
     }
-    if (strlen(tag->string) >= TSDB_COL_NAME_LEN) {
+    if (strlen(tag->string) >= TSDB_COL_NAME_LEN - 1) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_SIZE);
       return false;
     }
@@ -508,7 +508,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
-  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 10) {
+  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 11) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
@@ -569,7 +569,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_NULL);
       return false;
     }
-    if (strlen(tag->string) >= TSDB_COL_NAME_LEN) {
+    if (strlen(tag->string) >= TSDB_COL_NAME_LEN - 1) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_SIZE);
       return false;
     }
