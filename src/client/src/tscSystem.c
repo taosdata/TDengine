@@ -144,11 +144,11 @@ void taos_init_imp() {
   }
   
   int64_t refreshTime = tsTableMetaKeepTimer;
-  refreshTime = refreshTime > 2 ? 2 : refreshTime;
-  refreshTime = refreshTime < 1 ? 1 : refreshTime;
+  refreshTime = refreshTime > 10 ? 10 : refreshTime;
+  refreshTime = refreshTime < 10 ? 10 : refreshTime;
 
   if (tscCacheHandle == NULL) {
-    tscCacheHandle = taosCacheInit(tscTmr, refreshTime);
+    tscCacheHandle = taosCacheInit(refreshTime);
   }
 
   tscTrace("client is initialized successfully");
