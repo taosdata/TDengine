@@ -582,13 +582,13 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
 }
 
 int taosCheckVersion(char *input_client_version, char *input_server_version, int comparedSegments) {
-  char client_version[64] = {0};
-  char server_version[64] = {0};
+  char client_version[TSDB_VERSION_LEN] = {0};
+  char server_version[TSDB_VERSION_LEN] = {0};
   int clientVersionNumber[4] = {0};
   int serverVersionNumber[4] = {0};
 
-  strcpy(client_version, input_client_version);
-  strcpy(server_version, input_server_version);
+  tstrncpy(client_version, input_client_version, sizeof(client_version));
+  tstrncpy(server_version, input_server_version, sizeof(server_version));
 
   if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
     uError("invalid client version:%s", client_version);

@@ -53,9 +53,9 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef struct taosField {
-  char     name[64];
-  short    bytes;
+  char     name[65];
   uint8_t  type;
+  short    bytes;
 } TAOS_FIELD;
 
 #ifdef _TD_GO_DLL_

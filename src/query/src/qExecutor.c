@@ -1368,7 +1368,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     int32_t index = pSqlFuncMsg->colInfo.colIndex;
     if (TSDB_COL_IS_TAG(pIndex->flag)) {
       if (pIndex->colId == TSDB_TBNAME_COLUMN_INDEX) {  // todo refactor
-        pCtx->inputBytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+        pCtx->inputBytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
         pCtx->inputType = TSDB_DATA_TYPE_BINARY;
       } else {
         pCtx->inputBytes = pQuery->tagColList[index].bytes;
@@ -5148,8 +5148,8 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
       bytes = tDataTypeDesc[type].nSize;
     } else if (pExprs[i].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX && pExprs[i].base.functionId == TSDB_FUNC_TAGPRJ) {  // parse the normal column
       type  = TSDB_DATA_TYPE_BINARY;
-      bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
-    } else {
+      bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+    } else{
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
       assert(j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags || j == TSDB_TBNAME_COLUMN_INDEX);
 
@@ -6038,7 +6038,7 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           char* data = tsdbGetTableName(pQInfo->tsdb, &item->id);
-          char* dst = pQuery->sdata[j]->data + count * (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
+          char* dst = pQuery->sdata[j]->data + count * ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE);
           memcpy(dst, data, varDataTLen(data));
         } else {// todo refactor
           int16_t type = pExprInfo[j].type;

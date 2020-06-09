@@ -866,7 +866,7 @@ int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   assert(pCmd->numOfClause == 1);
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strncpy(pCreateDbMsg->db, pTableMetaInfo->name, tListLen(pCreateDbMsg->db));
+  tstrncpy(pCreateDbMsg->db, pTableMetaInfo->name, sizeof(pCreateDbMsg->db));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1430,9 +1430,9 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
   db = (db == NULL) ? pObj->db : db + 1;
-  strcpy(pConnect->db, db);
-  strcpy(pConnect->clientVersion, version);
-  strcpy(pConnect->msgVersion, "");
+  tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
+  tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2153,8 +2153,8 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 
-  assert(len <= tListLen(pObj->db));
-  strncpy(pObj->db, temp, tListLen(pObj->db));
+  assert(len <= sizeof(pObj->db));
+  tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
   if (pConnect->ipList.numOfIps > 0) 
     tscSetMgmtIpList(&pConnect->ipList);
@@ -2338,7 +2338,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   STableMetaInfo *pNewMeterMetaInfo = tscAddEmptyMetaInfo(pNewQueryInfo);
   assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
 
-  strncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, tListLen(pNewMeterMetaInfo->name));
+  tstrncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, sizeof(pNewMeterMetaInfo->name));
   memcpy(pNew->cmd.payload, pSql->cmd.payload, pSql->cmd.payloadLen);  // tag information if table does not exists.
   pNew->cmd.payloadLen = pSql->cmd.payloadLen;
   tscTrace("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);

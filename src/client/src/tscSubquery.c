@@ -1921,7 +1921,7 @@ static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) 
   
   for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
     pExpr = taosArrayGetP(pSupport->exprList, i);
-    if (strncmp(name, pExpr->aliasName, TSDB_COL_NAME_LEN) == 0) {
+    if (strncmp(name, pExpr->aliasName, sizeof(pExpr->aliasName) - 1) == 0) {
       index = i;
       break;
     }
