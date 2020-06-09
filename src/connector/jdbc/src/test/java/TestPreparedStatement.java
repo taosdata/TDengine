@@ -22,6 +22,7 @@ public class TestPreparedStatement {
                 }
             }
             resSet.close();
+            pstmt.close();
             connection.close();
 
         } catch (Exception e) {

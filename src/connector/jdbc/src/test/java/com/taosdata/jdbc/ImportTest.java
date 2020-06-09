@@ -9,7 +9,7 @@ import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 
-public class TSDBImportTest {
+public class ImportTest {
     Connection connection = null;
     Statement statement = null;
     String dbName = "test";
@@ -36,7 +36,7 @@ public class TSDBImportTest {
     }
 
     @Test
-    public void insertInto() throws Exception {
+    public void insertData() throws Exception {
         long ts = 1496732686000l;
 
         for (int i = 0; i < 50; i++) {
@@ -49,6 +49,7 @@ public class TSDBImportTest {
 
     @Test
     public void selectData() throws Exception {
+        insertData();
         String sql = "select * from test.t0";
         ResultSet resSet = statement.executeQuery(sql);
 
@@ -61,7 +62,7 @@ public class TSDBImportTest {
     }
 
     @Test
-    public void importInto() throws Exception {
+    public void importData() throws Exception {
         // 避免时间重复
         long ts = 1496732686000l;
 
@@ -78,7 +79,7 @@ public class TSDBImportTest {
         assertEquals(10, rows);
     }
 
-//    @After
+    @After
     public void close() throws Exception {
         statement.executeUpdate("drop database " + dbName);
         statement.close();

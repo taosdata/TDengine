@@ -12,13 +12,14 @@ import java.util.Properties;
 
 import static org.junit.Assert.assertTrue;
 
-public class TSDBSubscribeTest {
+public class AsyncSubscribeTest {
     Connection connection = null;
     Statement statement = null;
     String dbName = "test";
     String tName = "t0";
     String host = "localhost";
     String topic = "test";
+    long subscribId = 0;
 
     @Before
     public void createDatabase() throws SQLException {
@@ -45,45 +46,49 @@ public class TSDBSubscribeTest {
     @Test
     public void subscribe() throws Exception {
         TSDBSubscribe subscribe = null;
-        long subscribId = 0;
         try {
-
             String rawSql = "select * from " + dbName + "." + tName + ";";
             System.out.println(rawSql);
             subscribe = ((TSDBConnection) connection).createSubscribe();
-            subscribId = subscribe.subscribe(topic, rawSql, false, 1000);
+            subscribId = subscribe.subscribe(topic, rawSql, false, 1000, new CallBack("first"));
 
             assertTrue(subscribId > 0);
-
-            int a = 0;
-            while (true) {
-                Thread.sleep(900);
-                TSDBResultSet resSet = subscribe.consume(subscribId);
-
-                while (resSet.next()) {
-                    for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
-                        System.out.printf(i + ": " + resSet.getString(i) + "\t");
-                    }
-                    System.out.println("\n======" + a + "==========");
-                }
-                resSet.close();
-                a++;
-                if (a >= 3) {
-                    break;
-                }
-            }
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            if (null != subscribe && 0 != subscribId) {
-                subscribe.unsubscribe(subscribId, true);
+        }
+
+        Thread.sleep(2000);
+        subscribe.unsubscribe(subscribId, true);
+    }
+
+    private static class CallBack implements TSDBSubscribeCallBack {
+        private String name = "";
+
+        public CallBack(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void invoke(TSDBResultSet resultSet) {
+            try {
+                while (null != resultSet && resultSet.next()) {
+                    System.out.print("callback_" + name + ": ");
+                    for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
+                        System.out.printf(i + ": " + resultSet.getString(i) + "\t");
+                    }
+                    System.out.println();
+                }
+                resultSet.close();
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
     }
 
     @After
     public void close() throws Exception {
-        statement.executeQuery("drop database " + dbName);
+        statement.executeQuery("drop database test");
         statement.close();
         connection.close();
     }
