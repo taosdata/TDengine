@@ -307,7 +307,7 @@ void httpTrimTableName(char *name) {
   for (int i = 0; name[i] != 0; i++) {
     if (name[i] == ' ' || name[i] == ':' || name[i] == '.' || name[i] == '-' || name[i] == '/' || name[i] == '\'')
       name[i] = '_';
-    if (i == TSDB_TABLE_NAME_LEN + 1) {
+    if (i == TSDB_TABLE_NAME_LEN) {
       name[i] = 0;
       break;
     }
@@ -323,7 +323,7 @@ int httpShrinkTableName(HttpContext *pContext, int pos, char *name) {
     len++;
   }
 
-  if (len < TSDB_TABLE_NAME_LEN) {
+  if (len < TSDB_TABLE_NAME_LEN - 1) {
     return pos;
   }
 

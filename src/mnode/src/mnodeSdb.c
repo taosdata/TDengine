@@ -43,7 +43,7 @@ typedef enum {
 } ESdbStatus;
 
 typedef struct _SSdbTable {
-  char      tableName[TSDB_DB_NAME_LEN + 1];
+  char      tableName[TSDB_DB_NAME_LEN];
   ESdbTable tableId;
   ESdbKey   keyType;
   int32_t   hashSessions;

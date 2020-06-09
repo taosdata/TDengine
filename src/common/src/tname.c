@@ -28,8 +28,7 @@ void extractTableName(const char* tableId, char* name) {
   size_t s1 = strcspn(tableId, &TS_PATH_DELIMITER[0]);
   size_t s2 = strcspn(&tableId[s1 + 1], &TS_PATH_DELIMITER[0]);
   
-  strncpy(name, &tableId[s1 + s2 + 2], TSDB_TABLE_NAME_LEN);
-  name[TSDB_TABLE_NAME_LEN] = 0;
+  tstrncpy(name, &tableId[s1 + s2 + 2], TSDB_TABLE_NAME_LEN);
 }
 
 char* extractDBName(const char* tableId, char* name) {

@@ -458,7 +458,7 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   pInfo->clientPort = pConn->peerPort;
   // pInfo->serverIp = pConn->destIp;
 
-  strncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+  tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
   return 0;
 }
 

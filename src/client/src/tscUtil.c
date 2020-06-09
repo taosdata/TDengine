@@ -801,7 +801,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
   TAOS_FIELD f = { .type = type, .bytes = bytes, };
-  strncpy(f.name, name, TSDB_COL_NAME_LEN);
+  tstrncpy(f.name, name, sizeof(f.name));
   return f;
 }
 
@@ -966,12 +966,12 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
     if (isTagCol) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
-      strncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, sizeof(pExpr->colInfo.name));
     } else if (pTableMetaInfo->pTableMeta != NULL) {
       // in handling select database/version/server_status(), the pTableMeta is NULL
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       pExpr->colInfo.colId = pSchema->colId;
-      strncpy(pExpr->colInfo.name, pSchema->name, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->colInfo.name, pSchema->name, sizeof(pExpr->colInfo.name));
     }
   }
   

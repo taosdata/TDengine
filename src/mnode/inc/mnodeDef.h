@@ -115,7 +115,7 @@ typedef struct {
 
 typedef struct SVgObj {
   uint32_t       vgId;
-  char           dbName[TSDB_DB_NAME_LEN + 1];
+  char           dbName[TSDB_DB_NAME_LEN];
   int64_t        createdTime;
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
   int32_t        numOfVnodes;
@@ -154,7 +154,7 @@ typedef struct {
 } SDbCfg;
 
 typedef struct SDbObj {
-  char    name[TSDB_DB_NAME_LEN + 1];
+  char    name[TSDB_DB_NAME_LEN];
   char    acct[TSDB_USER_LEN + 1];
   int64_t createdTime;
   int32_t cfgVersion;
@@ -219,7 +219,7 @@ typedef struct SAcctObj {
 typedef struct {
   int8_t   type;
   int32_t  index;
-  char     db[TSDB_DB_NAME_LEN + 1];
+  char     db[TSDB_DB_NAME_LEN];
   void *   pIter;
   int16_t  numOfColumns;
   int32_t  rowSize;

@@ -177,10 +177,12 @@ void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
     memcpy(item, pMsg, sizeof(SRpcMsg));
     taosWriteQitem(tsMgmtQueue, 1, item);
   } else {
-    SRpcMsg  rsp;
-    rsp.handle = pMsg->handle;
-    rsp.pCont  = NULL;
-    rsp.code = TSDB_CODE_DND_OUT_OF_MEMORY;
+    SRpcMsg rsp = {
+      .handle = pMsg->handle,
+      .pCont  = NULL,
+      .code   = TSDB_CODE_DND_OUT_OF_MEMORY
+    };
+    
     rpcSendResponse(&rsp);
     rpcFreeCont(pMsg->pCont);
   }
@@ -188,9 +190,9 @@ void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
 
 static void *dnodeProcessMgmtQueue(void *param) {
   SRpcMsg *pMsg;
-  SRpcMsg  rsp;
+  SRpcMsg  rsp = {0};
   int      type;
-  void    *handle;
+  void *   handle;
 
   while (1) {
     if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
@@ -251,6 +253,7 @@ static int32_t dnodeOpenVnodes() {
 
   if (status != TSDB_CODE_SUCCESS) {
     dPrint("Get dnode list failed");
+    free(vnodeList);
     return status;
   }
 
@@ -290,6 +293,7 @@ static void dnodeCloseVnodes() {
 
   if (status != TSDB_CODE_SUCCESS) {
     dPrint("Get dnode list failed");
+    free(vnodeList);
     return;
   }
 
@@ -456,6 +460,7 @@ static bool dnodeReadMnodeInfos() {
     return false;
   }
 
+  content[len] = 0;
   cJSON* root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read mnodeIpList.json, invalid json format");
@@ -628,6 +633,7 @@ static bool dnodeReadDnodeCfg() {
     return false;
   }
 
+  content[len] = 0;
   cJSON* root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read dnodeCfg.json, invalid json format");
