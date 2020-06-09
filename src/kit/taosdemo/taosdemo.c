@@ -711,7 +711,7 @@ void *readTable(void *sarg) {
       int32_t code = taos_errno(pSql);
 
       if (code != 0) {
-        fprintf(stderr, "Failed to query:%s\n", taos_errstr(taos));
+        fprintf(stderr, "Failed to query:%s\n", taos_errstr(pSql));
         taos_free_result(pSql);
         taos_close(taos);
         exit(EXIT_FAILURE);
@@ -780,7 +780,7 @@ void *readMetric(void *sarg) {
       int32_t code = taos_errno(pSql);
 
       if (code != 0) {
-        fprintf(stderr, "Failed to query:%s\n", taos_errstr(taos));
+        fprintf(stderr, "Failed to query:%s\n", taos_errstr(pSql));
         taos_free_result(pSql);
         taos_close(taos);
         exit(1);
@@ -819,7 +819,9 @@ void queryDB(TAOS *taos, char *command) {
   }
 
   if (i == 0) {
-    fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(taos));
+    fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
+    taos_free_result(pSql);
+
     taos_close(taos);
     exit(EXIT_FAILURE);
   }
@@ -915,7 +917,7 @@ void callBack(void *param, TAOS_RES *res, int code) {
   int64_t tmp_time = tb_info->timestamp;
 
   if (code < 0) {
-    fprintf(stderr, "failed to insert data %d:reason; %s\n", code, taos_errstr(tb_info->taos));
+    fprintf(stderr, "failed to insert data %d:reason; %s\n", code, taos_errstr(res));
     exit(EXIT_FAILURE);
   }
 
