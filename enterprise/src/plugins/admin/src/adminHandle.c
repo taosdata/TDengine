@@ -22,21 +22,59 @@
 
 static HttpDecodeMethod adminDecodeMethod = {"admin", adminProcessRequest};
 static HttpEncodeMethod adminEncodeSqlMethod = {
-    adminStartSqlJson, adminStopSqlJson, adminBuildSqlJson, adminBuildSqlAffectRowJson, NULL, NULL, NULL, NULL};
+  .startJsonFp          = adminStartSqlJson,         
+  .stopJsonFp           = adminStopSqlJson, 
+  .buildQueryJsonFp     = adminBuildSqlJson,
+  .buildAffectRowJsonFp = adminBuildSqlAffectRowJson, 
+  .initJsonFp           = NULL, 
+  .cleanJsonFp          = NULL,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
+
 static HttpEncodeMethod adminEncodeSqlAllMethod = {
-    adminStartSqlJson, adminStopSqlJson, adminBuildSqlAllJson, adminBuildSqlAffectRowJson, NULL, NULL, NULL, NULL};
-static HttpEncodeMethod adminEncodeInfoMethod = {
-    NULL, adminStopInfoJson, adminBuildInfoJson, NULL, adminInitInfoJson, adminCleanInfoJson, NULL, NULL};
+  .startJsonFp          = adminStartSqlJson,         
+  .stopJsonFp           = adminStopSqlJson, 
+  .buildQueryJsonFp     = adminBuildSqlAllJson,
+  .buildAffectRowJsonFp = adminBuildSqlAffectRowJson, 
+  .initJsonFp           = NULL, 
+  .cleanJsonFp          = NULL,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
+
+static HttpEncodeMethod adminEncodeInfoMethod =  {
+  .startJsonFp          = NULL,         
+  .stopJsonFp           = adminStopInfoJson, 
+  .buildQueryJsonFp     = adminBuildInfoJson,
+  .buildAffectRowJsonFp = NULL, 
+  .initJsonFp           = adminInitInfoJson, 
+  .cleanJsonFp          = adminCleanInfoJson,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
+
 static HttpEncodeMethod adminEncodeMetaMethod = {
-    adminStartMetaJson, adminStopMetaJson, adminBuildMetaJson, NULL, NULL, NULL, NULL, NULL};
-static HttpEncodeMethod adminEncodeSqlsMethod = {adminStartSqlsJson,
-                                                 adminStopSqlsJson,
-                                                 adminBuildSqlAllJson,
-                                                 NULL,
-                                                 adminInitSqlsJson,
-                                                 adminCleanSqlsJson,
-                                                 NULL,
-                                                 NULL};
+  .startJsonFp          = adminStartMetaJson,         
+  .stopJsonFp           = adminStopMetaJson, 
+  .buildQueryJsonFp     = adminBuildMetaJson,
+  .buildAffectRowJsonFp = NULL, 
+  .initJsonFp           = NULL, 
+  .cleanJsonFp          = NULL,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
+
+static HttpEncodeMethod adminEncodeSqlsMethod =  {
+  .startJsonFp          = adminStartSqlsJson,         
+  .stopJsonFp           = adminStopSqlsJson, 
+  .buildQueryJsonFp     = adminBuildSqlAllJson,
+  .buildAffectRowJsonFp = NULL, 
+  .initJsonFp           = adminInitSqlsJson, 
+  .cleanJsonFp          = adminCleanSqlsJson,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
 
 void adminInitHandle(HttpServer* pServer) {
   httpAddMethod(pServer, &adminDecodeMethod);

@@ -23,18 +23,27 @@
 #include "opHandle.h"
 
 static HttpDecodeMethod opDecodeMethod = {"opentsdb", opProcessRequest};
-static HttpEncodeMethod opPutSummaryMethod = {NULL,
-                                              NULL,
-                                              NULL,
-                                              opBuildPutSummaryAffectRowsJson,
-                                              opInitPutSummaryJson,
-                                              opCleanPutSummaryJson,
-                                              opCheckPutSummaryFinished,
-                                              opSetPutSummaryNextCmd};
+static HttpEncodeMethod opPutSummaryMethod = {
+  .startJsonFp          = NULL,         
+  .stopJsonFp           = NULL, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = opBuildPutSummaryAffectRowsJson, 
+  .initJsonFp           = opInitPutSummaryJson, 
+  .cleanJsonFp          = opCleanPutSummaryJson,
+  .checkFinishedFp      = opCheckPutSummaryFinished,
+  .setNextCmdFp         = opSetPutSummaryNextCmd
+};
 
-static HttpEncodeMethod opPutDetailMethod = {opStartPutDetailJson,           opStopPutDetailJson,  NULL,
-                                             opBuildPutDetailAffectRowsJson, opInitPutDetailJson,  opCleanPutDetailJson,
-                                             opCheckPutDetailFinished,       opSetPutDetailNextCmd};
+static HttpEncodeMethod opPutDetailMethod = {
+  .startJsonFp          = opStartPutDetailJson,         
+  .stopJsonFp           = opStopPutDetailJson, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = opBuildPutDetailAffectRowsJson, 
+  .initJsonFp           = opInitPutDetailJson, 
+  .cleanJsonFp          = opCleanPutDetailJson,
+  .checkFinishedFp      = opCheckPutDetailFinished,
+  .setNextCmdFp         = opSetPutDetailNextCmd
+};
 
 void opInitHandle(HttpServer *pServer) {
   httpAddMethod(pServer, &opDecodeMethod);
