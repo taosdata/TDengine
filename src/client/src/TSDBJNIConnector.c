@@ -344,7 +344,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
   STscObj *pObj = pSql->pTscObj;
 
   if (tscIsUpdateQuery(pSql)) {
-    taos_free_result(pSql);  // free result here
+    // taos_free_result(pSql);  // free result here
     jniTrace("jobj:%p, conn:%p, no resultset, %p", jobj, pObj, (void *)tres);
     return 0;
   } else {

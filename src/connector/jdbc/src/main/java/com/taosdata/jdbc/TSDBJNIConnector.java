@@ -51,8 +51,6 @@ public class TSDBJNIConnector {
 
     /**
      * Returns the status of last result set in current connection
-     *
-     * @return
      */
     public boolean isResultsetClosed() {
         return this.isResultsetClosed;
@@ -112,7 +110,7 @@ public class TSDBJNIConnector {
      *
      * @throws SQLException
      */
-    public int executeQuery(String sql) throws SQLException {
+    public long executeQuery(String sql) throws SQLException {
         if (!this.isResultsetClosed) {
             freeResultSet(taosResultSetPointer);
         }
@@ -127,7 +125,6 @@ public class TSDBJNIConnector {
         }
         int code = this.getErrCode(pSql);
 
-        affectedRows = code;
         if (code < 0) {
             affectedRows = -1;
             if (code == TSDBConstants.JNI_TDENGINE_ERROR) {
@@ -146,7 +143,7 @@ public class TSDBJNIConnector {
         if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
             isResultsetClosed = false;
         }
-        return code;
+        return pSql;
     }
 
     private native long executeQueryImp(byte[] sqlBytes, long connection);
@@ -199,8 +196,6 @@ public class TSDBJNIConnector {
     /**
      * Close the open result set which is associated to the current connection. If the result set is already
      * closed, return 0 for success.
-     *
-     * @return
      */
     public int freeResultSet() {
         int resCode = TSDBConstants.JNI_SUCCESS;
@@ -217,7 +212,7 @@ public class TSDBJNIConnector {
     /**
      * Get affected rows count
      */
-    public int getAffectedRows(Long pSql) {
+    public int getAffectedRows(long pSql) {
         int affectedRows = this.affectedRows;
         if (affectedRows < 0) {
             affectedRows = this.getAffectedRowsImp(this.taos, pSql);
@@ -225,7 +220,7 @@ public class TSDBJNIConnector {
         return affectedRows;
     }
 
-    private native int getAffectedRowsImp(long connection, Long pSql);
+    private native int getAffectedRowsImp(long connection, long pSql);
 
     /**
      * Get schema metadata
