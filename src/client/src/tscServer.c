@@ -239,16 +239,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
     if (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID || 
         rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      /*
-       * not_active_table: 1. the virtual node may fail to create table, since the procedure of create table is asynchronized,
-       *                   the virtual node may have not create table till now, so try again by using the new metermeta.
-       *                   2. this requested table may have been removed by other client, so we need to renew the
-       *                   metermeta here.
-       *
-       * not_active_vnode: current vnode is move to other node due to node balance procedure or virtual node have been
-       *                   removed. So, renew metermeta and try again.
-       * not_active_session: db has been move to other node, the vnode does not exist on this dnode anymore.
-       */
       if (pCmd->command == TSDB_SQL_CONNECT) {
         rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         rpcFreeCont(rpcMsg->pCont);
@@ -258,8 +248,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
         rpcFreeCont(rpcMsg->pCont);
         return;
       } else if (pCmd->command == TSDB_SQL_META) {
-//        rpcFreeCont(rpcMsg->pCont);
-//        return;
+        // get table meta query will not retry, do nothing
       } else {
         tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
         
@@ -267,13 +256,14 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
         if (pSql->retry > pSql->maxRetry) {
           tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
         } else {
-          rpcMsg->code = tscRenewMeterMeta(pSql, pTableMetaInfo->name);
-          if (pTableMetaInfo->pTableMeta) {
-            tscSendMsgToServer(pSql);
+          rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
+
+          // if there is an error occurring, proceed to the following error handling procedure.
+          // todo add test cases
+          if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            rpcFreeCont(rpcMsg->pCont);
+            return;
           }
-  
-          rpcFreeCont(rpcMsg->pCont);
-          return;
         }
       }
     }
@@ -330,9 +320,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     }
   }
   
-  if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
+  if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command]) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
-  
+  }
 
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? pRes->numOfRows: pRes->code;
@@ -431,7 +421,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
 
     /*
      * here, we cannot set the command = TSDB_SQL_KILL_QUERY. Otherwise, it may cause
-     * sub-queries not correctly released and master sql object of metric query reaches an abnormal state.
+     * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
     pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     //taosStopRpcConn(pSql->pSubs[i]->thandle);
@@ -565,7 +555,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
 
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
     pMsg += sizeof(STableIdInfo);
-  } else {
+  } else { // it is a subquery of the super table query, this IP info is acquired from vgroupInfo
     int32_t index = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     assert(index >= 0 && index < numOfVgroups);
@@ -1822,7 +1812,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  tscTrace("%p recv table meta: %"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
+  tscTrace("%p recv table meta, uid:%"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->uid, pTableMeta->sid, pTableMetaInfo->name);
   free(pTableMeta);
   
   return TSDB_CODE_SUCCESS;
@@ -2358,7 +2348,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
 
   int32_t code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;
+    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify upper application that current process need to be terminated
   }
 
   return code;
@@ -2389,56 +2379,26 @@ int tscGetMeterMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
   return tscGetTableMeta(pSql, pTableMetaInfo);
 }
 
-/*
- * in handling the renew metermeta problem during insertion,
- *
- * If the meter is created on demand during insertion, the routine usually waits for a short
- * period to re-issue the getMeterMeta msg, in which makes a greater change that vnode has
- * successfully created the corresponding table.
- */
-static void tscWaitingForCreateTable(SSqlCmd *pCmd) {
-  if (pCmd->command == TSDB_SQL_INSERT) {
-    taosMsleep(50);  // todo: global config
-  }
-}
-
 /**
- * in renew metermeta, do not retrieve metadata in cache.
+ * retrieve table meta from mnode, and update the local table meta cache.
  * @param pSql          sql object
- * @param tableId       meter id
+ * @param tableId       table full name
  * @return              status code
  */
-int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
-  int code = 0;
-
-  // handle table meta renew process
+int tscRenewTableMeta(SSqlObj *pSql, char *tableId) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  /*
-   * 1. only update the metermeta in force model metricmeta is not updated
-   * 2. if get metermeta failed, still get the metermeta
-   */
-  if (pTableMetaInfo->pTableMeta == NULL || !tscQueryOnSTable(pCmd)) {
-    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    if (pTableMetaInfo->pTableMeta) {
-      tscTrace("%p update table meta, old: numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
-               tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->uid, pTableMeta);
-    }
-
-    tscWaitingForCreateTable(pCmd);
-    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
-
-    code = getTableMetaFromMgmt(pSql, pTableMetaInfo);  // todo ??
-  } else {
-    tscTrace("%p metric query not update metric meta, numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
-             tscGetNumOfTags(pTableMetaInfo->pTableMeta), pCmd->numOfCols, pTableMetaInfo->pTableMeta->uid,
-             pTableMetaInfo->pTableMeta);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+  if (pTableMetaInfo->pTableMeta) {
+    tscTrace("%p update table meta, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
+             tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->uid, pTableMeta);
   }
 
-  return code;
+  taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
+  return getTableMetaFromMgmt(pSql, pTableMetaInfo);
 }
 
 static bool allVgroupInfoRetrieved(SSqlCmd* pCmd, int32_t clauseIndex) {

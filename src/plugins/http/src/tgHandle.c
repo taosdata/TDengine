@@ -313,7 +313,7 @@ bool tgGetPassFromUrl(HttpContext *pContext) {
     return false;
   }
 
-  strcpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos);
+  tstrncpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
   return true;
 }
 
