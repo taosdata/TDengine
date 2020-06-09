@@ -16,21 +16,19 @@
 #include "os.h"
 #include "shell.h"
 #include "tsclient.h"
-#include "tutil.h"
 
-TAOS_RES* con;
 pthread_t pid;
 
 // TODO: IMPLEMENT INTERRUPT HANDLER.
 void interruptHandler(int signum) {
 #ifdef LINUX
-  taos_stop_query(con);
-  if (con != NULL) {
+  taos_stop_query(result);
+  if (result != NULL) {
     /*
      * we need to free result in async model, in order to avoid free
      * results while the master thread is waiting for server response.
      */
-    tscQueueAsyncFreeResult(con);
+    tscQueueAsyncFreeResult(result);
   }
   
   result = NULL;
@@ -88,7 +86,7 @@ int main(int argc, char* argv[]) {
   shellParseArgument(argc, argv, &args);
 
   /* Initialize the shell */
-  con = shellInit(&args);
+  TAOS* con = shellInit(&args);
   if (con == NULL) {
     exit(EXIT_FAILURE);
   }
@@ -109,5 +107,4 @@ int main(int argc, char* argv[]) {
     pthread_create(&pid, NULL, shellLoopQuery, con);
     pthread_join(pid, NULL);
   }
-  return 0;
 }

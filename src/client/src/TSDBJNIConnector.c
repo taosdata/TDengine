@@ -309,7 +309,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getErrCodeImp(JNI
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
     jniError("jobj:%p, connection is closed", jobj);
-    return (jint)TSDB_CODE_INVALID_CONNECTION;
+    return (jint)TSDB_CODE_TSC_INVALID_CONNECTION;
   }
 
   if ((void *)tres == NULL) {

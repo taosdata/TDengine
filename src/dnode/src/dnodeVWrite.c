@@ -115,7 +115,7 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
       .handle  = pMsg->handle,
       .pCont   = NULL,
       .contLen = 0,
-      .code    = TSDB_CODE_INVALID_VGROUP_ID,
+      .code    = TSDB_CODE_VND_INVALID_VGROUP_ID,
       .msgType = 0
     };
     rpcSendResponse(&rpcRsp);
@@ -216,7 +216,7 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
         pHead->len = pWrite->contLen;
-        dTrace("%p, msg:%s will be processed", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
+        dTrace("%p, msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
       } else {
         pHead = (SWalHead *)item;
       }

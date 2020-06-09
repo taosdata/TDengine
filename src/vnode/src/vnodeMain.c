@@ -75,21 +75,31 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  mkdir(tsVnodeDir, 0755);
+  if (mkdir(tsVnodeDir, 0755) != 0 && errno != EEXIST) {
+    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), tsVnodeDir);
+    if (errno == EACCES) {
+      return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_VND_NO_DISKSPACE;
+    } else if (errno == ENOENT) {
+      return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
+    } else {
+      return TSDB_CODE_VND_INIT_FAILED;
+    }
+  }
 
   char rootDir[TSDB_FILENAME_LEN] = {0};
   sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
-  if (mkdir(rootDir, 0755) != 0) {
-    vPrint("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
+  if (mkdir(rootDir, 0755) != 0 && errno != EEXIST) {
+    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
     if (errno == EACCES) {
-      return TSDB_CODE_NO_DISK_PERMISSIONS;
+      return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
-      return TSDB_CODE_SERV_NO_DISKSPACE;
+      return TSDB_CODE_VND_NO_DISKSPACE;
     } else if (errno == ENOENT) {
-      return TSDB_CODE_NOT_SUCH_FILE_OR_DIR;
-    } else if (errno == EEXIST) {
+      return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
     } else {
-      return TSDB_CODE_VG_INIT_FAILED;
+      return TSDB_CODE_VND_INIT_FAILED;
     }
   }
 
@@ -116,7 +126,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   code = tsdbCreateRepo(tsdbDir, &tsdbCfg, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
-    return TSDB_CODE_VG_INIT_FAILED;
+    return TSDB_CODE_VND_INIT_FAILED;
   }
 
   vPrint("vgId:%d, vnode is created, clog:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.walLevel);
@@ -128,13 +138,13 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 int32_t vnodeDrop(int32_t vgId) {
   if (tsDnodeVnodesHash == NULL) {
     vTrace("vgId:%d, failed to drop, vgId not exist", vgId);
-    return TSDB_CODE_INVALID_VGROUP_ID;
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
 
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     vTrace("vgId:%d, failed to drop, vgId not find", vgId);
-    return TSDB_CODE_INVALID_VGROUP_ID;
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
 
   SVnodeObj *pVnode = *ppVnode;
@@ -208,8 +218,9 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   SCqCfg cqCfg = {0};
-  sprintf(cqCfg.user, "root");
+  sprintf(cqCfg.user, "_root");
   strcpy(cqCfg.pass, tsInternalPass);
+  strcpy(cqCfg.db, pVnode->db);
   cqCfg.vgId = vnode;
   cqCfg.cqWrite = vnodeWriteToQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
@@ -277,6 +288,15 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t vnodeStartStream(int32_t vnode) {
+  SVnodeObj* pVnode = vnodeAccquireVnode(vnode);
+  if (pVnode != NULL) {
+    tsdbStartStream(pVnode->tsdb);
+    vnodeRelease(pVnode);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t vnodeClose(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) return 0;
@@ -326,7 +346,7 @@ void *vnodeGetVnode(int32_t vgId) {
 
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
-    terrno = TSDB_CODE_INVALID_VGROUP_ID;
+    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     vPrint("vgId:%d, not exist", vgId);
     return NULL;
   }
@@ -494,7 +514,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   char *  content = calloc(1, maxLen + 1);
   if (content == NULL) {
     fclose(fp);
-    return TSDB_CODE_NO_RESOURCE;
+    return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
   len += snprintf(content + len, maxLen - len, "{\n");
@@ -545,7 +565,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   char    cfgFile[TSDB_FILENAME_LEN + 30] = {0};
   int     maxLen = 1000;
 
-  terrno = TSDB_CODE_OTHERS;
+  terrno = TSDB_CODE_VND_APP_ERROR;
   sprintf(cfgFile, "%s/vnode%d/config.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(cfgFile, "r");
   if (!fp) {
@@ -777,7 +797,7 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   cJSON  *root = NULL;
   int     maxLen = 100;
 
-  terrno = TSDB_CODE_OTHERS;
+  terrno = TSDB_CODE_VND_APP_ERROR;
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "r");
   if (!fp) {

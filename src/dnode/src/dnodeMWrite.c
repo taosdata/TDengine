@@ -81,7 +81,7 @@ void dnodeCleanupMnodeWrite() {
 
 int32_t dnodeAllocateMnodeWqueue() {
   tsMWriteQueue = taosOpenQueue();
-  if (tsMWriteQueue == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  if (tsMWriteQueue == NULL) return TSDB_CODE_DND_OUT_OF_MEMORY;
 
   taosAddIntoQset(tsMWriteQset, tsMWriteQueue, NULL);
 
@@ -128,8 +128,8 @@ static void dnodeFreeMnodeWriteMsg(SMnodeMsg *pWrite) {
 
 void dnodeSendRpcMnodeWriteRsp(void *pRaw, int32_t code) {
   SMnodeMsg *pWrite = pRaw;
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
-  if (code == TSDB_CODE_ACTION_NEED_REPROCESSED) {
+  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
     dnodeReprocessMnodeWriteMsg(pWrite);
     return;
   }

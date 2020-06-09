@@ -1216,7 +1216,7 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
 static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numOfBlocks, int32_t* numOfAllocBlocks) {
   char* tmp = realloc(pQueryHandle->pDataBlockInfo, sizeof(STableBlockInfo) * numOfBlocks);
   if (tmp == NULL) {
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_TDB_OUT_OF_MEMORY;
   }
 
   pQueryHandle->pDataBlockInfo = (STableBlockInfo*) tmp;
@@ -1233,7 +1233,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 
   if (sup.numOfBlocksPerTable == NULL || sup.blockIndexArray == NULL || sup.pDataBlockInfo == NULL) {
     cleanBlockOrderSupporter(&sup, 0);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_TDB_OUT_OF_MEMORY;
   }
   
   int32_t cnt = 0;
@@ -1251,7 +1251,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     char* buf = calloc(1, sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
     if (buf == NULL) {
       cleanBlockOrderSupporter(&sup, numOfQualTables);
-      return TSDB_CODE_SERV_OUT_OF_MEMORY;
+      return TSDB_CODE_TDB_OUT_OF_MEMORY;
     }
 
     sup.pDataBlockInfo[numOfQualTables] = (STableBlockInfo*)buf;
@@ -1289,7 +1289,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
   uint8_t ret = tLoserTreeCreate(&pTree, sup.numOfTables, &sup, dataBlockOrderCompar);
   if (ret != TSDB_CODE_SUCCESS) {
     cleanBlockOrderSupporter(&sup, numOfTables);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return TSDB_CODE_TDB_OUT_OF_MEMORY;
   }
 
   int32_t numOfTotal = 0;
@@ -2177,14 +2177,14 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pTable == NULL) {
     tsdbError("%p failed to get stable, uid:%" PRIu64, tsdb, uid);
-    return TSDB_CODE_INVALID_TABLE_ID;
+    return TSDB_CODE_TDB_INVALID_TABLE_ID;
   }
   
   if (pTable->type != TSDB_SUPER_TABLE) {
     tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s",
            tsdb, uid, pTable->tableId.tid, pTable->name);
     
-    return TSDB_CODE_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
+    return TSDB_CODE_COM_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
   }
   
   SArray* res = taosArrayInit(8, sizeof(STableId));
@@ -2221,7 +2221,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
         tExprNode* tbnameExpr = expr;
         expr = calloc(1, sizeof(tExprNode));
         if (expr == NULL) {
-          THROW( TSDB_CODE_SERV_OUT_OF_MEMORY );
+          THROW( TSDB_CODE_TDB_OUT_OF_MEMORY );
         }
         expr->nodeType = TSQL_NODE_EXPR;
         expr->_node.optr = tagNameRelType;
@@ -2248,7 +2248,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
 int32_t tsdbGetOneTableGroup(TsdbRepoT* tsdb, uint64_t uid, STableGroupInfo* pGroupInfo) {
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pTable == NULL) {
-    return TSDB_CODE_INVALID_TABLE_ID;
+    return TSDB_CODE_TDB_INVALID_TABLE_ID;
   }
   
   //todo assert table type, add the table ref count

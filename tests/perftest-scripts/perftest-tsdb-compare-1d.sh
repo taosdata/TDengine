@@ -33,26 +33,26 @@ function runPerfTest1d {
 	restartTaosd
 
 	cd /home/taos/tliu/timeseriesdatabase-comparisons/build/tsdbcompare
-	./runreal-1d-csv.sh 2>&1 | tee /root/perftest-1d-$today.log
+	./runreal-1d-csv.sh $1 2>&1 | tee /root/perftest-1d-$1-$today.log
 }
 
 function generatePerfPlot1d {
 	cd /root
 
-	csvLines=`cat perftest-1d-report.csv | wc -l`
+	csvLines=`cat perftest-1d-$1-report.csv | wc -l`
 
 	if [ "$csvLines" -gt "10" ]; then
-		sed -i '2d' perftest-1d-report.csv
+		sed -i '2d' perftest-1d-$1-report.csv
 	fi
 
-	gnuplot -e "filename='perftest-1d-report'" -p perftest-csv2png.gnuplot
+	gnuplot -e "filename='perftest-1d-$1-report'" -p perftest-csv2png.gnuplot
 }
 
 today=`date +"%Y%m%d"`
 cd /root
 
 echoInfo "run Performance Test with 1 day data"
-runPerfTest1d
+runPerfTest1d $1
 echoInfo "Generate plot of 1 day data"
-generatePerfPlot1d
+generatePerfPlot1d $1
 echoInfo "End of TSDB-Compare 1-day-data Test"

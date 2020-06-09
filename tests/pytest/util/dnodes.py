@@ -160,7 +160,7 @@ class TDDnode:
         self.cfg("logDir", self.logDir)
         self.cfg("numOfLogLines", "100000000")
         self.cfg("mnodeEqualVnodeNum", "0")
-        self.cfg("clog", "1")
+        self.cfg("walLevel", "1")
         self.cfg("statusInterval", "1")
         self.cfg("numOfTotalVnodes", "64")
         self.cfg("numOfMnodes", "3")
@@ -194,13 +194,13 @@ class TDDnode:
         selfPath = os.path.dirname(os.path.realpath(__file__))
         binPath = ""
 
-        if ("TDinternal" in selfPath):
+        if ("community" in selfPath):
             projPath = selfPath + "/../../../../"
 
             for root, dirs, files in os.walk(projPath):
                 if ("taosd" in files):
                     rootRealPath = os.path.dirname(os.path.realpath(root))
-                    if ("community" not in rootRealPath):
+                    if ("packaging" not in rootRealPath):
                         binPath = os.path.join(root, "taosd")
                         break
         else:
@@ -213,7 +213,7 @@ class TDDnode:
                         break
 
         if (binPath == ""):
-            tdLog.exit("taosd not found!s")
+            tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % rootRealPath)
 
@@ -319,6 +319,7 @@ class TDDnodes:
         self.dnodes.append(TDDnode(8))
         self.dnodes.append(TDDnode(9))
         self.dnodes.append(TDDnode(10))
+        self.simDeployed = False
 
     def init(self, path):
         psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
@@ -378,7 +379,10 @@ class TDDnodes:
         self.sim = TDSimClient()
         self.sim.init(self.path)
         self.sim.setTestCluster(self.testCluster)
-        self.sim.deploy()
+
+        if (self.simDeployed == False):
+            self.sim.deploy()
+            self.simDeployed = True
 
         self.check(index)
         self.dnodes[index - 1].setTestCluster(self.testCluster)
