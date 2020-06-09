@@ -22,11 +22,37 @@
 static HttpDecodeMethod restDecodeMethod = {"rest", restProcessRequest};
 static HttpDecodeMethod restDecodeMethod2 = {"restful", restProcessRequest};
 static HttpEncodeMethod restEncodeSqlTimestampMethod = {
-    restStartSqlJson, restStopSqlJson, restBuildSqlTimestampJson, restBuildSqlAffectRowsJson, NULL, NULL, NULL, NULL};
+  .startJsonFp          = restStartSqlJson,         
+  .stopJsonFp           = restStopSqlJson, 
+  .buildQueryJsonFp     = restBuildSqlTimestampJson,
+  .buildAffectRowJsonFp = restBuildSqlAffectRowsJson, 
+  .initJsonFp           = NULL, 
+  .cleanJsonFp          = NULL,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
+
 static HttpEncodeMethod restEncodeSqlLocalTimeStringMethod = {
-    restStartSqlJson, restStopSqlJson, restBuildSqlLocalTimeStringJson, restBuildSqlAffectRowsJson, NULL, NULL, NULL, NULL};
+  .startJsonFp          = restStartSqlJson,         
+  .stopJsonFp           = restStopSqlJson, 
+  .buildQueryJsonFp     = restBuildSqlLocalTimeStringJson,
+  .buildAffectRowJsonFp = restBuildSqlAffectRowsJson, 
+  .initJsonFp           = NULL, 
+  .cleanJsonFp          = NULL,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
+
 static HttpEncodeMethod restEncodeSqlUtcTimeStringMethod = {
-    restStartSqlJson, restStopSqlJson, restBuildSqlUtcTimeStringJson, restBuildSqlAffectRowsJson, NULL, NULL, NULL, NULL};
+  .startJsonFp          = restStartSqlJson,         
+  .stopJsonFp           = restStopSqlJson, 
+  .buildQueryJsonFp     = restBuildSqlUtcTimeStringJson,
+  .buildAffectRowJsonFp = restBuildSqlAffectRowsJson, 
+  .initJsonFp           = NULL, 
+  .cleanJsonFp          = NULL,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
 
 void restInitHandle(HttpServer* pServer) {
   httpAddMethod(pServer, &restDecodeMethod);
