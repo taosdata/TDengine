@@ -92,6 +92,7 @@ int32_t main(int32_t argc, char *argv[]) {
   // Initialize the system
   if (dnodeInitSystem() < 0) {
     syslog(LOG_ERR, "Error initialize TDengine system");
+    dPrint("Failed to start TDengine, please check the log at:%s", tsLogDir);
     closelog();
     exit(EXIT_FAILURE);
   }
