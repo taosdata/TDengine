@@ -208,12 +208,12 @@ class Test (threading.Thread):
         global written
 
         dnodesDir = tdDnodes.getDnodesRootDir()
+        tdDnodes.forcestop(1)
         dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
 
         tdDnodes.start(1)
-#        tdLog.sleep(10)
         tdSql.prepare()
         last_tb = ""
         last_stb = ""
