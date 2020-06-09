@@ -80,9 +80,8 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
 }
 
 void taos_init_imp() {
-  char        temp[128];
-  struct stat dirstat;
-
+  char temp[128];
+  
   errno = TSDB_CODE_SUCCESS;
   srand(taosGetTimestampSec());
   deltaToUtcInitOnce();
@@ -94,7 +93,9 @@ void taos_init_imp() {
     taosReadGlobalLogCfg();
 
     // For log directory
-    if (stat(tsLogDir, &dirstat) < 0) mkdir(tsLogDir, 0755);
+    if (mkdir(tsLogDir, 0755) != 0 && errno != EEXIST) {
+      printf("failed to create log dir:%s\n", tsLogDir);
+    }
 
     sprintf(temp, "%s/taoslog", tsLogDir);
     if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
@@ -200,7 +201,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         tscPrint("set shellActivityTimer:%d", tsShellActivityTimer);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, pStr,
-                tsCfgStatusStr[cfg->cfgStatus], (int32_t *)cfg->ptr);
+                tsCfgStatusStr[cfg->cfgStatus], *(int32_t *)cfg->ptr);
       }
       break;
 

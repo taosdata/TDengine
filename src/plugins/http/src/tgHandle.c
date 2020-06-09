@@ -62,9 +62,16 @@
 #define TG_MAX_SORT_TAG_SIZE 20
 
 static HttpDecodeMethod tgDecodeMethod = {"telegraf", tgProcessRquest};
-static HttpEncodeMethod tgQueryMethod = {tgStartQueryJson,         tgStopQueryJson, NULL,
-                                         tgBuildSqlAffectRowsJson, tgInitQueryJson, tgCleanQueryJson,
-                                         tgCheckFinished,          tgSetNextCmd};
+static HttpEncodeMethod tgQueryMethod = {
+  .startJsonFp          = tgStartQueryJson,         
+  .stopJsonFp           = tgStopQueryJson, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = tgBuildSqlAffectRowsJson, 
+  .initJsonFp           = tgInitQueryJson, 
+  .cleanJsonFp          = tgCleanQueryJson,
+  .checkFinishedFp      = tgCheckFinished,
+  .setNextCmdFp         = tgSetNextCmd
+};
 
 static const char DEFAULT_TELEGRAF_CFG[] =
         "{\"metrics\":["
@@ -303,7 +310,7 @@ bool tgGetUserFromUrl(HttpContext *pContext) {
     return false;
   }
 
-  strcpy(pContext->user, pParser->path[TG_USER_URL_POS].pos);
+  tstrncpy(pContext->user, pParser->path[TG_USER_URL_POS].pos, TSDB_USER_LEN);
   return true;
 }
 
@@ -313,7 +320,7 @@ bool tgGetPassFromUrl(HttpContext *pContext) {
     return false;
   }
 
-  strcpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos);
+  tstrncpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
   return true;
 }
 

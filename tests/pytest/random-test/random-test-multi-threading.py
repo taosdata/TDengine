@@ -208,7 +208,7 @@ class Test (threading.Thread):
         global written
 
         dnodesDir = tdDnodes.getDnodesRootDir()
-        dataDir = dnodesDir + '/dnode1/*'
+        dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
 

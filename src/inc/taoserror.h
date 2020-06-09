@@ -136,16 +136,17 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           0, 0x0355, "mnode too 
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TABLE_ALREADY_EXIST,      0, 0x0360, "mnode table already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_ID,         0, 0x0361, "mnode invalid table id")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_TYPE,       0, 0x0362, "mnode invalid table type")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            0, 0x0363, "mnode too many tags")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TABLES,          0, 0x0364, "mnode too many tables")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TIMESERIES,      0, 0x0365, "mnode not enough time series")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_SUPER_TABLE,          0, 0x0366, "mnode no super table")           // operation only available for super table
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_NAME_TOO_LONG,        0, 0x0367, "mnode column name too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_ALREAY_EXIST,         0, 0x0368, "mnode tag already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_NOT_EXIST,            0, 0x0369, "mnode tag not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_ALREAY_EXIST,       0, 0x036A, "mnode field already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_NOT_EXIST,          0, 0x036B, "mnode field not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_NAME,       0, 0x0362, "mnode invalid table name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_TYPE,       0, 0x0363, "mnode invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            0, 0x0364, "mnode too many tags")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TABLES,          0, 0x0365, "mnode too many tables")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TIMESERIES,      0, 0x0366, "mnode not enough time series")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_SUPER_TABLE,          0, 0x0367, "mnode no super table")           // operation only available for super table
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_NAME_TOO_LONG,        0, 0x0368, "mnode column name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_ALREAY_EXIST,         0, 0x0369, "mnode tag already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_NOT_EXIST,            0, 0x036A, "mnode tag not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_ALREAY_EXIST,       0, 0x036B, "mnode field already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_NOT_EXIST,          0, 0x036C, "mnode field not exist")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_NOT_SELECTED,          0, 0x0380, "mnode db not selected")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_ALREADY_EXIST,         0, 0x0381, "mnode database aleady exist")

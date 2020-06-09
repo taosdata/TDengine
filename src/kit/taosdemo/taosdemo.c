@@ -43,6 +43,7 @@ extern char configDir[];
 #define MAX_DATA_SIZE    1024
 #define MAX_NUM_DATATYPE 8
 #define OPT_ABORT        1 /* –abort */
+#define STRING_LEN       512
 
 /* The options we understand. */
 static struct argp_option options[] = {
@@ -380,10 +381,11 @@ int main(int argc, char *argv[]) {
   bool insert_only = arguments.insert_only;
   char **data_type = arguments.datatype;
   int count_data_type = 0;
-  char dataString[512];
+  char dataString[STRING_LEN];
   bool do_aggreFunc = true;
 
-  memset(dataString, 0, 512);
+  memset(dataString, 0, STRING_LEN);
+  int len = 0;
 
   if (strcasecmp(data_type[0], "BINARY") == 0 || strcasecmp(data_type[0], "BOOL") == 0) {
     do_aggreFunc = false;
@@ -392,8 +394,8 @@ int main(int argc, char *argv[]) {
     if (strcasecmp(data_type[count_data_type], "") == 0) {
       break;
     }
-    strcat(dataString, data_type[count_data_type]);
-    strcat(dataString, " ");
+
+    len += snprintf(dataString + len, STRING_LEN - len, "%s ", data_type[count_data_type]);
   }
 
   FILE *fp = fopen(arguments.output_file, "a");
@@ -473,32 +475,29 @@ int main(int argc, char *argv[]) {
   sprintf(command, "create database %s;", db_name);
   taos_query(taos, command);
 
-  char cols[512] = "\0";
+  char cols[STRING_LEN] = "\0";
   int colIndex = 0;
+  len = 0;
 
   for (; colIndex < ncols_per_record - 1; colIndex++) {
     if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0) {
-      sprintf(command, ",f%d %s", colIndex + 1, data_type[colIndex % count_data_type]);
-      strcat(cols, command);
+      len += snprintf(cols + len, STRING_LEN - len, ",f%d %s", colIndex + 1, data_type[colIndex % count_data_type]);
     } else {
-      sprintf(command, ",f%d %s(%d)", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
-      strcat(cols, command);
+      len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d)", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
     }
   }
 
   if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0) {
-    sprintf(command, ",f%d %s)", colIndex + 1, data_type[colIndex % count_data_type]);
+    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s)", colIndex + 1, data_type[colIndex % count_data_type]);
   } else {
-    sprintf(command, ",f%d %s(%d))", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
+    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d))", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
   }
-
-  strcat(cols, command);
 
   if (!use_metric) {
     /* Create all the tables; */
     printf("Creating %d table(s)......\n", ntables);
     for (int i = 0; i < ntables; i++) {
-      sprintf(command, "create table %s.%s%d (ts timestamp%s;", db_name, tb_prefix, i, cols);
+      snprintf(command, BUFFER_SIZE, "create table %s.%s%d (ts timestamp%s;", db_name, tb_prefix, i, cols);
       queryDB(taos, command);
     }
 
@@ -508,7 +507,7 @@ int main(int argc, char *argv[]) {
   } else {
     /* Create metric table */
     printf("Creating meters super table...\n");
-    sprintf(command, "create table %s.meters (ts timestamp%s tags (areaid int, loc binary(10))", db_name, cols);
+    snprintf(command, BUFFER_SIZE, "create table %s.meters (ts timestamp%s tags (areaid int, loc binary(10))", db_name, cols);
     queryDB(taos, command);
     printf("meters created!\n");
 
@@ -522,10 +521,10 @@ int main(int argc, char *argv[]) {
         j = i % 10;
       }
     if (j % 2 == 0) {
-       sprintf(command, "create table %s.%s%d using %s.meters tags (%d,\"%s\");", db_name, tb_prefix, i, db_name, j,"shanghai");
-      } else {
-       sprintf(command, "create table %s.%s%d using %s.meters tags (%d,\"%s\");", db_name, tb_prefix, i, db_name, j,"beijing");
-      }
+      snprintf(command, BUFFER_SIZE, "create table %s.%s%d using %s.meters tags (%d,\"%s\");", db_name, tb_prefix, i, db_name, j, "shanghai");
+    } else {
+      snprintf(command, BUFFER_SIZE, "create table %s.%s%d using %s.meters tags (%d,\"%s\");", db_name, tb_prefix, i, db_name, j, "beijing");
+    }
       queryDB(taos, command);
     }
 
