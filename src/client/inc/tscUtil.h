@@ -134,6 +134,7 @@ void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionE
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
 void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size);
 void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src);
+void tscFieldInfoUpdateBySqlFunc(SQueryInfo* pQueryInfo);
 
 TAOS_FIELD* tscFieldInfoGetField(SQueryInfo* pQueryInfo, int32_t index);
 int16_t     tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);

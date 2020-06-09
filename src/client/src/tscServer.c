@@ -643,7 +643,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
 
   pSql->pSubs[pSql->numOfSubs++] = pNew;
   assert(pSql->numOfSubs <= pSupporter->pState->numOfTotal);
-
+  
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
     addGroupInfoForSubquery(pSql, pNew, 0, tableIndex);
 
@@ -763,7 +763,7 @@ int tscProcessSql(SSqlObj *pSql) {
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SMeterMetaInfo *pMeterMetaInfo = NULL;
-  int16_t         type = 0;
+  uint32_t         type = 0;
 
   if (pQueryInfo != NULL) {
     pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
@@ -808,26 +808,37 @@ int tscProcessSql(SSqlObj *pSql) {
   if (QUERY_IS_JOIN_QUERY(type)) {
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0) {
       SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
-
       pState->numOfTotal = pQueryInfo->numOfTables;
 
-      for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-        SJoinSubquerySupporter *pSupporter = tscCreateJoinSupporter(pSql, pState, i);
-
-        if (pSupporter == NULL) {  // failed to create support struct, abort current query
-          tscError("%p tableIndex:%d, failed to allocate join support object, abort further query", pSql, i);
-          pState->numOfCompleted = pQueryInfo->numOfTables - i - 1;
-          pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-
-          return pSql->res.code;
+      if ((pQueryInfo->type & TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY) != 0) {
+        pSql->numOfSubs = pQueryInfo->numOfTables;
+        if (pSql->pSubs == NULL) {
+          pSql->pSubs = calloc(pSql->numOfSubs, POINTER_BYTES);
+          if (pSql->pSubs == NULL) {
+            return TSDB_CODE_CLI_OUT_OF_MEMORY;
+          }
         }
-
-        int32_t code = tscLaunchJoinSubquery(pSql, i, pSupporter);
-        if (code != TSDB_CODE_SUCCESS) {  // failed to create subquery object, quit query
-          tscDestroyJoinSupporter(pSupporter);
-          pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-
-          break;
+        
+        tscLaunchSecondPhaseDirectly(pSql, pState);
+      } else {
+        for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+          SJoinSubquerySupporter *pSupporter = tscCreateJoinSupporter(pSql, pState, i);
+    
+          if (pSupporter == NULL) {  // failed to create support struct, abort current query
+            tscError("%p tableIndex:%d, failed to allocate join support object, abort further query", pSql, i);
+            pState->numOfCompleted = pQueryInfo->numOfTables - i - 1;
+            pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      
+            return pSql->res.code;
+          }
+    
+          int32_t code = tscLaunchJoinSubquery(pSql, i, pSupporter);
+          if (code != TSDB_CODE_SUCCESS) {  // failed to create subquery object, quit query
+            tscDestroyJoinSupporter(pSupporter);
+            pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      
+            break;
+          }
         }
       }
 

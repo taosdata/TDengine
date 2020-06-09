@@ -2559,7 +2559,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
   // compare tag first
-  if (pCtx[0].tag.i64Key != elem.tag) {
+  if (0 != tVariantCompare(&pCtx[0].tag,&elem.tag)) {
     return TS_JOIN_TAG_NOT_EQUALS;
   }
 
@@ -2667,7 +2667,6 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
   int32_t j = 0;
   TSKEY   lastKey = -1;
   int32_t lastIndex = -1;
-  //bool firstAccessedPoint = true;
   
   for (j = 0; j < (*forwardStep); ++j) {
     int32_t offset = GET_COL_DATA_POS(pQuery, j, step);
@@ -7455,9 +7454,10 @@ int32_t setAdditionalInfo(STableQuerySupportObj *pSupporter, int32_t meterIdx, S
   // both the master and supplement scan needs to set the correct ts comp start position
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pMeterQueryInfo->cur.vnodeIndex == -1) {
-      pMeterQueryInfo->tag = pRuntimeEnv->pCtx[0].tag.i64Key;
+      //pMeterQueryInfo->tag = pRuntimeEnv->pCtx[0].tag.i64Key;
+      tVariantAssign(&pMeterQueryInfo->tag,&pRuntimeEnv->pCtx[0].tag);
 
-      tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, pMeterQueryInfo->tag);
+      tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, &pMeterQueryInfo->tag);
 
       // keep the cursor info of current meter
       pMeterQueryInfo->cur = pRuntimeEnv->pTSBuf->cur;

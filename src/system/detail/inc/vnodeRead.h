@@ -198,7 +198,7 @@ typedef struct SMeterQueryInfo {
   int64_t      ekey;
   int32_t      numOfRes;
   int16_t      queryRangeSet;   // denote if the query range is set, only available for interval query
-  int64_t      tag;
+  tVariant      tag;
   STSCursor    cur;
   int32_t      sid; // for retrieve the page id list
   

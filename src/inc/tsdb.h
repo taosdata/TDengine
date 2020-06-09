@@ -230,10 +230,12 @@ extern "C" {
 
 #define TSDB_QUERY_TYPE_INSERT                        0x100U    // insert type
 #define TSDB_QUERY_TYPE_IMPORT                        0x200U    // import data
+#define        TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY        0x400u    // join query without ts match
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)         (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))
 #define TSDB_QUERY_RESET_TYPE(x)              ((x) = TSDB_QUERY_TYPE_NON_TYPE)
+#define TSDB_QUERY_UNSET_TYPE(x, _type)       ((x) &= ~(_type))
 
 #define TSQL_SO_ASC   1
 #define TSQL_SO_DESC  0

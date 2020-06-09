@@ -75,6 +75,8 @@ void tVariantDestroy(tVariant *pV);
 
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc);
 
+int32_t tVariantCompare(const tVariant *pDst, const tVariant *pSrc);
+
 int32_t tVariantToString(tVariant *pVar, char *dst);
 
 int32_t tVariantDump(tVariant *pVariant, char *payload, char type);

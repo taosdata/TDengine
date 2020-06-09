@@ -27,13 +27,15 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql);
 void tscGetQualifiedTSList(SSqlObj* pSql, SJoinSubquerySupporter* p1, SJoinSubquerySupporter* p2, int32_t* num);
 
 void tscSetupOutputColumnIndex(SSqlObj* pSql);
+
+int32_t tscLaunchSecondPhaseDirectly(SSqlObj* pSql, SSubqueryState* pState);
 int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql);
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 
 SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
 void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter);
 
-#define MEM_BUF_SIZE                (1<<20)
+#define MEM_BUF_SIZE                (1u<<20)
 #define TS_COMP_BLOCK_PADDING       0xFFFFFFFF
 #define TS_COMP_FILE_MAGIC          0x87F5EC4C
 #define TS_COMP_FILE_VNODE_MAX      512
@@ -47,14 +49,14 @@ typedef struct STSList {
 
 typedef struct STSRawBlock {
   int32_t vnode;
-  int64_t tag;
+  tVariant tag;
   TSKEY*  ts;
   int32_t len;
 } STSRawBlock;
 
 typedef struct STSElem {
   TSKEY   ts;
-  int64_t tag;
+  tVariant tag;
   int32_t vnode;
 } STSElem;
 
@@ -66,7 +68,7 @@ typedef struct STSCursor {
 } STSCursor;
 
 typedef struct STSBlock {
-  int64_t tag;        // tag value
+  tVariant tag;        // tag value
   int32_t numOfElem;  // number of elements
   int32_t compLen;    // size after compressed
   int32_t padding;    // 0xFFFFFFFF by default, after the payload
@@ -123,7 +125,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
 
 void* tsBufDestory(STSBuf* pTSBuf);
 
-void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len);
+void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len);
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);
 
 STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId);
@@ -134,7 +136,7 @@ void tsBufResetPos(STSBuf* pTSBuf);
 STSElem tsBufGetElem(STSBuf* pTSBuf);
 bool tsBufNextPos(STSBuf* pTSBuf);
 
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag);
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag);
 
 STSCursor tsBufGetCursor(STSBuf* pTSBuf);
 void tsBufSetTraverseOrder(STSBuf* pTSBuf, int32_t order);

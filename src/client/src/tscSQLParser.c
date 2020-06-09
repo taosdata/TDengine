@@ -1136,6 +1136,10 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   const char* msg5 = "invalid function name";
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
+  
+  if (isSTable) {
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_QUERY);
+  }
 
   for (int32_t i = 0; i < pSelection->nExpr; ++i) {
     int32_t       outputIndex = pQueryInfo->exprsInfo.numOfExprs;
@@ -1996,22 +2000,20 @@ int32_t doGetColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColum
 }
 
 int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
+  pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
+  
   if (pTableToken->n == 0) {  // only one table and no table name prefix in column name
     if (pQueryInfo->numOfTables == 1) {
       pIndex->tableIndex = 0;
     }
-
+    
     return TSDB_CODE_SUCCESS;
   }
 
-  pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
-  char tableName[TSDB_METER_ID_LEN + 1] = {0};
-
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
-    extractTableName(pMeterMetaInfo->name, tableName);
-
-    if (strncasecmp(tableName, pTableToken->z, pTableToken->n) == 0 && strlen(tableName) == pTableToken->n) {
+    if (strncasecmp(pMeterMetaInfo->aliasName, pTableToken->z, pTableToken->n) == 0 &&
+        strlen(pMeterMetaInfo->aliasName) == pTableToken->n) {
       pIndex->tableIndex = i;
       break;
     }
@@ -3201,10 +3203,10 @@ static bool validateJoinExprNode(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SColum
   } else if (pLeftIndex->tableIndex == rightIndex.tableIndex) {
     invalidSqlErrMsg(pQueryInfo->msg, msg4);
     return false;
-  } else if (leftType == TSDB_DATA_TYPE_BINARY || leftType == TSDB_DATA_TYPE_NCHAR) {
+  } /*else if (leftType == TSDB_DATA_TYPE_BINARY || leftType == TSDB_DATA_TYPE_NCHAR) {
     invalidSqlErrMsg(pQueryInfo->msg, msg6);
     return false;
-  }
+  }*/
 
   // table to table/ super table to super table are allowed
   if (UTIL_METER_IS_SUPERTABLE(pLeftMeterMeta) != UTIL_METER_IS_SUPERTABLE(pRightMeterMeta)) {
@@ -3655,7 +3657,9 @@ static int32_t validateJoinExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
   }
 
   if (!pCondExpr->tsJoin) {
-    return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY);
+  } else {
+    TSDB_QUERY_UNSET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -5600,7 +5604,8 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   const char* msg7 = "illegal number of tables in from clause";
   const char* msg8 = "too many columns in selection clause";
   const char* msg9 = "TWA query requires both the start and end time";
-
+  const char* msg10 = "alias name too long";
+  
   int32_t code = TSDB_CODE_SUCCESS;
 
   SSqlCmd* pCmd = &pSql->cmd;
@@ -5628,15 +5633,20 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
            pQuerySql->pSortOrder == NULL);
     return doLocalQueryProcess(pQueryInfo, pQuerySql);
   }
-
-  if (pQuerySql->from->nExpr > 2) {  // not allowed more than 2 table join
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  
+  if (pQuerySql->from->nExpr > 2) {
+    if (pQuerySql->from->nExpr > 4) {   // not support more than 2 tables join query
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }
+    
+    // set the timestamp not matched join query
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TS_NO_MATCH_JOIN_QUERY);
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
 
   // set all query tables, which are maybe more than one.
-  for (int32_t i = 0; i < pQuerySql->from->nExpr; ++i) {
+  for (int32_t i = 0; i < pQuerySql->from->nExpr; i += 2) {
     tVariant* pTableItem = &pQuerySql->from->a[i].pVar;
 
     if (pTableItem->nType != TSDB_DATA_TYPE_BINARY) {
@@ -5654,7 +5664,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       tscAddEmptyMeterMetaInfo(pQueryInfo);
     }
 
-    SMeterMetaInfo* pMeterInfo1 = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+    SMeterMetaInfo* pMeterInfo1 = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i/2);
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
     if (setMeterID(pMeterInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
@@ -5665,9 +5675,17 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+    
+    //set the alias name
+    tVariant* aliasName = &pQuerySql->from->a[i + 1].pVar;
+    if (aliasName->nLen > TSDB_METER_NAME_LEN) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
+    }
+    
+    tVariantDump(aliasName, pMeterInfo1->aliasName, TSDB_DATA_TYPE_BINARY);
   }
 
-  assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr);
+  assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr / 2);
 
   // parse the group by clause in the first place
   if (parseGroupbyClause(pQueryInfo, pQuerySql->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {

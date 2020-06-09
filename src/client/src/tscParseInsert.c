@@ -949,7 +949,11 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   } else {
     *sqlstr = sql;
   }
-
+  
+  if (*sqlstr == NULL) {
+    code = TSDB_CODE_INVALID_SQL;
+  }
+  
   return code;
 }
 
@@ -1290,7 +1294,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
-  uint16_t type = (sToken.type == TK_INSERT)? TSDB_QUERY_TYPE_INSERT:TSDB_QUERY_TYPE_IMPORT;
+  uint32_t type = (sToken.type == TK_INSERT)? TSDB_QUERY_TYPE_INSERT:TSDB_QUERY_TYPE_IMPORT;
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false, 0, NULL);

@@ -367,7 +367,7 @@ void tVariantListDestroy(tVariantList *pList) {
   free(pList);
 }
 
-tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToken, uint8_t sortOrder) {
+tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pToken, uint8_t sortOrder) {
   if (pList == NULL) {
     pList = calloc(1, sizeof(tVariantList));
   }
@@ -376,9 +376,9 @@ tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToke
     return pList;
   }
 
-  if (pAliasToken) {
+  if (pToken) {
     tVariant t = {0};
-    tVariantCreate(&t, pAliasToken);
+    tVariantCreate(&t, pToken);
 
     tVariantListItem *pItem = &pList->a[pList->nExpr++];
     memcpy(pItem, &t, sizeof(tVariant));

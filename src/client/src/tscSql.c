@@ -551,9 +551,36 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
     }
 
     if (numOfTableHasRes >= 2) {  // do merge result
-      success = (doSetResultRowData(pSql->pSubs[0], false) != NULL) &&
-          (doSetResultRowData(pSql->pSubs[1], false) != NULL);
-      //        printf("first:%" PRId64 ", second:%" PRId64 "\n", key1, key2);
+      bool s1 = doSetResultRowData(pSql->pSubs[0], false);
+      bool s2 = doSetResultRowData(pSql->pSubs[1], false);
+      
+      success = s1 && s2;
+      if (success) {
+        TSKEY key1 = *(TSKEY*) pSql->pSubs[0]->res.tsrow[0];
+        TSKEY key2 = *(TSKEY*) pSql->pSubs[1]->res.tsrow[0];
+  
+        while(1) {
+          if (key1 < key2) {
+            s1 = doSetResultRowData(pSql->pSubs[0], false);
+            if (!s1) { // retrieve next block
+              break;
+            }
+          } else if (key1 > key2) {
+            s2 = doSetResultRowData(pSql->pSubs[1], false);
+            if (!s2) {
+              break;
+            }
+          } else {
+            break;
+          }
+    
+          key1 = *(TSKEY *)pSql->pSubs[0]->res.tsrow[0];
+          key2 = *(TSKEY *)pSql->pSubs[1]->res.tsrow[0];
+        }
+  
+        success = s1 && s2;
+//        printf("first:%" PRId64 ", second:%" PRId64 "\n", key1, key2);
+      }
     } else {  // only one subquery
       SSqlObj *pSub = pSql->pSubs[0];
       if (pSub == NULL) {

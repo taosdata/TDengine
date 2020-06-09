@@ -82,14 +82,14 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
     // for debug purpose
     tscPrint("%" PRId64 ", tags:%d \t %" PRId64 ", tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
 #endif
-
-    if (elem1.tag < elem2.tag || (elem1.tag == elem2.tag && doCompare(order, elem1.ts, elem2.ts))) {
+    int32_t ret = tVariantCompare(&elem1.tag,&elem2.tag );
+    if (ret < 0 || (ret == 0 && doCompare(order, elem1.ts, elem2.ts))) {
       if (!tsBufNextPos(pSupporter1->pTSBuf)) {
         break;
       }
 
       numOfInput1++;
-    } else if (elem1.tag > elem2.tag || (elem1.tag == elem2.tag && doCompare(order, elem2.ts, elem1.ts))) {
+    } else if (ret > 0 || (ret == 0 && doCompare(order, elem2.ts, elem1.ts))) {
       if (!tsBufNextPos(pSupporter2->pTSBuf)) {
         break;
       }
@@ -109,8 +109,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
           *et = elem1.ts;
         }
         
-        tsBufAppend(output1, elem1.vnode, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
-        tsBufAppend(output2, elem2.vnode, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
+        tsBufAppend(output1, elem1.vnode, &elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
+        tsBufAppend(output2, elem2.vnode, &elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
       } else {
         pLimit->offset -= 1;
       }
@@ -217,6 +217,105 @@ bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
   }
 
   return false;
+}
+
+int32_t tscLaunchSecondPhaseDirectly(SSqlObj* pSql, SSubqueryState* pState) {
+  /*
+   * If the columns are not involved in the final select clause, the secondary query will not be launched
+   * for the subquery.
+   */
+  pSql->res.qhandle = 0x1;
+  pSql->res.numOfRows = 0;
+  
+  tscTrace("%p start to launch secondary subqueries", pSql);
+  bool success = true;
+  for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+  
+    SJoinSubquerySupporter *pSupporter = tscCreateJoinSupporter(pSql, pState, i);
+    assert(pSupporter != NULL);
+    
+    SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, NULL);
+    if (pNew == NULL) {
+      tscDestroyJoinSupporter(pSupporter);
+      success = false;
+      break;
+    }
+    
+    pSql->pSubs[i] = pNew;
+    
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
+    pQueryInfo->tsBuf = NULL;  // transfer the ownership of timestamp comp-z data to the new created object
+    
+    // set the second stage sub query for join process
+    pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
+    
+    /*
+     * if the first column of the secondary query is not ts function, add this function.
+     * Because this column is required to filter with timestamp after intersecting.
+     */
+    assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
+
+    /*
+     * if the first column of the secondary query is not ts function, add this function.
+     * Because this column is required to filter with timestamp after intersecting.
+     */
+    if (tscSqlExprNumOfExprs(pQueryInfo) == 0) {
+      SColumnIndex index = {0};
+      SSqlExpr* pExpr = tscSqlExprInsert(pQueryInfo, 0, TSDB_FUNC_COUNT, &index, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), sizeof(int64_t));
+      SColumnList columnList = {0};
+      columnList.num = 1;
+      columnList.ids[0] = index;
+      insertResultField(pQueryInfo, 0, &columnList, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, "ts", pExpr);
+    } else if (tscSqlExprGet(pQueryInfo, 0)->functionId != TSDB_FUNC_TS) {
+      tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
+    }
+    
+    tscFieldInfoCalOffset(pQueryInfo);
+    
+    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    
+    /*
+     * When handling the projection query, the offset value will be modified for table-table join, which is changed
+     * during the timestamp intersection.
+     */
+    // fetch the join tag column
+    if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+      SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, 0);
+      assert(pQueryInfo->tagCond.joinInfo.hasJoin);
+      
+      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pQueryInfo->tagCond, pMeterMetaInfo->pMeterMeta->uid);
+      pExpr->param[0].i64Key = tagColIndex;
+      pExpr->numOfParams = 1;
+    }
+    
+    tscPrintSelectClause(pNew, 0);
+    
+    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+             pSql, pNew, 0, pMeterMetaInfo->vnodeIndex, pQueryInfo->type,
+             pQueryInfo->exprsInfo.numOfExprs, pQueryInfo->colList.numOfCols,
+             pQueryInfo->fieldsInfo.numOfOutputCols, pQueryInfo->pMeterInfo[0]->name);
+  }
+  
+  //prepare the subqueries object failed, abort
+  if (!success) {
+    pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    tscError("%p failed to prepare subqueries objs for secondary phase query, numOfSub:%d, code:%d", pSql,
+             pSql->numOfSubs, pSql->res.code);
+    freeSubqueryObj(pSql);
+    
+    return pSql->res.code;
+  }
+  
+  for(int32_t i = 0; i < pSql->numOfSubs; ++i) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    if (pSub == NULL) {
+      continue;
+    }
+    
+    tscProcessSql(pSub);
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 /*
@@ -869,7 +968,7 @@ static STSBuf* allocResForTSBuf(STSBuf* pTSBuf) {
     tsBufDestory(pTSBuf);
     return NULL;
   }
-
+  
   pTSBuf->fileSize += getDataStartOffset();
   return pTSBuf;
 }
@@ -964,8 +1063,6 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   size_t infoSize = sizeof(STSVnodeBlockInfo) * pTSBuf->numOfVnodes;
 
   STSVnodeBlockInfo* buf = (STSVnodeBlockInfo*)calloc(1, infoSize);
-  
-  //int64_t pos = ftell(pTSBuf->f); //pos not used
   fread(buf, infoSize, 1, pTSBuf->f);
 
   // the length value for each vnode is not kept in file, so does not set the length value
@@ -1005,6 +1102,8 @@ void* tsBufDestory(STSBuf* pTSBuf) {
 
   tfree(pTSBuf->pData);
   tfree(pTSBuf->block.payload);
+  
+  tVariantDestroy(&pTSBuf->block.tag);
 
   fclose(pTSBuf->f);
 
@@ -1088,8 +1187,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
       tsCompressTimestamp(pTSBuf->tsData.rawBuf, pTSBuf->tsData.len, pTSBuf->tsData.len / TSDB_KEYSIZE, pBlock->payload,
                           pTSBuf->tsData.allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
 
-  int64_t r = fseek(pTSBuf->f, pTSBuf->fileSize, SEEK_SET);
-  UNUSED(r);
+  /*int64_t r =*/ fseek(pTSBuf->f, pTSBuf->fileSize, SEEK_SET);
 
   /*
    * format for output data:
@@ -1098,16 +1196,21 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    *
    * both side has the compressed length is used to support load data forwards/backwords.
    */
-  fwrite(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
+  fwrite(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
+  fwrite(&pBlock->tag.nLen,  sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    fwrite(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
+  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
+    fwrite(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
+  }
+  
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
-
+  fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
+  fwrite(pBlock->payload, (size_t)pBlock->compLen,  1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
 
-  fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
-
-  fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
-
-  int32_t blockSize = sizeof(pBlock->tag) + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
+  int32_t blockSize = sizeof(pBlock->tag.nType) + sizeof(pBlock->tag.nLen) + pBlock->tag.nLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
   pTSBuf->fileSize += blockSize;
 
   pTSBuf->tsData.len = 0;
@@ -1137,10 +1240,13 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   STSBlock* pBlock = &pTSBuf->block;
 
   // clear the memory buffer
+  tVariant t = pBlock->tag;
   void* tmp = pBlock->payload;
   memset(pBlock, 0, sizeof(STSBlock));
+  
   pBlock->payload = tmp;
-
+  pBlock->tag = t;
+  
   if (order == TSQL_SO_DESC) {
     /*
      * set the right position for the reversed traverse, the reversed traverse is started from
@@ -1150,11 +1256,26 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
 
     pBlock->compLen = pBlock->padding;
-    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
+    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag.nType) + sizeof(pBlock->tag.nLen) + pBlock->tag.nLen ;
     fseek(pTSBuf->f, -offset, SEEK_CUR);
   }
 
-  fread(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
+  fread(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
+  fread(&pBlock->tag.nLen, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  
+  // NOTE: mix types tags are not supported
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    char* tp = realloc(pBlock->tag.pz, pBlock->tag.nLen + 1);
+    assert(tp != NULL);
+    
+    memset(tp, 0, pBlock->tag.nLen + 1);
+    pBlock->tag.pz = tp;
+    
+    fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
+  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
+    fread(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
+  }
+  
   fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
 
   fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
@@ -1212,9 +1333,11 @@ static int32_t setCheckTSOrder(STSBuf* pTSBuf, const char* pData, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len) {
+void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len) {
   STSVnodeBlockInfoEx* pBlockInfo = NULL;
-  STSList*             ptsData = &pTSBuf->tsData;
+  
+  STSList* ptsData = &pTSBuf->tsData;
+  int32_t  tagEqual = 0;
 
   if (pTSBuf->numOfVnodes == 0 || tsBufGetLastVnodeInfo(pTSBuf)->info.vnode != vnodeId) {
     writeDataToDisk(pTSBuf);
@@ -1226,15 +1349,18 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData
   }
 
   assert(pBlockInfo->info.vnode == vnodeId);
+  tagEqual = tVariantCompare(&pTSBuf->block.tag, tag);
 
-  if (pTSBuf->block.tag != tag && ptsData->len > 0) {
+  if (tagEqual != 0 && ptsData->len > 0) {
     // new arrived data with different tags value, save current value into disk first
     writeDataToDisk(pTSBuf);
   } else {
     expandBuffer(ptsData, len);
   }
-
-  pTSBuf->block.tag = tag;
+  
+  tVariantDestroy(&pTSBuf->block.tag);
+  tVariantAssign(&pTSBuf->block.tag, tag);
+  
   memcpy(ptsData->rawBuf + ptsData->len, pData, (size_t)len);
 
   // todo check return value
@@ -1315,7 +1441,7 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
   return 0;
 }
 
-static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int64_t tag) {
+static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, tVariant* tag) {
   bool decomp = false;
 
   int64_t offset = 0;
@@ -1334,7 +1460,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo
       return -1;
     }
 
-    if (pTSBuf->block.tag == tag) {
+    if (0 == tVariantCompare(&pTSBuf->block.tag, tag)) {
       return i;
     }
   }
@@ -1513,7 +1639,9 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
 
   elem1.vnode = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
   elem1.ts = *(TSKEY*)(pTSBuf->tsData.rawBuf + pCur->tsIndex * TSDB_KEYSIZE);
-  elem1.tag = pBlock->tag;
+  elem1.tag.nType = pBlock->tag.nType;
+  elem1.tag.nLen = pBlock->tag.nLen;
+  elem1.tag.pz = pBlock->tag.pz;
 
   return elem1;
 }
@@ -1644,7 +1772,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   return pTSBuf;
 }
 
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag) {
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag) {
   STSElem elem = {.vnode = -1};
 
   if (pTSBuf == NULL) {
@@ -1723,7 +1851,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
 
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, *(int64_t*) elem.tag, elem.ts);
+    printf("%d-%" PRId64 "\n", elem.vnode, elem.ts);
   }
 
   pTSBuf->cur.order = old;
