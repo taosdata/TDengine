@@ -229,7 +229,7 @@ static void taosGetSystemLocale() {  // get and set default locale
       uError("can't get locale from system, set it to en_US.UTF-8");
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
-      tstrncpy(tsLocale, locale, tListLen(tsLocale));
+      tstrncpy(tsLocale, locale, sizeof(tsLocale));
       uError("locale not configured, set to system default:%s", tsLocale);
     }
   }
@@ -242,7 +242,7 @@ static void taosGetSystemLocale() {  // get and set default locale
       str++;
 
       char *revisedCharset = taosCharsetReplace(str);
-      strncpy(tsCharset, revisedCharset, tListLen(tsCharset));
+      tstrncpy(tsCharset, revisedCharset, sizeof(tsCharset));
 
       free(revisedCharset);
       uWarn("charset not configured, set to system default:%s", tsCharset);

@@ -6038,7 +6038,6 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           char* data = tsdbGetTableName(pQInfo->tsdb, &item->id);
-          
           char* dst = pQuery->sdata[j]->data + count * ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE);
           memcpy(dst, data, varDataTLen(data));
         } else {// todo refactor

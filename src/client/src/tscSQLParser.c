@@ -1309,7 +1309,7 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
 
   char* colName = (pItem->aliasName == NULL) ? pSchema->name : pItem->aliasName;
-  strncpy(pExpr->aliasName, colName, tListLen(pExpr->aliasName));
+  tstrncpy(pExpr->aliasName, colName, sizeof(pExpr->aliasName));
   
   SColumnList ids = {0};
   ids.num = 1;
@@ -1359,7 +1359,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
 
   for (int32_t j = 0; j < numOfTotalColumns; ++j) {
     SSqlExpr* pExpr = doAddProjectCol(pQueryInfo, startPos + j, j, pIndex->tableIndex);
-    strncpy(pExpr->aliasName, pSchema[j].name, tListLen(pExpr->aliasName));
+    tstrncpy(pExpr->aliasName, pSchema[j].name, sizeof(pExpr->aliasName));
 
     pIndex->columnIndex = j;
     SColumnList ids = {0};
@@ -1453,7 +1453,7 @@ static int32_t setExprInfoForFunctions(SQueryInfo* pQueryInfo, SSchema* pSchema,
   }
   
   SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionID, pColIndex, type, bytes, bytes, false);
-  strncpy(pExpr->aliasName, columnName, tListLen(pExpr->aliasName));
+  tstrncpy(pExpr->aliasName, columnName, sizeof(pExpr->aliasName));
   
   // for all queries, the timestamp column needs to be loaded
   SColumnIndex index = {.tableIndex = pColIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};

@@ -86,7 +86,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   pObj->signature = pObj;
 
-  strncpy(pObj->user, user, TSDB_USER_LEN);
+  tstrncpy(pObj->user, user, sizeof(pObj->user));
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
 
   if (db) {
