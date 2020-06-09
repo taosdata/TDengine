@@ -1,0 +1,6 @@
+sql connect
+
+$db = db
+$stb = stb
+print =============== sync_replica_dropDb_background.sim step0: drop db
+sql drop database if exists $db 
