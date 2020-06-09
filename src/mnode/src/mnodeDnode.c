@@ -90,7 +90,7 @@ static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionUpdate(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   SDnodeObj *pSaved = mnodeGetDnode(pDnode->dnodeId);
-  if (pDnode != pSaved) {
+  if (pDnode != pSaved && pDnode != NULL && pSaved != NULL) {
     memcpy(pSaved, pDnode, pOper->rowSize);
     free(pDnode);
   }
@@ -237,7 +237,9 @@ void mnodeUpdateDnode(SDnodeObj *pDnode) {
     .pObj = pDnode
   };
 
-  sdbUpdateRow(&oper);
+  if (sdbUpdateRow(&oper) != 0) {
+    mError("dnodeId:%d, failed update", pDnode->dnodeId);
+  }
 }
 
 static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
@@ -383,7 +385,7 @@ static int32_t mnodeCreateDnode(char *ep) {
   pDnode->createdTime = taosGetTimestampMs();
   pDnode->status = TAOS_DN_STATUS_OFFLINE; 
   pDnode->totalVnodes = TSDB_INVALID_VNODE_NUM; 
-  strcpy(pDnode->dnodeEp, ep);
+  tstrncpy(pDnode->dnodeEp, ep, TSDB_EP_LEN);
   taosGetFqdnPortFromEp(ep, pDnode->dnodeFqdn, &pDnode->dnodePort);
 
   SSdbOper oper = {

@@ -83,11 +83,12 @@ void dnodeCleanupServer() {
 }
 
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
-  SRpcMsg rspMsg;
-  rspMsg.handle  = pMsg->handle;
-  rspMsg.pCont   = NULL;
-  rspMsg.contLen = 0;
-
+  SRpcMsg rspMsg = {
+    .handle  = pMsg->handle,
+    .pCont   = NULL,
+    .contLen = 0
+  };
+  
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     rspMsg.code = TSDB_CODE_RPC_NOT_READY;
     rpcSendResponse(&rspMsg);

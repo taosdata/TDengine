@@ -19,6 +19,7 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tglobal.h"
+#include "tutil.h"
 #include "http.h"
 #include "mnode.h"
 #include "dnode.h"
@@ -108,10 +109,11 @@ void dnodeCleanupShell() {
 }
 
 void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
-  SRpcMsg rpcMsg;
-  rpcMsg.handle = pMsg->handle;
-  rpcMsg.pCont = NULL;
-  rpcMsg.contLen = 0;
+  SRpcMsg rpcMsg = {
+    .handle  = pMsg->handle,
+    .pCont   = NULL,
+    .contLen = 0
+  };
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     dError("RPC %p, shell msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
@@ -143,7 +145,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   if (code != TSDB_CODE_RPC_NOT_READY) return code;
 
   SDMAuthMsg *pMsg = rpcMallocCont(sizeof(SDMAuthMsg));
-  strcpy(pMsg->user, user);
+  tstrncpy(pMsg->user, user, TSDB_USER_LEN);
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pMsg;
@@ -201,7 +203,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid) {
     int16_t   numOfTags = htons(pTable->numOfTags);
     int32_t   sid = htonl(pTable->sid);
     uint64_t  uid = htobe64(pTable->uid);
-    dPrint("table:%s, numOfColumns:%d numOfTags:%d sid:%d uid:%d", pTable->tableId, numOfColumns, numOfTags, sid, uid);
+    dPrint("table:%s, numOfColumns:%d numOfTags:%d sid:%d uid:%" PRIu64, pTable->tableId, numOfColumns, numOfTags, sid, uid);
 
     return rpcRsp.pCont;
   }

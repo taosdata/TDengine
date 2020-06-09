@@ -33,7 +33,7 @@ int32_t main(int32_t argc, char *argv[]) {
           printf("config file path overflow");
           exit(EXIT_FAILURE);
         }
-        strcpy(configDir, argv[i]);
+        tstrncpy(configDir, argv[i], TSDB_FILENAME_LEN);
       } else {
         printf("'-c' requires a parameter, default:%s\n", configDir);
         exit(EXIT_FAILURE);

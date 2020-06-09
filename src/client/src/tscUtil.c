@@ -593,7 +593,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->tableId, name, TSDB_TABLE_ID_LEN);
+  tstrncpy(dataBuf->tableId, name, sizeof(dataBuf->tableId));
 
   /*
    * The table meta may be released since the table meta cache are completed clean by other thread
@@ -1666,7 +1666,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   assert(pTableMetaInfo != NULL);
 
   if (name != NULL) {
-    strncpy(pTableMetaInfo->name, name, TSDB_TABLE_ID_LEN);
+    tstrncpy(pTableMetaInfo->name, name, sizeof(pTableMetaInfo->name));
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;

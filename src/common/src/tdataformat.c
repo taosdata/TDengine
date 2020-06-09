@@ -273,8 +273,7 @@ void dataColSetNullAt(SDataCol *pCol, int index) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->dataOff[index] = pCol->len;
     char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
-    varDataLen(ptr) = (pCol->type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : TSDB_NCHAR_SIZE;
-    setNull(varDataVal(ptr), pCol->type, pCol->bytes);
+    setVardataNull(ptr, pCol->type);
     pCol->len += varDataTLen(ptr);
   } else {
     setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
