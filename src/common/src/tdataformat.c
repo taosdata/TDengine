@@ -37,6 +37,7 @@ void *tdEncodeSchema(void *dst, STSchema *pSchema) {
 
   T_APPEND_MEMBER(dst, pSchema, STSchema, version);
   T_APPEND_MEMBER(dst, pSchema, STSchema, numOfCols);
+  T_APPEND_MEMBER(dst, pSchema, STSchema, vlen);
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
     T_APPEND_MEMBER(dst, pCol, STColumn, type);
@@ -53,10 +54,12 @@ void *tdEncodeSchema(void *dst, STSchema *pSchema) {
 STSchema *tdDecodeSchema(void **psrc) {
   int totalCols = 0;
   int version = 0;
+  int16_t vlen = 0;
   STSchemaBuilder schemaBuilder = {0};
 
   T_READ_MEMBER(*psrc, int, version);
   T_READ_MEMBER(*psrc, int, totalCols);
+  T_READ_MEMBER(*psrc, int16_t, vlen);
 
   if (tdInitTSchemaBuilder(&schemaBuilder, version) < 0) return NULL;
 
@@ -75,6 +78,7 @@ STSchema *tdDecodeSchema(void **psrc) {
   }
 
   STSchema *pSchema = tdGetSchemaFromBuilder(&schemaBuilder);
+  pSchema->vlen = vlen;
   tdDestroyTSchemaBuilder(&schemaBuilder);
   return pSchema;
 }
@@ -100,6 +104,7 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
   pBuilder->nCols = 0;
   pBuilder->tlen = 0;
   pBuilder->flen = 0;
+  pBuilder->vlen = 0;
   pBuilder->version = version;
 }
 
@@ -124,10 +129,12 @@ int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int3
 
   if (IS_VAR_DATA_TYPE(type)) {
     colSetBytes(pCol, bytes);
-    pBuilder->tlen += (TYPE_BYTES[type] + sizeof(VarDataLenT) + bytes);
+    pBuilder->tlen += (TYPE_BYTES[type] + bytes);
+    pBuilder->vlen += bytes - sizeof(VarDataLenT);
   } else {
     colSetBytes(pCol, TYPE_BYTES[type]);
     pBuilder->tlen += TYPE_BYTES[type];
+    pBuilder->vlen += TYPE_BYTES[type];
   }
 
   pBuilder->nCols++;
@@ -150,6 +157,7 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   schemaNCols(pSchema) = pBuilder->nCols;
   schemaTLen(pSchema) = pBuilder->tlen;
   schemaFLen(pSchema) = pBuilder->flen;
+  schemaVLen(pSchema) = pBuilder->vlen;
 
   memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
 
