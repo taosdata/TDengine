@@ -35,7 +35,7 @@ STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo)
   pCache->totalCacheBlocks = totalBlocks;
   pCache->pRepo = pRepo;
 
-  STsdbCachePool *pPool = &(pCache->pool);
+  STsdbBufferPool *pPool = &(pCache->pool);
   pPool->index = 0;
   pPool->memPool = tdListNew(sizeof(STsdbCacheBlock *));
   if (pPool->memPool == NULL) goto _err;
@@ -106,7 +106,7 @@ static void tsdbFreeCacheMem(SCacheMem *mem) {
 }
 
 static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
-  STsdbCachePool *pPool = &(pCache->pool);
+  STsdbBufferPool *pPool = &(pCache->pool);
   
   tsdbLockRepo(pCache->pRepo);
   if (listNEles(pPool->memPool) == 0) {
@@ -170,7 +170,7 @@ int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
 }
 
 static int tsdbAddCacheBlockToPool(STsdbCache *pCache) {
-  STsdbCachePool *pPool = &pCache->pool;
+  STsdbBufferPool *pPool = &pCache->pool;
 
   STsdbCacheBlock *pBlock = malloc(sizeof(STsdbCacheBlock) + pCache->cacheBlockSize);
   if (pBlock == NULL) return -1;
@@ -184,7 +184,7 @@ static int tsdbAddCacheBlockToPool(STsdbCache *pCache) {
 }
 
 static int tsdbRemoveCacheBlockFromPool(STsdbCache *pCache) {
-  STsdbCachePool *pPool = &pCache->pool;
+  STsdbBufferPool *pPool = &pCache->pool;
   STsdbCacheBlock *pBlock = NULL;
 
   ASSERT(pCache->totalCacheBlocks >= 0);
