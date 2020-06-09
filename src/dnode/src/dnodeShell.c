@@ -113,6 +113,8 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   rpcMsg.pCont = NULL;
   rpcMsg.contLen = 0;
 
+  if (pMsg->pCont == NULL) return;
+
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     dError("RPC %p, shell msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
     rpcMsg.code = TSDB_CODE_RPC_NOT_READY;
