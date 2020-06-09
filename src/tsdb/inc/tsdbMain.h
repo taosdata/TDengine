@@ -357,6 +357,8 @@ typedef struct STsdbRepo {
 
   STsdbAppH appH;
 
+  STsdbStat stat;
+
   // The meter meta handle of this TSDB repository
   STsdbMeta *tsdbMeta;
 
