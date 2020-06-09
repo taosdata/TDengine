@@ -19,8 +19,7 @@ int32_t tsMaxMeterConnections = 200;
 // test cache
 TEST(testCase, client_cache_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
-  void* tscTmr = taosTmrInit (tsMaxMgmtConnections*2, 200, 6000, "TSC");
-  SCacheObj* tscCacheHandle = taosCacheInit(tscTmr, REFRESH_TIME_IN_SEC);
+  SCacheObj* tscCacheHandle = taosCacheInit(REFRESH_TIME_IN_SEC);
 
   const char* key1 = "test1";
   char data1[] = "test11";
@@ -106,9 +105,7 @@ TEST(testCase, client_cache_test) {
 
 TEST(testCase, cache_resize_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
-  void* tscTmr = taosTmrInit (1000*2, 200, 6000, "TSC");
-
-  auto* pCache = taosCacheInit(tscTmr, REFRESH_TIME_IN_SEC);
+  auto* pCache = taosCacheInit(REFRESH_TIME_IN_SEC);
 
   char key[256] = {0};
   char data[1024] = "abcdefghijk";
