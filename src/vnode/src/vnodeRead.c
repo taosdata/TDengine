@@ -27,17 +27,18 @@
 #include "vnodeLog.h"
 #include "query.h"
 
-static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, int32_t contLen, SRspRet *pRet);
-static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet);
-static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet);
+static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SReadMsg *pReadMsg);
+static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg);
+static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg);
 
 void vnodeInitReadFp(void) {
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessQueryMsg;
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessFetchMsg;
 }
 
-int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen, SRspRet *ret) {
+int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
+  int msgType = pReadMsg->rpcMsg.msgType;
 
   if (vnodeProcessReadMsgFp[msgType] == NULL) {
     vTrace("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[msgType]);
@@ -55,10 +56,14 @@ int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen,
     return TSDB_CODE_RPC_NOT_READY;
   }
 
-  return (*vnodeProcessReadMsgFp[msgType])(pVnode, pCont, contLen, ret);
+  return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
 }
 
-static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet) {
+static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
+  void *   pCont = pReadMsg->pCont;
+  int32_t  contLen = pReadMsg->contLen;
+  SRspRet *pRet = &pReadMsg->rspRet;
+
   SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pCont;
   memset(pRet, 0, sizeof(SRspRet));
 
@@ -91,7 +96,10 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   return code;
 }
 
-static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, SRspRet *pRet) {
+static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
+  void *   pCont = pReadMsg->pCont;
+  SRspRet *pRet = &pReadMsg->rspRet;
+
   SRetrieveTableMsg *pRetrieve = pCont;
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
   memset(pRet, 0, sizeof(SRspRet));
