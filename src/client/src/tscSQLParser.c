@@ -543,7 +543,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "not support sql expression");
   }
 
-  pSql->cmd.parseFinished = true;
+  pSql->cmd.parseFinished = 1;
   return tscBuildMsg[pCmd->command](pSql, pInfo);
 }
 
