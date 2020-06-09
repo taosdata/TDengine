@@ -396,14 +396,12 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   if (pObj->signature == pObj) {
     pthread_mutex_lock(&pObj->mutex);
     tfree(pSql->sqlstr);
-    pSql->sqlstr = NULL;
     pthread_mutex_unlock(&pObj->mutex);
   }
   
   tscFreeSqlResult(pSql);
   
   tfree(pSql->pSubs);
-  pSql->pSubs = NULL;
   pSql->freed = 0;
   pSql->numOfSubs = 0;
   
