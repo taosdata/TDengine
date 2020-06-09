@@ -62,9 +62,16 @@
 #define TG_MAX_SORT_TAG_SIZE 20
 
 static HttpDecodeMethod tgDecodeMethod = {"telegraf", tgProcessRquest};
-static HttpEncodeMethod tgQueryMethod = {tgStartQueryJson,         tgStopQueryJson, NULL,
-                                         tgBuildSqlAffectRowsJson, tgInitQueryJson, tgCleanQueryJson,
-                                         tgCheckFinished,          tgSetNextCmd};
+static HttpEncodeMethod tgQueryMethod = {
+  .startJsonFp          = tgStartQueryJson,         
+  .stopJsonFp           = tgStopQueryJson, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = tgBuildSqlAffectRowsJson, 
+  .initJsonFp           = tgInitQueryJson, 
+  .cleanJsonFp          = tgCleanQueryJson,
+  .checkFinishedFp      = tgCheckFinished,
+  .setNextCmdFp         = tgSetNextCmd
+};
 
 static const char DEFAULT_TELEGRAF_CFG[] =
         "{\"metrics\":["
