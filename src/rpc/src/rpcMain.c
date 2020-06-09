@@ -482,6 +482,15 @@ void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pMsg, SRpcMsg 
   return;
 }
 
+// this API is used by server app to keep an APP context in case connection is broken
+void rpcReportProgress(void *handle, char *pCont, int contLen) {
+  SRpcConn *pConn = (SRpcConn *)handle;
+
+  // pReqMsg and reqMsgLen is re-used to store the context from app server
+  pConn->pReqMsg = pCont;     
+  pConn->reqMsgLen = contLen;
+}
+
 static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
@@ -846,6 +855,21 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   return pConn;
 }
 
+static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
+  SRpcInfo *pRpc = pConn->pRpc;
+
+  // if there are pending request, notify the app
+  tTrace("%s, notify the server app, connection is gone", pConn->info);
+
+  SRpcMsg rpcMsg;
+  rpcMsg.pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
+  rpcMsg.contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
+  rpcMsg.handle = pConn;
+  rpcMsg.msgType = pConn->inType;
+  rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+  if (pRpc->cfp) (*(pRpc->cfp))(&rpcMsg, NULL);
+}
+
 static void rpcProcessBrokenLink(SRpcConn *pConn) {
   if (pConn == NULL) return;
   SRpcInfo *pRpc = pConn->pRpc;
@@ -859,19 +883,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
 
-  if (pConn->inType) {
-    // if there are pending request, notify the app
-    tTrace("%s, connection is gone, notify the app", pConn->info);
-/*
-    SRpcMsg rpcMsg;
-    rpcMsg.pCont = NULL;
-    rpcMsg.contLen = 0;
-    rpcMsg.handle = pConn;
-    rpcMsg.msgType = pConn->inType;
-    rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-    (*(pRpc->cfp))(&rpcMsg);
-*/
-  }
+  if (pConn->inType) rpcReportBrokenLinkToServer(pConn); 
 
   rpcUnlockConn(pConn);
   rpcCloseConn(pConn);
@@ -1210,23 +1222,10 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
 
 static void rpcProcessIdleTimer(void *param, void *tmrId) {
   SRpcConn *pConn = (SRpcConn *)param;
-  SRpcInfo *pRpc = pConn->pRpc;
 
   if (pConn->user[0]) {
     tTrace("%s, close the connection since no activity", pConn->info);
-    if (pConn->inType && pRpc->cfp) {
-      // if there are pending request, notify the app
-      tTrace("%s, notify the app, connection is gone", pConn->info);
-/*
-      SRpcMsg rpcMsg;
-      rpcMsg.pCont = NULL;
-      rpcMsg.contLen = 0;
-      rpcMsg.handle = pConn;
-      rpcMsg.msgType = pConn->inType;
-      rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
-      (*(pRpc->cfp))(&rpcMsg);
-*/
-    }
+    if (pConn->inType) rpcReportBrokenLinkToServer(pConn); 
     rpcCloseConn(pConn);
   } else {
     tTrace("%s, idle timer:%p not processed", pConn->info, tmrId);
