@@ -201,7 +201,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         tscPrint("set shellActivityTimer:%d", tsShellActivityTimer);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, pStr,
-                tsCfgStatusStr[cfg->cfgStatus], (int32_t *)cfg->ptr);
+                tsCfgStatusStr[cfg->cfgStatus], *(int32_t *)cfg->ptr);
       }
       break;
 
