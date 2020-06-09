@@ -42,7 +42,10 @@ import crash_gen
 import taos
 
 # Global variables, tried to keep a small number. 
-gConfig = None # Command-line/Environment Configurations, will set a bit later
+
+# Command-line/Environment Configurations, will set a bit later
+# ConfigNameSpace = argparse.Namespace
+gConfig = argparse.Namespace() # Dummy value, will be replaced later
 logger = None
 
 def runThread(wt: WorkerThread):    
@@ -1171,8 +1174,8 @@ class AddFixedDataTask(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         ds = self._dbState
         wt.execSql("use db") # TODO: seems to be an INSERT bug to require this
-        for i in range(10): # 0 to 9
-            for j in range(10) :
+        for i in range(35 if gConfig.larger_data else 2): # number of regular tables in the super table
+            for j in range(100 if gConfig.larger_data else 2) : # number of records per table
                 sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
                     i, 
                     ds.getFixedSuperTableName(), 
@@ -1301,10 +1304,12 @@ def main():
             2. You run the server there before this script: ./build/bin/taosd -c test/cfg
 
             '''))
-    parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
-                        help='Use a single shared db connection (default: false)')
     parser.add_argument('-d', '--debug', action='store_true',                        
                         help='Turn on DEBUG mode for more logging (default: false)')
+    parser.add_argument('-l', '--larger-data', action='store_true',                        
+                        help='Write larger amount of data during write operations (default: false)')
+    parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
+                        help='Use a single shared db connection (default: false)')
     parser.add_argument('-s', '--max-steps', action='store', default=100, type=int,
                         help='Maximum number of steps to run (default: 100)')
     parser.add_argument('-t', '--num-threads', action='store', default=10, type=int,
