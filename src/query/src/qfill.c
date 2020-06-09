@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "qfill.h"
 #include "os.h"
+#include "qfill.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
 #include "taosmsg.h"
@@ -58,7 +58,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, ch
 }
 
 SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-    int64_t slidingTime, int32_t fillType, SFillColInfo* pFillCol) {
+    int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType, SFillColInfo* pFillCol) {
   if (fillType == TSDB_FILL_NONE) {
     return NULL;
   }
@@ -72,8 +72,10 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
   pFillInfo->pFillCol  = pFillCol;
   pFillInfo->numOfTags = numOfTags;
   pFillInfo->numOfCols = numOfCols;
+  pFillInfo->precision = precision;
   pFillInfo->slidingTime = slidingTime;
-  
+  pFillInfo->slidingUnit = slidingUnit;
+
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
   
   int32_t rowsize = 0;
@@ -102,9 +104,9 @@ void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {
   pFillInfo->numOfTotal   = 0;
 }
 
-void taosDestoryFillInfo(SFillInfo* pFillInfo) {
+void* taosDestoryFillInfo(SFillInfo* pFillInfo) {
   if (pFillInfo == NULL) {
-    return;
+    return NULL;
   }
 
   tfree(pFillInfo->prevValues);
@@ -119,6 +121,15 @@ void taosDestoryFillInfo(SFillInfo* pFillInfo) {
   tfree(pFillInfo->pFillCol);
   
   tfree(pFillInfo);
+  return NULL;
+}
+
+static TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int64_t timeInterval, int8_t slidingTimeUnit, int8_t precision) {
+  if (order == TSDB_ORDER_ASC) {
+    return ekey;
+  } else {
+    return taosGetIntervalStartTimestamp(ekey, timeInterval, slidingTimeUnit, precision);
+  }
 }
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey) {
@@ -126,8 +137,10 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
     return;
   }
 
+  pFillInfo->endKey = taosGetRevisedEndKey(endKey, pFillInfo->order, pFillInfo->slidingTime, pFillInfo->slidingUnit,
+      pFillInfo->precision);
+
   pFillInfo->rowIdx    = 0;
-  pFillInfo->endKey    = endKey;
   pFillInfo->numOfRows = numOfRows;
   
   // ensure the space
@@ -165,36 +178,29 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInpu
   }
 }
 
-TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int64_t timeInterval, int8_t slidingTimeUnit, int8_t precision) {
-  if (order == TSDB_ORDER_ASC) {
-    return ekey;
-  } else {
-    return taosGetIntervalStartTimestamp(ekey, timeInterval, slidingTimeUnit, precision);
-  }
-}
+int64_t getFilledNumOfRes(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows) {
+  int64_t* tsList = (int64_t*) pFillInfo->pData[0];
 
-static int32_t taosGetTotalNumOfFilledRes(SFillInfo* pFillInfo, const TSKEY* tsArray, int32_t remain,
-    int64_t nInterval, int64_t ekey) {
-  
-  if (remain > 0) {  // still fill gap within current data block, not generating data after the result set.
-    TSKEY lastKey = tsArray[pFillInfo->numOfRows - 1];
-    int32_t total = (int32_t)(labs(lastKey - pFillInfo->start) / nInterval) + 1;
+  int32_t numOfRows = taosNumOfRemainRows(pFillInfo);
 
-    assert(total >= remain);
-    return total;
+  TSKEY ekey1 = taosGetRevisedEndKey(ekey, pFillInfo->order, pFillInfo->slidingTime, pFillInfo->slidingUnit,
+      pFillInfo->precision);
+
+  int64_t numOfRes = -1;
+  if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
+    TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
+
+    numOfRes = (int64_t)(labs(lastKey - pFillInfo->start) / pFillInfo->slidingTime) + 1;
+    assert(numOfRes >= numOfRows);
   } else { // reach the end of data
-    if ((ekey < pFillInfo->start && FILL_IS_ASC_FILL(pFillInfo)) ||
-        (ekey > pFillInfo->start && !FILL_IS_ASC_FILL(pFillInfo))) {
+    if ((ekey1 < pFillInfo->start && FILL_IS_ASC_FILL(pFillInfo)) ||
+        (ekey1 > pFillInfo->start && !FILL_IS_ASC_FILL(pFillInfo))) {
       return 0;
-    } else {
-      return (int32_t)(labs(ekey - pFillInfo->start) / nInterval) + 1;
+    } else {  // the numOfRes rows are all filled with specified policy
+      numOfRes = (labs(ekey1 - pFillInfo->start) / pFillInfo->slidingTime) + 1;
     }
   }
-}
 
-int64_t taosGetNumOfResultWithFill(SFillInfo* pFillInfo, int32_t numOfRows, int64_t ekey, int32_t maxNumOfRows) {
-  int32_t numOfRes = taosGetTotalNumOfFilledRes(pFillInfo, (int64_t*) pFillInfo->pData[0], numOfRows,
-                                                pFillInfo->slidingTime, ekey);
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;
 }
 
@@ -496,8 +502,8 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
 
 int64_t taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity) {
   int32_t remain = taosNumOfRemainRows(pFillInfo);  // todo use iterator?
-  int32_t rows   = taosGetNumOfResultWithFill(pFillInfo, remain, pFillInfo->endKey, capacity);
 
+  int32_t rows = getFilledNumOfRes(pFillInfo, pFillInfo->endKey, capacity);
   int32_t numOfRes = generateDataBlockImpl(pFillInfo, output, remain, rows, pFillInfo->pData);
   assert(numOfRes == rows);
   
