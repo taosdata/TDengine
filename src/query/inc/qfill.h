@@ -50,7 +50,8 @@ typedef struct SFillInfo {
   char *  nextValues;           // next row of data
   char**  pData;                // original result data block involved in filling data
   int32_t capacityInRows;       // data buffer size in rows
-  
+  int8_t  slidingUnit;          // sliding time unit
+  int8_t  precision;            // time resoluation
   SFillColInfo* pFillCol;       // column info for fill operations
 } SFillInfo;
 
@@ -61,12 +62,13 @@ typedef struct SPoint {
 
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, char timeUnit, int16_t precision);
 
-SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity,
-                            int32_t numOfCols, int64_t slidingTime, int32_t fillType, SFillColInfo* pFillCol);
+SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+                            int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
+                            SFillColInfo* pFillCol);
 
 void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp);
 
-void taosDestoryFillInfo(SFillInfo *pFillInfo);
+void* taosDestoryFillInfo(SFillInfo *pFillInfo);
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 
@@ -74,9 +76,7 @@ void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, tFilePage** pInput)
 
 void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInput);
 
-TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int64_t timeInterval, int8_t slidingTimeUnit, int8_t precision);
-
-int64_t taosGetNumOfResultWithFill(SFillInfo* pFillInfo, int32_t numOfRows, int64_t ekey, int32_t maxNumOfRows);
+int64_t getFilledNumOfRes(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
 int32_t taosNumOfRemainRows(SFillInfo *pFillInfo);
 
