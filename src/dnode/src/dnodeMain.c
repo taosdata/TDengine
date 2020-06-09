@@ -61,12 +61,10 @@ static const SDnodeComponent tsDnodeComponents[] = {
 };
 
 static int dnodeCreateDir(const char *dir) {
-  struct stat dirstat;
-  if (stat(dir, &dirstat) < 0) {
-    if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
-      return -1;
-    } 
+  if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+    return -1;
   }
+  
   return 0;
 }
 
