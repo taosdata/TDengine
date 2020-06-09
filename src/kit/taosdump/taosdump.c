@@ -643,6 +643,8 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   lseek(fd, 0, SEEK_SET);
 
   while (read(fd, &tableRecord, sizeof(STableRecord)) > 0) {
+    tableRecord.name[sizeof(tableRecord.name) - 1] = 0;
+    tableRecord.metric[sizeof(tableRecord.metric) - 1] = 0;
     taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
   }
 
@@ -902,6 +904,8 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   lseek(fd, 0, SEEK_SET);
 
   while (read(fd, &tableRecord, sizeof(STableRecord)) > 0) {
+    tableRecord.name[sizeof(tableRecord.name) - 1] = 0;
+    tableRecord.metric[sizeof(tableRecord.metric) - 1] = 0;
     taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
   }
 

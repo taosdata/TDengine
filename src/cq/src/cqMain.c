@@ -73,8 +73,8 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
     return NULL;
   }
 
-  strcpy(pContext->user, pCfg->user);
-  strcpy(pContext->pass, pCfg->pass);
+  tstrncpy(pContext->user, pCfg->user, sizeof(pContext->user));
+  tstrncpy(pContext->pass, pCfg->pass, sizeof(pContext->pass));
   const char* db = pCfg->db;
   for (const char* p = db; *p != 0; p++) {
     if (*p == '.') {
@@ -82,7 +82,7 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
       break;
     }
   }
-  strcpy(pContext->db, db);
+  tstrncpy(pContext->db, db, sizeof(pContext->db));
   pContext->vgId = pCfg->vgId;
   pContext->cqWrite = pCfg->cqWrite;
   pContext->ahandle = ahandle;
@@ -215,7 +215,7 @@ void cqDrop(void *handle) {
   cTrace("vgId:%d, id:%d CQ:%s is dropped", pContext->vgId, pObj->tid, pObj->sqlStr); 
   free(pObj);
 
-  pthread_mutex_lock(&pContext->mutex);
+  pthread_mutex_unlock(&pContext->mutex);
 }
 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {

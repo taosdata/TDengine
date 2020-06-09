@@ -32,8 +32,8 @@ struct SMnodeObj;
 typedef struct SDnodeObj {
   int32_t    dnodeId;
   uint16_t   dnodePort;
-  char       dnodeFqdn[TSDB_FQDN_LEN + 1];
-  char       dnodeEp[TSDB_EP_LEN + 1];
+  char       dnodeFqdn[TSDB_FQDN_LEN];
+  char       dnodeEp[TSDB_EP_LEN];
   int64_t    createdTime;
   uint32_t   lastAccess;
   int32_t    openVnodes;

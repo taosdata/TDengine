@@ -88,8 +88,8 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
     free(base64);
     return false;
   } else {
-    strncpy(pContext->user, descrypt, TSDB_USER_LEN);
-    strncpy(pContext->pass, descrypt + TSDB_USER_LEN, TSDB_PASSWORD_LEN);
+    tstrncpy(pContext->user, descrypt, sizeof(pContext->user));
+    tstrncpy(pContext->pass, descrypt + TSDB_USER_LEN, TSDB_PASSWORD_LEN);
 
     httpTrace("context:%p, fd:%d, ip:%s, taosd token:%s parsed success, user:%s", pContext, pContext->fd,
               pContext->ipstr, token, pContext->user);
