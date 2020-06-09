@@ -191,15 +191,14 @@ void taosResetLog() {
 }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
-  int32_t exist = access(logFileName, F_OK);
-  if (exist != 0) {
-    return false;
-  }
-
-  int32_t fd = open(logFileName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = open(logFileName, O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
-    printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
-    return true;
+    if (errno == ENOENT) {
+      return false;
+    } else {
+      printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
+      return true;
+    }
   }
 
   if (taosLockFile(fd)) {
