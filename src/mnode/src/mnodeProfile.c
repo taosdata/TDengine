@@ -97,7 +97,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
     .connId = connId,
     .stime  = taosGetTimestampMs()
   };
-  strcpy(connObj.user, user);
+  tstrncpy(connObj.user, user, TSDB_USER_LEN);
   
   char key[10];
   sprintf(key, "%u", connId);  

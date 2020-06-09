@@ -31,7 +31,7 @@ extern "C" {
   do {                                    \
     VarDataLenT __len = strlen(str);      \
     *(VarDataLenT *)(x) = __len;          \
-    strncpy(varDataVal(x), (str), __len); \
+    memcpy(varDataVal(x), (str), __len); \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)      \
@@ -43,7 +43,7 @@ extern "C" {
 #define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
   do {                                         \
     *(VarDataLenT *)(x) = (_size);             \
-    strncpy(varDataVal(x), (str), (_size));    \
+    memcpy(varDataVal(x), (str), (_size));    \
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
