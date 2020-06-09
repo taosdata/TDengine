@@ -37,7 +37,6 @@ void *tdEncodeSchema(void *dst, STSchema *pSchema) {
 
   T_APPEND_MEMBER(dst, pSchema, STSchema, version);
   T_APPEND_MEMBER(dst, pSchema, STSchema, numOfCols);
-  T_APPEND_MEMBER(dst, pSchema, STSchema, vlen);
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
     T_APPEND_MEMBER(dst, pCol, STColumn, type);
@@ -54,12 +53,10 @@ void *tdEncodeSchema(void *dst, STSchema *pSchema) {
 STSchema *tdDecodeSchema(void **psrc) {
   int totalCols = 0;
   int version = 0;
-  int16_t vlen = 0;
   STSchemaBuilder schemaBuilder = {0};
 
   T_READ_MEMBER(*psrc, int, version);
   T_READ_MEMBER(*psrc, int, totalCols);
-  T_READ_MEMBER(*psrc, int16_t, vlen);
 
   if (tdInitTSchemaBuilder(&schemaBuilder, version) < 0) return NULL;
 
@@ -78,7 +75,6 @@ STSchema *tdDecodeSchema(void **psrc) {
   }
 
   STSchema *pSchema = tdGetSchemaFromBuilder(&schemaBuilder);
-  pSchema->vlen = vlen;
   tdDestroyTSchemaBuilder(&schemaBuilder);
   return pSchema;
 }

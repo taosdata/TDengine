@@ -67,10 +67,10 @@ typedef struct {
 
 // --------- TSDB REPOSITORY USAGE STATISTICS
 typedef struct {
-  int64_t      totalStorage; //total bytes occupie
-  int64_t      compStorage;
-  int64_t      pointsWritten; //total data points written
-}STsdbStat;
+  int64_t totalStorage;  // total bytes occupie
+  int64_t compStorage;
+  int64_t pointsWritten;  // total data points written
+} STsdbStat;
 
 typedef void TsdbRepoT;  // use void to hide implementation details from outside
 
