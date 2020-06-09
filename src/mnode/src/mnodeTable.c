@@ -1769,8 +1769,8 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  strncpy(pCreateMsg->tableId, pInfo->tableId, tListLen(pInfo->tableId));
-  strcpy(pCreateMsg->db, pMsg->pDb->name);
+  tstrncpy(pCreateMsg->tableId, pInfo->tableId, sizeof(pInfo->tableId));
+  tstrncpy(pCreateMsg->db, pMsg->pDb->name, sizeof(pCreateMsg->db));
   pCreateMsg->igExists = 1;
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);

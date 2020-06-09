@@ -296,7 +296,7 @@ typedef struct {
 } SCMConnectMsg;
 
 typedef struct {
-  char      acctId[TSDB_ACCT_LEN + 1];
+  char      acctId[TSDB_ACCT_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;

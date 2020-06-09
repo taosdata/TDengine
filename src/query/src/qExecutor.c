@@ -5242,7 +5242,7 @@ static int32_t createFilterInfo(void *pQInfo, SQuery *pQuery) {
     if (pQuery->colList[i].numOfFilters > 0) {
       SSingleColumnFilterInfo *pFilterInfo = &pQuery->pFilterInfo[j];
 
-      memcpy(&pFilterInfo->info, &pQuery->colList[i], sizeof(SColumnInfoData));
+      memcpy(&pFilterInfo->info, &pQuery->colList[i], sizeof(SColumnInfo));
       pFilterInfo->info = pQuery->colList[i];
 
       pFilterInfo->numOfFilters = pQuery->colList[i].numOfFilters;

@@ -756,7 +756,7 @@ void *readMetric(void *sarg) {
 
   for (int j = 0; j < n; j++) {
     char condition[BUFFER_SIZE - 30] = "\0";
-    char tempS[BUFFER_SIZE] = "\0";
+    char tempS[64] = "\0";
 
     int m = 10 < num_of_tables ? 10 : num_of_tables;
 
