@@ -5846,9 +5846,6 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
     return;
   }
 
-  // set the query is cancelled
-  setQueryKilled(pQInfo);
-
   int16_t ref = T_REF_DEC(pQInfo);
   if (ref == 0) {
     doDestoryQueryInfo(pQInfo);
@@ -5865,11 +5862,7 @@ void qTableQuery(qinfo_t qinfo) {
 
   if (isQueryKilled(pQInfo)) {
     qTrace("QInfo:%p it is already killed, abort", pQInfo);
-
-    int16_t ref = T_REF_DEC(pQInfo);
-    if (ref == 0) {
-      doDestoryQueryInfo(pQInfo);
-    }
+    qDestroyQueryInfo(pQInfo);
     return;
   }
 
@@ -5885,10 +5878,7 @@ void qTableQuery(qinfo_t qinfo) {
   }
 
   sem_post(&pQInfo->dataReady);
-  int16_t ref = T_REF_DEC(pQInfo);
-  if (ref == 0) {
-    doDestoryQueryInfo(pQInfo);
-  }
+  qDestroyQueryInfo(pQInfo);
 }
 
 int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
@@ -5914,7 +5904,8 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
 bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
-  if (isValidQInfo(pQInfo) || pQInfo->code != TSDB_CODE_SUCCESS) {
+  if (!isValidQInfo(pQInfo) || pQInfo->code != TSDB_CODE_SUCCESS) {
+    qTrace("QInfo:%p invalid qhandle or error occurs, abort query, code:%x", pQInfo, pQInfo->code);
     return false;
   }
 
@@ -5932,6 +5923,7 @@ bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
 
   if (ret) {
     T_REF_INC(pQInfo);
+    qTrace("QInfo:%p has more results waits for client retrieve", pQInfo);
   }
 
   return ret;
@@ -5977,6 +5969,19 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   return code;
+}
+
+int32_t qKillQuery(qinfo_t qinfo) {
+  SQInfo *pQInfo = (SQInfo *)qinfo;
+
+  if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
+  }
+
+  setQueryKilled(pQInfo);
+  qDestroyQueryInfo(pQInfo);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void buildTagQueryResult(SQInfo* pQInfo) {

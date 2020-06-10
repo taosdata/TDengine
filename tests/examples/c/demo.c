@@ -115,15 +115,15 @@ int main(int argc, char *argv[]) {
   
   printf("success to connect to server\n");
 //  doQuery(taos, "select c1,count(*) from group_db0.group_mt0 where c1<8 group by c1");
-  doQuery(taos, "select * from test.m1");
+//  doQuery(taos, "select * from test.m1");
 
 //  multiThreadTest(1, taos);
 //  doQuery(taos, "select tbname from test.m1");
 //   doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and tbname in ('lm2_tb0') interval(1s) group by t1");
 //   doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and tbname in ('lm2_tb0', 'lm2_tb1', 'lm2_tb2') interval(1s)");
-//  for(int32_t i = 0; i < 100000; ++i) {
-//    doQuery(taos, "insert into t1 values(now, 2)");
-//  }
+  for(int32_t i = 0; i < 200; ++i) {
+    doQuery(taos, "select * from lm2_db0.lm2_stb0");
+  }
 //  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
   
   taos_close(taos);

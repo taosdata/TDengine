@@ -80,14 +80,12 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   memset(pRet, 0, sizeof(SRspRet));
 
   // qHandle needs to be freed correctly
-  if (pReadMsg->rpcMsg.code != TSDB_CODE_SUCCESS) {
-    assert(pReadMsg->rpcMsg.contLen > 0);
-
+  if (pReadMsg->rpcMsg.code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
     SRetrieveTableMsg* killQueryMsg = (SRetrieveTableMsg*) pReadMsg->pCont;
     killQueryMsg->free = htons(killQueryMsg->free);
     killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
 
-    assert(killQueryMsg->free == 1);
+    assert(pReadMsg->rpcMsg.contLen > 0 && killQueryMsg->free == 1);
     qDestroyQueryInfo((qinfo_t) killQueryMsg->qhandle);
 
     return TSDB_CODE_SUCCESS;
@@ -130,10 +128,28 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
   SRetrieveTableMsg *pRetrieve = pCont;
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
+  pRetrieve->free = htons(pRetrieve->free);
+
   memset(pRet, 0, sizeof(SRspRet));
 
+  if (pRetrieve->free == 1) {
+    vTrace("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pQInfo);
+    int32_t ret = qKillQuery(pQInfo);
+
+    pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    pRet->len = sizeof(SRetrieveTableRsp);
+
+    memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
+    SRetrieveTableRsp* pRsp = pRet->rsp;
+    pRsp->numOfRows = 0;
+    pRsp->completed = true;
+    pRsp->useconds  = 0;
+
+    return ret;
+  }
+
   vTrace("vgId:%d, QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
-  
+
   int32_t code = qRetrieveQueryResultInfo(pQInfo);
   if (code != TSDB_CODE_SUCCESS) {
     //TODO
@@ -146,8 +162,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     if (qHasMoreResultsToRetrieve(pQInfo)) {
       pRet->qhandle = pQInfo;
       code = TSDB_CODE_VND_ACTION_NEED_REPROCESSED;
-    } else {
-      // no further execution invoked, release the ref to vnode
+    } else { // no further execution invoked, release the ref to vnode
       qDestroyQueryInfo(pQInfo);
       vnodeRelease(pVnode);
     }
