@@ -46,11 +46,12 @@ typedef struct {
 } SKVStore;
 
 int       tdCreateKVStore(char *fname);
-int       tdDestroyKVStore();
+int       tdDestroyKVStore(char *fname);
 SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH);
 void      tdCloseKVStore(SKVStore *pStore);
 int       tdKVStoreStartCommit(SKVStore *pStore);
-int       tdUpdateRecordInKVStore(SKVStore *pStore, uint64_t uid, void *cont, int contLen);
+int       tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLen);
+int       tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid);
 int       tdKVStoreEndCommit(SKVStore *pStore);
 
 #ifdef __cplusplus
