@@ -428,7 +428,7 @@ static bool dnodeCheckMnodeInfos(SDMMnodeInfos *pMnodes) {
   for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
     SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
     if (pMnodeInfo->nodeId <= 0 || strlen(pMnodeInfo->nodeEp) <= 5) {
-      dError("invalid mnode info:%d, nodeId:%d nodeEp:%s", pMnodeInfo->nodeId, pMnodeInfo->nodeEp);
+      dError("invalid mnode info:%d, nodeId:%d nodeEp:%s", i, pMnodeInfo->nodeId, pMnodeInfo->nodeEp);
       return false;
     }
   }
