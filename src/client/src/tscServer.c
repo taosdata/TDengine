@@ -866,7 +866,7 @@ int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   assert(pCmd->numOfClause == 1);
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strncpy(pCreateDbMsg->db, pTableMetaInfo->name, tListLen(pCreateDbMsg->db));
+  tstrncpy(pCreateDbMsg->db, pTableMetaInfo->name, sizeof(pCreateDbMsg->db));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1018,7 +1018,7 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMDropDnodeMsg *pDrop = (SCMDropDnodeMsg *)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strcpy(pDrop->ep, pTableMetaInfo->name);
+  tstrncpy(pDrop->ep, pTableMetaInfo->name, sizeof(pDrop->ep));
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_DNODE;
 
   return TSDB_CODE_SUCCESS;
@@ -1036,7 +1036,7 @@ int32_t tscBuildDropUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMDropUserMsg *pDropMsg = (SCMDropUserMsg*)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strcpy(pDropMsg->user, pTableMetaInfo->name);
+  tstrncpy(pDropMsg->user, pTableMetaInfo->name, sizeof(pDropMsg->user));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1091,9 +1091,9 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   size_t nameLen = strlen(pTableMetaInfo->name);
   if (nameLen > 0) {
-    strcpy(pShowMsg->db, pTableMetaInfo->name);  // prefix is set here
+    tstrncpy(pShowMsg->db, pTableMetaInfo->name, sizeof(pShowMsg->db));  // prefix is set here
   } else {
-    strcpy(pShowMsg->db, pObj->db);
+    tstrncpy(pShowMsg->db, pObj->db, sizeof(pShowMsg->db));
   }
 
   SShowInfo *pShowInfo = &pInfo->pDCLInfo->showOpt;
@@ -1300,7 +1300,7 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMAlterDbMsg *pAlterDbMsg = (SCMAlterDbMsg*)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strcpy(pAlterDbMsg->db, pTableMetaInfo->name);
+  tstrncpy(pAlterDbMsg->db, pTableMetaInfo->name, sizeof(pAlterDbMsg->db));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1430,9 +1430,9 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
   db = (db == NULL) ? pObj->db : db + 1;
-  strcpy(pConnect->db, db);
-  strcpy(pConnect->clientVersion, version);
-  strcpy(pConnect->msgVersion, "");
+  tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
+  tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2150,11 +2150,11 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SCMConnectRsp *pConnect = (SCMConnectRsp *)pRes->pRsp;
-  strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
+  tstrncpy(pObj->acctId, pConnect->acctId, sizeof(pObj->acctId));  // copy acctId from response
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 
-  assert(len <= tListLen(pObj->db));
-  strncpy(pObj->db, temp, tListLen(pObj->db));
+  assert(len <= sizeof(pObj->db));
+  tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
   if (pConnect->ipList.numOfIps > 0) 
     tscSetMgmtIpList(&pConnect->ipList);
@@ -2172,7 +2172,7 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
   STscObj *       pObj = pSql->pTscObj;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
-  strcpy(pObj->db, pTableMetaInfo->name);
+  tstrncpy(pObj->db, pTableMetaInfo->name, sizeof(pObj->db));
   return 0;
 }
 
@@ -2338,7 +2338,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   STableMetaInfo *pNewMeterMetaInfo = tscAddEmptyMetaInfo(pNewQueryInfo);
   assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
 
-  strncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, tListLen(pNewMeterMetaInfo->name));
+  tstrncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, sizeof(pNewMeterMetaInfo->name));
   memcpy(pNew->cmd.payload, pSql->cmd.payload, pSql->cmd.payloadLen);  // tag information if table does not exists.
   pNew->cmd.payloadLen = pSql->cmd.payloadLen;
   tscTrace("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);

@@ -951,7 +951,7 @@ static int32_t mnodeModifySuperTableTagName(SSuperTableObj *pStable, char *oldTa
 
   // update
   SSchema *schema = (SSchema *) (pStable->schema + pStable->numOfColumns + col);
-  strncpy(schema->name, newTagName, TSDB_COL_NAME_LEN);
+  tstrncpy(schema->name, newTagName, sizeof(schema->name));
 
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
@@ -1078,7 +1078,7 @@ static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow,
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -1138,7 +1138,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   prefixLen = strlen(prefix);
 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-  char stableName[TSDB_TABLE_NAME_LEN + 1] = {0};
+  char stableName[TSDB_TABLE_NAME_LEN] = {0};
 
   while (numOfRows < rows) {    
     pShow->pIter = mnodeGetNextSuperTable(pShow->pIter, &pTable);
@@ -1151,7 +1151,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
     memset(stableName, 0, tListLen(stableName));
     mnodeExtractTableName(pTable->info.tableId, stableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, stableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, stableName, sizeof(stableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -1160,7 +1160,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
   
-    int16_t len = strnlen(stableName, TSDB_DB_NAME_LEN);
+    int16_t len = strnlen(stableName, TSDB_DB_NAME_LEN - 1);
     *(int16_t*) pWrite = len;
     pWrite += sizeof(int16_t); // todo refactor
   
@@ -1228,7 +1228,7 @@ static int32_t mnodeSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pT
   assert(numOfCols <= TSDB_MAX_COLUMNS);
   
   for (int32_t i = 0; i < numOfCols; ++i) {
-    strncpy(pSchema->name, pTable->schema[i].name, TSDB_COL_NAME_LEN);
+    tstrncpy(pSchema->name, pTable->schema[i].name, sizeof(pSchema->name));
     pSchema->type  = pTable->schema[i].type;
     pSchema->bytes = htons(pTable->schema[i].bytes);
     pSchema->colId = htons(pTable->schema[i].colId);
@@ -1769,8 +1769,8 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  strncpy(pCreateMsg->tableId, pInfo->tableId, tListLen(pInfo->tableId));
-  strcpy(pCreateMsg->db, pMsg->pDb->name);
+  tstrncpy(pCreateMsg->tableId, pInfo->tableId, sizeof(pInfo->tableId));
+  tstrncpy(pCreateMsg->db, pMsg->pDb->name, sizeof(pCreateMsg->db));
   pCreateMsg->igExists = 1;
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);
@@ -2079,7 +2079,7 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -2097,7 +2097,7 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "stable_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -2141,12 +2141,12 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
       continue;
     }
 
-    char tableName[TSDB_TABLE_NAME_LEN + 1] = {0};
+    char tableName[TSDB_TABLE_NAME_LEN] = {0};
     
     // pattern compare for table name
     mnodeExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -2155,7 +2155,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 
     char *pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, sizeof(tableName) - 1);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -2173,10 +2173,10 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     
-    memset(tableName, 0, tListLen(tableName));
+    memset(tableName, 0, sizeof(tableName));
     if (pTable->info.type == TSDB_CHILD_TABLE) {
       mnodeExtractTableName(pTable->superTable->info.tableId, tableName);
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, sizeof(tableName) - 1);
     }
     
     cols++;
@@ -2268,7 +2268,7 @@ static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, vo
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -2331,12 +2331,12 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
       continue;
     }
 
-    char tableName[TSDB_TABLE_NAME_LEN + 1] = {0};
+    char tableName[TSDB_TABLE_NAME_LEN] = {0};
     
     // pattern compare for table name
     mnodeExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -2345,7 +2345,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
 
     char *pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, TSDB_TABLE_NAME_LEN);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, sizeof(tableName) - 1);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

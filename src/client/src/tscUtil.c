@@ -593,7 +593,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->tableId, name, TSDB_TABLE_ID_LEN);
+  tstrncpy(dataBuf->tableId, name, sizeof(dataBuf->tableId));
 
   /*
    * The table meta may be released since the table meta cache are completed clean by other thread
@@ -801,7 +801,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
   TAOS_FIELD f = { .type = type, .bytes = bytes, };
-  strncpy(f.name, name, TSDB_COL_NAME_LEN);
+  tstrncpy(f.name, name, sizeof(f.name));
   return f;
 }
 
@@ -966,12 +966,12 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
     if (isTagCol) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
-      strncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, sizeof(pExpr->colInfo.name));
     } else if (pTableMetaInfo->pTableMeta != NULL) {
       // in handling select database/version/server_status(), the pTableMeta is NULL
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       pExpr->colInfo.colId = pSchema->colId;
-      strncpy(pExpr->colInfo.name, pSchema->name, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->colInfo.name, pSchema->name, sizeof(pExpr->colInfo.name));
     }
   }
   
@@ -1666,7 +1666,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   assert(pTableMetaInfo != NULL);
 
   if (name != NULL) {
-    strncpy(pTableMetaInfo->name, name, TSDB_TABLE_ID_LEN);
+    tstrncpy(pTableMetaInfo->name, name, sizeof(pTableMetaInfo->name));
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;

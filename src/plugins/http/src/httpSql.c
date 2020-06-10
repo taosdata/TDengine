@@ -87,7 +87,7 @@ void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
   }
 
   if (code < 0) {
-    if (encode->checkFinishedFp != NULL && !encode->checkFinishedFp(pContext, singleCmd, code >= 0 ? 0 : code)) {
+    if (encode->checkFinishedFp != NULL && !encode->checkFinishedFp(pContext, singleCmd, -code)) {
       singleCmd->code = code;
       httpTrace("context:%p, fd:%d, ip:%s, user:%s, process pos jump to:%d, last code:%s, last sql:%s",
                 pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos + 1, tstrerror(code), sql);

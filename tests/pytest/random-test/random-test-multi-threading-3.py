@@ -205,6 +205,7 @@ class Test (Thread):
         global written
 
         dnodesDir = tdDnodes.getDnodesRootDir()
+        tdDnodes.forcestop(1)
         dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
@@ -261,7 +262,7 @@ class Test (Thread):
             while True:
                 self.queryEvent.wait()
                 tdLog.notice("third thread")
-                randQueryOp = random.randint(1, 9)
+                randQueryOp = random.randint(1, 2)
                 queryOp.get(randQueryOp, lambda: "ERROR")()
                 self.queryEvent.clear()
                 self.dbEvent.clear()

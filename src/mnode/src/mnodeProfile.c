@@ -67,7 +67,7 @@ int32_t mnodeInitProfile() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mnodeProcessKillStreamMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mnodeProcessKillConnectionMsg);
 
-  tsMnodeConnCache = taosCacheInitWithCb(tsMnodeTmr, CONN_CHECK_TIME, mnodeFreeConn);
+  tsMnodeConnCache = taosCacheInitWithCb(CONN_CHECK_TIME, mnodeFreeConn);
   return 0;
 }
 
@@ -97,7 +97,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
     .connId = connId,
     .stime  = taosGetTimestampMs()
   };
-  strcpy(connObj.user, user);
+  tstrncpy(connObj.user, user, TSDB_USER_LEN);
   
   char key[10];
   sprintf(key, "%u", connId);  

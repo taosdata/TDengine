@@ -19,6 +19,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "rpcLog.h"
 #include "rpcUdp.h"
 #include "rpcHead.h"
@@ -65,6 +66,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   pSet = (SUdpConnSet *)malloc((size_t)size);
   if (pSet == NULL) {
     tError("%s failed to allocate UdpConn", label);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
 
@@ -73,30 +75,34 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   pSet->port = port;
   pSet->shandle = shandle;
   pSet->fp = fp;
+  pSet->threads = threads;
   tstrncpy(pSet->label, label, sizeof(pSet->label));
 
+  pthread_attr_t thAttr;
+  pthread_attr_init(&thAttr);
+  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+
+  int i;
   uint16_t ownPort;
-  for (int i = 0; i < threads; ++i) {
+  for (i = 0; i < threads; ++i) {
     pConn = pSet->udpConn + i;
     ownPort = (port ? port + i : 0);
     pConn->fd = taosOpenUdpSocket(ip, ownPort);
     if (pConn->fd < 0) {
       tError("%s failed to open UDP socket %x:%hu", label, ip, port);
-      taosCleanUpUdpConnection(pSet);
-      return NULL;
+      break;
     }
 
     pConn->buffer = malloc(RPC_MAX_UDP_SIZE);
     if (NULL == pConn->buffer) {
       tError("%s failed to malloc recv buffer", label);
-      taosCleanUpUdpConnection(pSet);
-      return NULL;
+      break;
     }
 
     struct sockaddr_in sin;
     unsigned int addrlen = sizeof(sin);
-    if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && sin.sin_family == AF_INET &&
-        addrlen == sizeof(sin)) {
+    if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && 
+        sin.sin_family == AF_INET && addrlen == sizeof(sin)) {
       pConn->localPort = (uint16_t)ntohs(sin.sin_port);
     }
 
@@ -107,23 +113,22 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     pConn->pSet = pSet;
     pConn->signature = pConn;
 
-    pthread_attr_t thAttr;
-    pthread_attr_init(&thAttr);
-    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
     int code = pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
-    pthread_attr_destroy(&thAttr);
     if (code != 0) {
-      tError("%s failed to create thread to process UDP data, reason:%s", label, strerror(errno));
-      taosCloseSocket(pConn->fd);
-      taosCleanUpUdpConnection(pSet);
-      return NULL;
+      tError("%s failed to create thread to process UDP data(%s)", label, strerror(errno));
+      break;
     }
-
-    ++pSet->threads;
   }
 
-  tTrace("%s UDP connection is initialized, ip:%x port:%hu threads:%d", label, ip, port, threads);
+  pthread_attr_destroy(&thAttr);
 
+  if (i != threads) { 
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    taosCleanUpUdpConnection(pSet);
+    return NULL;
+  }
+
+  tTrace("%s UDP connection is initialized, ip:%x:%hu threads:%d", label, ip, port, threads);
   return pSet;
 }
 
@@ -136,16 +141,17 @@ void taosCleanUpUdpConnection(void *handle) {
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     pConn->signature = NULL;
+
     // shutdown to signal the thread to exit
-    shutdown(pConn->fd, SHUT_RD);
+    if ( pConn->fd >=0) shutdown(pConn->fd, SHUT_RD);
   }
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
-    pthread_join(pConn->thread, NULL);
-    free(pConn->buffer);
-    taosCloseSocket(pConn->fd);
-    tTrace("chandle:%p is closed", pConn);
+    if (pConn->thread) pthread_join(pConn->thread, NULL);
+    if (pConn->fd >=0) taosCloseSocket(pConn->fd);
+    tfree(pConn->buffer);
+    tTrace("UDP chandle:%p is closed", pConn);
   }
 
   tfree(pSet);
@@ -159,7 +165,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t 
   SUdpConn *pConn = pSet->udpConn + pSet->index;
   pConn->port = port;
 
-  tTrace("%s UDP connection is setup, ip:%x:%hu, local:%x:%d", pConn->label, ip, port, pSet->ip, pConn->localPort);
+  tTrace("%s UDP connection is setup, ip:%x:%hu", pConn->label, ip, port);
 
   return pConn;
 }

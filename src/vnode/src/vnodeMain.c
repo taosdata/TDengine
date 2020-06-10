@@ -381,16 +381,18 @@ void *vnodeGetWal(void *pVnode) {
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
+  int64_t totalStorage, compStorage, pointsWritten = 0;
+  tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
   pLoad->cfgVersion = htonl(pVnode->cfgVersion);
-  pLoad->totalStorage = htobe64(pLoad->totalStorage);
-  pLoad->compStorage = htobe64(pLoad->compStorage);
-  pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
+  pLoad->totalStorage = htobe64(totalStorage);
+  pLoad->compStorage = htobe64(compStorage);
+  pLoad->pointsWritten = htobe64(pointsWritten);
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
-  pLoad->replica = pVnode->syncCfg.replica;
+  pLoad->replica = pVnode->syncCfg.replica;  
 }
 
 void vnodeBuildStatusMsg(void *param) {

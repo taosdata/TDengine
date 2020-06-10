@@ -381,6 +381,7 @@ if $dnode7Vnodes != 3 then
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 5000
 
 print ============================== step11
 print ========= add db4
@@ -429,6 +430,7 @@ if $dnode7Vnodes != 4 then
 endi
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+sleep 5000
 
 print ============================== step13
 sql reset query cache

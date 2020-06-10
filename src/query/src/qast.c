@@ -138,7 +138,7 @@ static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken
       memcpy(pNode->pSchema, &pSchema[i], sizeof(SSchema));
     } else {
       pNode->pSchema->type = TSDB_DATA_TYPE_BINARY;
-      pNode->pSchema->bytes = TSDB_TABLE_NAME_LEN;
+      pNode->pSchema->bytes = TSDB_TABLE_NAME_LEN - 1;
       strcpy(pNode->pSchema->name, TSQL_TBNAME_L);
       pNode->pSchema->colId = -1;
     }
@@ -1127,7 +1127,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   left->pSchema = pSchema;
 
   pSchema->type = TSDB_DATA_TYPE_BINARY;
-  pSchema->bytes = TSDB_TABLE_NAME_LEN;
+  pSchema->bytes = TSDB_TABLE_NAME_LEN - 1;
   strcpy(pSchema->name, TSQL_TBNAME_L);
   pSchema->colId = -1;
 
