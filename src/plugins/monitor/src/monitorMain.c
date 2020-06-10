@@ -177,8 +177,8 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ") tags (acctId binary(%d))",
              tsMonitorDbName, TSDB_USER_LEN + 1);
   } else if (cmd == MONITOR_CMD_CREATE_TB_ACCT_ROOT) {
-    snprintf(sql, SQL_LENGTH, "create table if not exists %s.acct_%s using %s.acct tags('%s')", tsMonitorDbName, "root",
-             tsMonitorDbName, "root");
+    snprintf(sql, SQL_LENGTH, "create table if not exists %s.acct_%s using %s.acct tags('%s')", tsMonitorDbName, tsDefaultUser,
+             tsMonitorDbName, tsDefaultUser);
   } else if (cmd == MONITOR_CMD_CREATE_TB_SLOWQUERY) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.slowquery(ts timestamp, username "

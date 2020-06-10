@@ -103,8 +103,8 @@ static int32_t mnodeUserActionDecode(SSdbOper *pOper) {
 
 static int32_t mnodeUserActionRestored() {
   if (dnodeIsFirstDeploy()) {
-    SAcctObj *pAcct = mnodeGetAcct("root");
-    mnodeCreateUser(pAcct, "root", "taosdata");
+    SAcctObj *pAcct = mnodeGetAcct(tsDefaultUser);
+    mnodeCreateUser(pAcct, tsDefaultUser, tsDefaultPass);
     mnodeCreateUser(pAcct, "monitor", tsInternalPass);
     mnodeCreateUser(pAcct, "_root", tsInternalPass);
     mnodeDecAcctRef(pAcct);
@@ -218,7 +218,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   pUser->createdTime = taosGetTimestampMs();
   pUser->superAuth = 0;
   pUser->writeAuth = 1;
-  if (strcmp(pUser->user, "root") == 0 || strcmp(pUser->user, pUser->acct) == 0) {
+  if (strcmp(pUser->user, tsDefaultUser) == 0 || strcmp(pUser->user, pUser->acct) == 0) {
     pUser->superAuth = 1;
   }
 
@@ -392,12 +392,12 @@ static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
 
   if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
     bool hasRight = false;
-    if (strcmp(pOperUser->user, "root") == 0) {
+    if (strcmp(pOperUser->user, tsDefaultUser) == 0) {
       hasRight = true;
     } else if (strcmp(pUser->user, pOperUser->user) == 0) {
       hasRight = true;
     } else if (pOperUser->superAuth) {
-      if (strcmp(pUser->user, "root") == 0) {
+      if (strcmp(pUser->user, tsDefaultUser) == 0) {
         hasRight = false;
       } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
         hasRight = false;
@@ -418,16 +418,16 @@ static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
   } else if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
     bool hasRight = false;
 
-    if (strcmp(pUser->user, "root") == 0) {
+    if (strcmp(pUser->user, tsDefaultUser) == 0) {
       hasRight = false;
     } else if (strcmp(pUser->user, pUser->acct) == 0) {
       hasRight = false;
-    } else if (strcmp(pOperUser->user, "root") == 0) {
+    } else if (strcmp(pOperUser->user, tsDefaultUser) == 0) {
       hasRight = true;
     } else if (strcmp(pUser->user, pOperUser->user) == 0) {
       hasRight = false;
     } else if (pOperUser->superAuth) {
-      if (strcmp(pUser->user, "root") == 0) {
+      if (strcmp(pUser->user, tsDefaultUser) == 0) {
         hasRight = false;
       } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
         hasRight = false;
@@ -482,9 +482,9 @@ static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg) {
   }
 
   bool hasRight = false;
-  if (strcmp(pUser->user, "root") == 0) {
+  if (strcmp(pUser->user, tsDefaultUser) == 0) {
     hasRight = false;
-  } else if (strcmp(pOperUser->user, "root") == 0) {
+  } else if (strcmp(pOperUser->user, tsDefaultUser) == 0) {
     hasRight = true;
   } else if (strcmp(pUser->user, pOperUser->user) == 0) {
     hasRight = false;

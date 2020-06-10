@@ -48,8 +48,8 @@ int main(int argc, char *argv[]) {
   taosInitLog("cq.log", 100000, 10);
 
   SCqCfg cqCfg;
-  strcpy(cqCfg.user, "root");
-  strcpy(cqCfg.pass, "taosdata");
+  strcpy(cqCfg.user, tsDefaultUser);
+  strcpy(cqCfg.pass, tsDefaultPass);
   cqCfg.vgId = 2;
   cqCfg.cqWrite = writeToQueue;
 

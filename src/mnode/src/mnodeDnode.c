@@ -250,7 +250,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
     // TODO temporary disabled for compiling: strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep); 
   }
 
-  if (strcmp(pMsg->pUser->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, tsDefaultUser) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
@@ -447,7 +447,7 @@ static int32_t mnodeDropDnodeByEp(char *ep) {
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   SCMCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
-  if (strcmp(pMsg->pUser->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, tsDefaultUser) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   } else {
     int32_t code = mnodeCreateDnode(pCreate->ep);
@@ -467,7 +467,7 @@ static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg) {
   SCMDropDnodeMsg *pDrop = pMsg->rpcMsg.pCont;
 
-  if (strcmp(pMsg->pUser->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, tsDefaultUser) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   } else {
     int32_t code = mnodeDropDnodeByEp(pDrop->ep);
@@ -486,7 +486,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->pAcct->user, "root") != 0) {
+  if (strcmp(pUser->pAcct->user, tsDefaultUser) != 0) {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
@@ -615,7 +615,7 @@ static int32_t mnodeGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->user, "root") != 0)  {
+  if (strcmp(pUser->user, tsDefaultUser) != 0)  {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
@@ -725,7 +725,7 @@ static int32_t mnodeGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->user, "root") != 0)  {
+  if (strcmp(pUser->user, tsDefaultUser) != 0)  {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
@@ -812,7 +812,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
   
-  if (strcmp(pUser->user, "root") != 0)  {
+  if (strcmp(pUser->user, tsDefaultUser) != 0)  {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
