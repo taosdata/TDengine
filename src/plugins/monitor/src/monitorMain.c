@@ -183,7 +183,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.slowquery(ts timestamp, username "
              "binary(%d), created_time timestamp, time bigint, sql binary(%d))",
-             tsMonitorDbName, TSDB_TABLE_ID_LEN, TSDB_SLOW_QUERY_SQL_LEN);
+             tsMonitorDbName, TSDB_TABLE_ID_LEN - 1, TSDB_SLOW_QUERY_SQL_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_LOG) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.log(ts timestamp, level tinyint, "

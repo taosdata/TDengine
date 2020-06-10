@@ -1056,12 +1056,12 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
       totalLen += 1;
 
       /* here we only check the table name length limitation */
-      if (tableName->n > TSDB_TABLE_NAME_LEN) {
+      if (tableName->n >= TSDB_TABLE_NAME_LEN) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
     } else {  // pDB == NULL, the db prefix name is specified in tableName
       /* the length limitation includes tablename + dbname + sep */
-      if (tableName->n > (TSDB_TABLE_NAME_LEN - 1) + (TSDB_DB_NAME_LEN - 1) + sizeof(TS_PATH_DELIMITER)) {
+      if (tableName->n >= TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
     }
@@ -1078,7 +1078,7 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
     fullName[totalLen] = 0;
   }
 
-  return (totalLen <= TSDB_TABLE_ID_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_TSC_INVALID_SQL;
+  return (totalLen < TSDB_TABLE_ID_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_TSC_INVALID_SQL;
 }
 
 static void extractColumnNameFromString(tSQLExprItem* pItem) {
@@ -2052,7 +2052,7 @@ int32_t getTableIndexImpl(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColum
   }
 
   pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
-  char tableName[TSDB_TABLE_ID_LEN + 1] = {0};
+  char tableName[TSDB_TABLE_ID_LEN] = {0};
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
@@ -3616,7 +3616,7 @@ static int32_t setTableCondForSTableQuery(SQueryInfo* pQueryInfo, const char* ac
       taosStringBuilderAppendStringLen(&sb1, TBNAME_LIST_SEP, 1);
     }
 
-    char      idBuf[TSDB_TABLE_ID_LEN + 1] = {0};
+    char      idBuf[TSDB_TABLE_ID_LEN] = {0};
     int32_t   xlen = strlen(segments[i]);
     SSQLToken t = {.z = segments[i], .n = xlen, .type = TK_STRING};
 
@@ -5603,7 +5603,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   // get meter meta from mnode
-  strncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
+  tstrncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, sizeof(pCreateTable->usingInfo.tagdata.name));
   tVariantList* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
 
   int32_t code = tscGetTableMeta(pSql, pStableMeterMetaInfo);
