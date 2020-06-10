@@ -321,18 +321,18 @@ typedef struct {
 } SAcctCfg;
 
 typedef struct {
-  char     user[TSDB_USER_LEN + 1];
-  char     pass[TSDB_KEY_LEN + 1];
+  char     user[TSDB_USER_LEN];
+  char     pass[TSDB_KEY_LEN];
   SAcctCfg cfg;
 } SCMCreateAcctMsg, SCMAlterAcctMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN + 1];
+  char user[TSDB_USER_LEN];
 } SCMDropUserMsg, SCMDropAcctMsg;
 
 typedef struct {
-  char   user[TSDB_USER_LEN + 1];
-  char   pass[TSDB_KEY_LEN + 1];
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_KEY_LEN];
   int8_t privilege;
   int8_t flag;
 } SCMCreateUserMsg, SCMAlterUserMsg;
@@ -501,7 +501,7 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  char     acct[TSDB_USER_LEN + 1];
+  char     acct[TSDB_USER_LEN];
   char     db[TSDB_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
@@ -750,7 +750,7 @@ typedef struct {
 } SMDAlterStreamMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN + 1];
+  char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
   char secret[TSDB_KEY_LEN + 1];

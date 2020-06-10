@@ -232,7 +232,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         pzName->n = strdequote(pzName->z);
         strncpy(pTableMetaInfo->name, pzName->z, pzName->n);
       } else {  // drop user
-        if (pzName->n > TSDB_USER_LEN) {
+        if (pzName->n >= TSDB_USER_LEN) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
         }
 
@@ -317,7 +317,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
-      if (pName->n > TSDB_USER_LEN) {
+      if (pName->n >= TSDB_USER_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
@@ -401,7 +401,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       SSQLToken* pName = &pUser->user;
       SSQLToken* pPwd = &pUser->passwd;
 
-      if (pName->n > TSDB_USER_LEN) {
+      if (pName->n >= TSDB_USER_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 

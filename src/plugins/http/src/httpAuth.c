@@ -101,7 +101,7 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
 
 bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
   char buffer[TSDB_USER_LEN + TSDB_PASSWORD_LEN] = {0};
-  strncpy(buffer, pContext->user, TSDB_USER_LEN);
+  strncpy(buffer, pContext->user, sizeof(pContext->user));
   strncpy(buffer + TSDB_USER_LEN, pContext->pass, TSDB_PASSWORD_LEN);
 
   char *encrypt = taosDesEncode(KEY_DES_4, buffer, TSDB_USER_LEN + TSDB_PASSWORD_LEN);

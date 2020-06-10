@@ -718,7 +718,7 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_USER_LEN;
+  cfg.ptrLength = TSDB_USER_LEN - 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 

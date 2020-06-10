@@ -97,7 +97,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
     .connId = connId,
     .stime  = taosGetTimestampMs()
   };
-  tstrncpy(connObj.user, user, TSDB_USER_LEN);
+  tstrncpy(connObj.user, user, sizeof(connObj.user));
   
   char key[10];
   sprintf(key, "%u", connId);  
@@ -235,7 +235,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, TSDB_USER_LEN);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, sizeof(pConnObj->user));
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -358,7 +358,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, TSDB_USER_LEN);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, sizeof(pConnObj->user));
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -479,7 +479,7 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, TSDB_USER_LEN);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, sizeof(pConnObj->user));
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
