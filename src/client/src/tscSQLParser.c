@@ -348,7 +348,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      if (pToken->n >= TSDB_TABLE_NAME_LEN) {
+      if (tscValidateTableNameLength(pToken->n)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -1056,7 +1056,7 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
       totalLen += 1;
 
       /* here we only check the table name length limitation */
-      if (tableName->n > TSDB_TABLE_NAME_LEN) {
+      if (!tscValidateTableNameLength(tableName->n)) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
     } else {  // pDB == NULL, the db prefix name is specified in tableName
@@ -1402,9 +1402,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
     }
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE};
-      strcpy(colSchema.name, TSQL_TBNAME_L);
-
+      SSchema colSchema = tGetTableNameColumnSchema();
       tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, true);
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
@@ -1914,9 +1912,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
       
       SSchema s = {0};
       if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-        s.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
-        s.type  = TSDB_DATA_TYPE_BINARY;
-        s.colId = TSDB_TBNAME_COLUMN_INDEX;
+        s = tGetTableNameColumnSchema();
       } else {
         s = pTagSchema[index.columnIndex];
       }
@@ -2230,7 +2226,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      if (pCmd->payloadLen >= TSDB_TABLE_NAME_LEN) {
+      if (!tscValidateTableNameLength(pCmd->payloadLen)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
     }
@@ -2861,7 +2857,7 @@ static int32_t tablenameListToString(tSQLExpr* pExpr, SStringBuilder* sb) {
       taosStringBuilderAppendString(sb, TBNAME_LIST_SEP);
     }
 
-    if (pSub->val.nLen <= 0 || pSub->val.nLen > TSDB_TABLE_NAME_LEN) {
+    if (pSub->val.nLen <= 0 || !tscValidateTableNameLength(pSub->val.nLen)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
   }
@@ -5232,9 +5228,10 @@ static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
   
     int16_t colIndex = pColIndex->colIndex;
     if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      type = TSDB_DATA_TYPE_BINARY;
-      bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE; // todo extract method
-      name = TSQL_TBNAME_L;
+      SSchema s = tGetTableNameColumnSchema();
+      type = s.type;
+      bytes = s.bytes;
+      name = s.name;
     } else {
       if (TSDB_COL_IS_TAG(pColIndex->flag)) {
         SSchema* tagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);

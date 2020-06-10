@@ -1078,8 +1078,9 @@ static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow,
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  SSchema tbnameSchema = tGetTableNameColumnSchema();
+  pShow->bytes[cols] = tbnameSchema.bytes;
+  pSchema[cols].type = tbnameSchema.type;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -2079,8 +2080,9 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  SSchema s = tGetTableNameColumnSchema();
+  pShow->bytes[cols] = s.bytes;
+  pSchema[cols].type = s.type;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -2097,8 +2099,9 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  SSchema tbCol = tGetTableNameColumnSchema();
+  pShow->bytes[cols] = tbCol.bytes;
+  pSchema[cols].type = tbCol.type;
   strcpy(pSchema[cols].name, "stable_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -2268,8 +2271,9 @@ static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, vo
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  SSchema tbnameColSchema = tGetTableNameColumnSchema();
+  pShow->bytes[cols] = tbnameColSchema.bytes;
+  pSchema[cols].type = tbnameColSchema.type;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
