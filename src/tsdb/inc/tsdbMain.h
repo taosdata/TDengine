@@ -161,7 +161,7 @@ typedef struct {
   int64_t index;
   int     numOfCacheBlocks;
   SList * memPool;
-} STsdbCachePool;
+} STsdbBufferPool;
 
 typedef struct {
   TSKEY   keyFirst;
@@ -173,7 +173,7 @@ typedef struct {
 typedef struct {
   int              cacheBlockSize;
   int              totalCacheBlocks;
-  STsdbCachePool   pool;
+  STsdbBufferPool   pool;
   STsdbCacheBlock *curBlock;
   SCacheMem *      mem;
   SCacheMem *      imem;
