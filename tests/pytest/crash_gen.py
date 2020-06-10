@@ -618,15 +618,15 @@ class StateDbOnly(AnyState):
         self.assertIfExistThenSuccess(tasks, DropDbTask)
         # self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # not true in massively parrallel cases
         # Nothing to be said about adding data task
-        if ( self.hasSuccess(tasks, DropDbTask) ): # dropped the DB
+        # if ( self.hasSuccess(tasks, DropDbTask) ): # dropped the DB
             # self.assertHasTask(tasks, DropDbTask) # implied by hasSuccess
-            self.assertAtMostOneSuccess(tasks, DropDbTask)
+            # self.assertAtMostOneSuccess(tasks, DropDbTask)
             # self._state = self.STATE_EMPTY
-        elif ( self.hasSuccess(tasks, CreateFixedSuperTableTask) ): # did not drop db, create table success
+        if ( self.hasSuccess(tasks, CreateFixedSuperTableTask) ): # did not drop db, create table success
             # self.assertHasTask(tasks, CreateFixedTableTask) # tried to create table
             if ( not self.hasTask(tasks, DropFixedSuperTableTask) ): 
                 self.assertAtMostOneSuccess(tasks, CreateFixedSuperTableTask) # at most 1 attempt is successful, if we don't drop anything
-            self.assertNoTask(tasks, DropDbTask) # should have have tried
+            # self.assertNoTask(tasks, DropDbTask) # should have have tried
             # if ( not self.hasSuccess(tasks, AddFixedDataTask) ): # just created table, no data yet
             #     # can't say there's add-data attempts, since they may all fail
             #     self._state = self.STATE_TABLE_ONLY
@@ -686,9 +686,10 @@ class StateHasData(AnyState):
             self.assertNoTask(tasks, DropFixedSuperTableTask)
             self.assertNoTask(tasks, AddFixedDataTask)
             # self.hasSuccess(tasks, DeleteDataTasks)
-        else:
+        else: # should be STATE_HAS_DATA
             self.assertNoTask(tasks, DropDbTask)
-            self.assertNoTask(tasks, DropFixedSuperTableTask)
+            if (not self.hasTask(tasks, CreateFixedSuperTableTask)) :  # if we didn't create the table
+                self.assertNoTask(tasks, DropFixedSuperTableTask) # we should not have a task that drops it
             self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
 
 
