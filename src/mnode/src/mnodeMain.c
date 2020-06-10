@@ -134,8 +134,12 @@ void mnodeStopSystem() {
   }
   
   mnodeCleanupSystem();
-  mPrint("mnode file is removed");
-  remove(tsMnodeDir);
+
+  if (remove(tsMnodeDir) != 0) {
+    mPrint("failed to remove mnode file, reason:%s", strerror(errno));
+  } else {
+    mPrint("mnode file is removed");
+  }
 }
 
 static void mnodeInitTimer() {
