@@ -59,6 +59,18 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
 }
 
+// notify connection(handle) that current qhandle is created, if current connection from
+// client is broken, the query needs to be killed immediately.
+static void vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId) {
+  SRetrieveTableMsg* killQueryMsg = rpcMallocCont(sizeof(SRetrieveTableMsg));
+  killQueryMsg->qhandle = htobe64((uint64_t) qhandle);
+  killQueryMsg->free = htons(1);
+  killQueryMsg->header.vgId = htonl(vgId);
+  killQueryMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
+
+  rpcReportProgress(handle, (char*) killQueryMsg, sizeof(SRetrieveTableMsg));
+}
+
 static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   void *   pCont = pReadMsg->pCont;
   int32_t  contLen = pReadMsg->contLen;
@@ -67,9 +79,23 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pCont;
   memset(pRet, 0, sizeof(SRspRet));
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  // qHandle needs to be freed correctly
+  if (pReadMsg->rpcMsg.code != TSDB_CODE_SUCCESS) {
+    assert(pReadMsg->rpcMsg.contLen > 0);
 
+    SRetrieveTableMsg* killQueryMsg = (SRetrieveTableMsg*) pReadMsg->pCont;
+    killQueryMsg->free = htons(killQueryMsg->free);
+    killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
+
+    assert(killQueryMsg->free == 1);
+    qDestroyQueryInfo((qinfo_t) killQueryMsg->qhandle);
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
   qinfo_t pQInfo = NULL;
+
   if (contLen != 0) {
     code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo);
 
@@ -79,7 +105,9 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
-    
+
+    vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId);
+
     vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
   } else {
     assert(pCont != NULL);

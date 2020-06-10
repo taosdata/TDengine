@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "qfill.h"
 #include "os.h"
+#include "qfill.h"
 
 #include "hash.h"
 #include "hashfunc.h"
@@ -5822,18 +5822,37 @@ _over:
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
   if (code != TSDB_CODE_SUCCESS) {
     *pQInfo = NULL;
+  } else {
+    SQInfo* pq = (SQInfo*) (*pQInfo);
+
+    T_REF_INC(pq);
+    T_REF_INC(pq);
   }
 
   // if failed to add ref for all meters in this query, abort current query
   return code;
 }
 
-void qDestroyQueryInfo(qinfo_t pQInfo) {
+static void doDestoryQueryInfo(SQInfo* pQInfo) {
+  assert(pQInfo != NULL);
   qTrace("QInfo:%p query completed", pQInfo);
-  
-  // print the query cost summary
-  queryCostStatis(pQInfo);
+  queryCostStatis(pQInfo);   // print the query cost summary
   freeQInfo(pQInfo);
+}
+
+void qDestroyQueryInfo(qinfo_t qHandle) {
+  SQInfo* pQInfo = (SQInfo*) qHandle;
+  if (!isValidQInfo(pQInfo)) {
+    return;
+  }
+
+  // set the query is cancelled
+  setQueryKilled(pQInfo);
+
+  int16_t ref = T_REF_DEC(pQInfo);
+  if (ref == 0) {
+    doDestoryQueryInfo(pQInfo);
+  }
 }
 
 void qTableQuery(qinfo_t qinfo) {
@@ -5846,6 +5865,11 @@ void qTableQuery(qinfo_t qinfo) {
 
   if (isQueryKilled(pQInfo)) {
     qTrace("QInfo:%p it is already killed, abort", pQInfo);
+
+    int16_t ref = T_REF_DEC(pQInfo);
+    if (ref == 0) {
+      doDestoryQueryInfo(pQInfo);
+    }
     return;
   }
 
@@ -5861,7 +5885,10 @@ void qTableQuery(qinfo_t qinfo) {
   }
 
   sem_post(&pQInfo->dataReady);
-  //  vnodeDecRefCount(pQInfo);
+  int16_t ref = T_REF_DEC(pQInfo);
+  if (ref == 0) {
+    doDestoryQueryInfo(pQInfo);
+  }
 }
 
 int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
@@ -5887,20 +5914,27 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
 bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
-  if (pQInfo == NULL || pQInfo->signature != pQInfo || pQInfo->code != TSDB_CODE_SUCCESS) {
+  if (isValidQInfo(pQInfo) || pQInfo->code != TSDB_CODE_SUCCESS) {
     return false;
   }
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+  bool ret = false;
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
-    return false;
+    ret = false;
   } else if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
-    return true;
+    ret = true;
   } else if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-    return true;
+    ret = true;
   } else {
     assert(0);
   }
+
+  if (ret) {
+    T_REF_INC(pQInfo);
+  }
+
+  return ret;
 }
 
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen) {
