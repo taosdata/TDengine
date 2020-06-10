@@ -242,7 +242,7 @@ void taosReadGlobalLogCfg() {
   wordexp_t full_path;
   wordexp(configDir, &full_path, 0);
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {    
-    if (strlen(full_path.we_wordv[0]) > TSDB_FILENAME_LEN - 1) {
+    if (strlen(full_path.we_wordv[0]) >= TSDB_FILENAME_LEN) {
       printf("\nconfig file: %s path overflow max len %d, all variables are set to default\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);
       wordfree(&full_path);
       return;

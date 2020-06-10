@@ -81,7 +81,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }       
-      if (strlen(full_path.we_wordv[0]) > TSDB_FILENAME_LEN - 1) {
+      if (strlen(full_path.we_wordv[0]) >= TSDB_FILENAME_LEN) {
         fprintf(stderr, "config file path: %s overflow max len %d\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);
         wordfree(&full_path);
         return -1;
