@@ -37,13 +37,13 @@ extern "C" {
 
 struct SQLFunctionCtx;
 
-typedef struct SLocalDataSrc {
+typedef struct SLocalDataSource {
   tExtMemBuffer *pMemBuffer;
   int32_t        flushoutIdx;
   int32_t        pageId;
   int32_t        rowIdx;
   tFilePage      filePage;
-} SLocalDataSrc;
+} SLocalDataSource;
 
 enum {
   TSC_LOCALREDUCE_READY = 0x0,
@@ -52,80 +52,59 @@ enum {
 };
 
 typedef struct SLocalReducer {
-  SLocalDataSrc **pLocalDataSrc;
-  int32_t         numOfBuffer;
-  int32_t         numOfCompleted;
-
-  int32_t numOfVnode;
-
-  SLoserTreeInfo *pLoserTree;
-  char *          prevRowOfInput;
-
-  tFilePage *pResultBuf;
-  int32_t    nResultBufSize;
-
-  char *pBufForInterpo;  // intermediate buffer for interpolation
-
-  tFilePage *pTempBuffer;
-
+  SLocalDataSource **    pLocalDataSrc;
+  int32_t                numOfBuffer;
+  int32_t                numOfCompleted;
+  int32_t                numOfVnode;
+  SLoserTreeInfo *       pLoserTree;
+  char *                 prevRowOfInput;
+  tFilePage *            pResultBuf;
+  int32_t                nResultBufSize;
+  char *                 pBufForInterpo;  // intermediate buffer for interpolation
+  tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
-
-  int32_t rowSize;  // size of each intermediate result.
-  int32_t status;   // denote it is in reduce process, in reduce process, it
-  // cannot be released
-  bool hasPrevRow;
-  bool hasUnprocessedRow;
-
-  tOrderDescriptor *pDesc;
-  tColModel *       resColModel;
-
-  tExtMemBuffer **   pExtMemBuffer;      // disk-based buffer
-  SInterpolationInfo interpolationInfo;  // interpolation support structure
-
-  char *pFinalRes;  // result data after interpo
-
-  tFilePage *discardData;
-  bool       discard;
-
-  int32_t offset;
+  int32_t                rowSize;     // size of each intermediate result.
+  int32_t                status;      // denote it is in reduce process, in reduce process, it
+  bool                   hasPrevRow;  // cannot be released
+  bool                   hasUnprocessedRow;
+  tOrderDescriptor *     pDesc;
+  SColumnModel *            resColModel;
+  tExtMemBuffer **       pExtMemBuffer;      // disk-based buffer
+  SInterpolationInfo     interpolationInfo;  // interpolation support structure
+  char *                 pFinalRes;          // result data after interpo
+  tFilePage *            discardData;
+  SResultInfo *          pResInfo;
+  bool                   discard;
+  int32_t                offset;             // limit offset value
 } SLocalReducer;
 
+typedef struct SSubqueryState {
+  /*
+   * the number of completed retrieval subquery, once this value equals to numOfVnodes,
+   * all retrieval are completed.Local merge is launched.
+   */
+  int32_t  numOfCompleted;
+  int32_t  numOfTotal;          // number of total sub-queries
+  int32_t  code;                // code from subqueries
+  uint64_t numOfRetrievedRows;  // total number of points in this query
+} SSubqueryState;
+
 typedef struct SRetrieveSupport {
-  tExtMemBuffer **  pExtMemBuffer;  // for build loser tree
+  tExtMemBuffer **  pExtMemBuffer;     // for build loser tree
   tOrderDescriptor *pOrderDescriptor;
-  tColModel *       pFinalColModel;  // colModel for final result
-
-  /*
-   * shared by all subqueries
-   * It is the number of completed retrieval subquery.
-   * once this value equals to numOfVnodes, all retrieval are completed.
-   * Local merge is launched.
-   */
-  int32_t *numOfFinished;
-  int32_t  numOfVnodes;  // total number of vnode
-  int32_t  vnodeIdx;     // index of current vnode in vnode list
-
-  /*
-   * shared by all subqueries
-   * denote the status of query on vnode, if code!=0, all following
-   * retrieval on vnode are aborted.
-   */
-  int32_t *code;
-
-  SSqlObj *  pParentSqlObj;
-  tFilePage *localBuffer;  // temp buffer, there is a buffer for each vnode to
-  // save data
-  uint64_t *numOfTotalRetrievedPoints;  // total number of points in this query
-  // retrieved from server
-
-  uint32_t        numOfRetry;  // record the number of retry times
-  pthread_mutex_t queryMutex;
+  SColumnModel *    pFinalColModel;    // colModel for final result
+  SSubqueryState *  pState;
+  int32_t           subqueryIndex;     // index of current vnode in vnode list
+  SSqlObj *         pParentSqlObj;
+  tFilePage *       localBuffer;       // temp buffer, there is a buffer for each vnode to
+  uint32_t          numOfRetry;        // record the number of retry times
+  pthread_mutex_t   queryMutex;
 } SRetrieveSupport;
 
 int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOrderDescriptor **pDesc,
-                                 tColModel **pFinalModel, uint32_t nBufferSize);
+                                 SColumnModel **pFinalModel, uint32_t nBufferSize);
 
-void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, tColModel *pFinalModel,
+void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, SColumnModel *pFinalModel,
                                int32_t numOfVnodes);
 
 int32_t saveToBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePage *pPage, void *data,
@@ -137,11 +116,11 @@ int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tF
  * create local reducer to launch the second-stage reduce process at client site
  */
 void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
-                           tColModel *finalModel, SSqlCmd *pSqlCmd, SSqlRes *pRes);
+                           SColumnModel *finalModel, SSqlCmd *pSqlCmd, SSqlRes *pRes);
 
 void tscDestroyLocalReducer(SSqlObj *pSql);
 
-int32_t tscLocalDoReduce(SSqlObj *pSql);
+int32_t tscDoLocalreduce(SSqlObj *pSql);
 
 #ifdef __cplusplus
 }

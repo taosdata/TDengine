@@ -17,49 +17,82 @@ cfg_link_dir="/usr/local/taos/cfg"
 service_config_dir="/etc/systemd/system"
 taos_service_name="taosd"
 
-function is_using_systemd() {
-    if pidof systemd &> /dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-if ! is_using_systemd; then
-    service_config_dir="/etc/init.d"
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
 fi
+
+initd_mod=0
+service_mod=2
+if pidof systemd &> /dev/null; then
+    service_mod=0
+elif $(which service &> /dev/null); then    
+    service_mod=1
+    service_config_dir="/etc/init.d" 
+    if $(which chkconfig &> /dev/null); then
+         initd_mod=1 
+    elif $(which insserv &> /dev/null); then
+        initd_mod=2
+    elif $(which update-rc.d &> /dev/null); then
+        initd_mod=3
+    else
+        service_mod=2
+    fi
+else 
+    service_mod=2
+fi
+
+function kill_taosd() {
+  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo} kill -9 $pid   || :
+  fi
+}
 
 function clean_service_on_systemd() {
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
 
     if systemctl is-active --quiet ${taos_service_name}; then
         echo "TDengine taosd is running, stopping it..."
-        sudo systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
+        ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
     fi
-    sudo systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
 
-    sudo rm -f ${taosd_service_config}	
+    ${csudo} rm -f ${taosd_service_config}	
 }
 
 function clean_service_on_sysvinit() {
-    restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-
+    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
+    
     if pidof taosd &> /dev/null; then
         echo "TDengine taosd is running, stopping it..."
-        sudo service taosd stop || :
+        ${csudo} service taosd stop || :
     fi
 
-    sudo sed -i "\|${restart_config_str}|d" /etc/inittab || :
-    sudo rm -f ${service_config_dir}/taosd || :
-    sudo update-rc.d -f taosd remove || :
-    sudo init q || :
+    if ((${initd_mod}==1)); then
+        ${csudo} chkconfig --del taosd || :
+    elif ((${initd_mod}==2)); then
+        ${csudo} insserv -r taosd || :
+    elif ((${initd_mod}==3)); then
+        ${csudo} update-rc.d -f taosd remove || :
+    fi
+    
+    ${csudo} rm -f ${service_config_dir}/taosd || :
+   
+    if $(which init &> /dev/null); then
+        ${csudo} init q || :
+    fi
 }
 
 function clean_service() {
-    if is_using_systemd; then
+    if ((${service_mod}==0)); then
         clean_service_on_systemd
-    else
+    elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
+    else
+        # must manual stop taosd
+        kill_taosd
     fi
 }
 
@@ -67,14 +100,20 @@ function clean_service() {
 clean_service
 
 # Remove all links
-sudo rm -f ${bin_link_dir}/taos       || :
-sudo rm -f ${bin_link_dir}/taosd      || :
-sudo rm -f ${bin_link_dir}/taosdump   || :
-sudo rm -f ${cfg_link_dir}/*          || :
-sudo rm -f ${inc_link_dir}/taos.h     || :
-sudo rm -f ${lib_link_dir}/libtaos.so || :
+${csudo} rm -f ${bin_link_dir}/taos       || :
+${csudo} rm -f ${bin_link_dir}/taosd      || :
+${csudo} rm -f ${bin_link_dir}/taosdemo   || :
+${csudo} rm -f ${bin_link_dir}/taosdump   || :
+${csudo} rm -f ${cfg_link_dir}/*          || :
+${csudo} rm -f ${inc_link_dir}/taos.h     || :
+${csudo} rm -f ${inc_link_dir}/taoserror.h     || :
+${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
 
-sudo rm -f ${log_link_dir}            || :
-sudo rm -f ${data_link_dir}           || :
+${csudo} rm -f ${log_link_dir}            || :
+${csudo} rm -f ${data_link_dir}           || :
+
+if ((${service_mod}==2)); then
+    kill_taosd
+fi
 
 echo -e "${GREEN}TDEngine is removed successfully!${NC}"

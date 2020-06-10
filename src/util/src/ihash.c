@@ -13,16 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "os.h"
 
 typedef struct _str_node_t {
-  int32_t             key;
+  uint64_t             key;
   struct _str_node_t *prev;
   struct _str_node_t *next;
   char                data[];
@@ -32,18 +26,17 @@ typedef struct {
   IHashNode **hashList;
   int32_t     maxSessions;
   int32_t     dataSize;
-  int32_t (*hashFp)(void *, int32_t key);
+  int32_t (*hashFp)(void *, uint64_t key);
   pthread_mutex_t mutex;
 } IHashObj;
 
-int32_t taosHashInt(void *handle, int32_t key) {
+int32_t taosHashInt(void *handle, uint64_t key) {
   IHashObj *pObj = (IHashObj *)handle;
-  int32_t   hash = 0;
-  hash = key % pObj->maxSessions;
+  int32_t   hash = key % pObj->maxSessions;
   return hash;
 }
 
-char *taosAddIntHash(void *handle, int32_t key, char *pData) {
+char *taosAddIntHash(void *handle, uint64_t key, char *pData) {
   int32_t    hash;
   IHashNode *pNode;
   IHashObj * pObj;
@@ -53,9 +46,12 @@ char *taosAddIntHash(void *handle, int32_t key, char *pData) {
 
   hash = (*pObj->hashFp)(pObj, key);
 
+  pNode = (IHashNode *)malloc(sizeof(IHashNode) + (size_t)pObj->dataSize);
+  if (pNode == NULL)
+    return NULL;
+  
   pthread_mutex_lock(&pObj->mutex);
 
-  pNode = (IHashNode *)malloc(sizeof(IHashNode) + (size_t)pObj->dataSize);
   pNode->key = key;
   if (pData != NULL) {
     memcpy(pNode->data, pData, (size_t)pObj->dataSize);
@@ -71,7 +67,7 @@ char *taosAddIntHash(void *handle, int32_t key, char *pData) {
   return (char *)pNode->data;
 }
 
-void taosDeleteIntHash(void *handle, int32_t key) {
+void taosDeleteIntHash(void *handle, uint64_t key) {
   int32_t    hash;
   IHashNode *pNode;
   IHashObj * pObj;
@@ -107,7 +103,7 @@ void taosDeleteIntHash(void *handle, int32_t key) {
   pthread_mutex_unlock(&pObj->mutex);
 }
 
-char *taosGetIntHashData(void *handle, int32_t key) {
+char *taosGetIntHashData(void *handle, uint64_t key) {
   int32_t    hash;
   IHashNode *pNode;
   IHashObj * pObj;
@@ -136,7 +132,7 @@ char *taosGetIntHashData(void *handle, int32_t key) {
   return NULL;
 }
 
-void *taosInitIntHash(int32_t maxSessions, int32_t dataSize, int32_t (*fp)(void *, int32_t)) {
+void *taosInitIntHash(int32_t maxSessions, int32_t dataSize, int32_t (*fp)(void *, uint64_t)) {
   IHashObj *pObj;
 
   pObj = (IHashObj *)malloc(sizeof(IHashObj));

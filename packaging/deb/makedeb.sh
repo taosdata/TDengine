@@ -1,15 +1,20 @@
 #!/bin/bash
 #
 # Generate deb package for ubuntu
-#set -x
+set -e
+# set -x
 
 #curr_dir=$(pwd)
 compile_dir=$1
 output_dir=$2
 tdengine_ver=$3
+cpuType=$4
+osType=$5
+verMode=$6
+verType=$7
 
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/../..)"
+top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/debworkroom"
 
 #echo "curr_dir: ${curr_dir}"
@@ -23,6 +28,8 @@ if [ -d ${pkg_dir} ]; then
 fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
+
+libfile="libtaos.so.${tdengine_ver}"
 
 # create install dir 
 install_home_path="/usr/local/taos"
@@ -41,10 +48,12 @@ cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/lib/libtaos.so              ${pkg_dir}${install_home_path}/driver 
+cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver 
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_path}/include
 cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
 cp -r ${top_dir}/src/connector/grafana              ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
@@ -59,7 +68,25 @@ debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
  
 #get taos version, then set deb name
-debname="tdengine-"${tdengine_ver}".deb"
+
+
+if [ "$verMode" == "cluster" ]; then
+  debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
+elif [ "$verMode" == "edge" ]; then
+  debname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
+else
+  echo "unknow verMode, nor cluster or edge"
+  exit 1
+fi
+
+if [ "$verType" == "beta" ]; then
+  debname=${debname}-${verType}".deb"
+elif [ "$verType" == "stable" ]; then 
+  debname=${debname}".deb"
+else
+  echo "unknow verType, nor stabel or beta"
+  exit 1
+fi
 
 # make deb package
 dpkg -b ${pkg_dir} $debname

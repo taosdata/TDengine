@@ -20,38 +20,27 @@
 extern "C" {
 #endif
 
-#include <assert.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
-
+#include "os.h"
+#include "tmd5.h"
 #include "tcrc32c.h"
 #include "tsdb.h"
 
-#define VALIDFD(x) ((x) > 2)
+#ifndef STDERR_FILENO
+#define STDERR_FILENO (2)
+#endif
+
+#define FD_VALID(x) ((x) > STDERR_FILENO)
+#define FD_INITIALIZER  ((int32_t)-1)
 
 #define WCHAR wchar_t
+
 #define tfree(x) \
   {              \
     if (x) {     \
-      free(x);   \
-      x = NULL;  \
+      free((void*)(x));   \
+      x = 0;  \
     }            \
   }
-
-#define taosCloseSocket(x) \
-  {                        \
-    if (VALIDFD(x)) {      \
-      close(x);            \
-      x = -1;              \
-    }                      \
-  }
-#define taosWriteSocket(fd, buf, len) write(fd, buf, len)
-#define taosReadSocket(fd, buf, len) read(fd, buf, len)
 
 #define tclose(x) taosCloseSocket(x)
 
@@ -94,28 +83,7 @@ extern "C" {
 #endif
 
 #define DEFAULT_UNICODE_ENCODEC "UCS-4LE"
-
-#define SWAP(a, b)         \
-  do {                     \
-    typeof(a) __tmp = (a); \
-    (a) = (b);             \
-    (b) = __tmp;           \
-  } while (0)
-
-#define MAX(a, b)            \
-  ({                         \
-    typeof(a) __a = (a);     \
-    typeof(b) __b = (b);     \
-    (__a > __b) ? __a : __b; \
-  })
-
-#define MIN(a, b)            \
-  ({                         \
-    typeof(a) __a = (a);     \
-    typeof(b) __b = (b);     \
-    (__a < __b) ? __a : __b; \
-  })
-
+  
 #define DEFAULT_COMP(x, y)       \
   do {                           \
     if ((x) == (y)) {            \
@@ -123,21 +91,35 @@ extern "C" {
     } else {                     \
       return (x) < (y) ? -1 : 1; \
     }                            \
-  } while (0);
+  } while (0)
 
 #define GET_INT8_VAL(x)   (*(int8_t *)(x))
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
 #define GET_INT32_VAL(x)  (*(int32_t *)(x))
 #define GET_INT64_VAL(x)  (*(int64_t *)(x))
-#define GET_FLOAT_VAL(x)  (*(float *)(x))
-#define GET_DOUBLE_VAL(x) (*(double *)(x))
+
+#ifdef _TD_ARM_32_
+  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
+
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
+
+  //#define __float_align_declear()  float __underlyFloat = 0.0;
+  //#define __float_align_declear()
+  //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
+  // notes: src must be float or double type variable !!!
+  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
+  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+#else
+  #define GET_FLOAT_VAL(x)  (*(float *)(x))
+  #define GET_DOUBLE_VAL(x) (*(double *)(x))
+#endif
 
 #define ALIGN_NUM(n, align) (((n) + ((align)-1)) & (~((align)-1)))
 
 // align to 8bytes
 #define ALIGN8(n) ALIGN_NUM(n, 8)
-
-#define MILLISECOND_PER_SECOND (1000L)
 
 #define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
 #define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
@@ -148,19 +130,24 @@ extern "C" {
 
 #define POW2(x) ((x) * (x))
 
+size_t twcslen(const wchar_t *wcs);
 int32_t strdequote(char *src);
 
 void strtrim(char *src);
 
-char *strnchr(char *haystack, char needle, int32_t len);
+char *strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 
 char **strsplit(char *src, const char *delim, int32_t *num);
 
-void strtolower(char *src, char *dst);
+char* strtolower(char *dst, const char *src);
 
 int64_t strnatoi(char *num, int32_t len);
 
 char* strreplace(const char* str, const char* pattern, const char* rep);
+
+#define POW2(x) ((x) * (x))
+
+int32_t strdequote(char *src);
 
 char *paGetToken(char *src, char **token, int32_t *tokenLen);
 
@@ -174,35 +161,61 @@ int64_t str2int64(char *str);
 
 int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
 
-bool taosCheckPthreadValid(pthread_t thread);
-
-void taosResetPthread(pthread_t *thread);
-
-int64_t taosGetPthreadId();
-
-int32_t taosInitTimer(void *(*callback)(void *), int32_t ms);
-
-/**
- * murmur hash algorithm
- * @key  usually string
- * @len  key length
- * @seed hash seed
- * @out  an int32 value
- */
-uint32_t MurmurHash3_32(const void *key, int32_t len);
-
-bool taosCheckDbName(char *db, char *monitordb);
+int32_t taosInitTimer(void (*callback)(int), int32_t ms);
 
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
 
+int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes);
+
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
-bool taosValidateEncodec(char *encodec);
+bool taosValidateEncodec(const char *encodec);
 
-#define __sync_val_compare_and_swap_64 __sync_val_compare_and_swap
-#define __sync_val_compare_and_swap_32 __sync_val_compare_and_swap
-#define __sync_add_and_fetch_64 __sync_add_and_fetch
-#define __sync_add_and_fetch_32 __sync_add_and_fetch
+bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
+
+static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, char *target) {
+  MD5_CTX context;
+  MD5Init(&context);
+  MD5Update(&context, inBuf, inLen);
+  MD5Final(&context);
+  memcpy(target, context.digest, TSDB_KEY_LEN);
+}
+
+int taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
+
+char *taosIpStr(uint32_t ipInt);
+
+uint32_t ip2uint(const char *const ip_addr);
+
+#define TAOS_ALLOC_MODE_DEFAULT 0
+#define TAOS_ALLOC_MODE_RANDOM_FAIL 1
+#define TAOS_ALLOC_MODE_DETECT_LEAK 2
+void taosSetAllocMode(int mode, const char* path, bool autoDump);
+void taosDumpMemoryLeak();
+
+#ifdef TAOS_MEM_CHECK
+
+void *  taos_malloc(size_t size, const char *file, uint32_t line);
+void *  taos_calloc(size_t num, size_t size, const char *file, uint32_t line);
+void *  taos_realloc(void *ptr, size_t size, const char *file, uint32_t line);
+void    taos_free(void *ptr, const char *file, uint32_t line);
+char *  taos_strdup(const char *str, const char *file, uint32_t line);
+char *  taos_strndup(const char *str, size_t size, const char *file, uint32_t line);
+ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
+
+#ifndef TAOS_MEM_CHECK_IMPL
+
+#define malloc(size) taos_malloc(size, __FILE__, __LINE__)
+#define calloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
+#define realloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
+#define free(ptr) taos_free(ptr, __FILE__, __LINE__)
+#define strdup(str) taos_strdup(str, __FILE__, __LINE__)
+#define strndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
+#define getline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
+
+#endif  // TAOS_MEM_CHECK_IMPL
+
+#endif // TAOS_MEM_CHECK
 
 #ifdef __cplusplus
 }

@@ -12,9 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef TDENGINE_TKEY_H
+#define TDENGINE_TKEY_H
 
-#ifndef _TAOS_KEY_H_
-#define _TAOS_KEY_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -26,5 +29,9 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen);
 char *base64_encode(const unsigned char *value, int vlen);
 char *taosDesEncode(int64_t key, char *src, int len);
 char *taosDesDecode(int64_t key, char *src, int len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

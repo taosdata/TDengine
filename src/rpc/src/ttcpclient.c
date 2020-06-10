@@ -13,36 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
-
+#include "os.h"
 #include "taosmsg.h"
-#include "tlog.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "ttcpclient.h"
 #include "tutil.h"
 
+#ifndef EPOLLWAKEUP
+#define EPOLLWAKEUP (1u << 29)
+#endif
+
 typedef struct _tcp_fd {
+  void               *signature;
   int                 fd;  // TCP socket FD
   void *              thandle;
   uint32_t            ip;
   char                ipstr[20];
-  short               port;
+  uint16_t            port;
   struct _tcp_client *pTcp;
   struct _tcp_fd *    prev, *next;
 } STcpFd;
@@ -57,7 +45,7 @@ typedef struct _tcp_client {
   char            label[12];
   char            ipstr[20];
   void *          shandle;  // handle passed by upper layer during server initialization
-  void *(*processData)(char *data, int dataLen, unsigned int ip, short port, void *shandle, void *thandle,
+  void *(*processData)(char *data, int dataLen, unsigned int ip, uint16_t port, void *shandle, void *thandle,
                        void *chandle);
   // char   buffer[128000];
 } STcpClient;
@@ -68,6 +56,7 @@ static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
   STcpClient *pTcp;
 
   if (pFdObj == NULL) return;
+  if (pFdObj->signature != pFdObj) return;
 
   pTcp = pFdObj->pTcp;
   if (pTcp == NULL) {
@@ -157,23 +146,40 @@ static void *taosReadTcpData(void *param) {
       }
 
       void *buffer = malloc(1024);
-      int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
+      if (NULL == buffer) {
+        tTrace("%s TCP malloc(size:1024) fail\n", pTcp->label);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
+      }
+
+      int headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
       if (headLen != sizeof(STaosHeader)) {
         tError("%s read error, headLen:%d", pTcp->label, headLen);
+        tfree(buffer);
         taosCleanUpTcpFdObj(pFdObj);
         continue;
       }
 
       int dataLen = (int32_t)htonl((uint32_t)((STaosHeader *)buffer)->msgLen);
-      if (dataLen > 1024) buffer = realloc(buffer, (size_t)dataLen);
+      if (dataLen > 1024) {
+        void *b = realloc(buffer, (size_t)dataLen);
+        if (NULL == b) {
+          tTrace("%s TCP malloc(size:%d) fail\n", pTcp->label, dataLen);
+          tfree(buffer);
+          taosCleanUpTcpFdObj(pFdObj);
+          continue;
+        }
+        buffer = b;
+      }
 
       int leftLen = dataLen - headLen;
       int retLen = taosReadMsg(pFdObj->fd, buffer + headLen, leftLen);
 
-      //tTrace("%s TCP data is received, ip:%s port:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, dataLen);
+      // tTrace("%s TCP data is received, ip:%s port:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, dataLen);
 
       if (leftLen != retLen) {
         tError("%s read error, leftLen:%d retLen:%d", pTcp->label, leftLen, retLen);
+        tfree(buffer);
         taosCleanUpTcpFdObj(pFdObj);
         continue;
       }
@@ -188,7 +194,7 @@ static void *taosReadTcpData(void *param) {
   return NULL;
 }
 
-void *taosInitTcpClient(char *ip, short port, char *label, int num, void *fp, void *shandle) {
+void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle) {
   STcpClient *   pTcp;
   pthread_attr_t thattr;
 
@@ -200,17 +206,20 @@ void *taosInitTcpClient(char *ip, short port, char *label, int num, void *fp, vo
 
   if (pthread_mutex_init(&(pTcp->mutex), NULL) < 0) {
     tError("%s failed to init TCP mutex, reason:%s", label, strerror(errno));
+    free(pTcp);
     return NULL;
   }
 
   if (pthread_cond_init(&(pTcp->fdReady), NULL) != 0) {
     tError("%s init TCP condition variable failed, reason:%s\n", label, strerror(errno));
+    free(pTcp);
     return NULL;
   }
 
   pTcp->pollFd = epoll_create(10);  // size does not matter
   if (pTcp->pollFd < 0) {
     tError("%s failed to create TCP epoll", label);
+    free(pTcp);
     return NULL;
   }
 
@@ -220,10 +229,11 @@ void *taosInitTcpClient(char *ip, short port, char *label, int num, void *fp, vo
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pTcp->thread), &thattr, taosReadTcpData, (void *)(pTcp)) != 0) {
     tError("%s failed to create TCP read data thread, reason:%s", label, strerror(errno));
+    free(pTcp);
     return NULL;
   }
 
-  tTrace("%s TCP client is initialized, ip:%s port:%u", label, ip, port);
+  tTrace("%s TCP client is initialized, ip:%s port:%hu", label, ip, port);
 
   return pTcp;
 }
@@ -236,7 +246,7 @@ void taosCloseTcpClientConnection(void *chandle) {
   taosCleanUpTcpFdObj(pFdObj);
 }
 
-void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short port) {
+void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
   STcpClient *       pTcp = (STcpClient *)shandle;
   STcpFd *           pFdObj;
   struct epoll_event event;
@@ -270,13 +280,9 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short 
   pFdObj->port = port;
   pFdObj->pTcp = pTcp;
   pFdObj->thandle = thandle;
+  pFdObj->signature = pFdObj;
 
-// add this new FD into epoll
-#ifndef _NINGSI_VERSION
   event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
-#else
-  event.events = EPOLLIN | EPOLLPRI;
-#endif
   event.data.ptr = pFdObj;
   if (epoll_ctl(pTcp->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
     tError("%s failed to add TCP FD for epoll, error:%s", pTcp->label, strerror(errno));
@@ -299,12 +305,12 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short 
 
   pthread_mutex_unlock(&(pTcp->mutex));
 
-  tTrace("%s TCP connection to ip:%s port:%u is created, numOfFds:%d", pTcp->label, ip, port, pTcp->numOfFds);
+  tTrace("%s TCP connection to ip:%s port:%hu is created, numOfFds:%d", pTcp->label, ip, port, pTcp->numOfFds);
 
   return pFdObj;
 }
 
-int taosSendTcpClientData(uint32_t ip, short port, char *data, int len, void *chandle) {
+int taosSendTcpClientData(uint32_t ip, uint16_t port, char *data, int len, void *chandle) {
   STcpFd *pFdObj = (STcpFd *)chandle;
 
   if (chandle == NULL) return -1;

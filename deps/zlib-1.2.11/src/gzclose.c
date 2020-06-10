@@ -2,7 +2,7 @@
  * Copyright (C) 2004, 2010 Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
-
+#include <stdint.h>
 #include "gzguts.h"
 
 /* gzclose() is in a separate file so that it is linked in only if it is used.

@@ -13,35 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#include <arpa/inet.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <ifaddrs.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <pthread.h>
-#include <stdarg.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
-
+#include "os.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
-
-unsigned int ip2uint(const char *const ip_addr);
-int taosSetNonblocking(int sock, int on);
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
 /*
  * Function to get the public ip address of current machine. If get IP
@@ -127,7 +103,7 @@ int taosGetPublicIp(char *const ip) {
 }
 
 // Function converting an IP address string to an unsigned int.
-unsigned int ip2uint(const char *const ip_addr) {
+uint32_t ip2uint(const char *const ip_addr) {
   char ip_addr_cpy[20];
   char ip[5];
 
@@ -283,20 +259,19 @@ int taosReadn(int fd, char *ptr, int nbytes) {
   return (nbytes - nleft);
 }
 
-int taosOpenUdpSocket(char *ip, short port) {
+int taosOpenUdpSocket(char *ip, uint16_t port) {
   struct sockaddr_in localAddr;
   int                sockFd;
   int                ttl = 128;
   int                reuse, nocheck;
   int                bufSize = 8192000;
 
-  pTrace("open udp socket:%s:%d", ip, port);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
+  pTrace("open udp socket:%s:%hu", ip, port);
 
   memset((char *)&localAddr, 0, sizeof(localAddr));
   localAddr.sin_family = AF_INET;
   localAddr.sin_addr.s_addr = inet_addr(ip);
-  localAddr.sin_port = (uint16_t)htons((uint16_t)port);
+  localAddr.sin_port = (uint16_t)htons(port);
 
   if ((sockFd = (int)socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     pError("failed to open udp socket: %d (%s)", errno, strerror(errno));
@@ -312,9 +287,13 @@ int taosOpenUdpSocket(char *ip, short port) {
 
   nocheck = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_NO_CHECK, (void *)&nocheck, sizeof(nocheck)) < 0) {
-    pError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
-    close(sockFd);
-    return -1;
+    if (!taosSkipSocketCheck()) {
+      pError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
+      close(sockFd);
+      return -1;
+    } else {
+      pPrint("Skipping setsockopt SO_NO_CHECK error: %d (%s)", errno, strerror(errno));
+    }
   }
 
   ttl = 128;
@@ -338,7 +317,7 @@ int taosOpenUdpSocket(char *ip, short port) {
 
   /* bind socket to local address */
   if (bind(sockFd, (struct sockaddr *)&localAddr, sizeof(localAddr)) < 0) {
-    pError("failed to bind udp socket: %d (%s), %s:%d", errno, strerror(errno), ip, port);
+    pError("failed to bind udp socket: %d (%s), %s:%hu", errno, strerror(errno), ip, port);
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -346,13 +325,12 @@ int taosOpenUdpSocket(char *ip, short port) {
   return sockFd;
 }
 
-int taosOpenTcpClientSocket(char *destIp, short destPort, char *clientIp) {
+int taosOpenTcpClientSocket(char *destIp, uint16_t destPort, char *clientIp) {
   int                sockFd = 0;
   struct sockaddr_in serverAddr, clientAddr;
   int                ret;
 
   pTrace("open tcp client socket:%s:%d", destIp, destPort);
-  // if (tsAllowLocalhost) destIp = "0.0.0.0";
 
   sockFd = (int)socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -384,7 +362,7 @@ int taosOpenTcpClientSocket(char *destIp, short destPort, char *clientIp) {
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 
   if (ret != 0) {
-    pError("failed to connect socket, ip:%s, port:%d, reason: %s", destIp, destPort, strerror(errno));
+    pError("failed to connect socket, ip:%s, port:%hu, reason: %s", destIp, destPort, strerror(errno));
     taosCloseSocket(sockFd);
     sockFd = -1;
   }
@@ -442,18 +420,17 @@ int taosKeepTcpAlive(int sockFd) {
   return 0;
 }
 
-int taosOpenTcpServerSocket(char *ip, short port) {
+int taosOpenTcpServerSocket(char *ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   int                sockFd;
   int                reuse;
 
-  pTrace("open tcp server socket:%s:%d", ip, port);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
+  pTrace("open tcp server socket:%s:%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sin_family = AF_INET;
   serverAdd.sin_addr.s_addr = inet_addr(ip);
-  serverAdd.sin_port = (uint16_t)htons((uint16_t)port);
+  serverAdd.sin_port = (uint16_t)htons(port);
 
   if ((sockFd = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
     pError("failed to open TCP socket: %d (%s)", errno, strerror(errno));
@@ -470,7 +447,7 @@ int taosOpenTcpServerSocket(char *ip, short port) {
 
   /* bind socket to server address */
   if (bind(sockFd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
-    pError("bind tcp server socket failed, %s:%d, reason:%d(%s)", ip, port, errno, strerror(errno));
+    pError("bind tcp server socket failed, %s:%hu, reason:%d(%s)", ip, port, errno, strerror(errno));
     close(sockFd);
     return -1;
   }
@@ -478,7 +455,7 @@ int taosOpenTcpServerSocket(char *ip, short port) {
   if (taosKeepTcpAlive(sockFd) < 0) return -1;
 
   if (listen(sockFd, 10) < 0) {
-    pError("listen tcp server socket failed, %s:%d, reason:%d(%s)", ip, port, errno, strerror(errno));
+    pError("listen tcp server socket failed, %s:%hu, reason:%d(%s)", ip, port, errno, strerror(errno));
     return -1;
   }
 
@@ -490,7 +467,6 @@ int taosOpenRawSocket(char *ip) {
   struct sockaddr_in rawAdd;
 
   pTrace("open udp raw socket:%s", ip);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
 
   fd = (int)socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
   if (fd < 0) {
@@ -540,7 +516,7 @@ int taosCopyFds(int sfd, int dfd, int64_t len) {
 
     int retLen = taosReadMsg(sfd, temp, (int)readLen);
     if (readLen != retLen) {
-      pError("read error, readLen:%d retLen:%d len:%ld leftLen:%ld, reason:%s", readLen, retLen, len, leftLen,
+      pError("read error, readLen:%d retLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, retLen, len, leftLen,
              strerror(errno));
       return -1;
     }
@@ -548,7 +524,7 @@ int taosCopyFds(int sfd, int dfd, int64_t len) {
     writeLen = taosWriteMsg(dfd, temp, readLen);
 
     if (readLen != writeLen) {
-      pError("copy error, readLen:%d writeLen:%d len:%ld leftLen:%ld, reason:%s", readLen, writeLen, len, leftLen,
+      pError("copy error, readLen:%d writeLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, writeLen, len, leftLen,
              strerror(errno));
       return -1;
     }

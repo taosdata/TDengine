@@ -13,34 +13,51 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
+#include "ttime.h"
+#include "ttimer.h"
 
 #include "http.h"
 #include "httpCode.h"
 #include "httpHandle.h"
 #include "httpResp.h"
+
+#ifndef EPOLLWAKEUP
+ #define EPOLLWAKEUP (1u << 29)
+#endif
+
+const char* httpContextStateStr(HttpContextState state) {
+  switch (state) {
+    case HTTP_CONTEXT_STATE_READY:
+      return "ready";
+    case HTTP_CONTEXT_STATE_HANDLING:
+      return "handling";
+    case HTTP_CONTEXT_STATE_DROPPING:
+      return "dropping";
+    case HTTP_CONTEXT_STATE_CLOSED:
+      return "closed";
+    default:
+      return "unknown";
+  }
+}
+
+void httpRemoveContextFromEpoll(HttpThread *pThread, HttpContext *pContext) {
+  if (pContext->fd >= 0) {
+    epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
+    taosCloseSocket(pContext->fd);
+    pContext->fd = -1;
+  }
+}
+
+bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState) {
+  return (atomic_val_compare_exchange_32(&pContext->state, srcState, destState) == srcState);
+}
 
 void httpFreeContext(HttpServer *pServer, HttpContext *pContext);
 
@@ -66,18 +83,12 @@ HttpContext *httpCreateContext(HttpServer *pServer) {
 
   pContext->signature = pContext;
   pContext->httpVersion = HTTP_VERSION_10;
-  if (pthread_mutex_init(&(pContext->mutex), NULL) < 0) {
-    httpFreeContext(pServer, pContext);
-    return NULL;
-  }
-
+  pContext->lastAccessTime = taosGetTimestampSec();
+  pContext->state = HTTP_CONTEXT_STATE_READY;
   return pContext;
 }
 
 void httpFreeContext(HttpServer *pServer, HttpContext *pContext) {
-  pthread_mutex_unlock(&pContext->mutex);
-  pthread_mutex_destroy(&pContext->mutex);
-
   if (pContext->fromMemPool) {
     httpTrace("context:%p, is freed from mempool", pContext);
     taosMemPoolFree(pServer->pContextPool, (char *)pContext);
@@ -87,21 +98,33 @@ void httpFreeContext(HttpServer *pServer, HttpContext *pContext) {
   }
 }
 
-void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
-  // for not keep-alive
-  if (pContext->fd >= 0) {
-    epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
-    taosCloseSocket(pContext->fd);
-    pContext->fd = -1;
+void httpCleanUpContextTimer(HttpContext *pContext) {
+  if (pContext->timer != NULL) {
+    taosTmrStopA(&pContext->timer);
+    //httpTrace("context:%p, ip:%s, close timer:%p", pContext, pContext->ipstr, pContext->timer);
+    pContext->timer = NULL;
   }
+}
+
+void httpCleanUpContext(HttpContext *pContext, void *unused) {
+  httpTrace("context:%p, start the clean up operation, sig:%p", pContext, pContext->signature);
+  void *sig = atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
+  if (sig == NULL) {
+    httpTrace("context:%p is freed by another thread.", pContext);
+    return;
+  }
+
+  HttpThread *pThread = pContext->pThread;
+
+  httpCleanUpContextTimer(pContext);
+
+  httpRemoveContextFromEpoll(pThread, pContext);
 
   httpRestoreSession(pContext);
 
   pthread_mutex_lock(&pThread->threadMutex);
 
   pThread->numOfFds--;
-  httpTrace("context:%p, ip:%s, fd is cleaned up, thread:%s, numOfFds:%d", pContext, pContext->ipstr, pThread->label,
-            pThread->numOfFds);
   if (pThread->numOfFds < 0) {
     httpError("context:%p, ip:%s, thread:%s, number of FDs:%d shall never be negative",
               pContext, pContext->ipstr, pThread->label, pThread->numOfFds);
@@ -127,6 +150,9 @@ void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
   pContext->signature = 0;
   pContext->fd = -1;
   pContext->pThread = 0;
+  pContext->prev = 0;
+  pContext->next = 0;
+  pContext->state = HTTP_CONTEXT_STATE_READY;
 
   // avoid double free
   httpFreeJsonBuf(pContext);
@@ -136,67 +162,101 @@ void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
 
 bool httpInitContext(HttpContext *pContext) {
   pContext->accessTimes++;
+  pContext->lastAccessTime = taosGetTimestampSec();
   pContext->httpVersion = HTTP_VERSION_10;
   pContext->httpKeepAlive = HTTP_KEEPALIVE_NO_INPUT;
   pContext->httpChunked = HTTP_UNCUNKED;
-  pContext->compress = JsonUnCompress;
-  pContext->usedByEpoll = 1;
-  pContext->usedByApp = 1;
+  pContext->acceptEncoding = HTTP_COMPRESS_IDENTITY;
+  pContext->contentEncoding = HTTP_COMPRESS_IDENTITY;
   pContext->reqType = HTTP_REQTYPE_OTHERS;
   pContext->encodeMethod = NULL;
+  pContext->timer = NULL;
   memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
 
-  httpTrace("context:%p, fd:%d, ip:%s, accessTimes:%d", pContext, pContext->fd, pContext->ipstr, pContext->accessTimes);
+  HttpParser *pParser = &pContext->parser;
+  memset(pParser, 0, sizeof(HttpParser));
+  pParser->pCur = pParser->pLast = pParser->buffer;
+
+  httpTrace("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, parsed:%d",
+          pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, pContext->parsed);
   return true;
+}
+
+
+void httpCloseContext(HttpThread *pThread, HttpContext *pContext) {
+  taosTmrReset((TAOS_TMR_CALLBACK)httpCleanUpContext, HTTP_DELAY_CLOSE_TIME_MS, pContext, pThread->pServer->timerHandle, &pContext->timer);
+  httpTrace("context:%p, fd:%d, ip:%s, state:%s will be closed after:%d ms, timer:%p",
+          pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), HTTP_DELAY_CLOSE_TIME_MS, pContext->timer);
 }
 
 void httpCloseContextByApp(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
-  if (pContext->signature != pContext || pContext->pThread != pThread) {
-    return;
-  }
+  pContext->parsed = false;
 
-  pthread_mutex_lock(&pContext->mutex);
+  bool keepAlive = true;
+  if (pContext->httpVersion == HTTP_VERSION_10 && pContext->httpKeepAlive != HTTP_KEEPALIVE_ENABLE) {
+    keepAlive = false;
+  } else if (pContext->httpVersion != HTTP_VERSION_10 && pContext->httpKeepAlive == HTTP_KEEPALIVE_DISABLE) {
+    keepAlive = false;
+  } else {}
 
-  httpTrace("context:%p, fd:%d, ip:%s, app use finished, usedByEpoll:%d, usedByApp:%d, httpVersion:1.%d, keepAlive:%d",
-            pContext, pContext->fd, pContext->ipstr, pContext->usedByEpoll, pContext->usedByApp, pContext->httpVersion,
-            pContext->httpKeepAlive);
-
-  if (!pContext->usedByEpoll) {
-    httpCleanUpContext(pThread, pContext);
-  } else {
-    if (pContext->httpVersion == HTTP_VERSION_10 && pContext->httpKeepAlive != HTTP_KEEPALIVE_ENABLE) {
-      httpCleanUpContext(pThread, pContext);
-    } else if (pContext->httpVersion != HTTP_VERSION_10 && pContext->httpKeepAlive == HTTP_KEEPALIVE_DISABLE) {
-      httpCleanUpContext(pThread, pContext);
+  if (keepAlive) {
+    if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_READY)) {
+      httpTrace("context:%p, fd:%d, ip:%s, last state:handling, keepAlive:true, reuse connect",
+              pContext, pContext->fd, pContext->ipstr);
+    } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_CLOSED)) {
+      httpRemoveContextFromEpoll(pThread, pContext);
+      httpTrace("context:%p, fd:%d, ip:%s, last state:dropping, keepAlive:true, close connect",
+              pContext, pContext->fd, pContext->ipstr);
+      httpCloseContext(pThread, pContext);
+    } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_READY)) {
+      httpTrace("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, reuse connect",
+              pContext, pContext->fd, pContext->ipstr);
+    } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_CLOSED, HTTP_CONTEXT_STATE_CLOSED)) {
+      httpRemoveContextFromEpoll(pThread, pContext);
+      httpTrace("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, close connect",
+                pContext, pContext->fd, pContext->ipstr);
+      httpCloseContext(pThread, pContext);
     } else {
-      pContext->usedByApp = 0;
-      pthread_mutex_unlock(&pContext->mutex);
+      httpRemoveContextFromEpoll(pThread, pContext);
+      httpError("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:true, close connect",
+              pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
+      httpCloseContext(pThread, pContext);
     }
+  } else {
+    httpRemoveContextFromEpoll(pThread, pContext);
+    httpTrace("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:false, close connect",
+              pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
+    httpCloseContext(pThread, pContext);
   }
 }
 
 void httpCloseContextByServer(HttpThread *pThread, HttpContext *pContext) {
-  if (pContext->signature != pContext || pContext->pThread != pThread) {
-    return;
-  }
-  pthread_mutex_lock(&pContext->mutex);
-  pContext->usedByEpoll = 0;
-
-  httpTrace("context:%p, fd:%d, ip:%s, epoll use finished, usedByEpoll:%d, usedByApp:%d",
-            pContext, pContext->fd, pContext->ipstr, pContext->usedByEpoll, pContext->usedByApp);
-
-  if (pContext->fd >= 0) {
-    epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
-    taosCloseSocket(pContext->fd);
-    pContext->fd = -1;
-  }
-
-  if (!pContext->usedByApp) {
-    httpCleanUpContext(pThread, pContext);
+  httpRemoveContextFromEpoll(pThread, pContext);
+  pContext->parsed = false;
+  
+  if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_DROPPING)) {
+    httpTrace("context:%p, fd:%d, ip:%s, epoll finished, still used by app", pContext, pContext->fd, pContext->ipstr);
+  } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_DROPPING)) {
+    httpTrace("context:%p, fd:%d, ip:%s, epoll already finished, wait app finished", pContext, pContext->fd, pContext->ipstr);
+  } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_CLOSED)) {
+    httpTrace("context:%p, fd:%d, ip:%s, epoll finished, close context", pContext, pContext->fd, pContext->ipstr);
+    httpCloseContext(pThread, pContext);
+  } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_CLOSED, HTTP_CONTEXT_STATE_CLOSED)) {
+    httpTrace("context:%p, fd:%d, ip:%s, epoll finished, will be closed soon", pContext, pContext->fd, pContext->ipstr);
+    httpCloseContext(pThread, pContext);
   } else {
-    pthread_mutex_unlock(&pContext->mutex);
+    httpError("context:%p, fd:%d, ip:%s, unknown state:%d", pContext, pContext->fd, pContext->ipstr, pContext->state);
+    httpCloseContext(pThread, pContext);
   }
+}
+
+void httpCloseContextByServerForExpired(void *param, void *tmrId) {
+  HttpContext *pContext = (HttpContext *)param;
+  httpRemoveContextFromEpoll(pContext->pThread, pContext);
+  httpError("context:%p, fd:%d, ip:%s, read http body error, time expired, timer:%p", pContext, pContext->fd, pContext->ipstr, tmrId);
+  httpSendErrorResp(pContext, HTTP_PARSE_BODY_ERROR);
+  httpCloseContextByServer(pContext->pThread, pContext);
 }
 
 void httpCleanUpConnect(HttpServer *pServer) {
@@ -212,12 +272,9 @@ void httpCleanUpConnect(HttpServer *pServer) {
     pThread = pServer->pThreads + i;
     taosCloseSocket(pThread->pollFd);
 
-    pthread_mutex_lock(&pThread->threadMutex);
     while (pThread->pHead) {
-      httpCleanUpContext(pThread, pThread->pHead);
-      pThread->pHead = pThread->pHead;
+      httpCleanUpContext(pThread->pHead, 0);
     }
-    pthread_mutex_unlock(&pThread->threadMutex);
 
     pthread_cancel(pThread->thread);
     pthread_join(pThread->thread, NULL);
@@ -230,7 +287,8 @@ void httpCleanUpConnect(HttpServer *pServer) {
 }
 
 // read all the data, then just discard it
-void httpReadDirtyData(int fd) {
+void httpReadDirtyData(HttpContext *pContext) {
+  int fd = pContext->fd;
   char data[1024] = {0};
   int  len = (int)taosReadSocket(fd, data, 1024);
   while (len >= sizeof(data)) {
@@ -239,30 +297,18 @@ void httpReadDirtyData(int fd) {
 }
 
 bool httpReadDataImp(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->pThread->parser;
+  HttpParser *pParser = &pContext->parser;
 
-  int blocktimes = 0;
   while (pParser->bufsize <= (HTTP_BUFFER_SIZE - HTTP_STEP_SIZE)) {
     int nread = (int)taosReadSocket(pContext->fd, pParser->buffer + pParser->bufsize, HTTP_STEP_SIZE);
     if (nread >= 0 && nread < HTTP_STEP_SIZE) {
       pParser->bufsize += nread;
       break;
     } else if (nread < 0) {
-      if (errno == EINTR) {
-        if (blocktimes++ > 1000) {
-          httpError("context:%p, fd:%d, ip:%s, read from socket error:%d, EINTER too many times",
-                    pContext, pContext->fd, pContext->ipstr, errno);
-          break;
-        }
-        continue;
-      } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        taosMsleep(1);
-        if (blocktimes++ > 1000) {
-          httpError("context:%p, fd:%d, ip:%s, read from socket error:%d, EAGAIN too many times",
-                    pContext, pContext->fd, pContext->ipstr, errno);
-          break;
-        }
-        continue;
+      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+        httpTrace("context:%p, fd:%d, ip:%s, read from socket error:%d, wait another event",
+                  pContext, pContext->fd, pContext->ipstr, errno);
+        break;
       } else {
         httpError("context:%p, fd:%d, ip:%s, read from socket error:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, errno);
@@ -273,32 +319,90 @@ bool httpReadDataImp(HttpContext *pContext) {
     }
 
     if (pParser->bufsize >= (HTTP_BUFFER_SIZE - HTTP_STEP_SIZE)) {
-      httpReadDirtyData(pContext->fd);
-      httpError("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, request big than:%d",
-                pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds,
-                HTTP_BUFFER_SIZE);
+      httpReadDirtyData(pContext);
+      httpError("context:%p, fd:%d, ip:%s, thread:%s, request big than:%d",
+                pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, HTTP_BUFFER_SIZE);
+      httpRemoveContextFromEpoll(pContext->pThread, pContext);
       httpSendErrorResp(pContext, HTTP_REQUSET_TOO_BIG);
       return false;
     }
   }
 
   pParser->buffer[pParser->bufsize] = 0;
-  httpDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, read size:%d, content:\n%s",
-           pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds,
-           pParser->bufsize, pParser->buffer);
 
   return true;
 }
 
-bool httpReadData(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->pThread->parser;
-  memset(pParser, 0, sizeof(HttpParser));
-  pParser->pCur = pParser->pLast = pParser->buffer = pContext->pThread->buffer;
-  return httpReadDataImp(pContext);
+bool httpDecompressData(HttpContext *pContext) {
+  if (pContext->contentEncoding != HTTP_COMPRESS_GZIP) {
+    httpDump("context:%p, fd:%d, ip:%s, content:%s", pContext, pContext->fd, pContext->ipstr, pContext->parser.data.pos);
+    return true;
+  }
+
+  char   *decompressBuf = calloc(HTTP_DECOMPRESS_BUF_SIZE, 1);
+  int32_t decompressBufLen = HTTP_DECOMPRESS_BUF_SIZE;
+  size_t  bufsize = sizeof(pContext->parser.buffer) - (pContext->parser.data.pos - pContext->parser.buffer) - 1;
+  if (decompressBufLen > (int)bufsize) {
+    decompressBufLen = (int)bufsize;
+  }
+
+  int ret = httpGzipDeCompress(pContext->parser.data.pos, pContext->parser.data.len, decompressBuf, &decompressBufLen);
+
+  if (ret == 0) {
+    memcpy(pContext->parser.data.pos, decompressBuf, decompressBufLen);
+    pContext->parser.data.pos[decompressBufLen] = 0;
+    httpDump("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s",
+              pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, decompressBufLen,  decompressBuf);
+    pContext->parser.data.len = decompressBufLen;
+  } else {
+    httpError("context:%p, fd:%d, ip:%s, failed to decompress data, rawSize:%d, error:%d",
+              pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, ret);
+  }
+
+  free(decompressBuf);
+  return ret == 0;
+}
+
+bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
+  if (!pContext->parsed) {
+    httpInitContext(pContext);
+  }
+
+  if (!httpReadDataImp(pContext)) {
+    httpCloseContextByServer(pThread, pContext);
+    return false;
+  }
+
+  if (!httpParseRequest(pContext)) {
+    httpCloseContextByServer(pThread, pContext);
+    return false;
+  }
+
+  int ret = httpCheckReadCompleted(pContext);
+  if (ret == HTTP_CHECK_BODY_CONTINUE) {
+    taosTmrReset(httpCloseContextByServerForExpired, HTTP_EXPIRED_TIME, pContext, pThread->pServer->timerHandle, &pContext->timer);
+    //httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times, timer:%p", pContext, pContext->fd, pContext->ipstr, pContext->timer);
+    return false;
+  } else if (ret == HTTP_CHECK_BODY_SUCCESS){
+    httpCleanUpContextTimer(pContext);
+    httpTrace("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->parser.bufsize, pContext->parser.data.len);
+    if (httpDecompressData(pContext)) {
+      return true;
+    } else {
+      httpCloseContextByServer(pThread, pContext);
+      return false;
+    }
+  } else {
+    httpCleanUpContextTimer(pContext);
+    httpError("context:%p, fd:%d, ip:%s, failed to read http body, close connect", pContext, pContext->fd, pContext->ipstr);
+    httpCloseContextByServer(pThread, pContext);
+    return false;
+  }
 }
 
 void httpProcessHttpData(void *param) {
-  HttpThread * pThread = (HttpThread *)param;
+  HttpThread  *pThread = (HttpThread *)param;
   HttpContext *pContext;
   int          fdNum;
 
@@ -326,58 +430,56 @@ void httpProcessHttpData(void *param) {
       }
 
       if (events[i].events & EPOLLPRI) {
-        httpTrace("context:%p, fd:%d, ip:%s, EPOLLPRI events occured, close connect", pContext, pContext->fd,
-                  pContext->ipstr);
+        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLPRI events occured, accessed:%d, close connect",
+                  pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
+        httpRemoveContextFromEpoll(pThread, pContext);
         httpCloseContextByServer(pThread, pContext);
         continue;
       }
 
       if (events[i].events & EPOLLRDHUP) {
-        httpTrace("context:%p, fd:%d, ip:%s, EPOLLRDHUP events occured, close connect",
-                  pContext, pContext->fd, pContext->ipstr);
+        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLRDHUP events occured, accessed:%d, close connect",
+                  pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
+        httpRemoveContextFromEpoll(pThread, pContext);
         httpCloseContextByServer(pThread, pContext);
         continue;
       }
 
       if (events[i].events & EPOLLERR) {
-        httpTrace("context:%p, fd:%d, ip:%s, EPOLLERR events occured, close connect", pContext, pContext->fd,
-                  pContext->ipstr);
+        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLERR events occured, accessed:%d, close connect",
+                  pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
+        httpRemoveContextFromEpoll(pThread, pContext);
         httpCloseContextByServer(pThread, pContext);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
-        httpTrace("context:%p, fd:%d, ip:%s, EPOLLHUP events occured, close connect", pContext, pContext->fd,
-                  pContext->ipstr);
+        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLHUP events occured, accessed:%d, close connect",
+                  pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
+        httpRemoveContextFromEpoll(pThread, pContext);
         httpCloseContextByServer(pThread, pContext);
         continue;
       }
 
-      if (pContext->usedByApp) {
-        httpTrace("context:%p, fd:%d, ip:%s, still used by app, accessTimes:%d, try again",
-                  pContext, pContext->fd, pContext->ipstr, pContext->accessTimes);
-        continue;
-      }
-
-      if (!httpReadData(pContext)) {
-        httpTrace("context:%p, fd:%d, ip:%s, read data error", pContext, pContext->fd, pContext->ipstr);
-        httpCloseContextByServer(pThread, pContext);
+      if (!httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_READY)) {
+        httpTrace("context:%p, fd:%d, ip:%s, state:%s, not in ready state, ignore read events",
+                pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state));
         continue;
       }
 
       if (!pContext->pThread->pServer->online) {
+        httpTrace("context:%p, fd:%d, ip:%s, state:%s, server is not online, accessed:%d, close connect",
+                  pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
+        httpRemoveContextFromEpoll(pThread, pContext);
+        httpReadDirtyData(pContext);
         httpSendErrorResp(pContext, HTTP_SERVER_OFFLINE);
-        httpTrace("context:%p, fd:%d, ip:%s, server is not online", pContext, pContext->fd, pContext->ipstr);
         httpCloseContextByServer(pThread, pContext);
         continue;
-      }
-
-      __sync_fetch_and_add(&pThread->pServer->requestNum, 1);
-
-      if (!(*(pThread->processData))(pContext)) {
-        httpError("context:%p, fd:%d, ip:%s, app force closed", pContext, pContext->fd, pContext->ipstr,
-                  pContext->accessTimes);
-        httpCloseContextByServer(pThread, pContext);
+      } else {
+        if (httpReadData(pThread, pContext)) {
+          (*(pThread->processData))(pContext);
+          atomic_fetch_add_32(&pThread->pServer->requestNum, 1);
+        }
       }
     }
   }
@@ -391,6 +493,7 @@ void httpAcceptHttpConnection(void *arg) {
   HttpThread *       pThread;
   HttpServer *       pServer;
   HttpContext *      pContext;
+  int                totalFds;
 
   pServer = (HttpServer *)arg;
 
@@ -419,6 +522,18 @@ void httpAcceptHttpConnection(void *arg) {
       continue;
     }
 
+    totalFds = 1;
+    for (int i = 0; i < pServer->numOfThreads; ++i) {
+      totalFds += pServer->pThreads[i].numOfFds;
+    }
+
+    if (totalFds > tsHttpCacheSessions * 100) {
+      httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*100, refuse connection",
+              connFd, inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), totalFds, tsHttpCacheSessions);
+      taosCloseSocket(connFd);
+      continue;
+    }
+
     taosKeepTcpAlive(connFd);
     taosSetNonblocking(connFd, 1);
 
@@ -433,20 +548,16 @@ void httpAcceptHttpConnection(void *arg) {
       continue;
     }
 
-    httpTrace("context:%p, fd:%d, ip:%s:%u, thread:%s, accept a new connection", pContext, connFd,
-              inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), pThread->label);
+    httpTrace("context:%p, fd:%d, ip:%s:%u, thread:%s, numOfFds:%d, totalFds:%d, accept a new connection",
+            pContext, connFd, inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), pThread->label,
+            pThread->numOfFds, totalFds);
 
     pContext->fd = connFd;
     sprintf(pContext->ipstr, "%s:%d", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
     pContext->pThread = pThread;
 
     struct epoll_event event;
-// add this new FD into epoll
-#ifndef _NINGSI_VERSION
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-#else
-    event.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-#endif
 
     event.data.ptr = pContext;
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
@@ -472,10 +583,6 @@ void httpAcceptHttpConnection(void *arg) {
 
     pthread_mutex_unlock(&(pThread->threadMutex));
 
-    httpTrace("context:%p, fd:%d, ip:%s:%u, thread:%s, numOfFds:%d, begin read request",
-              pContext, connFd, inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), pThread->label,
-              pThread->numOfFds);
-
     // pick up next thread for next connection
     threadId++;
     threadId = threadId % pServer->numOfThreads;
@@ -494,6 +601,8 @@ bool httpInitConnect(HttpServer *pServer) {
   }
   memset(pServer->pThreads, 0, sizeof(HttpThread) * (size_t)pServer->numOfThreads);
 
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   pThread = pServer->pThreads;
   for (i = 0; i < pServer->numOfThreads; ++i) {
     sprintf(pThread->label, "%s%d", pServer->label, i);
@@ -507,7 +616,7 @@ bool httpInitConnect(HttpServer *pServer) {
     }
 
     if (pthread_cond_init(&(pThread->fdReady), NULL) != 0) {
-      httpError("http thread:%s, init HTTP condition variable failed, reason:%s\n", pThread->label, strerror(errno));
+      httpError("http thread:%s, init HTTP condition variable failed, reason:%s", pThread->label, strerror(errno));
       return false;
     }
 
@@ -517,8 +626,6 @@ bool httpInitConnect(HttpServer *pServer) {
       return false;
     }
 
-    pthread_attr_init(&thattr);
-    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
     if (pthread_create(&(pThread->thread), &thattr, (void *)httpProcessHttpData, (void *)(pThread)) != 0) {
       httpError("http thread:%s, failed to create HTTP process data thread, reason:%s",
                 pThread->label, strerror(errno));
@@ -529,8 +636,6 @@ bool httpInitConnect(HttpServer *pServer) {
     pThread++;
   }
 
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pServer->thread), &thattr, (void *)httpAcceptHttpConnection, (void *)(pServer)) != 0) {
     httpError("http server:%s, failed to create Http accept thread, reason:%s", pServer->label, strerror(errno));
     return false;

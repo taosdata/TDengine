@@ -134,7 +134,7 @@ void taosDeleteStrHashNode(void *handle, char *string, void *pDeleteNode) {
     pNode = pNode->next;
   }
 
-  if (find && pNode) {
+  if (find) {
     if (pNode->prev) {
       pNode->prev->next = pNode->next;
     } else {

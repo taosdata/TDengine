@@ -18,8 +18,8 @@
 
 void *taosOpenIpHash(int maxSessions);
 void taosCloseIpHash(void *handle);
-void *taosAddIpHash(void *handle, void *pData, uint32_t ip, short port);
-void taosDeleteIpHash(void *handle, uint32_t ip, short port);
-void *taosGetIpHash(void *handle, uint32_t ip, short port);
+void *taosAddIpHash(void *handle, void *pData, uint32_t ip, uint16_t port);
+void taosDeleteIpHash(void *handle, uint32_t ip, uint16_t port);
+void *taosGetIpHash(void *handle, uint32_t ip, uint16_t port);
 
 #endif

@@ -48,7 +48,7 @@
  */
 
 /* @(#) $Id$ */
-
+#include <stdint.h>
 #include "deflate.h"
 
 const char deflate_copyright[] =
@@ -430,7 +430,7 @@ int ZEXPORT deflateSetDictionary (strm, dictionary, dictLength)
         fill_window(s);
     }
     s->strstart += s->lookahead;
-    s->block_start = (long)s->strstart;
+    s->block_start = (int64_t)s->strstart;
     s->insert = s->lookahead;
     s->lookahead = 0;
     s->match_length = s->prev_length = MIN_MATCH-1;
@@ -1512,7 +1512,7 @@ local void fill_window(s)
             zmemcpy(s->window, s->window+wsize, (unsigned)wsize - more);
             s->match_start -= wsize;
             s->strstart    -= wsize; /* we now have strstart >= MAX_DIST */
-            s->block_start -= (long) wsize;
+            s->block_start -= (int64_t) wsize;
             slide_hash(s);
             more += wsize;
         }
@@ -1606,7 +1606,7 @@ local void fill_window(s)
    _tr_flush_block(s, (s->block_start >= 0L ? \
                    (charf *)&s->window[(unsigned)s->block_start] : \
                    (charf *)Z_NULL), \
-                (ulg)((long)s->strstart - s->block_start), \
+                (ulg)((int64_t)s->strstart - s->block_start), \
                 (last)); \
    s->block_start = s->strstart; \
    flush_pending(s->strm); \
@@ -1766,12 +1766,12 @@ local block_state deflate_stored(s, flush)
 
     /* If flushing and all input has been consumed, then done. */
     if (flush != Z_NO_FLUSH && flush != Z_FINISH &&
-        s->strm->avail_in == 0 && (long)s->strstart == s->block_start)
+        s->strm->avail_in == 0 && (int64_t)s->strstart == s->block_start)
         return block_done;
 
     /* Fill the window with any remaining input. */
     have = s->window_size - s->strstart - 1;
-    if (s->strm->avail_in > have && s->block_start >= (long)s->w_size) {
+    if (s->strm->avail_in > have && s->block_start >= (int64_t)s->w_size) {
         /* Slide the window down. */
         s->block_start -= s->w_size;
         s->strstart -= s->w_size;

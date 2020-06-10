@@ -13,27 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-
-#include <assert.h>
-#include <errno.h>
-#include <stdarg.h>
-#include <unistd.h>
-
+#include "os.h"
+#include "taosmsg.h"
 #include "tglobalcfg.h"
-#include "tsql.h"
+#include "tlog.h"
+#include "tscSQLParser.h"
 #include "tstoken.h"
 #include "ttime.h"
 #include "tutil.h"
 
 int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
   void *pParser = ParseAlloc(malloc);
-  pSQLInfo->validSql = true;
+  pSQLInfo->valid = true;
 
   int32_t i = 0;
   while (1) {
@@ -57,14 +48,15 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
         Parse(pParser, 0, t0, pSQLInfo);
         goto abort_parse;
       }
+      case TK_QUESTION:
       case TK_ILLEGAL: {
-        sprintf(pSQLInfo->pzErrMsg, "unrecognized token: \"%s\"", t0.z);
-        pSQLInfo->validSql = false;
+        snprintf(pSQLInfo->pzErrMsg, tListLen(pSQLInfo->pzErrMsg), "unrecognized token: \"%s\"", t0.z);
+        pSQLInfo->valid = false;
         goto abort_parse;
       }
       default:
         Parse(pParser, t0.type, t0, pSQLInfo);
-        if (pSQLInfo->validSql == false) {
+        if (pSQLInfo->valid == false) {
           goto abort_parse;
         }
     }
@@ -119,33 +111,29 @@ void tSQLExprListDestroy(tSQLExprList *pList) {
   free(pList);
 }
 
-tSQLExpr *tSQLExprIdValueCreate(SSQLToken *pToken, int32_t optrType) {
+tSQLExpr *tSQLExprIdValueCreate(SSQLToken *pAliasToken, int32_t optrType) {
   tSQLExpr *nodePtr = calloc(1, sizeof(tSQLExpr));
 
   if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
-    toTSDBType(pToken->type);
+    toTSDBType(pAliasToken->type);
 
-    tVariantCreate(&nodePtr->val, pToken);
+    tVariantCreate(&nodePtr->val, pAliasToken);
     nodePtr->nSQLOptr = optrType;
   } else if (optrType == TK_NOW) {
     // default use microsecond
     nodePtr->val.i64Key = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
     nodePtr->val.nType = TSDB_DATA_TYPE_BIGINT;
-    nodePtr->nSQLOptr = TK_TIMESTAMP;
-    // TK_TIMESTAMP used to denote the time value is in microsecond
+    nodePtr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = getTimestampInUsFromStr(pToken->z, pToken->n, &nodePtr->val.i64Key);
+    int32_t ret = getTimestampInUsFromStr(pAliasToken->z, pAliasToken->n, &nodePtr->val.i64Key);
     UNUSED(ret);
 
     nodePtr->val.nType = TSDB_DATA_TYPE_BIGINT;
     nodePtr->nSQLOptr = TK_TIMESTAMP;
-  } else {  // must be field id if not numbers
-    if (pToken != NULL) {
-      assert(optrType == TK_ID);
-      /* it must be the column name (tk_id) */
-      nodePtr->colInfo = *pToken;
-    } else {
-      assert(optrType == TK_ALL);
+  } else {  // it must be the column name (tk_id) if it is not the number
+    assert(optrType == TK_ID || optrType == TK_ALL);
+    if (pAliasToken != NULL) {
+      nodePtr->colInfo = *pAliasToken;
     }
 
     nodePtr->nSQLOptr = optrType;
@@ -275,11 +263,10 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
-void tSQLExprDestroy(tSQLExpr *pExpr) {
-  if (pExpr == NULL) return;
-
-  tSQLExprDestroy(pExpr->pLeft);
-  tSQLExprDestroy(pExpr->pRight);
+void tSQLExprNodeDestroy(tSQLExpr *pExpr) {
+  if (pExpr == NULL) {
+    return;
+  }
 
   if (pExpr->nSQLOptr == TK_STRING) {
     tVariantDestroy(&pExpr->val);
@@ -288,6 +275,17 @@ void tSQLExprDestroy(tSQLExpr *pExpr) {
   tSQLExprListDestroy(pExpr->pParam);
 
   free(pExpr);
+}
+
+void tSQLExprDestroy(tSQLExpr *pExpr) {
+  if (pExpr == NULL) {
+    return;
+  }
+
+  tSQLExprDestroy(pExpr->pLeft);
+  tSQLExprDestroy(pExpr->pRight);
+
+  tSQLExprNodeDestroy(pExpr);
 }
 
 static void *tVariantListExpand(tVariantList *pList) {
@@ -369,7 +367,7 @@ void tVariantListDestroy(tVariantList *pList) {
   free(pList);
 }
 
-tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToken, uint8_t sortOrder) {
+tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pToken, uint8_t sortOrder) {
   if (pList == NULL) {
     pList = calloc(1, sizeof(tVariantList));
   }
@@ -378,9 +376,9 @@ tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToke
     return pList;
   }
 
-  if (pAliasToken) {
+  if (pToken) {
     tVariant t = {0};
-    tVariantCreate(&t, pAliasToken);
+    tVariantCreate(&t, pToken);
 
     tVariantListItem *pItem = &pList->a[pList->nExpr++];
     memcpy(pItem, &t, sizeof(tVariant));
@@ -420,6 +418,46 @@ void setDBName(SSQLToken *pCpxName, SSQLToken *pDB) {
   pCpxName->type = pDB->type;
   pCpxName->z = pDB->z;
   pCpxName->n = pDB->n;
+}
+
+int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t *result) {
+  *result = val;
+
+  switch (unit) {
+    case 's':
+      (*result) *= MILLISECOND_PER_SECOND;
+      break;
+    case 'm':
+      (*result) *= MILLISECOND_PER_MINUTE;
+      break;
+    case 'h':
+      (*result) *= MILLISECOND_PER_HOUR;
+      break;
+    case 'd':
+      (*result) *= MILLISECOND_PER_DAY;
+      break;
+    case 'w':
+      (*result) *= MILLISECOND_PER_WEEK;
+      break;
+    case 'n':
+      (*result) *= MILLISECOND_PER_MONTH;
+      break;
+    case 'y':
+      (*result) *= MILLISECOND_PER_YEAR;
+      break;
+    case 'a':
+      break;
+    case 'u':
+      return 0;
+    default: {
+      ;
+      return -1;
+    }
+  }
+
+  /* get the value in microsecond */
+  (*result) *= 1000L;
+  return 0;
 }
 
 void tSQLSetColumnInfo(TAOS_FIELD *pField, SSQLToken *pName, TAOS_FIELD *pType) {
@@ -464,28 +502,38 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, SSQLToken *pFrom, tSQLExpr *pWhere,
+SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
                              tVariantList *pGroupby, tVariantList *pSortOrder, SSQLToken *pInterval,
                              SSQLToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
-  assert(pSelection != NULL && pFrom != NULL && pInterval != NULL && pLimit != NULL && pGLimit != NULL);
+  assert(pSelection != NULL);
 
   SQuerySQL *pQuery = calloc(1, sizeof(SQuerySQL));
   pQuery->selectToken = *pSelectToken;
   pQuery->selectToken.n = strlen(pQuery->selectToken.z);  // all later sql string are belonged to the stream sql
 
   pQuery->pSelection = pSelection;
-  pQuery->from = *pFrom;
+  pQuery->from = pFrom;
   pQuery->pGroupby = pGroupby;
   pQuery->pSortOrder = pSortOrder;
   pQuery->pWhere = pWhere;
 
-  pQuery->limit = *pLimit;
-  pQuery->glimit = *pGLimit;
+  if (pLimit != NULL) {
+    pQuery->limit = *pLimit;
+  }
 
-  pQuery->interval = *pInterval;
-  pQuery->sliding = *pSliding;
+  if (pGLimit != NULL) {
+    pQuery->slimit = *pGLimit;
+  }
+
+  if (pInterval != NULL) {
+    pQuery->interval = *pInterval;
+  }
+
+  if (pSliding != NULL) {
+    pQuery->sliding = *pSliding;
+  }
+
   pQuery->fillType = pFill;
-
   return pQuery;
 }
 
@@ -509,55 +557,64 @@ tSQLExprListList *tSQLListListAppend(tSQLExprListList *pList, tSQLExprList *pExp
   return pList;
 }
 
-void tSetInsertSQLElems(SSqlInfo *pInfo, SSQLToken *pName, tSQLExprListList *pList) {
-  SInsertSQL *pInsert = calloc(1, sizeof(SInsertSQL));
-
-  pInsert->name = *pName;
-  pInsert->pValue = pList;
-
-  pInfo->pInsertInfo = pInsert;
-  pInfo->sqlType = TSQL_INSERT;
+void doDestroyQuerySql(SQuerySQL *pQuerySql) {
+  if (pQuerySql == NULL) {
+    return;
+  }
+  
+  tSQLExprListDestroy(pQuerySql->pSelection);
+  
+  pQuerySql->pSelection = NULL;
+  
+  tSQLExprDestroy(pQuerySql->pWhere);
+  pQuerySql->pWhere = NULL;
+  
+  tVariantListDestroy(pQuerySql->pSortOrder);
+  pQuerySql->pSortOrder = NULL;
+  
+  tVariantListDestroy(pQuerySql->pGroupby);
+  pQuerySql->pGroupby = NULL;
+  
+  tVariantListDestroy(pQuerySql->from);
+  pQuerySql->from = NULL;
+  
+  tVariantListDestroy(pQuerySql->fillType);
+  
+  free(pQuerySql);
 }
 
-void destroyQuerySql(SQuerySQL *pSql) {
-  if (pSql == NULL) return;
+void destroyAllSelectClause(SSubclauseInfo *pClause) {
+  if (pClause == NULL || pClause->numOfClause == 0) {
+    return;
+  }
 
-  tSQLExprListDestroy(pSql->pSelection);
-  pSql->pSelection = NULL;
-
-  tSQLExprDestroy(pSql->pWhere);
-  pSql->pWhere = NULL;
-
-  tVariantListDestroy(pSql->pSortOrder);
-  pSql->pSortOrder = NULL;
-
-  tVariantListDestroy(pSql->pGroupby);
-  pSql->pGroupby = NULL;
-
-  tVariantListDestroy(pSql->fillType);
-
-  free(pSql);
+  for(int32_t i = 0; i < pClause->numOfClause; ++i) {
+    SQuerySQL *pQuerySql = pClause->pClause[i];
+    doDestroyQuerySql(pQuerySql);
+  }
+  
+  tfree(pClause->pClause);
 }
 
-SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pMetricName,
+SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pStableName,
                                     tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type) {
   SCreateTableSQL *pCreate = calloc(1, sizeof(SCreateTableSQL));
 
   switch (type) {
-    case TSQL_CREATE_NORMAL_METER: {
+    case TSQL_CREATE_TABLE: {
       pCreate->colInfo.pColumns = pCols;
       assert(pTagVals == NULL && pTags == NULL);
       break;
     }
-    case TSQL_CREATE_NORMAL_METRIC: {
+    case TSQL_CREATE_STABLE: {
       pCreate->colInfo.pColumns = pCols;
       pCreate->colInfo.pTagColumns = pTags;
       assert(pTagVals == NULL && pTags != NULL && pCols != NULL);
       break;
     }
-    case TSQL_CREATE_METER_FROM_METRIC: {
+    case TSQL_CREATE_TABLE_FROM_STABLE: {
       pCreate->usingInfo.pTagVals = pTagVals;
-      pCreate->usingInfo.metricName = *pMetricName;
+      pCreate->usingInfo.stableName = *pStableName;
       break;
     }
     case TSQL_CREATE_STREAM: {
@@ -568,19 +625,24 @@ SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLTo
       assert(false);
   }
 
+  pCreate->type = type;
   return pCreate;
 }
 
 SAlterTableSQL *tAlterTableSQLElems(SSQLToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type) {
   SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
+  
   pAlterTable->name = *pMeterName;
+  pAlterTable->type = type;
 
-  if (type == ALTER_TABLE_ADD_COLUMN || type == ALTER_TABLE_TAGS_ADD) {
+  if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
     pAlterTable->pAddColumns = pCols;
     assert(pVals == NULL);
   } else {
-    /* ALTER_TABLE_TAGS_CHG, ALTER_TABLE_TAGS_SET, ALTER_TABLE_TAGS_DROP,
-     * ALTER_TABLE_DROP_COLUMN */
+    /*
+     * ALTER_TABLE_TAGS_CHG, ALTER_TABLE_TAGS_SET, ALTER_TABLE_TAGS_DROP,
+     * ALTER_TABLE_DROP_COLUMN
+     */
     pAlterTable->varList = pVals;
     assert(pCols == NULL);
   }
@@ -591,27 +653,28 @@ SAlterTableSQL *tAlterTableSQLElems(SSQLToken *pMeterName, tFieldList *pCols, tV
 void SQLInfoDestroy(SSqlInfo *pInfo) {
   if (pInfo == NULL) return;
 
-  if (pInfo->sqlType == TSQL_QUERY_METER) {
-    destroyQuerySql(pInfo->pQueryInfo);
-  } else if (pInfo->sqlType >= TSQL_CREATE_NORMAL_METER && pInfo->sqlType <= TSQL_CREATE_STREAM) {
+  if (pInfo->type == TSDB_SQL_SELECT) {
+    destroyAllSelectClause(&pInfo->subclauseInfo);
+  } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     SCreateTableSQL *pCreateTableInfo = pInfo->pCreateTableInfo;
-    destroyQuerySql(pCreateTableInfo->pSelect);
+    doDestroyQuerySql(pCreateTableInfo->pSelect);
 
     tFieldListDestroy(pCreateTableInfo->colInfo.pColumns);
     tFieldListDestroy(pCreateTableInfo->colInfo.pTagColumns);
 
     tVariantListDestroy(pCreateTableInfo->usingInfo.pTagVals);
     tfree(pInfo->pCreateTableInfo);
-  } else if (pInfo->sqlType >= ALTER_TABLE_TAGS_ADD && pInfo->sqlType <= ALTER_TABLE_DROP_COLUMN) {
+  } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     tVariantListDestroy(pInfo->pAlterInfo->varList);
     tFieldListDestroy(pInfo->pAlterInfo->pAddColumns);
+    
     tfree(pInfo->pAlterInfo);
   } else {
     if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
       free(pInfo->pDCLInfo->a);
     }
 
-    if (pInfo->sqlType == CREATE_DATABASE) {
+    if (pInfo->type == TSDB_SQL_CREATE_DB) {
       tVariantListDestroy(pInfo->pDCLInfo->dbOpt.keep);
     }
 
@@ -619,13 +682,52 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
   }
 }
 
-void setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SSQLToken *pMeterName, int32_t type) {
-  pInfo->sqlType = type;
-  pInfo->pCreateTableInfo = pSqlExprInfo;
+SSubclauseInfo* setSubclause(SSubclauseInfo* pSubclause, void *pSqlExprInfo) {
+  if (pSubclause == NULL) {
+    pSubclause = calloc(1, sizeof(SSubclauseInfo));
+  }
+  
+  int32_t newSize = pSubclause->numOfClause + 1;
+  char* tmp = realloc(pSubclause->pClause, newSize * POINTER_BYTES);
+  if (tmp == NULL) {
+    return pSubclause;
+  }
+  
+  pSubclause->pClause = (SQuerySQL**) tmp;
+  
+  pSubclause->pClause[newSize - 1] = pSqlExprInfo;
+  pSubclause->numOfClause++;
+  
+  return pSubclause;
+}
 
+SSqlInfo* setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SSQLToken *pMeterName, int32_t type) {
+  pInfo->type = type;
+  
+  if (type == TSDB_SQL_SELECT) {
+    pInfo->subclauseInfo = *(SSubclauseInfo*) pSqlExprInfo;
+    free(pSqlExprInfo);
+  } else {
+    pInfo->pCreateTableInfo = pSqlExprInfo;
+  }
+  
   if (pMeterName != NULL) {
     pInfo->pCreateTableInfo->name = *pMeterName;
   }
+  
+  return pInfo;
+}
+
+SSubclauseInfo* appendSelectClause(SSubclauseInfo *pQueryInfo, void *pSubclause) {
+  char* tmp = realloc(pQueryInfo->pClause, (pQueryInfo->numOfClause + 1) * POINTER_BYTES);
+  if (tmp == NULL) {  // out of memory
+    return pQueryInfo;
+  }
+  
+  pQueryInfo->pClause = (SQuerySQL**) tmp;
+  pQueryInfo->pClause[pQueryInfo->numOfClause++] = pSubclause;
+  
+  return pQueryInfo;
 }
 
 void setCreatedMeterName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists) {
@@ -655,23 +757,57 @@ tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SSQLToken *pToken) {
 }
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
-  pInfo->sqlType = type;
+  pInfo->type = type;
 
   if (nParam == 0) return;
-  if (pInfo->pDCLInfo == NULL) pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pDCLInfo == NULL) pInfo->pDCLInfo = (tDCLSQL *)calloc(1, sizeof(tDCLSQL));
 
   va_list va;
   va_start(va, nParam);
 
   while (nParam-- > 0) {
     SSQLToken *pToken = va_arg(va, SSQLToken *);
-    tTokenListAppend(pInfo->pDCLInfo, pToken);
+    (void)tTokenListAppend(pInfo->pDCLInfo, pToken);
   }
   va_end(va);
 }
 
+void setDropDBTableInfo(SSqlInfo *pInfo, int32_t type, SSQLToken* pToken, SSQLToken* existsCheck) {
+  pInfo->type = type;
+  
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  tTokenListAppend(pInfo->pDCLInfo, pToken);
+  pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
+}
+
+void setShowOptions(SSqlInfo *pInfo, int32_t type, SSQLToken* prefix, SSQLToken* pPatterns) {
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  pInfo->type = TSDB_SQL_SHOW;
+  
+  SShowInfo* pShowInfo = &pInfo->pDCLInfo->showOpt;
+  pShowInfo->showType = type;
+  
+  if (prefix != NULL && prefix->type != 0) {
+    pShowInfo->prefix = *prefix;
+  } else {
+    pShowInfo->prefix.type = 0;
+  }
+  
+  if (pPatterns != NULL && pPatterns->type != 0) {
+    pShowInfo->pattern = *pPatterns;
+  } else {
+    pShowInfo->pattern.type = 0;
+  }
+}
+
 void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBInfo *pDB, SSQLToken *pIgExists) {
-  pInfo->sqlType = type;
+  pInfo->type = type;
   if (pInfo->pDCLInfo == NULL) {
     pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
   }
@@ -680,19 +816,88 @@ void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBI
   pInfo->pDCLInfo->dbOpt.dbname = *pToken;
 
   tTokenListAppend(pInfo->pDCLInfo, pIgExists);
+  pInfo->pDCLInfo->existsCheck = (pIgExists->n == 1);
 }
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo) {
-  pInfo->sqlType = type;
+  pInfo->type = type;
   if (pInfo->pDCLInfo == NULL) {
     pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
   }
 
   pInfo->pDCLInfo->acctOpt = *pAcctInfo;
-
-  tTokenListAppend(pInfo->pDCLInfo, pName);
-
-  if (pPwd->n > 0) {
-    tTokenListAppend(pInfo->pDCLInfo, pPwd);
+  
+  assert(pName != NULL);
+  pInfo->pDCLInfo->user.user = *pName;
+  
+  if (pPwd != NULL) {
+    pInfo->pDCLInfo->user.passwd = *pPwd;
   }
+}
+
+void setCreateUserSQL(SSqlInfo *pInfo, SSQLToken *pName, SSQLToken *pPasswd) {
+  pInfo->type = TSDB_SQL_CREATE_USER;
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  assert(pName != NULL && pPasswd != NULL);
+  
+  pInfo->pDCLInfo->user.user = *pName;
+  pInfo->pDCLInfo->user.passwd = *pPasswd;
+}
+
+void setAlterUserSQL(SSqlInfo *pInfo, int16_t type, SSQLToken *pName, SSQLToken* pPwd, SSQLToken *pPrivilege) {
+  pInfo->type = TSDB_SQL_ALTER_USER;
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  assert(pName != NULL);
+  
+  SUserInfo* pUser = &pInfo->pDCLInfo->user;
+  pUser->type = type;
+  pUser->user = *pName;
+  
+  if (pPwd != NULL) {
+    pUser->passwd = *pPwd;
+  } else {
+    pUser->passwd.type = TSDB_DATA_TYPE_NULL;
+  }
+  
+  if (pPrivilege != NULL) {
+    pUser->privilege = *pPrivilege;
+  } else {
+    pUser->privilege.type = TSDB_DATA_TYPE_NULL;
+  }
+}
+
+void setKillSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *ip) {
+  pInfo->type = type;
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  assert(ip != NULL);
+  
+  pInfo->pDCLInfo->ip = *ip;
+}
+
+void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
+  pDBInfo->numOfBlocksPerTable = 50;
+  pDBInfo->compressionLevel = -1;
+
+  pDBInfo->commitLog = -1;
+  pDBInfo->commitTime = -1;
+  pDBInfo->tablesPerVnode = -1;
+  pDBInfo->numOfAvgCacheBlocks = -1;
+
+  pDBInfo->cacheBlockSize = -1;
+  pDBInfo->rowPerFileBlock = -1;
+  pDBInfo->daysPerFile = -1;
+
+  pDBInfo->replica = -1;
+  pDBInfo->keep = NULL;
+
+  memset(&pDBInfo->precision, 0, sizeof(SSQLToken));
 }

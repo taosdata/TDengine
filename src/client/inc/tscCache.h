@@ -24,9 +24,9 @@ void *taosOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl,
 
 void taosCloseConnCache(void *handle);
 
-void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, short port, char *user);
+void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user);
 
-void *taosGetConnFromCache(void *handle, uint32_t ip, short port, char *user);
+void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user);
 
 #ifdef __cplusplus
 }

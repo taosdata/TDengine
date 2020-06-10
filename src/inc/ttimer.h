@@ -21,23 +21,40 @@ extern "C" {
 #endif
 
 typedef void *tmr_h;
+typedef void (*TAOS_TMR_CALLBACK)(void *, void *);
 
-extern int tmrDebugFlag;
-extern int taosTmrThreads;
+extern uint32_t tmrDebugFlag;
+extern int      taosTmrThreads;
+extern uint32_t taosMaxTmrCtrl;
 
-void *taosTmrInit(int maxTmr, int resoultion, int longest, char *label);
+#define tmrError(...)                                 \
+  do { if (tmrDebugFlag & DEBUG_ERROR) {              \
+    tprintf("ERROR TMR ", tmrDebugFlag, __VA_ARGS__); \
+  } } while(0)
 
-tmr_h taosTmrStart(void (*fp)(void *, void *), int mseconds, void *param1, void *handle);
+#define tmrWarn(...)                                  \
+  do { if (tmrDebugFlag & DEBUG_WARN) {               \
+    tprintf("WARN  TMR ", tmrDebugFlag, __VA_ARGS__); \
+  } } while(0)
 
-void taosTmrStop(tmr_h tmrId);
+#define tmrTrace(...)                           \
+  do { if (tmrDebugFlag & DEBUG_TRACE) {        \
+    tprintf("TMR ", tmrDebugFlag, __VA_ARGS__); \
+  } } while(0)
 
-void taosTmrStopA(tmr_h *timerId);
+#define MSECONDS_PER_TICK 5
 
-void taosTmrReset(void (*fp)(void *, void *), int mseconds, void *param1, void *handle, tmr_h *pTmrId);
+void *taosTmrInit(int maxTmr, int resoultion, int longest, const char *label);
+
+tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int mseconds, void *param, void *handle);
+
+bool taosTmrStop(tmr_h tmrId);
+
+bool taosTmrStopA(tmr_h *timerId);
+
+bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void *param, void *handle, tmr_h *pTmrId);
 
 void taosTmrCleanUp(void *handle);
-
-void taosTmrList(void *handle);
 
 #ifdef __cplusplus
 }

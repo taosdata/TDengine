@@ -50,11 +50,10 @@ bool isNull(const char *val, int32_t type);
 void setNull(char *val, int32_t type, int32_t bytes);
 void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 
-void assignVal(char *val, char *src, int32_t len, int32_t type);
+void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
-// variant, each number/string/field_id has a corresponding struct during
-// parsing sql
+// variant, each number/string/field_id has a corresponding struct during parsing sql
 typedef struct tVariant {
   uint32_t nType;
   int32_t  nLen;  // only used for string, for number, it is useless
@@ -68,13 +67,15 @@ typedef struct tVariant {
 
 void tVariantCreate(tVariant *pVar, SSQLToken *token);
 
-void tVariantCreateN(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
+void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
 
-void tVariantCreateB(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
+void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
 
 void tVariantDestroy(tVariant *pV);
 
-void tVariantAssign(tVariant *pDst, tVariant *pSrc);
+void tVariantAssign(tVariant *pDst, const tVariant *pSrc);
+
+int32_t tVariantCompare(const tVariant *pDst, const tVariant *pSrc);
 
 int32_t tVariantToString(tVariant *pVar, char *dst);
 

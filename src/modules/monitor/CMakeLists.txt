@@ -1,9 +1,12 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 PROJECT(TDengine)
 
-AUX_SOURCE_DIRECTORY(./src SRC)
-INCLUDE_DIRECTORIES(${PRJ_HEADER_PATH} ./inc ../http/inc ../../../deps/inc ../../client/inc)
-
-ADD_LIBRARY(monitor ${SRC})
-TARGET_LINK_LIBRARIES(monitor taos_static trpc tutil z)
+IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
+  INCLUDE_DIRECTORIES(${TD_OS_DIR}/inc)
+  INCLUDE_DIRECTORIES(inc)
+  AUX_SOURCE_DIRECTORY(./src SRC)
+  ADD_LIBRARY(monitor ${SRC})
+  TARGET_LINK_LIBRARIES(monitor taos_static)
+ENDIF ()  

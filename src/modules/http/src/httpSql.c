@@ -24,8 +24,9 @@
 #include "httpResp.h"
 #include "taos.h"
 #include "tsclient.h"
+#include "tnote.h"
 
-void *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
 void httpProcessMultiSql(HttpContext *pContext);
 
@@ -164,6 +165,7 @@ void httpProcessMultiSql(HttpContext *pContext) {
   char *sql = httpGetCmdsString(pContext, cmd->sql);
   httpDump("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
            pContext->ipstr, pContext->user, multiCmds->pos, sql);
+  taosNotePrintHttp(sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
 
@@ -238,10 +240,15 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
 
   if (code < 0) {
     SSqlObj *pObj = (SSqlObj *)result;
-    httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%d, sqlObj:%p",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, -code, pObj);
-
-    httpSendTaosdErrorResp(pContext, -code);
+    if (-code == TSDB_CODE_INVALID_SQL) {
+      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%d:invalidsql, sqlObj:%p, error:%s",
+                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, -code, pObj, pObj->cmd.payload);
+      httpSendTaosdInvalidSqlErrorResp(pContext, pObj->cmd.payload);
+    } else {
+      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%d, sqlObj:%p",
+                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, -code, pObj);
+      httpSendTaosdErrorResp(pContext, -code);
+    }
     return;
   }
 
@@ -289,17 +296,21 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
     return;
   }
 
-  httpDump("context:%p, fd:%d, ip:%s, user:%s, sql:%s, start query", pContext, pContext->fd, pContext->ipstr,
+  httpDump("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
            pContext->user, sql);
+  taosNotePrintHttp(sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }
 
 void httpProcessLoginCmd(HttpContext *pContext) {
-  char token[128] = "current version only supports basic authorization, no token returned";
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, return token:%s", pContext, pContext->fd, pContext->ipstr,
-            pContext->user, token);
-  httpTrace("user:%s login from %s via http", pContext->user, pContext->ipstr);
-  httpSendSuccResp(pContext, token);
+  char token[128] = {0};
+  if (!httpGenTaosdAuthToken(pContext, token, 128)) {
+    httpSendErrorResp(pContext, HTTP_GEN_TAOSD_TOKEN_ERR);
+  } else {
+    httpTrace("context:%p, fd:%d, ip:%s, user:%s, login via http, return token:%s",
+              pContext, pContext->fd, pContext->ipstr, pContext->user, token);
+    httpSendSuccResp(pContext, token);
+  }
 }
 
 void httpProcessHeartBeatCmd(HttpContext *pContext) {
@@ -367,9 +378,7 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
 }
 
 void httpProcessRequest(HttpContext *pContext) {
-  if (pContext->session == NULL) {
-    httpFetchSession(pContext);
-  }
+  httpFetchSession(pContext);
 
   if (pContext->session == NULL || pContext->session != pContext->session->signature ||
       pContext->reqType == HTTP_REQTYPE_LOGIN) {

@@ -1,0 +1,57 @@
+/* Copyright (C) 2002, 2005, 2008 Free Software Foundation, Inc.
+   This file is part of the GNU LIBICONV Library.
+
+   The GNU LIBICONV Library is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version 2
+   of the License, or (at your option) any later version.
+
+   The GNU LIBICONV Library is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with the GNU LIBICONV Library; see the file COPYING.LIB.
+   If not, write to the Free Software Foundation, Inc., 51 Franklin Street,
+   Fifth Floor, Boston, MA 02110-1301, USA.  */
+
+DEFENCODING(( "EUC-JISX0213",
+              "EUC-JIS-2004",           /* x0213.org */
+            ),
+            euc_jisx0213,
+            { euc_jisx0213_mbtowc, euc_jisx0213_flushwc }, { euc_jisx0213_wctomb, euc_jisx0213_reset })
+
+DEFENCODING(( "SHIFT_JISX0213",
+              "SHIFT_JIS-2004",         /* x0213.org */
+            ),
+            shift_jisx0213,
+            { shift_jisx0213_mbtowc, shift_jisx0213_flushwc }, { shift_jisx0213_wctomb, shift_jisx0213_reset })
+
+DEFENCODING(( "ISO-2022-JP-3",
+              "ISO-2022-JP-2004",       /* x0213.org */
+            ),
+            iso2022_jp3,
+            { iso2022_jp3_mbtowc, iso2022_jp3_flushwc }, { iso2022_jp3_wctomb, iso2022_jp3_reset })
+
+DEFENCODING(( "BIG5-2003",
+            ),
+            big5_2003,
+            { big5_2003_mbtowc, NULL },   { big5_2003_wctomb, NULL })
+
+DEFENCODING(( "TDS565",
+              "ISO-IR-230",
+            ),
+            tds565,
+            { tds565_mbtowc, NULL },      { tds565_wctomb, NULL })
+
+DEFENCODING(( "ATARIST",
+              "ATARI",
+            ),
+            atarist,
+            { atarist_mbtowc, NULL },     { atarist_wctomb, NULL })
+
+DEFENCODING(( "RISCOS-LATIN1",
+            ),
+            riscos1,
+            { riscos1_mbtowc, NULL },     { riscos1_wctomb, NULL })

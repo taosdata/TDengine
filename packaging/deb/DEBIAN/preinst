@@ -1,19 +1,21 @@
 #!/bin/bash
 
-function is_using_systemd() {
-    if pidof systemd &> /dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
 
 # Stop the service if running
 if pidof taosd &> /dev/null; then
-    if is_using_systemd; then
-        sudo systemctl stop taosd || :
+    if pidof systemd &> /dev/null; then
+        ${csudo} systemctl stop taosd || :
+    elif $(which service  &> /dev/null); then
+        ${csudo} service taosd stop || :
     else
-        sudo service taosd stop || :
+        pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+        if [ -n "$pid" ]; then
+           ${csudo} kill -9 $pid   || :
+        fi
     fi
     echo "Stop taosd service success!"
     sleep 1
@@ -23,6 +25,8 @@ fi
 cfg_install_dir="/etc/taos"
 install_main_dir="/usr/local/taos"
 if [ -f ${cfg_install_dir}/taos.cfg ]; then
-    sudo rm -f ${install_main_dir}/cfg/taos.cfg   || :
-fi    
+    ${csudo} rm -f ${install_main_dir}/cfg/taos.cfg   || :
+fi
 
+# there can not libtaos.so*, otherwise ln -s  error
+${csudo} rm -f ${install_main_dir}/driver/libtaos*   || :    

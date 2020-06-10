@@ -4,7 +4,7 @@ public class TSDBSyncSample {
     private static final String JDBC_PROTOCAL = "jdbc:TAOS://";
     private static final String TSDB_DRIVER = "com.taosdata.jdbc.TSDBDriver";
 
-    private String host = "127.0.0.1";
+    private String host = "10.211.55.3";
     private String user = "root";
     private String password = "taosdata";
     private int port = 0;

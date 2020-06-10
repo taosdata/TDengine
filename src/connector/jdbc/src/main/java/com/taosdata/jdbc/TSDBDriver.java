@@ -273,6 +273,9 @@ public class TSDBDriver implements java.sql.Driver {
 		String user = "";
 		for (String queryStr : queryStrings) {
 			String[] kvPair = queryStr.trim().split("=");
+			if (kvPair.length < 2){
+				continue;
+			}
 			switch (kvPair[0].toLowerCase()) {
 				case PROPERTY_KEY_USER:
 					urlProps.setProperty(PROPERTY_KEY_USER, kvPair[1]);

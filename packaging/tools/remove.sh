@@ -1,87 +1,93 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall TSDB
+# Script to stop the service and uninstall TDengine, but retain the config, data and log files.
+
+set -e
+#set -x
+
+verMode=edge
 
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
 
-data_dir="/var/lib/taos"
-log_dir="/var/log/taos"
-
 #install main path
 install_main_dir="/usr/local/taos"
-
 data_link_dir="/usr/local/taos/data"
 log_link_dir="/usr/local/taos/log"
-
 cfg_link_dir="/usr/local/taos/cfg"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 inc_link_dir="/usr/include"
+install_nginxd_dir="/usr/local/nginxd"
 
-header_dir="/usr/local/include/taos"
-cfg_dir="/etc/taos"
-bin_dir="/usr/local/bin/taos"
-lib_dir="/usr/local/lib/taos"
-link_dir="/usr/bin"
+# v1.5 jar dir
+v15_java_app_dir="/usr/local/lib/taos"
+
 service_config_dir="/etc/systemd/system"
 taos_service_name="taosd"
-nginx_service_name="tdnginx"
-
-function is_using_systemd() {
-    if pidof systemd &> /dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-if ! is_using_systemd; then
-    service_config_dir="/etc/init.d"
+nginx_service_name="nginxd"
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
 fi
+
+initd_mod=0
+service_mod=2
+if pidof systemd &> /dev/null; then
+    service_mod=0
+elif $(which service &> /dev/null); then    
+    service_mod=1
+    service_config_dir="/etc/init.d" 
+    if $(which chkconfig &> /dev/null); then
+         initd_mod=1 
+    elif $(which insserv &> /dev/null); then
+        initd_mod=2
+    elif $(which update-rc.d &> /dev/null); then
+        initd_mod=3
+    else
+        service_mod=2
+    fi
+else 
+    service_mod=2
+fi
+
+function kill_taosd() {
+  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo} kill -9 $pid   || :
+  fi
+}
 
 function clean_bin() {
     # Remove link
-    sudo rm -f ${bin_link_dir}/taos      || :
-    sudo rm -f ${bin_link_dir}/taosd     || :
-    sudo rm -f ${bin_link_dir}/taosdump  || :
-    sudo rm -f ${bin_link_dir}/rmtaos    || :
-
-    # Remove binary files
-    #sudo rm -rf ${bin_dir}        || :
+    ${csudo} rm -f ${bin_link_dir}/taos      || :
+    ${csudo} rm -f ${bin_link_dir}/taosd     || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo  || :
+    ${csudo} rm -f ${bin_link_dir}/taosdump  || :
+    ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
 }
+
 function clean_lib() {
     # Remove link
-    sudo rm -f ${lib_link_dir}/libtaos.so      || :
-    
-    #sudo rm -f /usr/lib/libtaos.so || :
-    #sudo rm -rf ${lib_dir}         || :
+    ${csudo} rm -f ${lib_link_dir}/libtaos.*      || :
+    ${csudo} rm -rf ${v15_java_app_dir}                      || :
 }
 
 function clean_header() {
     # Remove link
-    sudo rm -f ${inc_link_dir}/taos.h       || :
-    
-    #sudo rm -rf ${header_dir}
+    ${csudo} rm -f ${inc_link_dir}/taos.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taoserror.h       || :
 }
 
 function clean_config() {
     # Remove link
-    sudo rm -f ${cfg_link_dir}/*            || :    
-    #sudo rm -rf ${cfg_link_dir}            || :
+    ${csudo} rm -f ${cfg_link_dir}/*            || :    
 }
 
 function clean_log() {
-    if grep -e '^\s*logDir.*$' ${cfg_dir}/taos.cfg &> /dev/null; then
-        config_log_dir=$(cut -d ' ' -f2 <<< $(grep -e '^\s*logDir.*$' ${cfg_dir}/taos.cfg))
-        # echo "Removing log dir ${config_log_dir}......"
-        sudo rm -rf ${config_log_dir}    || : 
-    fi
-    
     # Remove link
-    sudo rm -rf ${log_link_dir}    || :     
-    sudo rm -rf ${log_dir}         || :
+    ${csudo} rm -rf ${log_link_dir}    || :
 }
 
 function clean_service_on_systemd() {
@@ -89,44 +95,61 @@ function clean_service_on_systemd() {
 
     if systemctl is-active --quiet ${taos_service_name}; then
         echo "TDengine taosd is running, stopping it..."
-        sudo systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
+        ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
     fi
-    sudo systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
 
-    sudo rm -f ${taosd_service_config}
+    ${csudo} rm -f ${taosd_service_config}
+
+    if [ "$verMode" == "cluster" ]; then
+		nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
+	
+   	 	if [ -d ${bin_dir}/web ]; then
+   	        if systemctl is-active --quiet ${nginx_service_name}; then
+   	            echo "Nginx for TDengine is running, stopping it..."
+   	            ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
+   	        fi
+   	        ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
+        
+   	        ${csudo} rm -f ${nginx_service_config}
+   	    fi
+    fi 
 }
 
 function clean_service_on_sysvinit() {
-    restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-
+    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
+    
     if pidof taosd &> /dev/null; then
         echo "TDengine taosd is running, stopping it..."
-        sudo service taosd stop || :
+        ${csudo} service taosd stop || :
     fi
 
-    sudo sed -i "\|${restart_config_str}|d" /etc/inittab || :
-    sudo rm -f ${service_config_dir}/taosd || :
-    sudo update-rc.d -f taosd remove || :
-    sudo init q || :
+    if ((${initd_mod}==1)); then
+        ${csudo} chkconfig --del taosd || :
+    elif ((${initd_mod}==2)); then
+        ${csudo} insserv -r taosd || :
+    elif ((${initd_mod}==3)); then
+        ${csudo} update-rc.d -f taosd remove || :
+    fi
+    
+    ${csudo} rm -f ${service_config_dir}/taosd || :
+   
+    if $(which init &> /dev/null); then
+        ${csudo} init q || :
+    fi
 }
 
 function clean_service() {
-    if is_using_systemd; then
+    if ((${service_mod}==0)); then
         clean_service_on_systemd
-    else
+    elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
+    else
+        # must manual stop taosd
+        kill_taosd
     fi
 }
-
-isAll="true"
-if ! type taosd &> /dev/null; then
-    isAll="false"
-fi
-
-config_data_dir=''
-if grep -e '^\s*dataDir.*$' ${cfg_dir}/taos.cfg &> /dev/null; then
-    config_data_dir=$(cut -d ' ' -f2 <<< $(grep -e '^\s*dataDir.*$' ${cfg_dir}/taos.cfg))
-fi
 
 # Stop service and disable booting start.
 clean_service
@@ -136,38 +159,23 @@ clean_bin
 clean_header
 # Remove lib file
 clean_lib
-# Remove log directory
+# Remove link log directory
 clean_log
-# Remove configuration file
+# Remove link configuration file
 clean_config
-# Remove data directory
-sudo rm -rf ${data_link_dir}    || : 
+# Remove data link directory
+${csudo} rm -rf ${data_link_dir}    || : 
 
-[ "$isAll" = "false" ] && exit 0 || :
-echo -e -n "${RED}Do you want to delete data stored in TDengine? [y/N]: ${NC}" 
-read is_delete
-while true; do
-    if [ "${is_delete}" = "y" ] || [ "${is_delete}" = "Y" ]; then
-        sudo rm -rf ${data_dir}
-        # echo "Removing data file ${config_data_dir}..."
-        [ -n ${config_data_dir} ] && sudo rm -rf ${config_data_dir}
-        break
-    elif [ "${is_delete}" = "n" ] || [ "${is_delete}" = "N" ]; then
-        break
-    else
-        read -p "Please enter 'y' or 'n': " is_delete
-    fi
-done
-
-sudo rm -rf ${install_main_dir}
+${csudo} rm -rf ${install_main_dir}
+${csudo} rm -rf ${install_nginxd_dir}
 
 osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 if echo $osinfo | grep -qwi "ubuntu" ; then
 #  echo "this is ubuntu system"
-   sudo rm -f /var/lib/dpkg/info/tdengine* || :
+   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
 elif  echo $osinfo | grep -qwi "centos" ; then
   echo "this is centos system"
-  sudo rpm -e --noscripts tdengine || :
+  ${csudo} rpm -e --noscripts tdengine || :
 fi
 
-echo -e "${GREEN}TDEngine is removed successfully!${NC}"
+echo -e "${GREEN}TDengine is removed successfully!${NC}"

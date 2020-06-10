@@ -1,0 +1,51 @@
+# 传感器场景
+[sensor_info]                               # 场景名称
+format = "csv"                              # 样例数据文件格式，可以是 json 或 csv，具体字段应至少包含 subTableName、tags、fields 指定的字段。
+filePath = "data/sensor_info.csv"           # 样例数据文件路径，程序会循环使用该文件数据
+separator = ","                             # csv 样例文件中字段分隔符，默认逗号
+
+stname = "sensor_info"                      # 超级表名称
+subTableName = "devid"                      # 使用样例数据中指定字段当作子表名称一部分，子表名称格式为 t_subTableName_stname，扩展表名为 t_subTableName_stname_i。
+timestamp = "ts"                            # 使用 fields 中哪个字段当作主键，类型必须为 timestamp
+timestampType="millisecond"                 # 样例数据中主键时间字段是 millisecond 还是 dateTime 格式
+#timestampTypeFormat = "2006-01-02 15:04:05.000"  # 主键日期时间格式，timestampType 为 dateTime 时需要指定
+tags = [
+    # 标签列表，name 为标签名称，type 为标签类型
+    { name = "location",           type = "binary(20)" },
+    { name = "color",              type = "binary(16)" },
+    { name = "devgroup",           type = "int" },
+]
+
+fields = [
+    # 字段列表，name 为字段名称，type 为字段类型
+    { name = "ts",                  type = "timestamp" },
+    { name = "temperature",         type = "int" },
+    { name = "humidity",            type = "float" },
+]
+
+# 摄像头检测场景
+[camera_detection]                          # 场景名称
+format = "json"                             # 样例数据文件格式，可以是 json 或 csv，具体字段应至少包含 subTableName、tags、fields 指定的字段。
+filePath = "data/camera_detection.json"     # 样例数据文件路径，程序会循环使用该文件数据
+#separator = ","                            # csv 样例文件中字段分隔符，默认逗号, 如果是 json 文件可以不用配置
+ 
+stname = "camera_detection"                 # 超级表名称
+subTableName = "sensor_id"                  # 使用样例数据中指定字段当作子表名称一部分，子表名称格式为 t_subTableName_stname，扩展表名为 t_subTableName_stname_i。
+timestamp = "ts"                            # 使用 fields 中哪个字段当作主键，类型必须为 timestamp
+timestampType="dateTime"                    # 样例数据中主键时间字段是 millisecond 还是 dateTime 格式
+timestampTypeFormat = "2006-01-02 15:04:05.000"  # 主键日期时间格式，timestampType 为 dateTime 时需要指定
+tags = [
+    # 标签列表，name 为标签名称，type 为标签类型
+    { name = "home_id",           type = "binary(30)" },
+    { name = "object_type",       type = "int" },
+    { name = "object_kind",       type = "binary(20)" },
+]
+
+fields = [
+    # 字段列表，name 为字段名称，type 为字段类型
+    { name = "ts",                type = "timestamp" },
+    { name = "states",            type = "tinyint" },
+    { name = "battery_voltage",   type = "float" },
+]
+
+# other case

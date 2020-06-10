@@ -49,10 +49,10 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
  * if it is referenced by other object, it will be remain in cache
  * @param handle    cache object
  * @param data      not the key, actually referenced data
- * @param isForce   force model, reduce the ref count and move the data into
+ * @param _remove   force model, reduce the ref count and move the data into
  * pTrash
  */
-void taosRemoveDataFromCache(void *handle, void **data, bool isForce);
+void taosRemoveDataFromCache(void *handle, void **data, bool _remove);
 
 /**
  * update data in cache
@@ -85,6 +85,26 @@ void taosCleanUpDataCache(void *handle);
  * @param handle
  */
 void taosClearDataCache(void *handle);
+
+/**
+ * Add one reference count for the exist data, and assign this data for a new owner.
+ * The new owner needs to invoke the taosRemoveDataFromCache when it does not need this data anymore.
+ * This procedure is a faster version of taosGetDataFromCache function, which avoids the sideeffect of the problem of the
+ * data is moved to trash, and taosGetDataFromCache will fail to retrieve it again.
+ *
+ * @param handle
+ * @param data
+ * @return
+ */
+void* taosGetDataFromExists(void* handle, void* data);
+
+/**
+ * transfer the ownership of data in cache to another object without increasing reference count.
+ * @param handle
+ * @param data
+ * @return
+ */
+void* taosTransferDataInCache(void* handle, void** data);
 
 #ifdef __cplusplus
 }

@@ -1,15 +1,69 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+
 	<groupId>com.taosdata.jdbc</groupId>
 	<artifactId>taos-jdbcdriver</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.3</version>
+	<packaging>jar</packaging>
+
 	<name>JDBCDriver</name>
+	<url>https://github.com/taosdata/TDengine/tree/master/src/connector/jdbc</url>
 	<description>TDengine JDBC Driver</description>
-	<properties>  
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>  
-    </properties>  
-   
+
+	<licenses>
+		<license>
+			<name>GNU AFFERO GENERAL PUBLIC LICENSE Version 3</name>
+			<url>https://github.com/taosdata/TDengine/blob/master/LICENSE</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<scm>
+		<connection>scm:git:git://github.com/taosdata/TDengine.git</connection>
+		<developerConnection>scm:git:git@github.com:taosdata/TDengine.git</developerConnection>
+		<url>https://github.com/taosdata/TDengine/tree/master/src/connector/jdbc</url>
+		<tag>HEAD</tag>
+	</scm>
+
+	<developers>
+		<developer>
+			<name>taosdata</name>
+			<email>support@taosdata.com</email>
+			<organization>https://www.taosdata.com/</organization>
+			<organizationUrl>https://www.taosdata.com/</organizationUrl>
+		</developer>
+	</developers>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.version>1.7</java.version>
+
+		<maven-compiler-plugin.version>3.6.0</maven-compiler-plugin.version>
+
+		<commons-logging.version>1.1.2</commons-logging.version>
+		<commons-lang3.version>3.5</commons-lang3.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>commons-logging</groupId>
+			<artifactId>commons-logging</artifactId>
+			<version>${commons-logging.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>*</groupId>
+					<artifactId>*</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>${commons-lang3.version}</version>
+		</dependency>
+	</dependencies>
+
 	<build>
 		<plugins>
 			<plugin>
@@ -18,7 +72,7 @@
 				<version>3.0.0</version>
 				<configuration>
 					<descriptors>
-					   <!--<descriptor>src/main/assembly/assembly.xml</descriptor>-->
+						<!--<descriptor>src/main/assembly/assembly.xml</descriptor>-->
 						<descriptor>src/main/assembly/assembly-jar.xml</descriptor>
 					</descriptors>
 				</configuration>
@@ -35,45 +89,17 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>2.3.2</version>
+				<version>${maven-compiler-plugin.version}</version>
 				<configuration>
-					<encoding>GBK</encoding>
-					<source>8</source>
-					<target>8</target>
+					<encoding>UTF-8</encoding>
+					<source>${java.version}</source>
+					<target>${java.version}</target>
 					<debug>true</debug>
+					<showDeprecation>true</showDeprecation>
 				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-source-plugin</artifactId>
-				<version>2.1.2</version>
-				<executions>
-					<execution>
-						<id>attach-sources</id>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-					</execution>
-				</executions>
 			</plugin>
 		</plugins>
 	</build>
- 	<dependencies>
-		<dependency>
-			<groupId>commons-logging</groupId>
-			<artifactId>commons-logging</artifactId>
-			<version>1.1.2</version>
-			<exclusions>
-				<exclusion>
-					<groupId>*</groupId>
-					<artifactId>*</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-lang3</artifactId>
-			<version>3.5</version>
-		</dependency>
-	</dependencies>
+
+
 </project>

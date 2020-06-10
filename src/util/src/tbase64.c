@@ -98,7 +98,7 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
 
 base64_decode_error:
   free(result);
-  *result = 0;
+  result = 0;
   *outlen = 0;
 
   return result;

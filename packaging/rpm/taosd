@@ -26,7 +26,7 @@ MAX_OPEN_FILES=65535
 
 # Default program options
 NAME=taosd
-PROG=/usr/local/bin/taos/taosd
+PROG=/usr/local/taos/bin/taosd
 USER=root
 GROUP=root
 

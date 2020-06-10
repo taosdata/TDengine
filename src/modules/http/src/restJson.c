@@ -85,7 +85,7 @@ void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   httpJsonToken(jsonBuf, JsonArrStt);
 }
 
-bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows, int timestampFormat) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
@@ -94,7 +94,7 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
-  for (int i = 0; i < numOfRows; ++i) {
+  for (int k = 0; k < numOfRows; ++k) {
     TAOS_ROW row = taos_fetch_row(result);
 
     // data row array begin
@@ -105,7 +105,7 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
       httpJsonItemToken(jsonBuf);
 
       if (row[i] == NULL) {
-        httpJsonString(jsonBuf, "NULL", 4);
+        httpJsonOriginString(jsonBuf, "null", 4);
         continue;
       }
 
@@ -134,10 +134,13 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          // httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
-          // httpTimeToString(*((int64_t *)row[i]), timeBuf, 32);
-          // httpJsonString(jsonBuf, timeBuf, strlen(timeBuf));
-          httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]));
+          if (timestampFormat == REST_TIMESTAMP_FMT_LOCAL_STRING) {
+            httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+          } else if (timestampFormat == REST_TIMESTAMP_FMT_TIMESTAMP) {
+            httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
+          } else {
+            httpJsonUtcTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+          }
           break;
         default:
           break;
@@ -148,75 +151,35 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     httpJsonToken(jsonBuf, JsonArrEnd);
   }
 
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, total rows:%lld retrieved", pContext, pContext->fd, pContext->ipstr,
-            pContext->user, cmd->numOfRows);
-  return true;
+  if (cmd->numOfRows >= tsRestRowLimit) {
+    httpTrace("context:%p, fd:%d, ip:%s, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve", pContext,
+              pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows, tsRestRowLimit);
+    return false;
+  }
+  else {
+    if (pContext->fd <= 0) {
+      httpError("context:%p, fd:%d, ip:%s, user:%s, connection is closed, abort retrieve", pContext, pContext->fd,
+                pContext->ipstr, pContext->user);
+      return false;
+    }
+    else {
+      httpTrace("context:%p, fd:%d, ip:%s, user:%s, total rows:%d retrieved", pContext, pContext->fd, pContext->ipstr,
+                pContext->user, cmd->numOfRows);
+      return true;
+    }
+  }
 }
 
-bool restBuildSqlTimeJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
-  JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
-  if (jsonBuf == NULL) return false;
+bool restBuildSqlTimestampJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+  return restBuildSqlJson(pContext,cmd, result, numOfRows, REST_TIMESTAMP_FMT_TIMESTAMP);
+}
 
-  cmd->numOfRows += numOfRows;
+bool restBuildSqlLocalTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+  return restBuildSqlJson(pContext,cmd, result, numOfRows, REST_TIMESTAMP_FMT_LOCAL_STRING);
+}
 
-  int         num_fields = taos_num_fields(result);
-  TAOS_FIELD *fields = taos_fetch_fields(result);
-
-  for (int i = 0; i < numOfRows; ++i) {
-    TAOS_ROW row = taos_fetch_row(result);
-
-    // data row array begin
-    httpJsonItemToken(jsonBuf);
-    httpJsonToken(jsonBuf, JsonArrStt);
-
-    for (int i = 0; i < num_fields; i++) {
-      httpJsonItemToken(jsonBuf);
-
-      if (row[i] == NULL) {
-        httpJsonString(jsonBuf, "NULL", 4);
-        continue;
-      }
-
-      switch (fields[i].type) {
-        case TSDB_DATA_TYPE_BOOL:
-        case TSDB_DATA_TYPE_TINYINT:
-          httpJsonInt(jsonBuf, *((int8_t *)row[i]));
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          httpJsonInt(jsonBuf, *((int16_t *)row[i]));
-          break;
-        case TSDB_DATA_TYPE_INT:
-          httpJsonInt(jsonBuf, *((int32_t *)row[i]));
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
-          break;
-        case TSDB_DATA_TYPE_FLOAT:
-          httpJsonFloat(jsonBuf, *((float *)row[i]));
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
-          httpJsonDouble(jsonBuf, *((double *)row[i]));
-          break;
-        case TSDB_DATA_TYPE_BINARY:
-        case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
-          // httpTimeToString(*((int64_t *)row[i]), timeBuf, 32);
-          // httpJsonString(jsonBuf, timeBuf, strlen(timeBuf));
-          // httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]));
-          break;
-        default:
-          break;
-      }
-    }
-
-    // data row array end
-    httpJsonToken(jsonBuf, JsonArrEnd);
-  }
-
-  return true;
+bool restBuildSqlUtcTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+  return restBuildSqlJson(pContext,cmd, result, numOfRows, REST_TIMESTAMP_FMT_UTC_STRING);
 }
 
 void restStopSqlJson(HttpContext *pContext, HttpSqlCmd *cmd) {

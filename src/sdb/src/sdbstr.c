@@ -13,6 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "sdbint.h"
+
 char* sdbStatusStr[] = {"offline", "unsynced", "syncing", "serving", "null"};
 
 char* sdbRoleStr[] = {"unauthed", "undecided", "master", "slave", "null"};
+
+#ifndef CLUSTER
+
+/*
+ * Lite Version sync request is always successful
+ */
+int sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen) {
+  return 0;
+}
+
+/*
+ * Lite Version does not need to initialize peers
+ */
+int sdbInitPeers(char *directory) {
+  return 0;
+}
+
+/*
+ * Lite Version does not need to cleanup peers
+ */
+void sdbCleanUpPeers(){}
+
+#endif

@@ -13,13 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdio.h>
-#include <unistd.h>
-
+#include "os.h"
 #include "tmodule.h"
 #include "tutil.h"
 
@@ -57,13 +51,13 @@ int taosInitModule(module_t *pMod) {
     return -1;
   }
 
-  if (sem_init(&pMod->emptySem, 0, (unsigned int)pMod->queueSize) != 0) {
+  if (tsem_init(&pMod->emptySem, 0, (unsigned int)pMod->queueSize) != 0) {
     printf("ERROR: init %s empty semaphore failed, reason:%s\n", pMod->name, strerror(errno));
     taosCleanUpModule(pMod);
     return -1;
   }
 
-  if (sem_init(&pMod->fullSem, 0, 0) != 0) {
+  if (tsem_init(&pMod->fullSem, 0, 0) != 0) {
     printf("ERROR: init %s full semaphore failed, reason:%s\n", pMod->name, strerror(errno));
     taosCleanUpModule(pMod);
     return -1;
@@ -103,7 +97,7 @@ void *taosProcessQueue(void *param) {
   signal(SIGINT, SIG_IGN);
 
   while (1) {
-    if (sem_wait(&pMod->fullSem) != 0)
+    if (tsem_wait(&pMod->fullSem) != 0)
       printf("ERROR: wait %s fullSem failed, reason:%s\n", pMod->name, strerror(errno));
 
     if (pthread_mutex_lock(&pMod->queueMutex) != 0)
@@ -116,7 +110,7 @@ void *taosProcessQueue(void *param) {
     if (pthread_mutex_unlock(&pMod->queueMutex) != 0)
       printf("ERROR: unlock %s queueMutex failed, reason:%s\n", pMod->name, strerror(errno));
 
-    if (sem_post(&pMod->emptySem) != 0)
+    if (tsem_post(&pMod->emptySem) != 0)
       printf("ERROR: post %s emptySem failed, reason:%s\n", pMod->name, strerror(errno));
 
     /* process the message */
@@ -142,7 +136,7 @@ void *taosProcessQueue(void *param) {
 }
 
 int taosSendMsgToModule(module_t *pMod, int cid, int mid, int tid, char *msg) {
-  if (sem_wait(&pMod->emptySem) != 0)
+  if (tsem_wait(&pMod->emptySem) != 0)
     printf("ERROR: wait %s emptySem failed, reason:%s\n", pMod->name, strerror(errno));
 
   if (pthread_mutex_lock(&pMod->queueMutex) != 0)
@@ -157,7 +151,7 @@ int taosSendMsgToModule(module_t *pMod, int cid, int mid, int tid, char *msg) {
   if (pthread_mutex_unlock(&pMod->queueMutex) != 0)
     printf("ERROR: unlock %s queueMutex failed, reason:%s\n", pMod->name, strerror(errno));
 
-  if (sem_post(&pMod->fullSem) != 0) printf("ERROR: post %s fullSem failed, reason:%s\n", pMod->name, strerror(errno));
+  if (tsem_post(&pMod->fullSem) != 0) printf("ERROR: post %s fullSem failed, reason:%s\n", pMod->name, strerror(errno));
 
   return 0;
 }
@@ -173,8 +167,8 @@ void taosCleanUpModule(module_t *pMod) {
   }
 
   taosResetPthread(&pMod->thread);
-  sem_destroy(&pMod->emptySem);
-  sem_destroy(&pMod->fullSem);
+  tsem_destroy(&pMod->emptySem);
+  tsem_destroy(&pMod->fullSem);
   pthread_mutex_destroy(&pMod->queueMutex);
   pthread_mutex_destroy(&pMod->stmMutex);
 

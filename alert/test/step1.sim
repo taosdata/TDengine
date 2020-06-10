@@ -1,0 +1,10 @@
+sql connect
+sleep 100
+
+print ====== insert 10 records to table 0
+$i = 10
+while $i > 0
+    $ms = $i . s
+    sql insert into test.car0 values(now - $ms , 1)
+    $i = $i - 1
+endw

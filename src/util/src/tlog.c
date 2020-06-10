@@ -13,31 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/file.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/types.h>
-#include <time.h>
-#include <unistd.h>
-
+#include "os.h"
 #include "tlog.h"
 #include "tutil.h"
 
-#define MAX_LOGLINE_SIZE           1000
+#define MAX_LOGLINE_SIZE              (1000)
+#define MAX_LOGLINE_BUFFER_SIZE       (MAX_LOGLINE_SIZE + 10)
+#define MAX_LOGLINE_CONTENT_SIZE      (MAX_LOGLINE_SIZE - 100)
+#define MAX_LOGLINE_DUMP_SIZE         (65 * 1024)
+#define MAX_LOGLINE_DUMP_BUFFER_SIZE  (MAX_LOGLINE_DUMP_SIZE + 10)
+#define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
+
 #define LOG_FILE_NAME_LEN          300
-#define TSDB_DEFAULT_LOG_BUF_SIZE (64 * 1024)   // 10K
+#define TSDB_DEFAULT_LOG_BUF_SIZE (512 * 1024)   // 512K
 #define TSDB_MIN_LOG_BUF_SIZE      1024         // 1K
 #define TSDB_MAX_LOG_BUF_SIZE     (1024 * 1024) // 1M
 #define TSDB_DEFAULT_LOG_BUF_UNIT  1024         // 1K
@@ -51,13 +39,14 @@ typedef struct {
   int             stop;
   pthread_t       asyncThread;
   pthread_mutex_t buffMutex;
-  sem_t           buffNotEmpty;
+  tsem_t           buffNotEmpty;
 } SLogBuff;
 
-int uDebugFlag = 131;  // all the messages
-int tsAsyncLog = 1;
+uint32_t uDebugFlag = 131;  // all the messages
+short tsAsyncLog = 1;
 
-static SLogBuff *logHandle;
+static pid_t       logPid = 0;
+static SLogBuff *logHandle = NULL;
 static int       taosLogFileNum = 1;
 static int       taosLogMaxLines = 0;
 static int       taosLogLines = 0;
@@ -94,6 +83,11 @@ int taosStartLog() {
 }
 
 int taosInitLog(char *logName, int numOfLogLines, int maxFiles) {
+
+#ifdef LINUX
+  logPid = (pid_t)syscall(SYS_gettid);
+#endif
+
   logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
   if (logHandle == NULL) return -1;
 
@@ -109,8 +103,10 @@ void taosStopLog() {
 
 void taosCloseLogger() {
   taosStopLog();
-  sem_post(&(logHandle->buffNotEmpty));
-  if (logHandle->asyncThread) pthread_join(logHandle->asyncThread, NULL);
+  tsem_post(&(logHandle->buffNotEmpty));
+  if (taosCheckPthreadValid(logHandle->asyncThread)) {
+    pthread_join(logHandle->asyncThread, NULL);
+  }
   // In case that other threads still use log resources causing invalid write in
   // valgrind, we comment two lines below.
   // taosLogBuffDestroy(logHandle);
@@ -205,7 +201,7 @@ bool taosCheckFileIsOpen(char *logFileName) {
 
   int fd = open(logFileName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
-    printf("failed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
+    printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
     return true;
   }
 
@@ -241,6 +237,14 @@ void taosGetLogFileName(char *fn) {
 }
 
 int taosOpenLogFileWithMaxLines(char *fn, int maxLines, int maxFileNum) {
+#ifdef WINDOWS
+  /*
+  * always set maxFileNum to 1
+  * means client log filename is unique in windows
+  */
+  maxFileNum = 1;
+#endif
+
   char        name[LOG_FILE_NAME_LEN] = "\0";
   struct stat logstat0, logstat1;
   int         size;
@@ -272,7 +276,7 @@ int taosOpenLogFileWithMaxLines(char *fn, int maxLines, int maxFileNum) {
   logHandle->fd = open(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (logHandle->fd < 0) {
-    printf("failed to open log file:%s, reason:%s\n", name, strerror(errno));
+    printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
     return -1;
   }
   taosLockFile(logHandle->fd);
@@ -286,11 +290,11 @@ int taosOpenLogFileWithMaxLines(char *fn, int maxLines, int maxFileNum) {
   lseek(logHandle->fd, 0, SEEK_END);
 
   sprintf(name, "==================================================\n");
-  write(logHandle->fd, name, (uint32_t)strlen(name));
+  twrite(logHandle->fd, name, (uint32_t)strlen(name));
   sprintf(name, "                new log file                      \n");
-  write(logHandle->fd, name, (uint32_t)strlen(name));
+  twrite(logHandle->fd, name, (uint32_t)strlen(name));
   sprintf(name, "==================================================\n");
-  write(logHandle->fd, name, (uint32_t)strlen(name));
+  twrite(logHandle->fd, name, (uint32_t)strlen(name));
 
   return 0;
 }
@@ -304,14 +308,25 @@ char *tprefix(char *prefix) {
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
-  sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d 0x%lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
-          ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+#ifndef LINUX
+  sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+          ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
+#else
+  sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d %d 0x%lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+          ptm->tm_sec, (int)timeSecs.tv_usec, logPid, pthread_self());
+#endif
   return prefix;
 }
 
 void tprintf(const char *const flags, int dflag, const char *const format, ...) {
+  if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
+    fflush(stdout);
+    return;
+  }
+
   va_list        argpointer;
-  char           buffer[MAX_LOGLINE_SIZE + 10] = {0};
+  char           buffer[MAX_LOGLINE_BUFFER_SIZE] = { 0 };
   int            len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -320,12 +335,27 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
-                ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+#ifndef LINUX
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+                ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
+#else
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+                ptm->tm_sec, (int)timeSecs.tv_usec, logPid, pthread_self());
+#endif
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, 900, format, argpointer);
+  int writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
+  if (writeLen <= 0) {
+    char tmp[MAX_LOGLINE_DUMP_BUFFER_SIZE];
+    writeLen = vsnprintf(tmp, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
+    strncpy(buffer + len, tmp, MAX_LOGLINE_CONTENT_SIZE);
+    len += MAX_LOGLINE_CONTENT_SIZE;
+  } else if (writeLen >= MAX_LOGLINE_CONTENT_SIZE) {
+    len += MAX_LOGLINE_CONTENT_SIZE;
+  } else {
+    len += writeLen;
+  }
   va_end(argpointer);
 
   if (len > MAX_LOGLINE_SIZE) len = MAX_LOGLINE_SIZE;
@@ -337,20 +367,26 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
     if (tsAsyncLog) {
       taosPushLogBuffer(logHandle, buffer, len);
     } else {
-      write(logHandle->fd, buffer, len);
+      twrite(logHandle->fd, buffer, len);
     }
 
     if (taosLogMaxLines > 0) {
-      __sync_fetch_and_add(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }
   }
 
-  if (dflag & DEBUG_SCREEN) write(1, buffer, (unsigned int)len);
+  if (dflag & DEBUG_SCREEN) twrite(1, buffer, (unsigned int)len);
 }
 
 void taosDumpData(unsigned char *msg, int len) {
+  if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop dump log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
+    fflush(stdout);
+    return;
+  }
+
   char temp[256];
   int  i, pos = 0, c = 0;
 
@@ -360,7 +396,7 @@ void taosDumpData(unsigned char *msg, int len) {
     pos += 3;
     if (c >= 16) {
       temp[pos++] = '\n';
-      write(logHandle->fd, temp, (unsigned int)pos);
+      twrite(logHandle->fd, temp, (unsigned int)pos);
       c = 0;
       pos = 0;
     }
@@ -368,14 +404,20 @@ void taosDumpData(unsigned char *msg, int len) {
 
   temp[pos++] = '\n';
 
-  write(logHandle->fd, temp, (unsigned int)pos);
+  twrite(logHandle->fd, temp, (unsigned int)pos);
 
   return;
 }
 
 void taosPrintLongString(const char *const flags, int dflag, const char *const format, ...) {
+  if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop write log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
+    fflush(stdout);
+    return;
+  }
+
   va_list        argpointer;
-  char           buffer[65 * 1024 + 10];
+  char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];
   int            len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -384,15 +426,20 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
-                ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+#ifndef LINUX
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+                ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
+#else
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+                ptm->tm_sec, (int)timeSecs.tv_usec, logPid, pthread_self());
+#endif
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, 64 * 1024, format, argpointer);
+  len += vsnprintf(buffer + len, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
   va_end(argpointer);
 
-  if (len > 64 * 1024) len = 64 * 1024;
+  if (len > MAX_LOGLINE_DUMP_SIZE) len = MAX_LOGLINE_DUMP_SIZE;
 
   buffer[len++] = '\n';
   buffer[len] = 0;
@@ -401,13 +448,13 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
     taosPushLogBuffer(logHandle, buffer, len);
 
     if (taosLogMaxLines > 0) {
-      __sync_fetch_and_add(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }
   }
 
-  if (dflag & DEBUG_SCREEN) write(1, buffer, (unsigned int)len);
+  if (dflag & DEBUG_SCREEN) twrite(1, buffer, (unsigned int)len);
 }
 
 void taosCloseLog() { taosCloseLogByFd(logHandle->fd); }
@@ -441,7 +488,7 @@ SLogBuff *taosLogBuffNew(int bufSize) {
   tLogBuff->stop = 0;
 
   if (pthread_mutex_init(&LOG_BUF_MUTEX(tLogBuff), NULL) < 0) goto _err;
-  sem_init(&(tLogBuff->buffNotEmpty), 0, 0);
+  tsem_init(&(tLogBuff->buffNotEmpty), 0, 0);
 
   return tLogBuff;
 
@@ -452,7 +499,7 @@ _err:
 }
 
 void taosLogBuffDestroy(SLogBuff *tLogBuff) {
-  sem_destroy(&(tLogBuff->buffNotEmpty));
+  tsem_destroy(&(tLogBuff->buffNotEmpty));
   pthread_mutex_destroy(&(tLogBuff->buffMutex));
   free(tLogBuff->buffer);
   tfree(tLogBuff);
@@ -490,7 +537,7 @@ int taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int msgLen) {
 
   // TODO : put string in the buffer
 
-  sem_post(&(tLogBuff->buffNotEmpty));
+  tsem_post(&(tLogBuff->buffNotEmpty));
 
   pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
 
@@ -530,13 +577,13 @@ void *taosAsyncOutputLog(void *param) {
   char tempBuffer[TSDB_DEFAULT_LOG_BUF_UNIT];
 
   while (1) {
-    sem_wait(&(tLogBuff->buffNotEmpty));
+    tsem_wait(&(tLogBuff->buffNotEmpty));
 
     // Polling the buffer
     while (1) {
       log_size = taosPollLogBuffer(tLogBuff, tempBuffer, TSDB_DEFAULT_LOG_BUF_UNIT);
       if (log_size) {
-        write(tLogBuff->fd, tempBuffer, log_size);
+        twrite(tLogBuff->fd, tempBuffer, log_size);
         LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + log_size) % LOG_BUF_SIZE(tLogBuff);
       } else {
         break;

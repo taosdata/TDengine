@@ -4,7 +4,7 @@
  */
 
 /* @(#) $Id$ */
-
+#include <stdint.h>
 #include "zutil.h"
 #ifndef Z_SOLO
 #  include "gzguts.h"
@@ -280,7 +280,7 @@ void ZLIB_INTERNAL zcfree (voidpf opaque, voidpf ptr)
 voidpf ZLIB_INTERNAL zcalloc (voidpf opaque, uInt items, uInt size)
 {
     (void)opaque;
-    return _halloc((long)items, size);
+    return _halloc((int64_t)items, size);
 }
 
 void ZLIB_INTERNAL zcfree (voidpf opaque, voidpf ptr)

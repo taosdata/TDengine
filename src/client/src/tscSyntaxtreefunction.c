@@ -13,49 +13,43 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "os.h"
 
 #include "tscSyntaxtreefunction.h"
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "ttypes.h"
 #include "tutil.h"
 
-#define ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord) \
-  {                                                                                               \
-    int32_t i = ((_ord) == TSQL_SO_ASC) ? 0 : MAX(len1, len2) - 1;                                \
-    int32_t step = ((_ord) == TSQL_SO_ASC) ? 1 : -1;                                              \
-                                                                                                  \
-    if ((len1) == (len2)) {                                                                       \
-      for (; i < (len2) && i >= 0; i += step) {                                                   \
-        if (isNull((char *)&(left)[i], _left_type) || isNull((char *)&(right)[i], _right_type)) { \
-          setNull((char *)&(out)[i], _res_type, tDataTypeDesc[_res_type].nSize);                  \
-          continue;                                                                               \
-        }                                                                                         \
-        *(out) = (double)(left)[i] op(right)[i];                                                  \
-        (out) += step;                                                                            \
-      }                                                                                           \
-    } else if ((len1) == 1) {                                                                     \
-      for (; i >= 0 && i < (len2); i += step) {                                                   \
-        if (isNull((char *)&(left)[i], _left_type) || isNull((char *)&(right)[i], _right_type)) { \
-          setNull((char *)&(out)[i], _res_type, tDataTypeDesc[_res_type].nSize);                  \
-          continue;                                                                               \
-        }                                                                                         \
-        *(out) = (double)pLeft[0] op(pRight)[i];                                                  \
-        (out) += step;                                                                            \
-      }                                                                                           \
-    } else if ((len2) == 1) {                                                                     \
-      for (; i >= 0 && i < (len1); i += step) {                                                   \
-        if (isNull((char *)&(left)[i], _left_type) || isNull((char *)&(right)[i], _right_type)) { \
-          setNull((char *)&(out)[i], _res_type, tDataTypeDesc[_res_type].nSize);                  \
-          continue;                                                                               \
-        }                                                                                         \
-        *(out) = (double)(pLeft)[i] op(pRight)[0];                                                \
-        (out) += step;                                                                            \
-      }                                                                                           \
-    }                                                                                             \
+#define ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord)     \
+  {                                                                                                   \
+    int32_t i = ((_ord) == TSQL_SO_ASC) ? 0 : MAX(len1, len2) - 1;                                    \
+    int32_t step = ((_ord) == TSQL_SO_ASC) ? 1 : -1;                                                  \
+                                                                                                      \
+    if ((len1) == (len2)) {                                                                           \
+      for (; i < (len2) && i >= 0; i += step, (out) += 1) {                                        \
+        if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)&((right)[i]), _right_type)) { \
+          setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
+          continue;                                                                                   \
+        }                                                                                             \
+        *(out) = (double)(left)[i] op(right)[i];                                                      \
+      }                                                                                               \
+    } else if ((len1) == 1) {                                                                         \
+      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                        \
+        if (isNull((char *)(left), _left_type) || isNull((char *)&(right)[i], _right_type)) {         \
+          setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
+          continue;                                                                                   \
+        }                                                                                             \
+        *(out) = (double)(left)[0] op(right)[i];                                                      \
+      }                                                                                               \
+    } else if ((len2) == 1) {                                                                         \
+      for (; i >= 0 && i < (len1); i += step, (out) += 1) {                                        \
+        if (isNull((char *)&(left)[i], _left_type) || isNull((char *)(right), _right_type)) {         \
+          setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
+          continue;                                                                                   \
+        }                                                                                             \
+        *(out) = (double)(left)[i] op(right)[0];                                                      \
+      }                                                                                               \
+    }                                                                                                 \
   }
 
 #define ARRAY_LIST_OP_REM(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord) \
@@ -64,31 +58,28 @@
     int32_t step = (_ord == TSQL_SO_ASC) ? 1 : -1;                                                    \
                                                                                                       \
     if (len1 == (len2)) {                                                                             \
-      for (; i >= 0 && i < (len2); i += step) {                                                       \
-        if (isNull((char *)&left[i], _left_type) || isNull((char *)&right[i], _right_type)) {         \
-          setNull((char *)&out[i], _res_type, tDataTypeDesc[_res_type].nSize);                        \
+      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                        \
+        if (isNull((char *)&(left[i]), _left_type) || isNull((char *)&(right[i]), _right_type)) {     \
+          setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
         }                                                                                             \
-        *(out) = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[i])) * pRight[i];          \
-        (out) += step;                                                                                \
+        *(out) = (double)(left)[i] - ((int64_t)(((double)(left)[i]) / (right)[i])) * (right)[i];      \
       }                                                                                               \
     } else if (len1 == 1) {                                                                           \
-      for (; i >= 0 && i < (len2); i += step) {                                                       \
-        if (isNull((char *)&left[i], _left_type) || isNull((char *)&right[i], _right_type)) {         \
-          setNull((char *)&out[i], _res_type, tDataTypeDesc[_res_type].nSize);                        \
+      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                        \
+        if (isNull((char *)(left), _left_type) || isNull((char *)&((right)[i]), _right_type)) {       \
+          setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
         }                                                                                             \
-        *(out) = (double)pLeft[0] - ((int64_t)(((double)pLeft[0]) / pRight[i])) * pRight[i];          \
-        (out) += step;                                                                                \
+        *(out) = (double)(left)[0] - ((int64_t)(((double)(left)[0]) / (right)[i])) * (right)[i];      \
       }                                                                                               \
     } else if ((len2) == 1) {                                                                         \
-      for (; i >= 0 && i < len1; i += step) {                                                         \
-        if (isNull((char *)&left[i], _left_type) || isNull((char *)&right[i], _right_type)) {         \
-          setNull((char *)&out[i], _res_type, tDataTypeDesc[_res_type].nSize);                        \
+      for (; i >= 0 && i < len1; i += step, (out) += 1) {                                          \
+        if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)(right), _right_type)) {       \
+          setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
         }                                                                                             \
-        *(out) = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[0])) * pRight[0];          \
-        (out) += step;                                                                                \
+        *(out) = (double)(left)[i] - ((int64_t)(((double)(left)[i]) / (right)[0])) * (right)[0];      \
       }                                                                                               \
     }                                                                                                 \
   }
@@ -121,33 +112,30 @@ void calc_fn_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
 
       *pOutput = (double)pLeft[i] + pRight[i];
-      pOutput += step;
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; ++i) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
 
       *pOutput = (double)pLeft[0] + pRight[i];
-      pOutput += step;
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; ++i) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
       *pOutput = (double)pLeft[i] + pRight[0];
-      pOutput += step;
     }
   }
 }
@@ -322,31 +310,28 @@ void calc_fn_i32_i32_sub(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
       *pOutput = (double)pLeft[i] - pRight[i];
-      pOutput += step;
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
       *pOutput = (double)pLeft[0] - pRight[i];
-      pOutput += step;
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
+      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
       *pOutput = (double)pLeft[i] - pRight[0];
-      pOutput += step;
     }
   }
 }
@@ -536,31 +521,30 @@ void calc_fn_i32_i32_multi(void *left, void *right, int32_t numLeft, int32_t num
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[i] * pRight[i];
-      pOutput += step;
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[0] * pRight[i];
-      pOutput += step;
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
       *pOutput = (double)pLeft[i] * pRight[0];
-      pOutput += step;
     }
   }
 }
@@ -735,31 +719,30 @@ void calc_fn_i32_i32_div(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[i] / pRight[i];
-      pOutput += step;
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[0] / pRight[i];
-      pOutput += step;
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
       *pOutput = (double)pLeft[i] / pRight[0];
-      pOutput += step;
     }
   }
 }
@@ -950,32 +933,31 @@ void calc_fn_i32_i32_rem(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
 
       *pOutput = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[i])) * pRight[i];
-      pOutput += step;
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[0] - ((int64_t)(((double)pLeft[0]) / pRight[i])) * pRight[i];
-      pOutput += step;
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[0])) * pRight[0];
-      pOutput += step;
     }
   }
 }
@@ -1009,31 +991,31 @@ void calc_fn_i32_d_rem(void *left, void *right, int32_t numLeft, int32_t numRigh
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_DOUBLE)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[i])) * pRight[i];
-      pOutput += step;
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_DOUBLE)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
+      if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[0] - ((int64_t)(((double)pLeft[0]) / pRight[i])) * pRight[i];
-      pOutput += step;
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step) {
-      if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)&pRight[i], TSDB_DATA_TYPE_DOUBLE)) {
-        setNull((char *)&pOutput[i], TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
+      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
+        setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
+
       *pOutput = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[0])) * pRight[0];
-      pOutput += step;
     }
   }
 }
@@ -1192,98 +1174,63 @@ void calc_fn_d_d_rem(void *left, void *right, int32_t numLeft, int32_t numRight,
  * the following are two-dimensional array list of callback function .
  */
 _bi_consumer_fn_t add_function_arraylist[8][10] = {
-    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp,
-       binary*/
+    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp, binary*/
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // EMPTY,
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // TSDB_DATA_TYPE_BOOL,
-    {NULL, NULL, calc_fn_i8_i8_add, calc_fn_i8_i16_add, calc_fn_i8_i32_add, calc_fn_i8_i64_add, calc_fn_i8_f_add,
-     calc_fn_i8_d_add, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
-    {NULL, NULL, calc_fn_i16_i8_add, calc_fn_i16_i16_add, calc_fn_i16_i32_add, calc_fn_i16_i64_add, calc_fn_i16_f_add,
-     calc_fn_i16_d_add, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
-    {NULL, NULL, calc_fn_i32_i8_add, calc_fn_i32_i16_add, calc_fn_i32_i32_add, calc_fn_i32_i64_add, calc_fn_i32_f_add,
-     calc_fn_i32_d_add, NULL, NULL},  // TSDB_DATA_TYPE_INT
-    {NULL, NULL, calc_fn_i64_i8_add, calc_fn_i64_i16_add, calc_fn_i64_i32_add, calc_fn_i64_i64_add, calc_fn_i64_f_add,
-     calc_fn_i64_d_add, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
-    {NULL, NULL, calc_fn_f_i8_add, calc_fn_f_i16_add, calc_fn_f_i32_add, calc_fn_f_i64_add, calc_fn_f_f_add,
-     calc_fn_f_d_add, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
-    {NULL, NULL, calc_fn_d_i8_add, calc_fn_d_i16_add, calc_fn_d_i32_add, calc_fn_d_i64_add, calc_fn_d_f_add,
-     calc_fn_d_d_add, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
+    {NULL, NULL, calc_fn_i8_i8_add, calc_fn_i8_i16_add, calc_fn_i8_i32_add, calc_fn_i8_i64_add, calc_fn_i8_f_add, calc_fn_i8_d_add, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
+    {NULL, NULL, calc_fn_i16_i8_add, calc_fn_i16_i16_add, calc_fn_i16_i32_add, calc_fn_i16_i64_add, calc_fn_i16_f_add, calc_fn_i16_d_add, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
+    {NULL, NULL, calc_fn_i32_i8_add, calc_fn_i32_i16_add, calc_fn_i32_i32_add, calc_fn_i32_i64_add, calc_fn_i32_f_add, calc_fn_i32_d_add, NULL, NULL},  // TSDB_DATA_TYPE_INT
+    {NULL, NULL, calc_fn_i64_i8_add, calc_fn_i64_i16_add, calc_fn_i64_i32_add, calc_fn_i64_i64_add, calc_fn_i64_f_add, calc_fn_i64_d_add, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
+    {NULL, NULL, calc_fn_f_i8_add, calc_fn_f_i16_add, calc_fn_f_i32_add, calc_fn_f_i64_add, calc_fn_f_f_add, calc_fn_f_d_add, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
+    {NULL, NULL, calc_fn_d_i8_add, calc_fn_d_i16_add, calc_fn_d_i32_add, calc_fn_d_i64_add, calc_fn_d_f_add, calc_fn_d_d_add, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
 };
 
 _bi_consumer_fn_t sub_function_arraylist[8][10] = {
-    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp,
-       binary*/
+    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp, binary*/
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // EMPTY,
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // TSDB_DATA_TYPE_BOOL,
-    {NULL, NULL, calc_fn_i8_i8_sub, calc_fn_i8_i16_sub, calc_fn_i8_i32_sub, calc_fn_i8_i64_sub, calc_fn_i8_f_sub,
-     calc_fn_i8_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
-    {NULL, NULL, calc_fn_i16_i8_sub, calc_fn_i16_i16_sub, calc_fn_i16_i32_sub, calc_fn_i16_i64_sub, calc_fn_i16_f_sub,
-     calc_fn_i16_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
-    {NULL, NULL, calc_fn_i32_i8_sub, calc_fn_i32_i16_sub, calc_fn_i32_i32_sub, calc_fn_i32_i64_sub, calc_fn_i32_f_sub,
-     calc_fn_i32_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_INT
-    {NULL, NULL, calc_fn_i64_i8_sub, calc_fn_i64_i16_sub, calc_fn_i64_i32_sub, calc_fn_i64_i64_sub, calc_fn_i64_f_sub,
-     calc_fn_i64_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
-    {NULL, NULL, calc_fn_f_i8_sub, calc_fn_f_i16_sub, calc_fn_f_i32_sub, calc_fn_f_i64_sub, calc_fn_f_f_sub,
-     calc_fn_f_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
-    {NULL, NULL, calc_fn_d_i8_sub, calc_fn_d_i16_sub, calc_fn_d_i32_sub, calc_fn_d_i64_sub, calc_fn_d_f_sub,
-     calc_fn_d_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
+    {NULL, NULL, calc_fn_i8_i8_sub, calc_fn_i8_i16_sub, calc_fn_i8_i32_sub, calc_fn_i8_i64_sub, calc_fn_i8_f_sub, calc_fn_i8_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
+    {NULL, NULL, calc_fn_i16_i8_sub, calc_fn_i16_i16_sub, calc_fn_i16_i32_sub, calc_fn_i16_i64_sub, calc_fn_i16_f_sub, calc_fn_i16_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
+    {NULL, NULL, calc_fn_i32_i8_sub, calc_fn_i32_i16_sub, calc_fn_i32_i32_sub, calc_fn_i32_i64_sub, calc_fn_i32_f_sub, calc_fn_i32_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_INT
+    {NULL, NULL, calc_fn_i64_i8_sub, calc_fn_i64_i16_sub, calc_fn_i64_i32_sub, calc_fn_i64_i64_sub, calc_fn_i64_f_sub, calc_fn_i64_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
+    {NULL, NULL, calc_fn_f_i8_sub, calc_fn_f_i16_sub, calc_fn_f_i32_sub, calc_fn_f_i64_sub, calc_fn_f_f_sub, calc_fn_f_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
+    {NULL, NULL, calc_fn_d_i8_sub, calc_fn_d_i16_sub, calc_fn_d_i32_sub, calc_fn_d_i64_sub, calc_fn_d_f_sub, calc_fn_d_d_sub, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
 };
 
 _bi_consumer_fn_t multi_function_arraylist[][10] = {
-    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp,
-       binary*/
+    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp, binary*/
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // EMPTY,
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // TSDB_DATA_TYPE_BOOL,
-    {NULL, NULL, calc_fn_i8_i8_multi, calc_fn_i8_i16_multi, calc_fn_i8_i32_multi, calc_fn_i8_i64_multi,
-     calc_fn_i8_f_multi, calc_fn_i8_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
-    {NULL, NULL, calc_fn_i16_i8_multi, calc_fn_i16_i16_multi, calc_fn_i16_i32_multi, calc_fn_i16_i64_multi,
-     calc_fn_i16_f_multi, calc_fn_i16_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
-    {NULL, NULL, calc_fn_i32_i8_multi, calc_fn_i32_i16_multi, calc_fn_i32_i32_multi, calc_fn_i32_i64_multi,
-     calc_fn_i32_f_multi, calc_fn_i32_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_INT
-    {NULL, NULL, calc_fn_i64_i8_multi, calc_fn_i64_i16_multi, calc_fn_i64_i32_multi, calc_fn_i64_i64_multi,
-     calc_fn_i64_f_multi, calc_fn_i64_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
-    {NULL, NULL, calc_fn_f_i8_multi, calc_fn_f_i16_multi, calc_fn_f_i32_multi, calc_fn_f_i64_multi, calc_fn_f_f_multi,
-     calc_fn_f_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
-    {NULL, NULL, calc_fn_d_i8_multi, calc_fn_d_i16_multi, calc_fn_d_i32_multi, calc_fn_d_i64_multi, calc_fn_d_f_multi,
-     calc_fn_d_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
+    {NULL, NULL, calc_fn_i8_i8_multi, calc_fn_i8_i16_multi, calc_fn_i8_i32_multi, calc_fn_i8_i64_multi, calc_fn_i8_f_multi, calc_fn_i8_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
+    {NULL, NULL, calc_fn_i16_i8_multi, calc_fn_i16_i16_multi, calc_fn_i16_i32_multi, calc_fn_i16_i64_multi, calc_fn_i16_f_multi, calc_fn_i16_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
+    {NULL, NULL, calc_fn_i32_i8_multi, calc_fn_i32_i16_multi, calc_fn_i32_i32_multi, calc_fn_i32_i64_multi, calc_fn_i32_f_multi, calc_fn_i32_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_INT
+    {NULL, NULL, calc_fn_i64_i8_multi, calc_fn_i64_i16_multi, calc_fn_i64_i32_multi, calc_fn_i64_i64_multi, calc_fn_i64_f_multi, calc_fn_i64_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
+    {NULL, NULL, calc_fn_f_i8_multi, calc_fn_f_i16_multi, calc_fn_f_i32_multi, calc_fn_f_i64_multi, calc_fn_f_f_multi, calc_fn_f_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
+    {NULL, NULL, calc_fn_d_i8_multi, calc_fn_d_i16_multi, calc_fn_d_i32_multi, calc_fn_d_i64_multi, calc_fn_d_f_multi, calc_fn_d_d_multi, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
 };
 
 _bi_consumer_fn_t div_function_arraylist[8][10] = {
-    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp,
-       binary*/
+    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp, binary*/
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // EMPTY,
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // TSDB_DATA_TYPE_BOOL,
-    {NULL, NULL, calc_fn_i8_i8_div, calc_fn_i8_i16_div, calc_fn_i8_i32_div, calc_fn_i8_i64_div, calc_fn_i8_f_div,
-     calc_fn_i8_d_div, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
-    {NULL, NULL, calc_fn_i16_i8_div, calc_fn_i16_i16_div, calc_fn_i16_i32_div, calc_fn_i16_i64_div, calc_fn_i16_f_div,
-     calc_fn_i16_d_div, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
-    {NULL, NULL, calc_fn_i32_i8_div, calc_fn_i32_i16_div, calc_fn_i32_i32_div, calc_fn_i32_i64_div, calc_fn_i32_f_div,
-     calc_fn_i32_d_div, NULL, NULL},  // TSDB_DATA_TYPE_INT
-    {NULL, NULL, calc_fn_i64_i8_div, calc_fn_i64_i16_div, calc_fn_i64_i32_div, calc_fn_i64_i64_div, calc_fn_i64_f_div,
-     calc_fn_i64_d_div, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
-    {NULL, NULL, calc_fn_f_i8_div, calc_fn_f_i16_div, calc_fn_f_i32_div, calc_fn_f_i64_div, calc_fn_f_f_div,
-     calc_fn_f_d_div, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
-    {NULL, NULL, calc_fn_d_i8_div, calc_fn_d_i16_div, calc_fn_d_i32_div, calc_fn_d_i64_div, calc_fn_d_f_div,
-     calc_fn_d_d_div, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
+    {NULL, NULL, calc_fn_i8_i8_div, calc_fn_i8_i16_div, calc_fn_i8_i32_div, calc_fn_i8_i64_div, calc_fn_i8_f_div, calc_fn_i8_d_div, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
+    {NULL, NULL, calc_fn_i16_i8_div, calc_fn_i16_i16_div, calc_fn_i16_i32_div, calc_fn_i16_i64_div, calc_fn_i16_f_div, calc_fn_i16_d_div, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
+    {NULL, NULL, calc_fn_i32_i8_div, calc_fn_i32_i16_div, calc_fn_i32_i32_div, calc_fn_i32_i64_div, calc_fn_i32_f_div, calc_fn_i32_d_div, NULL, NULL},  // TSDB_DATA_TYPE_INT
+    {NULL, NULL, calc_fn_i64_i8_div, calc_fn_i64_i16_div, calc_fn_i64_i32_div, calc_fn_i64_i64_div, calc_fn_i64_f_div, calc_fn_i64_d_div, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
+    {NULL, NULL, calc_fn_f_i8_div, calc_fn_f_i16_div, calc_fn_f_i32_div, calc_fn_f_i64_div, calc_fn_f_f_div, calc_fn_f_d_div, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
+    {NULL, NULL, calc_fn_d_i8_div, calc_fn_d_i16_div, calc_fn_d_i32_div, calc_fn_d_i64_div, calc_fn_d_f_div, calc_fn_d_d_div, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
 };
 
 _bi_consumer_fn_t rem_function_arraylist[8][10] = {
-    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp,
-       binary*/
+    /*NULL, bool, tinyint, smallint, int, bigint, float, double, timestamp, binary*/
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // EMPTY,
     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},  // TSDB_DATA_TYPE_BOOL,
-    {NULL, NULL, calc_fn_i8_i8_rem, calc_fn_i8_i16_rem, calc_fn_i8_i32_rem, calc_fn_i8_i64_rem, calc_fn_i8_f_rem,
-     calc_fn_i8_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
-    {NULL, NULL, calc_fn_i16_i8_rem, calc_fn_i16_i16_rem, calc_fn_i16_i32_rem, calc_fn_i16_i64_rem, calc_fn_i16_f_rem,
-     calc_fn_i16_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
-    {NULL, NULL, calc_fn_i32_i8_rem, calc_fn_i32_i16_rem, calc_fn_i32_i32_rem, calc_fn_i32_i64_rem, calc_fn_i32_f_rem,
-     calc_fn_i32_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_INT
-    {NULL, NULL, calc_fn_i64_i8_rem, calc_fn_i64_i16_rem, calc_fn_i64_i32_rem, calc_fn_i64_i64_rem, calc_fn_i64_f_rem,
-     calc_fn_i64_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
-    {NULL, NULL, calc_fn_f_i8_rem, calc_fn_f_i16_rem, calc_fn_f_i32_rem, calc_fn_f_i64_rem, calc_fn_f_f_rem,
-     calc_fn_f_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
-    {NULL, NULL, calc_fn_d_i8_rem, calc_fn_d_i16_rem, calc_fn_d_i32_rem, calc_fn_d_i64_rem, calc_fn_d_f_rem,
-     calc_fn_d_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
+    {NULL, NULL, calc_fn_i8_i8_rem, calc_fn_i8_i16_rem, calc_fn_i8_i32_rem, calc_fn_i8_i64_rem, calc_fn_i8_f_rem, calc_fn_i8_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_TINYINT
+    {NULL, NULL, calc_fn_i16_i8_rem, calc_fn_i16_i16_rem, calc_fn_i16_i32_rem, calc_fn_i16_i64_rem, calc_fn_i16_f_rem, calc_fn_i16_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_SMALLINT
+    {NULL, NULL, calc_fn_i32_i8_rem, calc_fn_i32_i16_rem, calc_fn_i32_i32_rem, calc_fn_i32_i64_rem, calc_fn_i32_f_rem, calc_fn_i32_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_INT
+    {NULL, NULL, calc_fn_i64_i8_rem, calc_fn_i64_i16_rem, calc_fn_i64_i32_rem, calc_fn_i64_i64_rem, calc_fn_i64_f_rem, calc_fn_i64_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_BIGINT
+    {NULL, NULL, calc_fn_f_i8_rem, calc_fn_f_i16_rem, calc_fn_f_i32_rem, calc_fn_f_i64_rem, calc_fn_f_f_rem, calc_fn_f_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_FLOAT
+    {NULL, NULL, calc_fn_d_i8_rem, calc_fn_d_i16_rem, calc_fn_d_i32_rem, calc_fn_d_i64_rem, calc_fn_d_f_rem, calc_fn_d_d_rem, NULL, NULL},  // TSDB_DATA_TYPE_DOUBLE
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////

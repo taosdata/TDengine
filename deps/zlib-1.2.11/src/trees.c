@@ -33,7 +33,7 @@
 /* @(#) $Id$ */
 
 /* #define GEN_TREES_H */
-
+#include <stdint.h>
 #include "deflate.h"
 
 #ifdef ZLIB_DEBUG
@@ -1038,7 +1038,7 @@ int ZLIB_INTERNAL _tr_tally (s, dist, lc)
     if ((s->last_lit & 0x1fff) == 0 && s->level > 2) {
         /* Compute an upper bound for the compressed length */
         ulg out_length = (ulg)s->last_lit*8L;
-        ulg in_length = (ulg)((long)s->strstart - s->block_start);
+        ulg in_length = (ulg)((int64_t)s->strstart - s->block_start);
         int dcode;
         for (dcode = 0; dcode < D_CODES; dcode++) {
             out_length += (ulg)s->dyn_dtree[dcode].Freq *
@@ -1128,7 +1128,7 @@ local int detect_data_type(s)
      * set bits 0..6, 14..25, and 28..31
      * 0xf3ffc07f = binary 11110011111111111100000001111111
      */
-    unsigned long black_mask = 0xf3ffc07fUL;
+    uint64_t black_mask = 0xf3ffc07fUL;
     int n;
 
     /* Check for non-textual ("black-listed") bytes. */

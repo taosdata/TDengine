@@ -13,16 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/time.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tglobalcfg.h"
 #include "tlog.h"
@@ -34,7 +25,7 @@
 
 typedef struct _c_hash_t {
   uint32_t          ip;
-  short             port;
+  uint16_t          port;
   struct _c_hash_t *prev;
   struct _c_hash_t *next;
   void *            data;
@@ -54,14 +45,14 @@ typedef struct {
   void *pTimer;
 } SConnCache;
 
-int taosHashConn(void *handle, uint32_t ip, short port, char *user) {
+int taosHashConn(void *handle, uint32_t ip, uint16_t port, char *user) {
   SConnCache *pObj = (SConnCache *)handle;
   int         hash = 0;
   // size_t    user_len = strlen(user);
 
   hash = ip >> 16;
   hash += (unsigned short)(ip & 0xFFFF);
-  hash += (unsigned short)port;
+  hash += port;
   while (*user != '\0') {
     hash += *user;
     user++;
@@ -83,7 +74,7 @@ void taosRemoveExpiredNodes(SConnCache *pObj, SConnHash *pNode, int hash, uint64
     pNext = pNode->next;
     pObj->total--;
     pObj->count[hash]--;
-    tscTrace("%p ip:0x%x:%d:%d:%p removed, connections in cache:%d", pNode->data, pNode->ip, pNode->port, hash, pNode,
+    tscTrace("%p ip:0x%x:%hu:%d:%p removed, connections in cache:%d", pNode->data, pNode->ip, pNode->port, hash, pNode,
              pObj->count[hash]);
     taosMemPoolFree(pObj->connHashMemPool, (char *)pNode);
     pNode = pNext;
@@ -95,7 +86,7 @@ void taosRemoveExpiredNodes(SConnCache *pObj, SConnHash *pNode, int hash, uint64
     pObj->connHashList[hash] = NULL;
 }
 
-void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, short port, char *user) {
+void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user) {
   int         hash;
   SConnHash * pNode;
   SConnCache *pObj;
@@ -104,8 +95,9 @@ void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, short port, ch
 
   pObj = (SConnCache *)handle;
   if (pObj == NULL || pObj->maxSessions == 0) return NULL;
-  if (data == NULL || ip == 0) {
-    tscTrace("data:%p ip:0x%x:%d not valid, not added in cache", data, ip, port);
+
+  if (data == NULL) {
+    tscTrace("data:%p ip:%p:%d not valid, not added in cache", data, ip, port);
     return NULL;
   }
 
@@ -129,7 +121,7 @@ void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, short port, ch
 
   pthread_mutex_unlock(&pObj->mutex);
 
-  tscTrace("%p ip:0x%x:%d:%d:%p added, connections in cache:%d", data, ip, port, hash, pNode, pObj->count[hash]);
+  tscTrace("%p ip:0x%x:%hu:%d:%p added, connections in cache:%d", data, ip, port, hash, pNode, pObj->count[hash]);
 
   return pObj;
 }
@@ -156,7 +148,7 @@ void taosCleanConnCache(void *handle, void *tmrId) {
   taosTmrReset(taosCleanConnCache, pObj->keepTimer * 2, pObj, pObj->tmrCtrl, &pObj->pTimer);
 }
 
-void *taosGetConnFromCache(void *handle, uint32_t ip, short port, char *user) {
+void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user) {
   int         hash;
   SConnHash * pNode;
   SConnCache *pObj;
@@ -205,7 +197,7 @@ void *taosGetConnFromCache(void *handle, uint32_t ip, short port, char *user) {
   pthread_mutex_unlock(&pObj->mutex);
 
   if (pData) {
-    tscTrace("%p ip:0x%x:%d:%d:%p retrieved, connections in cache:%d", pData, ip, port, hash, pNode, pObj->count[hash]);
+    tscTrace("%p ip:0x%x:%hu:%d:%p retrieved, connections in cache:%d", pData, ip, port, hash, pNode, pObj->count[hash]);
   }
 
   return pData;

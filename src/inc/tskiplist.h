@@ -25,18 +25,9 @@ extern "C" {
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "ttypes.h"
-
-/*
- * generate random data with uniform&skewed distribution, extracted from levelDB
- */
-typedef struct SRandom {
-  uint32_t s;
-
-  uint32_t (*rand)(struct SRandom *, int32_t n);
-} SRandom;
 
 /*
  * key of each node
@@ -52,43 +43,34 @@ typedef enum tSkipListPointQueryType {
 } tSkipListPointQueryType;
 
 typedef struct tSkipListNode {
-  uint16_t     nLevel;
-  char *       pData;
-  tSkipListKey key;
+  uint16_t nLevel;
+  char *   pData;
 
   struct tSkipListNode **pForward;
   struct tSkipListNode **pBackward;
+
+  tSkipListKey key;
 } tSkipListNode;
 
 /*
  * @version 0.2
  * @date   2017/11/12
- * @author liaohj
  * the simple version of SkipList.
- * for multi-thread safe purpose, we employ pthread_rwlock_t to guarantee to
- * generate
+ * for multi-thread safe purpose, we employ pthread_rwlock_t to guarantee to generate
  * deterministic result. Later, we will remove the lock in SkipList to further
- * enhance the performance. In this case, one should use the concurrent skip
- * list (by
- * using michael-scott algorithm) instead of this simple version in a
- * multi-thread
+ * enhance the performance. In this case, one should use the concurrent skip list (by
+ * using michael-scott algorithm) instead of this simple version in a multi-thread
  * environment, to achieve higher performance of read/write operations.
  *
  * Note: Duplicated primary key situation.
- * In case of duplicated primary key, two ways can be employed to handle this
- * situation:
+ * In case of duplicated primary key, two ways can be employed to handle this situation:
  * 1. add as normal insertion with out special process.
- * 2. add an overflow pointer at each list node, all nodes with the same key
- * will be added
- *    in the overflow pointer. In this case, the total steps of each search will
- * be reduced significantly.
- *    Currently, we implement the skip list in a line with the first means,
- * maybe refactor it soon.
- * Memory consumption: the memory alignment causes many memory wasted. So,
- * employ a memory
- * pool will significantly reduce the total memory consumption, as well as the
- * calloc/malloc
- * operation costs.
+ * 2. add an overflow pointer at each list node, all nodes with the same key will be added
+ *    in the overflow pointer. In this case, the total steps of each search will be reduced significantly.
+ *    Currently, we implement the skip list in a line with the first means, maybe refactor it soon.
+ *
+ *    Memory consumption: the memory alignment causes many memory wasted. So, employ a memory
+ *    pool will significantly reduce the total memory consumption, as well as the calloc/malloc operation costs.
  *
  * 3. use the iterator pattern to refactor all routines to make it more clean
  */
@@ -102,7 +84,6 @@ typedef struct tSkipListState {
   // in bytes, sizeof(tSkipList)+sizeof(tSkipListNode)*tSkipList->nSize
   uint64_t nTotalMemSize;
   uint64_t nLevelNodeCnt[MAX_SKIP_LIST_LEVEL];
-
   uint64_t queryCount;  // total query count
 
   /*
@@ -123,41 +104,43 @@ typedef struct tSkipListState {
 typedef struct tSkipList {
   tSkipListNode pHead;
   uint64_t      nSize;
-
-  uint16_t nMaxLevel;
-  uint16_t nLevel;
-
-  uint16_t keyType;
-  uint16_t nMaxKeyLen;
+  uint16_t      nMaxLevel;
+  uint16_t      nLevel;
+  uint16_t      keyType;
+  uint16_t      nMaxKeyLen;
 
   __compar_fn_t    comparator;
-  pthread_rwlock_t lock;  // will be removed soon
-
-  // random generator
-  SRandom r;
-
-  // skiplist state
-  tSkipListState state;
+  pthread_rwlock_t lock;   // will be removed soon
+  tSkipListState   state;  // skiplist state
 } tSkipList;
 
 /*
+ * iterate the skiplist
+ * this will cause the multi-thread problem, when the skiplist is destroyed, the iterate may
+ * continue iterating the skiplist, so add the reference count for skiplist
+ * TODO add the ref for skiplist when one iterator is created
+ */
+typedef struct SSkipListIterator {
+  tSkipList *    pSkipList;
+  tSkipListNode *cur;
+  int64_t        num;
+} SSkipListIterator;
+
+/*
  * query condition structure to denote the range query
- * //todo merge the point query cond with range query condition
+ * todo merge the point query cond with range query condition
  */
 typedef struct tSKipListQueryCond {
   // when the upper bounding == lower bounding, it is a point query
   tSkipListKey lowerBnd;
   tSkipListKey upperBnd;
-
-  int32_t lowerBndRelOptr;  // relation operator to denote if lower bound is
-  // included or not
-  int32_t upperBndRelOptr;
+  int32_t      lowerBndRelOptr;  // relation operator to denote if lower bound is
+  int32_t      upperBndRelOptr;  // included or not
 } tSKipListQueryCond;
 
-int32_t tSkipListCreate(tSkipList **pSkipList, int16_t nMaxLevel, int16_t keyType, int16_t nMaxKeyLen,
-                        int32_t (*funcp)());
+tSkipList *tSkipListCreate(int16_t nMaxLevel, int16_t keyType, int16_t nMaxKeyLen);
 
-void tSkipListDestroy(tSkipList **pSkipList);
+void *tSkipListDestroy(tSkipList *pSkipList);
 
 // create skip list key
 tSkipListKey tSkipListCreateKey(int32_t type, char *val, size_t keyLength);
@@ -170,8 +153,7 @@ tSkipListNode *tSkipListPut(tSkipList *pSkipList, void *pData, tSkipListKey *pKe
 
 /*
  * get only *one* node of which key is equalled to pKey, even there are more
- * than
- * one nodes are of the same key
+ * than one nodes are of the same key
  */
 tSkipListNode *tSkipListGetOne(tSkipList *pSkipList, tSkipListKey *pKey);
 
@@ -198,8 +180,6 @@ bool tSkipListRemove(tSkipList *pSkipList, tSkipListKey *pKey);
  */
 void tSkipListRemoveNode(tSkipList *pSkipList, tSkipListNode *pNode);
 
-int32_t tSkipListDefaultCompare(tSkipList *pSkipList, tSkipListKey *a, tSkipListKey *b);
-
 // for debug purpose only
 void tSkipListPrint(tSkipList *pSkipList, int16_t nlevel);
 
@@ -214,12 +194,9 @@ int32_t tSkipListQuery(tSkipList *pSkipList, tSKipListQueryCond *pQueryCond, tSk
 int32_t tSkipListPointQuery(tSkipList *pSkipList, tSkipListKey *pKey, int32_t numOfKey, tSkipListPointQueryType type,
                             tSkipListNode ***pResult);
 
-void removeNodeEachLevel(tSkipList *pSkipList, int32_t nLevel);
-
-// todo move to utility
-void tInitMatrix(double *x, double *y, int32_t length, double p[2][3]);
-
-int32_t tCompute(double p[2][3]);
+int32_t tSkipListIteratorReset(tSkipList *pSkipList, SSkipListIterator *iter);
+bool tSkipListIteratorNext(SSkipListIterator *iter);
+tSkipListNode *tSkipListIteratorGet(SSkipListIterator *iter);
 
 #ifdef __cplusplus
 }

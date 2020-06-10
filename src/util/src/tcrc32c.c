@@ -17,13 +17,14 @@
 	  misrepresented as being the original software.
 	  3. This notice may not be removed or altered from any source distribution.
 	*/
+#ifndef _TD_ARM_
 #include <nmmintrin.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "tcrc32c.h"
-//todo : use the original source code
-#pragma GCC diagnostic ignored "-Wunused-function"
 
 #define POLY 0x82f63b78
 #define LONG_SHIFT 8192
@@ -1090,6 +1091,7 @@ static uint32_t short_shifts[4][256] = {
      0xe1a734e7, 0xc41cc13c, 0x140cd014, 0x31b725cf, 0x5f7b3ba2, 0x7ac0ce79,
      0x82e30778, 0xa758f2a3, 0xc994ecce, 0xec2f1915}};
 
+#if 0
 static uint32_t append_trivial(uint32_t crc, crc_stream input, size_t length) {
   for (size_t i = 0; i < length; ++i) {
     crc = crc ^ input[i];
@@ -1127,6 +1129,7 @@ static uint32_t append_adler_table(uint32_t crci, crc_stream input,
   }
   return (uint32_t)(crc ^ 0xffffffff);
 }
+#endif
 
 /* Table-driven software version as a fall-back.  This is about 15 times slower
    than using the hardware instructions.  This assumes little-endian integers,
@@ -1186,11 +1189,16 @@ uint32_t crc32c_sf(uint32_t crci, crc_stream input, size_t length) {
 }
 
 /* Apply the zeros operator table to crc. */
-static inline uint32_t shift_crc(uint32_t shift_table[][256], uint32_t crc) {
+static uint32_t shift_crc(uint32_t shift_table[][256], uint32_t crc) {
   return shift_table[0][crc & 0xff] ^ shift_table[1][(crc >> 8) & 0xff] ^
          shift_table[2][(crc >> 16) & 0xff] ^ shift_table[3][crc >> 24];
 }
 
+/* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
+   version.  Otherwise, use the software version. */
+uint32_t (*crc32c)(uint32_t crci, crc_stream bytes, size_t len) = crc32c_sf;
+
+#ifndef _TD_ARM_
 /* Compute CRC-32C using the Intel hardware instruction. */
 uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
   crc_stream next = buf;
@@ -1342,17 +1350,20 @@ uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
     (have) = (ecx >> 20) & 1;                                 \
   } while (0)
 
-/* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
-   version.  Otherwise, use the software version. */
-uint32_t (*crc32c)(uint32_t crci, crc_stream bytes, size_t len) = NULL;
+#endif // #ifndef _TD_ARM_
 
 void taosResolveCRC() {
+#ifndef _TD_ARM_
   int sse42;
   SSE42(sse42);
   crc32c = sse42 ? crc32c_hw : crc32c_sf;
+#else
+  crc32c = crc32c_sf;
+#endif  
   /* return sse42 ? crc32c_hw(crci, bytes, len) : crc32c_sf(crci, bytes, len);
    */
 }
+
 
 #ifdef TEST_CRC32C_MAIN
 #include <string.h>

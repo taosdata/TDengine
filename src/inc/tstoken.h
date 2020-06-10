@@ -22,15 +22,24 @@ extern "C" {
 
 #include <stdbool.h>
 
+#define TK_SPACE      200
+#define TK_COMMENT    201
+#define TK_ILLEGAL    202
+#define TK_HEX        203   // hex number  0x123
+#define TK_OCT        204   // oct number
+#define TK_BIN        205   // bin format data 0b111
+#define TK_FILE       206
+#define TK_QUESTION   207   // denoting the placeholder of "?",when invoking statement bind query
+
+#define TSQL_TBNAME "TBNAME"
+#define TSQL_TBNAME_L "tbname"
+
 // used to denote the minimum unite in sql parsing
 typedef struct SSQLToken {
   uint32_t n;
   uint32_t type;
   char *   z;
 } SSQLToken;
-
-char *tscGetToken(char *string, char **token, int *tokenLen);
-char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, char *delimiters);
 
 /**
  * tokenizer for sql string
@@ -40,14 +49,39 @@ char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, char *deli
  */
 uint32_t tSQLGetToken(char *z, uint32_t *tokenType);
 
-void tStrGetToken(char *str, int32_t *i, SSQLToken *t0, bool isPrevOptr);
+/**
+ * enhanced tokenizer for sql string.
+ *
+ * @param str
+ * @param i
+ * @param isPrevOptr
+ * @param numOfIgnoreToken
+ * @param ignoreTokenTypes
+ * @return
+ */
+SSQLToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t *ignoreTokenTypes);
 
+/**
+ * check if it is a keyword or not
+ * @param z
+ * @param len
+ * @return
+ */
 bool isKeyWord(const char *z, int32_t len);
+
+/**
+ * check if it is a number or not
+ * @param pToken
+ * @return
+ */
 bool isNumber(const SSQLToken *pToken);
 
-void shiftStr(char *dst, char *src);
-
-uint64_t changeToTimestampWithDynPrec(SSQLToken *pToken);
+/**
+ * check if it is a token or not
+ * @param pToken
+ * @return       token type, if it is not a number, TK_ILLEGAL will return
+ */
+int32_t isValidNumber(const SSQLToken* pToken);
 
 #ifdef __cplusplus
 }

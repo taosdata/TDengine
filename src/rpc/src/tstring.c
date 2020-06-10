@@ -139,13 +139,13 @@ char *tsError[] = {"success",
                    "unexpected response",
                    "invalid response type",
                    "no resource",
-                   "invalid time stamp",         // 15
+                   "server-client date time unsynced",         // 15
                    "mismatched meter ID",
                    "transcation not finished",
                    "not online",
                    "send failed",
                    "not active session",     // 20
-                   "insert failed",
+                   "invalid vnode id",
                    "App error",
                    "invalid IE",
                    "invalid value",
@@ -178,8 +178,8 @@ char *tsError[] = {"success",
                    "others",
                    "can't remove dnode which is master",
                    "wrong schema",
-                   "no results",
-                   "num of users execeed maxUsers",
+                   "vnode not active(not created yet or dropped already)",
+                   "num of users execeed maxUsers",   //55
                    "num of databases execeed maxDbs",
                    "num of tables execeed maxTables",
                    "num of dnodes execeed maxDnodes",
@@ -197,7 +197,7 @@ char *tsError[] = {"success",
                    "invalid query handle",         // 70
                    "tables related to metric exist",
                    "can't drop monitor database or tables",
-                   "commit log init failed",
+                   "no disk permissions",
                    "vgroup init failed",
                    "data is already imported",     // 75
                    "not supported operation",
@@ -208,27 +208,41 @@ char *tsError[] = {"success",
                    "client out of memory",
                    "data value overflow",
                    "query cancelled",
-                   "grant timeseries limited",  // 84
+                   "grant timeseries limited",
                    "grant expired",             // 85
                    "client no disk space",
                    "DB file corrupted",
                    "version of client and server not match",
                    "invalid account parameter",
-                   "no enough available time series",
+                   "no enough available time series",  //90
                    "storage credit is used up",
-                   "query credit is used up",    // 92
+                   "query credit is used up",
                    "grant database limited",
                    "grant user limited",
-                   "grant connection limited",
+                   "grant connection limited",      //95
                    "grant stream limited",
                    "grant writing speed limited",
                    "grant storage limited",
-                   "grant query time limited",   // 99
-                   "grant account limited",
+                   "grant query time limited",
+                   "grant account limited",      // 100
                    "grant dnode limited",
-                   "grant cpu core limited",     // 102
+                   "grant cpu core limited",
                    "session not ready",
                    "batch size too big",
-                   "timestamp out of range",
-                   "invalid query message"
+                   "timestamp out of range",     //105
+                   "invalid query message",
+                   "too many results from vnodes for sort",
+                   "timestamp disordered in file block",
+                   "invalid commit log",
+                   "no disk space on server",    //110
+                   "only super table has metric meta info",
+                   "tags value not unique for join",
+                   "invalid submit message",
+                   "not active table(not created yet or dropped already)",
+                   "invalid table id",        // 115
+                   "invalid vnode status",
+                   "failed to lock resources",
+                   "table id/uid mismatch",
+                   "client query cache erased",     // 119
+                   "too many authentication failed, try 10 minutes later",   //120                   
 };

@@ -26,13 +26,12 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "tutil.h"
 }
 
 %syntax_error {
-  pInfo->validSql = false;
+  pInfo->valid = false;
   int32_t outputBufLen = tListLen(pInfo->pzErrMsg);
   int32_t len = 0;
 
@@ -60,21 +59,25 @@
 program ::= cmd.    {}
 
 //////////////////////////////////THE SHOW STATEMENT///////////////////////////////////////////
-cmd ::= SHOW DATABASES.  { setDCLSQLElems(pInfo, SHOW_DATABASES, 0);}
-cmd ::= SHOW MNODES.     { setDCLSQLElems(pInfo, SHOW_MNODES, 0);}
-cmd ::= SHOW DNODES.     { setDCLSQLElems(pInfo, SHOW_DNODES, 0);}
-cmd ::= SHOW USERS.      { setDCLSQLElems(pInfo, SHOW_USERS, 0);}
+cmd ::= SHOW DATABASES.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_DB, 0, 0);}
+cmd ::= SHOW MNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_MNODE, 0, 0);}
+cmd ::= SHOW DNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_DNODE, 0, 0);}
+cmd ::= SHOW ACCOUNTS.   { setShowOptions(pInfo, TSDB_MGMT_TABLE_ACCT, 0, 0);}
+cmd ::= SHOW USERS.      { setShowOptions(pInfo, TSDB_MGMT_TABLE_USER, 0, 0);}
 
-cmd ::= SHOW MODULES.    { setDCLSQLElems(pInfo, SHOW_MODULES, 0);  }
-cmd ::= SHOW QUERIES.    { setDCLSQLElems(pInfo, SHOW_QUERIES, 0);  }
-cmd ::= SHOW CONNECTIONS.{ setDCLSQLElems(pInfo, SHOW_CONNECTIONS, 0);}
-cmd ::= SHOW STREAMS.    { setDCLSQLElems(pInfo, SHOW_STREAMS, 0);  }
-cmd ::= SHOW CONFIGS.    { setDCLSQLElems(pInfo, SHOW_CONFIGS, 0);  }
-cmd ::= SHOW SCORES.     { setDCLSQLElems(pInfo, SHOW_SCORES, 0);   }
-cmd ::= SHOW GRANTS.     { setDCLSQLElems(pInfo, SHOW_GRANTS, 0);   }
+cmd ::= SHOW MODULES.    { setShowOptions(pInfo, TSDB_MGMT_TABLE_MODULE, 0, 0);  }
+cmd ::= SHOW QUERIES.    { setShowOptions(pInfo, TSDB_MGMT_TABLE_QUERIES, 0, 0);  }
+cmd ::= SHOW CONNECTIONS.{ setShowOptions(pInfo, TSDB_MGMT_TABLE_CONNS, 0, 0);}
+cmd ::= SHOW STREAMS.    { setShowOptions(pInfo, TSDB_MGMT_TABLE_STREAMS, 0, 0);  }
+cmd ::= SHOW CONFIGS.    { setShowOptions(pInfo, TSDB_MGMT_TABLE_CONFIGS, 0, 0);  }
+cmd ::= SHOW SCORES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0);   }
+cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
+
+cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
+cmd ::= SHOW VNODES IPTOKEN(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
 %type dbPrefix {SSQLToken}
-dbPrefix(A) ::=.                   {A.n = 0;}
+dbPrefix(A) ::=.                   {A.n = 0; A.type = 0;}
 dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
 
 %type cpxName {SSQLToken}
@@ -82,54 +85,66 @@ cpxName(A) ::= .             {A.n = 0;  }
 cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 
 cmd ::= SHOW dbPrefix(X) TABLES.         {
-    setDCLSQLElems(pInfo, SHOW_TABLES, 1, &X);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
 }
 
 cmd ::= SHOW dbPrefix(X) TABLES LIKE ids(Y).         {
-    setDCLSQLElems(pInfo, SHOW_TABLES, 2, &X, &Y);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, &Y);
 }
 
 cmd ::= SHOW dbPrefix(X) STABLES.      {
-    setDCLSQLElems(pInfo, SHOW_STABLES, 1, &X);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &X, 0);
 }
 
 cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
     SSQLToken token;
     setDBName(&token, &X);
-    setDCLSQLElems(pInfo, SHOW_STABLES, 2, &token, &Y);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &Y);
 }
 
 cmd ::= SHOW dbPrefix(X) VGROUPS.    {
     SSQLToken token;
     setDBName(&token, &X);
-    setDCLSQLElems(pInfo, SHOW_VGROUPS, 1, &token);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
+}
+
+cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
+    SSQLToken token;
+    setDBName(&token, &X);    
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, &Y);
 }
 
 //drop configure for tables
 cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
     X.n += Z.n;
-    setDCLSQLElems(pInfo, DROP_TABLE, 2, &X, &Y);
+    setDropDBTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y);
 }
 
-cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDCLSQLElems(pInfo, DROP_DATABASE, 2, &X, &Y); }
-cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, DROP_USER, 1, &X);     }
+cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDBTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y); }
+cmd ::= DROP DNODE IPTOKEN(X).        { setDCLSQLElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
+cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
+cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &X);  }
 
 /////////////////////////////////THE USE STATEMENT//////////////////////////////////////////
-cmd ::= USE ids(X).              { setDCLSQLElems(pInfo, USE_DATABASE, 1, &X);}
+cmd ::= USE ids(X).              { setDCLSQLElems(pInfo, TSDB_SQL_USE_DB, 1, &X);}
 
 /////////////////////////////////THE DESCRIBE STATEMENT/////////////////////////////////////
 cmd ::= DESCRIBE ids(X) cpxName(Y). {
     X.n += Y.n;
-    setDCLSQLElems(pInfo, DESCRIBE_TABLE, 1, &X);
+    setDCLSQLElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
 
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
-cmd ::= ALTER USER ids(X) PASS ids(Y).          { setDCLSQLElems(pInfo, ALTER_USER_PASSWD, 2, &X, &Y);    }
-cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setDCLSQLElems(pInfo, ALTER_USER_PRIVILEGES, 2, &X, &Y);}
-cmd ::= ALTER DNODE IP(X) ids(Y).               { setDCLSQLElems(pInfo, ALTER_DNODE, 2, &X, &Y);          }
-cmd ::= ALTER DNODE IP(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, ALTER_DNODE, 3, &X, &Y, &Z);      }
-cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, ALTER_LOCAL, 1, &X);              }
-cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SSQLToken t = {0};  setCreateDBSQL(pInfo, ALTER_DATABASE, &X, &Y, &t);}
+cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSQL(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
+cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSQL(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y).               { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
+cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
+cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
+cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SSQLToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
+
+cmd ::= ALTER ACCOUNT ids(X) acct_optr(Z).      { setCreateAcctSQL(pInfo, TSDB_SQL_ALTER_ACCT, &X, NULL, &Z);}
+cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSQL(pInfo, TSDB_SQL_ALTER_ACCT, &X, &Y, &Z);}
 
 // An IDENTIFIER can be a generic identifier, or one of several keywords.
 // Any non-standard keyword can also be an identifier.
@@ -147,8 +162,52 @@ ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 ifnotexists(X) ::= .                {X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
-cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDBSQL(pInfo, CREATE_DATABASE, &X, &Y, &Z);}
-cmd ::= CREATE USER ids(X) PASS ids(Y).     { setDCLSQLElems(pInfo, CREATE_USER, 2, &X, &Y);}
+//create option for dnode/db/user/account
+cmd ::= CREATE DNODE IPTOKEN(X).     { setDCLSQLElems(pInfo, TSDB_SQL_CREATE_DNODE, 1, &X);}
+cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
+                                { setCreateAcctSQL(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
+cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDBSQL(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
+cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSQL(pInfo, &X, &Y);}
+
+pps(Y) ::= .                                {Y.n = 0;   }
+pps(Y) ::= PPS INTEGER(X).                  {Y = X;     }
+
+tseries(Y) ::= .                            {Y.n = 0;   }
+tseries(Y) ::= TSERIES INTEGER(X).          {Y = X;     }
+
+dbs(Y) ::= .                                {Y.n = 0;   }
+dbs(Y) ::= DBS INTEGER(X).                  {Y = X;     }
+
+streams(Y) ::= .                            {Y.n = 0;   }
+streams(Y) ::= STREAMS INTEGER(X).          {Y = X;     }
+
+storage(Y) ::= .                            {Y.n = 0;   }
+storage(Y) ::= STORAGE INTEGER(X).          {Y = X;     }
+
+qtime(Y) ::= .                              {Y.n = 0;   }
+qtime(Y) ::= QTIME INTEGER(X).              {Y = X;     }
+
+users(Y) ::= .                              {Y.n = 0;   }
+users(Y) ::= USERS INTEGER(X).              {Y = X;     }
+
+conns(Y) ::= .                              {Y.n = 0;   }
+conns(Y) ::= CONNS INTEGER(X).              {Y = X;     }
+
+state(Y) ::= .                              {Y.n = 0;   }
+state(Y) ::= STATE ids(X).                  {Y = X;     }
+
+%type acct_optr {SCreateAcctSQL}
+acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K) conns(L) state(M). {
+    Y.maxUsers   = (K.n>0)?atoi(K.z):-1;
+    Y.maxDbs     = (E.n>0)?atoi(E.z):-1;
+    Y.maxTimeSeries = (D.n>0)?atoi(D.z):-1;
+    Y.maxStreams = (F.n>0)?atoi(F.z):-1;
+    Y.maxPointsPerSecond     = (C.n>0)?atoi(C.z):-1;
+    Y.maxStorage = (P.n>0)?strtoll(P.z, NULL, 10):-1;
+    Y.maxQueryTime   = (Q.n>0)?strtoll(Q.z, NULL, 10):-1;
+    Y.maxConnections   = (L.n>0)?atoi(L.z):-1;
+    Y.stat    = M;
+}
 
 %type keep {tVariantList*}
 %destructor keep {tVariantListDestroy($$);}
@@ -168,7 +227,8 @@ comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 
 %type db_optr {SCreateDBInfo}
-db_optr    ::= . {}
+db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
+
 db_optr(Y) ::= db_optr(Z) tables(X).         { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
@@ -183,9 +243,10 @@ db_optr(Y) ::= db_optr(Z) prec(X).           { Y = Z; Y.precision = X; }
 db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 
 %type alter_db_optr {SCreateDBInfo}
-alter_db_optr(Y) ::= REPLICA tagitem(A).     {
-    Y.replica = A.i64Key;
-}
+alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
+
+alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
+alter_db_optr(Y) ::= alter_db_optr(Z) tables(X).      { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X).              { tSQLSetColumnType (&A, &X); }
@@ -196,8 +257,8 @@ typename(A) ::= ids(X) LP signed(Y) RP.    {
     tSQLSetColumnType(&A, &X);
 }
 
-%type signed {int}
-signed(A) ::= INTEGER(X).         { A = atoi(X.z); }
+%type signed {int64_t}
+signed(A) ::= INTEGER(X).         { A = strtol(X.z, NULL, 10); }
 signed(A) ::= PLUS INTEGER(X).    { A = strtol(X.z, NULL, 10); }
 signed(A) ::= MINUS INTEGER(X).   { A = -strtol(X.z, NULL, 10);}
 
@@ -209,33 +270,34 @@ cmd ::= CREATE TABLE ifnotexists(Y) ids(X) cpxName(Z) create_table_args.  {
 
 %type create_table_args{SCreateTableSQL*}
 create_table_args(A) ::= LP columnlist(X) RP. {
-    A = tSetCreateSQLElems(X, NULL, NULL, NULL, NULL, TSQL_CREATE_NORMAL_METER);
-    setSQLInfo(pInfo, A, NULL, TSQL_CREATE_NORMAL_METER);
+    A = tSetCreateSQLElems(X, NULL, NULL, NULL, NULL, TSQL_CREATE_TABLE);
+    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 }
 
-// create metric
+// create super table
 create_table_args(A) ::= LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
-    A = tSetCreateSQLElems(X, Y, NULL, NULL, NULL, TSQL_CREATE_NORMAL_METRIC);
-    setSQLInfo(pInfo, A, NULL, TSQL_CREATE_NORMAL_METRIC);
+    A = tSetCreateSQLElems(X, Y, NULL, NULL, NULL, TSQL_CREATE_STABLE);
+    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 }
 
-// create meter by using metric
-// create meter meter_name using metric_name tags(tag_values1, tag_values2)
+// create table by using super table
+// create table table_name using super_table_name tags(tag_values1, tag_values2)
 create_table_args(A) ::= USING ids(X) cpxName(F) TAGS LP tagitemlist(Y) RP.  {
     X.n += F.n;
-    A = tSetCreateSQLElems(NULL, NULL, &X, Y, NULL, TSQL_CREATE_METER_FROM_METRIC);
-    setSQLInfo(pInfo, A, NULL, TSQL_CREATE_METER_FROM_METRIC);
+    A = tSetCreateSQLElems(NULL, NULL, &X, Y, NULL, TSQL_CREATE_TABLE_FROM_STABLE);
+    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 }
 
 // create stream
-// create table table_name as select count(*) from metric_name interval(time)
+// create table table_name as select count(*) from super_table_name interval(time)
 create_table_args(A) ::= AS select(S). {
     A = tSetCreateSQLElems(NULL, NULL, NULL, NULL, S, TSQL_CREATE_STREAM);
-    setSQLInfo(pInfo, A, NULL, TSQL_CREATE_STREAM);
+    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 }
 
 %type column{TAOS_FIELD}
 %type columnlist{tFieldList*}
+%destructor columnlist {tFieldListDestroy($$);}
 columnlist(A) ::= columnlist(X) COMMA column(Y).  {A = tFieldListAppend(X, &Y);   }
 columnlist(A) ::= column(X).                      {A = tFieldListAppend(NULL, &X);}
 
@@ -256,7 +318,7 @@ tagitem(A) ::= INTEGER(X).      {toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= FLOAT(X).        {toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= STRING(X).       {toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= BOOL(X).         {toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= NULL(X).         { X.type = TK_STRING; toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X); }
 
 tagitem(A) ::= MINUS(X) INTEGER(Y).{
     X.n += Y.n;
@@ -272,16 +334,43 @@ tagitem(A) ::= MINUS(X) FLOAT(Y).  {
     tVariantCreate(&A, &X);
 }
 
-
-//////////////////////// The SELECT statement /////////////////////////////////
-cmd ::= select(X).  {
-    setSQLInfo(pInfo, X, NULL, TSQL_QUERY_METER);
+tagitem(A) ::= PLUS(X) INTEGER(Y). {
+    X.n += Y.n;
+    X.type = Y.type;
+    toTSDBType(X.type);
+    tVariantCreate(&A, &X);
 }
 
+tagitem(A) ::= PLUS(X) FLOAT(Y).  {
+    X.n += Y.n;
+    X.type = Y.type;
+    toTSDBType(X.type);
+    tVariantCreate(&A, &X);
+}
+
+//////////////////////// The SELECT statement /////////////////////////////////
 %type select {SQuerySQL*}
-%destructor select {destroyQuerySql($$);}
+%destructor select {doDestroyQuerySql($$);}
 select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
-  A = tSetQuerySQLElems(&T, W, &X, Y, P, Z, &K, &S, F, &L, &G);
+  A = tSetQuerySQLElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G);
+}
+
+%type union {SSubclauseInfo*}
+%destructor union {destroyAllSelectClause($$);}
+
+union(Y) ::= select(X). { Y = setSubclause(NULL, X); }
+union(Y) ::= LP union(X) RP. { Y = X; }
+union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
+union(Y) ::= union(Z) UNION ALL LP select(X) RP. { Y = appendSelectClause(Z, X); }
+
+cmd ::= union(X). { setSQLInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
+
+// Support for the SQL exprssion without from & where subclauses, e.g.,
+// select current_database(),
+// select server_version(), select client_version(),
+// select server_state();
+select(A) ::= SELECT(T) selcollist(W). {
+  A = tSetQuerySQLElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 // selcollist is a list of expressions that are to become the return
@@ -303,11 +392,6 @@ selcollist(A) ::= sclp(P) STAR. {
    A = tSQLExprListAppend(P, pNode, 0);
 }
 
-selcollist(A) ::= sclp(P) ID(X) DOT STAR. {
-   tSQLExpr *pNode = tSQLExprIdValueCreate(NULL, TK_ALL);
-   A = tSQLExprListAppend(P, pNode, 0);
-}
-
 // An option "AS <id>" phrase that can follow one of the expressions that
 // define the result set, or one of the tables in the FROM clause.
 //
@@ -317,9 +401,40 @@ as(X) ::= ids(Y).       { X = Y;    }
 as(X) ::= .             { X.n = 0;  }
 
 // A complete FROM clause.
-%type from {SSQLToken}
+%type from {tVariantList*}
 // current not support query from no-table
-from(A) ::= FROM ids(X) cpxName(Y).                 {A = X; A.n += Y.n;}
+from(A) ::= FROM tablelist(X).                 {A = X;}
+
+%type tablelist {tVariantList*}
+tablelist(A) ::= ids(X) cpxName(Y).                    {
+   toTSDBType(X.type);
+   X.n += Y.n;
+   A = tVariantListAppendToken(NULL, &X, -1);
+   A = tVariantListAppendToken(A, &X, -1);
+}
+
+tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
+   toTSDBType(X.type);
+   toTSDBType(Z.type);
+   X.n += Y.n;
+   A = tVariantListAppendToken(NULL, &X, -1);
+   A = tVariantListAppendToken(A, &Z, -1);
+}
+
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z). {
+   toTSDBType(X.type);
+   X.n += Z.n;
+   A = tVariantListAppendToken(Y, &X, -1);
+   A = tVariantListAppendToken(A, &X, -1);
+}
+
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
+   toTSDBType(X.type);
+   toTSDBType(F.type);
+   X.n += Z.n;
+   A = tVariantListAppendToken(Y, &X, -1);
+   A = tVariantListAppendToken(A, &F, -1);
+}
 
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"
 %type tmvar {SSQLToken}
@@ -327,7 +442,7 @@ tmvar(A) ::= VARIABLE(X).   {A = X;}
 
 %type interval_opt {SSQLToken}
 interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N = E;     }
-interval_opt(N) ::= .                           {N.n = 0;   }
+interval_opt(N) ::= .                           {N.n = 0; N.z = NULL; N.type = 0;   }
 
 %type fill_opt {tVariantList*}
 %destructor fill_opt {tVariantListDestroy($$);}
@@ -348,7 +463,7 @@ fill_opt(N) ::= FILL LP ID(Y) RP.               {
 
 %type sliding_opt {SSQLToken}
 sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
-sliding_opt(K) ::= .                            {K.n = 0;   }
+sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
 %type orderby_opt {tVariantList*}
 %destructor orderby_opt {tVariantListDestroy($$);}
@@ -496,34 +611,14 @@ exprlist(A) ::= expritem(X).            {A = tSQLExprListAppend(0,X,0);}
 expritem(A) ::= expr(X).                {A = X;}
 expritem(A) ::= .                       {A = 0;}
 
-////////////////////////// The INSERT command /////////////////////////////////
-// add support "values() values() values() tags()" operation....
-cmd ::= INSERT INTO cpxName(X) insert_value_list(K). {
-    tSetInsertSQLElems(pInfo, &X, K);
-}
-
-%type insert_value_list {tSQLExprListList*}
-insert_value_list(X) ::= VALUES LP itemlist(Y) RP. {X = tSQLListListAppend(NULL, Y);}
-insert_value_list(X) ::= insert_value_list(K) VALUES LP itemlist(Y) RP.
-{X = tSQLListListAppend(K, Y);}
-
-//cmd ::= INSERT INTO cpxName(X) select(S).
-//            {sqliteInsert(pParse, sqliteSrcListAppend(0,&X,&D), 0, S, F, R);}
-
-%type itemlist {tSQLExprList*}
-%destructor itemlist {tSQLExprListDestroy($$);}
-
-itemlist(A) ::= itemlist(X) COMMA expr(Y).  {A = tSQLExprListAppend(X,Y,0);}
-itemlist(A) ::= expr(X).                    {A = tSQLExprListAppend(0,X,0);}
-
 ///////////////////////////////////reset query cache//////////////////////////////////////
-cmd ::= RESET QUERY CACHE.  { setDCLSQLElems(pInfo, RESET_QUERY_CACHE, 0);}
+cmd ::= RESET QUERY CACHE.  { setDCLSQLElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
 
 ///////////////////////////////////ALTER TABLE statement//////////////////////////////////
 cmd ::= ALTER TABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
     X.n += F.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, A, NULL, ALTER_TABLE_ADD_COLUMN);
-    setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_ADD_COLUMN);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN);
+    setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
@@ -532,15 +627,15 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     toTSDBType(A.type);
     tVariantList* K = tVariantListAppendToken(NULL, &A, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, K, ALTER_TABLE_DROP_COLUMN);
-    setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_DROP_COLUMN);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN);
+    setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 //////////////////////////////////ALTER TAGS statement/////////////////////////////////////
 cmd ::= ALTER TABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
     X.n += Y.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, A, NULL, ALTER_TABLE_TAGS_ADD);
-    setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_ADD);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN);
+    setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     X.n += Z.n;
@@ -548,8 +643,8 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     toTSDBType(Y.type);
     tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, ALTER_TABLE_TAGS_DROP);
-    setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_DROP);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN);
+    setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
@@ -561,28 +656,29 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     toTSDBType(Z.type);
     A = tVariantListAppendToken(A, &Z, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, ALTER_TABLE_TAGS_CHG);
-    setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_CHG);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN);
+    setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER TABLE ids(X) cpxName(F) SET ids(Y) EQ tagitem(Z).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);
     tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
     A = tVariantListAppend(A, &Z, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, ALTER_TABLE_TAGS_SET);
-    setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_SET);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL);
+    setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 ////////////////////////////////////////kill statement///////////////////////////////////////
-cmd ::= KILL CONNECTION IP(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &X);}
-cmd ::= KILL STREAM IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &X);}
-cmd ::= KILL QUERY IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &X);}
+cmd ::= KILL CONNECTION IPTOKEN(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setKillSQL(pInfo, TSDB_SQL_KILL_CONNECTION, &X);}
+cmd ::= KILL STREAM IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setKillSQL(pInfo, TSDB_SQL_KILL_STREAM, &X);}
+cmd ::= KILL QUERY IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setKillSQL(pInfo, TSDB_SQL_KILL_QUERY, &X);}
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
   COUNT SUM AVG MIN MAX FIRST LAST TOP BOTTOM STDDEV PERCENTILE APERCENTILE LEASTSQUARES HISTOGRAM DIFF
-  SPREAD WAVG INTERP LAST_ROW NOW IP SEMI NONE PREV LINEAR IMPORT METRIC TBNAME JOIN METRICS STABLE.
+  SPREAD TWA INTERP LAST_ROW RATE IRATE SUM_RATE SUM_IRATE AVG_RATE AVG_IRATE NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT
+  METRIC TBNAME JOIN METRICS STABLE NULL INSERT INTO VALUES.

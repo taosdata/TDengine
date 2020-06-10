@@ -23,30 +23,19 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+extern char dataDir[TSDB_FILENAME_LEN];
+
 bool taosGetSysMemory(float *memoryUsedMB);
 
 bool taosGetProcMemory(float *memoryUsedMB);
 
-bool taosGetDisk(float *diskUsedGB);
+bool taosGetDisk();
 
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
 
 bool taosGetBandSpeed(float *bandSpeedKb);
 
 bool taosGetProcIO(float *readKB, float *writeKB);
-
-void taosGetSystemInfo();
-
-void taosKillSystem();
-
-/*
- * transfer charset from non-standard format to standard format, in line with
- * requirements
- * of library of libiconv
- *
- * NOTE: user need to free the string
- */
-char *taosCharsetReplace(char *charsetstr);
 
 #ifdef __cplusplus
 }

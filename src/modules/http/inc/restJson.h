@@ -39,11 +39,16 @@
 #define REST_JSON_AFFECT_ROWS    "affected_rows"
 #define REST_JSON_AFFECT_ROWS_LEN 13
 
+#define REST_TIMESTAMP_FMT_LOCAL_STRING 0
+#define REST_TIMESTAMP_FMT_TIMESTAMP    1
+#define REST_TIMESTAMP_FMT_UTC_STRING   2
+
 void restBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows);
 
 void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
-bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
-bool restBuildSqlTimeJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+bool restBuildSqlTimestampJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+bool restBuildSqlLocalTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+bool restBuildSqlUtcTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
 void restStopSqlJson(HttpContext *pContext, HttpSqlCmd *cmd);
 
 #endif

@@ -23,11 +23,10 @@ extern "C" {
 #include "taosmsg.h"
 #include "tsdb.h"
 
-extern int      sdbDebugFlag;
-extern short    sdbPeerPort;
-extern short    sdbSyncPort;
+extern uint16_t    tsMgmtMgmtPort;
+extern uint16_t    tsMgmtSyncPort;
 extern int      sdbMaxNodes;
-extern int      sdbHbTimer;  // seconds
+extern int      tsMgmtPeerHBTimer;  // seconds
 extern char     sdbZone[];
 extern char     sdbMasterIp[];
 extern char     sdbPrivateIp[];
@@ -71,6 +70,40 @@ enum _sdbaction {
   SDB_TYPE_DESTROY,
   SDB_MAX_ACTION_TYPES
 };
+
+#ifdef CLUSTER
+
+#define SDB_MAX_PEERS 4
+typedef struct {
+  uint32_t ip;
+  uint32_t publicIp;
+  char     ipstr[20];
+  char     zone[12];
+  char     role;
+  int64_t  createdTime;
+  uint64_t dbVersion;
+  int64_t  lostTime;
+  char     status;
+  char     numOfMnodes;
+  int      numOfDnodes;
+  char     updateEnd[1];
+
+  // internal
+  int   syncFd;
+  void *hbTimer;
+  void *thandle;
+  void *pSync;
+} SSdbPeer;
+
+SSdbPeer *sdbAddPeer(uint32_t ip, uint32_t publicIp, char role);
+
+void sdbUpdateIpList();
+
+extern SSdbPeer *sdbPeer[];
+#define sdbInited (sdbPeer[0])
+#define sdbStatus (sdbPeer[0]->status)
+
+#endif
 
 void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, char keyType, char *directory,
                    void *(*appTool)(char, void *, char *, int, int *));

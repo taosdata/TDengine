@@ -136,7 +136,6 @@ typedef struct {
 
 extern SSdbTable *tableList[];
 extern int        sdbMaxPeers;
-extern int        sdbDebugFlag;
 extern int        sdbNumOfTables;
 extern int64_t    sdbVersion;
 

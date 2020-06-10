@@ -25,15 +25,13 @@ extern "C" {
 #include <string.h>
 #include "tglobalcfg.h"
 
-#define DEBUG_ERROR 1
-#define DEBUG_WARN  2
-#define DEBUG_TRACE 4
-#define DEBUG_DUMP  8
+#define DEBUG_ERROR 1U
+#define DEBUG_WARN  2U
+#define DEBUG_TRACE 4U
+#define DEBUG_DUMP  8U
 
 #define DEBUG_FILE   0x80
 #define DEBUG_SCREEN 0x40
-
-extern int uDebugFlag;
 
 extern void (*taosLogFp)(int level, const char *const format, ...);
 
@@ -99,7 +97,7 @@ void taosResetLogFile();
   { tprintf("UTL ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }
 
 // client log function
-extern int cdebugFlag;
+extern uint32_t cdebugFlag;
 
 #define tscError(...)                               \
   if (cdebugFlag & DEBUG_ERROR) {                   \
@@ -115,7 +113,10 @@ extern int cdebugFlag;
   }
 #define tscPrint(...) \
   { tprintf("TSC ", 255, __VA_ARGS__); }
-
+#define tscDump(...)                                        \
+    if (cdebugFlag & DEBUG_TRACE) {                         \
+      taosPrintLongString("TSC ", cdebugFlag, __VA_ARGS__); \
+    }
 #define jniError(...)                                 \
   if (jnidebugFlag & DEBUG_ERROR) {                   \
     tprintf("ERROR JNI ", jnidebugFlag, __VA_ARGS__); \
@@ -132,23 +133,22 @@ extern int cdebugFlag;
   { tprintf("JNI ", 255, __VA_ARGS__); }
 
 // rpc log function
-extern int taosDebugFlag;
 #define tError(...)                                    \
-  if (taosDebugFlag & DEBUG_ERROR) {                   \
-    tprintf("ERROR RPC ", taosDebugFlag, __VA_ARGS__); \
+  if (rpcDebugFlag & DEBUG_ERROR) {                   \
+    tprintf("ERROR RPC ", rpcDebugFlag, __VA_ARGS__); \
   }
 #define tWarn(...)                                     \
-  if (taosDebugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  RPC ", taosDebugFlag, __VA_ARGS__); \
+  if (rpcDebugFlag & DEBUG_WARN) {                    \
+    tprintf("WARN  RPC ", rpcDebugFlag, __VA_ARGS__); \
   }
 #define tTrace(...)                              \
-  if (taosDebugFlag & DEBUG_TRACE) {             \
-    tprintf("RPC ", taosDebugFlag, __VA_ARGS__); \
+  if (rpcDebugFlag & DEBUG_TRACE) {             \
+    tprintf("RPC ", rpcDebugFlag, __VA_ARGS__); \
   }
 #define tPrint(...) \
   { tprintf("RPC ", 255, __VA_ARGS__); }
 #define tDump(x, y)                      \
-  if (taosDebugFlag & DEBUG_DUMP) {      \
+  if (rpcDebugFlag & DEBUG_DUMP) {      \
     taosDumpData((unsigned char *)x, y); \
   }
 

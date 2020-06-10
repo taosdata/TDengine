@@ -22,6 +22,10 @@ extern "C" {
 
 void *taosInitIdPool(int maxId);
 
+int taosUpdateIdPool(void *handle, int maxId);
+
+int taosIdPoolMaxSize(void *handle);
+
 int taosAllocateId(void *handle);
 
 void taosFreeId(void *handle, int id);

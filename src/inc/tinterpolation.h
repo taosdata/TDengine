@@ -30,7 +30,7 @@ typedef struct SInterpolationInfo {
   char *  prevValues;           // previous row of data
   char *  nextValues;           // next row of data
   int32_t numOfTags;
-  char ** pTags;  // tags value for current interoplation
+  char ** pTags;  // tags value for current interpolation
 } SInterpolationInfo;
 
 typedef struct SPoint {
@@ -38,16 +38,16 @@ typedef struct SPoint {
   void *  val;
 } SPoint;
 
-typedef void (*__interpo_callback_fn_t)(void *param);
-
-int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit);
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit, int16_t precision);
 
 void taosInitInterpoInfo(SInterpolationInfo *pInterpoInfo, int32_t order, int64_t startTimeStamp, int32_t numOfTags,
                          int32_t rowSize);
 
+void taosDestoryInterpoInfo(SInterpolationInfo *pInterpoInfo);
+
 void taosInterpoSetStartInfo(SInterpolationInfo *pInterpoInfo, int32_t numOfRawDataInRows, int32_t type);
 
-TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t intervalTimeUnit);
+TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t intervalTimeUnit, int8_t precision);
 
 /**
  *
@@ -69,7 +69,7 @@ int32_t taosGetNumOfResWithoutLimit(SInterpolationInfo *pInterpoInfo, int64_t *p
  * @param pInterpoInfo
  * @return
  */
-bool taosHasNoneInterpoPoints(SInterpolationInfo *pInterpoInfo);
+bool taosHasRemainsDataForInterpolation(SInterpolationInfo *pInterpoInfo);
 
 int32_t taosNumOfRemainPoints(SInterpolationInfo *pInterpoInfo);
 
@@ -78,10 +78,12 @@ int32_t taosNumOfRemainPoints(SInterpolationInfo *pInterpoInfo);
  */
 int32_t taosDoInterpoResult(SInterpolationInfo *pInterpoInfo, int16_t interpoType, tFilePage **data,
                             int32_t numOfRawDataInRows, int32_t outputRows, int64_t nInterval,
-                            int64_t *pPrimaryKeyArray, tColModel *pModel, char **srcData, int64_t *defaultVal,
-                            int32_t *functionIDs, int32_t bufSize);
+                            const int64_t *pPrimaryKeyArray, SColumnModel *pModel, char **srcData, int64_t *defaultVal,
+                            const int32_t *functionIDs, int32_t bufSize);
 
 int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
+
+int taosDoLinearInterpolationD(int32_t type, SPoint* point1, SPoint* point2, SPoint* point);
 
 #ifdef __cplusplus
 }

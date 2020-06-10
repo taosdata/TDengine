@@ -22,6 +22,7 @@ extern "C" {
 
 #include <pthread.h>
 #include <semaphore.h>
+#include "os.h"
 
 typedef struct _msg_header {
   int mid; /* message ID */
@@ -34,8 +35,8 @@ typedef struct _msg_header {
 typedef struct {
   char *          name;   /* module name */
   pthread_t       thread; /* thread ID */
-  sem_t           emptySem;
-  sem_t           fullSem;
+  tsem_t          emptySem;
+  tsem_t          fullSem;
   int             fullSlot;
   int             emptySlot;
   int             debugFlag;

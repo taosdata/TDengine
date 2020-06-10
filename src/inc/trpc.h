@@ -21,26 +21,33 @@ extern "C" {
 
 #include "taosmsg.h"
 #include "tsched.h"
+#include "tglobalcfg.h"
 
 #define TAOS_CONN_UDPS     0
 #define TAOS_CONN_UDPC     1
-#define TAOS_CONN_UDP      1
 #define TAOS_CONN_TCPS     2
 #define TAOS_CONN_TCPC     3
 #define TAOS_CONN_HTTPS    4
 #define TAOS_CONN_HTTPC    5
 
+#define TAOS_SOCKET_TYPE_NAME_TCP  "tcp"
+#define TAOS_SOCKET_TYPE_NAME_UDP  "udp"
+
 #define TAOS_ID_ASSIGNED   0
 #define TAOS_ID_FREE       1
 #define TAOS_ID_REALLOCATE 2
 
+#define TAOS_CONN_SOCKET_TYPE_S()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPS:TAOS_CONN_TCPS)
+#define TAOS_CONN_SOCKET_TYPE_C()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPC:TAOS_CONN_TCPC)
+
 #define taosSendMsgToPeer(x, y, z) taosSendMsgToPeerH(x, y, z, NULL)
+#define taosOpenRpcChann(x, y, z) taosOpenRpcChannWithQ(x,y,z,NULL)
 #define taosBuildReqMsg(x, y) taosBuildReqMsgWithSize(x, y, 512)
 #define taosBuildRspMsg(x, y) taosBuildRspMsgWithSize(x, y, 512)
 
 typedef struct {
   char *localIp;                        // local IP used
-  short localPort;                      // local port
+  uint16_t localPort;                      // local port
   char *label;                          // for debug purpose
   int   numOfThreads;                   // number of threads to handle connections
   void *(*fp)(char *, void *, void *);  // function to process the incoming msg
@@ -55,6 +62,7 @@ typedef struct {
   void (*efp)(int cid);                 // call back function to process not activated chann
   int (*afp)(char *meterId, char *spi, char *encrypt, uint8_t *secret,
              uint8_t *ckey);  // call back to retrieve auth info
+  int (*ufp)(char *user, int32_t *failCount, int32_t *allowTime, bool opSet); // callback to update auth retry info 
 } SRpcInit;
 
 typedef struct {
@@ -65,21 +73,20 @@ typedef struct {
   void *   shandle;   // pointer returned by taosOpenRpc
   void *   ahandle;   // handle provided by app
   char *   peerIp;    // peer IP string
-  short    peerPort;  // peer port
+  uint16_t    peerPort;  // peer port
   char     spi;       // security parameter index
   char     encrypt;   // encrypt algorithm
   char *   secret;    // key for authentication
   char *   ckey;      // ciphering key
 } SRpcConnInit;
 
-extern int taosDebugFlag;
 extern int tsRpcHeadSize;
 
 void *taosOpenRpc(SRpcInit *pRpc);
 
 void taosCloseRpc(void *);
 
-int taosOpenRpcChann(void *handle, int cid, int sessions);
+int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle);
 
 void taosCloseRpcChann(void *handle, int cid);
 
@@ -101,7 +108,7 @@ int taosSendSimpleRsp(void *thandle, char rsptype, char code);
 
 int taosSetSecurityInfo(int cid, int sid, char *id, int spi, int encrypt, char *secret, char *ckey);
 
-void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, short *peerPort, int *cid, int *sid);
+void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, uint16_t *peerPort, int *cid, int *sid);
 
 int taosGetOutType(void *thandle);
 

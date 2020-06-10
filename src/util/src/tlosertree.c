@@ -13,10 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-
+#include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tlosertree.h"
@@ -48,7 +45,7 @@ uint8_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* par
 
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
   if ((*pTree) == NULL) {
-    pError("allocate memory for losertree failed. out of memory");
+    pError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
