@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {       
-        if (strlen(argv[++i]) > TSDB_FILENAME_LEN - 1) {
+        if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           printf("config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
           exit(EXIT_FAILURE);
         }
