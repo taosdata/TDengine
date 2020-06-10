@@ -675,7 +675,8 @@ class StateHasData(AnyState):
     def verifyTasksToState(self, tasks, newState):
         if ( newState.equals(AnyState.STATE_EMPTY) ):
             self.hasSuccess(tasks, DropDbTask)
-            self.assertAtMostOneSuccess(tasks, DropDbTask) # TODO: dicy
+            if ( not self.hasTask(tasks, CreateDbTask) ) : 
+                self.assertAtMostOneSuccess(tasks, DropDbTask) # TODO: dicy
         elif ( newState.equals(AnyState.STATE_DB_ONLY) ): # in DB only
             if ( not self.hasTask(tasks, CreateDbTask)): # without a create_db task
                 self.assertNoTask(tasks, DropDbTask) # we must have drop_db task
