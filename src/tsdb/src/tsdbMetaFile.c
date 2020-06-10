@@ -105,7 +105,7 @@ int32_t tsdbInsertMetaRecord(SMetaFile *mfh, uint64_t uid, void *cont, int32_t c
     return -1;
   }
 
-  fsync(mfh->fd);
+  // fsync(mfh->fd);
 
   mfh->tombSize++;
 
@@ -132,7 +132,7 @@ int32_t tsdbDeleteMetaRecord(SMetaFile *mfh, uint64_t uid) {
     return -1;
   }
 
-  fsync(mfh->fd);
+  // fsync(mfh->fd);
 
   mfh->nDel++;
 
@@ -167,7 +167,7 @@ int32_t tsdbUpdateMetaRecord(SMetaFile *mfh, uint64_t uid, void *cont, int32_t c
     return -1;
   }
 
-  fsync(mfh->fd);
+  // fsync(mfh->fd);
 
   return 0;
 }
