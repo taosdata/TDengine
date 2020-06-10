@@ -36,7 +36,7 @@ python3 ./test.py -f tag_lite/binary.py
 python3 ./test.py -f tag_lite/bool_binary.py
 python3 ./test.py -f tag_lite/bool_int.py
 python3 ./test.py -f tag_lite/bool.py
-python3 ./test.py -f tag_lite/change.py
+# python3 ./test.py -f tag_lite/change.py
 python3 ./test.py -f tag_lite/column.py
 # python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
@@ -127,7 +127,7 @@ python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
 # table
-#python3 ./test.py -f table/del_stable.py
+# python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py
