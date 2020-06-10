@@ -59,20 +59,21 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
 
-  SSchema schema[2];
-  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(schema[0].name, "ts");
-  schema[0].colId = 0;
-  schema[0].bytes = 8;
+  STSchemaBuilder schemaBuilder = {0};
 
-  schema[1].type = TSDB_DATA_TYPE_INT;
-  strcpy(schema[1].name, "avgspeed");
-  schema[1].colId = 1;
-  schema[1].bytes = 4;
+  tdInitTSchemaBuilder(&schemaBuilder, 0);
+  tdAddColToSchema(&schemaBuilder, TSDB_DATA_TYPE_TIMESTAMP, 0, 8);
+  tdAddColToSchema(&schemaBuilder, TSDB_DATA_TYPE_INT, 1, 4);
+
+  STSchema *pSchema = tdGetSchemaFromBuilder(&schemaBuilder);
+
+  tdDestroyTSchemaBuilder(&schemaBuilder);
 
   for (int sid =1; sid<10; ++sid) {
-    cqCreate(pCq, sid, "select avg(speed) from demo.t1 sliding(1s) interval(5s)", schema, 2);
+    cqCreate(pCq, sid, sid, "select avg(speed) from demo.t1 sliding(1s) interval(5s)", pSchema);
   }
+
+  tdFreeSchema(pSchema);
 
   while (1) {
     char c = getchar();

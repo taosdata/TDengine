@@ -17,13 +17,14 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
+#include "tutil.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "vnode.h"
-#include "tdataformat.h"
 #include "dnodeInt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMgmt.h"
@@ -31,9 +32,9 @@
 typedef struct {
   taos_qall  qall;
   taos_qset  qset;      // queue set
-  pthread_t  thread;    // thread 
+  pthread_t  thread;    // thread
   int32_t    workerId;  // worker ID
-} SWriteWorker;  
+} SWriteWorker;
 
 typedef struct {
   SRspRet  rspRet;
@@ -53,7 +54,7 @@ static void  dnodeHandleIdleWorker(SWriteWorker *pWorker);
 
 SWriteWorkerPool wWorkerPool;
 
-int32_t dnodeInitWrite() {
+int32_t dnodeInitVnodeWrite() {
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
   if (wWorkerPool.writeWorker == NULL) return -1;
@@ -66,12 +67,17 @@ int32_t dnodeInitWrite() {
   return 0;
 }
 
-void dnodeCleanupWrite() {
+void dnodeCleanupVnodeWrite() {
+  for (int32_t i = 0; i < wWorkerPool.max; ++i) {
+    SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
+    if (pWorker->thread) {
+      taosQsetThreadResume(pWorker->qset);
+    }
+  }
   
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
-      pthread_cancel(pWorker->thread);
       pthread_join(pWorker->thread, NULL);
       taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
@@ -85,7 +91,7 @@ void dnodeCleanupWrite() {
 void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   char *pCont = (char *)pMsg->pCont;
 
-  if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT || pMsg->msgType == TSDB_MSG_TYPE_MD_DROP_STABLE) {
+  if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
     SMsgDesc *pDesc = (SMsgDesc *)pCont;
     pDesc->numOfVnodes = htonl(pDesc->numOfVnodes);
     pCont += sizeof(SMsgDesc);
@@ -109,35 +115,45 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
       .handle  = pMsg->handle,
       .pCont   = NULL,
       .contLen = 0,
-      .code    = TSDB_CODE_INVALID_VGROUP_ID,
+      .code    = TSDB_CODE_VND_INVALID_VGROUP_ID,
       .msgType = 0
     };
     rpcSendResponse(&rpcRsp);
   }
 }
 
-void *dnodeAllocateWqueue(void *pVnode) {
+void *dnodeAllocateVnodeWqueue(void *pVnode) {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
   void *queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
-    if (pWorker->qset == NULL) return NULL;
+    if (pWorker->qset == NULL) {
+      taosCloseQueue(queue);
+      return NULL;
+    }
 
     taosAddIntoQset(pWorker->qset, queue, pVnode);
     pWorker->qall = taosAllocateQall();
-    wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
-
+    if (pWorker->qall == NULL) {
+      taosCloseQset(pWorker->qset);
+      taosCloseQueue(queue);
+      return NULL;
+    }
     pthread_attr_t thAttr;
     pthread_attr_init(&thAttr);
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
     if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessWriteQueue, pWorker) != 0) {
       dError("failed to create thread to process read queue, reason:%s", strerror(errno));
+      taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
+      taosCloseQueue(queue);
+      queue = NULL;
     } else {
       dTrace("write worker:%d is launched", pWorker->workerId);
+      wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
     }
 
     pthread_attr_destroy(&thAttr);
@@ -151,13 +167,13 @@ void *dnodeAllocateWqueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeWqueue(void *wqueue) {
+void dnodeFreeVnodeWqueue(void *wqueue) {
   taosCloseQueue(wqueue);
 
   // dynamically adjust the number of threads
 }
 
-void dnodeSendRpcWriteRsp(void *pVnode, void *param, int32_t code) {
+void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
   SWriteMsg *pWrite = (SWriteMsg *)param;
 
   if (code > 0) return;
@@ -186,9 +202,9 @@ static void *dnodeProcessWriteQueue(void *param) {
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
-    if (numOfMsgs <=0) { 
-      dnodeHandleIdleWorker(pWorker);  // thread exit if no queues anymore
-      continue;
+    if (numOfMsgs == 0) {
+      dTrace("dnodeProcessWriteQueee: got no message from qset, exiting...");
+      break;
     }
 
     for (int32_t i = 0; i < numOfMsgs; ++i) {
@@ -200,6 +216,7 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
         pHead->len = pWrite->contLen;
+        dTrace("%p, msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
       } else {
         pHead = (SWalHead *)item;
       }
@@ -216,7 +233,7 @@ static void *dnodeProcessWriteQueue(void *param) {
       taosGetQitem(pWorker->qall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
-        dnodeSendRpcWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
+        dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
       } else {
         taosFreeQitem(item);
         vnodeRelease(pVnode);
@@ -227,12 +244,13 @@ static void *dnodeProcessWriteQueue(void *param) {
   return NULL;
 }
 
+UNUSED_FUNC
 static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   int32_t num = taosGetQueueNumber(pWorker->qset);
 
   if (num > 0) {
      usleep(30000);
-     sched_yield(); 
+     sched_yield();
   } else {
      taosFreeQall(pWorker->qall);
      taosCloseQset(pWorker->qset);

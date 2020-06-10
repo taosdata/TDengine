@@ -165,7 +165,7 @@ SScript *simBuildScriptObj(char *fileName) {
 
   script->type = SIM_SCRIPT_TYPE_MAIN;
   script->numOfLines = numOfLines;
-  strncpy(script->fileName, fileName, MAX_FILE_NAME_LEN);
+  tstrncpy(script->fileName, fileName, sizeof(script->fileName));
 
   script->optionBuffer = malloc(optionOffset);
   memcpy(script->optionBuffer, optionBuffer, optionOffset);

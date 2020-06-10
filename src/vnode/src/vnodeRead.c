@@ -39,11 +39,21 @@ void vnodeInitReadFp(void) {
 int32_t vnodeProcessRead(void *param, int msgType, void *pCont, int32_t contLen, SRspRet *ret) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
 
-  if (vnodeProcessReadMsgFp[msgType] == NULL) 
-    return TSDB_CODE_MSG_NOT_PROCESSED; 
+  if (vnodeProcessReadMsgFp[msgType] == NULL) {
+    vTrace("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[msgType]);
+    return TSDB_CODE_VND_MSG_NOT_PROCESSED;
+  }
 
-  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) 
-    return TSDB_CODE_NOT_ACTIVE_VNODE; 
+  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) {
+    vTrace("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[msgType], pVnode->status);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID; 
+  }
+
+  // TODO: Later, let slave to support query
+  if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+    vTrace("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[msgType], pVnode->syncCfg.replica, pVnode->role);
+    return TSDB_CODE_RPC_NOT_READY;
+  }
 
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pCont, contLen, ret);
 }
@@ -53,26 +63,31 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   memset(pRet, 0, sizeof(SRspRet));
 
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   qinfo_t pQInfo = NULL;
   if (contLen != 0) {
-    pRet->code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo);
-  
+    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo);
+
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->qhandle = htobe64((uint64_t) (pQInfo));
-    pRsp->code = pRet->code;
-     
+    pRsp->code = code;
+
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
     
-    vTrace("vgId:%d QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
+    vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
   } else {
+    assert(pCont != NULL);
     pQInfo = pCont;
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
+    code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
+    vTrace("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, pQInfo);
   }
 
-  qTableQuery(pQInfo); // do execute query
-  
+  if (pQInfo != NULL) {
+    vTrace("vgId:%d, QInfo:%p, do qTableQuery", pVnode->vgId, pQInfo);
+    qTableQuery(pQInfo); // do execute query
+  }
+
   return code;
 }
 
@@ -81,22 +96,20 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
   memset(pRet, 0, sizeof(SRspRet));
 
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  vTrace("vgId:%d QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
+  vTrace("vgId:%d, QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
   
-  pRet->code = qRetrieveQueryResultInfo(pQInfo);
-  if (pRet->code != TSDB_CODE_SUCCESS) {
+  int32_t code = qRetrieveQueryResultInfo(pQInfo);
+  if (code != TSDB_CODE_SUCCESS) {
     //TODO
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
   } else {
     // todo check code and handle error in build result set
-    pRet->code = qDumpRetrieveResult(pQInfo, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len);
+    code = qDumpRetrieveResult(pQInfo, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len);
 
     if (qHasMoreResultsToRetrieve(pQInfo)) {
       pRet->qhandle = pQInfo;
-      code = TSDB_CODE_ACTION_NEED_REPROCESSED;
+      code = TSDB_CODE_VND_ACTION_NEED_REPROCESSED;
     } else {
       // no further execution invoked, release the ref to vnode
       qDestroyQueryInfo(pQInfo);
@@ -104,6 +117,6 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, void *pCont, int32_t cont
     }
   }
   
-  vTrace("vgId:%d QInfo:%p, retrieve msg is disposed", pVnode->vgId, pQInfo);
+  vTrace("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, pQInfo);
   return code;
 }

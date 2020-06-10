@@ -90,3 +90,5 @@ endi
 #### illegal operations
 sql_error select max(c2*2) from $tb
 sql_error select max(c1-c2) from $tb
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

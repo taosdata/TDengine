@@ -4,15 +4,15 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 
-system sh/cfg.sh -n dnode1 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode2 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode3 -c numOfMPeers -v 1
-system sh/cfg.sh -n dnode4 -c numOfMPeers -v 1
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
 
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 10
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 10
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 10
-system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 10
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 10
 
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2000
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 2000
@@ -78,7 +78,8 @@ sleep 5000
 
 print ========= step4
 sql select * from ic2db.tb;
-if $rows != 13 then 
+if $rows != 13 then
+  print expect 13, actual:$rows
   return -1
 endi
 

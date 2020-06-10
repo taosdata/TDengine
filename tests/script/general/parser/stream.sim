@@ -220,3 +220,5 @@ sql create database $db
 sql use $db
 sql create table stb (ts timestamp, c1 int) tags(t1 int)
 sql create table tb1 using stb tags(1)
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

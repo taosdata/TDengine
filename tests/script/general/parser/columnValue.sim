@@ -22,15 +22,5 @@ run general/parser/columnValue_bigint.sim
 run general/parser/columnValue_float.sim
 run general/parser/columnValue_double.sim
 
-
-
-
-
-
-
-
-
-
-
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
 

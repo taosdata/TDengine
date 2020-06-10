@@ -46,142 +46,180 @@ static STaosError errors[] = {
 #endif
 
 // rpc
-TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,         0, 1, "action in progress")
-TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_NEED_REPROCESSED,    0, 3, "action need to be reprocessed")
-TAOS_DEFINE_ERROR(TSDB_CODE_MSG_NOT_PROCESSED,          0, 4, "message not processed")
-TAOS_DEFINE_ERROR(TSDB_CODE_ALREADY_PROCESSED,          0, 5, "message already processed")
-TAOS_DEFINE_ERROR(TSDB_CODE_REDIRECT,                   0, 6, "redirect")
-TAOS_DEFINE_ERROR(TSDB_CODE_LAST_SESSION_NOT_FINISHED,  0, 7, "last session not finished")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAX_SESSIONS,               0, 8, "max sessions")    // too many sessions
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SESSION_ID,         0, 9, "invalid session id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TRAN_ID,            0, 10, "invalid transaction id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG_TYPE,           0, 11, "invalid message type")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG_LEN,            0, 12, "invalid message length")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG_CONTENT,        0, 13, "invalid message content")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG_VERSION,        0, 14, "invalid message version")
-TAOS_DEFINE_ERROR(TSDB_CODE_UNEXPECTED_RESPONSE,        0, 15, "unexpected response")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_RESPONSE_TYPE,      0, 16, "invalid response type")
-TAOS_DEFINE_ERROR(TSDB_CODE_MISMATCHED_METER_ID,        0, 17, "mismatched meter id")
-TAOS_DEFINE_ERROR(TSDB_CODE_DISCONNECTED,               0, 18, "disconnected")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_READY,                  0, 19, "not ready")    // peer is not ready to process data
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_SLOW,                   0, 20, "too slow")
-TAOS_DEFINE_ERROR(TSDB_CODE_OTHERS,                     0, 21, "others")
-TAOS_DEFINE_ERROR(TSDB_CODE_APP_ERROR,                  0, 22, "app error")
-TAOS_DEFINE_ERROR(TSDB_CODE_ALREADY_THERE,              0, 23, "already there")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_RESOURCE,                0, 14, "no resource")
-TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,            0, 25, "operations not support")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_OPTION,             0, 26, "invalid option")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_CONFIGURED,             0, 27, "not configured")
-TAOS_DEFINE_ERROR(TSDB_CODE_NODE_OFFLINE,               0, 28, "node offline")
-TAOS_DEFINE_ERROR(TSDB_CODE_NETWORK_UNAVAIL,            0, 29, "network unavailable")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ACTION_IN_PROGRESS,       0, 0x0001, "action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_AUTH_REQUIRED,            0, 0x0002, "auth required")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_AUTH_FAILURE,             0, 0x0003, "auth failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_REDIRECT,                 0, 0x0004, "redirect")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NOT_READY,                0, 0x0005, "not ready")    // peer is not ready to process data
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ALREADY_PROCESSED,        0, 0x0006, "message already processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_LAST_SESSION_NOT_FINISHED,0, 0x0007, "last session not finished")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MISMATCHED_LINK_ID,       0, 0x0008, "mismatched meter id")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TOO_SLOW,                 0, 0x0009, "too slow")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MAX_SESSIONS,             0, 0x000A, "max sessions")    // too many sessions
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_UNAVAIL,          0, 0x000B, "network unavailable")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_APP_ERROR,                0, 0x000C, "rpc app error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_UNEXPECTED_RESPONSE,      0, 0x000D, "unexpected response")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VALUE,            0, 0x000E, "invalid value")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TRAN_ID,          0, 0x000F, "invalid transaction id")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_SESSION_ID,       0, 0x0010, "invalid session id")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_MSG_TYPE,         0, 0x0011, "invalid message type")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_RESPONSE_TYPE,    0, 0x0012, "invalid response type")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       0, 0x0013, "invalid timestamp")
 
-// db
-TAOS_DEFINE_ERROR(TSDB_CODE_DB_NOT_SELECTED,            0, 100, "db not selected")
-TAOS_DEFINE_ERROR(TSDB_CODE_DB_ALREADY_EXIST,           0, 101, "database aleady exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DB,                 0, 102, "invalid database")
-TAOS_DEFINE_ERROR(TSDB_CODE_MONITOR_DB_FORBIDDEN,       0, 103, "monitor db forbidden")
+//common & util
+TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          0, 0x0100, "operations not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_COM_MEMORY_CORRUPTED,         0, 0x0101, "memory corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_COM_OUT_OF_MEMORY,            0, 0x0102, "out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_COM_INVALID_CFG_MSG,          0, 0x0103, "invalid config message")
+TAOS_DEFINE_ERROR(TSDB_CODE_COM_FILE_CORRUPTED,           0, 0x0104, "file is corrupted")
 
-// user
-TAOS_DEFINE_ERROR(TSDB_CODE_USER_ALREADY_EXIST,         0, 150, "user already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_USER,               0, 151, "invalid user")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PASS,               0, 152, "invalid password")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_USER_FORMAT,        0, 153, "invalid user format")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PASS_FORMAT,        0, 154, "invalid password format")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_USER_FROM_CONN,          0, 155, "can not get user from conn")
+//client
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_SQL,              0, 0x0200, "invalid sql")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_QHANDLE,          0, 0x0201, "client invalid qhandle")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TIME_STAMP,       0, 0x0202, "client time/server time can not be mixed up")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_VALUE,            0, 0x0203, "clientinvalid value")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_VERSION,          0, 0x0204, "client invalid version")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_IE,               0, 0x0205, "client invalid ie")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_FQDN,             0, 0x0206, "client invalid fqdn")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_USER_LENGTH,      0, 0x0207, "client invalid username length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PASS_LENGTH,      0, 0x0208, "client invalid password length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_DB_LENGTH,        0, 0x0209, "client invalid database length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH,  0, 0x020A, "client invalid table length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_CONNECTION,       0, 0x020B, "client invalid connection")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_OUT_OF_MEMORY,            0, 0x020C, "client out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_DISKSPACE,             0, 0x020D, "client no disk space")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_QUERY_CACHE_ERASED,       0, 0x020E, "client query cache erased")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_QUERY_CANCELLED,          0, 0x020F, "client query cancelled")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SORTED_RES_TOO_MANY,      0, 0x0210, "client sorted res too many")      // too many result for ordered super table projection query
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_APP_ERROR,                0, 0x0211, "client app error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_ACTION_IN_PROGRESS,       0, 0x0212, "client action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DISCONNECTED,             0, 0x0213, "client disconnected")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_WRITE_AUTH,            0, 0x0214, "client no write auth")
 
-// table
-TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ALREADY_EXIST,        0, 200, "table already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_ID,           0, 201, "invalid table id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_TYPE,         0, 202, "invalid table typee")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE,              0, 203, "invalid table name")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPER_TABLE,            0, 204, "no super table")           // operation only available for super table
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_TABLE,           0, 205, "not active table")
-TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ID_MISMATCH,          0, 206, "table id mismatch")
-TAOS_DEFINE_ERROR(TSDB_CODE_TAG_ALREAY_EXIST,           0, 207, "tag already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_TAG_NOT_EXIST,              0, 208, "tag not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_ALREAY_EXIST,         0, 209, "field already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_FIELD_NOT_EXIST,            0, 210, "field not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_COL_NAME_TOO_LONG,          0, 211, "column name too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TAGS,              0, 211, "too many tags")
+// mnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        0, 0x0300, "mnode message not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACTION_IN_PROGRESS,       0, 0x0301, "mnode action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACTION_NEED_REPROCESSED,  0, 0x0302, "mnode action need to be reprocessed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                0, 0x0303, "mnode no rights")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_APP_ERROR,                0, 0x0304, "mnode app error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONNECTION,       0, 0x0305, "mnode invalid message connection")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_VERSION,      0, 0x0306, "mnode invalid message version")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_LEN,          0, 0x0307, "mnode invalid message length")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_TYPE,         0, 0x0308, "mnode invalid message type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_SHELL_CONNS,     0, 0x0309, "mnode too many shell conns")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_OUT_OF_MEMORY,            0, 0x030A, "mnode out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          0, 0x030B, "mnode invalid show handle")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         0, 0x030C, "mnode invalid query id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_ID,        0, 0x030D, "mnode invalid stream id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          0, 0x030E, "mnode invalid connection")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE,    0, 0x0320, "mnode object already there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_ERROR,                0, 0x0321, "mnode sdb error")
 
-// dnode & mnode
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DNODES,           0, 250, "no enough dnodes")
-TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ALREADY_EXIST,        0, 251, "dnode already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_EXIST,            0, 252, "dnode not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_MASTER,                  0, 253, "no master")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_REMOVE_MASTER,           0, 254, "no remove master")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_QUERY_ID,           0, 255, "invalid query id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_STREAM_ID,          0, 256, "invalid stream id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CONNECTION,         0, 257, "invalid connection")
-TAOS_DEFINE_ERROR(TSDB_CODE_SDB_ERROR,                  0, 258, "sdb error")
-TAOS_DEFINE_ERROR(TSDB_CODE_TIMESTAMP_OUT_OF_RANGE,     0, 259, "timestamp is out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ALREADY_EXIST,      0, 0x0330, "mnode dnode already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          0, 0x0331, "mnode dnode not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         0, 0x0332, "mnode vgroup not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_REMOVE_MASTER,         0, 0x0333, "mnode cant not remove master")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_DNODES,         0, 0x0334, "mnode no enough dnodes")
 
-// acct
-TAOS_DEFINE_ERROR(TSDB_CODE_ACCT_ALREADY_EXIST,         0, 300, "accounts already exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_ACCT,               0, 301, "invalid account")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_ACCT_PARAMETER,     0, 302, "invalid account parameter")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_ACCTS,             0, 303, "too many accounts")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_USERS,             0, 304, "too many users")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TABLES,            0, 305, "too many tables")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_DATABASES,         0, 306, "too many databases")
-TAOS_DEFINE_ERROR(TSDB_CODE_TOO_MANY_TIME_SERIES,       0, 307, "not enough time series")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       0, 0x0340, "mnode accounts already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             0, 0x0341, "mnode invalid account")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT_PARA,        0, 0x0342, "mnode invalid account parameter")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT_OPTION,      0, 0x0343, "mnode invalid acct option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ACCTS,           0, 0x0344, "mnode too many accounts")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_ALREADY_EXIST,       0, 0x0350, "mnode user already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_USER,             0, 0x0351, "mnode invalid user")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_USER_FORMAT,      0, 0x0352, "mnode invalid user format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PASS_FORMAT,      0, 0x0353, "mnode invalid password format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_USER_FROM_CONN,        0, 0x0354, "mnode can not get user from conn")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           0, 0x0355, "mnode too many users")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TABLE_ALREADY_EXIST,      0, 0x0360, "mnode table already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_ID,         0, 0x0361, "mnode invalid table id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_NAME,       0, 0x0362, "mnode invalid table name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_TYPE,       0, 0x0363, "mnode invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            0, 0x0364, "mnode too many tags")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TABLES,          0, 0x0365, "mnode too many tables")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TIMESERIES,      0, 0x0366, "mnode not enough time series")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_SUPER_TABLE,          0, 0x0367, "mnode no super table")           // operation only available for super table
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_NAME_TOO_LONG,        0, 0x0368, "mnode column name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_ALREAY_EXIST,         0, 0x0369, "mnode tag already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_NOT_EXIST,            0, 0x036A, "mnode tag not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_ALREAY_EXIST,       0, 0x036B, "mnode field already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_NOT_EXIST,          0, 0x036C, "mnode field not exist")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_NOT_SELECTED,          0, 0x0380, "mnode db not selected")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_ALREADY_EXIST,         0, 0x0381, "mnode database aleady exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION,        0, 0x0382, "mnode invalid db option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB,               0, 0x0383, "mnode invalid database")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MONITOR_DB_FORBIDDEN,     0, 0x0384, "mnode monitor db forbidden")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DATABASES,       0, 0x0385, "mnode too many databases")
+
+// dnode
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        0, 0x0400, "dnode message not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            0, 0x0401, "dnode out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_WRITE_ACCESS,          0, 0x0402, "dnode no disk write access")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          0, 0x0403, "dnode invalid message length")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_FILE_FORMAT,      0, 0x0404, "dnode invalid file format")
+
+// vnode 
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       0, 0x0500, "vnode action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_MSG_NOT_PROCESSED,        0, 0x0501, "vnode message not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_NEED_REPROCESSED,  0, 0x0502, "vnode action need to be reprocessed")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        0, 0x0503, "vnode invalid vgroup id")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INIT_FAILED,              0, 0x0504, "vnode init failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_DISKSPACE,             0, 0x0505, "vnode no diskspace")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_DISK_PERMISSIONS,      0, 0x0506, "vnode no disk permissions")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR,      0, 0x0507, "vnode no such file or directory")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_OUT_OF_MEMORY,            0, 0x0508, "vnode out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "vnode app error")
+
+// tsdb
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         0, 0x0600, "tsdb invalid table id")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       0, 0x0601, "tsdb invalid table schema version")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_SCHEMA_VERSION,     0, 0x0602, "tsdb invalid table schema version")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_ALREADY_EXIST,      0, 0x0603, "tsdb table already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CONFIG,           0, 0x0604, "tsdb invalid configuration")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INIT_FAILED,              0, 0x0605, "tsdb init failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_DISKSPACE,             0, 0x0606, "tsdb no diskspace")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_DISK_PERMISSIONS,      0, 0x0607, "tsdb no disk permissions")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_FILE_CORRUPTED,           0, 0x0608, "tsdb file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_OUT_OF_MEMORY,            0, 0x0609, "tsdb out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE,      0, 0x060A, "tsdb tag version is out of date")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE,   0, 0x060B, "tsdb timestamp is out of range")
+
+// query
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          0, 0x0700, "query invalid handle")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_MSG,              0, 0x0701, "query invalid message")    // failed to validate the sql expression msg by vnode
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_DISKSPACE,             0, 0x0702, "query no diskspace")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_OUT_OF_MEMORY,            0, 0x0703, "query out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_APP_ERROR,                0, 0x0704, "query app error")
 
 // grant
-TAOS_DEFINE_ERROR(TSDB_CODE_AUTH_FAILURE,               0, 350, "auth failure")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_RIGHTS,                  0, 351, "no rights")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_WRITE_ACCESS,            0, 352, "no write access")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_READ_ACCESS,             0, 353, "no read access")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,              0, 354, "grant expired")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,        0, 355, "grant dnode limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ACCT_LIMITED,         0, 356, "grant account limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TIMESERIES_LIMITED,   0, 357, "grant timeseries limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_LIMITED,           0, 358, "grant db limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_USER_LIMITED,         0, 359, "grant user limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CONN_LIMITED,         0, 360, "grant conn limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STREAM_LIMITED,       0, 361, "grant stream limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SPEED_LIMITED,        0, 362, "grant speed limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STORAGE_LIMITED,      0, 363, "grant storage limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUERYTIME_LIMITED,    0, 364, "grant query time limited")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,          0, 365, "grant cpu limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "grant expired")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,          0, 0x0801, "grant dnode limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ACCT_LIMITED,           0, 0x0802, "grant account limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TIMESERIES_LIMITED,     0, 0x0803, "grant timeseries limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_LIMITED,             0, 0x0804, "grant db limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_USER_LIMITED,           0, 0x0805, "grant user limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CONN_LIMITED,           0, 0x0806, "grant conn limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STREAM_LIMITED,         0, 0x0807, "grant stream limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SPEED_LIMITED,          0, 0x0808, "grant speed limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STORAGE_LIMITED,        0, 0x0809, "grant storage limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUERYTIME_LIMITED,      0, 0x080A, "grant query time limited")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            0, 0x080B, "grant cpu limited")
 
-// server
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VGROUP_ID,          0, 400, "invalid vgroup id")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VNODE_ID,           0, 401, "invalid vnode id")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_ACTIVE_VNODE,           0, 402, "not active vnode")
-TAOS_DEFINE_ERROR(TSDB_CODE_VG_INIT_FAILED,             0, 403, "vg init failed")
-TAOS_DEFINE_ERROR(TSDB_CODE_SERV_NO_DISKSPACE,          0, 404, "server no diskspace")
-TAOS_DEFINE_ERROR(TSDB_CODE_SERV_OUT_OF_MEMORY,         0, 405, "server out of memory")
-TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISK_PERMISSIONS,        0, 406, "no disk permissions")
-TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,             0, 407, "file corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,           0, 408, "memory corrupted")
+// sync
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "sync invalid configuration")
 
-// client
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CLIENT_VERSION,     0, 451, "invalid client version")
-TAOS_DEFINE_ERROR(TSDB_CODE_CLI_OUT_OF_MEMORY,          0, 452, "client out of memory")
-TAOS_DEFINE_ERROR(TSDB_CODE_CLI_NO_DISKSPACE,           0, 453, "client no disk space")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIME_STAMP,         0, 454, "invalid timestamp")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SQL,                0, 455, "invalid sql")
-TAOS_DEFINE_ERROR(TSDB_CODE_QUERY_CACHE_ERASED,         0, 456, "query cache erased")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_QUERY_MSG,          0, 457, "invalid query message")    // failed to validate the sql expression msg by vnode
-TAOS_DEFINE_ERROR(TSDB_CODE_SORTED_RES_TOO_MANY,        0, 458, "sorted res too many")      // too many result for ordered super table projection query
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_QHANDLE,            0, 459, "invalid handle")
-TAOS_DEFINE_ERROR(TSDB_CODE_QUERY_CANCELLED,            0, 460, "query cancelled")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_IE,                 0, 461, "invalid ie")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VALUE,              0, 462, "invalid value")
-
-// others
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_FILE_FORMAT,        0, 500, "invalid file format")
-
-// TSDB
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CONFIG,             0, 550, "invalid TSDB configuration")
-
+// wal
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "wal app error")
 
 #ifdef TAOS_ERROR_C
 };
 #endif
 
-#define TSDB_CODE_MAX_ERROR_CODE             120
 
 #ifdef __cplusplus
 }

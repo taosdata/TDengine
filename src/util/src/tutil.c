@@ -27,8 +27,6 @@
 #include "tulog.h"
 #include "taoserror.h"
 
-int32_t tmpFileSerialNum = 0;
-
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -60,7 +58,7 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
-void strtrim(char *z) {
+size_t strtrim(char *z) {
   int32_t i = 0;
   int32_t j = 0;
 
@@ -71,7 +69,7 @@ void strtrim(char *z) {
 
   if (z[j] == 0) {
     z[0] = 0;
-    return;
+    return 0;
   }
 
   delta = j;
@@ -89,9 +87,12 @@ void strtrim(char *z) {
 
   if (stop > 0) {
     z[stop - delta] = 0;
+    return (stop - delta);
   } else if (j != i) {
     z[i] = 0;
   }
+  
+  return i;
 }
 
 char **strsplit(char *z, const char *delim, int32_t *num) {
@@ -331,6 +332,20 @@ char *strreplace(const char *str, const char *pattern, const char *rep) {
   return dest;
 }
 
+char *strbetween(char *string, char *begin, char *end) {
+  char *result = NULL;
+  char *_begin = strstr(string, begin);
+  if (_begin != NULL) {
+    char *_end = strstr(_begin + strlen(begin), end);
+    int   size = _end - _begin;
+    if (_end != NULL && size > 0) {
+      result = (char *)calloc(1, size);
+      memcpy(result, _begin + strlen(begin), size - +strlen(begin));
+    }
+  }
+  return result;
+}
+
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {
   int32_t i;
   char    hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -420,8 +435,20 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
   strcat(tmpPath, fileNamePrefix);
-  strcat(tmpPath, "-%llu-%u");
-  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1));
+  strcat(tmpPath, "-%d-%s");
+  
+  char rand[8] = {0};
+  taosRandStr(rand, tListLen(rand) - 1);
+  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+}
+
+void taosRandStr(char* str, int32_t size) {
+  const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
+  int32_t len = 39;
+  
+  for(int32_t i = 0; i < size; ++i) {
+    str[i] = set[rand()%len];
+  }
 }
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
@@ -447,10 +474,10 @@ int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
   int32_t ucs4_max_len = bytes + 4;
   char *f1_mbs = calloc(bytes, 1);
   char *f2_mbs = calloc(bytes, 1);
-  if (!taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs)) {
+  if (taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs) < 0) {
     return -1;
   }
-  if (!taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs)) {
+  if (taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs) < 0) {
     return -1;
   }
   int32_t ret = strcmp(f1_mbs, f2_mbs);
@@ -464,29 +491,29 @@ int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
 #endif
 }
 
-bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
+int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
 #ifdef USE_LIBICONV
   iconv_t cd = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;
   if (iconv(cd, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
     iconv_close(cd);
-    return false;
+    return -1;
   }
   iconv_close(cd);
-  return true;
+  return (int32_t)(ucs4_max_len - outLen);
 #else
   mbstate_t state = {0};
   int32_t len = (int32_t) wcsnrtombs(NULL, (const wchar_t **) &ucs4, ucs4_max_len / 4, 0, &state);
   if (len < 0) {
-    return false;
+    return -1;
   }
   memset(&state, 0, sizeof(state));
   len = wcsnrtombs(mbs, (const wchar_t **) &ucs4, ucs4_max_len / 4, (size_t) len, &state);
   if (len < 0) {
-    return false;
+    return -1;
   }
-  return true;
+  return len;
 #endif
 }
 
@@ -555,28 +582,28 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
 }
 
 int taosCheckVersion(char *input_client_version, char *input_server_version, int comparedSegments) {
-  char client_version[64] = {0};
-  char server_version[64] = {0};
+  char client_version[TSDB_VERSION_LEN] = {0};
+  char server_version[TSDB_VERSION_LEN] = {0};
   int clientVersionNumber[4] = {0};
   int serverVersionNumber[4] = {0};
 
-  strcpy(client_version, input_client_version);
-  strcpy(server_version, input_server_version);
+  tstrncpy(client_version, input_client_version, sizeof(client_version));
+  tstrncpy(server_version, input_server_version, sizeof(server_version));
 
   if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
     uError("invalid client version:%s", client_version);
-    return TSDB_CODE_INVALID_CLIENT_VERSION;
+    return TSDB_CODE_TSC_INVALID_VERSION;
   }
 
   if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
     uError("invalid server version:%s", server_version);
-    return TSDB_CODE_INVALID_CLIENT_VERSION;
+    return TSDB_CODE_TSC_INVALID_VERSION;
   }
 
   for(int32_t i = 0; i < comparedSegments; ++i) {
     if (clientVersionNumber[i] != serverVersionNumber[i]) {
       uError("the %d-th number of server version:%s not matched with client version:%s", i, server_version, version);
-      return TSDB_CODE_INVALID_CLIENT_VERSION;
+      return TSDB_CODE_TSC_INVALID_VERSION;
     }
   }
 

@@ -6,16 +6,16 @@ system sh/deploy.sh -n dnode3 -i 3
 system sh/cfg.sh -n dnode1 -c wallevel -v 2
 system sh/cfg.sh -n dnode2 -c wallevel -v 2
 system sh/cfg.sh -n dnode3 -c wallevel -v 2
-system sh/cfg.sh -n dnode1 -c numofMpeers -v 3
-system sh/cfg.sh -n dnode2 -c numofMpeers -v 3
-system sh/cfg.sh -n dnode3 -c numofMpeers -v 3
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
 
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 sql create dnode $hostname2
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode2 -s start
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 3000
 
 $N = 10
@@ -33,7 +33,7 @@ sleep 3001
 
 
 $tbPre = m
-$N = 280
+$N = 300
 $x = 0
 $y = $x + $N
 while $x < $y
@@ -46,26 +46,26 @@ endw
 
 
 #print =================== step 2
-#$x = 1
-#$y = $x + $N
-#$expect = $N
-#while $x < $y
-#  $ms = $x . m 
-#  sql insert into $table values (now + $ms , $x ) 
-#  $x = $x + 1
-#endw 
+$x = -500
+$y = $x + $N
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now $ms , $x ) 
+  $x = $x + 1
+endw 
 
-#sql select * from $table
-#print sql select * from $table -> $rows points 
-#if $rows != $expect then 
-#  return -1
-#endi
+$expect = $N + 1
+sql select * from $table
+print sql select * from $table -> $rows points expect $expect
+if $rows != $expect then 
+  return -1
+endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

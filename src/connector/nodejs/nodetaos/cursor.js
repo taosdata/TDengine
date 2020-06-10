@@ -405,18 +405,16 @@ TDengineCursor.prototype.getClientInfo = function getClientInfo() {
 /**
  * Subscribe to a table from a database in TDengine.
  * @param {Object} config - A configuration object containing the configuration options for the subscription
- * @param {string} config.host - The host to subscribe to
- * @param {string} config.user - The user to subscribe as
- * @param {string} config.password - The password for the said user
- * @param {string} config.db - The db containing the table to subscribe to
- * @param {string} config.table - The name of the table to subscribe to
- * @param {number} config.time - The start time to start a subscription session
- * @param {number} config.mseconds - The pulling period of the subscription session
+ * @param {string} config.restart - whether or not to continue a subscription if it already exits, otherwise start from beginning
+ * @param {string} config.topic - The unique identifier of a subscription
+ * @param {string} config.sql - A sql statement for data query
+ * @param {string} config.interval - The pulling interval
  * @return {Buffer} A buffer pointing to the subscription session handle
  * @since 1.3.0
  */
 TDengineCursor.prototype.subscribe = function subscribe(config) {
-  return this._chandle.subscribe(config.host, config.user, config.password, config.db, config.table, config.time, config.mseconds);
+  let restart = config.restart ? 1 : 0;
+  return this._chandle.subscribe(this._connection._conn, restart, config.topic, config.sql, config.interval);
 };
 /**
  * An infinite loop that consumes the latest data and calls a callback function that is provided.
@@ -426,18 +424,8 @@ TDengineCursor.prototype.subscribe = function subscribe(config) {
  */
 TDengineCursor.prototype.consumeData = async function consumeData(subscription, callback) {
   while (true) {
-    let res = this._chandle.consume(subscription);
-    let data = [];
-    let num_of_rows = res.blocks[0].length;
-    for (let j = 0; j < num_of_rows; j++) {
-      data.push([]);
-      let rowBlock = new Array(res.fields.length);
-      for (let k = 0; k < res.fields.length; k++) {
-        rowBlock[k] = res.blocks[k][j];
-      }
-      data[data.length-1] = rowBlock;
-    }
-    callback(data, res.fields, subscription);
+    let { data, fields, result} = this._chandle.consume(subscription);
+    callback(data, fields, result);
   }
 }
 /**

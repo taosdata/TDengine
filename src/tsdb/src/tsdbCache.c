@@ -35,7 +35,7 @@ STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo)
   pCache->totalCacheBlocks = totalBlocks;
   pCache->pRepo = pRepo;
 
-  STsdbCachePool *pPool = &(pCache->pool);
+  STsdbBufferPool *pPool = &(pCache->pool);
   pPool->index = 0;
   pPool->memPool = tdListNew(sizeof(STsdbCacheBlock *));
   if (pPool->memPool == NULL) goto _err;
@@ -82,7 +82,7 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key) {
   memset(ptr, 0, bytes);
   if (key < pCache->mem->keyFirst) pCache->mem->keyFirst = key;
   if (key > pCache->mem->keyLast) pCache->mem->keyLast = key;
-  pCache->mem->numOfPoints++;
+  pCache->mem->numOfRows++;
 
   return ptr;
 }
@@ -106,7 +106,7 @@ static void tsdbFreeCacheMem(SCacheMem *mem) {
 }
 
 static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
-  STsdbCachePool *pPool = &(pCache->pool);
+  STsdbBufferPool *pPool = &(pCache->pool);
   
   tsdbLockRepo(pCache->pRepo);
   if (listNEles(pPool->memPool) == 0) {
@@ -127,7 +127,7 @@ static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
     if (pCache->mem == NULL) return -1;
     pCache->mem->keyFirst = INT64_MAX;
     pCache->mem->keyLast = 0;
-    pCache->mem->numOfPoints = 0;
+    pCache->mem->numOfRows = 0;
     pCache->mem->list = tdListNew(sizeof(STsdbCacheBlock *));
   }
 
@@ -154,7 +154,7 @@ int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
     for (int i = 0; i < blocksToAdd; i++) {
       if (tsdbAddCacheBlockToPool(pCache) < 0) {
         tsdbUnLockRepo((TsdbRepoT *)pRepo);
-        tsdbError("tsdbId %d: failed to add cache block to cache pool", pRepo->config.tsdbId);
+        tsdbError("tsdbId:%d, failed to add cache block to cache pool", pRepo->config.tsdbId);
         return -1;
       }
     }
@@ -162,14 +162,15 @@ int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
     pCache->totalCacheBlocks = totalBlocks;
     tsdbAdjustCacheBlocks(pCache);
   }
+  pRepo->config.totalBlocks = totalBlocks;
 
   tsdbUnLockRepo((TsdbRepoT *)pRepo);
-  tsdbTrace("tsdbId %d: tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks, totalBlocks);
+  tsdbTrace("vgId:%d, tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks, totalBlocks);
   return 0;
 }
 
 static int tsdbAddCacheBlockToPool(STsdbCache *pCache) {
-  STsdbCachePool *pPool = &pCache->pool;
+  STsdbBufferPool *pPool = &pCache->pool;
 
   STsdbCacheBlock *pBlock = malloc(sizeof(STsdbCacheBlock) + pCache->cacheBlockSize);
   if (pBlock == NULL) return -1;
@@ -183,7 +184,7 @@ static int tsdbAddCacheBlockToPool(STsdbCache *pCache) {
 }
 
 static int tsdbRemoveCacheBlockFromPool(STsdbCache *pCache) {
-  STsdbCachePool *pPool = &pCache->pool;
+  STsdbBufferPool *pPool = &pCache->pool;
   STsdbCacheBlock *pBlock = NULL;
 
   ASSERT(pCache->totalCacheBlocks >= 0);

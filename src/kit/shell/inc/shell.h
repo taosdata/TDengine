@@ -29,26 +29,13 @@
 #define MAX_COMMAND_SIZE       65536
 #define HISTORY_FILE           ".taos_history"
 
-#define BOOL_OUTPUT_LENGTH     6
-#define TINYINT_OUTPUT_LENGTH  6
-#define SMALLINT_OUTPUT_LENGTH 7
-#define INT_OUTPUT_LENGTH      11
-#define BIGINT_OUTPUT_LENGTH   21
-#define FLOAT_OUTPUT_LENGTH    20
-#define DOUBLE_OUTPUT_LENGTH   25
-#define BINARY_OUTPUT_LENGTH   20
-
-// dynamic config timestamp width according to maximum time precision
-extern int32_t TIMESTAMP_OUTPUT_LENGTH;
-
-typedef struct History History;
-struct History {
+typedef struct SShellHistory {
   char* hist[MAX_HISTORY_SIZE];
   int   hstart;
   int   hend;
-};
+} SShellHistory;
 
-struct arguments {
+typedef struct SShellArguments {
   char* host;
   char* password;
   char* user;
@@ -62,11 +49,11 @@ struct arguments {
   char* commands;
   int   abort;
   int   port;
-};
+} SShellArguments;
 
 /**************** Function declarations ****************/
-extern void shellParseArgument(int argc, char* argv[], struct arguments* arguments);
-extern TAOS* shellInit(struct arguments* args);
+extern void shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
+extern TAOS* shellInit(SShellArguments* args);
 extern void* shellLoopQuery(void* arg);
 extern void taos_error(TAOS* con);
 extern int regex_match(const char* s, const char* reg, int cflags);
@@ -76,12 +63,11 @@ void shellRunCommandOnServer(TAOS* con, char command[]);
 void read_history();
 void write_history();
 void source_file(TAOS* con, char* fptr);
-void source_dir(TAOS* con, struct arguments* args);
+void source_dir(TAOS* con, SShellArguments* args);
 void get_history_path(char* history);
 void cleanup_handler(void* arg);
 void exitShell();
 int shellDumpResult(TAOS* con, char* fname, int* error_no, bool printMode);
-void shellPrintNChar(char* str, int width, bool printMode);
 void shellGetGrantInfo(void *con);
 int isCommentLine(char *line);
 
@@ -89,12 +75,12 @@ int isCommentLine(char *line);
 extern char           PROMPT_HEADER[];
 extern char           CONTINUE_PROMPT[];
 extern int            prompt_size;
-extern History        history;
+extern SShellHistory  history;
 extern struct termios oldtio;
 extern void           set_terminal_mode();
 extern int get_old_terminal_mode(struct termios* tio);
-extern void             reset_terminal_mode();
-extern struct arguments args;
-extern TAOS_RES*        result;
+extern void            reset_terminal_mode();
+extern SShellArguments args;
+extern TAOS_RES*       result;
 
 #endif

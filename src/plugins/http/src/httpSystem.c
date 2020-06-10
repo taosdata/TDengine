@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "shash.h"
 #include "taos.h"
 #include "tglobal.h"
 #include "tsocket.h"

@@ -81,7 +81,7 @@ sql_error select diff(c8) from $tb
 sql_error select diff(c9) from $tb
 sql_error select diff(ts) from $tb
 sql_error select diff(c1), diff(c2) from $tb
-sql_error select 2+diff(c1) from $tb
+#sql_error select 2+diff(c1) from $tb
 sql_error select diff(c1+2) from $tb
 sql_error select diff(c1) from $tb where ts > 0 and ts < now + 100m interval(10m)
 sql_error select diff(c1) from $mt

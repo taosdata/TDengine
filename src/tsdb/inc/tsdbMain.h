@@ -29,23 +29,13 @@ extern "C" {
 
 extern int tsdbDebugFlag;
 
-#define tsdbError(...)                                       \
-  if (tsdbDebugFlag & DEBUG_ERROR) {                         \
-    taosPrintLog("ERROR TSDB ", tsdbDebugFlag, __VA_ARGS__); \
-  }
-#define tsdbWarn(...)                                       \
-  if (tsdbDebugFlag & DEBUG_WARN) {                         \
-    taosPrintLog("WARN TSDB ", tsdbDebugFlag, __VA_ARGS__); \
-  }
-#define tsdbTrace(...)                                 \
-  if (tsdbDebugFlag & DEBUG_TRACE) {                   \
-    taosPrintLog("TSDB ", tsdbDebugFlag, __VA_ARGS__); \
-  }
-#define tsdbPrint(...) \
-  { taosPrintLog("TSDB ", 255, __VA_ARGS__); }
+#define tsdbError(...) { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR TDB ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbWarn(...)  { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN TDB ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbTrace(...) { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbPrint(...) { taosPrintLog("TDB ", 255, __VA_ARGS__); }
 
 // ------------------------------ TSDB META FILE INTERFACES ------------------------------
-#define TSDB_META_FILE_NAME "META"
+#define TSDB_META_FILE_NAME "meta"
 #define TSDB_META_HASH_FRACTION 1.1
 
 typedef int (*iterFunc)(void *, void *cont, int contLen);
@@ -63,9 +53,9 @@ typedef struct {
 } SMetaFile;
 
 SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables, iterFunc iFunc, afterFunc aFunc, void *appH);
-int32_t    tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);
-int32_t    tsdbDeleteMetaRecord(SMetaFile *mfh, int64_t uid);
-int32_t    tsdbUpdateMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);
+int32_t    tsdbInsertMetaRecord(SMetaFile *mfh, uint64_t uid, void *cont, int32_t contLen);
+int32_t    tsdbDeleteMetaRecord(SMetaFile *mfh, uint64_t uid);
+int32_t    tsdbUpdateMetaRecord(SMetaFile *mfh, uint64_t uid, void *cont, int32_t contLen);
 void       tsdbCloseMetaFile(SMetaFile *mfh);
 
 // ------------------------------ TSDB META INTERFACES ------------------------------
@@ -74,20 +64,20 @@ void       tsdbCloseMetaFile(SMetaFile *mfh);
 typedef struct {
   TSKEY   keyFirst;
   TSKEY   keyLast;
-  int32_t numOfPoints;
+  int32_t numOfRows;
   void *  pData;
 } SMemTable;
 
 // ---------- TSDB TABLE DEFINITION
+#define TSDB_MAX_TABLE_SCHEMAS 16
 typedef struct STable {
   int8_t         type;
-  char *         name;
   STableId       tableId;
-  int64_t        superUid;  // Super table UID
-  int32_t        sversion;
-  STSchema *     schema;
+  uint64_t       superUid;  // Super table UID
+  int16_t        numOfSchemas;
+  STSchema **    schema;
   STSchema *     tagSchema;
-  SDataRow       tagVal;
+  SKVRow         tagVal;
   SMemTable *    mem;
   SMemTable *    imem;
   void *         pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
@@ -96,11 +86,14 @@ typedef struct STable {
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   struct STable *next;           // TODO: remove the next
   struct STable *prev;
+  tstr *         name;  // NOTE: there a flexible string here
+  char *         sql;
+  void *         cqhandle;
 } STable;
 
-#define TSDB_GET_TABLE_LAST_KEY(pTable) ((pTable)->lastKey)
+#define TSDB_GET_TABLE_LAST_KEY(tb) ((tb)->lastKey)
 
-void *  tsdbEncodeTable(STable *pTable, int *contLen);
+void    tsdbEncodeTable(STable *pTable, char *buf, int *contLen);
 STable *tsdbDecodeTable(void *cont, int contLen);
 void    tsdbFreeEncode(void *cont);
 
@@ -119,11 +112,17 @@ typedef struct {
   SMetaFile *mfh;  // meta file handle
   int        maxRowBytes;
   int        maxCols;
+  void *     pRepo;
 } STsdbMeta;
 
-STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables);
+// element put in skiplist for each table
+typedef struct STableIndexElem {
+  STsdbMeta* pMeta;
+  STable*    pTable;
+} STableIndexElem;
+
+STsdbMeta *tsdbInitMeta(char *rootDir, int32_t maxTables, void *pRepo);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
-STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
 
 // ---- Operation on STable
@@ -145,12 +144,10 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
 
 STsdbMeta *tsdbGetMeta(TsdbRepoT *pRepo);
 
-int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
-int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
-STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
-char *  getTupleKey(const void *data);
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid);
+char *getTSTupleKey(const void * data);
 
 typedef struct {
   int  blockId;
@@ -164,19 +161,19 @@ typedef struct {
   int64_t index;
   int     numOfCacheBlocks;
   SList * memPool;
-} STsdbCachePool;
+} STsdbBufferPool;
 
 typedef struct {
   TSKEY   keyFirst;
   TSKEY   keyLast;
-  int64_t numOfPoints;
+  int64_t numOfRows;
   SList * list;
 } SCacheMem;
 
 typedef struct {
   int              cacheBlockSize;
   int              totalCacheBlocks;
-  STsdbCachePool   pool;
+  STsdbBufferPool   pool;
   STsdbCacheBlock *curBlock;
   SCacheMem *      mem;
   SCacheMem *      imem;
@@ -206,16 +203,21 @@ typedef enum {
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
-  int64_t size;      // total size of the file
-  int64_t tombSize;  // unused file size
-  int32_t totalBlocks;
-  int32_t totalSubBlocks;
-} SFileInfo;
+  uint32_t offset;
+  uint32_t len;
+  uint64_t size;      // total size of the file
+  uint64_t tombSize;  // unused file size
+  uint32_t totalBlocks;
+  uint32_t totalSubBlocks;
+} STsdbFileInfo;
+
+void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo);
+void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo);
 
 typedef struct {
   int       fd;
   char      fname[128];
-  SFileInfo info;
+  STsdbFileInfo info;
 } SFile;
 
 #define TSDB_IS_FILE_OPENED(f) ((f)->fd != -1)
@@ -238,8 +240,7 @@ typedef struct {
 
 STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
-int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, int maxTables, SFile *pFile, int writeHeader,
-                           int toClose);
+int         tsdbCreateFile(char *dataDir, int fileId, const char *suffix, SFile *pFile);
 SFileGroup *tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
 int         tsdbCloseFile(SFile *pFile);
@@ -262,14 +263,17 @@ void        tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid);
 SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter);
 
 typedef struct {
-  int32_t len;
-  int32_t offset;
-  int32_t padding; // For padding purpose
-  int32_t hasLast : 1;
-  int32_t numOfBlocks : 31;
-  int64_t uid;
-  TSKEY   maxKey;
+  uint32_t len;
+  uint32_t offset;
+  uint32_t padding;  // For padding purpose
+  uint32_t hasLast : 2;
+  uint32_t numOfBlocks : 30;
+  uint64_t uid;
+  TSKEY    maxKey;
 } SCompIdx; /* sizeof(SCompIdx) = 28 */
+
+void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx);
+void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx);
 
 /**
  * if numOfSubBlocks == 0, then the SCompBlock is a sub-block
@@ -283,7 +287,7 @@ typedef struct {
   int64_t last : 1;          // If the block in data file or last file
   int64_t offset : 63;       // Offset of data block or sub-block index depending on numOfSubBlocks
   int32_t algorithm : 8;     // Compression algorithm
-  int32_t numOfPoints : 24;  // Number of total points
+  int32_t numOfRows : 24;    // Number of total points
   int32_t sversion;          // Schema version
   int32_t len;               // Data block length or nothing
   int16_t numOfSubBlocks;    // Number of sub-blocks;
@@ -300,7 +304,7 @@ typedef struct {
 typedef struct {
   int32_t    delimiter;  // For recovery usage
   int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
-  int64_t    uid;
+  uint64_t   uid;
   SCompBlock blocks[];
 } SCompInfo;
 
@@ -321,13 +325,20 @@ typedef struct {
   int16_t len;    // Column length // TODO: int16_t is not enough
   int32_t type : 8;
   int32_t offset : 24;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+  char    padding[2];
 } SCompCol;
 
 // TODO: Take recover into account
 typedef struct {
   int32_t  delimiter;  // For recovery usage
   int32_t  numOfCols;  // For recovery usage
-  int64_t  uid;        // For recovery usage
+  uint64_t uid;        // For recovery usage
   SCompCol cols[];
 } SCompData;
 
@@ -339,12 +350,14 @@ SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
 void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 
 // TSDB repository definition
-typedef struct _tsdb_repo {
+typedef struct STsdbRepo {
   char *rootDir;
   // TSDB configuration
   STsdbCfg config;
 
   STsdbAppH appH;
+
+  STsdbStat stat;
 
   // The meter meta handle of this TSDB repository
   STsdbMeta *tsdbMeta;
@@ -423,9 +436,9 @@ typedef struct {
 } SHelperFile;
 
 typedef struct {
-  int64_t uid;
-  int32_t tid;
-  int32_t sversion;
+  uint64_t uid;
+  int32_t  tid;
+  int32_t  sversion;
 } SHelperTable;
 
 typedef struct {
@@ -447,7 +460,7 @@ typedef struct {
   SCompData *pCompData;
   SDataCols *pDataCols[2];
 
-  void *blockBuffer;  // Buffer to hold the whole data block
+  void *pBuffer;  // Buffer to hold the whole data block
   void *compBuffer;   // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
@@ -477,11 +490,12 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo);
 int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
 
 // --------- For read operations
-int tsdbLoadCompIdx(SRWHelper *pHelper, void *target);
-int tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
-int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target);
-int tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, int16_t *colIds, int numOfColIds);
-int tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *target);
+int  tsdbLoadCompIdx(SRWHelper *pHelper, void *target);
+int  tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
+int  tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target);
+int  tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, int16_t *colIds, int numOfColIds);
+int  tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *target);
+void tsdbGetDataStatis(SRWHelper *pHelper, SDataStatis *pStatis, int numOfCols);
 
 // --------- For write operations
 int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols);
@@ -490,9 +504,20 @@ int tsdbWriteCompInfo(SRWHelper *pHelper);
 int tsdbWriteCompIdx(SRWHelper *pHelper);
 
 // --------- Other functions need to further organize
-void tsdbFitRetention(STsdbRepo *pRepo);
-int  tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
-void tsdbAdjustCacheBlocks(STsdbCache *pCache);
+void      tsdbFitRetention(STsdbRepo *pRepo);
+int       tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
+void      tsdbAdjustCacheBlocks(STsdbCache *pCache);
+int32_t   tsdbGetMetaFileName(char *rootDir, char *fname);
+int       tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
+int       tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg);
+int       tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
+int       tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
+STSchema *tsdbGetTableSchemaByVersion(STsdbMeta *pMeta, STable *pTable, int16_t version);
+STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
+
+#define DEFAULT_TAG_INDEX_COLUMN 0  // skip list built based on the first column of tags
+
+int compFGroupKey(const void *key, const void *fgroup);
 
 #ifdef __cplusplus
 }

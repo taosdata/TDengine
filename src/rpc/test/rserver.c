@@ -36,7 +36,7 @@ void processShellMsg() {
   while (1) {
     int numOfMsgs = taosReadAllQitems(qhandle, qall);
     if (numOfMsgs <= 0) {
-      usleep(1000);
+      usleep(100);
       continue;
     }     
 
@@ -69,6 +69,7 @@ void processShellMsg() {
       taosGetQitem(qall, &type, (void **)&pRpcMsg);
       rpcFreeCont(pRpcMsg->pCont);
 
+      memset(&rpcMsg, 0, sizeof(rpcMsg));
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
       rpcMsg.handle = pRpcMsg->handle;
@@ -113,9 +114,9 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
   return ret;
 }
 
-void processRequestMsg(SRpcMsg *pMsg) {
+void processRequestMsg(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SRpcMsg *pTemp;
-
+ 
   pTemp = taosAllocateQitem(sizeof(SRpcMsg));
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
@@ -126,6 +127,8 @@ void processRequestMsg(SRpcMsg *pMsg) {
 int main(int argc, char *argv[]) {
   SRpcInit rpcInit;
   char     dataName[20] = "server.data";
+
+  taosBlockSIGPIPE();
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort    = 7000;
@@ -169,7 +172,6 @@ int main(int argc, char *argv[]) {
 
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
-
   taosInitLog("server.log", 100000, 10);
 
   void *pRpc = rpcOpen(&rpcInit);

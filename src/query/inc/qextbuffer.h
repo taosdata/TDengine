@@ -28,8 +28,7 @@ extern "C" {
 #include "tdataformat.h"
 #include "talgo.h"
 
-#define DEFAULT_PAGE_SIZE 16384  // 16k larger than the SHistoInfo
-#define MIN_BUFFER_SIZE (1 << 19)
+#define DEFAULT_PAGE_SIZE (1024L*64)  // 16k larger than the SHistoInfo
 #define MAX_TMPFILE_PATH_LENGTH PATH_MAX
 #define INITIAL_ALLOCATION_BUFFER_SIZE 64
 
@@ -68,7 +67,7 @@ typedef struct SExtFileInfo {
 } SExtFileInfo;
 
 typedef struct tFilePage {
-  uint64_t numOfElems;
+  uint64_t num;
   char     data[];
 } tFilePage;
 
@@ -97,7 +96,7 @@ typedef struct SColumnOrderInfo {
 typedef struct tOrderDescriptor {
   SColumnModel *   pColumnModel;
   int32_t          tsOrder;  // timestamp order type if exists
-  SColumnOrderInfo orderIdx;
+  SColumnOrderInfo orderInfo;
 } tOrderDescriptor;
 
 typedef struct tExtMemBuffer {
@@ -119,12 +118,6 @@ typedef struct tExtMemBuffer {
   SColumnModel *         pColumnModel;
   EXT_BUFFER_FLUSH_MODEL flushModel;
 } tExtMemBuffer;
-
-//typedef struct tTagSchema {
-//  struct SSchema *pSchema;
-//  int32_t         numOfCols;
-//  int32_t         colOffset[];
-//} tTagSchema;
 
 /**
  *

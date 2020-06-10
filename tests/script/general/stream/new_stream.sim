@@ -1,12 +1,12 @@
-system sh/stop_dnodes.sh
+#system sh/stop_dnodes.sh
 
 
-system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 10
-system sh/exec.sh -n dnode1 -s start
+#system sh/deploy.sh -n dnode1 -i 1
+#system sh/cfg.sh -n dnode1 -c walLevel -v 0
+#system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 10
+#system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+#sleep 3000
 sql connect
 print ======================== dnode1 start
 
@@ -56,14 +56,14 @@ print $data00 $data01 $data02 $data03
 sql create table $st as select count(*), count(tbcol), count(tbcol2) from $mt interval(10s)
 
 print =============== step3
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step4
 
 sql select * from $st
 print $st ==> $rows1 $data00 $data01 $data02 $data03
-if $data13 >= 51 then
+if $data03 >= 51 then
  return -1
 endi
 
@@ -90,8 +90,8 @@ while $i < $tbNum
 endw 
 
 print =============== step6
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step7
 

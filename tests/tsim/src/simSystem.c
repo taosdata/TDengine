@@ -29,6 +29,12 @@ int simDebugFlag = 135;
 void simCloseTaosdConnect(SScript *script);
 char simHostName[128];
 
+char *simParseArbitratorName(char *varName) {
+  static char hostName[140];
+  sprintf(hostName, "%s:%d", simHostName, 8000);
+  return hostName;
+}
+
 char *simParseHostName(char *varName) {
   static char hostName[140];
 

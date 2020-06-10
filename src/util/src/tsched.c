@@ -14,6 +14,8 @@
  */
 
 #include "os.h"
+#include "taosdef.h"
+#include "tutil.h"
 #include "tulog.h"
 #include "tsched.h"
 #include "ttimer.h"
@@ -21,7 +23,7 @@
 #define DUMP_SCHEDULER_TIME_WINDOW 30000 //every 30sec, take a snap shot of task queue.
 
 typedef struct {
-  char            label[16];
+  char            label[TSDB_LABEL_LEN];
   tsem_t          emptySem;
   tsem_t          fullSem;
   pthread_mutex_t queueMutex;
@@ -31,7 +33,7 @@ typedef struct {
   int             numOfThreads;
   pthread_t *     qthread;
   SSchedMsg *     queue;
-  
+  bool            stop;
   void*           pTmrCtrl;
   void*           pTimer;
 } SSchedQueue;
@@ -61,8 +63,7 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
   }
 
   pSched->queueSize = queueSize;
-  strncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
-  pSched->label[sizeof(pSched->label)-1] = '\0';
+  tstrncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
 
   pSched->fullSlot = 0;
   pSched->emptySlot = 0;
@@ -85,6 +86,7 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
     return NULL;
   }
 
+  pSched->stop = false;
   for (int i = 0; i < numOfThreads; ++i) {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
@@ -127,6 +129,9 @@ void *taosProcessSchedQueue(void *param) {
         continue;
       }
       uError("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
+    }
+    if (pSched->stop) {
+      break;
     }
 
     if (pthread_mutex_lock(&pSched->queueMutex) != 0)
@@ -185,13 +190,16 @@ void taosCleanUpScheduler(void *param) {
   SSchedQueue *pSched = (SSchedQueue *)param;
   if (pSched == NULL) return;
 
+  pSched->stop = true;
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    if (pSched->qthread[i])
-      pthread_cancel(pSched->qthread[i]);
+    if (pSched->qthread[i]) {
+      tsem_post(&pSched->fullSem);
+    }
   }
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    if (pSched->qthread[i]) 
+    if (pSched->qthread[i]) {
       pthread_join(pSched->qthread[i], NULL);
+    }
   }
 
   tsem_destroy(&pSched->emptySem);

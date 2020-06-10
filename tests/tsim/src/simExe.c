@@ -36,10 +36,15 @@ void simLogSql(char *sql) {
   fflush(fp);
 }
 
+char *simParseArbitratorName(char *varName);
 char *simParseHostName(char *varName);
 char *simGetVariable(SScript *script, char *varName, int varLen) {
   if (strncmp(varName, "hostname", 8) == 0) {
     return simParseHostName(varName);
+  }
+
+  if (strncmp(varName, "arbitrator", 10) == 0) {
+      return simParseArbitratorName(varName);
   }
 
   if (strncmp(varName, "error", varLen) == 0) return script->error;
@@ -119,7 +124,7 @@ char *simGetVariable(SScript *script, char *varName, int varLen) {
 int simExecuteExpression(SScript *script, char *exp) {
   char *op1, *op2, *var1, *var2, *var3, *rest;
   int op1Len, op2Len, var1Len, var2Len, var3Len, val0, val1;
-  char t0[512], t1[512], t2[512], t3[512];
+  char t0[512], t1[512], t2[512], t3[1024];
   int result;
 
   rest = paGetToken(exp, &var1, &var1Len);
@@ -310,14 +315,15 @@ void simStoreSystemContentResult(SScript *script, char *filename) {
 
 bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
+  char buf1[4096 + 512] = {0};
   char filename[400] = {0};
   sprintf(filename, "%s/%s.tmp", tsScriptDir, script->fileName);
 
   sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
-  sprintf(buf, "%s > %s 2>/dev/null", buf, filename);
+  sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
 
-  sprintf(script->system_exit_code, "%d", system(buf));
+  sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);
 
   script->linePos++;
@@ -414,7 +420,7 @@ void simCloseNativeConnect(SScript *script) {
 
   simTrace("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
-  taosMsleep(1000);
+  taosMsleep(1200);
 
   script->taos = NULL;
 }
@@ -532,7 +538,7 @@ int simExecuteRestFulCommand(SScript *script, char *command) {
   FILE *fp = popen(buf, "r");
   if (fp == NULL) {
     simError("failed to execute %s", buf);
-    return TSDB_CODE_OTHERS;
+    return -1;
   }
 
   int mallocSize = 2000;
@@ -629,17 +635,20 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   SCmdLine *line = &script->lines[script->linePos];
   int ret = -1;
 
+  TAOS_RES* pSql = NULL;
+  
   for (int attempt = 0; attempt < 3; ++attempt) {
     simLogSql(rest);
-    ret = taos_query(script->taos, rest);
-    if (ret == TSDB_CODE_TABLE_ALREADY_EXIST ||
-        ret == TSDB_CODE_DB_ALREADY_EXIST) {
+    pSql = taos_query(script->taos, rest);
+    ret = taos_errno(pSql);
+    
+    if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST || ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
       simTrace("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
       ret = 0;
       break;
     } else if (ret != 0) {
       simTrace("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s",
-               script->fileName, script->taos, rest, ret, tstrerror(ret), taos_errstr(script->taos));
+               script->fileName, script->taos, rest, ret, tstrerror(ret), taos_errstr(pSql));
 
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
@@ -649,6 +658,8 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
     } else {
       break;
     }
+    
+    taos_free_result(pSql);
   }
 
   if (ret) {
@@ -657,10 +668,9 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   }
 
   int numOfRows = 0;
-  int num_fields = taos_field_count(script->taos);
+  int num_fields = taos_field_count(pSql);
   if (num_fields != 0) {
-    TAOS_RES *result = taos_use_result(script->taos);
-    if (result == NULL) {
+    if (pSql == NULL) {
       simTrace("script:%s, taos:%p, %s failed, result is null", script->fileName, script->taos, rest);
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
@@ -673,10 +683,10 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 
     TAOS_ROW row;
 
-    while ((row = taos_fetch_row(result))) {
+    while ((row = taos_fetch_row(pSql))) {
       if (numOfRows < MAX_QUERY_ROW_NUM) {
-        TAOS_FIELD *fields = taos_fetch_fields(result);
-        int* length = taos_fetch_lengths(result);
+        TAOS_FIELD *fields = taos_fetch_fields(pSql);
+        int* length = taos_fetch_lengths(pSql);
         
         for (int i = 0; i < num_fields; i++) {
           char *value = NULL;
@@ -762,11 +772,11 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
       }
     }
 
-    taos_free_result(result);
   } else {
-    numOfRows = taos_affected_rows(script->taos);
+    numOfRows = taos_affected_rows(pSql);
   }
 
+  taos_free_result(pSql);
   sprintf(script->rows, "%d", numOfRows);
 
   script->linePos++;
@@ -781,8 +791,8 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
   int ret = -1;
   for (int attempt = 0; attempt < 10; ++attempt) {
     ret = simExecuteRestFulCommand(script, command);
-    if (ret == TSDB_CODE_TABLE_ALREADY_EXIST ||
-        ret == TSDB_CODE_DB_ALREADY_EXIST) {
+    if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST ||
+        ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
       simTrace("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
       ret = 0;
       break;
@@ -905,13 +915,16 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   }
 
   int ret;
+  TAOS_RES* pSql = NULL;
   if (simAsyncQuery) {
     char command[4096];
     sprintf(command, "curl -H 'Authorization: Taosd %s' -d '%s' 127.0.0.1:6020/rest/sql", script->auth, rest);
     ret = simExecuteRestFulCommand(script, command);
   }
   else {
-    ret = taos_query(script->taos, rest);
+    pSql = taos_query(script->taos, rest);
+    ret = taos_errno(pSql);
+    taos_free_result(pSql);
   }
 
   if (ret != TSDB_CODE_SUCCESS) {
@@ -920,6 +933,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
     script->linePos++;
     return true;
   }
+  
   sprintf(script->error, "lineNum:%d. sql:%s expect failed, but success, ret:%d:%s", line->lineNum, rest, ret, tstrerror(ret));
 
   return false;

@@ -40,9 +40,25 @@ cd .
 # Get responsible directories
 CODE_DIR=`dirname $0`
 CODE_DIR=`pwd`
-cd ../../
+
+IN_TDINTERNAL="community"
+if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  cd ../../..
+else
+  cd ../../
+fi
+
 TOP_DIR=`pwd`
-BUILD_DIR=$TOP_DIR/debug/build
+TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+fi
+
+BUILD_DIR=$TOP_DIR/$BIN_DIR/build
+
 SIM_DIR=$TOP_DIR/sim
 
 if [ $ASYNC -eq 0 ]; then
@@ -51,16 +67,16 @@ else
   PROGRAM="$BUILD_DIR/bin/tsim -a"
 fi
 
-if [ $UNIQUE -eq 0 ]; then
-  PROGRAM=$BUILD_DIR/bin/tsim
-else
-  PROGRAM="$TOP_DIR/../debug/build/bin/tsim"
-fi 
 
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 DATA_DIR=$PRG_DIR/data
+
+
+ARBITRATOR_PRG_DIR=$SIM_DIR/arbitrator
+ARBITRATOR_LOG_DIR=$ARBITRATOR_PRG_DIR/log
+
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
@@ -72,9 +88,12 @@ echo "CFG_DIR  : $CFG_DIR"
 
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
+rm -rf $ARBITRATOR_LOG_DIR
+
 mkdir -p $PRG_DIR
 mkdir -p $LOG_DIR
 mkdir -p $CFG_DIR
+mkdir -p $ARBITRATOR_LOG_DIR
 
 TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
@@ -93,13 +112,14 @@ echo "numOfLogLines    100000000"            >> $TAOS_CFG
 echo "dDebugFlag       135"                  >> $TAOS_CFG
 echo "mDebugFlag       135"                  >> $TAOS_CFG
 echo "sdbDebugFlag     135"                  >> $TAOS_CFG
-echo "rpcDebugFlag     135"                  >> $TAOS_CFG
+echo "rpcDebugFlag     151"                  >> $TAOS_CFG
 echo "tmrDebugFlag     131"                  >> $TAOS_CFG
 echo "cDebugFlag       135"                  >> $TAOS_CFG
 echo "httpDebugFlag    135"                  >> $TAOS_CFG
 echo "monitorDebugFlag 135"                  >> $TAOS_CFG
 echo "udebugFlag       135"                  >> $TAOS_CFG
-echo "clog             0"                    >> $TAOS_CFG
+echo "tablemetakeeptimer 5"                  >> $TAOS_CFG
+echo "wal              0"                    >> $TAOS_CFG
 echo "asyncLog         0"                    >> $TAOS_CFG
 echo "locale           en_US.UTF-8"          >> $TAOS_CFG
 echo " "                                     >> $TAOS_CFG

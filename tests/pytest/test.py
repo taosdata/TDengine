@@ -31,9 +31,10 @@ if __name__ == "__main__":
     masterIp = ""
     testCluster = False
     valgrind = 0
+    logSql = True
     stop = 0
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:scgh', [
-        'file=', 'path=', 'master', 'stop', 'cluster', 'valgrind', 'help'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scgh', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -41,8 +42,10 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-f Name of test case file written by Python')
             tdLog.printNoPrefix('-p Deploy Path for Simulator')
             tdLog.printNoPrefix('-m Master Ip for Simulator')
-            tdLog.printNoPrefix('-c Test Cluster Flag')
+            tdLog.printNoPrefix('-l <True:False> logSql Flag')
             tdLog.printNoPrefix('-s stop All dnodes')
+            tdLog.printNoPrefix('-c Test Cluster Flag')
+            tdLog.printNoPrefix('-g valgrind Test Flag')
             sys.exit(0)
 
         if key in ['-f', '--file']:
@@ -53,6 +56,15 @@ if __name__ == "__main__":
 
         if key in ['-m', '--master']:
             masterIp = value
+
+        if key in ['-l', '--logSql']:
+            if (value.upper() == "TRUE"):
+                logSql = True
+            elif (value.upper() == "FALSE"):
+                logSql = False
+            else:
+                tdLog.printNoPrefix("logSql value %s is invalid" % logSql)
+                sys.exit(0)
 
         if key in ['-c', '--cluster']:
             testCluster = True
@@ -70,8 +82,6 @@ if __name__ == "__main__":
             toBeKilled = "valgrind.bin"
 
         killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -HUP " % toBeKilled
-#        os.system(killCmd)
-#        time.sleep(1)
 
         psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
         processID = subprocess.check_output(psCmd, shell=True)
@@ -81,7 +91,11 @@ if __name__ == "__main__":
             time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True)
 
-        tdLog.exit('stop All dnodes')
+        fuserCmd = "fuser -k -n tcp 6030"
+        os.system(fuserCmd)
+
+        tdLog.info('stop All dnodes')
+        sys.exit(0)
 
     tdDnodes.init(deployPath)
     tdDnodes.setTestCluster(testCluster)
@@ -92,23 +106,25 @@ if __name__ == "__main__":
     tdDnodes.start(1)
 
     if masterIp == "":
-        host='127.0.0.1'
+        host = '127.0.0.1'
     else:
-        host=masterIp
+        host = masterIp
 
-    tdLog.notice("Procedures for tdengine deployed in %s" % (host))
+    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+
+    tdCases.logSql(logSql)
 
     if testCluster:
-        tdLog.notice("Procedures for testing cluster")
+        tdLog.info("Procedures for testing cluster")
         if fileName == "all":
             tdCases.runAllCluster()
         else:
             tdCases.runOneCluster(fileName)
     else:
-        tdLog.notice("Procedures for testing self-deployment")
+        tdLog.info("Procedures for testing self-deployment")
         conn = taos.connect(
-                host,
-                config=tdDnodes.getSimCfgPath())
+            host,
+            config=tdDnodes.getSimCfgPath())
         if fileName == "all":
             tdCases.runAllLinux(conn)
         else:

@@ -6,6 +6,7 @@
 #
 matrix:
   - os: linux
+    dist: bionic
     language: c
 
     git:
@@ -25,6 +26,7 @@ matrix:
           - python3-pip
           - python3-setuptools
           - valgrind
+          - psmisc
 
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
@@ -36,6 +38,7 @@ matrix:
       - make > /dev/null
 
     after_success:
+      - travis_wait 20
       - |-
         case $TRAVIS_OS_NAME in
           linux)
@@ -46,10 +49,10 @@ matrix:
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
-          ./test-all.sh $TRAVIS_EVENT_TYPE || travis_terminate $?
+          ./test-all.sh smoke || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
-          ./smoketest.sh -g 2>&1 | tee mem-error-out.txt
+          ./valgrind-test.sh 2>&1 > mem-error-out.log
           sleep 1
 
           # Color setting
@@ -59,12 +62,12 @@ matrix:
           GREEN_UNDERLINE='\033[4;32m'
           NC='\033[0m'
 
-          grep 'ERROR SUMMARY' mem-error-out.txt | uniq | tee uniq-mem-error-out.txt
+          grep 'start to execute\|ERROR SUMMARY' mem-error-out.log|grep -v 'grep'|uniq|tee uniq-mem-error-out.log
 
-          for memError in `cat uniq-mem-error-out.txt | awk '{print $4}'` 
+          for memError in `grep 'ERROR SUMMARY' uniq-mem-error-out.log | awk '{print $4}'`
           do
             if [ -n "$memError" ]; then
-              if [ "$memError" -gt 16 ]; then
+              if [ "$memError" -gt 12 ]; then
                 echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
                          More than our threshold! ## ${NC}"
                 travis_terminate $memError
@@ -72,11 +75,11 @@ matrix:
             fi
           done
 
-          grep 'definitely lost' mem-error-out.txt | uniq | tee uniq-definitely-lost-out.txt
-          for defiMemError in `cat uniq-definitely-lost-out.txt | awk '{print $7}'` 
+          grep 'start to execute\|definitely lost:' mem-error-out.log|grep -v 'grep'|uniq|tee uniq-definitely-lost-out.log
+          for defiMemError in `grep 'definitely lost:' uniq-definitely-lost-out.log | awk '{print $7}'`
           do
             if [ -n "$defiMemError" ]; then
-              if [ "$defiMemError" -gt 16 ]; then
+              if [ "$defiMemError" -gt 13 ]; then
                 echo -e "${RED} ## Memory errors number valgrind reports \
                          Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
                 travis_terminate $defiMemError
@@ -88,6 +91,7 @@ matrix:
         esac
 
   - os: linux
+    dist: bionic
     language: c
     compiler: gcc
     env: COVERITY_SCAN=true
@@ -107,7 +111,7 @@ matrix:
           description: TDengine
 
         # Where email notification of build analysis results will be sent
-        notification_email: sdsang@taosdata.com
+        notification_email: sdsang@taosdata.com, slguan@taosdata.com
 
         # Commands to prepare for build_command
         # ** likely specific to your build **
@@ -115,7 +119,7 @@ matrix:
 
         # The command that will be added as an argument to "cov-build" to compile your project for analysis,
         # ** likely specific to your build **
-        build_command: make > /dev/null
+        build_command: make
 
         # Pattern to match selecting branches that will run analysis. We recommend leaving this set to 'coverity_scan'.
         # Take care in resource usage, and consider the build frequency allowances per
@@ -123,6 +127,7 @@ matrix:
         branch_pattern: coverity_scan
 
   - os: linux
+    dist: bionic
     language: c
     compiler: gcc
     env: ENV_COVER=true
@@ -141,6 +146,7 @@ matrix:
           - python3-pip
           - python3-setuptools
           - lcov
+          - psmisc
 
     before_script:
       - cd ${TRAVIS_BUILD_DIR}
@@ -163,17 +169,16 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}/tests
 
-          ./test-all.sh
+          ./test-all.sh smoke COVER
 
-          if [ "$?" -ne "0" ]; then
-            travis_terminate $?
-          fi
+          TEST_RESULT=$?
 
           pkill taosd
           sleep 1
 
           cd ${TRAVIS_BUILD_DIR}
           lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info
+          lcov --remove coverage.info '*/tests/*' '*/test/*' '*/deps/*' '*/plugins/*' -o coverage.info
           lcov -l --rc lcov_branch_coverage=1 coverage.info || travis_terminate $?
 
           gem install coveralls-lcov
@@ -199,10 +204,37 @@ matrix:
             echo -e "${RED} ## Codecov did not collect coverage report! ## ${NC} "
           fi
 
+          if [ "$TEST_RESULT" -ne "0" ]; then
+            travis_terminate $?
+          fi
           ;;
         esac
 
   - os: linux
+    dist: trusty
+    language: c
+    git:
+      - depth: 1
+
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+    env: 
+      - DESC="trusty/gcc-4.8 build"
+
+    before_script:
+      - cd ${TRAVIS_BUILD_DIR}
+      - mkdir debug
+      - cd debug
+
+    script:
+      - cmake .. > /dev/null
+      - make > /dev/null
+
+  - os: linux
+    dist: bionic
     language: c
     compiler: clang
     env: DESC="linux/clang build"

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_RPC_LOG_H
-#define TDENGINE_RPC_LOG_H
+#ifndef TDENGINE_QUERY_LOG_H
+#define TDENGINE_QUERY_LOG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,24 +22,14 @@ extern "C" {
 
 #include "tlog.h"
 
-extern int32_t qdebugFlag;
+extern int32_t qDebugFlag;
 
-#define qTrace(...)                               \
-  if (qdebugFlag & DEBUG_TRACE) {                 \
-    taosPrintLog("DND QRY ", qdebugFlag, __VA_ARGS__); \
-  }
-
-#define qError(...)                                   \
-  if (qdebugFlag & DEBUG_ERROR) {                   \
-    taosPrintLog("ERROR QRY ", qdebugFlag, __VA_ARGS__); \
-  }
-#define qWarn(...)                                    \
-  if (qdebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  QRY ", qdebugFlag, __VA_ARGS__); \
-  }  
+#define qTrace(...) { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }}
+#define qError(...) { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR QRY ", qDebugFlag, __VA_ARGS__); }}
+#define qWarn(...)  { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN QRY ", qDebugFlag, __VA_ARGS__); }}
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_RPC_CACHE_H
+#endif  // TDENGINE_QUERY_LOG_H

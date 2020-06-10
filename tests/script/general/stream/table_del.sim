@@ -71,20 +71,20 @@ print =============== step3
 sql drop table $tb
 
 print =============== step4
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step5
 $st = $stPrefix . c3
 sql select * from $st
 print ===> select * from $st
 print ===> $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-if $data01 != NULL then 
+if $data01 != null then 
   return -1
 endi
-if $data02 != NULL then 
+if $data02 != null then 
   return -1
 endi
-if $data03 != NULL then 
+if $data03 != null then 
   return -1
 endi

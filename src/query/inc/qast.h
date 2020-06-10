@@ -50,11 +50,11 @@ typedef struct tQueryInfo {
   SSchema       sch;      // schema of tags
   char*         q;
   __compar_fn_t compare;  // filter function
-  void*         param;    // STSchema,
+  void*         param;    // STSchema
 } tQueryInfo;
 
 typedef struct SExprTraverseSupp {
-  __result_filter_fn_t   fp;
+  __result_filter_fn_t   nodeFilterFn;
   __do_filter_suppl_fn_t setupInfoFn;
   void *                 pExtInfo;
 } SExprTraverseSupp;

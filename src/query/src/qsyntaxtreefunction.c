@@ -311,7 +311,7 @@ void calc_fn_i32_i32_sub(void *left, void *right, int32_t numLeft, int32_t numRi
   if (numLeft == numRight) {
     for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
-        setNull((char *)&(pOutput[i]), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+        setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
       }
       *pOutput = (double)pLeft[i] - pRight[i];

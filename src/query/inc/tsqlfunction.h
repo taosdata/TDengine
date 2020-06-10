@@ -104,7 +104,7 @@ extern "C" {
 
 enum {
   MASTER_SCAN           = 0x0u,
-  SUPPLEMENTARY_SCAN    = 0x1u,
+  REVERSE_SCAN          = 0x1u,
   REPEAT_SCAN           = 0x2u,  //repeat scan belongs to the master scan
   FIRST_STAGE_MERGE     = 0x10u,
   SECONDARY_STAGE_MERGE = 0x20u,
@@ -126,7 +126,6 @@ typedef struct SArithmeticSupport {
 
 typedef struct SQLPreAggVal {
   bool    isSet;
-  int32_t size;
   SDataStatis statis;
 } SQLPreAggVal;
 
@@ -162,27 +161,24 @@ typedef struct SExtTagsInfo {
 
 // sql function runtime context
 typedef struct SQLFunctionCtx {
-  int32_t  startOffset;
-  int32_t  size;      // number of rows
-  uint32_t order;     // asc|desc
-  uint32_t scanFlag;  // TODO merge with currentStage
-
-  int16_t inputType;
-  int16_t inputBytes;
-
-  int16_t  outputType;
-  int16_t  outputBytes;  // size of results, determined by function and input column data type
-  bool     hasNull;      // null value exist in current block
-  int16_t  functionId;   // function id
-  int32_t  blockStatus;  // Indicate if data is loaded, it is first/last/internal block. Only for file blocks
-  void *   aInputElemBuf;
-  char *   aOutputBuf;            // final result output buffer, point to sdata->data
-  uint8_t  currentStage;          // record current running step, default: 0
-  int64_t  nStartQueryTimestamp;  // timestamp range of current query when function is executed on a specific data block
-  int32_t  numOfParams;
-  tVariant param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param */
-  int64_t *ptsList;       // corresponding timestamp array list
-  void *   ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  int32_t      startOffset;
+  int32_t      size;      // number of rows
+  uint32_t     order;     // asc|desc
+  int16_t      inputType;
+  int16_t      inputBytes;
+  
+  int16_t      outputType;
+  int16_t      outputBytes;  // size of results, determined by function and input column data type
+  bool         hasNull;      // null value exist in current block
+  int16_t      functionId;   // function id
+  void *       aInputElemBuf;
+  char *       aOutputBuf;            // final result output buffer, point to sdata->data
+  uint8_t      currentStage;          // record current running step, default: 0
+  int64_t      nStartQueryTimestamp;  // timestamp range of current query when function is executed on a specific data block
+  int32_t      numOfParams;
+  tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param */
+  int64_t *    ptsList;       // corresponding timestamp array list
+  void *       ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SQLPreAggVal preAggVals;
   tVariant     tag;
   SResultInfo *resultInfo;
@@ -221,7 +217,7 @@ typedef struct SQLAggFuncElem {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int16_t *interBytes, int16_t extLength, bool isSuperTable);
+                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
@@ -241,24 +237,11 @@ enum {
 /* determine the real data need to calculated the result */
 enum {
   BLK_DATA_NO_NEEDED = 0x0,
-  BLK_DATA_FILEDS_NEEDED = 0x1,
+  BLK_DATA_STATIS_NEEDED = 0x1,
   BLK_DATA_ALL_NEEDED = 0x3,
 };
 
-#define IS_FILE_BLOCK(x) (((x)&BLK_FILE_BLOCK) != 0)
-
-#define SET_FILE_BLOCK_FLAG(x) \
-  do {                         \
-    (x) &= (~BLK_CACHE_BLOCK); \
-    (x) |= BLK_FILE_BLOCK;     \
-  } while (0);
-
-#define SET_CACHE_BLOCK_FLAG(x) ((x) = BLK_CACHE_BLOCK | BLK_BLOCK_LOADED);
-
 #define SET_DATA_BLOCK_NOT_LOADED(x) ((x) &= (~BLK_BLOCK_LOADED));
-
-#define SET_DATA_BLOCK_LOADED(x) ((x) |= BLK_BLOCK_LOADED);
-#define IS_DATA_BLOCK_LOADED(x) (((x)&BLK_BLOCK_LOADED) != 0)
 
 typedef struct STwaInfo {
   TSKEY   lastKey;
@@ -284,17 +267,22 @@ extern struct SQLAggFuncElem aAggs[];
 /* compatible check array list */
 extern int32_t funcCompatDefList[];
 
-void getStatistics(char *priData, char *data, int32_t size, int32_t numOfRow, int32_t type, int64_t *min, int64_t *max,
-                   int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int32_t *numOfNull);
-
 bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *minval, char *maxval);
 
 bool stableQueryFunctChanged(int32_t funcId);
 
-
 void resetResultInfo(SResultInfo *pResInfo);
-void initResultInfo(SResultInfo *pResInfo);
 void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable);
+
+static FORCE_INLINE void initResultInfo(SResultInfo *pResInfo) {
+  pResInfo->initialized = true;  // the this struct has been initialized flag
+  
+  pResInfo->complete = false;
+  pResInfo->hasResult = false;
+  pResInfo->numOfRes = 0;
+  
+  memset(pResInfo->interResultBuf, 0, (size_t)pResInfo->bufLen);
+}
 
 #ifdef __cplusplus
 }

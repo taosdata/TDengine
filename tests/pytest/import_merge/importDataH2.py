@@ -20,9 +20,9 @@ from util.dnodes import *
 
 
 class TDTestCase:
-    def init(self, conn):
+    def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
     def run(self):
         self.ntables = 1
@@ -46,16 +46,16 @@ class TDTestCase:
             self.maxrows)
 
         tdLog.info("================= step2")
-        tdLog.info("import %d sequential data" % (self.maxrows / 2))
+        tdLog.info("import %d sequential data" % (self.maxrows // 2))
         startTime = self.startTime
         sqlcmd = ['import into tb1 values']
-        for rid in range(1, self.maxrows / 2 + 1):
+        for rid in range(1, self.maxrows // 2 + 1):
             sqlcmd.append('(%ld, %d)' % (startTime + rid, rid))
         tdSql.execute(" ".join(sqlcmd))
 
         tdLog.info("================= step3")
         tdSql.query('select * from tb1')
-        tdSql.checkRows(self.maxrows / 2)
+        tdSql.checkRows(self.maxrows // 2)
 
         tdLog.info("================= step4")
         tdDnodes.stop(1)
@@ -70,7 +70,7 @@ class TDTestCase:
         tdLog.info("================= step7")
         tdSql.execute('reset query cache')
         tdSql.query('select * from tb1 order by ts desc')
-        tdSql.checkRows(self.maxrows / 2 + 1)
+        tdSql.checkRows(self.maxrows // 2 + 1)
 
         tdLog.info("================= step8")
         tdLog.info("import 10 data in batch before")
@@ -83,7 +83,7 @@ class TDTestCase:
         tdLog.info("================= step9")
         tdSql.execute('reset query cache')
         tdSql.query('select * from tb1 order by ts desc')
-        tdSql.checkRows(self.maxrows / 2 + 11)
+        tdSql.checkRows(self.maxrows // 2 + 11)
 
     def stop(self):
         tdSql.close()

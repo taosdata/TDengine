@@ -79,8 +79,8 @@ sleep 1000
 system sh/exec.sh -n dnode1 -s start
 
 print =============== step4
-print sleep 23 seconds
-sleep 23000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step5
 $i = 1

@@ -84,43 +84,43 @@ endi
 #### case 1: tag NULL, or 'NULL'
 sql create table mt2 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
 sql create table st2 using mt2 tags (NULL, 'NULL', 102, 'true')
-sql describe st2
-if $rows != 10 then
+sql select tag1, tag2, tag3, tag5 from st2
+if $rows != 1 then
   return -1
 endi
-if $data63 != NULL then
-  print ==1== expect: NULL, actually: $data63
+if $data00 != NULL then
+  print ==1== expect: NULL, actually: $data00
   return -1
 endi
-if $data73 != NULL then
-  print ==2== expect: NULL, actually: $data73
+if $data01 != NULL then
+  print ==2== expect: NULL, actually: $data01
   return -1
 endi
-if $data83 != 102 then
-  print ==3== expect: NULL, actually: $data83
+if $data02 != 102 then
+  print ==3== expect: NULL, actually: $data02
   return -1
 endi
-if $data93 != true then
-  print ==4== expect: NULL, actually: $data93
+if $data03 != 1 then
+  print ==4== expect: 1, actually: $data03
   return -1
 endi
 
 sql create table st3 using mt2 tags (NULL, 'ABC', 103, 'FALSE')
-sql describe st3
-if $rows != 10 then
+sql select tag1, tag2, tag3, tag5 from st3
+if $rows != 1 then
   return -1
 endi
-if $data63 != NULL then
-  print ==5== expect: NULL, actually: $data63
+if $data00 != NULL then
+  print ==5== expect: NULL, actually: $data00
   return -1
 endi
-if $data73 != ABC then
+if $data01 != ABC then
   return -1
 endi
-if $data83 != 103 then
+if $data02 != 103 then
   return -1
 endi
-if $data93 != false then
+if $data03 != 0 then
   return -1
 endi
 
@@ -128,39 +128,39 @@ endi
 sql_error create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
 sql_error create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
 sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'NULL')
-sql describe st4
-if $rows != 10 then
+sql select tag1,tag2,tag3,tag5 from st4
+if $rows != 1 then
   return -1
 endi
-if $data63 != NULL then
+if $data00 != NULL then
   return -1
 endi
-if $data73 != 123aBc then
+if $data01 != 123aBc then
   return -1
 endi
-if $data83 != 104 then
+if $data02 != 104 then
   return -1
 endi
-if $data93 != NULL then
-  print ==6== expect: NULL, actually: $data93
+if $data03 != NULL then
+  print ==6== expect: NULL, actually: $data03
   return -1
 endi
 
 sql create table st5 using mt2 tags ('NULL', '123aBc', 105, NULL)
-sql describe st5
-if $rows != 10 then
+sql select tag1,tag2,tag3,tag5 from st5
+if $rows != 1 then
   return -1
 endi
-if $data63 != NULL then
+if $data00 != NULL then
   return -1
 endi
-if $data73 != 123aBc then
+if $data01 != 123aBc then
   return -1
 endi
-if $data83 != 105 then
+if $data02 != 105 then
   return -1
 endi
-if $data93 != NULL then
+if $data03 != NULL then
   return -1
 endi
 
@@ -177,28 +177,33 @@ sql_error insert into st34 using mt3 tags ('NULL', '123aBc', 105, NULL)   values
 #### case 3: set tag value
 sql create table mt4 (ts timestamp, c1 int) tags (tag_binary binary(16), tag_nchar nchar(16), tag_int int, tag_bool bool, tag_float float, tag_double double)
 sql create table st41 using mt4 tags ("beijing", 'nchar_tag', 100, false, 9.12345, 7.123456789)
-sql describe st41
-if $rows != 8 then
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from st41
+if $rows != 1 then
   return -1
 endi
-if $data23 != beijing then
+if $data00 != beijing then
   return -1
 endi
-if $data33 != nchar_tag then
+if $data01 != nchar_tag then
   return -1
 endi
-if $data43 != 100 then
+if $data02 != 100 then
   return -1
 endi
-if $data53 != false then
+if $data03 != 0 then
   return -1
 endi
-if $data63 != 9.123450 then
+
+if $data04 != 9.12345 then
+  print expect 9.12345 , actual: $data04
   return -1
 endi
-if $data73 != 7.123457 then
+
+if $data05 != 7.123456789 then
+  print expect 7.123456789 , actual: $data05
   return -1
 endi
+
 ################# binary
 sql alter table st41 set tag tag_binary = "shanghai"
 sql describe st41
@@ -488,3 +493,4 @@ sql_error alter table st51 set tag tag_tinyint = abc379
 #sql drop database $db
 
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

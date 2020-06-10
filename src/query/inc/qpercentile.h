@@ -49,7 +49,7 @@ typedef struct tMemBucket {
   int32_t nTotalBufferSize;
   int32_t maxElemsCapacity;
   
-  int16_t pageSize;
+  int32_t pageSize;
   int16_t numOfTotalPages;
   int16_t numOfAvailPages; /* remain available buffer pages */
   

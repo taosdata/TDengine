@@ -50,7 +50,7 @@ static struct argp_option options[] = {
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   /* Get the input argument from argp_parse, which we
   know is a pointer to our arguments structure. */
-  struct arguments *arguments = state->input;
+  SShellArguments *arguments = state->input;
   wordexp_t full_path;
 
   switch (key) {
@@ -79,6 +79,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'c':
       if (wordexp(arg, &full_path, 0) != 0) {
         fprintf(stderr, "Invalid path %s\n", arg);
+        return -1;
+      }       
+      if (strlen(full_path.we_wordv[0]) > TSDB_FILENAME_LEN - 1) {
+        fprintf(stderr, "config file path: %s overflow max len %d\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);
+        wordfree(&full_path);
         return -1;
       }
       strcpy(configDir, full_path.we_wordv[0]);
@@ -129,7 +134,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 /* Our argp parser. */
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
-void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
+void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   static char verType[32] = {0};
   sprintf(verType, "version: %s\n", version);
 
@@ -307,19 +312,13 @@ void *shellLoopQuery(void *arg) {
     return NULL;
   }
   
-  while (1) {
+  do {
     // Read command from shell.
-
     memset(command, 0, MAX_COMMAND_SIZE);
     set_terminal_mode();
     shellReadCommand(con, command);
     reset_terminal_mode();
-
-    // Run the command
-    if (shellRunCommand(con, command) != 0) {
-      break;
-    }
-  }
+  } while (shellRunCommand(con, command) == 0);
   
   tfree(command);
   exitShell();
@@ -327,37 +326,6 @@ void *shellLoopQuery(void *arg) {
   pthread_cleanup_pop(1);
   
   return NULL;
-}
-
-void shellPrintNChar(char *str, int width, bool printMode) {
-  int col_left = width;
-  wchar_t wc;
-  while (col_left > 0) {
-    if (*str == '\0') break;
-    char *tstr = str;
-    int byte_width = mbtowc(&wc, tstr, MB_CUR_MAX);
-    if (byte_width <= 0) break;
-    int col_width = wcwidth(wc);
-    if (col_width <= 0) {
-      str += byte_width;
-      continue;
-    }
-    if (col_left < col_width) break;
-    printf("%lc", wc);
-    str += byte_width;
-    col_left -= col_width;
-  }
-
-  while (col_left > 0) {
-    printf(" ");
-    col_left--;
-  }
-
-  if (!printMode) {
-    printf("|");
-  } else {
-    printf("\n");
-  }
 }
 
 int get_old_terminal_mode(struct termios *tio) {

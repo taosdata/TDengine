@@ -23,7 +23,7 @@ class TDLog:
         self.path = ""
 
     def info(self, info):
-        print("%s %s" % (datetime.datetime.now(), info))
+        print("%s %s\n" % (datetime.datetime.now(), info))
 
     def sleep(self, sec):
         print("%s sleep %d seconds" % (datetime.datetime.now(), sec))

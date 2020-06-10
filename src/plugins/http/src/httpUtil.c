@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tmd5.h"
-#include "shash.h"
 #include "taos.h"
 #include "http.h"
 #include "httpLog.h"
@@ -33,12 +32,12 @@ bool httpCheckUsedbSql(char *sql) {
 
 void httpTimeToString(time_t t, char *buf, int buflen) {
   memset(buf, 0, (size_t)buflen);
-  char ts[30] = {0};
+  char ts[32] = {0};
 
   struct tm *ptm;
   time_t     tt = t / 1000;
   ptm = localtime(&tt);
-  strftime(ts, 64, "%Y-%m-%d %H:%M:%S", ptm);
+  strftime(ts, 31, "%Y-%m-%d %H:%M:%S", ptm);
   sprintf(buf, "%s.%03ld", ts, t % 1000);
 }
 
@@ -308,7 +307,7 @@ void httpTrimTableName(char *name) {
   for (int i = 0; name[i] != 0; i++) {
     if (name[i] == ' ' || name[i] == ':' || name[i] == '.' || name[i] == '-' || name[i] == '/' || name[i] == '\'')
       name[i] = '_';
-    if (i == TSDB_TABLE_NAME_LEN + 1) {
+    if (i == TSDB_TABLE_NAME_LEN) {
       name[i] = 0;
       break;
     }
@@ -324,7 +323,7 @@ int httpShrinkTableName(HttpContext *pContext, int pos, char *name) {
     len++;
   }
 
-  if (len < TSDB_TABLE_NAME_LEN) {
+  if (len < TSDB_TABLE_NAME_LEN - 1) {
     return pos;
   }
 

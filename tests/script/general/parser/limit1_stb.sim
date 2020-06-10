@@ -400,6 +400,7 @@ endi
 $limit = $totalNum / 2
 sql select max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 group by t1 order by t1 asc limit $limit offset 0
 if $rows != 6 then
+  print expect 6, actual:$rows
   return -1
 endi
 if $data00 != 9 then

@@ -17,8 +17,8 @@
 #include "os.h"
 #include "taoserror.h"
 #include "taosmsg.h"
+#include "tutil.h"
 #include "tqueue.h"
-#include "trpc.h"
 #include "twal.h"
 #include "tglobal.h"
 #include "dnodeInt.h"
@@ -34,7 +34,7 @@ typedef struct {
 } SReadMsg;
 
 typedef struct {
-  pthread_t  thread;    // thread 
+  pthread_t  thread;    // thread
   int32_t    workerId;  // worker ID
 } SReadWorker;
 
@@ -52,7 +52,7 @@ static void  dnodeHandleIdleReadWorker(SReadWorker *);
 static SReadWorkerPool readPool;
 static taos_qset       readQset;
 
-int32_t dnodeInitRead() {
+int32_t dnodeInitVnodeRead() {
   readQset = taosOpenQset();
 
   readPool.min = 2;
@@ -70,18 +70,23 @@ int32_t dnodeInitRead() {
   return 0;
 }
 
-void dnodeCleanupRead() {
+void dnodeCleanupVnodeRead() {
+  for (int i=0; i < readPool.max; ++i) {
+    SReadWorker *pWorker = readPool.readWorker + i;
+    if (pWorker->thread) {
+      taosQsetThreadResume(readQset);
+    }
+  }
 
   for (int i=0; i < readPool.max; ++i) {
     SReadWorker *pWorker = readPool.readWorker + i;
     if (pWorker->thread) {
-      pthread_cancel(pWorker->thread);
       pthread_join(pWorker->thread, NULL);
     }
   }
 
-  taosCloseQset(readQset);
   free(readPool.readWorker);
+  taosCloseQset(readQset);
 
   dPrint("dnode read is closed");
 }
@@ -90,9 +95,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   int32_t     queuedMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
-  void        *pVnode;  
-
-  dTrace("dnode %s msg incoming, thandle:%p", taosMsg[pMsg->msgType], pMsg->handle);
+  void        *pVnode;
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
@@ -131,14 +134,14 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
         .handle  = pMsg->handle,
         .pCont   = NULL,
         .contLen = 0,
-        .code    = TSDB_CODE_INVALID_VGROUP_ID,
+        .code    = TSDB_CODE_VND_INVALID_VGROUP_ID,
         .msgType = 0
     };
     rpcSendResponse(&rpcRsp);
   }
 }
 
-void *dnodeAllocateRqueue(void *pVnode) {
+void *dnodeAllocateVnodeRqueue(void *pVnode) {
   taos_queue queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
@@ -163,39 +166,40 @@ void *dnodeAllocateRqueue(void *pVnode) {
     } while (readPool.num < readPool.min);
   }
 
-  dTrace("pVnode:%p, read queue:%p is allocated", pVnode, queue); 
+  dTrace("pVnode:%p, read queue:%p is allocated", pVnode, queue);
 
   return queue;
 }
 
-void dnodeFreeRqueue(void *rqueue) {
+void dnodeFreeVnodeRqueue(void *rqueue) {
   taosCloseQueue(rqueue);
 
   // dynamically adjust the number of threads
 }
 
-static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMsg) {  
+static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMsg) {
   SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
   pRead->rpcMsg      = pMsg->rpcMsg;
   pRead->pCont       = qhandle;
   pRead->contLen     = 0;
   pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
-  
+
   taos_queue queue = vnodeGetRqueue(pVnode);
   taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
 }
 
 void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
-  if (code == TSDB_CODE_ACTION_NEED_REPROCESSED) {
+  if (code == TSDB_CODE_VND_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_VND_ACTION_NEED_REPROCESSED) {
     dnodeContinueExecuteQuery(pVnode, pRead->rspRet.qhandle, pRead);
+    code = TSDB_CODE_SUCCESS;
   }
 
   SRpcMsg rpcRsp = {
     .handle  = pRead->rpcMsg.handle,
     .pCont   = pRead->rspRet.rsp,
     .contLen = pRead->rspRet.len,
-    .code    = pRead->rspRet.code,
+    .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
@@ -203,17 +207,17 @@ void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
 }
 
 static void *dnodeProcessReadQueue(void *param) {
-  SReadWorker *pWorker = param;
   SReadMsg    *pReadMsg;
   int          type;
   void        *pVnode;
 
   while (1) {
     if (taosReadQitemFromQset(readQset, &type, (void **)&pReadMsg, &pVnode) == 0) {
-      dnodeHandleIdleReadWorker(pWorker);
-      continue;
+      dTrace("dnodeProcessReadQueee: got no message from qset, exiting...");
+      break;
     }
 
+    dTrace("%p, msg:%s will be processed in vread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);
     int32_t code = vnodeProcessRead(pVnode, pReadMsg->rpcMsg.msgType, pReadMsg->pCont, pReadMsg->contLen, &pReadMsg->rspRet);
     dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     taosFreeQitem(pReadMsg);
@@ -222,6 +226,8 @@ static void *dnodeProcessReadQueue(void *param) {
   return NULL;
 }
 
+
+UNUSED_FUNC
 static void dnodeHandleIdleReadWorker(SReadWorker *pWorker) {
   int32_t num = taosGetQueueNumber(readQset);
 

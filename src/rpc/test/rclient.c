@@ -14,6 +14,7 @@
  */
 
 #include "os.h"
+#include "tutil.h"
 #include "tglobal.h"
 #include "rpcLog.h"
 #include "trpc.h"
@@ -31,20 +32,14 @@ typedef struct {
   void     *pRpc;
 } SInfo;
 
-static void processResponse(SRpcMsg *pMsg) {
+static void processResponse(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SInfo *pInfo = (SInfo *)pMsg->handle;
   tTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
 
+  if (pIpSet) pInfo->ipSet = *pIpSet;
+
   rpcFreeCont(pMsg->pCont);
-
   sem_post(&pInfo->rspSem); 
-}
-
-static void processUpdateIpSet(void *handle, SRpcIpSet *pIpSet) {
-  SInfo *pInfo = (SInfo *)handle;
-
-  tTrace("thread:%d, ip set is changed, index:%d", pInfo->index, pIpSet->inUse);
-  pInfo->ipSet = *pIpSet;
 }
 
 static int tcount = 0;
@@ -81,6 +76,7 @@ int main(int argc, char *argv[]) {
   int      numOfReqs = 0;
   int      appThreads = 1;
   char     serverIp[40] = "127.0.0.1";
+  char     secret[TSDB_KEY_LEN] = "mypassword";
   struct   timeval systemTime;
   int64_t  startTime, endTime;
   pthread_attr_t thattr;
@@ -99,11 +95,10 @@ int main(int argc, char *argv[]) {
   rpcInit.label        = "APP";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = processResponse;
-  rpcInit.ufp          = processUpdateIpSet;
   rpcInit.sessions     = 100;
   rpcInit.idleTime     = tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
-  rpcInit.secret       = "mypassword";
+  rpcInit.secret       = secret;
   rpcInit.ckey         = "key";
   rpcInit.spi          = 1;
   rpcInit.connType     = TAOS_CONN_CLIENT;
@@ -112,7 +107,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       ipSet.port[0] = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
-      strcpy(ipSet.fqdn[0], argv[++i]); 
+      tstrncpy(ipSet.fqdn[0], argv[++i], sizeof(ipSet.fqdn[0])); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {

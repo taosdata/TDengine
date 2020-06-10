@@ -2,6 +2,8 @@
 
 TDengine提供了丰富的应用程序开发接口，其中包括C/C++、JAVA、Python、RESTful、Go等，便于用户快速开发应用。
 
+注意：所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
+
 ## C/C++ Connector
 
 C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine头文件 _taos.h_（安装后，位于 _/usr/local/taos/include_）：
@@ -1207,10 +1209,48 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 其中，最常用的文件列出如下：
 
 + Client可执行文件: /usr/local/taos/bin/taos 软连接到 /usr/local/bin/taos
+
 + 配置文件: /usr/local/taos/cfg/taos.cfg 软连接到 /etc/taos/taos.cfg
+
 + 驱动程序目录: /usr/local/taos/driver/libtaos.1.6.5.1.dylib 软连接到 /usr/local/lib/libtaos.dylib
+
 + 驱动程序头文件: /usr/local/taos/include/taos.h 软连接到 /usr/local/include/taos.h
+
 + 日志目录（第一次运行程序时生成）：~/TDengineLog
+
+  
+
+
+## MQTT客户端
+
+MQTT客户端实现了订阅MQTT Broker的特定Topic将Json数据进行转换入库的功能，任何终端只要将数据发给特定的Topic 即可,不用再编写转换器或者数据解析程序。如果终端量大，需要 Mqtt Broker 群集，这里不再详述。
+
+#### 如何配置？
+
+首先需要在 taos.cfg 中打开配置项 mqtt 用来启用， 再通过修改 mqttBrokerAddress  的值来配置连接，格式为: 
+
+> mqtt://username:password@hostname:port/path/
+
+ 例如:
+
+> mqtt://127.0.0.1:1883/taos/  mqtt://root@kissme@127.0.0.1:1883/taos/
+
+
+#### Topic 格式说明
+
+ Mqtt 的topic格式为
+
+> /<path>/<token>/<db name>/<table name>/
+
+因此TDengine的Mqtt客户端会订阅:
+
+> /taos/+/+/+/+/  
+
+例如: 
+
+>  /taos/token/db/t/  
+
+注意: 测试时如果需要使用到Mqtt Broker 推荐使用 [mosquitto](http://mosquitto.org/) ，客户端可以使用  [MQTT.fx ](http://www.jensd.de/)
 
 
 

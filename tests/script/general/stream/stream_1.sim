@@ -78,8 +78,8 @@ if $rows != 11 then
 endi
 
 print =============== step3
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 sql select * from $st
 print select * from $st => $data01
 if $data01 != 20 then 
@@ -112,8 +112,8 @@ if $rows != 11 then
 endi
 
 print =============== step7
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 sql select * from $st
 print select * from $st => $data01
 if $data01 != 20 then 
@@ -155,8 +155,8 @@ if $rows != 12 then
 endi
 
 print =============== step9
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 sql select * from $st
 print select * from $st => $data01
 if $data01 != 200 then 
@@ -190,8 +190,8 @@ if $rows != 12 then
 endi
 
 print =============== step13
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 sql select * from $st
 print select * from $st => $data01
 if $data01 != 200 then 

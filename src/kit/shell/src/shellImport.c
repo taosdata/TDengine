@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _GNU_SOURCE
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
@@ -147,7 +148,11 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   }
 
   char *fname = full_path.we_wordv[0];
-  
+  if (fname == NULL) {
+    fprintf(stderr, "ERROR: invalid filename\n");
+    return;
+  }
+
   if (access(fname, F_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
     
@@ -168,6 +173,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 
@@ -191,11 +197,14 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     }
 
     memcpy(cmd + cmd_len, line, read_len);
-    if (taos_query(con, cmd)) {
+    
+    TAOS_RES* pSql = taos_query(con, cmd);
+    int32_t code = taos_errno(pSql);
+    
+    if (code != 0) {
       fprintf(stderr, "DB error: %s: %s (%d)\n", taos_errstr(con), fname, lineNo);
       /* free local resouce: allocated memory/metric-meta refcnt */
-      TAOS_RES *pRes = taos_use_result(con);
-      taos_free_result(pRes);
+      taos_free_result(pSql);
     }
 
     memset(cmd, 0, MAX_COMMAND_SIZE);
@@ -221,7 +230,7 @@ void* shellImportThreadFp(void *arg)
   return NULL;
 }
 
-static void shellRunImportThreads(struct arguments* args)
+static void shellRunImportThreads(SShellArguments* args)
 {
   pthread_attr_t thattr;
   ShellThreadObj *threadObj = (ShellThreadObj *)calloc(args->threadNum, sizeof(ShellThreadObj));
@@ -254,7 +263,7 @@ static void shellRunImportThreads(struct arguments* args)
   free(threadObj);
 }
 
-void source_dir(TAOS* con, struct arguments* args) {
+void source_dir(TAOS* con, SShellArguments* args) {
   shellGetDirectoryFileList(args->dir);
   int64_t start = taosGetTimestampMs();
 

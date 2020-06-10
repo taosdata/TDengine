@@ -33,12 +33,12 @@ for (let i = 0; i < 10000; i++) {
                     parseInt( R(-Math.pow(2,31) + 1 , Math.pow(2,31) - 1) ), // Int
                     parseInt( R(-Math.pow(2,31) + 1 , Math.pow(2,31) - 1) ), // BigInt
                     parseFloat( R(-3.4E38, 3.4E38) ), // Float
-                    parseFloat( R(-1.7E308, 1.7E308) ), // Double
+                    parseFloat( R(-1.7E30, 1.7E30) ), // Double
                     "\"Long Binary\"", // Binary
                     parseInt( R(-32767, 32767) ), // Small Int
                     parseInt( R(-127, 127) ), // Tiny Int
                     randomBool(),
-                    "\"Nchars 一些中文字幕\""]; // Bool
+                    "\"Nchars\""]; // Bool
   c1.execute('insert into td_connector_test.all_types values(' + insertData.join(',') + ' );', {quiet:true});
   if (i % 1000 == 0) {
     console.log("Insert # " , i);

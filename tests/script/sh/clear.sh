@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 echo "Executing clear.sh"
 
@@ -36,12 +36,25 @@ cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
 echo "SCRIPT_DIR: $SCRIPT_DIR" 
 
-cd ../../
+IN_TDINTERNAL="community"
+if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  cd ../../..
+else
+  cd ../../
+fi
+
 TAOS_DIR=`pwd`
+TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-BUILD_DIR=$TAOS_DIR/debug/build
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+fi
+
+BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
+
 SIM_DIR=$TAOS_DIR/sim
-
 NODE_DIR=$SIM_DIR/$NODE_NAME
 EXE_DIR=$BUILD_DIR/bin
 CFG_DIR=$NODE_DIR/cfg
@@ -106,12 +119,12 @@ echo "monitor             0"              >> $TAOS_CFG
 echo "numOfThreadsPerCore 2.0"            >> $TAOS_CFG
 echo "defaultPass         taosdata"       >> $TAOS_CFG
 echo "numOfLogLines       100000000"      >> $TAOS_CFG
-echo "mgmtEqualVnodeNum   0"              >> $TAOS_CFG
+echo "mnodeEqualVnodeNum   0"              >> $TAOS_CFG
 echo "clog                0"              >> $TAOS_CFG
 echo "statusInterval      1"              >> $TAOS_CFG
 echo "numOfTotalVnodes    4"              >> $TAOS_CFG
 echo "asyncLog            0"              >> $TAOS_CFG
-echo "numOfMPeers         1"              >> $TAOS_CFG
+echo "numOfMnodes         1"              >> $TAOS_CFG
 echo "locale    en_US.UTF-8"              >> $TAOS_CFG
 
 

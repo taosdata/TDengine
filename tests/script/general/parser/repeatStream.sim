@@ -5,3 +5,5 @@ while $i <= $repeats
   run general/parser/stream.sim
   $i = $i + 1
 endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

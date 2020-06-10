@@ -51,47 +51,47 @@ public class TSDBResultSet implements ResultSet {
 	private boolean lastWasNull = false;
 	private final int COLUMN_INDEX_START_VALUE = 1;
 
-    public TSDBJNIConnector getJniConnector() {
-        return jniConnector;
-    }
+	public TSDBJNIConnector getJniConnector() {
+		return jniConnector;
+	}
 
-    public void setJniConnector(TSDBJNIConnector jniConnector) {
-        this.jniConnector = jniConnector;
-    }
+	public void setJniConnector(TSDBJNIConnector jniConnector) {
+		this.jniConnector = jniConnector;
+	}
 
-    public long getResultSetPointer() {
-        return resultSetPointer;
-    }
+	public long getResultSetPointer() {
+		return resultSetPointer;
+	}
 
-    public void setResultSetPointer(long resultSetPointer) {
-        this.resultSetPointer = resultSetPointer;
-    }
+	public void setResultSetPointer(long resultSetPointer) {
+		this.resultSetPointer = resultSetPointer;
+	}
 
-    public List<ColumnMetaData> getColumnMetaDataList() {
-        return columnMetaDataList;
-    }
+	public List<ColumnMetaData> getColumnMetaDataList() {
+		return columnMetaDataList;
+	}
 
-    public void setColumnMetaDataList(List<ColumnMetaData> columnMetaDataList) {
-        this.columnMetaDataList = columnMetaDataList;
-    }
+	public void setColumnMetaDataList(List<ColumnMetaData> columnMetaDataList) {
+		this.columnMetaDataList = columnMetaDataList;
+	}
 
-    public TSDBResultSetRowData getRowData() {
-        return rowData;
-    }
+	public TSDBResultSetRowData getRowData() {
+		return rowData;
+	}
 
-    public void setRowData(TSDBResultSetRowData rowData) {
-        this.rowData = rowData;
-    }
+	public void setRowData(TSDBResultSetRowData rowData) {
+		this.rowData = rowData;
+	}
 
-    public boolean isLastWasNull() {
-        return lastWasNull;
-    }
+	public boolean isLastWasNull() {
+		return lastWasNull;
+	}
 
-    public void setLastWasNull(boolean lastWasNull) {
-        this.lastWasNull = lastWasNull;
-    }
+	public void setLastWasNull(boolean lastWasNull) {
+		this.lastWasNull = lastWasNull;
+	}
 
-    public TSDBResultSet() {
+	public TSDBResultSet() {
 	}
 
 	public TSDBResultSet(TSDBJNIConnector connecter, long resultSetPointer) throws SQLException {
@@ -119,7 +119,7 @@ public class TSDBResultSet implements ResultSet {
 
 	public boolean next() throws SQLException {
 		if (rowData != null) {
-            this.rowData.clear();
+			this.rowData.clear();
 		}
 
 		int code = this.jniConnector.fetchRow(this.resultSetPointer, this.rowData);
@@ -154,119 +154,119 @@ public class TSDBResultSet implements ResultSet {
 	public String getString(int columnIndex) throws SQLException {
 		String res = null;
 		int colIndex = getTrueColumnIndex(columnIndex);
-		
-	    this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+
+		this.lastWasNull = this.rowData.wasNull(colIndex);
+		if (!lastWasNull) {
+			res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	public boolean getBoolean(int columnIndex) throws SQLException {
-	    boolean res = false;
+		boolean res = false;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
 		if (!lastWasNull) {
-		    res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+			res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	public byte getByte(int columnIndex) throws SQLException {
-	    byte res = 0;
+		byte res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
 		if (!lastWasNull) {
-		    res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+			res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	public short getShort(int columnIndex) throws SQLException {
-	    short res = 0;
+		short res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
 		if (!lastWasNull) {
-		    res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+			res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	public int getInt(int columnIndex) throws SQLException {
-	    int res = 0;
+		int res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+		if (!lastWasNull) {
+			res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	public long getLong(int columnIndex) throws SQLException {
-	    long res = 0l;
+		long res = 0l;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+		if (!lastWasNull) {
+			res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	public float getFloat(int columnIndex) throws SQLException {
-	    float res = 0;
-	    int colIndex = getTrueColumnIndex(columnIndex);
+		float res = 0;
+		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+		if (!lastWasNull) {
+			res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	public double getDouble(int columnIndex) throws SQLException {
-	    double res = 0;
+		double res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-        }
+		if (!lastWasNull) {
+			res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+		}
 		return res;
 	}
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see java.sql.ResultSet#getBigDecimal(int, int)
-	 * 
+	 *
 	 * @deprecated Use {@code getBigDecimal(int columnIndex)} or {@code
 	 * getBigDecimal(String columnLabel)}
 	 */
 	@Deprecated
 	public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-	    BigDecimal res = null;
+		BigDecimal res = null;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = new BigDecimal(this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType()));
-        }
+		if (!lastWasNull) {
+			res = new BigDecimal(this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType()));
+		}
 		return res;
 	}
 
 	public byte[] getBytes(int columnIndex) throws SQLException {
-	    byte[] res = null;
+		byte[] res = null;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType()).getBytes();
-        }
+		if (!lastWasNull) {
+			res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType()).getBytes();
+		}
 		return res;
 	}
 
@@ -281,13 +281,13 @@ public class TSDBResultSet implements ResultSet {
 	}
 
 	public Timestamp getTimestamp(int columnIndex) throws SQLException {
-	    Timestamp res = null;
+		Timestamp res = null;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
 		this.lastWasNull = this.rowData.wasNull(colIndex);
-        if (!lastWasNull) {
-            res = this.rowData.getTimestamp(colIndex);
-        }
+		if (!lastWasNull) {
+			res = this.rowData.getTimestamp(colIndex);
+		}
 		return res;
 	}
 
@@ -297,9 +297,9 @@ public class TSDBResultSet implements ResultSet {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see java.sql.ResultSet#getUnicodeStream(int)
-	 * 
+	 *
 	 * * @deprecated use <code>getCharacterStream</code> in place of
 	 * <code>getUnicodeStream</code>
 	 */
@@ -409,13 +409,13 @@ public class TSDBResultSet implements ResultSet {
 	}
 
 	public int findColumn(String columnLabel) throws SQLException {
-        Iterator<ColumnMetaData> colMetaDataIt = this.columnMetaDataList.iterator();
-        while (colMetaDataIt.hasNext()) {
-            ColumnMetaData colMetaData = colMetaDataIt.next();
-            if (colMetaData.getColName() != null && colMetaData.getColName().equalsIgnoreCase(columnLabel)) {
-                return colMetaData.getColIndex() + 1;
-            }
-        }
+		Iterator<ColumnMetaData> colMetaDataIt = this.columnMetaDataList.iterator();
+		while (colMetaDataIt.hasNext()) {
+			ColumnMetaData colMetaData = colMetaDataIt.next();
+			if (colMetaData.getColName() != null && colMetaData.getColName().equalsIgnoreCase(columnLabel)) {
+				return colMetaData.getColIndex() + 1;
+			}
+		}
 		throw new SQLException(TSDBConstants.INVALID_VARIABLES);
 	}
 
@@ -882,7 +882,7 @@ public class TSDBResultSet implements ResultSet {
 	}
 
 	public String getNString(int columnIndex) throws SQLException {
-        int colIndex = getTrueColumnIndex(columnIndex);
+		int colIndex = getTrueColumnIndex(columnIndex);
 		return (String) rowData.get(colIndex);
 	}
 
@@ -1017,17 +1017,17 @@ public class TSDBResultSet implements ResultSet {
 	public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
 		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
 	}
-	
+
 	private int getTrueColumnIndex(int columnIndex) throws SQLException {
 		if (columnIndex < this.COLUMN_INDEX_START_VALUE) {
 			throw new SQLException("Column Index out of range, " + columnIndex + " < " + this.COLUMN_INDEX_START_VALUE);
 		}
-		
+
 		int numOfCols = this.columnMetaDataList.size();
 		if (columnIndex > numOfCols) {
 			throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
 		}
-		
+
 		return columnIndex - 1;
 	}
 }

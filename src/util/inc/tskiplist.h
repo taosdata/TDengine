@@ -174,7 +174,7 @@ void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSiz
 SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode);
 
 /**
- * get only *one* node of which key is equalled to pKey, even there are more than one nodes are of the same key
+ * get *all* nodes which key are equivalent to pKey
  *
  * @param pSkipList
  * @param pKey
@@ -234,14 +234,13 @@ SSkipListNode *tSkipListIterGet(SSkipListIterator *iter);
 void *tSkipListDestroyIter(SSkipListIterator *iter);
 
 /*
- * remove only one node of the pKey value.
- * If more than one node has the same value, any one will be removed
+ * remove nodes of the pKey value.
+ * If more than one node has the same value, all will be removed
  *
  * @Return
- * true: one node has been removed
- * false: no node has been removed
+ * the count of removed nodes
  */
-bool tSkipListRemove(SSkipList *pSkipList, SSkipListKey key);
+uint32_t tSkipListRemove(SSkipList *pSkipList, SSkipListKey key);
 
 /*
  * remove the specified node in parameters

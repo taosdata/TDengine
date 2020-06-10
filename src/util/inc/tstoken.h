@@ -21,6 +21,8 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "tutil.h"
+#include "ttokendef.h"
 
 #define TK_SPACE      200
 #define TK_COMMENT    201
@@ -31,7 +33,7 @@ extern "C" {
 #define TK_FILE       206
 #define TK_QUESTION   207   // denoting the placeholder of "?",when invoking statement bind query
 
-#define TSQL_TBNAME "TBNAME"
+#define TSQL_TBNAME   "TBNAME"
 #define TSQL_TBNAME_L "tbname"
 
 // used to denote the minimum unite in sql parsing
@@ -74,14 +76,117 @@ bool isKeyWord(const char *z, int32_t len);
  * @param pToken
  * @return
  */
-bool isNumber(const SSQLToken *pToken);
+#define isNumber(tk) \
+((tk)->type == TK_INTEGER || (tk)->type == TK_FLOAT || (tk)->type == TK_HEX || (tk)->type == TK_BIN)
+
 
 /**
  * check if it is a token or not
  * @param pToken
- * @return       token type, if it is not a number, TK_ILLEGAL will return
+ * @return        token type, if it is not a number, TK_ILLEGAL will return
  */
-int32_t isValidNumber(const SSQLToken* pToken);
+static FORCE_INLINE int32_t isValidNumber(const SSQLToken* pToken) {
+  const char* z = pToken->z;
+  int32_t type = TK_ILLEGAL;
+
+  int32_t i = 0;
+  for(; i < pToken->n; ++i) {
+    switch (z[i]) {
+      case '+':
+      case '-': {
+        break;
+      }
+
+      case '.': {
+        /*
+         * handle the the float number with out integer part
+         * .123
+         * .123e4
+         */
+        if (!isdigit(z[i+1])) {
+          return TK_ILLEGAL;
+        }
+
+        for (i += 2; isdigit(z[i]); i++) {
+        }
+
+        if ((z[i] == 'e' || z[i] == 'E') &&
+            (isdigit(z[i + 1]) || ((z[i + 1] == '+' || z[i + 1] == '-') && isdigit(z[i + 2])))) {
+          i += 2;
+          while (isdigit(z[i])) {
+            i++;
+          }
+        }
+
+        type = TK_FLOAT;
+        goto _end;
+      }
+
+      case '0': {
+        char next = z[i + 1];
+        if (next == 'b') { // bin number
+          type = TK_BIN;
+          for (i += 2; (z[i] == '0' || z[i] == '1'); ++i) {
+          }
+
+          goto _end;
+        } else if (next == 'x') {  //hex number
+          type = TK_HEX;
+          for (i += 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
+          }
+
+          goto _end;
+        }
+      }
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9': {
+        type = TK_INTEGER;
+        for (; isdigit(z[i]); i++) {
+        }
+
+        int32_t seg = 0;
+        while (z[i] == '.' && isdigit(z[i + 1])) {
+          i += 2;
+
+          while (isdigit(z[i])) {
+            i++;
+          }
+
+          seg++;
+          type = TK_FLOAT;
+        }
+
+        if (seg > 1) {
+          return TK_ILLEGAL;
+        }
+
+        if ((z[i] == 'e' || z[i] == 'E') &&
+            (isdigit(z[i + 1]) || ((z[i + 1] == '+' || z[i + 1] == '-') && isdigit(z[i + 2])))) {
+          i += 2;
+          while (isdigit(z[i])) {
+            i++;
+          }
+
+          type = TK_FLOAT;
+        }
+
+        goto _end;
+      }
+      default:
+        return TK_ILLEGAL;
+    }
+  }
+
+  _end:
+  return (i < pToken->n)? TK_ILLEGAL:type;
+}
 
 #ifdef __cplusplus
 }

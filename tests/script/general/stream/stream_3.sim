@@ -79,8 +79,8 @@ $st = $stPrefix . c3
 sql create table $st as select count(tbcol2) from $tb interval(1d)
 
 print =============== step5
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step6
 $st = $stPrefix . c1
@@ -173,8 +173,8 @@ $st = $stPrefix . c3
 sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(1d)
 
 print =============== step10
-print sleep 22 seconds
-sleep 22000 
+print sleep 120 seconds
+sleep 120000 
 
 print =============== step11
 #$st = $stPrefix . c3

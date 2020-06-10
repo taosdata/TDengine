@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [ $# != 6 ]; then 
   echo "argument list need input : "
@@ -33,10 +33,24 @@ SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
 
-cd ../../
-TAOS_DIR=`pwd`
+IN_TDINTERNAL="community"
+if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  cd ../../..
+else
+  cd ../../
+fi
 
-BUILD_DIR=$TAOS_DIR/debug/build
+TAOS_DIR=`pwd`
+TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+fi
+
+BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
+
 SIM_DIR=$TAOS_DIR/sim
 
 NODE_DIR=$SIM_DIR/$NODE_NAME

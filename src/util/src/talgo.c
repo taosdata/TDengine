@@ -23,8 +23,6 @@
   memcpy((__right), (__buf), (__size));\
 } while (0);
 
-#define elePtrAt(base, size, idx) (void *)((char *)(base) + (size) * (idx))
-
 static void median(void *src, size_t size, size_t s, size_t e, const void *param, __ext_compar_fn_t comparFn, void* buf) {
   int32_t mid = ((e - s) >> 1u) + s;
   
@@ -144,11 +142,11 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const
   }
   
   if (leftPartEnd > start) {
-    tqsortImpl(src, size, start, leftPartEnd, param, comparFn, buf);
+    tqsortImpl(src, start, leftPartEnd, size, param, comparFn, buf);
   }
   
   if (rightPartStart < end) {
-    tqsortImpl(src, size, rightPartStart, end, param, comparFn, buf);
+    tqsortImpl(src, rightPartStart, end, size, param, comparFn, buf);
   }
 }
 

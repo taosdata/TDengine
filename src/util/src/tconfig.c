@@ -25,7 +25,7 @@
 #include "tsystem.h"
 #include "tutil.h"
 
-SGlobalCfg tsGlobalConfig[TSDB_CFG_MAX_NUM] = {0};
+SGlobalCfg tsGlobalConfig[TSDB_CFG_MAX_NUM] = {{0}};
 int32_t    tsGlobalConfigNum = 0;
 
 static char *tsGlobalUnit[] = {
@@ -236,12 +236,17 @@ void taosReadGlobalLogCfg() {
   int    olen, vlen;
   char   fileName[PATH_MAX] = {0};
 
-  mdebugFlag = 135;
+  mDebugFlag = 135;
   sdbDebugFlag = 135;
 
   wordexp_t full_path;
   wordexp(configDir, &full_path, 0);
-  if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
+  if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {    
+    if (strlen(full_path.we_wordv[0]) > TSDB_FILENAME_LEN - 1) {
+      printf("\nconfig file: %s path overflow max len %d, all variables are set to default\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);
+      wordfree(&full_path);
+      return;
+    }
     strcpy(configDir, full_path.we_wordv[0]);
   } else {
     printf("configDir:%s not there, use default value: /etc/taos", configDir);

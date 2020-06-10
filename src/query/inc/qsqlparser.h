@@ -322,7 +322,7 @@ enum {
 #define NORMAL_ARITHMETIC  1
 #define AGG_ARIGHTMEIC     2
 
-int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pSql);
+SSqlInfo qSQLParse(const char *str);
 
 #ifdef __cplusplus
 }

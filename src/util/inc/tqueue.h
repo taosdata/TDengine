@@ -39,6 +39,7 @@ void       taosResetQitems(taos_qall);
 
 taos_qset  taosOpenQset();
 void       taosCloseQset();
+void       taosQsetThreadResume(taos_qset param);
 int        taosAddIntoQset(taos_qset, taos_queue, void *ahandle);
 void       taosRemoveFromQset(taos_qset, taos_queue);
 int        taosGetQueueNumber(taos_qset);

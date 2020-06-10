@@ -148,8 +148,8 @@
 #define TK_SET                            130
 #define TK_KILL                           131
 #define TK_CONNECTION                     132
-#define TK_COLON                          133
-#define TK_STREAM                         134
+#define TK_STREAM                         133
+#define TK_COLON                          134
 #define TK_ABORT                          135
 #define TK_AFTER                          136
 #define TK_ATTACH                         137
@@ -206,19 +206,20 @@
 #define TK_SUM_IRATE                      188
 #define TK_AVG_RATE                       189
 #define TK_AVG_IRATE                      190
-#define TK_SEMI                           191
-#define TK_NONE                           192
-#define TK_PREV                           193
-#define TK_LINEAR                         194
-#define TK_IMPORT                         195
-#define TK_METRIC                         196
-#define TK_TBNAME                         197
-#define TK_JOIN                           198
-#define TK_METRICS                        199
-#define TK_STABLE                         200
-#define TK_INSERT                         201
-#define TK_INTO                           202
-#define TK_VALUES                         203
+#define TK_TBID                           191
+#define TK_SEMI                           192
+#define TK_NONE                           193
+#define TK_PREV                           194
+#define TK_LINEAR                         195
+#define TK_IMPORT                         196
+#define TK_METRIC                         197
+#define TK_TBNAME                         198
+#define TK_JOIN                           199
+#define TK_METRICS                        200
+#define TK_STABLE                         201
+#define TK_INSERT                         202
+#define TK_INTO                           203
+#define TK_VALUES                         204
 
 #endif
 

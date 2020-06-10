@@ -92,12 +92,14 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
 }
 
 void* taosArrayGetP(const SArray* pArray, size_t index) {
-  void* ret = taosArrayGet(pArray, index);
-  if (ret == NULL) {
+  assert(index < pArray->size);
+  
+  void* d = TARRAY_GET_ELEM(pArray, index);
+  if (d == NULL) {
     return NULL;
   }
   
-  return *(void**)ret;
+  return *(void**)d;
 }
 
 size_t taosArrayGetSize(const SArray* pArray) { return pArray->size; }
@@ -176,6 +178,11 @@ SArray* taosArrayClone(const SArray* pSrc) {
   return dst;
 }
 
+void taosArrayClear(SArray* pArray) {
+  assert( pArray != NULL );
+  pArray->size = 0;
+}
+
 void taosArrayDestroy(SArray* pArray) {
   if (pArray == NULL) {
     return;
@@ -192,30 +199,23 @@ void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*)) {
   qsort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
-void* taosArraySearch(const SArray* pArray, int (*compar)(const void*, const void*), const void* key) {
-  assert(pArray != NULL);
-  assert(compar != NULL);
+void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn) {
+  assert(pArray != NULL && comparFn != NULL);
   assert(key != NULL);
 
-  return bsearch(key, pArray->pData, pArray->size, pArray->elemSize, compar);
+  return bsearch(key, pArray->pData, pArray->size, pArray->elemSize, comparFn);
 }
 
-static int taosArrayCompareString(const void* a, const void* b) {
-  const char* x = *(const char**)a;
-  const char* y = *(const char**)b;
-  return strcmp(x, y);
-}
-
-void taosArraySortString(SArray* pArray) {
+void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {
   assert(pArray != NULL);
-  qsort(pArray->pData, pArray->size, pArray->elemSize, taosArrayCompareString);
+  qsort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
 }
 
-char* taosArraySearchString(const SArray* pArray, const char* key) {
+char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn) {
   assert(pArray != NULL);
   assert(key != NULL);
 
-  void* p = bsearch(&key, pArray->pData, pArray->size, pArray->elemSize, taosArrayCompareString);
+  void* p = bsearch(&key, pArray->pData, pArray->size, pArray->elemSize, comparFn);
   if (p == NULL) {
     return NULL;
   }

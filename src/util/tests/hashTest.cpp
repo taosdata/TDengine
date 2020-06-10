@@ -149,8 +149,8 @@ int main(int argc, char** argv) {
 }
 
 TEST(testCase, hashTest) {
-//  simpleTest();
-//  stringKeyTest();
-//  noLockPerformanceTest();
-//  multithreadsTest();
+  simpleTest();
+  stringKeyTest();
+  noLockPerformanceTest();
+  multithreadsTest();
 }

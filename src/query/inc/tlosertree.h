@@ -32,7 +32,7 @@ typedef struct SLoserTreeNode {
 typedef struct SLoserTreeInfo {
   int32_t              numOfEntries;
   int32_t              totalEntries;
-  __merge_compare_fn_t comparaFn;
+  __merge_compare_fn_t comparFn;
   void *               param;
 
   SLoserTreeNode *pNode;

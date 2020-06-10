@@ -16,44 +16,85 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet
 // to compile: gcc -o demo demo.c -ltaos
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <taos.h>  // TAOS header file
-
-void taosMsleep(int mseconds);
+#include <sys/time.h>
+#include <inttypes.h>
 
 static int32_t doQuery(TAOS* taos, const char* sql) {
-  int32_t code = taos_query(taos, sql);
-  if (code != 0) {
-    printf("failed to execute query, reason:%s\n", taos_errstr(taos));
+  struct timeval t1 = {0};
+  gettimeofday(&t1, NULL);
+  
+  TAOS_RES* res = taos_query(taos, sql);
+  if (taos_errno(res) != 0) {
+    printf("failed to execute query, reason:%s\n", taos_errstr(res));
     return -1;
   }
   
-  TAOS_RES* res = taos_use_result(taos);
   TAOS_ROW row = NULL;
   char buf[512] = {0};
   
   int32_t numOfFields = taos_num_fields(res);
   TAOS_FIELD* pFields = taos_fetch_fields(res);
   
+  int32_t i = 0;
   while((row = taos_fetch_row(res)) != NULL) {
     taos_print_row(buf, row, pFields, numOfFields);
-    printf("%s\n", buf);
+    printf("%d:%s\n", ++i, buf);
     memset(buf, 0, 512);
   }
   
   taos_free_result(res);
-
+  
+  struct timeval t2 = {0};
+  gettimeofday(&t2, NULL);
+  
+  printf("elapsed time:%"PRId64 " ms\n", ((t2.tv_sec*1000000 + t2.tv_usec) - (t1.tv_sec*1000000 + t1.tv_usec))/1000);
   return 0;
+}
+
+void* oneLoader(void* param) {
+  TAOS* conn = (TAOS*) param;
+  
+  for(int32_t i = 0; i < 20000; ++i) {
+//    doQuery(conn, "show databases");
+    doQuery(conn, "use test");
+//    doQuery(conn, "describe t12");
+//    doQuery(conn, "show tables");
+//    doQuery(conn, "create table if not exists abc (ts timestamp, k int)");
+//    doQuery(conn, "select * from t12");
+  }
+  
+  return 0;
+}
+
+
+static __attribute__((unused)) void multiThreadTest(int32_t numOfThreads, void* conn) {
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  
+  pthread_t* threadId = malloc(sizeof(pthread_t)*numOfThreads);
+  
+  for (int i = 0; i < numOfThreads; ++i) {
+    pthread_create(&threadId[i], NULL, oneLoader, conn);
+  }
+  
+  for (int32_t i = 0; i < numOfThreads; ++i) {
+    pthread_join(threadId[i], NULL);
+  }
+  
+  free(threadId);
+  pthread_attr_destroy(&thattr);
 }
 
 int main(int argc, char *argv[]) {
   TAOS *    taos;
   char      qstr[1024];
   TAOS_RES *result;
-  
   
   // connect to server
   if (argc < 2) {
@@ -68,34 +109,22 @@ int main(int argc, char *argv[]) {
   
   taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
-    printf("failed to connect to server, reason:%s\n", taos_errstr(taos));
+    printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
     exit(1);
   }
+  
   printf("success to connect to server\n");
-  
-  doQuery(taos, "create database if not exists test");
-  doQuery(taos, "create database if not exists test");
-//  doQuery(taos, "use test");
-//  doQuery(taos, "select sum(k)*max(k), sum(k), max(k) from tm99");
-  
-//  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
-//  for(int32_t i = 0; i< 100000; ++i) {
-//    doQuery(taos, "select m1.ts,m1.a from m1, m2 where m1.ts=m2.ts and m1.a=m2.b;");
-//    usleep(500000);
-//  }
+//  doQuery(taos, "select c1,count(*) from group_db0.group_mt0 where c1<8 group by c1");
+  doQuery(taos, "select * from test.m1");
 
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 'abc')");
-//  doQuery(taos, "create table if not exists tm0 (ts timestamp, k int);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:1', 1);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:2', 2);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:3', 3);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:4', 4);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:5', 5);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:6', 6);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:7', 7);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:8', 8);");
-//  doQuery(taos, "insert into tm0 values('2020-1-1 1:1:9', 9);");
-//  doQuery(taos, "select sum(k),count(*) from m1 group by a");
+//  multiThreadTest(1, taos);
+//  doQuery(taos, "select tbname from test.m1");
+//   doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and tbname in ('lm2_tb0') interval(1s) group by t1");
+//   doQuery(taos, "select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_db0.lm2_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and tbname in ('lm2_tb0', 'lm2_tb1', 'lm2_tb2') interval(1s)");
+//  for(int32_t i = 0; i < 100000; ++i) {
+//    doQuery(taos, "insert into t1 values(now, 2)");
+//  }
+//  doQuery(taos, "create table t1(ts timestamp, k binary(12), f nchar(2))");
   
   taos_close(taos);
   return 0;
@@ -141,10 +170,6 @@ int main(int argc, char *argv[]) {
     printf("failed to select, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
-  
-  
-  result = taos_use_result(taos);
-  
   
   if (result == NULL) {
     printf("failed to get result, reason:%s\n", taos_errstr(taos));

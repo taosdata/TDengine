@@ -444,3 +444,5 @@ sql insert into um1 using m2 tags(1) values(1000001, 10)(2000000, 20);
 sql insert into um2 using m2 tags(9) values(1000001, 10)(2000000, 20);
 
 sql_error select count(*) from m1,m2 where m1.a=m2.a and m1.ts=m2.ts;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

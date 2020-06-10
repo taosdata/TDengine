@@ -76,4 +76,8 @@ TEST(testCase, patternMatchTest) {
   str = "carzero";
   ret = patternMatch("%o", str, strlen(str), &info);
   EXPECT_EQ(ret, TSDB_PATTERN_MATCH);
+  
+  str = "19";
+  ret = patternMatch("%9", str, 2, &info);
+  EXPECT_EQ(ret, TSDB_PATTERN_MATCH);
 }

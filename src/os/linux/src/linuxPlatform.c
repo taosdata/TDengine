@@ -148,6 +148,10 @@ static void taosDeleteTimer(void *tharg) {
   timer_delete(*pTimer);
 }
 
+static pthread_t timerThread;
+static timer_t         timerId;
+static volatile bool stopTimer = false;
+
 void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -156,8 +160,7 @@ void *taosProcessAlarmSignal(void *tharg) {
   sigprocmask(SIG_BLOCK, &sigset, NULL);
   void (*callback)(int) = tharg;
 
-  static timer_t         timerId;
-  struct sigevent sevent = {0};
+  struct sigevent sevent = {{0}};
 
   #ifdef _ALPINE
     sevent.sigev_notify = SIGEV_THREAD;
@@ -187,7 +190,7 @@ void *taosProcessAlarmSignal(void *tharg) {
   }
 
   int signo;
-  while (1) {
+  while (!stopTimer) {
     if (sigwait(&sigset, &signo)) {
       uError("Failed to wait signal: number %d", signo);
       continue;
@@ -202,7 +205,6 @@ void *taosProcessAlarmSignal(void *tharg) {
   return NULL;
 }
 
-static pthread_t timerThread;
 
 int taosInitTimer(void (*callback)(int), int ms) {
   pthread_attr_t tattr;
@@ -217,7 +219,7 @@ int taosInitTimer(void (*callback)(int), int ms) {
 }
 
 void taosUninitTimer() {
-  pthread_cancel(timerThread);
+  stopTimer = true;
   pthread_join(timerThread, NULL);
 }
 

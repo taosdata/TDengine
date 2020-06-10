@@ -122,7 +122,8 @@ if $rows != 100 then
   return -1
 endi
 sql select * from $mt where tgcol = 1
-if $rows != 100 then 
+if $rows != 100 then
+  print expect 100, actual:$rows
   return -1
 endi
 sql select * from $mt where tgcol <> 1

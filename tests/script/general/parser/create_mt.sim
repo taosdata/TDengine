@@ -45,10 +45,6 @@ sql show stables
 if $rows != 0 then
   return -1
 endi
-print data00 = $data00
-if $data00 != NULL then
-  return -1
-endi
 print case_insensitivity test passed
 
 # case2: illegal_metric_name test
@@ -258,3 +254,5 @@ sql show databases
 if $rows != 0 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

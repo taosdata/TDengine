@@ -26,7 +26,7 @@ void tscAddIntoSqlList(SSqlObj *pSql);
 void tscRemoveFromSqlList(SSqlObj *pSql);
 void tscAddIntoStreamList(SSqlStream *pStream);
 void tscRemoveFromStreamList(SSqlStream *pStream, SSqlObj *pSqlObj);
-char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj);
+int  tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj);
 void tscKillQuery(STscObj *pObj, uint32_t killId);
 void tscKillStream(STscObj *pObj, uint32_t killId);
 void tscKillConnection(STscObj *pObj);

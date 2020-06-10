@@ -23,13 +23,6 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifndef _ALPINE
-  #include <error.h>
-  #include <sys/sysctl.h>
-#else
-  #include <linux/sysctl.h>  
-#endif
-
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
@@ -60,6 +53,7 @@ extern "C" {
 #include <string.h>
 #include <strings.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -82,6 +76,7 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
+#include <error.h>
 
 #define taosCloseSocket(x) \
   {                        \
@@ -258,6 +253,17 @@ void taosBlockSIGPIPE();
 #endif
 #define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZ(val) __builtin_ctz(val)
+
+#undef threadlocal
+#ifdef _ISOC11_SOURCE
+  #define threadlocal _Thread_local
+#elif defined(__APPLE__)
+  #define threadlocal
+#elif defined(__GNUC__) && !defined(threadlocal)
+  #define threadlocal __thread
+#else
+  #define threadlocal
+#endif
 
 #ifdef __cplusplus
 }

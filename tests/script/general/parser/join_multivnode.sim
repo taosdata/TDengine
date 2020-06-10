@@ -128,3 +128,5 @@ sql select join_mt0.ts, join_mt1.t1 from join_mt0, join_mt1 where join_mt0.ts=jo
 sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbname from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1
 
 sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbname from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1 limit 1
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

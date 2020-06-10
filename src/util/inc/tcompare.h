@@ -34,15 +34,17 @@ typedef struct SPatternCompareInfo {
   char matchOne;  // symbol for match one wildcard, default: '_'
 } SPatternCompareInfo;
 
-int patternMatch(const char *zPattern, const char *zString, size_t size, const SPatternCompareInfo *pInfo);
+int patternMatch(const char *pattern, const char *str, size_t size, const SPatternCompareInfo *pInfo);
 
-int WCSPatternMatch(const wchar_t *zPattern, const wchar_t *zString, size_t size, const SPatternCompareInfo *pInfo);
+int WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo);
 
-int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size);
+int32_t doCompare(const char* a, const char* b, int32_t type, size_t size);
 
 __compar_fn_t getKeyComparFunc(int32_t keyType);
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
+
+int32_t taosArrayCompareString(const void* a, const void* b);
 
 #ifdef __cplusplus
 }

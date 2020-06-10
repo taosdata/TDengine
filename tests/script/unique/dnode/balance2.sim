@@ -6,11 +6,11 @@ system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 system sh/deploy.sh -n dnode5 -i 5
 
-system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode5 -c mgmtEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode5 -c mnodeEqualVnodeNum -v 4
 
 system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1
@@ -19,13 +19,13 @@ system sh/cfg.sh -n dnode4 -c wallevel -v 1
 system sh/cfg.sh -n dnode5 -c wallevel -v 1
 
 print ========== step1
-system sh/exec_up.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start
 sql connect
 
 sql create dnode $hostname2
 sql create dnode $hostname3
-system sh/exec_up.sh -n dnode2 -s start
-system sh/exec_up.sh -n dnode3 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep 3000
 
 sql create database d1 replica 2  maxTables 4
@@ -65,7 +65,7 @@ $x = 0
 show2: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 		return -1
 	endi
 	
@@ -76,18 +76,19 @@ print dnode3 openVnodes $data2_3
 if $data2_1 != 2 then
 	goto show2
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
 	goto show2
 endi
 if $data2_3 != 2 then
 	goto show2
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
 
 print ========== step3
 sql create dnode $hostname4
-system sh/exec_up.sh -n dnode4 -s start
+system sh/exec.sh -n dnode4 -s start
 
 $x = 0
 show3: 
@@ -105,7 +106,7 @@ print dnode4 openVnodes $data2_4
 if $data2_1 != 0 then
 	goto show3
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
 	goto show3
 endi
 if $data2_3 != 2 then
@@ -132,7 +133,7 @@ print dnode4 openVnodes $data2_4
 if $data2_1 != 0 then
 	return -1
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
 	return -1
 endi
 if $data2_3 != 3 then
@@ -144,13 +145,13 @@ endi
 
 print ========== step5
 sql create dnode $hostname5
-system sh/exec_up.sh -n dnode5 -s start
+system sh/exec.sh -n dnode5 -s start
 
 $x = 0
 show5: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 		return -1
 	endi
 	
@@ -163,7 +164,7 @@ print dnode5 openVnodes $data2_5
 if $data2_1 != 0 then
 	goto show5
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
 	goto show5
 endi
 if $data2_3 != 2 then
@@ -183,7 +184,7 @@ $x = 0
 show6: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 30 then
+	if $x == 10 then
 	  return -1
 	endi
 	
@@ -196,10 +197,10 @@ print dnode5 openVnodes $data2_5
 if $data2_1 != 0 then
 	goto show6
 endi
-if $data2_2 != NULL then
+if $data2_2 != null then
 	goto show6
 endi
-if $data2_3 != NULL then
+if $data2_3 != null then
 	goto show6
 endi
 if $data2_4 != 3 then
@@ -209,7 +210,8 @@ if $data2_5 != 3 then
 	goto show6
 endi
 
-system sh/exec_up.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
 
 sql reset query cache
 sleep 1000
@@ -269,11 +271,11 @@ if $data41 != 35 then
   return -1
 endi
 
-system sh/exec_up.sh -n dnode1 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode2 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec_up.sh -n dnode8 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

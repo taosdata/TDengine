@@ -13,15 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_READ_H
-#define TDENGINE_DNODE_READ_H
+#ifndef TDENGINE_DNODE_VREAD_H
+#define TDENGINE_DNODE_VREAD_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dnodeInitRead();
-void    dnodeCleanupRead();
+int32_t dnodeInitVnodeRead();
+void    dnodeCleanupVnodeRead();
 void    dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg);
 
 #ifdef __cplusplus

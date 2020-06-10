@@ -18,24 +18,24 @@
 #include "taoserror.h"
 #include "tqueue.h"
 
-typedef struct _taos_qnode {
+typedef struct STaosQnode {
   int                 type;
-  struct _taos_qnode *next;
+  struct STaosQnode  *next;
   char                item[];
 } STaosQnode;
 
-typedef struct _taos_q {
+typedef struct STaosQueue {
   int32_t             itemSize;
   int32_t             numOfItems;
-  struct _taos_qnode *head;
-  struct _taos_qnode *tail;
-  struct _taos_q     *next;    // for queue set
-  struct _taos_qset  *qset;    // for queue set
+  struct STaosQnode  *head;
+  struct STaosQnode  *tail;
+  struct STaosQueue  *next;    // for queue set
+  struct STaosQset   *qset;    // for queue set
   void               *ahandle; // for queue set
   pthread_mutex_t     mutex;  
 } STaosQueue;
 
-typedef struct _taos_qset {
+typedef struct STaosQset {
   STaosQueue        *head;
   STaosQueue        *current;
   pthread_mutex_t    mutex;
@@ -44,7 +44,7 @@ typedef struct _taos_qset {
   tsem_t             sem;
 } STaosQset;
 
-typedef struct _taos_qall {
+typedef struct STaosQall {
   STaosQnode   *current;
   STaosQnode   *start;
   int32_t       itemSize;
@@ -55,7 +55,7 @@ taos_queue taosOpenQueue() {
   
   STaosQueue *queue = (STaosQueue *) calloc(sizeof(STaosQueue), 1);
   if (queue == NULL) {
-    terrno = TSDB_CODE_NO_RESOURCE;
+    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -65,6 +65,7 @@ taos_queue taosOpenQueue() {
 }
 
 void taosCloseQueue(taos_queue param) {
+  if (param == NULL) return;
   STaosQueue *queue = (STaosQueue *)param;
   STaosQnode *pTemp;
   STaosQnode *pNode = queue->head;  
@@ -94,6 +95,7 @@ void *taosAllocateQitem(int size) {
 void taosFreeQitem(void *param) {
   if (param == NULL) return;
 
+  uTrace("item:%p is freed", param);
   char *temp = (char *)param;
   temp -= sizeof(STaosQnode);
   free(temp);
@@ -103,6 +105,7 @@ int taosWriteQitem(taos_queue param, int type, void *item) {
   STaosQueue *queue = (STaosQueue *)param;
   STaosQnode *pNode = (STaosQnode *)(((char *)item) - sizeof(STaosQnode));
   pNode->type = type;
+  pNode->next = NULL;
 
   pthread_mutex_lock(&queue->mutex);
 
@@ -142,7 +145,7 @@ int taosReadQitem(taos_queue param, int *type, void **pitem) {
       queue->numOfItems--;
       if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
       code = 1;
-      uTrace("item:%p is read out from queue, items:%d", *pitem, queue->numOfItems);
+      uTrace("item:%p is read out from queue:%p, type:%d items:%d", *pitem, queue, *type, queue->numOfItems);
   } 
 
   pthread_mutex_unlock(&queue->mutex);
@@ -213,7 +216,7 @@ taos_qset taosOpenQset() {
 
   STaosQset *qset = (STaosQset *) calloc(sizeof(STaosQset), 1);
   if (qset == NULL) {
-    terrno = TSDB_CODE_NO_RESOURCE;
+    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -224,10 +227,19 @@ taos_qset taosOpenQset() {
 }
 
 void taosCloseQset(taos_qset param) {
+  if (param == NULL) return;
   STaosQset *qset = (STaosQset *)param;
   pthread_mutex_destroy(&qset->mutex);
   tsem_destroy(&qset->sem);
   free(qset);
+}
+
+// tsem_post 'qset->sem', so that reader threads waiting for it
+// resumes execution and return, should only be used to signal the
+// thread to exit.
+void taosQsetThreadResume(taos_qset param) {
+  STaosQset *qset = (STaosQset *)param;
+  tsem_post(&qset->sem);
 }
 
 int taosAddIntoQset(taos_qset p1, taos_queue p2, void *ahandle) {
@@ -327,6 +339,7 @@ int taosReadQitemFromQset(taos_qset param, int *type, void **pitem, void **phand
         queue->numOfItems--;
         atomic_sub_fetch_32(&qset->numOfItems, 1);
         code = 1;
+        uTrace("item:%p is read out from queue:%p, type:%d items:%d", *pitem, queue, *type, queue->numOfItems);
     } 
 
     pthread_mutex_unlock(&queue->mutex);

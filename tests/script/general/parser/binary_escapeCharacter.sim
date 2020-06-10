@@ -95,9 +95,4 @@ if $data41 != @udp005@ then
 endi
 
 
-
-
-
-
-
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

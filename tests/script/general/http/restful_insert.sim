@@ -37,7 +37,7 @@ endi
 
 print ===============  step3 - query data
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:6020/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:6020/rest/sql
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:6020/rest/sql
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:6020/rest/sql
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:6020/rest/sql

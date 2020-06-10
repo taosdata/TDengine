@@ -53,10 +53,11 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
 
     说明：
 
-    1. TAGS列总长度不能超过512 bytes；
+    1. TAGS列总长度不能超过64k bytes；
     2. TAGS列的数据类型不能是timestamp；
     3. TAGS列名不能与其他列名相同;
     4. TAGS列名不能为预留关键字. 
+    5. TAGS总数的上限是128.
 
 - 显示已创建的超级表
 
@@ -114,7 +115,7 @@ INSERT INTO <tb1_name> USING <stb1_name> TAGS (<tag1_value1>, ...) VALUES (<fiel
     ALTER TABLE <stable_name> ADD TAG <new_tag_name> <TYPE>
     ```
 
-    为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过6个。
+    为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过128个。
 
 - 删除标签
 
@@ -202,7 +203,7 @@ INSERT INTO therm4 VALUES ('2018-01-01 00:00:00.000', 23);
 
 ###3:按标签聚合查询
 
-查询位于北京(beijing)和天津(tianjing)两个地区的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。
+查询位于北京(beijing)和天津(tianjin)两个地区的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。
 
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)

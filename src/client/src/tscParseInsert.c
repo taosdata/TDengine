@@ -42,35 +42,42 @@ enum {
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 
 static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
-  int32_t numType = isValidNumber(pToken);
-  if (TK_ILLEGAL == numType) {
-    return numType;
+  if (pToken->n == 0) {
+    return TK_ILLEGAL;
   }
-
+  
   int32_t radix = 10;
-  if (numType == TK_HEX) {
-    radix = 16;
-  } else if (numType == TK_OCT) {
-    radix = 8;
-  } else if (numType == TK_BIN) {
-    radix = 2;
+  
+  int32_t radixList[3] = {16, 8, 2}; // the integer number with different radix: hex, oct, bin
+  if (pToken->type == TK_HEX || pToken->type == TK_OCT || pToken->type == TK_BIN) {
+    radix = radixList[pToken->type - TK_HEX];
   }
 
   errno = 0;
   *value = strtoll(pToken->z, endPtr, radix);
+  
+  // not a valid integer number, return error
+  if ((pToken->type == TK_STRING || pToken->type == TK_ID) && ((*endPtr - pToken->z) != pToken->n)) {
+    return TK_ILLEGAL;
+  }
 
-  return numType;
+  return pToken->type;
 }
 
 static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
-  int32_t numType = isValidNumber(pToken);
-  if (TK_ILLEGAL == numType) {
-    return numType;
+  if (pToken->n == 0) {
+    return TK_ILLEGAL;
   }
-
+  
   errno = 0;
   *value = strtod(pToken->z, endPtr);
-  return numType;
+  
+  // not a valid integer number, return error
+  if ((pToken->type == TK_STRING || pToken->type == TK_ID) && ((*endPtr - pToken->z) != pToken->n)) {
+    return TK_ILLEGAL;
+  } else {
+    return pToken->type;
+  }
 }
 
 int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
@@ -127,7 +134,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
     }
 
     if (getTimestampInUsFromStr(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_SQL;
     }
 
     if (timePrec == TSDB_TIME_PRECISION_MILLI) {
@@ -305,8 +312,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
     case TSDB_DATA_TYPE_BINARY:
       // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
       if (pToken->type == TK_NULL) {
-        varDataSetLen(payload, sizeof(int8_t));
-        *(uint8_t*) varDataVal(payload) = TSDB_DATA_BINARY_NULL;
+        setVardataNull(payload, TSDB_DATA_TYPE_BINARY);
       } else { // too long values will return invalid sql, not be truncated automatically
         if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) { //todo refactor
           return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
@@ -319,8 +325,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
 
     case TSDB_DATA_TYPE_NCHAR:
       if (pToken->type == TK_NULL) {
-        varDataSetLen(payload, sizeof(int32_t));
-        *(uint32_t*) varDataVal(payload) = TSDB_DATA_NCHAR_NULL;
+        setVardataNull(payload, TSDB_DATA_TYPE_NCHAR);
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         size_t output = 0;
@@ -418,15 +423,15 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       }
 
       strcpy(error, "client out of memory");
-      *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      *code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       return -1;
     }
 
-    if (((sToken.type != TK_NOW) && (sToken.type != TK_INTEGER) && (sToken.type != TK_STRING) &&
-         (sToken.type != TK_FLOAT) && (sToken.type != TK_BOOL) && (sToken.type != TK_NULL)) ||
-        (sToken.n == 0) || (sToken.type == TK_RP)) {
+    int16_t type = sToken.type;
+    if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
+         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (sToken.n == 0) || (type == TK_RP)) {
       tscInvalidSQLErrMsg(error, "invalid data or symbol", sToken.z);
-      *code = TSDB_CODE_INVALID_SQL;
+      *code = TSDB_CODE_TSC_INVALID_SQL;
       return -1;
     }
 
@@ -458,13 +463,13 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t ret = tsParseOneColumnData(pSchema, &sToken, start, error, str, isPrimaryKey, timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
-      *code = TSDB_CODE_INVALID_SQL;
+      *code = TSDB_CODE_TSC_INVALID_SQL;
       return -1;  // NOTE: here 0 mean error!
     }
 
     if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
       tscInvalidSQLErrMsg(error, "client time/server time can not be mixed up", sToken.z);
-      *code = TSDB_CODE_INVALID_TIME_STAMP;
+      *code = TSDB_CODE_TSC_INVALID_TIME_STAMP;
       return -1;
     }
   }
@@ -521,7 +526,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
 
   if (spd->hasVal[0] == false) {
     strcpy(error, "primary timestamp column can not be null");
-    *code = TSDB_CODE_INVALID_SQL;
+    *code = TSDB_CODE_TSC_INVALID_SQL;
     return -1;
   }
 
@@ -555,7 +560,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
     *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
       tscInvalidSQLErrMsg(error, ") expected", *str);
-      *code = TSDB_CODE_INVALID_SQL;
+      *code = TSDB_CODE_TSC_INVALID_SQL;
       return -1;
     }
 
@@ -564,7 +569,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
 
   if (numOfRows <= 0) {
     strcpy(error, "no any data points");
-    *code = TSDB_CODE_INVALID_SQL;
+    *code = TSDB_CODE_TSC_INVALID_SQL;
     return -1;
   } else {
     return numOfRows;
@@ -606,7 +611,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
       // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
       *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
-      return TSDB_CODE_CLI_OUT_OF_MEMORY;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
 
@@ -682,13 +687,13 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   int32_t maxNumOfRows;
   ret = tscAllocateMemIfNeed(dataBuf, tinfo.rowSize, &maxNumOfRows);
   if (TSDB_CODE_SUCCESS != ret) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  int32_t code = TSDB_CODE_INVALID_SQL;
+  int32_t code = TSDB_CODE_TSC_INVALID_SQL;
   char *  tmpTokenBuf = calloc(1, 4096);  // used for deleting Escape character: \\, \', \"
   if (NULL == tmpTokenBuf) {
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   int32_t numOfRows = tsParseValues(str, dataBuf, pTableMeta, maxNumOfRows, spd, pCmd->payload, &code, tmpTokenBuf);
@@ -767,7 +772,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   }
 
   if (numOfColList == 0 && cstart != NULL) {
-    return TSDB_CODE_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
   
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
@@ -788,15 +793,15 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    tscSetTableId(pSTableMeterMetaInfo, &sToken, pSql);
+    tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
 
-    strncpy(pTag->name, pSTableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
+    tstrncpy(pTag->name, pSTableMeterMetaInfo->name, sizeof(pTag->name));
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    if (!UTIL_TABLE_IS_SUPERTABLE(pSTableMeterMetaInfo)) {
+    if (!UTIL_TABLE_IS_SUPER_TABLE(pSTableMeterMetaInfo)) {
       return tscInvalidSQLErrMsg(pCmd->payload, "create table only from super table is allowed", sToken.z);
     }
 
@@ -829,9 +834,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
         sql += index;
 
         if (TK_STRING == sToken.type) {
-          sToken.n = strdequote(sToken.z);
-          strtrim(sToken.z);
-          sToken.n = (uint32_t)strlen(sToken.z);
+          strdequote(sToken.z);
+          sToken.n = strtrim(sToken.z);
         }
 
         if (sToken.type == TK_RP) {
@@ -920,25 +924,37 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
       for (int32_t i = 0; i < spd.numOfCols; ++i) {
         if (!spd.hasVal[i]) {  // current tag column do not have any value to insert, set it to null
-          setNull(ptr, pTagSchema[i].type, pTagSchema[i].bytes);
+          if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+            setVardataNull(ptr, pTagSchema[i].type);
+          } else {
+            setNull(ptr, pTagSchema[i].type, pTagSchema[i].bytes);
+          }
         }
 
         ptr += pTagSchema[i].bytes;
       }
     }
 
+    // 3. calculate the actual data size of STagData
+    pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen);
+    for (int32_t t = 0; t < numOfTags; ++t) {
+      pTag->dataLen += pTagSchema[t].bytes;
+      pCmd->payloadLen += pTagSchema[t].bytes;
+    }
+    pTag->dataLen = htonl(pTag->dataLen);
+
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
 
-    int32_t ret = tscSetTableId(pTableMetaInfo, &tableToken, pSql);
+    int32_t ret = tscSetTableFullName(pTableMetaInfo, &tableToken, pSql);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
 
     createTable = true;
     code = tscGetMeterMetaEx(pSql, pTableMetaInfo, true);
-    if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+    if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
     }
     
@@ -948,10 +964,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     } else {
       sql = sToken.z;
     }
-    code = tscGetTableMeta(pSql, pTableMetaInfo);
+    code = tscGetMeterMetaEx(pSql, pTableMetaInfo, false);
     
     if (pCmd->curSql == NULL) {
-      assert(code == TSDB_CODE_ACTION_IN_PROGRESS);
+      assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
     }
   }
 
@@ -965,7 +981,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   }
 
   if (*sqlstr == NULL) {
-    code = TSDB_CODE_INVALID_SQL;
+    code = TSDB_CODE_TSC_INVALID_SQL;
   }
   
   return code;
@@ -973,7 +989,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
 int validateTableName(char *tblName, int len) {
   char buf[TSDB_TABLE_ID_LEN] = {0};
-  strncpy(buf, tblName, len);
+  tstrncpy(buf, tblName, sizeof(buf));
 
   SSQLToken token = {.n = len, .type = TK_ID, .z = buf};
   tSQLGetToken(buf, &token.type);
@@ -1016,7 +1032,9 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   }
 
-  if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {
+  // TODO: 2048 is added because TSDB_MAX_TAGS_LEN now is 65536
+  // but TSDB_PAYLOAD_SIZE is 65380
+  if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE + 2048)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -1028,7 +1046,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
 
     pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
     if (NULL == pCmd->pTableList || NULL == pSql->cmd.pDataBlocks) {
-      code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error_clean;
     }
   } else {
@@ -1057,7 +1075,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * Otherwise, create the first submit block and submit to virtual node.
        */
       if (totalNum == 0) {
-        code = TSDB_CODE_INVALID_SQL;
+        code = TSDB_CODE_TSC_INVALID_SQL;
         goto _error_clean;
       } else {
         break;
@@ -1072,7 +1090,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
 
-    if ((code = tscSetTableId(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableFullName(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }
 
@@ -1085,7 +1103,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * And during the getMeterMetaCallback function, the sql string will be parsed from the
        * interrupted position.
        */
-      if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+      if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
         tscTrace("%p waiting for get table meta during insert, then resume from offset: %" PRId64 " , %s", pSql,
             pos, pCmd->curSql);
         return code;
@@ -1097,7 +1115,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
     }
 
-    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       code = tscInvalidSQLErrMsg(pCmd->payload, "insert data into super table is not supported", NULL);
       goto _error_clean;
     }
@@ -1190,9 +1208,8 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
         str += index;
 
         if (TK_STRING == sToken.type) {
-          sToken.n = strdequote(sToken.z);
-          strtrim(sToken.z);
-          sToken.n = (uint32_t)strlen(sToken.z);
+          strdequote(sToken.z);
+          sToken.n = strtrim(sToken.z);
         }
 
         if (sToken.type == TK_RP) {
@@ -1280,7 +1297,7 @@ _clean:
 
 int tsParseInsertSql(SSqlObj *pSql) {
   if (!pSql->pTscObj->writeAuth) {
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_TSC_NO_WRITE_AUTH;
   }
 
   int32_t  index = 0;
@@ -1296,8 +1313,8 @@ int tsParseInsertSql(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
-  uint16_t type = (sToken.type == TK_INSERT)? TSDB_QUERY_TYPE_INSERT:TSDB_QUERY_TYPE_IMPORT;
-  TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
+  TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
+  TSDB_QUERY_SET_TYPE(pQueryInfo->type, pCmd->insertType);
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false, 0, NULL);
   if (sToken.type != TK_INTO) {
@@ -1325,7 +1342,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
      * Set the fp before parse the sql string, in case of getTableMeta failed, in which
      * the error handle callback function can rightfully restore the user-defined callback function (fp).
      */
-    if (initialParse) {
+    if (initialParse && (pSql->cmd.insertType != TSDB_QUERY_TYPE_STMT_INSERT)) {
       pSql->fetchFp = pSql->fp;
       pSql->fp = (void(*)())tscHandleMultivnodeInsert;
     }
@@ -1337,9 +1354,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
       return ret;
     }
     
-    SSqlInfo SQLInfo = {0};
-    tSQLParse(&SQLInfo, pSql->sqlstr);
-
+    SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     SQLInfoDestroy(&SQLInfo);
   }
@@ -1347,7 +1362,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
   /*
    * the pRes->code may be modified or released by another thread in tscTableMetaCallBack function,
    * so do NOT use pRes->code to determine if the getTableMeta/getMetricMeta function
-   * invokes new threads to get data from mgmt node or simply retrieves data from cache.
+   * invokes new threads to get data from mnode or simply retrieves data from cache.
    *
    * do NOT assign return code to pRes->code for the same reason since it may be released by another thread
    * pRes->code = ret;
@@ -1497,7 +1512,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
     }
     pCmd->count = 1;
 
-    strncpy(path, pDataBlock->filename, PATH_MAX);
+    tstrncpy(path, pDataBlock->filename, sizeof(path));
 
     FILE *fp = fopen(path, "r");
     if (fp == NULL) {
@@ -1505,7 +1520,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
       continue;
     }
 
-    strncpy(pTableMetaInfo->name, pDataBlock->tableId, TSDB_TABLE_ID_LEN);
+    tstrncpy(pTableMetaInfo->name, pDataBlock->tableId, sizeof(pTableMetaInfo->name));
     memset(pDataBlock->pData, 0, pDataBlock->nAllocSize);
 
     int32_t ret = tscGetTableMeta(pSql, pTableMetaInfo);

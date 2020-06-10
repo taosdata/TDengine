@@ -281,34 +281,55 @@ void skiplistPerformanceTest() {
 
 // todo not support duplicated key yet
 void duplicatedKeyTest() {
-#if 0
-  SSkipListKey key;
-  key.nType = TSDB_DATA_TYPE_INT;
+  SSkipList *pSkipList = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_INT, sizeof(int), true, false, true, getkey);
 
-  SSkipListNode **pNodes = NULL;
-
-  SSkipList *pSkipList = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_INT, sizeof(int));
-
-  for (int32_t i = 0; i < 10000; ++i) {
+  for (int32_t i = 0; i < 200; ++i) {
     for (int32_t j = 0; j < 5; ++j) {
-      key.i64Key = i;
-      tSkipListPut(pSkipList, "", &key, 1);
+      int32_t level, size;
+      tSkipListNewNodeInfo(pSkipList, &level, &size);
+      SSkipListNode* d = (SSkipListNode*)calloc(1, size + sizeof(int32_t));
+      d->level = level;
+      int32_t* key = (int32_t*)SL_GET_NODE_KEY(pSkipList, d);
+      key[0] = i;
+      tSkipListPut(pSkipList, d);
     }
   }
 
-  tSkipListPrint(pSkipList, 1);
-
   for (int32_t i = 0; i < 100; ++i) {
-    key.i64Key = rand() % 1000;
-    int32_t size = tSkipListGets(pSkipList, &key, &pNodes);
-
-    assert(size == 5);
-
-    tfree(pNodes);
+    SSkipListKey key;
+    SArray*  nodes = tSkipListGet(pSkipList, (char*)(&i));
+    assert( taosArrayGetSize(nodes) == 5 );
+    taosArrayDestroy(nodes);
   }
 
+  int32_t key = 101;
+  uint32_t num = tSkipListRemove(pSkipList, (char*)(&key));
+  assert(num == 5);
+
+  SArray*  nodes = tSkipListGet(pSkipList, (char*)(&key));
+  assert( taosArrayGetSize(nodes) == 0 );
+  taosArrayDestroy(nodes);
+
+  key = 102;
+  SSkipListIterator* iter = tSkipListCreateIterFromVal(pSkipList, (char*)(&key), TSDB_DATA_TYPE_INT, TSDB_ORDER_ASC);
+  for(int i = 0; i < 6; i++) {
+    assert(tSkipListIterNext(iter) == true);
+    SSkipListNode* node = tSkipListIterGet(iter);
+    int32_t* val = (int32_t*)SL_GET_NODE_KEY(pSkipList, node);
+    assert((i < 5) == ((*val) == key));
+  }
+  tSkipListDestroyIter(iter);
+
+  iter = tSkipListCreateIterFromVal(pSkipList, (char*)(&key), TSDB_DATA_TYPE_INT, TSDB_ORDER_DESC);
+  for(int i = 0; i < 6; i++) {
+    assert(tSkipListIterNext(iter) == true);
+    SSkipListNode* node = tSkipListIterGet(iter);
+    int32_t* val = (int32_t*)SL_GET_NODE_KEY(pSkipList, node);
+    assert((i < 5) == ((*val) == key));
+  }
+  tSkipListDestroyIter(iter);
+
   tSkipListDestroy(pSkipList);
-#endif
 }
 
 }  // namespace

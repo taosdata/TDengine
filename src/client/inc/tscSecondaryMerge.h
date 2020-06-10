@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "qextbuffer.h"
-#include "qinterpolation.h"
+#include "qfill.h"
 #include "taosmsg.h"
 #include "tlosertree.h"
 #include "tsclient.h"
@@ -60,22 +60,24 @@ typedef struct SLocalReducer {
   char *                 prevRowOfInput;
   tFilePage *            pResultBuf;
   int32_t                nResultBufSize;
-  char *                 pBufForInterpo;  // intermediate buffer for interpolation
+//  char *                 pBufForInterpo;  // intermediate buffer for interpolation
   tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
-  int32_t                rowSize;     // size of each intermediate result.
-  int32_t                status;      // denote it is in reduce process, in reduce process, it
-  bool                   hasPrevRow;  // cannot be released
+  int32_t                rowSize;      // size of each intermediate result.
+  int32_t                finalRowSize; // final result row size
+  int32_t                status;       // denote it is in reduce process, in reduce process, it
+  bool                   hasPrevRow;   // cannot be released
   bool                   hasUnprocessedRow;
   tOrderDescriptor *     pDesc;
-  SColumnModel *            resColModel;
+  SColumnModel *         resColModel;
   tExtMemBuffer **       pExtMemBuffer;      // disk-based buffer
-  SInterpolationInfo     interpolationInfo;  // interpolation support structure
+  SFillInfo*             pFillInfo;          // interpolation support structure
   char *                 pFinalRes;          // result data after interpo
   tFilePage *            discardData;
   SResultInfo *          pResInfo;
   bool                   discard;
   int32_t                offset;             // limit offset value
+  bool                   orderPrjOnSTable;   // projection query on stable
 } SLocalReducer;
 
 typedef struct SSubqueryState {
@@ -116,7 +118,7 @@ int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tF
  * create local reducer to launch the second-stage reduce process at client site
  */
 void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
-                           SColumnModel *finalModel, SSqlCmd *pSqlCmd, SSqlRes *pRes);
+                           SColumnModel *finalModel, SSqlObj* pSql);
 
 void tscDestroyLocalReducer(SSqlObj *pSql);
 

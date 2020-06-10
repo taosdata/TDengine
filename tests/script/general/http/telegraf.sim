@@ -16,14 +16,14 @@ print ===============  step1 - parse
 system_content curl -u root:taosdata -d '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/
 print $system_content
 
-if $system_content != @{"status":"error","code":1022,"desc":"database name can not be NULL"}@ then
+if $system_content != @{"status":"error","code":1022,"desc":"database name can not be null"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_admin' -d '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/
 print $system_content
 
-if $system_content != @{"status":"error","code":1022,"desc":"database name can not be NULL"}@ then
+if $system_content != @{"status":"error","code":1022,"desc":"database name can not be null"}@ then
   return -1
 endi
 
@@ -170,7 +170,7 @@ endi
 system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"":"windows"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
 print $system_content
 
-if $system_content != @{"status":"error","code":1038,"desc":"tag name is NULL"}@ then
+if $system_content != @{"status":"error","code":1038,"desc":"tag name is null"}@ then
   return -1
 endi
 
@@ -191,14 +191,14 @@ endi
 system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":""},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
 print $system_content
 
-if $system_content != @{"status":"error","code":1041,"desc":"tag value is NULL"}@ then
+if $system_content != @{"status":"error","code":1041,"desc":"tag value is null"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"1022":"111"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
 print $system_content
 
-if $system_content != @{"status":"error","code":1042,"desc":"table is NULL"}@ then
+if $system_content != @{"status":"error","code":1042,"desc":"table is null"}@ then
   return -1
 endi
 
@@ -219,14 +219,14 @@ endi
 system_content curl -u root:taosdata -d  '{"fields":{"":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
 print $system_content
 
-if $system_content != @{"status":"error","code":1048,"desc":"field name is NULL"}@ then
+if $system_content != @{"status":"error","code":1048,"desc":"field name is null"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":"","Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:6020/telegraf/db/root/taosdata1
 print $system_content
 
-if $system_content != @{"status":"error","code":1051,"desc":"field value is NULL"}@ then
+if $system_content != @{"status":"error","code":1051,"desc":"field value is null"}@ then
   return -1
 endi
 

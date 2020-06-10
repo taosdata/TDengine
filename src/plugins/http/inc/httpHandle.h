@@ -199,7 +199,7 @@ typedef struct HttpThread {
   pthread_t       thread;
   HttpContext *   pHead;
   pthread_mutex_t threadMutex;
-  pthread_cond_t  fdReady;
+  bool            stop;
   int             pollFd;
   int             numOfFds;
   int             threadId;
@@ -212,6 +212,8 @@ typedef struct HttpServer {
   char              label[HTTP_LABEL_SIZE];
   uint32_t          serverIp;
   uint16_t          serverPort;
+  bool              online;
+  int               fd;
   int               cacheContext;
   int               sessionExpire;
   int               numOfThreads;
@@ -226,7 +228,6 @@ typedef struct HttpServer {
   bool            (*processData)(HttpContext *pContext);
   int               requestNum;
   void             *timerHandle;
-  bool              online;
 } HttpServer;
 
 // http util method

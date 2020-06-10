@@ -96,8 +96,12 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {
-        strcpy(configDir, argv[++i]);
+      if (i < argc - 1) { 
+        if (strlen(argv[++i]) > TSDB_FILENAME_LEN - 1) {
+          fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
+          exit(EXIT_FAILURE);
+        }
+        strcpy(configDir, argv[i]);
       } else {
         fprintf(stderr, "Option -c requires an argument\n");
         exit(EXIT_FAILURE);
@@ -335,52 +339,18 @@ void *shellLoopQuery(void *arg) {
       tscError("failed to malloc command");
       return NULL;
     }
-    while (1) {
-      // Read command from shell.
 
+    do {
+      // Read command from shell.
       memset(command, 0, MAX_COMMAND_SIZE);
       set_terminal_mode();
       shellReadCommand(con, command);
       reset_terminal_mode();
-
-      // Run the command
-      shellRunCommand(con, command);
-    }
+    } while (shellRunCommand(con, command) == 0);
 
   pthread_cleanup_pop(1);
 
   return NULL;
-}
-
-void shellPrintNChar(char *str, int width, bool printMode) {
-  int col_left = width;
-  wchar_t wc;
-  while (col_left > 0) {
-    if (*str == '\0') break;
-    char *tstr = str;
-    int byte_width = mbtowc(&wc, tstr, MB_CUR_MAX);
-    if (byte_width <= 0) break;
-    int col_width = wcwidth(wc);
-    if (col_width <= 0) {
-      str += byte_width;
-      continue;
-    }
-    if (col_left < col_width) break;
-    printf("%lc", wc);
-    str += byte_width;
-    col_left -= col_width;
-  }
-
-  while (col_left > 0) {
-    printf(" ");
-    col_left--;
-  }
-
-  if (!printMode) {
-    printf("|");
-  } else {
-    printf("\n");
-  }
 }
 
 int get_old_terminal_mode(struct termios *tio) {

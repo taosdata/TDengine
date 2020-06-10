@@ -132,7 +132,9 @@ endi
 print =============== step6
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $data00 != 100 then
+  print expect 100, actual $data00
   return -1
 endi
 

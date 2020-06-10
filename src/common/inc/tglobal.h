@@ -49,7 +49,7 @@ extern int32_t tsTotalMemoryMB;
 extern int32_t tsVersion;
 
 extern int32_t tscEmbedded;
-extern int64_t tsMsPerDay[2];
+extern int64_t tsMsPerDay[3];
 
 extern char  tsFirst[];
 extern char  tsSecond[];
@@ -87,22 +87,25 @@ extern int16_t tsWAL;
 extern int32_t tsReplications;
 
 extern int16_t tsAffectedRowsMod;
-extern int32_t tsNumOfMPeers;
+extern int32_t tsNumOfMnodes;
 extern int32_t tsMaxShellConns;
 extern int32_t tsMaxTables;
 
 extern char tsDefaultDB[];
 extern char tsDefaultUser[];
 extern char tsDefaultPass[];
-extern int32_t tsMaxMeterConnections;
-extern int32_t tsMaxVnodeConnections;
-extern int32_t tsMaxMgmtConnections;
+
+extern char tsMqttBrokerAddress[];
+extern char tsMqttBrokerClientId[];
+
+extern int32_t tsMaxConnections;
 
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
-extern int32_t tsMgmtEqualVnodeNum;
+extern int32_t tsMnodeEqualVnodeNum;
 
 extern int32_t tsEnableHttpModule;
+extern int32_t tsEnableMqttModule;
 extern int32_t tsEnableMonitorModule;
 
 extern int32_t tsRestRowLimit;
@@ -141,18 +144,19 @@ extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
-extern int32_t mdebugFlag;
-extern int32_t cdebugFlag;
-extern int32_t jnidebugFlag;
+extern int32_t mDebugFlag;
+extern int32_t cDebugFlag;
+extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
 extern int32_t httpDebugFlag;
+extern int32_t mqttDebugFlag;
 extern int32_t monitorDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t debugFlag;
-extern int32_t odbcdebugFlag;
-extern int32_t qdebugFlag;
+extern int32_t odbcDebugFlag;
+extern int32_t qDebugFlag;
 
 extern uint32_t taosMaxTmrCtrl;
 
@@ -175,7 +179,7 @@ void taosInitGlobalCfg();
 bool taosCheckGlobalCfg();
 void taosSetAllDebugFlag();
 bool taosCfgDynamicOptions(char *msg);
-int  taosGetFqdnPortFromEp(char *ep, char *fqdn, uint16_t *port);
+int  taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
  
 #ifdef __cplusplus
 }

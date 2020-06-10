@@ -838,3 +838,5 @@ sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group 
 #sql select first(ts), tbname from select_tags_mt0 group by tbname;
 #sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;
 #sql select count(*),tbname from select_tags_mt0 group by tbname
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

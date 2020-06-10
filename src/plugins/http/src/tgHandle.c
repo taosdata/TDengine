@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
-#include "shash.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tgHandle.h"
@@ -63,9 +62,16 @@
 #define TG_MAX_SORT_TAG_SIZE 20
 
 static HttpDecodeMethod tgDecodeMethod = {"telegraf", tgProcessRquest};
-static HttpEncodeMethod tgQueryMethod = {tgStartQueryJson,         tgStopQueryJson, NULL,
-                                         tgBuildSqlAffectRowsJson, tgInitQueryJson, tgCleanQueryJson,
-                                         tgCheckFinished,          tgSetNextCmd};
+static HttpEncodeMethod tgQueryMethod = {
+  .startJsonFp          = tgStartQueryJson,         
+  .stopJsonFp           = tgStopQueryJson, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = tgBuildSqlAffectRowsJson, 
+  .initJsonFp           = tgInitQueryJson, 
+  .cleanJsonFp          = tgCleanQueryJson,
+  .checkFinishedFp      = tgCheckFinished,
+  .setNextCmdFp         = tgSetNextCmd
+};
 
 static const char DEFAULT_TELEGRAF_CFG[] =
         "{\"metrics\":["
@@ -203,7 +209,7 @@ void tgParseSchemaMetric(cJSON *metric) {
         goto ParseEnd;
       }
       int nameLen = (int)strlen(field->valuestring);
-      if (nameLen == 0 || nameLen > TSDB_TABLE_NAME_LEN) {
+      if (nameLen == 0 || nameLen >= TSDB_TABLE_NAME_LEN) {
         parsedOk = false;
         goto ParseEnd;
       }
@@ -282,7 +288,7 @@ int tgReadSchema(char *fileName) {
 }
 
 void tgInitHandle(HttpServer *pServer) {
-  char fileName[256] = {0};
+  char fileName[TSDB_FILENAME_LEN*2] = {0};
   sprintf(fileName, "%s/taos.telegraf.cfg", configDir);
   if (tgReadSchema(fileName) <= 0) {
     tgFreeSchemas();
@@ -304,7 +310,7 @@ bool tgGetUserFromUrl(HttpContext *pContext) {
     return false;
   }
 
-  strcpy(pContext->user, pParser->path[TG_USER_URL_POS].pos);
+  tstrncpy(pContext->user, pParser->path[TG_USER_URL_POS].pos, TSDB_USER_LEN);
   return true;
 }
 
@@ -314,7 +320,7 @@ bool tgGetPassFromUrl(HttpContext *pContext) {
     return false;
   }
 
-  strcpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos);
+  tstrncpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
   return true;
 }
 
@@ -403,7 +409,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_TG_METRIC_NAME_NULL);
     return false;
   }
-  if (nameLen >= TSDB_TABLE_NAME_LEN - 7) {
+  if (nameLen >= TSDB_TABLE_NAME_LEN - 8) {
     httpSendErrorResp(pContext, HTTP_TG_METRIC_NAME_LONG);
     return false;
   }
@@ -492,7 +498,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     return false;
   }
 
-  if (strlen(host->valuestring) >= TSDB_TABLE_NAME_LEN) {
+  if (strlen(host->valuestring) >= TSDB_TABLE_NAME_LEN - 1) {
     httpSendErrorResp(pContext, HTTP_TG_TABLE_SIZE);
     return false;
   }

@@ -130,6 +130,7 @@ if $data03 != 1 then
   return -1
 endi
 if $data04 != 0.000000000 then
+  print expect: 0.00000000 , actual: $data04
   return -1
 endi
 if $data05 != 1 then

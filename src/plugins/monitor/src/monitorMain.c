@@ -27,20 +27,10 @@
 #include "dnode.h"
 #include "monitor.h"
 
-#define monitorError(...)                         \
-  if (monitorDebugFlag & DEBUG_ERROR) {           \
-    taosPrintLog("ERROR MON ", 255, __VA_ARGS__); \
-  }
-#define monitorWarn(...)                                       \
-  if (monitorDebugFlag & DEBUG_WARN) {                         \
-    taosPrintLog("WARN  MON ", monitorDebugFlag, __VA_ARGS__); \
-  }
-#define monitorTrace(...)                                \
-  if (monitorDebugFlag & DEBUG_TRACE) {                  \
-    taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); \
-  }
-#define monitorPrint(...) \
-  { taosPrintLog("MON ", 255, __VA_ARGS__); }
+#define monitorError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR MON ", 255, __VA_ARGS__); }}
+#define monitorWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN MON ", monitorDebugFlag, __VA_ARGS__); }}
+#define monitorTrace(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); }}
+#define monitorPrint(...) { taosPrintLog("MON ", 255, __VA_ARGS__); }
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    100
@@ -68,7 +58,7 @@ typedef enum {
 typedef struct {
   void * conn;
   void * timer;
-  char   ep[TSDB_FQDN_LEN];
+  char   ep[TSDB_EP_LEN];
   int8_t cmdIndex;
   int8_t state;
   char   sql[SQL_LENGTH];
@@ -109,6 +99,11 @@ static void monitorStartSystemRetry() {
 }
 
 static void monitorInitConn(void *para, void *unused) {
+  if (dnodeGetDnodeId() <= 0) {
+    monitorStartSystemRetry();
+    return;
+  }
+  
   monitorPrint("starting to initialize monitor service ..");
   tsMonitorConn.state = MONITOR_STATE_INITIALIZING;
 
@@ -160,11 +155,11 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ", band_speed float"
              ", io_read float, io_write float"
              ", req_http int, req_select int, req_insert int"
-             ") tags (ipaddr binary(%d))",
-             tsMonitorDbName, TSDB_FQDN_LEN + 1);
+             ") tags (dnodeid int, fqdn binary(%d))",
+             tsMonitorDbName, TSDB_FQDN_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
-    snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn_%s using %s.dn tags('%s')", tsMonitorDbName,
-             tsMonitorConn.ep, tsMonitorDbName, tsLocalEp);
+    snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn%d using %s.dn tags(%d, '%s')", tsMonitorDbName,
+             dnodeGetDnodeId(), tsMonitorDbName, dnodeGetDnodeId(), tsLocalEp);
   } else if (cmd == MONITOR_CMD_CREATE_MT_ACCT) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.acct(ts timestamp "
@@ -188,7 +183,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.slowquery(ts timestamp, username "
              "binary(%d), created_time timestamp, time bigint, sql binary(%d))",
-             tsMonitorDbName, TSDB_TABLE_ID_LEN, TSDB_SHOW_SQL_LEN);
+             tsMonitorDbName, TSDB_TABLE_ID_LEN, TSDB_SLOW_QUERY_SQL_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_LOG) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.log(ts timestamp, level tinyint, "
@@ -212,7 +207,7 @@ static void monitorInitDatabase() {
 }
 
 static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
-  if (-code == TSDB_CODE_TABLE_ALREADY_EXIST || -code == TSDB_CODE_DB_ALREADY_EXIST || code >= 0) {
+  if (-code == TSDB_CODE_MND_TABLE_ALREADY_EXIST || -code == TSDB_CODE_MND_DB_ALREADY_EXIST || code >= 0) {
     monitorTrace("monitor:%p, sql success, reason:%d, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
     if (tsMonitorConn.cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
       monitorPrint("dnode:%s is started", tsLocalEp);
@@ -347,7 +342,7 @@ static void monitorSaveSystemInfo() {
 
   int64_t ts = taosGetTimestampUs();
   char *  sql = tsMonitorConn.sql;
-  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%" PRId64, tsMonitorDbName, tsMonitorConn.ep, ts);
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
 
   pos += monitorBuildCpuSql(sql + pos);
   pos += monitorBuildMemorySql(sql + pos);

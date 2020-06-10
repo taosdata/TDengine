@@ -51,7 +51,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     return NULL;
   }
   
-  strncpy(pTSBuf->path, path, PATH_MAX);
+  tstrncpy(pTSBuf->path, path, sizeof(pTSBuf->path));
   
   pTSBuf->f = fopen(pTSBuf->path, "r+");
   if (pTSBuf->f == NULL) {

@@ -27,7 +27,7 @@
 
 #define tmrWarn(...)                                  \
   do { if (tmrDebugFlag & DEBUG_WARN) {               \
-    taosPrintLog("WARN  TMR ", tmrDebugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN TMR ", tmrDebugFlag, __VA_ARGS__); \
   } } while(0)
 
 #define tmrTrace(...)                           \
@@ -405,19 +405,19 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
     tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
     return reusable;
   }
-  
+
   if (state != TIMER_STATE_EXPIRED) {
     // timer already stopped or cancelled, has nothing to do in this case
     return false;
   }
-  
+
   if (timer->executedBy == taosGetPthreadId()) {
     // taosTmrReset is called in the timer callback, should do nothing in this
     // case to avoid dead lock. note taosTmrReset must be the last statement
     // of the callback funtion, will be a bug otherwise.
     return false;
   }
-  
+
   // timer callback is executing in another thread, we SHOULD wait it to stop,
   // BUT this may result in dead lock if current thread are holding a lock which
   // the timer callback need to acquire. so, we HAVE TO return directly.
@@ -501,6 +501,7 @@ static void taosTmrModuleInit(void) {
     tmr_ctrl_t* ctrl = tmrCtrls + i;
     ctrl->next = ctrl + 1;
   }
+  (tmrCtrls + taosMaxTmrCtrl - 1)->next = NULL;
   unusedTmrCtrl = tmrCtrls;
 
   pthread_mutex_init(&tmrCtrlMutex, NULL);
@@ -551,8 +552,7 @@ void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* lab
     return NULL;
   }
 
-  strncpy(ctrl->label, label, sizeof(ctrl->label));
-  ctrl->label[sizeof(ctrl->label) - 1] = 0;
+  tstrncpy(ctrl->label, label, sizeof(ctrl->label));
   tmrTrace("%s timer controller is initialized, number of timer controllers: %d.", label, numOfTmrCtrl);
   return ctrl;
 }
@@ -574,12 +574,12 @@ void taosTmrCleanUp(void* handle) {
 
   if (numOfTmrCtrl <=0) {
     taosUninitTimer();
-    
+
     taosCleanUpScheduler(tmrQhandle);
 
     for (int i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;
-      pthread_mutex_destroy(&wheel->mutex); 
+      pthread_mutex_destroy(&wheel->mutex);
       free(wheel->slots);
     }
 

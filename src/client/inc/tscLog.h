@@ -22,26 +22,13 @@ extern "C" {
 
 #include "tlog.h"
 
-extern int32_t cdebugFlag;
+extern int32_t cDebugFlag;
 
-#define tscError(...)                        \
-  if (cdebugFlag & DEBUG_ERROR) {            \
-    taosPrintLog("ERROR TSC ", 255, __VA_ARGS__); \
-  }
-#define tscWarn(...)                                \
-  if (cdebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  TSC ", cdebugFlag, __VA_ARGS__); \
-  }
-#define tscTrace(...)                         \
-  if (cdebugFlag & DEBUG_TRACE) {             \
-    taosPrintLog("TSC ", cdebugFlag, __VA_ARGS__); \
-  }
-#define tscPrint(...) \
-  { taosPrintLog("TSC ", 255, __VA_ARGS__); }
-#define tscDump(...)                                      \
-  if (cdebugFlag & DEBUG_TRACE) {                         \
-    taosPrintLongString("TSC ", cdebugFlag, __VA_ARGS__); \
-  }
+#define tscError(...)  { if (cDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR TSC ", cDebugFlag, __VA_ARGS__); }}
+#define tscWarn(...)   { if (cDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN TSC ", cDebugFlag, __VA_ARGS__); }}
+#define tscTrace(...)  { if (cDebugFlag & DEBUG_TRACE) { taosPrintLog("TSC ", cDebugFlag, __VA_ARGS__); }}
+#define tscDump(...)   { if (cDebugFlag & DEBUG_TRACE) { taosPrintLongString("TSC ", cDebugFlag, __VA_ARGS__); }}
+#define tscPrint(...)  { taosPrintLog("TSC ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }

@@ -2,6 +2,8 @@
 
 TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.JS, etc.
 
+NOTE: All APIs which require a SQL string as parameter, including but not limit to `taos_query`, `taos_query_a`, `taos_subscribe` in the C/C++ Connector and their counterparts in other connectors, can ONLY process one SQL statement at a time. If more than one SQL statements are provided, their behaviors are undefined.
+
 ## C/C++ API
 
 C/C++ APIs are similar to the MySQL APIs. Applications should include TDengine head file _taos.h_ to use C/C++ APIs by adding the following line in code:

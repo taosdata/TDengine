@@ -30,7 +30,6 @@ typedef enum _VN_STATUS {
 
 typedef struct {
   int   len;
-  int   code;
   void *rsp;
   void *qhandle; //used by query and retrieve msg
 } SRspRet;
@@ -38,6 +37,7 @@ typedef struct {
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeDrop(int32_t vgId);
 int32_t vnodeOpen(int32_t vgId, char *rootDir);
+int32_t vnodeStartStream(int32_t vgId);
 int32_t vnodeAlter(void *pVnode, SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeClose(int32_t vgId);
 

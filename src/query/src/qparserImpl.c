@@ -26,16 +26,18 @@
 #include "tstrbuild.h"
 #include "queryLog.h"
 
-int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
+SSqlInfo qSQLParse(const char *pStr) {
   void *pParser = ParseAlloc(malloc);
-  pSQLInfo->valid = true;
+
+  SSqlInfo sqlInfo = {0};
+  sqlInfo.valid = true;
 
   int32_t i = 0;
   while (1) {
     SSQLToken t0 = {0};
 
     if (pStr[i] == 0) {
-      Parse(pParser, 0, t0, pSQLInfo);
+      Parse(pParser, 0, t0, &sqlInfo);
       goto abort_parse;
     }
 
@@ -49,19 +51,19 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
         break;
       }
       case TK_SEMI: {
-        Parse(pParser, 0, t0, pSQLInfo);
+        Parse(pParser, 0, t0, &sqlInfo);
         goto abort_parse;
       }
       
       case TK_QUESTION:
       case TK_ILLEGAL: {
-        snprintf(pSQLInfo->pzErrMsg, tListLen(pSQLInfo->pzErrMsg), "unrecognized token: \"%s\"", t0.z);
-        pSQLInfo->valid = false;
+        snprintf(sqlInfo.pzErrMsg, tListLen(sqlInfo.pzErrMsg), "unrecognized token: \"%s\"", t0.z);
+        sqlInfo.valid = false;
         goto abort_parse;
       }
       default:
-        Parse(pParser, t0.type, t0, pSQLInfo);
-        if (pSQLInfo->valid == false) {
+        Parse(pParser, t0.type, t0, &sqlInfo);
+        if (sqlInfo.valid == false) {
           goto abort_parse;
         }
     }
@@ -69,7 +71,7 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
 
 abort_parse:
   ParseFree(pParser, free);
-  return 0;
+  return sqlInfo;
 }
 
 tSQLExprList *tSQLExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SSQLToken *pToken) {
@@ -820,7 +822,7 @@ void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBI
 
   pInfo->pDCLInfo->dbOpt = *pDB;
   pInfo->pDCLInfo->dbOpt.dbname = *pToken;
-  pInfo->pDCLInfo->dbOpt.ignoreExists = (pIgExists->z != NULL);
+  pInfo->pDCLInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 }
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo) {

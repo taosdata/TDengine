@@ -20,10 +20,10 @@ TEST(testCase, string_dequote_test) {
   EXPECT_STRCASEEQ(t1, "abc");
 
   char t21[] = " abc ";
-  strtrim(t21);
+  int32_t lx = strtrim(t21);
 
   EXPECT_STREQ("abc", t21);
-  EXPECT_EQ(3, strlen(t21));
+  EXPECT_EQ(3, lx);
 }
 
 TEST(testCase, string_replace_test) {

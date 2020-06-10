@@ -42,10 +42,16 @@ extern "C" {
     }            \
   }
 
+#define tstrncpy(dst, src, size) do { \
+    strncpy((dst), (src), (size)); \
+    (dst)[(size) - 1] = 0; \
+} while (0);
+
 #define tclose(x) taosCloseSocket(x)
 
 // Pointer p drift right by b bytes
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
+#define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
 
 #ifndef NDEBUG
 #define ASSERT(x) assert(x)
@@ -112,7 +118,7 @@ extern "C" {
 
 int32_t strdequote(char *src);
 
-void strtrim(char *src);
+size_t strtrim(char *src);
 
 char *strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 
@@ -123,6 +129,8 @@ char* strtolower(char *dst, const char *src);
 int64_t strnatoi(char *num, int32_t len);
 
 char* strreplace(const char* str, const char* pattern, const char* rep);
+
+char *strbetween(char *string, char *begin, char *end);
 
 char *paGetToken(char *src, char **token, int32_t *tokenLen);
 
@@ -145,7 +153,9 @@ bool taosMbsToUcs4(char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, 
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes);
 
-bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
+void taosRandStr(char* str, int32_t size);
+
+int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
 bool taosValidateEncodec(const char *encodec);
 

@@ -27,6 +27,8 @@ public class TSDBStatement implements Statement {
 	/** Timeout for a query */
 	protected int queryTimeout = 0;
 
+	private Long pSql = 0l;
+
     /**
      * Status of current statement
      */
@@ -66,21 +68,23 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-		int res = this.connecter.executeQuery(sql);
+		long res = this.connecter.executeQuery(sql);
 		long resultSetPointer = this.connecter.getResultSet();
 
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
+			this.connecter.freeResultSet(res);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 		} else if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
 			this.connecter.freeResultSet();
 			throw new SQLException("The executed SQL is not a DML or a DDL");
 		} else {
-			return res;
+			int num = this.connecter.getAffectedRows(res);
+			return num;
 		}
 	}
 
-	public String getErrorMsg() {
-		return this.connecter.getErrMsg();
+	public String getErrorMsg(long pSql) {
+		return this.connecter.getErrMsg(pSql);
 	}
 
 	public void close() throws SQLException {
@@ -170,7 +174,7 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-		return this.connecter.getAffectedRows();
+		return this.connecter.getAffectedRows(this.pSql);
 	}
 
 	public boolean getMoreResults() throws SQLException {

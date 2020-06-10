@@ -1,0 +1,5 @@
+cd ../../debug; cmake ..
+cd ../../debug; make
+
+./test.sh -f general/db/dropdnodes.sim
+./test.sh -f general/user/basic1.sim

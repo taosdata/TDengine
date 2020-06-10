@@ -162,18 +162,18 @@ done
 
 # output the version info to the buildinfo file.
 build_time=$(date +"%F %R")
-echo "char version[64] = \"${version}\";"                             > ${versioninfo}
-echo "char compatible_version[64] = \"${compatible_version}\";"      >> ${versioninfo}
-echo "char gitinfo[128] = \"$(git rev-parse --verify HEAD)\";"       >> ${versioninfo}
+echo "char version[12] = \"${version}\";"                             > ${versioninfo}
+echo "char compatible_version[12] = \"${compatible_version}\";"      >> ${versioninfo}
+echo "char gitinfo[48] = \"$(git rev-parse --verify HEAD)\";"       >> ${versioninfo}
 if [ "$verMode" != "cluster" ]; then
-  echo "char gitinfoOfInternal[128] = \"\";"                         >> ${versioninfo}
+  echo "char gitinfoOfInternal[48] = \"\";"                         >> ${versioninfo}
 else
   enterprise_dir="${top_dir}/../enterprise"
   cd ${enterprise_dir}
-  echo "char gitinfoOfInternal[128] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo}
+  echo "char gitinfoOfInternal[48] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo}
   cd ${curr_dir}
 fi
-echo "char buildinfo[512] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
+echo "char buildinfo[64] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
 echo ""                                                              >> ${versioninfo}
 tmp_version=$(echo $version | tr -s "." "_")
 if [ "$verMode" == "cluster" ]; then

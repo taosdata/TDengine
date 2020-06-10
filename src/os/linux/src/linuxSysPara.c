@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tsysctl.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
@@ -159,7 +160,7 @@ static void taosGetSystemTimezone() {
 
   /* load time zone string from /etc/timezone */
   FILE *f = fopen("/etc/timezone", "r");
-  char  buf[64] = {0};
+  char  buf[65] = {0};
   if (f != NULL) {
     fread(buf, 64, 1, f);
     fclose(f);
@@ -225,11 +226,11 @@ static void taosGetSystemLocale() {  // get and set default locale
   if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     locale = setlocale(LC_CTYPE, "");
     if (locale == NULL) {
-      uForcePrint("can't get locale from system, set it to en_US.UTF-8");
+      uError("can't get locale from system, set it to en_US.UTF-8");
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
-      strncpy(tsLocale, locale, tListLen(tsLocale));
-      uForcePrint("locale not configured, set to system default:%s", tsLocale);
+      tstrncpy(tsLocale, locale, sizeof(tsLocale));
+      uError("locale not configured, set to system default:%s", tsLocale);
     }
   }
 
@@ -241,13 +242,13 @@ static void taosGetSystemLocale() {  // get and set default locale
       str++;
 
       char *revisedCharset = taosCharsetReplace(str);
-      strncpy(tsCharset, revisedCharset, tListLen(tsCharset));
+      tstrncpy(tsCharset, revisedCharset, sizeof(tsCharset));
 
       free(revisedCharset);
-      uForcePrint("charset not configured, set to system default:%s", tsCharset);
+      uWarn("charset not configured, set to system default:%s", tsCharset);
     } else {
       strcpy(tsCharset, "UTF-8");
-      uForcePrint("can't get locale and charset from system, set it to UTF-8");
+      uWarn("can't get locale and charset from system, set it to UTF-8");
     }
   }
 }
@@ -330,66 +331,7 @@ bool taosGetDisk() {
   return true;
 }
 
-static bool taosGetCardName(char *ip, char *name) {
-  struct ifaddrs *ifaddr, *ifa;
-  int             family, s;
-  char            host[NI_MAXHOST];
-  bool            ret = false;
-
-  if (getifaddrs(&ifaddr) == -1) {
-    return false;
-  }
-
-  /* Walk through linked list, maintaining head pointer so we can free list
-   * later */
-  for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-    if (ifa->ifa_addr == NULL) continue;
-
-    family = ifa->ifa_addr->sa_family;
-    if (family != AF_INET) {
-      continue;
-    }
-
-    s = getnameinfo(ifa->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), host,
-                    NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-    if (s != 0) {
-      break;
-    }
-
-    if (strcmp(host, "127.0.0.1") == 0) {
-      continue;
-    }
-
-    // TODO: the ip not config
-    // if (strcmp(host, ip) == 0) {
-    strcpy(name, ifa->ifa_name);
-    ret = true;
-    // }
-  }
-
-  freeifaddrs(ifaddr);
-  return ret;
-}
-
 static bool taosGetCardInfo(int64_t *bytes) {
-  static char tsPublicCard[1000] = {0};
-  static char tsPrivateIp[40];
-
-  if (tsPublicCard[0] == 0) {
-    if (!taosGetCardName(tsPrivateIp, tsPublicCard)) {
-      uError("can't get card name from ip:%s", tsPrivateIp);
-      return false;
-    }
-    int cardNameLen = (int)strlen(tsPublicCard);
-    for (int i = 0; i < cardNameLen; ++i) {
-      if (tsPublicCard[i] == ':') {
-        tsPublicCard[i] = 0;
-        break;
-      }
-    }
-    // uTrace("card name of public ip:%s is %s", tsPublicIp, tsPublicCard);
-  }
-
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsSysNetFile);
@@ -402,6 +344,7 @@ static bool taosGetCardInfo(int64_t *bytes) {
 
   size_t len;
   char * line = NULL;
+  *bytes = 0;
 
   while (!feof(fp)) {
     tfree(line);
@@ -410,23 +353,20 @@ static bool taosGetCardInfo(int64_t *bytes) {
     if (line == NULL) {
       break;
     }
-    if (strstr(line, tsPublicCard) != NULL) {
-      break;
+    if (strstr(line, "lo:") != NULL) {
+      continue;
     }
+
+    sscanf(line,
+           "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64,
+           nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &tbytes, &tpackets);
+    *bytes += (rbytes + tbytes);
   }
-  if (line != NULL) {
-    sscanf(line, "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64, nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3,
-           &nouse4, &nouse5, &nouse6, &tbytes, &tpackets);
-    *bytes = rbytes + tbytes;
-    tfree(line);
-    fclose(fp);
-    return true;
-  } else {
-    uWarn("can't get card:%s info from device:%s", tsPublicCard, tsSysNetFile);
-    *bytes = 0;
-    fclose(fp);
-    return false;
-  }
+
+  tfree(line);
+  fclose(fp);
+
+  return true;
 }
 
 bool taosGetBandSpeed(float *bandSpeedKb) {
@@ -442,13 +382,15 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   if (lastTime == 0 || lastBytes == 0) {
     lastTime = curTime;
     lastBytes = curBytes;
-    return false;
+    *bandSpeedKb = 0;
+    return true;
   }
 
   if (lastTime >= curTime || lastBytes > curBytes) {
     lastTime = curTime;
     lastBytes = curBytes;
-    return false;
+    *bandSpeedKb = 0;
+    return true;
   }
 
   double totalBytes = (double)(curBytes - lastBytes) / 1024 * 8;  // Kb
