@@ -70,7 +70,7 @@ endi
 print ========== step3
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 500
+sleep 5000
 sql drop dnode $hostname2
 sleep 2000
 
@@ -102,3 +102,4 @@ sql_error select * from db.t1
 sql_error select * from db.t9
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT

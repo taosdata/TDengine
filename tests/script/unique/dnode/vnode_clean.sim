@@ -101,7 +101,7 @@ endi
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
 print ========== step5
-sleep 2000
+sleep 5000
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 
@@ -222,7 +222,8 @@ if $data2_4 != 4 then
   goto show9
 endi
 
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop 
+sleep 5000
 
 print ========== step10
 sql select * from d1.t1  order by t desc
