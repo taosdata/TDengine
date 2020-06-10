@@ -110,6 +110,7 @@ if $data2_2 != null then
 endi
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
 
 print ========== step5
 sql create dnode $hostname4

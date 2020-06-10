@@ -129,9 +129,9 @@ endi
 
 print =============== step4
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 1000
+sleep 5000
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
+sleep 5000
 
 print ==============  step5
 

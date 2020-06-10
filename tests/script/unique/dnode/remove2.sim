@@ -76,7 +76,7 @@ endi
 print ========== step3
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sql drop dnode $hostname2
-sleep 4000
+sleep 5000
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
