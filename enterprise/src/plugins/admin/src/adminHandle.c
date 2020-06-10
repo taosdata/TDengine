@@ -92,7 +92,7 @@ bool adminGetUserFromUrl(HttpContext* pContext) {
 
 bool adminGetPassFromUrl(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
-  if (pParser->path[ADMIN_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[ADMIN_PASS_URL_POS].len <= 0) {
+  if (pParser->path[ADMIN_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[ADMIN_PASS_URL_POS].len <= 0) {
     return false;
   }
 

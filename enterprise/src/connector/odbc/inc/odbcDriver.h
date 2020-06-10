@@ -68,7 +68,7 @@ typedef struct dbc {
   char server[TSDB_IPv4ADDR_LEN];
   char dbname[TSDB_DB_NAME_LEN];
   char user[TSDB_USER_LEN];
-  char pwd[TSDB_PASSWORD_LEN + 1];
+  char pwd[TSDB_PASSWORD_LEN];
   char tbname[TSDB_TABLE_NAME_LEN];  //for sql columns
   
   int naterr;
