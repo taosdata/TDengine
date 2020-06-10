@@ -2241,7 +2241,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     // show vnodes may be ip addr of dnode in payload
     SSQLToken* pDnodeIp = &pShowInfo->prefix;
-    if (pDnodeIp->n > TSDB_IPv4ADDR_LEN) {  // ip addr is too long
+    if (pDnodeIp->n >= TSDB_IPv4ADDR_LEN) {  // ip addr is too long
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 

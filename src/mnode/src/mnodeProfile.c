@@ -222,7 +222,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
   SConnObj *pConnObj = NULL;
   int32_t   cols = 0;
   char *    pWrite;
-  char      ipStr[TSDB_IPv4ADDR_LEN + 7];
+  char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
@@ -239,8 +239,8 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    snprintf(ipStr, TSDB_IPv4ADDR_LEN + 6, "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, TSDB_IPv4ADDR_LEN + 6);
+    snprintf(ipStr, sizeof(ipStr), "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, sizeof(ipStr));
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -342,7 +342,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
   SConnObj *pConnObj = NULL;
   int32_t   cols = 0;
   char *    pWrite;
-  char      ipStr[TSDB_IPv4ADDR_LEN + 7];
+  char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
@@ -362,8 +362,8 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      snprintf(ipStr, TSDB_IPv4ADDR_LEN + 6, "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, TSDB_IPv4ADDR_LEN + 6);
+      snprintf(ipStr, sizeof(ipStr), "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, sizeof(ipStr));
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -463,7 +463,7 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
   SConnObj *pConnObj = NULL;
   int32_t   cols = 0;
   char *    pWrite;
-  char      ipStr[TSDB_IPv4ADDR_LEN + 7];
+  char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
@@ -483,8 +483,8 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      snprintf(ipStr, TSDB_IPv4ADDR_LEN + 6, "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, TSDB_IPv4ADDR_LEN + 6);
+      snprintf(ipStr, sizeof(ipStr), "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, sizeof(ipStr));
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
