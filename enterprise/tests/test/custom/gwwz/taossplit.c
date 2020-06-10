@@ -104,18 +104,18 @@ static struct argp_option options[] = {
 
 /* Used by main to communicate with parse_opt. */
 struct arguments {
-  char inputDir[TSDB_FILENAME_LEN + 1];
-  char outputDir[TSDB_FILENAME_LEN + 1];
+  char inputDir[TSDB_FILENAME_LEN];
+  char outputDir[TSDB_FILENAME_LEN];
   int64_t beginTime;
   int64_t endTime;
   int numOfFiles;
   int repeat;
   int64_t generateTime;
-  char database[TSDB_DB_NAME_LEN + 1];
+  char database[TSDB_DB_NAME_LEN];
   int ablocks;
   int cache;
-  char stable[TSDB_TABLE_NAME_LEN + 1];
-  char prefix[TSDB_TABLE_NAME_LEN + 1];
+  char stable[TSDB_TABLE_NAME_LEN];
+  char prefix[TSDB_TABLE_NAME_LEN];
   int batch;
   int debugFlag;
   int abort;
