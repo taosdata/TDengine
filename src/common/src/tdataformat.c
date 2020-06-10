@@ -100,6 +100,7 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
   pBuilder->nCols = 0;
   pBuilder->tlen = 0;
   pBuilder->flen = 0;
+  pBuilder->vlen = 0;
   pBuilder->version = version;
 }
 
@@ -124,10 +125,12 @@ int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int3
 
   if (IS_VAR_DATA_TYPE(type)) {
     colSetBytes(pCol, bytes);
-    pBuilder->tlen += (TYPE_BYTES[type] + sizeof(VarDataLenT) + bytes);
+    pBuilder->tlen += (TYPE_BYTES[type] + bytes);
+    pBuilder->vlen += bytes - sizeof(VarDataLenT);
   } else {
     colSetBytes(pCol, TYPE_BYTES[type]);
     pBuilder->tlen += TYPE_BYTES[type];
+    pBuilder->vlen += TYPE_BYTES[type];
   }
 
   pBuilder->nCols++;
@@ -150,6 +153,7 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   schemaNCols(pSchema) = pBuilder->nCols;
   schemaTLen(pSchema) = pBuilder->tlen;
   schemaFLen(pSchema) = pBuilder->flen;
+  schemaVLen(pSchema) = pBuilder->vlen;
 
   memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
 
@@ -269,8 +273,7 @@ void dataColSetNullAt(SDataCol *pCol, int index) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->dataOff[index] = pCol->len;
     char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
-    varDataLen(ptr) = (pCol->type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : TSDB_NCHAR_SIZE;
-    setNull(varDataVal(ptr), pCol->type, pCol->bytes);
+    setVardataNull(ptr, pCol->type);
     pCol->len += varDataTLen(ptr);
   } else {
     setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);

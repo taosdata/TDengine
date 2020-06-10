@@ -383,11 +383,11 @@ int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
     pTable = mnodeGetTable(pShow->payload);
     if (NULL == pTable || pTable->type == TSDB_SUPER_TABLE) {
       mnodeDecTableRef(pTable);
-      return TSDB_CODE_MND_INVALID_TABLE_ID;
+      return TSDB_CODE_MND_INVALID_TABLE_NAME;
     }
     mnodeDecTableRef(pTable);
     pVgroup = mnodeGetVgroup(((SChildTableObj*)pTable)->vgId);
-    if (NULL == pVgroup) return TSDB_CODE_MND_INVALID_TABLE_ID;
+    if (NULL == pVgroup) return TSDB_CODE_MND_INVALID_TABLE_NAME;
     mnodeDecVgroupRef(pVgroup);
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
   } else {

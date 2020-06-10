@@ -115,7 +115,7 @@ bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
 
     // 3. valid column names
     for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncasecmp(pSchema[i].name, pSchema[j].name, TSDB_COL_NAME_LEN) == 0) {
+      if (strncasecmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
         return false;
       }
     }

@@ -88,9 +88,9 @@ int32_t mnodeStartSystem() {
   }
 
   mPrint("starting to initialize mnode ...");
-  struct stat dirstat;
-  if (stat(tsMnodeDir, &dirstat) < 0) {
-    mkdir(tsMnodeDir, 0755);
+  if (mkdir(tsMnodeDir, 0755) != 0 && errno != EEXIST) {
+    mError("failed to init mnode dir:%s, reason:%s", tsMnodeDir, strerror(errno));
+    return -1;
   }
 
   dnodeAllocateMnodeWqueue();
@@ -134,8 +134,12 @@ void mnodeStopSystem() {
   }
   
   mnodeCleanupSystem();
-  mPrint("mnode file is removed");
-  remove(tsMnodeDir);
+
+  if (remove(tsMnodeDir) != 0) {
+    mPrint("failed to remove mnode file, reason:%s", strerror(errno));
+  } else {
+    mPrint("mnode file is removed");
+  }
 }
 
 static void mnodeInitTimer() {

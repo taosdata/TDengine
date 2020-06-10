@@ -74,14 +74,16 @@ void tsdbEncodeTable(STable *pTable, char *buf, int *contLen) {
 STable *tsdbDecodeTable(void *cont, int contLen) {
   STable *pTable = (STable *)calloc(1, sizeof(STable));
   if (pTable == NULL) return NULL;
-  pTable->schema = (STSchema **)malloc(sizeof(STSchema *) * TSDB_MAX_TABLE_SCHEMAS);
-  if (pTable->schema == NULL) {
-    free(pTable);
-    return NULL;
-  }
 
   void *ptr = cont;
   T_READ_MEMBER(ptr, int8_t, pTable->type);
+  if (pTable->type != TSDB_CHILD_TABLE) {
+    pTable->schema = (STSchema **)malloc(sizeof(STSchema *) * TSDB_MAX_TABLE_SCHEMAS);
+    if (pTable->schema == NULL) {
+      free(pTable);
+      return NULL;
+    }
+  }
   int len = *(int *)ptr;
   ptr = (char *)ptr + sizeof(int);
   pTable->name = calloc(1, len + VARSTR_HEADER_SIZE + 1);
@@ -332,7 +334,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     pTable->schema[0] = tdDupSchema(pCfg->schema);
     pTable->tagSchema = tdDupSchema(pCfg->tagSchema);
 
-    tsize = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN);
+    tsize = strnlen(pCfg->sname, TSDB_TABLE_NAME_LEN - 1);
     pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
     if (pTable->name == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -353,7 +355,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     pTable->tableId.tid = pCfg->tableId.tid;
     pTable->lastKey = TSKEY_INITIAL_VAL;
 
-    tsize = strnlen(pCfg->name, TSDB_TABLE_NAME_LEN);
+    tsize = strnlen(pCfg->name, TSDB_TABLE_NAME_LEN - 1);
     pTable->name = calloc(1, tsize + VARSTR_HEADER_SIZE + 1);
     if (pTable->name == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -620,7 +622,10 @@ static int tsdbFreeTable(STable *pTable) {
   if (pTable->type == TSDB_CHILD_TABLE) {
     kvRowFree(pTable->tagVal);
   } else {
-    for (int i = 0; i < pTable->numOfSchemas; i++) tdFreeSchema(pTable->schema[i]);
+    if (pTable->schema) {
+      for (int i = 0; i < pTable->numOfSchemas; i++) tdFreeSchema(pTable->schema[i]);
+      free(pTable->schema);
+    }
   }
 
   if (pTable->type == TSDB_STREAM_TABLE) {

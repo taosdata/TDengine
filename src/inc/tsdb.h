@@ -65,6 +65,13 @@ typedef struct {
   int8_t  compression;
 } STsdbCfg;
 
+// --------- TSDB REPOSITORY USAGE STATISTICS
+typedef struct {
+  int64_t totalStorage;  // total bytes occupie
+  int64_t compStorage;
+  int64_t pointsWritten;  // total data points written
+} STsdbStat;
+
 typedef void TsdbRepoT;  // use void to hide implementation details from outside
 
 void      tsdbSetDefaultCfg(STsdbCfg *pCfg);
@@ -305,6 +312,15 @@ int32_t tsdbGetOneTableGroup(TsdbRepoT *tsdb, uint64_t uid, STableGroupInfo *pGr
  * @param queryHandle
  */
 void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle);
+
+/**
+ * get the statistics of repo usage
+ * @param repo. point to the tsdbrepo
+ * @param totalPoints. total data point written
+ * @param totalStorage. total bytes took by the tsdb
+ * @param compStorage. total bytes took by the tsdb after compressed
+ */
+void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage);
 
 #ifdef __cplusplus
 }

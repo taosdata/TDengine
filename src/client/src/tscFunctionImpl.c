@@ -1293,7 +1293,7 @@ static void max_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   minMax_function_f(pCtx, index, 0);
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult == DATA_SET_FLAG) {
+  if (pResInfo->hasResult == DATA_SET_FLAG && pResInfo->superTableQ) {
     char *flag = pCtx->aOutputBuf + pCtx->inputBytes;
     *flag = DATA_SET_FLAG;
   }
@@ -1309,7 +1309,7 @@ static void min_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   minMax_function_f(pCtx, index, 1);
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult == DATA_SET_FLAG) {
+  if (pResInfo->hasResult == DATA_SET_FLAG && pResInfo->superTableQ) {
     char *flag = pCtx->aOutputBuf + pCtx->inputBytes;
     *flag = DATA_SET_FLAG;
   }

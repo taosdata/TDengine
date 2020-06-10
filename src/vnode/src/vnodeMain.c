@@ -75,19 +75,29 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  mkdir(tsVnodeDir, 0755);
-
-  char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
-  if (mkdir(rootDir, 0755) != 0) {
-    vPrint("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
+  if (mkdir(tsVnodeDir, 0755) != 0 && errno != EEXIST) {
+    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), tsVnodeDir);
     if (errno == EACCES) {
       return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
       return TSDB_CODE_VND_NO_DISKSPACE;
     } else if (errno == ENOENT) {
       return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
-    } else if (errno == EEXIST) {
+    } else {
+      return TSDB_CODE_VND_INIT_FAILED;
+    }
+  }
+
+  char rootDir[TSDB_FILENAME_LEN] = {0};
+  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  if (mkdir(rootDir, 0755) != 0 && errno != EEXIST) {
+    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
+    if (errno == EACCES) {
+      return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_VND_NO_DISKSPACE;
+    } else if (errno == ENOENT) {
+      return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
     } else {
       return TSDB_CODE_VND_INIT_FAILED;
     }
@@ -371,16 +381,18 @@ void *vnodeGetWal(void *pVnode) {
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
+  int64_t totalStorage, compStorage, pointsWritten = 0;
+  tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
   pLoad->cfgVersion = htonl(pVnode->cfgVersion);
-  pLoad->totalStorage = htobe64(pLoad->totalStorage);
-  pLoad->compStorage = htobe64(pLoad->compStorage);
-  pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
+  pLoad->totalStorage = htobe64(totalStorage);
+  pLoad->compStorage = htobe64(compStorage);
+  pLoad->pointsWritten = htobe64(pointsWritten);
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
-  pLoad->replica = pVnode->syncCfg.replica;
+  pLoad->replica = pVnode->syncCfg.replica;  
 }
 
 void vnodeBuildStatusMsg(void *param) {

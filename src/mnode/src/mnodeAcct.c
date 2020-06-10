@@ -27,7 +27,7 @@
 
 void *  tsAcctSdb = NULL;
 static int32_t tsAcctUpdateSize;
-static void    mnodeCreateRootAcct();
+static int32_t mnodeCreateRootAcct();
 
 static int32_t mnodeAcctActionDestroy(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
@@ -79,7 +79,11 @@ static int32_t mnodeAcctActionDecode(SSdbOper *pOper) {
 
 static int32_t mnodeAcctActionRestored() {
   if (dnodeIsFirstDeploy()) {
-    mnodeCreateRootAcct();
+    int32_t code = mnodeCreateRootAcct();
+    if (code != TSDB_CODE_SUCCESS) {
+      mError("failed to create root account, reason:%s", tstrerror(code));
+      return code;
+    }
   }
 
   acctInit();
@@ -161,9 +165,9 @@ void mnodeDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
   mnodeDecAcctRef(pAcct);
 }
 
-static void mnodeCreateRootAcct() {
+static int32_t mnodeCreateRootAcct() {
   int32_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
-  if (numOfAccts != 0) return;
+  if (numOfAccts != 0) return TSDB_CODE_SUCCESS;
 
   SAcctObj *pAcct = malloc(sizeof(SAcctObj));
   memset(pAcct, 0, sizeof(SAcctObj));
@@ -190,7 +194,8 @@ static void mnodeCreateRootAcct() {
     .table = tsAcctSdb,
     .pObj = pAcct,
   };
-  sdbInsertRow(&oper);
+
+  return sdbInsertRow(&oper);
 }
 
 #ifndef _ACCT

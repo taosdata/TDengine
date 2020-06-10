@@ -442,15 +442,17 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   }
 
   if (pSql->pStream == NULL) {
-    // check if it is a sub-query of super table query first, if true, enter another routine
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
-    if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
+
+    // check if it is a sub-query of super table query first, if true, enter another routine
+    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY)) {
+      tscTrace("%p update table meta in local cache, continue to process sql and send corresponding subquery", pSql);
+
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
       if (pTableMetaInfo->pTableMeta == NULL){
         code = tscGetTableMeta(pSql, pTableMetaInfo);
         assert(code == TSDB_CODE_SUCCESS);      
-      }     
+      }
       
       assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->vgroupIndex >= 0 && pSql->param != NULL);
 
@@ -460,32 +462,37 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vgroupIndex &&
           tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0);
 
-      tscTrace("%p get metricMeta during super table query successfully", pSql);      
-
-      code = tscGetSTableVgroupInfo(pSql, 0);
-      pRes->code = code;
-
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
-    } else {  // normal async query continues
+      // NOTE: the vgroupInfo for the queried super table must be existed here.
+      assert(pTableMetaInfo->vgroupList != NULL);
+      if ((code = tscProcessSql(pSql)) == TSDB_CODE_SUCCESS) {
+        return;
+      }
+    } else {  // continue to process normal async query
       if (pCmd->parseFinished) {
-        tscTrace("%p re-send data to vnode in table Meta callback since sql parsed completed", pSql);
-        
+        tscTrace("%p update table meta in local cache, continue to process sql and send corresponding query", pSql);
+
         STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
         assert(code == TSDB_CODE_SUCCESS);
-      
-        if (pTableMetaInfo->pTableMeta) {
-          // todo update the submit message according to the new table meta
-          // 1. table uid, 2. ip address
-          code = tscSendMsgToServer(pSql);
-          if (code == TSDB_CODE_SUCCESS) return;
+
+        // if failed to process sql, go to error handler
+        if ((code = tscProcessSql(pSql)) == TSDB_CODE_SUCCESS) {
+          return;
         }
+//          // todo update the submit message according to the new table meta
+//          // 1. table uid, 2. ip address
+//          code = tscSendMsgToServer(pSql);
+//          if (code == TSDB_CODE_SUCCESS) return;
+//        }
       } else {
+        tscTrace("%p continue parse sql after get table meta", pSql);
+
         code = tsParseSql(pSql, false);
-        if ((pQueryInfo->type & TSDB_QUERY_TYPE_STMT_INSERT) == TSDB_QUERY_TYPE_STMT_INSERT) {
+        if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT)) {
           STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           assert(code == TSDB_CODE_SUCCESS && pTableMetaInfo->pTableMeta != NULL);
+
           (*pSql->fp)(pSql->param, pSql, code);
           return;
         }

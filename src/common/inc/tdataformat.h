@@ -31,7 +31,7 @@ extern "C" {
   do {                                    \
     VarDataLenT __len = strlen(str);      \
     *(VarDataLenT *)(x) = __len;          \
-    strncpy(varDataVal(x), (str), __len); \
+    memcpy(varDataVal(x), (str), __len); \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)      \
@@ -43,7 +43,7 @@ extern "C" {
 #define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
   do {                                         \
     *(VarDataLenT *)(x) = (_size);             \
-    strncpy(varDataVal(x), (str), (_size));    \
+    memcpy(varDataVal(x), (str), (_size));    \
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
@@ -69,7 +69,8 @@ typedef struct {
   int      version;    // version
   int      numOfCols;  // Number of columns appended
   int      tlen;       // maximum length of a SDataRow without the header part
-  int      flen;       // First part length in a SDataRow after the header part
+  int16_t  flen;       // First part length in a SDataRow after the header part
+  int16_t  vlen;       // pure value part length, excluded the overhead
   STColumn columns[];
 } STSchema;
 
@@ -77,6 +78,7 @@ typedef struct {
 #define schemaVersion(s) ((s)->version)
 #define schemaTLen(s) ((s)->tlen)
 #define schemaFLen(s) ((s)->flen)
+#define schemaVLen(s) ((s)->vlen)
 #define schemaColAt(s, i) ((s)->columns + i)
 #define tdFreeSchema(s) tfree((s))
 
@@ -105,7 +107,8 @@ typedef struct {
   int       tCols;
   int       nCols;
   int       tlen;
-  int       flen;
+  int16_t   flen;
+  int16_t   vlen;
   int       version;
   STColumn *columns;
 } STSchemaBuilder;

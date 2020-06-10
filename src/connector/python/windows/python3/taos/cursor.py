@@ -117,7 +117,7 @@ class TDengineCursor(object):
                 self._fields = CTaosInterface.useResult(self._result )
                 return self._handle_result()
         else:
-            raise ProgrammingError(CTaosInterface.errStr(self._result ))
+            raise ProgrammingError(CTaosInterface.errStr(self._result ), errno)
 
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.

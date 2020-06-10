@@ -30,6 +30,8 @@
 #include "mnodeDnode.h"
 #include "mnodeSdb.h"
 
+#define SDB_TABLE_LEN 12
+
 typedef enum {
   SDB_ACTION_INSERT,
   SDB_ACTION_DELETE,
@@ -43,7 +45,7 @@ typedef enum {
 } ESdbStatus;
 
 typedef struct _SSdbTable {
-  char      tableName[TSDB_DB_NAME_LEN + 1];
+  char      tableName[SDB_TABLE_LEN];
   ESdbTable tableId;
   ESdbKey   keyType;
   int32_t   hashSessions;
@@ -174,10 +176,10 @@ static void sdbRestoreTables() {
 
     totalRows += pTable->numOfRows;
     numOfTables++;
-    sdbTrace("table:%s, is restored, numOfRows:%d", pTable->tableName, pTable->numOfRows);
+    sdbTrace("table:%s, is restored, numOfRows:%" PRId64, pTable->tableName, pTable->numOfRows);
   }
 
-  sdbTrace("sdb is restored, version:%d totalRows:%d numOfTables:%d", tsSdbObj.version, totalRows, numOfTables);
+  sdbTrace("sdb is restored, version:%" PRId64 " totalRows:%d numOfTables:%d", tsSdbObj.version, totalRows, numOfTables);
 }
 
 void sdbUpdateMnodeRoles() {
@@ -449,7 +451,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, insert record:%s to hash, rowSize:%d vnumOfRows:%d version:%" PRIu64, pTable->tableName,
+  sdbTrace("table:%s, insert record:%s to hash, rowSize:%d vnumOfRows:%" PRId64 " version:%" PRIu64, pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pOper->rowSize, pTable->numOfRows, sdbGetVersion());
 
   (*pTable->insertFp)(pOper);
@@ -473,7 +475,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
   pTable->numOfRows--;
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, delete record:%s from hash, numOfRows:%d version:%" PRIu64, pTable->tableName,
+  sdbTrace("table:%s, delete record:%s from hash, numOfRows:%d" PRId64 "version:%" PRIu64, pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
 
   int8_t *updateEnd = pOper->pObj + pTable->refCountPos - 1;
@@ -484,7 +486,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
 }
 
 static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbOper *pOper) {
-  sdbTrace("table:%s, update record:%s in hash, numOfRows:%d version:%" PRIu64, pTable->tableName,
+  sdbTrace("table:%s, update record:%s in hash, numOfRows:%" PRId64 " version:%" PRIu64, pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
 
   (*pTable->updateFp)(pOper);
@@ -717,7 +719,7 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   
   if (pTable == NULL) return NULL;
 
-  strcpy(pTable->tableName, pDesc->tableName);
+  tstrncpy(pTable->tableName, pDesc->tableName, SDB_TABLE_LEN);
   pTable->keyType      = pDesc->keyType;
   pTable->tableId      = pDesc->tableId;
   pTable->hashSessions = pDesc->hashSessions;

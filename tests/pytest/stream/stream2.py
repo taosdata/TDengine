@@ -24,7 +24,6 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-
     def run(self):
         tbNum = 10
         rowNum = 20
@@ -33,11 +32,14 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.info("===== step1 =====")
-        tdSql.execute("create table stb0(ts timestamp, col1 int, col2 float) tags(tgcol int)")
+        tdSql.execute(
+            "create table stb0(ts timestamp, col1 int, col2 float) tags(tgcol int)")
         for i in range(tbNum):
             tdSql.execute("create table tb%d using stb0 tags(%d)" % (i, i))
             for j in range(rowNum):
-                tdSql.execute("insert into tb%d values (now - %dm, %d, %d)" % (i, 1440 - j, j, j))
+                tdSql.execute(
+                    "insert into tb%d values (now - %dm, %d, %d)" %
+                    (i, 1440 - j, j, j))
         time.sleep(0.1)
 
         tdLog.info("===== step2 =====")
@@ -45,7 +47,8 @@ class TDTestCase:
         tdSql.checkData(0, 1, rowNum)
         tdSql.query("show tables")
         tdSql.checkRows(tbNum)
-        tdSql.execute("create table s0 as select count(col1) from tb0 interval(1d)")
+        tdSql.execute(
+            "create table s0 as select count(col1) from tb0 interval(1d)")
         tdSql.query("show tables")
         tdSql.checkRows(tbNum + 1)
 
@@ -63,7 +66,8 @@ class TDTestCase:
         tdSql.error("select * from s0")
 
         tdLog.info("===== step6 =====")
-        tdSql.execute("create table s0 as select count(*), count(col1), count(col2) from tb0 interval(1d)")
+        tdSql.execute(
+            "create table s0 as select count(*), count(col1), count(col2) from tb0 interval(1d)")
         tdSql.query("show tables")
         tdSql.checkRows(tbNum + 1)
 
@@ -75,13 +79,15 @@ class TDTestCase:
         tdSql.checkData(0, 3, rowNum)
 
         tdLog.info("===== step8 =====")
-        tdSql.query("select count(*), count(col1), count(col2) from stb0 interval(1d)")
+        tdSql.query(
+            "select count(*), count(col1), count(col2) from stb0 interval(1d)")
         tdSql.checkData(0, 1, totalNum)
         tdSql.checkData(0, 2, totalNum)
         tdSql.checkData(0, 3, totalNum)
         tdSql.query("show tables")
         tdSql.checkRows(tbNum + 1)
-        tdSql.execute("create table s1 as select count(*), count(col1), count(col2) from stb0 interval(1d)")
+        tdSql.execute(
+            "create table s1 as select count(*), count(col1), count(col2) from stb0 interval(1d)")
         tdSql.query("show tables")
         tdSql.checkRows(tbNum + 2)
 
@@ -101,7 +107,8 @@ class TDTestCase:
         tdSql.error("select * from s1")
 
         tdLog.info("===== step12 =====")
-        tdSql.execute("create table s1 as select count(col1) from stb0 interval(1d)")
+        tdSql.execute(
+            "create table s1 as select count(col1) from stb0 interval(1d)")
         tdSql.query("show tables")
         tdSql.checkRows(tbNum + 2)
 
@@ -111,7 +118,6 @@ class TDTestCase:
         tdSql.checkData(0, 1, totalNum)
         #tdSql.checkData(0, 2, None)
         #tdSql.checkData(0, 3, None)
-
 
     def stop(self):
         tdSql.close()

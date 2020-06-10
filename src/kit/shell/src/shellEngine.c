@@ -727,10 +727,6 @@ void read_history() {
   char f_history[TSDB_FILENAME_LEN];
   get_history_path(f_history);
 
-  if (access(f_history, R_OK) == -1) {
-    return;
-  }
-
   FILE *f = fopen(f_history, "r");
   if (f == NULL) {
     fprintf(stderr, "Opening file %s\n", f_history);
@@ -809,14 +805,6 @@ void source_file(TAOS *con, char *fptr) {
     return;
   }
   
-  if (access(fname, R_OK) != 0) {
-    fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
-  
-    wordfree(&full_path);
-    free(cmd);
-    return;
-  }
-
   FILE *f = fopen(fname, "r");
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);

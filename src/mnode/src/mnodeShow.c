@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInitWithCb(tsMnodeTmr, 10, mnodeFreeShowObj);
+  tsMnodeShowCache = taosCacheInitWithCb(10, mnodeFreeShowObj);
   return 0;
 }
 
@@ -316,7 +316,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   }
 
   sprintf(pConnectRsp->acctId, "%x", pAcct->acctId);
-  strcpy(pConnectRsp->serverVersion, version);
+  memcpy(pConnectRsp->serverVersion, version, TSDB_VERSION_LEN);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
   
@@ -324,6 +324,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
 
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pConnectRsp);
     mLError("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));
   } else {
     mLPrint("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));

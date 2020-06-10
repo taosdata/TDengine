@@ -88,21 +88,21 @@ enum _describe_table_index {
 };
 
 typedef struct {
-  char field[TSDB_COL_NAME_LEN + 1];
+  char field[TSDB_COL_NAME_LEN];
   char type[16];
   int length;
   char note[128];
 } SColDes;
 
 typedef struct {
-  char name[TSDB_COL_NAME_LEN + 1];
+  char name[TSDB_COL_NAME_LEN];
   SColDes cols[];
 } STableDef;
 
 extern char version[];
 
 typedef struct {
-  char name[TSDB_DB_NAME_LEN + 1];
+  char name[TSDB_DB_NAME_LEN];
   int32_t replica;
   int32_t days;
   int32_t keep;
@@ -117,8 +117,8 @@ typedef struct {
 } SDbInfo;
 
 typedef struct {
-  char name[TSDB_TABLE_NAME_LEN + 1];
-  char metric[TSDB_TABLE_NAME_LEN + 1];
+  char name[TSDB_TABLE_NAME_LEN];
+  char metric[TSDB_TABLE_NAME_LEN];
 } STableRecord;
 
 typedef struct {
@@ -643,13 +643,14 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   lseek(fd, 0, SEEK_SET);
 
   while (read(fd, &tableRecord, sizeof(STableRecord)) > 0) {
+    tableRecord.name[sizeof(tableRecord.name) - 1] = 0;
+    tableRecord.metric[sizeof(tableRecord.metric) - 1] = 0;
     taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
   }
 
-  tclose(fd);
-  remove(".table.tmp");
+  close(fd);
 
-  return 0;
+  return remove(".table.tmp");
 }
 
 void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, SDumpArguments *arguments, FILE *fp) {
@@ -871,7 +872,7 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   int fd = -1;
   STableRecord tableRecord;
 
-  strcpy(tableRecord.metric, metric);
+  tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
   sprintf(command, "select tbname from %s", metric);
   result = taos_query(taos, command);
@@ -903,6 +904,8 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   lseek(fd, 0, SEEK_SET);
 
   while (read(fd, &tableRecord, sizeof(STableRecord)) > 0) {
+    tableRecord.name[sizeof(tableRecord.name) - 1] = 0;
+    tableRecord.metric[sizeof(tableRecord.metric) - 1] = 0;
     taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
   }
 

@@ -65,3 +65,4 @@ CMakeError.log
 /out/isenseconfig/WSL-GCC-Debug
 /test/cfg
 /src/.vs
+*.o

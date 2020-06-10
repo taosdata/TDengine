@@ -134,3 +134,7 @@ python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
 python3 ./test.py -f query/queryError.py
+
+#stream
+python3 ./test.py -f stream/stream1.py
+python3 ./test.py -f stream/stream2.py

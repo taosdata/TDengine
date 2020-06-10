@@ -730,13 +730,15 @@ class DbState():
     # when we re-run the test in 3 minutes (180 seconds), basically we should expand time duration
     # by a factor of 500.
     # TODO: what if it goes beyond 10 years into the future
+    # TODO: fix the error as result of above: "tsdb timestamp is out of range"
     def setupLastTick(self):
-        t1 = datetime.datetime(2020, 5, 30)
+        t1 = datetime.datetime(2020, 6, 1)
         t2 = datetime.datetime.now()
-        elSec = t2.timestamp() - t1.timestamp()
+        elSec = int(t2.timestamp() - t1.timestamp()) # maybe a very large number, takes 69 years to exceed Python int range
+        elSec2 = (  elSec % (8 * 12 * 30 * 24 * 60 * 60 / 500 ) ) * 500 # a number representing seconds within 10 years
         # print("elSec = {}".format(elSec))
         t3 = datetime.datetime(2012, 1, 1) # default "keep" is 10 years
-        t4 = datetime.datetime.fromtimestamp( t3.timestamp() + elSec * 500) # see explanation above
+        t4 = datetime.datetime.fromtimestamp( t3.timestamp() + elSec2) # see explanation above
         logger.info("Setting up TICKS to start from: {}".format(t4))
         return t4
 
@@ -963,7 +965,7 @@ class Task():
         try:
             self._executeInternal(te, wt) # TODO: no return value?
         except taos.error.ProgrammingError as err:
-            self.logDebug("[=] Taos library exception: errno={}, msg: {}".format(err.errno, err))
+            self.logDebug("[=] Taos library exception: errno={:X}, msg: {}".format(err.errno, err))
             self._err = err
         except:
             self.logDebug("[=] Unexpected exception")

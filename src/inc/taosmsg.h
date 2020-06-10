@@ -224,7 +224,7 @@ typedef struct {
 
 typedef struct SSchema {
   uint8_t type;
-  char    name[TSDB_COL_NAME_LEN + 1];
+  char    name[TSDB_COL_NAME_LEN];
   int16_t colId;
   int16_t bytes;
 } SSchema;
@@ -250,7 +250,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
-  char    db[TSDB_DB_NAME_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN];
   int8_t  igExists;
   int8_t  getMeta;
   int16_t numOfTags;
@@ -268,7 +268,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
-  char    db[TSDB_DB_NAME_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
@@ -296,7 +296,7 @@ typedef struct {
 } SCMConnectMsg;
 
 typedef struct {
-  char      acctId[TSDB_ACCT_LEN + 1];
+  char      acctId[TSDB_ACCT_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;
@@ -502,7 +502,7 @@ typedef struct {
 
 typedef struct {
   char     acct[TSDB_USER_LEN + 1];
-  char     db[TSDB_DB_NAME_LEN + 1];
+  char     db[TSDB_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
   int32_t  maxTables;
@@ -606,7 +606,7 @@ typedef struct {
 } SMDVnodeDesc;
 
 typedef struct {
-  char db[TSDB_DB_NAME_LEN + 1];
+  char db[TSDB_DB_NAME_LEN];
   SMDVnodeCfg  cfg;
   SMDVnodeDesc nodes[TSDB_MAX_REPLICA];
 } SMDCreateVnodeMsg;
@@ -671,7 +671,7 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_DB_NAME_LEN + 1];
+  char     db[TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SCMShowMsg;

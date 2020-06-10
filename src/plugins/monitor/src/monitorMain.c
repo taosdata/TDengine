@@ -156,7 +156,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ", io_read float, io_write float"
              ", req_http int, req_select int, req_insert int"
              ") tags (dnodeid int, fqdn binary(%d))",
-             tsMonitorDbName, TSDB_FQDN_LEN + 1);
+             tsMonitorDbName, TSDB_FQDN_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn%d using %s.dn tags(%d, '%s')", tsMonitorDbName,
              dnodeGetDnodeId(), tsMonitorDbName, dnodeGetDnodeId(), tsLocalEp);

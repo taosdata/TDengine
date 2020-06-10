@@ -22,9 +22,27 @@
 #include "taosdef.h"
 
 static HttpDecodeMethod gcDecodeMethod = {"grafana", gcProcessRequest};
-static HttpEncodeMethod gcHeartBeatMethod = {NULL, gcSendHeartBeatResp, NULL, NULL, NULL, NULL, NULL, NULL};
+static HttpEncodeMethod gcHeartBeatMethod = {
+  .startJsonFp          = NULL,         
+  .stopJsonFp           = gcSendHeartBeatResp, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = NULL, 
+  .initJsonFp           = NULL, 
+  .cleanJsonFp          = NULL,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
+
 static HttpEncodeMethod gcQueryMethod = {
-    NULL, gcStopQueryJson, gcBuildQueryJson, NULL, gcInitQueryJson, gcCleanQueryJson, NULL, NULL};
+  .startJsonFp          = NULL,         
+  .stopJsonFp           = gcStopQueryJson, 
+  .buildQueryJsonFp     = gcBuildQueryJson,
+  .buildAffectRowJsonFp = NULL, 
+  .initJsonFp           = gcInitQueryJson, 
+  .cleanJsonFp          = gcCleanQueryJson,
+  .checkFinishedFp      = NULL,
+  .setNextCmdFp         = NULL
+};
 
 void gcInitHandle(HttpServer* pServer) { httpAddMethod(pServer, &gcDecodeMethod); }
 

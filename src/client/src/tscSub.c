@@ -301,7 +301,9 @@ void tscSaveSubscriptionProgress(void* sub) {
   char path[256];
   sprintf(path, "%s/subscribe", tsDataDir);
   if (access(path, 0) != 0) {
-    mkdir(path, 0777);
+    if (mkdir(path, 0777) != 0 && errno != EEXIST) {
+      tscError("failed to create subscribe dir: %s", path);
+    }
   }
 
   sprintf(path, "%s/subscribe/%s", tsDataDir, pSub->topic);
