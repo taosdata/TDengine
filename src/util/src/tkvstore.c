@@ -34,10 +34,10 @@
 #define TD_KVSTORE_SNAP_SUFFIX ".snap"
 #define TD_KVSTORE_NEW_SUFFIX ".new"
 
-typedef struct __attribute__((packed)) {
+typedef struct {
   uint64_t uid;
   int64_t  offset;
-  int32_t  size;
+  int64_t  size;
 } SKVRecord;
 
 static int       tdInitKVStoreHeader(int fd, char *fname);
@@ -431,7 +431,7 @@ static char *tdGetKVStoreNewFname(char *fdata) {
 static void *tdEncodeKVRecord(void *buf, SKVRecord *pRecord) {
   buf = taosEncodeFixedU64(buf, pRecord->uid);
   buf = taosEncodeFixedI64(buf, pRecord->offset);
-  buf = taosEncodeFixedI32(buf, pRecord->size);
+  buf = taosEncodeFixedI64(buf, pRecord->size);
 
   return buf;
 }
@@ -439,7 +439,7 @@ static void *tdEncodeKVRecord(void *buf, SKVRecord *pRecord) {
 static void *tdDecodeKVRecord(void *buf, SKVRecord *pRecord) {
   buf = taosDecodeFixedU64(buf, &(pRecord->uid));
   buf = taosDecodeFixedI64(buf, &(pRecord->offset));
-  buf = taosDecodeFixedI32(buf, &(pRecord->size));
+  buf = taosDecodeFixedI64(buf, &(pRecord->size));
 
   return buf;
 }
