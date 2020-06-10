@@ -71,7 +71,7 @@ bool restGetUserFromUrl(HttpContext* pContext) {
 
 bool restGetPassFromUrl(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
-  if (pParser->path[REST_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[REST_PASS_URL_POS].len <= 0) {
+  if (pParser->path[REST_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].len <= 0) {
     return false;
   }
 

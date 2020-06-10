@@ -89,7 +89,7 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
     return false;
   } else {
     tstrncpy(pContext->user, descrypt, sizeof(pContext->user));
-    tstrncpy(pContext->pass, descrypt + TSDB_USER_LEN, TSDB_PASSWORD_LEN);
+    tstrncpy(pContext->pass, descrypt + TSDB_USER_LEN, sizeof(pContext->pass));
 
     httpTrace("context:%p, fd:%d, ip:%s, taosd token:%s parsed success, user:%s", pContext, pContext->fd,
               pContext->ipstr, token, pContext->user);
@@ -102,7 +102,7 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
 bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
   char buffer[TSDB_USER_LEN + TSDB_PASSWORD_LEN] = {0};
   strncpy(buffer, pContext->user, sizeof(pContext->user));
-  strncpy(buffer + TSDB_USER_LEN, pContext->pass, TSDB_PASSWORD_LEN);
+  strncpy(buffer + TSDB_USER_LEN, pContext->pass, sizeof(pContext->pass));
 
   char *encrypt = taosDesEncode(KEY_DES_4, buffer, TSDB_USER_LEN + TSDB_PASSWORD_LEN);
   char *base64 = base64_encode((const unsigned char *)encrypt, TSDB_USER_LEN + TSDB_PASSWORD_LEN);

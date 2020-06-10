@@ -728,7 +728,7 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_PASSWORD_LEN;
+  cfg.ptrLength = TSDB_PASSWORD_LEN - 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 

@@ -169,7 +169,7 @@ static int32_t handlePassword(SSqlCmd* pCmd, SSQLToken* pPwd) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (pPwd->n > TSDB_PASSWORD_LEN) {
+  if (pPwd->n >= TSDB_PASSWORD_LEN) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
