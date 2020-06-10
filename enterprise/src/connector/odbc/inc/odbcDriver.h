@@ -64,10 +64,10 @@ typedef struct dbc {
   bool ov3;
 
   TAOS*con;
-  char dsn[TSDB_USER_LEN + 1];
+  char dsn[TSDB_USER_LEN];
   char server[TSDB_IPv4ADDR_LEN];
   char dbname[TSDB_DB_NAME_LEN];
-  char user[TSDB_USER_LEN + 1];
+  char user[TSDB_USER_LEN];
   char pwd[TSDB_PASSWORD_LEN + 1];
   char tbname[TSDB_TABLE_NAME_LEN];  //for sql columns
   

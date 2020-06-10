@@ -82,7 +82,7 @@ void adminInitHandle(HttpServer* pServer) {
 
 bool adminGetUserFromUrl(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
-  if (pParser->path[ADMIN_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[ADMIN_USER_URL_POS].len <= 0) {
+  if (pParser->path[ADMIN_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[ADMIN_USER_URL_POS].len <= 0) {
     return false;
   }
 

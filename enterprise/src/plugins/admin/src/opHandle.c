@@ -51,7 +51,7 @@ void opInitHandle(HttpServer *pServer) {
 
 bool opGetUserFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[OP_USER_URL_POS].len <= 0) {
+  if (pParser->path[OP_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[OP_USER_URL_POS].len <= 0) {
     return false;
   }
 
