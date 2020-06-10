@@ -44,7 +44,7 @@ uint32_t taosGetIpFromFqdn(const char *fqdn) {
   struct addrinfo hints = {0};
   struct addrinfo *result = NULL;
 
-  getaddrinfo(fqdn, NULL, &hints, &result);
+  int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
   if (result) {
     struct sockaddr *sa = result->ai_addr;
     struct sockaddr_in *si = (struct sockaddr_in*)sa;
@@ -53,7 +53,8 @@ uint32_t taosGetIpFromFqdn(const char *fqdn) {
     freeaddrinfo(result);
     return ip;
   } else {
-    return -1;
+    uError("failed get the addr info, code:%d, reason:%s", ret, gai_strerror(ret));
+    return 0xFFFFFFFF;
   }
 }
 
