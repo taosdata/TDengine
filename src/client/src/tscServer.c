@@ -1705,8 +1705,8 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, i);
-    strncpy(pMsg, pTableMetaInfo->name, TSDB_TABLE_ID_LEN);
-    pMsg += TSDB_TABLE_ID_LEN;
+    tstrncpy(pMsg, pTableMetaInfo->name, sizeof(pTableMetaInfo->name));
+    pMsg += sizeof(pTableMetaInfo->name);
   }
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_STABLE_VGROUP;

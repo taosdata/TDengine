@@ -44,7 +44,7 @@ typedef struct {
   uint32_t id;   // increase continuously
   int      num;  // number of wal files
   char     path[TSDB_FILENAME_LEN];
-  char     name[TSDB_FILENAME_LEN];
+  char     name[TSDB_FILENAME_LEN+16];
   pthread_mutex_t mutex;
 } SWal;
 
@@ -108,7 +108,7 @@ void walClose(void *handle) {
   if (pWal->keep == 0) {
     // remove all files in the directory
     for (int i=0; i<pWal->num; ++i) {
-      sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
+      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
       if (remove(pWal->name) <0) {
         wError("wal:%s, failed to remove", pWal->name);
       } else {
@@ -140,7 +140,7 @@ int walRenew(void *handle) {
 
   pWal->num++;
 
-  sprintf(pWal->name, "%s/%s%d", pWal->path, walPrefix, pWal->id);
+  snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", pWal->path, walPrefix, pWal->id);
   pWal->fd = open(pWal->name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (pWal->fd < 0) {
@@ -152,7 +152,7 @@ int walRenew(void *handle) {
     if (pWal->num > pWal->max) {
       // remove the oldest wal file
       char name[TSDB_FILENAME_LEN * 3];
-      sprintf(name, "%s/%s%d", pWal->path, walPrefix, pWal->id - pWal->max);
+      snprintf(name, sizeof(name), "%s/%s%d", pWal->path, walPrefix, pWal->id - pWal->max);
       if (remove(name) <0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
       } else {
@@ -214,7 +214,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
   int   plen = strlen(walPrefix);
   char  opath[TSDB_FILENAME_LEN+5];
    
-  int slen = sprintf(opath, "%s", pWal->path);
+  int slen = snprintf(opath, sizeof(opath), "%s", pWal->path);
   if ( pWal->keep == 0) 
     strcpy(opath+slen, "/old");
 
@@ -245,7 +245,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     wTrace("wal:%s, %d files will be restored", opath, count);
 
     for (index = minId; index<=maxId; ++index) {
-      sprintf(pWal->name, "%s/%s%d", opath, walPrefix, index);
+      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", opath, walPrefix, index);
       terrno = walRestoreWalFile(pWal, pVnode, writeFp);
       if (terrno < 0) break;
     }
@@ -264,7 +264,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
       // open the existing WAL file in append mode
       pWal->num = count;
       pWal->id = maxId;
-      sprintf(pWal->name, "%s/%s%d", opath, walPrefix, maxId);
+      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", opath, walPrefix, maxId);
       pWal->fd = open(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
       if (pWal->fd < 0) {
         wError("wal:%s, failed to open file(%s)", pWal->name, strerror(errno));
@@ -361,7 +361,7 @@ int walHandleExistingFiles(const char *path) {
   char   nname[TSDB_FILENAME_LEN * 3];
   char   opath[TSDB_FILENAME_LEN];
 
-  sprintf(opath, "%s/old", path);
+  snprintf(opath, sizeof(opath), "%s/old", path);
 
   struct dirent *ent;
   DIR   *dir = opendir(path);
@@ -377,8 +377,8 @@ int walHandleExistingFiles(const char *path) {
     int count = 0;
     while ((ent = readdir(dir))!= NULL) {  
       if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
-        sprintf(oname, "%s/%s", path, ent->d_name);
-        sprintf(nname, "%s/old/%s", path, ent->d_name);
+        snprintf(oname, sizeof(oname), "%s/%s", path, ent->d_name);
+        snprintf(nname, sizeof(nname), "%s/old/%s", path, ent->d_name);
         if (access(opath, F_OK) != 0) {
           if (mkdir(opath, 0755) != 0) {
             wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
@@ -416,7 +416,7 @@ static int walRemoveWalFiles(const char *path) {
 
   while ((ent = readdir(dir))!= NULL) {
     if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
-      sprintf(name, "%s/%s", path, ent->d_name);
+      snprintf(name, sizeof(name), "%s/%s", path, ent->d_name);
       if (remove(name) <0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);

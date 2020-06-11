@@ -69,8 +69,8 @@ typedef struct {
   int      version;    // version
   int      numOfCols;  // Number of columns appended
   int      tlen;       // maximum length of a SDataRow without the header part
-  int16_t  flen;       // First part length in a SDataRow after the header part
-  int16_t  vlen;       // pure value part length, excluded the overhead
+  uint16_t  flen;       // First part length in a SDataRow after the header part
+  uint16_t  vlen;       // pure value part length, excluded the overhead
   STColumn columns[];
 } STSchema;
 
@@ -107,8 +107,8 @@ typedef struct {
   int       tCols;
   int       nCols;
   int       tlen;
-  int16_t   flen;
-  int16_t   vlen;
+  uint16_t   flen;
+  uint16_t   vlen;
   int       version;
   STColumn *columns;
 } STSchemaBuilder;
@@ -125,16 +125,16 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
  * |<--------------------+--------------------------- len ---------------------------------->|
  * |<--     Head      -->|<---------   flen -------------->|                                 |
  * +---------------------+---------------------------------+---------------------------------+
- * | int16_t  |  int16_t |                                 |                                 |
+ * | uint16_t |  int16_t |                                 |                                 |
  * +----------+----------+---------------------------------+---------------------------------+
  * |   len    | sversion |           First part            |             Second part         |
  * +----------+----------+---------------------------------+---------------------------------+
  */
 typedef void *SDataRow;
 
-#define TD_DATA_ROW_HEAD_SIZE sizeof(int16_t)*2
+#define TD_DATA_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
-#define dataRowLen(r) (*(int16_t *)(r))
+#define dataRowLen(r) (*(uint16_t *)(r))
 #define dataRowVersion(r) *(int16_t *)POINTER_SHIFT(r, sizeof(int16_t))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
