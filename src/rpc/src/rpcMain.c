@@ -425,6 +425,8 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
   pConn->secured = 1; // connection shall be secured
+  pConn->pReqMsg = NULL;
+  pConn->reqMsgLen = 0;
 
   rpcUnlockConn(pConn);
   rpcDecRef(pRpc);    // decrease the referene count
@@ -502,7 +504,7 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
   SRpcConn *pConn;
 
   uint32_t peerIp = taosGetIpFromFqdn(peerFqdn);
-  if (peerIp == -1) {
+  if (peerIp == 0xFFFFFFFF) {
     tError("%s, failed to resolve FQDN:%s", pRpc->label, peerFqdn); 
     terrno = TSDB_CODE_RPC_APP_ERROR; 
     return NULL;
@@ -551,7 +553,7 @@ static void rpcCloseConn(void *thandle) {
 
   if ( pRpc->connType == TAOS_CONN_SERVER) {
     char hashstr[40] = {0};
-    size_t size = sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
+    size_t size = snprintf(hashstr, sizeof(hashstr), "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
     taosHashRemove(pRpc->hash, hashstr, size);
   
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
@@ -601,7 +603,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   char      hashstr[40] = {0};
   SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
-  size_t size = sprintf(hashstr, "%x:%x:%x:%d", pRecv->ip, pHead->linkUid, pHead->sourceId, pRecv->connType);
+  size_t size = snprintf(hashstr, sizeof(hashstr), "%x:%x:%x:%d", pRecv->ip, pHead->linkUid, pHead->sourceId, pRecv->connType);
  
   // check if it is already allocated
   SRpcConn **ppConn = (SRpcConn **)(taosHashGet(pRpc->hash, hashstr, size));
@@ -691,7 +693,7 @@ static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
   if (pConn) {
     pConn->tretry = 0;
     pConn->ahandle = pContext->ahandle;
-    sprintf(pConn->info, "%s %p %p", pRpc->label, pConn, pConn->ahandle);
+    snprintf(pConn->info, sizeof(pConn->info), "%s %p %p", pRpc->label, pConn, pConn->ahandle);
     pConn->tretry = 0;
   } else {
     tError("%s %p, failed to set up connection(%s)", pRpc->label, pContext->ahandle, tstrerror(terrno));
@@ -820,7 +822,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
 
   if (rpcIsReq(pHead->msgType)) {
     pConn->ahandle = (void *)pHead->ahandle;
-    sprintf(pConn->info, "%s %p %p", pRpc->label, pConn, pConn->ahandle);
+    snprintf(pConn->info, sizeof(pConn->info), "%s %p %p", pRpc->label, pConn, pConn->ahandle);
   }
 
   sid = pConn->sid;

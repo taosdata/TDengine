@@ -57,7 +57,8 @@ system sh/exec.sh -n dnode1 -s start
 
 print =============== step3
 print ==> sleep 8 seconds to renew cache
-sleep 8000
+sql reset query cache
+sleep 1000
 
 print =============== step4
 sql create database $db

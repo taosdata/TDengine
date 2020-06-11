@@ -824,7 +824,7 @@ endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 5000
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 5000
 
 print =============== step1
 $i = 0

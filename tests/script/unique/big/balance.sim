@@ -171,6 +171,7 @@ if $data2_3 != 2 then
 endi
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
 
 sql reset query cache
 sleep 1000
@@ -227,6 +228,7 @@ if $data2_3 != null then
 endi
 
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
+sleep 5000
 
 sql reset query cache
 sleep 1000

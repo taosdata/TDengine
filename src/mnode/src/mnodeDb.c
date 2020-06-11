@@ -882,7 +882,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     }
 
     if (pDb->cfg.replications - replications >= 2) {
-      mError("db:%s, replica number can't change from 3 to 1", pDb->name, replications);
+      mError("db:%s, replica number can't change from %d to %d", pDb->name, pDb->cfg.replications, replications);
       terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
   }
