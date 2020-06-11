@@ -449,14 +449,13 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       tscTrace("%p update table meta in local cache, continue to process sql and send corresponding subquery", pSql);
 
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-      if (pTableMetaInfo->pTableMeta == NULL){
-        code = tscGetTableMeta(pSql, pTableMetaInfo);
-        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-          return;
-        } else {
-          assert(code == TSDB_CODE_SUCCESS);      
-        }
+      code = tscGetTableMeta(pSql, pTableMetaInfo);
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        return;
+      } else {
+        assert(code == TSDB_CODE_SUCCESS);      
       }
+     
       
       assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->vgroupIndex >= 0 && pSql->param != NULL);
 
