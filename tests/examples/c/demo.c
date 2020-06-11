@@ -30,7 +30,7 @@ static int32_t doQuery(TAOS* taos, const char* sql) {
   
   TAOS_RES* res = taos_query(taos, sql);
   if (taos_errno(res) != 0) {
-    printf("failed to execute query, reason:%s\n", taos_errstr(res));
+    printf("failed to execute query, reason:%s\n", taos_errstr(taos));
     return -1;
   }
   
@@ -77,7 +77,7 @@ static __attribute__((unused)) void multiThreadTest(int32_t numOfThreads, void* 
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   
-  pthread_t* threadId = malloc(sizeof(pthread_t)*numOfThreads);
+  pthread_t* threadId = (pthread_t*)malloc(sizeof(pthread_t)*(uint32_t)numOfThreads);
   
   for (int i = 0; i < numOfThreads; ++i) {
     pthread_create(&threadId[i], NULL, oneLoader, conn);
