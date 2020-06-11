@@ -219,7 +219,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   STscObj *pObj = pSql->pTscObj;
   // tscTrace("%p msg:%s is received from server", pSql, taosMsg[rpcMsg->msgType]);
 
-  if (pObj->signature != pObj) {
+  if (pObj->signature != pObj || pSql->freed == 1) {
     tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
     tscFreeSqlObj(pSql);

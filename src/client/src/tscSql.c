@@ -522,7 +522,14 @@ void taos_free_result(TAOS_RES *res) {
     // in case of sync model query, waits for response and then goes on
     if (pSql->fp == waitForQueryRsp || pSql->fp == waitForRetrieveRsp) {
       sem_wait(&pSql->rspSem);
+
+      tscFreeSqlObj(pSql);
+      tscTrace("%p sqlObj is freed by app", pSql);
+    } else {
+      tscTrace("%p sqlObj will be freed while rsp received", pSql);
     }
+
+    return;
   }
 
   tscFreeSqlObj(pSql);

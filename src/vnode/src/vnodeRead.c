@@ -90,7 +90,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     assert(pReadMsg->rpcMsg.contLen > 0 && killQueryMsg->free == 1);
 
     qKillQuery((qinfo_t) killQueryMsg->qhandle);
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_TSC_QUERY_CANCELLED; // todo error
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
