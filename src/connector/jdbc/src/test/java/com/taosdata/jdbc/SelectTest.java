@@ -1,5 +1,6 @@
 package com.taosdata.jdbc;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -57,6 +58,7 @@ public class SelectTest {
         assertEquals(num, 50);
     }
 
+    @After
     public void close() throws SQLException {
         statement.executeUpdate("drop database " + dbName);
         statement.close();

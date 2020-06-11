@@ -18,7 +18,7 @@ public class ConnectionTest {
     static String host = "localhost";
 
     @Test
-    public static void createConnection() throws SQLException {
+    public void testConnection() throws SQLException {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
         } catch (ClassNotFoundException e) {
@@ -30,23 +30,25 @@ public class ConnectionTest {
                 , properties);
 
         assertTrue(null != connection);
-    }
+        statement = connection.createStatement();
+        assertTrue(null != statement);
 
-    @Test
-    public void createDatabase() {
+        // try reconnect
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
+                , properties);
+
         try {
-            statement.executeUpdate("create database if not exists " + dbName);
+            statement.execute("create database if not exists " + dbName);
         } catch (SQLException e) {
             assert false : "create database error: " + e.getMessage();
         }
-    }
 
-    @Test
-    public void close() {
         try {
-            if (!statement.isClosed()) {
-                statement.executeUpdate("drop database " + dbName);
-                statement.close();
+            if (!connection.isClosed()) {
+                if (!statement.isClosed()) {
+                    statement.executeUpdate("drop database " + dbName);
+                    statement.close();
+                }
                 connection.close();
             }
         } catch (SQLException e) {

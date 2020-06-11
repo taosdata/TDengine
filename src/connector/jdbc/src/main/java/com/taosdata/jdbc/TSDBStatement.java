@@ -51,17 +51,16 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-		System.out.println(sql);
-		long res = this.connecter.executeQuery(sql);
+		pSql = this.connecter.executeQuery(sql);
 
 		long resultSetPointer = this.connecter.getResultSet();
 
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-			this.connecter.freeResultSet(res);
+			this.connecter.freeResultSet(pSql);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 		} else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
 //			create/insert/update/del/alter
-			this.connecter.freeResultSet(res);
+			this.connecter.freeResultSet(pSql);
 			return null;
 		} else {
 			return new TSDBResultSet(this.connecter, resultSetPointer);
@@ -72,18 +71,18 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-		long res = this.connecter.executeQuery(sql);
+		pSql = this.connecter.executeQuery(sql);
 		long resultSetPointer = this.connecter.getResultSet();
 
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-			this.connecter.freeResultSet(res);
+			this.connecter.freeResultSet(pSql);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 		} else if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
 			this.connecter.freeResultSet();
 			throw new SQLException("The executed SQL is not a DML or a DDL");
 		} else {
-			int num = this.connecter.getAffectedRows(res);
-			this.connecter.freeResultSet(res);
+			int num = this.connecter.getAffectedRows(pSql);
+			this.connecter.freeResultSet(pSql);
 			return num;
 		}
 	}
@@ -151,16 +150,19 @@ public class TSDBStatement implements Statement {
             throw new SQLException("Invalid method call on a closed statement.");
         }
 	    boolean res = true;
-	    this.connecter.executeQuery(sql);
+		pSql = this.connecter.executeQuery(sql);
 	    long resultSetPointer = this.connecter.getResultSet();
 
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
+        	this.connecter.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
             // no result set is retrieved
             res = false;
         }
-        return res;
+		this.connecter.freeResultSet(pSql);
+
+		return res;
 	}
 
 	public ResultSet getResultSet() throws SQLException {

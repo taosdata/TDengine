@@ -20,7 +20,7 @@ public class SubscribeTest {
     String host = "localhost";
     String topic = "test";
 
-    @Before
+//    @Before
     public void createDatabase() throws SQLException {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -42,7 +42,7 @@ public class SubscribeTest {
         }
     }
 
-    @Test
+//    @Test
     public void subscribe() throws Exception {
         TSDBSubscribe subscribe = null;
         long subscribId = 0;
@@ -81,7 +81,7 @@ public class SubscribeTest {
         }
     }
 
-    @After
+//    @After
     public void close() throws Exception {
         statement.executeQuery("drop database " + dbName);
         statement.close();
