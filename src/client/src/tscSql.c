@@ -475,46 +475,22 @@ int taos_select_db(TAOS *taos, const char *db) {
   return code;
 }
 
-void taos_free_result(TAOS_RES *res) {
-  SSqlObj *pSql = (SSqlObj *)res;
-  tscTrace("%p start to free result", res);
-  
-  if (pSql == NULL || pSql->signature != pSql) {
-    tscTrace("%p result has been freed", pSql);
-    return;
-  }
-  
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
+// send free message to vnode to free qhandle and corresponding resources in vnode
+static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
 
-  // The semaphore can not be changed while freeing async sub query objects.
-  if (pRes == NULL || pRes->qhandle == 0) {
-    tscTrace("%p SqlObj is freed by app, qhandle is null", pSql);
-    tscFreeSqlObj(pSql);
-    return;
-  }
-
-  // set freeFlag to 1 in retrieve message if there are un-retrieved results data in node
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  if (pQueryInfo == NULL) {
-    tscFreeSqlObj(pSql);
-    return;
-  }
-
-  pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  /*
-   * If the query process is cancelled by user in stable query, tscProcessSql should not be called
-   * for each subquery. Because the failure of execution tsProcessSql may trigger the callback function
-   * be executed, and the retry efforts may result in double free the resources, e.g.,SRetrieveSupport
-   */
-  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false &&
-      (pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_SHOW ||
-       pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_FETCH) &&
-       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && !tscIsTwoStageSTableQuery(pQueryInfo, 0) &&
+      (pCmd->command == TSDB_SQL_SELECT ||
+          pCmd->command == TSDB_SQL_SHOW ||
+          pCmd->command == TSDB_SQL_RETRIEVE ||
+          pCmd->command == TSDB_SQL_FETCH) &&
+      (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
 
+    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     tscTrace("%p start to send msg to free qhandle in dnode, command:%s", pSql, sqlCmd[pCmd->command]);
     pSql->freed = 1;
     tscProcessSql(pSql);
@@ -529,11 +505,41 @@ void taos_free_result(TAOS_RES *res) {
       tscTrace("%p sqlObj will be freed while rsp received", pSql);
     }
 
+    return true;
+  }
+
+  return false;
+}
+
+void taos_free_result(TAOS_RES *res) {
+  SSqlObj *pSql = (SSqlObj *)res;
+  tscTrace("%p start to free result", res);
+  
+  if (pSql == NULL || pSql->signature != pSql) {
+    tscTrace("%p result has been freed", pSql);
+    return;
+  }
+  
+  // The semaphore can not be changed while freeing async sub query objects.
+  SSqlRes *pRes = &pSql->res;
+  if (pRes == NULL || pRes->qhandle == 0) {
+    tscTrace("%p SqlObj is freed by app, qhandle is null", pSql);
+    tscFreeSqlObj(pSql);
     return;
   }
 
-  tscFreeSqlObj(pSql);
-  tscTrace("%p sql result is freed by app", pSql);
+  // set freeFlag to 1 in retrieve message if there are un-retrieved results data in node
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  if (pQueryInfo == NULL) {
+    tscFreeSqlObj(pSql);
+    return;
+  }
+
+  pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
+  if (!tscFreeQhandleInVnode(pSql)) {
+    tscFreeSqlObj(pSql);
+    tscTrace("%p sqlObj is freed by app", pSql);
+  }
 }
 
 // todo should not be used in async query

@@ -24,10 +24,10 @@ system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 
-system sh/cfg.sh -n dnode1 -c alternativeRole -v 1
-system sh/cfg.sh -n dnode2 -c alternativeRole -v 2
-system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
-system sh/cfg.sh -n dnode4 -c alternativeRole -v 2
+#system sh/cfg.sh -n dnode1 -c alternativeRole -v 1
+#system sh/cfg.sh -n dnode2 -c alternativeRole -v 2
+#system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
+#system sh/cfg.sh -n dnode4 -c alternativeRole -v 2
 
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
@@ -56,7 +56,7 @@ sql create dnode $hostname3
 sql create dnode $hostname4
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 $maxTables = $totalTableNum * 2
 
@@ -67,7 +67,7 @@ sql use $db
 
 # create table , insert data
 $stb = stb
-sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+sql create table $stb (ts timestamp, c1 int, c2 int) tags(t1 int)
 $rowNum = 500
 $tblNum = $totalTableNum
 $totalRows = 0
@@ -82,8 +82,8 @@ while $i < $tblNum
   $x = 0
   while $x < $rowNum
     $ts = $tsStart + $x
-    sql insert into $tb values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x ) ( $ts + 10a , $x ) ( $ts + 11a , $x ) ( $ts + 12a , $x ) ( $ts + 13a , $x ) ( $ts + 14a , $x ) ( $ts + 15a , $x ) ( $ts + 16a , $x ) ( $ts + 17a , $x ) ( $ts + 18a , $x ) ( $ts + 19a , $x ) ( $ts + 20a , $x ) ( $ts + 21a , $x ) ( $ts + 22a , $x ) ( $ts + 23a , $x ) ( $ts + 24a , $x ) ( $ts + 25a , $x ) ( $ts + 26a , $x ) ( $ts + 27a , $x ) ( $ts + 28a , $x ) ( $ts + 29a , $x ) ( $ts + 30a , $x ) ( $ts + 31a , $x ) ( $ts + 32a , $x ) ( $ts + 33a , $x ) ( $ts + 34a , $x ) ( $ts + 25a , $x ) ( $ts + 26a , $x ) ( $ts + 27a , $x ) ( $ts + 28a , $x ) ( $ts + 29a , $x ) ( $ts + 30a , $x ) ( $ts + 31a , $x ) ( $ts + 32a , $x ) ( $ts + 33a , $x ) ( $ts + 34a , $x ) ( $ts + 35a , $x ) ( $ts + 36a , $x ) ( $ts + 37a , $x ) ( $ts + 38a , $x ) ( $ts + 39a , $x ) ( $ts + 40a , $x ) ( $ts + 41a , $x ) ( $ts + 42a , $x ) ( $ts + 43a , $x ) ( $ts + 44a , $x ) ( $ts + 45a , $x ) ( $ts + 46a , $x ) ( $ts + 47a , $x ) ( $ts + 48a , $x ) ( $ts + 49a , $x ) ( $ts + 50a , $x ) ( $ts + 51a , $x ) ( $ts + 52a , $x ) ( $ts + 53a , $x ) ( $ts + 54a , $x ) ( $ts + 55a , $x ) ( $ts + 56a , $x ) ( $ts + 57a , $x ) ( $ts + 58a , $x ) ( $ts + 59a , $x ) 
-    $x = $x + 60
+    sql insert into $tb values ( $ts + 0a , $x , $x ) ( $ts + 1a , $x , $x ) ( $ts + 2a , $x , $x ) ( $ts + 3a , $x , $x ) ( $ts + 4a , $x , $x ) ( $ts + 5a , $x , $x ) ( $ts + 6a , $x , $x ) ( $ts + 7a , $x , $x ) ( $ts + 8a , $x , $x ) ( $ts + 9a , $x , $x ) ( $ts + 10a , $x , $x ) ( $ts + 11a , $x , $x ) ( $ts + 12a , $x , $x ) ( $ts + 13a , $x , $x ) ( $ts + 14a , $x , $x ) ( $ts + 15a , $x , $x ) ( $ts + 16a , $x , $x ) ( $ts + 17a , $x , $x ) ( $ts + 18a , $x , $x ) ( $ts + 19a , $x , $x ) 
+    $x = $x + 20
   endw 
   $totalRows = $totalRows + $x
   print       info: inserted $x rows into $tb and totalRows: $totalRows
@@ -145,24 +145,38 @@ if $dnode3Vtatus != master then
   goto wait_dnode4_vgroup_offline
 endi
 
-print ============== step4: create more tables and insert data rows
-$tsStart = $tsEnd + 1000
-$i = $tblNum
-$tblNum = $tblNum * 2
+print ============== step4: alter table and tag, then drop all sub tables, recreate som subtable and insert more data rows
+sql alter table $stb drop column c1
+sql alter table $stb add column f1 double
+
+sql alter table $stb add tag t2 int
+sql alter table $stb add tag t3 int
+sql alter table $stb drop tag t1
+
+$i = 0
 while $i < $tblNum
   $tb = tb . $i
-  sql create table $tb using $stb tags( $i )
-  
+  sql drop table $tb
+  $i = $i + 1
+endw 
+
+$totalRows = 0
+$i = 0
+while $i < $tblNum
+  $tb = tb . $i
+  sql create table $tb using $stb tags( $i , $i )
+ 
   $x = 0
   while $x < $rowNum
     $ts = $tsStart + $x
-    sql insert into $tb values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x ) ( $ts + 10a , $x ) ( $ts + 11a , $x ) ( $ts + 12a , $x ) ( $ts + 13a , $x ) ( $ts + 14a , $x ) ( $ts + 15a , $x ) ( $ts + 16a , $x ) ( $ts + 17a , $x ) ( $ts + 18a , $x ) ( $ts + 19a , $x ) ( $ts + 20a , $x ) ( $ts + 21a , $x ) ( $ts + 22a , $x ) ( $ts + 23a , $x ) ( $ts + 24a , $x ) ( $ts + 25a , $x ) ( $ts + 26a , $x ) ( $ts + 27a , $x ) ( $ts + 28a , $x ) ( $ts + 29a , $x ) ( $ts + 30a , $x ) ( $ts + 31a , $x ) ( $ts + 32a , $x ) ( $ts + 33a , $x ) ( $ts + 34a , $x ) ( $ts + 25a , $x ) ( $ts + 26a , $x ) ( $ts + 27a , $x ) ( $ts + 28a , $x ) ( $ts + 29a , $x ) ( $ts + 30a , $x ) ( $ts + 31a , $x ) ( $ts + 32a , $x ) ( $ts + 33a , $x ) ( $ts + 34a , $x ) ( $ts + 35a , $x ) ( $ts + 36a , $x ) ( $ts + 37a , $x ) ( $ts + 38a , $x ) ( $ts + 39a , $x ) ( $ts + 40a , $x ) ( $ts + 41a , $x ) ( $ts + 42a , $x ) ( $ts + 43a , $x ) ( $ts + 44a , $x ) ( $ts + 45a , $x ) ( $ts + 46a , $x ) ( $ts + 47a , $x ) ( $ts + 48a , $x ) ( $ts + 49a , $x ) ( $ts + 50a , $x ) ( $ts + 51a , $x ) ( $ts + 52a , $x ) ( $ts + 53a , $x ) ( $ts + 54a , $x ) ( $ts + 55a , $x ) ( $ts + 56a , $x ) ( $ts + 57a , $x ) ( $ts + 58a , $x ) ( $ts + 59a , $x ) 
-    $x = $x + 60
+    sql insert into $tb values  ( $ts + 0a , $x , $x ) ( $ts + 1a , $x , $x ) ( $ts + 2a , $x , $x ) ( $ts + 3a , $x , $x ) ( $ts + 4a , $x , $x ) ( $ts + 5a , $x , $x ) ( $ts + 6a , $x , $x ) ( $ts + 7a , $x , $x ) ( $ts + 8a , $x , $x ) ( $ts + 9a , $x , $x ) ( $ts + 10a , $x , $x ) ( $ts + 11a , $x , $x ) ( $ts + 12a , $x , $x ) ( $ts + 13a , $x , $x ) ( $ts + 14a , $x , $x ) ( $ts + 15a , $x , $x ) ( $ts + 16a , $x , $x ) ( $ts + 17a , $x , $x ) ( $ts + 18a , $x , $x ) ( $ts + 19a , $x , $x ) 
+    $x = $x + 20
   endw 
   $totalRows = $totalRows + $x
   print       info: inserted $x rows into $tb and totalRows: $totalRows
   $i = $i + 1
 endw 
+$tsEnd = $tsStart + $totalRows / $tblNum
 
 sql select count(*) from $stb
 print data00 $data00
@@ -201,16 +215,16 @@ print ============== step6: check result
 sql reset query cache
 
 $cnt = 0
-wait_table_altered:
+wait_table_dropped:
 $cnt = $cnt + 1
 if $cnt == 20 then
   return -1
 endi
 sql select count(*) from $stb
 if $data00 != $totalRows then
-  print data00: $data00
+  print data00: $data00 totalRows: $totalRows
 	sleep 2000
-	goto wait_table_altered
+	goto wait_table_dropped
 endi
 
 

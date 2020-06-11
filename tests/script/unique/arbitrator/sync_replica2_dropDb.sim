@@ -56,7 +56,7 @@ sql create dnode $hostname2
 sql create dnode $hostname4
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 
 $db = db
@@ -113,8 +113,8 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
 #print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
 #$dnode1Status = $data4_1  
 $dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
+#$dnode3Status = $data4_3  
+$dnode4Status = $data4_3 
 #$dnode5Status = $data4_5
 
 if $dnode4Status != offline then
