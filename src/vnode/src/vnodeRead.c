@@ -86,8 +86,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
 
     assert(pReadMsg->rpcMsg.contLen > 0 && killQueryMsg->free == 1);
-    qDestroyQueryInfo((qinfo_t) killQueryMsg->qhandle);
-
+    qKillQuery((qinfo_t) killQueryMsg->qhandle);
     return TSDB_CODE_SUCCESS;
   }
 

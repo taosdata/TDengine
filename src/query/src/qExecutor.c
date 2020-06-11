@@ -4470,7 +4470,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
 
   // query error occurred or query is killed, abort current execution
   if (pQInfo->code != TSDB_CODE_SUCCESS || isQueryKilled(pQInfo)) {
-    qTrace("QInfo:%p query killed or error occurred, code:%d, abort", pQInfo, pQInfo->code);
+    qTrace("QInfo:%p query killed or error occurred, code:%s, abort", pQInfo, tstrerror(pQInfo->code));
     return;
   }
 
@@ -4491,7 +4491,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
   setQueryStatus(pQuery, QUERY_COMPLETED);
 
   if (pQInfo->code != TSDB_CODE_SUCCESS || isQueryKilled(pQInfo)) {
-    qTrace("QInfo:%p query killed or error occurred, code:%d, abort", pQInfo, pQInfo->code);
+    qTrace("QInfo:%p query killed or error occurred, code:%s, abort", pQInfo, tstrerror(pQInfo->code));
     return;
   }
 
@@ -5851,6 +5851,8 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
   }
 
   int16_t ref = T_REF_DEC(pQInfo);
+  qTrace("QInfo:%p dec refCount, value:%d", pQInfo, ref);
+
   if (ref == 0) {
     doDestoryQueryInfo(pQInfo);
   }
