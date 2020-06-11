@@ -89,6 +89,8 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
     .contLen = 0
   };
   
+  if (pMsg->pCont == NULL) return;
+
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     rspMsg.code = TSDB_CODE_RPC_NOT_READY;
     rpcSendResponse(&rspMsg);
