@@ -80,7 +80,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   memset(pRet, 0, sizeof(SRspRet));
 
   // qHandle needs to be freed correctly
-  if (pReadMsg->rpcMsg.code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (pReadMsg->rpcMsg.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
     SRetrieveTableMsg* killQueryMsg = (SRetrieveTableMsg*) pReadMsg->pCont;
     killQueryMsg->free = htons(killQueryMsg->free);
     killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
