@@ -36,6 +36,71 @@ void    taosPrintLog(const char *const flags, int32_t dflag, const char *const f
 void    taosPrintLongString(const char *const flags, int32_t dflag, const char *const format, ...);
 void    taosDumpData(unsigned char *msg, int32_t len);
 
+void    taosPrintStrLog(int32_t dflag, int longorshort, const char *str);
+
+#define TLOG_MAX_LOGLINE_SIZE              (1000)
+#define TLOG_MAX_LOGLINE_BUFFER_SIZE       (TLOG_MAX_LOGLINE_SIZE + 10)
+
+#define TLOG(flags, dflag, fmt, ...) do {                                                   \
+  char           buffer[TLOG_MAX_LOGLINE_BUFFER_SIZE] = { 0 };                              \
+  int            bytes = sizeof(buffer);                                                    \
+  char          *p     = buffer;                                                            \
+  int            n;                                                                         \
+  struct tm      Tm, *ptm;                                                                  \
+  struct timeval timeSecs;                                                                  \
+  time_t         curTime;                                                                   \
+                                                                                            \
+  gettimeofday(&timeSecs, NULL);                                                            \
+  curTime = timeSecs.tv_sec;                                                                \
+  ptm = localtime_r(&curTime, &Tm);                                                         \
+                                                                                            \
+  n = snprintf(p, bytes,                                                                    \
+               "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRId64 " ",                              \
+               ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,                                 \
+               ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());    \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  n = snprintf(p, bytes, "%s", flags);                                                      \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  n = snprintf(p, bytes, fmt, ##__VA_ARGS__);                                               \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  taosPrintStrLog(dflag, 0, buffer);                                                        \
+} while (0)
+
+#define TLOG_MAX_LOGLINE_DUMP_SIZE         (65 * 1024)
+#define TLOG_MAX_LOGLINE_DUMP_BUFFER_SIZE  (TLOG_MAX_LOGLINE_DUMP_SIZE + 10)
+#define TLOGLONG(flags, dflag, fmt, ...) do {                                               \
+  char           buffer[TLOG_MAX_LOGLINE_DUMP_BUFFER_SIZE];                                 \
+  int            bytes = sizeof(buffer);                                                    \
+  char          *p = buffer;                                                                \
+  int            n;                                                                         \
+  struct tm      Tm, *ptm;                                                                  \
+  struct timeval timeSecs;                                                                  \
+  time_t         curTime;                                                                   \
+                                                                                            \
+  gettimeofday(&timeSecs, NULL);                                                            \
+  curTime = timeSecs.tv_sec;                                                                \
+  ptm = localtime_r(&curTime, &Tm);                                                         \
+                                                                                            \
+  n = snprintf(p, bytes,                                                                    \
+               "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRId64 " ",                              \
+               ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,                                 \
+               ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());    \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  n = snprintf(p, bytes, "%s", flags);                                                      \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  n = snprintf(p, bytes, fmt, ##__VA_ARGS__);                                             \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  taosPrintStrLog(dflag, 1, buffer);                                                        \
+} while (0)
+
+
+
 #ifdef __cplusplus
 }
 #endif

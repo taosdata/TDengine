@@ -24,9 +24,9 @@ extern "C" {
 
 extern int32_t qDebugFlag;
 
-#define qTrace(...) { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }}
-#define qError(...) { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR QRY ", qDebugFlag, __VA_ARGS__); }}
-#define qWarn(...)  { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN QRY ", qDebugFlag, __VA_ARGS__); }}
+#define qTrace(fmt, ...) { if (qDebugFlag & DEBUG_TRACE) { TLOG("QRY ", qDebugFlag, fmt, ##__VA_ARGS__); }}
+#define qError(fmt, ...) { if (qDebugFlag & DEBUG_ERROR) { TLOG("ERROR QRY ", qDebugFlag, fmt, ##__VA_ARGS__); }}
+#define qWarn(fmt, ...)  { if (qDebugFlag & DEBUG_WARN)  { TLOG("WARN QRY ", qDebugFlag, fmt, ##__VA_ARGS__); }}
 
 #ifdef __cplusplus
 }

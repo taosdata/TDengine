@@ -74,8 +74,9 @@ static void taosReadInt32Config(SGlobalCfg *cfg, char *input_value) {
       *option = value;
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
+      // please re-check if (char*)(size_t)*option denotes a %s
       uWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, input_value,
-            tsCfgStatusStr[cfg->cfgStatus], *option);
+            tsCfgStatusStr[cfg->cfgStatus], (char*)(size_t)*option);
     }
   }
 }

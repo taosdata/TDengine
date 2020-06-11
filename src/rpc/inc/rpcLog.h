@@ -24,11 +24,11 @@ extern "C" {
 
 extern int32_t rpcDebugFlag;
 
-#define tError(...) { if (rpcDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR RPC ", rpcDebugFlag, __VA_ARGS__); }}
-#define tWarn(...)  { if (rpcDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN RPC ", rpcDebugFlag, __VA_ARGS__); }}
-#define tTrace(...) { if (rpcDebugFlag & DEBUG_TRACE) { taosPrintLog("RPC ", rpcDebugFlag, __VA_ARGS__); }}
+#define tError(fmt, ...) { if (rpcDebugFlag & DEBUG_ERROR) { TLOG("ERROR RPC ", rpcDebugFlag, fmt, ##__VA_ARGS__); }}
+#define tWarn(fmt, ...)  { if (rpcDebugFlag & DEBUG_WARN)  { TLOG("WARN RPC ", rpcDebugFlag, fmt, ##__VA_ARGS__); }}
+#define tTrace(fmt, ...) { if (rpcDebugFlag & DEBUG_TRACE) { TLOG("RPC ", rpcDebugFlag, fmt, ##__VA_ARGS__); }}
 #define tDump(x, y) { if (rpcDebugFlag & DEBUG_DUMP)  { taosDumpData((unsigned char *)x, y); }}
-#define tPrint(...) { taosPrintLog("RPC ", 255, __VA_ARGS__); }
+#define tPrint(fmt, ...) { TLOG("RPC ", 255, fmt, ##__VA_ARGS__); }
 
 #ifdef __cplusplus
 }

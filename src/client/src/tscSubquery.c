@@ -340,7 +340,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     }
   
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
-    tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+    tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%"PRIu64", colList:%"PRIu64", fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
              taosArrayGetSize(pNewQueryInfo->exprList), numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutput, pNewQueryInfo->pTableMetaInfo[0]->name);
@@ -556,7 +556,7 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   
   tscTrace(
       "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
-      "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+      "exprInfo:%"PRIu64", colList:%"PRIu64", fieldsInfo:%d, name:%s",
       pParent, pSql, 0, pTableMetaInfo->vgroupIndex, pQueryInfo->type, tscSqlExprNumOfExprs(pQueryInfo),
       numOfCols, pQueryInfo->fieldsInfo.numOfOutput, pTableMetaInfo->name);
   
@@ -1100,7 +1100,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   
       tscTrace(
           "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to tid_tag query to retrieve (tableId, tags), "
-          "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+          "exprInfo:%"PRIu64", colList:%"PRIu64", fieldsInfo:%d, name:%s",
           pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, pNewQueryInfo->pTableMetaInfo[0]->name);
       
@@ -1135,7 +1135,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       tscTrace(
           "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
-          "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+          "exprInfo:%"PRIu64", colList:%"PRIu64", fieldsInfo:%d, name:%s",
           pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, pNewQueryInfo->pTableMetaInfo[0]->name);
     }
@@ -1458,7 +1458,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   
   // data in from current vnode is stored in cache and disk
   uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num;
-    tscTrace("%p sub:%p all data retrieved from ip:%u,vgId:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql,
+    tscTrace("%p sub:%p all data retrieved from ip:%s,vgId:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql,
         pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
   
@@ -1501,7 +1501,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   // all sub-queries are returned, start to local merge process
   pDesc->pColumnModel->capacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
   
-  tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%d,start to build loser tree", pPObj,
+  tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%"PRIu64",start to build loser tree", pPObj,
            pState->numOfTotal, pState->numOfRetrievedRows);
   
   SQueryInfo *pPQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
@@ -1557,11 +1557,11 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
     
-    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%s, orderOfSub:%d", pPObj, pSql,
+    tscTrace("%p sub:%p retrieve numOfRows:%"PRIu64" totalNumOfRows:%"PRIu64" from ip:%s, orderOfSub:%d", pPObj, pSql,
              pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
     
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
-      tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId64 " , current:%" PRId64,
+      tscError("%p sub:%p num of OrderedRes is too many, max allowed:%d, current:%" PRId64,
                pPObj, pSql, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
       return;
@@ -1685,12 +1685,12 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   }
   
   if (pState->code != TSDB_CODE_SUCCESS) {  // at least one peer subquery failed, abort current query
-    tscTrace("%p sub:%p query failed,ip:%u,vgId:%d,orderOfSub:%d,global code:%d", pParentSql, pSql,
+    tscTrace("%p sub:%p query failed,ip:%s,vgId:%d,orderOfSub:%d,global code:%d", pParentSql, pSql,
                pVgroup->ipAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex, pState->code);
   
     tscHandleSubqueryError(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
-    tscTrace("%p sub:%p query complete, ip:%u, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSqlObj, pSql,
+    tscTrace("%p sub:%p query complete, ip:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSqlObj, pSql,
                pVgroup->ipAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
     
     if (pSql->res.qhandle == 0) { // qhandle is NULL, code is TSDB_CODE_SUCCESS means no results generated from this vnode
@@ -1726,7 +1726,7 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
     return;
   }
   
-  tscTrace("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
+  tscTrace("%p Async insertion completed, total inserted:%"PRIu64"", pParentObj, pParentObj->res.numOfRows);
   
   tfree(pState);
   tfree(pSupporter);
@@ -1906,7 +1906,8 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
       pRes->tsrow[columnIndex] = pRes->buffer[columnIndex];
       pRes->length[columnIndex] = length;
     } else {
-      tscError("%p charset:%s to %s. val:%ls convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, pRes->tsrow[columnIndex]);
+      // fixme: is it really a wchar_t* ?
+      tscError("%p charset:%s to %s. val:%ls convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, (wchar_t*)pRes->tsrow[columnIndex]);
       pRes->tsrow[columnIndex] = NULL;
       pRes->length[columnIndex] = 0;
     }

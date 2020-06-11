@@ -117,7 +117,7 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
     if (tdLoadKVStoreHeader(pStore->sfd, pStore->fsnap, &info) < 0) goto _err;
 
     if (ftruncate(pStore->fd, info.size) < 0) {
-      uError("failed to truncate %s to " PRId64 " size since %s", pStore->fname, info.size, strerror(errno));
+      uError("failed to truncate %s to %" PRId64 " size since %s", pStore->fname, info.size, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
@@ -245,7 +245,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
 
   SKVRecord *pRecord = taosHashGet(pStore->map, &uid, sizeof(uid));
   if (pRecord == NULL) {
-    uError("failed to drop KV store record with key " PRIu64 " since not find", uid);
+    uError("failed to drop KV store record with key %" PRIu64 " since not find", uid);
     return -1;
   }
 
@@ -256,7 +256,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   void *pBuf = tdEncodeKVRecord(buf, &rInfo);
 
   if (twrite(pStore->fd, buf, POINTER_DISTANCE(pBuf, buf)) < POINTER_DISTANCE(pBuf, buf)) {
-    uError("failed to write %d bytes to file %s since %s", POINTER_DISTANCE(pBuf, buf), pStore->fname, strerror(errno));
+    uError("failed to write %" PRIu64 " bytes to file %s since %s", POINTER_DISTANCE(pBuf, buf), pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -456,7 +456,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     ssize_t tsize = tread(pStore->fd, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
     if (tsize < sizeof(SKVRecord)) {
-      uError("failed to read %d bytes from file %s since %s", sizeof(SKVRecord), pStore->fname, strerror(errno));
+      uError("failed to read %" PRIu64 " bytes from file %s since %s", sizeof(SKVRecord), pStore->fname, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
@@ -514,13 +514,13 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     }
 
     if (tread(pStore->fd, buf, pRecord->size) < pRecord->size) {
-      uError("failed to read %d bytes from file %s since %s", pRecord->size, pStore->fname, strerror(errno));
+      uError("failed to read %" PRIu64 " bytes from file %s since %s", pRecord->size, pStore->fname, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)buf, pRecord->size)) {
-      uError("file %s has checksum error, offset " PRId64 " size %d", pStore->fname, pRecord->offset, pRecord->size);
+      uError("file %s has checksum error, offset %" PRId64 " size %" PRIu64 "", pStore->fname, pRecord->offset, pRecord->size);
       terrno = TSDB_CODE_COM_FILE_CORRUPTED;
       goto _err;
     }

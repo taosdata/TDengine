@@ -981,7 +981,7 @@ static int32_t mnodeFindSuperTableColumnIndex(SSuperTableObj *pStable, char *col
 
 static int32_t mnodeAddSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, SSchema schema[], int32_t ncols) {
   if (ncols <= 0) {
-    mError("stable:%s, add column, ncols:%d <= 0", pStable->info.tableId);
+    mError("stable:%s, add column, ncols:%d <= 0", pStable->info.tableId, ncols);
     return TSDB_CODE_MND_APP_ERROR;
   }
 
@@ -1623,7 +1623,7 @@ static int32_t mnodeFindNormalTableColumnIndex(SChildTableObj *pTable, char *col
 
 static int32_t mnodeAddNormalTableColumn(SDbObj *pDb, SChildTableObj *pTable, SSchema schema[], int32_t ncols) {
   if (ncols <= 0) {
-    mError("table:%s, add column, ncols:%d <= 0", pTable->info.tableId);
+    mError("table:%s, add column, ncols:%d <= 0", pTable->info.tableId, ncols);
     return TSDB_CODE_MND_APP_ERROR;
   }
 
@@ -1864,7 +1864,7 @@ static void mnodeDropAllChildTablesInStable(SSuperTableObj *pStable) {
   int32_t numOfTables = 0;
   SChildTableObj *pTable = NULL;
 
-  mPrint("stable:%s, all child tables will dropped from sdb", pStable->info.tableId, numOfTables);
+  mPrint("stable:%s, all child tables will dropped from sdb", pStable->info.tableId);
 
   while (1) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);

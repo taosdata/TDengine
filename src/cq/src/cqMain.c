@@ -29,10 +29,10 @@
 #include "tlog.h"
 #include "twal.h"
 
-#define cError(...) { if (cqDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR CQ  ", cqDebugFlag, __VA_ARGS__); }}
-#define cWarn(...)  { if (cqDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN CQ  ", cqDebugFlag, __VA_ARGS__); }}
-#define cTrace(...) { if (cqDebugFlag & DEBUG_TRACE) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
-#define cPrint(...) { taosPrintLog("CQ  ", 255, __VA_ARGS__); }
+#define cError(fmt, ...) { if (cqDebugFlag & DEBUG_ERROR) { TLOG("ERROR CQ  ", cqDebugFlag, fmt, ##__VA_ARGS__); }}
+#define cWarn(fmt, ...)  { if (cqDebugFlag & DEBUG_WARN)  { TLOG("WARN CQ  ", cqDebugFlag, fmt, ##__VA_ARGS__); }}
+#define cTrace(fmt, ...) { if (cqDebugFlag & DEBUG_TRACE) { TLOG("CQ  ", cqDebugFlag, fmt, ##__VA_ARGS__); }}
+#define cPrint(fmt, ...) { TLOG("CQ  ", 255, fmt, ##__VA_ARGS__); }
 
 typedef struct {
   int      vgId;

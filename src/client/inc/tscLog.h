@@ -24,11 +24,11 @@ extern "C" {
 
 extern int32_t cDebugFlag;
 
-#define tscError(...)  { if (cDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR TSC ", cDebugFlag, __VA_ARGS__); }}
-#define tscWarn(...)   { if (cDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN TSC ", cDebugFlag, __VA_ARGS__); }}
-#define tscTrace(...)  { if (cDebugFlag & DEBUG_TRACE) { taosPrintLog("TSC ", cDebugFlag, __VA_ARGS__); }}
-#define tscDump(...)   { if (cDebugFlag & DEBUG_TRACE) { taosPrintLongString("TSC ", cDebugFlag, __VA_ARGS__); }}
-#define tscPrint(...)  { taosPrintLog("TSC ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }
+#define tscError(fmt, ...)  { if (cDebugFlag & DEBUG_ERROR) { TLOG("ERROR TSC ", cDebugFlag, fmt, ##__VA_ARGS__); }}
+#define tscWarn(fmt, ...)   { if (cDebugFlag & DEBUG_WARN)  { TLOG("WARN TSC ", cDebugFlag, fmt, ##__VA_ARGS__); }}
+#define tscTrace(fmt, ...)  { if (cDebugFlag & DEBUG_TRACE) { TLOG("TSC ", cDebugFlag, fmt, ##__VA_ARGS__); }}
+#define tscDump(fmt, ...)   { if (cDebugFlag & DEBUG_TRACE) { TLOGLONG("TSC ", cDebugFlag, fmt, ##__VA_ARGS__); }}
+#define tscPrint(fmt, ...)  { TLOG("TSC ", tscEmbedded ? 255 : uDebugFlag, fmt, ##__VA_ARGS__); }
 
 #ifdef __cplusplus
 }

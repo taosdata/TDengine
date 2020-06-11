@@ -475,7 +475,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
   pTable->numOfRows--;
   pthread_mutex_unlock(&pTable->mutex);
 
-  sdbTrace("table:%s, delete record:%s from hash, numOfRows:%d" PRId64 "version:%" PRIu64, pTable->tableName,
+  sdbTrace("table:%s, delete record:%s from hash, numOfRows:%" PRId64 "version:%" PRIu64, pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
 
   int8_t *updateEnd = pOper->pObj + pTable->refCountPos - 1;

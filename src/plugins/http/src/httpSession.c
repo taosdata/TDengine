@@ -170,7 +170,7 @@ bool httpSessionExpired(HttpSession *pSession) {
                 pSession->access);
       return false;  // still used, so return false
     }
-    httpTrace("need close session:%p:%p for it expired, cur:%d, expire:%d, invertal:%d",
+    httpTrace("need close session:%p:%p for it expired, cur:%ld, expire:%d, invertal:%ld",
               pSession, pSession->taos, cur, pSession->expire, cur - pSession->expire);
   }
 

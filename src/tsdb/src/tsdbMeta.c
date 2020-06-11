@@ -446,7 +446,7 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
 
   STable *pTable = tsdbGetTableByUid(pMeta, pCfg->tableId.uid);
   if (pTable != NULL) {
-    tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
+    tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64 "", pRepo->config.tsdbId, (char*)varDataVal(pTable->name),
               pTable->tableId.tid, pTable->tableId.uid);
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
@@ -480,11 +480,11 @@ int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
   // Register to meta
   if (newSuper) {
     tsdbAddTableToMeta(pMeta, super, true);
-    tsdbTrace("vgId:%d, super table %s is created! uid:%" PRId64, pRepo->config.tsdbId, varDataVal(super->name),
+    tsdbTrace("vgId:%d, super table %s is created! uid:%" PRId64 "", pRepo->config.tsdbId, (char*)varDataVal(super->name),
               super->tableId.uid);
   }
   tsdbAddTableToMeta(pMeta, table, true);
-  tsdbTrace("vgId:%d, table %s is created! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(table->name),
+  tsdbTrace("vgId:%d, table %s is created! tid:%d, uid:%" PRId64 "", pRepo->config.tsdbId, (char*)varDataVal(table->name),
             table->tableId.tid, table->tableId.uid);
 
   // Write to meta file
@@ -590,12 +590,12 @@ int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
 
   STable *pTable = tsdbGetTableByUid(pMeta, tableId.uid);
   if (pTable == NULL) {
-    tsdbError("vgId:%d, failed to drop table since table not exists! tid:%d, uid:" PRId64, pRepo->config.tsdbId,
+    tsdbError("vgId:%d, failed to drop table since table not exists! tid:%d, uid:%" PRId64 "", pRepo->config.tsdbId,
               tableId.tid, tableId.uid);
     return -1;
   }
 
-  tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
+  tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, (char*)varDataVal(pTable->name),
             tableId.tid, tableId.uid);
   if (tsdbRemoveTableFromMeta(pMeta, pTable, true) < 0) return -1;
 

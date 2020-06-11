@@ -283,7 +283,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
       break;
     };
     default: {
-      uError("MemBucket:%p,not support data type %d,failed", *pBucket, pBucket->dataType);
+      uError("MemBucket:%p,not support data type %d,failed", pBucket, pBucket->dataType);
       tfree(pBucket);
       return NULL;
     }
@@ -315,7 +315,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
     pBucket->pSegs[i].pBoundingEntries = NULL;
   }
 
-  uTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
+  uTrace("MemBucket:%p,created,buffer size:%"PRIu64",elem size:%d", pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
          pBucket->nElemSize);
 
   return pBucket;

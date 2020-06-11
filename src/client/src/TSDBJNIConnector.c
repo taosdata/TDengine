@@ -22,26 +22,26 @@
 
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 
-#define jniError(...)                                        \
+#define jniError(fmt, ...)                                        \
   {                                                          \
     if (jniDebugFlag & DEBUG_ERROR) {                        \
-      taosPrintLog("ERROR JNI ", jniDebugFlag, __VA_ARGS__); \
+      TLOG("ERROR JNI ", jniDebugFlag, fmt, ##__VA_ARGS__); \
     }                                                        \
   }
-#define jniWarn(...)                                        \
+#define jniWarn(fmt, ...)                                        \
   {                                                         \
     if (jniDebugFlag & DEBUG_WARN) {                        \
-      taosPrintLog("WARN JNI ", jniDebugFlag, __VA_ARGS__); \
+      TLOG("WARN JNI ", jniDebugFlag, fmt, ##__VA_ARGS__); \
     }                                                       \
   }
-#define jniTrace(...)                                  \
+#define jniTrace(fmt, ...)                                  \
   {                                                    \
     if (jniDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
+      TLOG("JNI ", jniDebugFlag, fmt, ##__VA_ARGS__); \
     }                                                  \
   }
-#define jniPrint(...) \
-  { taosPrintLog("JNI ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }
+#define jniPrint(fmt, ...) \
+  { TLOG("JNI ", tscEmbedded ? 255 : uDebugFlag, fmt, ##__VA_ARGS__); }
 
 int __init = 0;
 
@@ -192,7 +192,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv
     const char *tz1 = (*env)->GetStringUTFChars(env, optionValue, NULL);
     if (tz1 && strlen(tz1) != 0) {
       res = taos_options(TSDB_OPTION_TIMEZONE, tz1);
-      jniTrace("set timezone to %s, result:%d", timezone, res);
+      // jniTrace("set timezone to %s, result:%d", timezone, res);
+      // fixme: where is timezone defined?
+      jniTrace("set timezone to %ld, result:%d", timezone, res);
     } else {
       jniTrace("input timezone is empty");
     }
@@ -385,7 +387,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getAffectedRowsIm
   }
 
   jint ret = taos_affected_rows((SSqlObj *)res);
-  jniTrace("jobj:%p, conn:%p, sql:%p, affect rows:%d", jobj, tscon, (void *)con, res, ret);
+  jniTrace("jobj:%p, conn:%p, sql:%p, affect rows:%lld, ret: %d", jobj, tscon, (void *)con, res, ret);
 
   return ret;
 }
@@ -411,10 +413,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
   // jobject arrayListObj = (*env)->NewObject(env, g_arrayListClass, g_arrayListConstructFp, "");
 
   if (num_fields == 0) {
-    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, result, num_fields);
     return JNI_NUM_OF_FIELDS_0;
   } else {
-    jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, result, num_fields);
     for (int i = 0; i < num_fields; ++i) {
       jobject metadataObj = (*env)->NewObject(env, g_metadataClass, g_metadataConstructFp);
       (*env)->SetIntField(env, metadataObj, g_metadataColtypeField, fields[i].type);
@@ -465,7 +467,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
   int         num_fields = taos_num_fields(result);
 
   if (num_fields == 0) {
-    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, result, num_fields);
     return JNI_NUM_OF_FIELDS_0;
   }
 
@@ -473,7 +475,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
   if (row == NULL) {
     int tserrno = taos_errno(result);
     if (tserrno == 0) {
-      jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
+      jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, result, num_fields);
       return JNI_FETCH_END;
     } else {
       jniTrace("jobj:%p, conn:%p, interruptted query", jobj, tscon);
@@ -571,9 +573,9 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
   sub = (jlong)tsub;
 
   if (sub == 0) {
-    jniTrace("jobj:%p, failed to subscribe: topic:%s", jobj, jtopic);
+    jniTrace("jobj:%p, failed to subscribe: topic:%s", jobj, topic);
   } else {
-    jniTrace("jobj:%p, successfully subscribe: topic: %s", jobj, jtopic);
+    jniTrace("jobj:%p, successfully subscribe: topic: %s", jobj, topic);
   }
 
   if (topic != NULL) (*env)->ReleaseStringUTFChars(env, jtopic, topic);
@@ -583,7 +585,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub) {
-  jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%ld", jobj, sub);
+  jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%lld", jobj, sub);
   jniGetGlobalMethod(env);
 
   TAOS_SUB *tsub = (TAOS_SUB *)sub;

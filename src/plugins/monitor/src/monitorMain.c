@@ -27,10 +27,10 @@
 #include "dnode.h"
 #include "monitor.h"
 
-#define monitorError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR MON ", 255, __VA_ARGS__); }}
-#define monitorWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN MON ", monitorDebugFlag, __VA_ARGS__); }}
-#define monitorTrace(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); }}
-#define monitorPrint(...) { taosPrintLog("MON ", 255, __VA_ARGS__); }
+#define monitorError(fmt, ...) { if (monitorDebugFlag & DEBUG_ERROR) { TLOG("ERROR MON ", 255, fmt, ##__VA_ARGS__); }}
+#define monitorWarn(fmt, ...)  { if (monitorDebugFlag & DEBUG_WARN)  { TLOG("WARN MON ", monitorDebugFlag, fmt, ##__VA_ARGS__); }}
+#define monitorTrace(fmt, ...) { if (monitorDebugFlag & DEBUG_TRACE) { TLOG("MON ", monitorDebugFlag, fmt, ##__VA_ARGS__); }}
+#define monitorPrint(fmt, ...) { TLOG("MON ", 255, fmt, ##__VA_ARGS__); }
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    100
@@ -208,7 +208,7 @@ static void monitorInitDatabase() {
 
 static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
   if (-code == TSDB_CODE_MND_TABLE_ALREADY_EXIST || -code == TSDB_CODE_MND_DB_ALREADY_EXIST || code >= 0) {
-    monitorTrace("monitor:%p, sql success, reason:%d, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
+    monitorTrace("monitor:%p, sql success, reason:%d, %s", tsMonitorConn.conn, code, tsMonitorConn.sql);
     if (tsMonitorConn.cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
       monitorPrint("dnode:%s is started", tsLocalEp);
     }

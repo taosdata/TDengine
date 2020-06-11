@@ -274,7 +274,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (pRes->code != TSDB_CODE_TSC_QUERY_CANCELLED) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_RPC_NETWORK_UNAVAIL;
   } else {
-    tscTrace("%p query is cancelled, code:%d", pSql, tstrerror(pRes->code));
+    tscTrace("%p query is cancelled, code:%d", pSql, pRes->code);
   }
 
   if (pRes->code == TSDB_CODE_SUCCESS) {
@@ -649,7 +649,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons(numOfOutput);
   if (numOfOutput < 0) {
-    tscError("%p illegal value of number of output columns in query msg: %d", pSql, numOfOutput);
+    tscError("%p illegal value of number of output columns in query msg: %"PRIu64"", pSql, numOfOutput);
     return -1;
   }
 
@@ -665,7 +665,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     if (pCol->colIndex.columnIndex >= tscGetNumOfColumns(pTableMeta) || pColSchema->type < TSDB_DATA_TYPE_BOOL ||
         pColSchema->type > TSDB_DATA_TYPE_NCHAR) {
       tscError("%p sid:%d uid:%" PRIu64" id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s",
-          pSql, pTableMeta->sid, pTableMeta->uid, pTableMetaInfo->name, tscGetNumOfColumns(pTableMeta), pCol->colIndex,
+          pSql, pTableMeta->sid, pTableMeta->uid, pTableMetaInfo->name, tscGetNumOfColumns(pTableMeta), pCol->colIndex.columnIndex,
                pColSchema->name);
 
       return TSDB_CODE_TSC_INVALID_SQL;
@@ -784,7 +784,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
           (pColSchema->type < TSDB_DATA_TYPE_BOOL || pColSchema->type > TSDB_DATA_TYPE_NCHAR)) {
         tscError("%p sid:%d uid:%" PRIu64 " id:%s, tag index out of range, totalCols:%d, numOfTags:%d, index:%d, column name:%s",
                  pSql, pTableMeta->sid, pTableMeta->uid, pTableMetaInfo->name, total, numOfTagColumns,
-                 pCol->colIndex, pColSchema->name);
+                 pCol->colIndex.columnIndex, pColSchema->name);
 
         return TSDB_CODE_TSC_INVALID_SQL;
       }
@@ -2289,7 +2289,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscTrace("%p numOfRows:%d, offset:%d, complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
+  tscTrace("%p numOfRows:%"PRIu64", offset:%"PRIu64", complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
 
   return 0;
 }

@@ -426,6 +426,47 @@ void taosPrintLongString(const char *const flags, int32_t dflag, const char *con
   if (dflag & DEBUG_SCREEN) twrite(1, buffer, (uint32_t)len);
 }
 
+void taosPrintStrLog(int32_t dflag, int longorshort, const char *str) {
+  if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop write log.\n", tsLogDir, tsAvailLogDirGB, tsTotalLogDirGB);
+    fflush(stdout);
+    return;
+  }
+
+  char *buffer       = (char*)str;
+  int32_t     len    = strlen(buffer);
+
+  if (longorshort) {
+    if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->fd >= 0) {
+      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
+
+      if (tsLogObj.maxLines > 0) {
+        atomic_add_fetch_32(&tsLogObj.lines, 1);
+
+        if ((tsLogObj.lines > tsLogObj.maxLines) && (tsLogObj.openInProgress == 0)) taosOpenNewLogFile();
+      }
+    }
+
+    if (dflag & DEBUG_SCREEN) twrite(1, buffer, (uint32_t)len);
+  } else {
+    if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->fd >= 0) {
+      if (tsAsyncLog) {
+        taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
+      } else {
+        twrite(tsLogObj.logHandle->fd, buffer, len);
+      }
+
+      if (tsLogObj.maxLines > 0) {
+        atomic_add_fetch_32(&tsLogObj.lines, 1);
+
+        if ((tsLogObj.lines > tsLogObj.maxLines) && (tsLogObj.openInProgress == 0)) taosOpenNewLogFile();
+      }
+    }
+
+    if (dflag & DEBUG_SCREEN) twrite(1, buffer, (uint32_t)len);
+  }
+}
+
 #if 0
 void taosCloseLog() { 
   taosCloseLogByFd(tsLogObj.logHandle->fd); 

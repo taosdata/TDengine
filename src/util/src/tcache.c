@@ -117,7 +117,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   int32_t size = pNode->size;
   taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
   
-  uTrace("key:%s is removed from cache,total:%d,size:%ldbytes", pNode->key, pCacheObj->totalSize, size);  
+  uTrace("key:%s is removed from cache,total:%ld,size:%dbytes", pNode->key, pCacheObj->totalSize, size);  
   if (pCacheObj->freeFp) pCacheObj->freeFp(pNode->data);
   free(pNode);
 }
@@ -286,7 +286,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, siz
     if (NULL != pNode) {
       pCacheObj->totalSize += pNode->size;
       
-      uTrace("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%d, size:%" PRId64 " bytes",
+      uTrace("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%" PRIu64 ", size:%" PRId64 " bytes",
              key, pNode, pNode->addedTime, pNode->expiredTime, pCacheObj->totalSize, dataSize);
     } else {
       uError("key:%s failed to added into cache, out of memory", key);
@@ -505,7 +505,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
 
 void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != (uint64_t)pElem->pData) {
-    uError("key:sig:%d %p data has been released, ignore", pElem->pData->signature, pElem->pData);
+    uError("key:sig:%" PRIu64 " %p data has been released, ignore", pElem->pData->signature, pElem->pData);
     return;
   }
 

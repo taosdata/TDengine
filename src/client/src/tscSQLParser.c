@@ -4739,7 +4739,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
   pQueryInfo->slimit = pQuerySql->slimit;
   
-  tscTrace("%p limit:%d, offset:%" PRId64 " slimit:%d, soffset:%" PRId64, pSql, pQueryInfo->limit.limit,
+  tscTrace("%p limit:%"PRIu64", offset:%" PRId64 " slimit:%"PRIu64", soffset:%" PRId64, pSql, pQueryInfo->limit.limit,
       pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
   
   if (pQueryInfo->slimit.offset < 0 || pQueryInfo->limit.offset < 0) {

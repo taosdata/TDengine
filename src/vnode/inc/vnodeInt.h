@@ -27,10 +27,10 @@ extern "C" {
 
 extern int32_t vDebugFlag;
 
-#define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR VND ", 255, __VA_ARGS__); }}
-#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN VND ", vDebugFlag, __VA_ARGS__); }}
-#define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
-#define vPrint(...) { taosPrintLog("VND ", 255, __VA_ARGS__); }
+#define vError(fmt, ...) { if (vDebugFlag & DEBUG_ERROR) { TLOG("ERROR VND ", 255, fmt, ##__VA_ARGS__); }}
+#define vWarn(fmt, ...)  { if (vDebugFlag & DEBUG_WARN)  { TLOG("WARN VND ", vDebugFlag, fmt, ##__VA_ARGS__); }}
+#define vTrace(fmt, ...) { if (vDebugFlag & DEBUG_TRACE) { TLOG("VND ", vDebugFlag, fmt, ##__VA_ARGS__); }}
+#define vPrint(fmt, ...) { TLOG("VND ", 255, fmt, ##__VA_ARGS__); }
 
 typedef struct {
   int32_t      vgId;      // global vnode group ID

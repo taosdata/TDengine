@@ -20,19 +20,19 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-#define tmrError(...)                                 \
+#define tmrError(fmt, ...)                                 \
   do { if (tmrDebugFlag & DEBUG_ERROR) {              \
-    taosPrintLog("ERROR TMR ", tmrDebugFlag, __VA_ARGS__); \
+    TLOG("ERROR TMR ", tmrDebugFlag, fmt, ##__VA_ARGS__); \
   } } while(0)
 
-#define tmrWarn(...)                                  \
+#define tmrWarn(fmt, ...)                                  \
   do { if (tmrDebugFlag & DEBUG_WARN) {               \
-    taosPrintLog("WARN TMR ", tmrDebugFlag, __VA_ARGS__); \
+    TLOG("WARN TMR ", tmrDebugFlag, fmt, ##__VA_ARGS__); \
   } } while(0)
 
-#define tmrTrace(...)                           \
+#define tmrTrace(fmt, ...)                           \
   do { if (tmrDebugFlag & DEBUG_TRACE) {        \
-    taosPrintLog("TMR ", tmrDebugFlag, __VA_ARGS__); \
+    TLOG("TMR ", tmrDebugFlag, fmt, ##__VA_ARGS__); \
   } } while(0)
 
 #define TIMER_STATE_WAITING 0
@@ -139,7 +139,7 @@ static void unlockTimerList(timer_list_t* list) {
   int64_t tid = taosGetPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
     assert(false);
-    tmrError("%d trying to unlock a timer list not locked by current thread.", tid);
+    tmrError("%" PRIu64 " trying to unlock a timer list not locked by current thread.", tid);
   }
 }
 

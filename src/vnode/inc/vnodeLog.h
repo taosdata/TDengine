@@ -24,10 +24,10 @@ extern "C" {
 
 extern int32_t dDebugFlag;
 
-#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR DND ", 255, __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN DND ", dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
-#define dPrint(...) { taosPrintLog("DND ", 255, __VA_ARGS__); }
+#define dError(fmt, ...) { if (dDebugFlag & DEBUG_ERROR) { TLOG("ERROR DND ", 255, fmt, ##__VA_ARGS__); }}
+#define dWarn(fmt, ...)  { if (dDebugFlag & DEBUG_WARN)  { TLOG("WARN DND ", dDebugFlag, fmt, ##__VA_ARGS__); }}
+#define dTrace(fmt, ...) { if (dDebugFlag & DEBUG_TRACE) { TLOG("DND ", dDebugFlag, fmt, ##__VA_ARGS__); }}
+#define dPrint(fmt, ...) { TLOG("DND ", 255, fmt, ##__VA_ARGS__); }
 
 #ifdef __cplusplus
 }
