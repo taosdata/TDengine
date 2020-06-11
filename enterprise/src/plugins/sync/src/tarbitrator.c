@@ -36,7 +36,7 @@ static sem_t    tsArbSem;
 static ttpool_h tsArbTcpPool;
 
 typedef struct {
-  char  id[TSDB_EP_LEN];
+  char  id[TSDB_EP_LEN+24];
   int   nodeFd;
   void *pConn;
 } SNodeConn;
@@ -125,7 +125,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
     return;
   }
 
-  sprintf(pNode->id, "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port); 
+  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port); 
   if (firstPkt.syncHead.vgId) {  
     sTrace("%s, vgId in head is not zero, close the connection", pNode->id);
     tfree(pNode);
