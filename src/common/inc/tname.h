@@ -23,5 +23,8 @@ void extractTableName(const char *tableId, char *name);
 
 char* extractDBName(const char *tableId, char *name);
 
+SSchema tGetTableNameColumnSchema();
+
+bool tscValidateTableNameLength(size_t len);
 
 #endif  // TDENGINE_NAME_H
