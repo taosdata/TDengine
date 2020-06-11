@@ -3,12 +3,12 @@ sql connect
 $db = db
 $stb = stb
 print =============== sync_replica_dropTable_background.sim step0: drop table
-$totalTableNum = 100
+$totalTableNum = 6
 
 sql use $db
 
 $tblNum = $totalTableNum
-$dropTblNum = 11
+$dropTblNum = 6
 
 $i = 1
 while $i < $dropTblNum

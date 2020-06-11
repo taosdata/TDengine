@@ -56,7 +56,7 @@ sql create dnode $hostname3
 sql create dnode $hostname4
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 
 $db = db
@@ -143,7 +143,7 @@ if $dnode3Vtatus != master then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-
+sleep 2000
 print ============== step4: insert more data rows
 $tsStart = $tsEnd + 1000
 $i = 0
@@ -173,7 +173,7 @@ run_back unique/arbitrator/sync_replica_dropTable_background.sim
 
 print ============== step6: check result
 #in background.sim, drop 10 tables
-$totalRows = $totalRows - 10800
+$totalRows = $totalRows - 5400
 
 $cnt = 0
 wait_table_dropped:
@@ -188,7 +188,7 @@ if $data00 != $totalRows then
 	goto wait_table_dropped
 endi
 
-$tblNum = $tblNum - 10
+$tblNum = $tblNum - 5
 sql select count(tbname) from $stb
 if $data00 != $tblNum then
   print data00: $data00
