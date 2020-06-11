@@ -1419,11 +1419,14 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
           for (int col = 1; col < pObj->numOfColumns; col++)
             pNewBlock->offset[col] = pNewBlock->offset[col - 1] + pObj->schema[col - 1].bytes * pObj->pointsPerBlock;
 
-          int newSlot = (writeIter.slot + 1) % pInfo->maxBlocks;
+          int newSlot = writeIter.slot;
+          if (newSlot != ((pInfo->currentSlot + 1) % pInfo->maxBlocks)) {
+            newSlot = (newSlot + 1) % pInfo->maxBlocks;
+          }
           pInfo->blocks++;
           int tblockId = pInfo->blocks;
 
-          if (writeIter.slot != pInfo->currentSlot) {
+          if ((writeIter.slot != pInfo->currentSlot) && (writeIter.slot != ((pInfo->currentSlot + 1) % pInfo->maxBlocks))) {
             for (int tslot = pInfo->currentSlot; tslot != writeIter.slot;) {
               int nextSlot = (tslot + 1) % pInfo->maxBlocks;
               pInfo->cacheBlocks[nextSlot] = pInfo->cacheBlocks[tslot];
@@ -1434,7 +1437,7 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
           }
 
           int index = pNewBlock->index;
-          if (cacheIter.slot == writeIter.slot) {
+          if (cacheIter.slot == writeIter.slot && cacheIter.slot != ((pInfo->currentSlot + 1) % pInfo->maxBlocks)) {
             pNewBlock->numOfPoints = pInfo->cacheBlocks[cacheIter.slot]->numOfPoints;
             int pointsLeft = pInfo->cacheBlocks[cacheIter.slot]->numOfPoints - cacheIter.pos;
             if (pointsLeft > 0) {
