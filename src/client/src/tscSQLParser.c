@@ -4380,9 +4380,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
-    if (index.columnIndex < tscGetNumOfColumns(pTableMeta)) {
+    int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
+    if (index.columnIndex < numOfCols) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg10);
-    } else if (index.columnIndex == 0) {
+    } else if (index.columnIndex == numOfCols) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg11);
     }
 
