@@ -201,7 +201,7 @@ static int32_t mnodeChildTableActionEncode(SSdbOper *pOper) {
   assert(pTable != NULL && pOper->rowData != NULL);
 
   int32_t len = strlen(pTable->info.tableId);
-  if (len > TSDB_TABLE_ID_LEN) return TSDB_CODE_MND_INVALID_TABLE_ID;
+  if (len >= TSDB_TABLE_ID_LEN) return TSDB_CODE_MND_INVALID_TABLE_ID;
 
   memcpy(pOper->rowData, pTable->info.tableId, len);
   memset(pOper->rowData + len, 0, 1);
@@ -232,7 +232,7 @@ static int32_t mnodeChildTableActionDecode(SSdbOper *pOper) {
   if (pTable == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   int32_t len = strlen(pOper->rowData);
-  if (len > TSDB_TABLE_ID_LEN) {
+  if (len >= TSDB_TABLE_ID_LEN) {
     free(pTable);
     return TSDB_CODE_MND_INVALID_TABLE_ID;
   }
@@ -453,7 +453,7 @@ static int32_t mnodeSuperTableActionEncode(SSdbOper *pOper) {
   assert(pOper->pObj != NULL && pOper->rowData != NULL);
 
   int32_t len = strlen(pStable->info.tableId);
-  if (len > TSDB_TABLE_ID_LEN) len = TSDB_CODE_MND_INVALID_TABLE_ID;
+  if (len >= TSDB_TABLE_ID_LEN) len = TSDB_CODE_MND_INVALID_TABLE_ID;
 
   memcpy(pOper->rowData, pStable->info.tableId, len);
   memset(pOper->rowData + len, 0, 1);
@@ -477,7 +477,7 @@ static int32_t mnodeSuperTableActionDecode(SSdbOper *pOper) {
   if (pStable == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   int32_t len = strlen(pOper->rowData);
-  if (len > TSDB_TABLE_ID_LEN){
+  if (len >= TSDB_TABLE_ID_LEN){
     free(pStable);
     return TSDB_CODE_MND_INVALID_TABLE_ID;
   }
@@ -1249,12 +1249,12 @@ static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
   pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
   pMeta->tableType    = pTable->info.type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mnodeSetSchemaFromSuperTable(pMeta->schema, pTable);
-  strncpy(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_ID_LEN);
+  tstrncpy(pMeta->tableId, pTable->info.tableId, sizeof(pMeta->tableId));
 
+  pMsg->rpcRsp.len = pMeta->contLen;
   pMeta->contLen = htons(pMeta->contLen);
 
   pMsg->rpcRsp.rsp = pMeta;
-  pMsg->rpcRsp.len = pMeta->contLen;
   
   mTrace("stable:%s, uid:%" PRIu64 " table meta is retrieved", pTable->info.tableId, pTable->uid);
   return TSDB_CODE_SUCCESS;
@@ -2032,7 +2032,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMultiMeta->numOfTables = 0;
 
   for (int32_t t = 0; t < pInfo->numOfTables; ++t) {
-    char * tableId = (char *)(pInfo->tableIds + t * TSDB_TABLE_ID_LEN + 1);
+    char * tableId = (char *)(pInfo->tableIds + t * TSDB_TABLE_ID_LEN);
     SChildTableObj *pTable = mnodeGetChildTable(tableId);
     if (pTable == NULL) continue;
 

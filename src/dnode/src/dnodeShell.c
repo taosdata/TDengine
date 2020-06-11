@@ -147,7 +147,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   if (code != TSDB_CODE_RPC_NOT_READY) return code;
 
   SDMAuthMsg *pMsg = rpcMallocCont(sizeof(SDMAuthMsg));
-  tstrncpy(pMsg->user, user, TSDB_USER_LEN);
+  tstrncpy(pMsg->user, user, sizeof(pMsg->user));
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pMsg;
