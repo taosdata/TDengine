@@ -45,11 +45,11 @@ static bool validImpl(const char* str, size_t maxsize) {
 }
 
 static bool validUserName(const char* user) {
-  return validImpl(user, TSDB_USER_LEN);
+  return validImpl(user, TSDB_USER_LEN - 1);
 }
 
 static bool validPassword(const char* passwd) {
-  return validImpl(passwd, TSDB_PASSWORD_LEN);
+  return validImpl(passwd, TSDB_PASSWORD_LEN - 1);
 }
 
 SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,

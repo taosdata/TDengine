@@ -279,7 +279,7 @@ static void tscProcessCurrentUser(SSqlObj *pSql) {
   pExpr->resType = TSDB_DATA_TYPE_BINARY;
   
   char* vx = calloc(1, pExpr->resBytes);
-  STR_WITH_MAXSIZE_TO_VARSTR(vx, pSql->pTscObj->user, TSDB_USER_LEN);
+  STR_WITH_MAXSIZE_TO_VARSTR(vx, pSql->pTscObj->user, sizeof(pSql->pTscObj->user));
   
   tscSetLocalQueryResult(pSql, vx, pExpr->aliasName, pExpr->resType, pExpr->resBytes);
   free(vx);

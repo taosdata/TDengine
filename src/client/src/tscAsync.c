@@ -449,10 +449,13 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       tscTrace("%p update table meta in local cache, continue to process sql and send corresponding subquery", pSql);
 
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-      if (pTableMetaInfo->pTableMeta == NULL){
-        code = tscGetTableMeta(pSql, pTableMetaInfo);
+      code = tscGetTableMeta(pSql, pTableMetaInfo);
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        return;
+      } else {
         assert(code == TSDB_CODE_SUCCESS);      
       }
+     
       
       assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->vgroupIndex >= 0 && pSql->param != NULL);
 
@@ -473,7 +476,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
         STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
-        assert(code == TSDB_CODE_SUCCESS);
+        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+          return;
+        } else {
+          assert(code == TSDB_CODE_SUCCESS);      
+        }
 
         // if failed to process sql, go to error handler
         if ((code = tscProcessSql(pSql)) == TSDB_CODE_SUCCESS) {
@@ -483,7 +490,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 //          // 1. table uid, 2. ip address
 //          code = tscSendMsgToServer(pSql);
 //          if (code == TSDB_CODE_SUCCESS) return;
-//        }
       } else {
         tscTrace("%p continue parse sql after get table meta", pSql);
 
@@ -491,8 +497,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT)) {
           STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
-          assert(code == TSDB_CODE_SUCCESS && pTableMetaInfo->pTableMeta != NULL);
-
+          if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            return;
+          } else {
+            assert(code == TSDB_CODE_SUCCESS);      
+          }
           (*pSql->fp)(pSql->param, pSql, code);
           return;
         }
