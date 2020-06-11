@@ -306,21 +306,21 @@ void tgCleanupHandle() {
 
 bool tgGetUserFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  if (pParser->path[TG_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[TG_USER_URL_POS].len <= 0) {
+  if (pParser->path[TG_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[TG_USER_URL_POS].len <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->user, pParser->path[TG_USER_URL_POS].pos, TSDB_USER_LEN);
+  tstrncpy(pContext->user, pParser->path[TG_USER_URL_POS].pos, sizeof(pContext->user));
   return true;
 }
 
 bool tgGetPassFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  if (pParser->path[TG_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[TG_PASS_URL_POS].len <= 0) {
+  if (pParser->path[TG_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[TG_PASS_URL_POS].len <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
+  tstrncpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos, sizeof(pContext->pass));
   return true;
 }
 

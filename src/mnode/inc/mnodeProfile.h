@@ -22,7 +22,7 @@ extern "C" {
 #include "mnodeDef.h"
 
 typedef struct {
-  char     user[TSDB_USER_LEN + 1];
+  char     user[TSDB_USER_LEN];
   int8_t   killed;
   uint16_t port;
   uint32_t ip;

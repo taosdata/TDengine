@@ -154,8 +154,8 @@ typedef struct {
 } SDbCfg;
 
 typedef struct SDbObj {
-  char    name[TSDB_DB_NAME_LEN];
-  char    acct[TSDB_USER_LEN + 1];
+  char    name[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int32_t cfgVersion;
   SDbCfg  cfg;
@@ -172,9 +172,9 @@ typedef struct SDbObj {
 } SDbObj;
 
 typedef struct SUserObj {
-  char              user[TSDB_USER_LEN + 1];
-  char              pass[TSDB_KEY_LEN + 1];
-  char              acct[TSDB_USER_LEN + 1];
+  char              user[TSDB_USER_LEN];
+  char              pass[TSDB_KEY_LEN];
+  char              acct[TSDB_USER_LEN];
   int64_t           createdTime;
   int8_t            superAuth;
   int8_t            writeAuth;
@@ -203,8 +203,8 @@ typedef struct {
 } SAcctInfo;
 
 typedef struct SAcctObj {
-  char      user[TSDB_USER_LEN + 1];
-  char      pass[TSDB_KEY_LEN + 1];
+  char      user[TSDB_USER_LEN];
+  char      pass[TSDB_KEY_LEN];
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;

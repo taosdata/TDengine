@@ -37,3 +37,16 @@ char* extractDBName(const char* tableId, char* name) {
   
   return strncpy(name, &tableId[offset1 + 1], len);
 }
+
+SSchema tGetTableNameColumnSchema() {
+  SSchema s = {0};
+  s.bytes = TSDB_TABLE_NAME_LEN - 1 + VARSTR_HEADER_SIZE;
+  s.type  = TSDB_DATA_TYPE_BINARY;
+  s.colId = TSDB_TBNAME_COLUMN_INDEX;
+  strncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
+  return s;
+}
+
+bool tscValidateTableNameLength(size_t len) {
+  return len < TSDB_TABLE_NAME_LEN;
+}

@@ -50,18 +50,18 @@ class TDTestCase:
         # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
         # bool, tgcol2 int)
         tdLog.info(
-            "create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int)")
+            "create table ta_ch_mt2 (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int)")
         tdSql.execute(
-            'create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int)')
+            'create table ta_ch_mt2 (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int)')
         # TSIM: sql create table $tb using $mt tags( 1, 2 )
-        tdLog.info("create table tb2 using $mt tags( 1, 2 )")
-        tdSql.execute('create table tb2 using $mt tags( 1, 2 )')
+        tdLog.info("create table tb2 using ta_ch_mt2 tags( 1, 2 )")
+        tdSql.execute('create table tb2 using ta_ch_mt2 tags( 1, 2 )')
         # TSIM: sql insert into $tb values(now, 1)
         tdLog.info("insert into tb2 values(now, 1)")
         tdSql.execute("insert into tb2 values(now, 1)")
         # TSIM: sql select * from $mt where tgcol1 = 1
-        tdLog.info('select * from $mt where tgcol1 = 1')
-        tdSql.query('select * from $mt where tgcol1 = 1')
+        tdLog.info('select * from ta_ch_mt2 where tgcol1 = 1')
+        tdSql.query('select * from ta_ch_mt2 where tgcol1 = 1')
         # TSIM: if $rows != 1 then
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
@@ -107,18 +107,18 @@ class TDTestCase:
         # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
         # smallint, tgcol2 tinyint)
         tdLog.info(
-            "create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint)")
+            "create table ta_ch_mt3 (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint)")
         tdSql.execute(
-            'create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint)')
+            'create table ta_ch_mt3 (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint)')
         # TSIM: sql create table $tb using $mt tags( 1, 2 )
-        tdLog.info("create table tb3 using $mt tags( 1, 2 )")
-        tdSql.execute('create table tb3 using $mt tags( 1, 2 )')
+        tdLog.info("create table tb3 using ta_ch_mt3 tags( 1, 2 )")
+        tdSql.execute('create table tb3 using ta_ch_mt3 tags( 1, 2 )')
         # TSIM: sql insert into $tb values(now, 1)
         tdLog.info("insert into tb3 values(now, 1)")
         tdSql.execute("insert into tb3 values(now, 1)")
         # TSIM: sql select * from $mt where tgcol1 = 1
-        tdLog.info('select * from $mt where tgcol1 = 1')
-        tdSql.query('select * from $mt where tgcol1 = 1')
+        tdLog.info('select * from ta_ch_mt3 where tgcol1 = 1')
+        tdSql.query('select * from ta_ch_mt3 where tgcol1 = 1')
         # TSIM: if $rows != 1 then
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
@@ -151,18 +151,18 @@ class TDTestCase:
         # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
         # bigint, tgcol2 float)
         tdLog.info(
-            "create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float)")
+            "create table ta_ch_mt4 (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float)")
         tdSql.execute(
-            'create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float)')
+            'create table ta_ch_mt4 (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float)')
         # TSIM: sql create table $tb using $mt tags( 1, 2 )
-        tdLog.info("create table tb4 using $mt tags( 1, 2 )")
-        tdSql.execute('create table tb4 using $mt tags( 1, 2 )')
+        tdLog.info("create table tb4 using ta_ch_mt4 tags( 1, 2 )")
+        tdSql.execute('create table tb4 using ta_ch_mt4 tags( 1, 2 )')
         # TSIM: sql insert into $tb values(now, 1)
         tdLog.info("insert into tb4 values(now, 1)")
         tdSql.execute("insert into tb4 values(now, 1)")
         # TSIM: sql select * from $mt where tgcol1 = 1
-        tdLog.info('select * from $mt where tgcol1 = 1')
-        tdSql.query('select * from $mt where tgcol1 = 1')
+        tdLog.info('select * from ta_ch_mt4 where tgcol1 = 1')
+        tdSql.query('select * from ta_ch_mt4 where tgcol1 = 1')
         # TSIM: if $rows != 1 then
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
@@ -195,18 +195,18 @@ class TDTestCase:
         # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
         # double, tgcol2 binary(10))
         tdLog.info(
-            "create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10))")
+            "create table ta_ch_mt5 (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10))")
         tdSql.execute(
-            'create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10))')
+            'create table ta_ch_mt5 (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10))')
         # TSIM: sql create table $tb using $mt tags( 1, '2' )
-        tdLog.info("create table tb5 using $mt tags( 1, '2' )")
-        tdSql.execute('create table tb5 using $mt tags( 1, '2' )')
+        tdLog.info("create table tb5 using ta_ch_mt5 tags( 1, '2' )")
+        tdSql.execute("create table tb5 using ta_ch_mt5 tags( 1, '2' )")
         # TSIM: sql insert into $tb values(now, 1)
         tdLog.info("insert into tb5 values(now, 1)")
         tdSql.execute("insert into tb5 values(now, 1)")
         # TSIM: sql select * from $mt where tgcol2 = '2'
-        tdLog.info('select * from $mt where tgcol2 = '2'')
-        tdSql.query('select * from $mt where tgcol2 = '2'')
+        tdLog.info("select * from ta_ch_mt5 where tgcol2 = '2'")
+        tdSql.query("select * from ta_ch_mt5 where tgcol2 = '2'")
         # TSIM: if $rows != 1 then
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
@@ -239,18 +239,18 @@ class TDTestCase:
         # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
         # binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5
         # double, tgcol6 binary(20))
-        tdLog.info("create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))")
+        tdLog.info("create table ta_ch_mt6 (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))")
         tdSql.execute(
-            'create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))')
+            'create table ta_ch_mt6 (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))')
         # TSIM: sql create table $tb using $mt tags( '1', 2, 3, '4', 5, '6' )
-        tdLog.info("create table tb6 using $mt tags( '1', 2, 3, '4', 5, '6' )")
-        tdSql.execute('create table tb6 using $mt tags( '1', 2, 3, '4', 5, '6' )')
+        tdLog.info("create table tb6 using ta_ch_mt6 tags( '1', 2, 3, '4', 5, '6' )")
+        tdSql.execute("create table tb6 using ta_ch_mt6 tags( '1', 2, 3, '4', 5, '6' )")
         # TSIM: sql insert into $tb values(now, 1)
         tdLog.info("insert into tb6 values(now, 1)")
         tdSql.execute("insert into tb6 values(now, 1)")
         # TSIM: sql select * from $mt where tgcol1 = '1'
-        tdLog.info('select * from $mt where tgcol1 = '1'')
-        tdSql.query('select * from $mt where tgcol1 = '1'')
+        tdLog.info("select * from ta_ch_mt6 where tgcol1 = '1'")
+        tdSql.query("select * from ta_ch_mt6 where tgcol1 = '1'")
         # TSIM: if $rows != 1 then
         tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
@@ -312,19 +312,19 @@ class TDTestCase:
         # TSIM: $tb = $tbPrefix . $i
         # TSIM:
         # TSIM: sql select * from $mt where tgcol1 = 1 -x step24
-        tdLog.info('select * from $mt where tgcol1 = 1 -x step24')
-        tdSql.error('select * from $mt where tgcol1 = 14')
+        tdLog.info('select * from ta_ch_mt2 where tgcol1 = 1 -x step24')
+        tdSql.error('select * from ta_ch_mt2 where tgcol1 = 14')
         # TSIM: return -1
         # TSIM: step24:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step25
-        tdLog.info('select * from $mt where tgcol2 = 1 -x step25')
-        tdSql.error('select * from $mt where tgcol2 = 15')
+        tdLog.info('select * from ta_ch_mt2 where tgcol2 = 1 -x step25')
+        tdSql.error('select * from ta_ch_mt2 where tgcol2 = 15')
         # TSIM: return -1
         # TSIM: step25:
         # TSIM:
         # TSIM: sql select * from $mt where tgcol3 = 1
-        tdLog.info('select * from $mt where tgcol3 = 1')
-        tdSql.query('select * from $mt where tgcol3 = 1')
+        tdLog.info('select * from ta_ch_mt2 where tgcol3 = 1')
+        tdSql.query('select * from ta_ch_mt2 where tgcol3 = 1')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -349,8 +349,8 @@ class TDTestCase:
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol4 = 2
-        tdLog.info('select * from $mt where tgcol4 = 2')
-        tdSql.query('select * from $mt where tgcol4 = 2')
+        tdLog.info('select * from ta_ch_mt2 where tgcol4 = 2')
+        tdSql.query('select * from ta_ch_mt2 where tgcol4 = 2')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -381,19 +381,19 @@ class TDTestCase:
         # TSIM: $tb = $tbPrefix . $i
         # TSIM:
         # TSIM: sql select * from $mt where tgcol1 = 1 -x step31
-        tdLog.info('select * from $mt where tgcol1 = 1 -x step31')
-        tdSql.error('select * from $mt where tgcol1 = 11')
+        tdLog.info('select * from ta_ch_mt3 where tgcol1 = 1 -x step31')
+        tdSql.error('select * from ta_ch_mt3 where tgcol1 = 11')
         # TSIM: return -1
         # TSIM: step31:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step32
-        tdLog.info('select * from $mt where tgcol2 = 1 -x step32')
-        tdSql.error('select * from $mt where tgcol2 = 12')
+        tdLog.info('select * from ta_ch_mt3 where tgcol2 = 1 -x step32')
+        tdSql.error('select * from ta_ch_mt3 where tgcol2 = 12')
         # TSIM: return -1
         # TSIM: step32:
         # TSIM:
         # TSIM: sql select * from $mt where tgcol3 = 1
-        tdLog.info('select * from $mt where tgcol3 = 1')
-        tdSql.query('select * from $mt where tgcol3 = 1')
+        tdLog.info('select * from ta_ch_mt3 where tgcol3 = 1')
+        tdSql.query('select * from ta_ch_mt3 where tgcol3 = 1')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -450,19 +450,19 @@ class TDTestCase:
         # TSIM: $tb = $tbPrefix . $i
         # TSIM:
         # TSIM: sql select * from $mt where tgcol1 = 1 -x step41
-        tdLog.info('select * from $mt where tgcol1 = 1 -x step41')
-        tdSql.error('select * from $mt where tgcol1 = 11')
+        tdLog.info('select * from ta_ch_mt4 where tgcol1 = 1 -x step41')
+        tdSql.error('select * from ta_ch_mt4 where tgcol1 = 11')
         # TSIM: return -1
         # TSIM: step41:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step42
-        tdLog.info('select * from $mt where tgcol2 = 1 -x step42')
-        tdSql.error('select * from $mt where tgcol2 = 12')
+        tdLog.info('select * from ta_ch_mt4 where tgcol2 = 1 -x step42')
+        tdSql.error('select * from ta_ch_mt4 where tgcol2 = 12')
         # TSIM: return -1
         # TSIM: step42:
         # TSIM:
         # TSIM: sql select * from $mt where tgcol3 = 1
-        tdLog.info('select * from $mt where tgcol3 = 1')
-        tdSql.query('select * from $mt where tgcol3 = 1')
+        tdLog.info('select * from ta_ch_mt4 where tgcol3 = 1')
+        tdSql.query('select * from ta_ch_mt4 where tgcol3 = 1')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -487,8 +487,8 @@ class TDTestCase:
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol4 = 2
-        tdLog.info('select * from $mt where tgcol4 = 2')
-        tdSql.query('select * from $mt where tgcol4 = 2')
+        tdLog.info('select * from ta_ch_mt4 where tgcol4 = 2')
+        tdSql.query('select * from ta_ch_mt4 where tgcol4 = 2')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -519,19 +519,19 @@ class TDTestCase:
         # TSIM: $tb = $tbPrefix . $i
         # TSIM:
         # TSIM: sql select * from $mt where tgcol1 = 1 -x step51
-        tdLog.info('select * from $mt where tgcol1 = 1 -x step51')
-        tdSql.error('select * from $mt where tgcol1 = 11')
+        tdLog.info('select * from ta_ch_mt5 where tgcol1 = 1 -x step51')
+        tdSql.error('select * from ta_ch_mt5 where tgcol1 = 11')
         # TSIM: return -1
         # TSIM: step51:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step52
-        tdLog.info('select * from $mt where tgcol2 = 1 -x step52')
-        tdSql.error('select * from $mt where tgcol2 = 12')
+        tdLog.info('select * from ta_ch_mt5 where tgcol2 = 1 -x step52')
+        tdSql.error('select * from ta_ch_mt5 where tgcol2 = 12')
         # TSIM: return -1
         # TSIM: step52:
         # TSIM:
         # TSIM: sql select * from $mt where tgcol3 = 1
-        tdLog.info('select * from $mt where tgcol3 = 1')
-        tdSql.query('select * from $mt where tgcol3 = 1')
+        tdLog.info('select * from ta_ch_mt5 where tgcol3 = 1')
+        tdSql.query('select * from ta_ch_mt5 where tgcol3 = 1')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -556,8 +556,8 @@ class TDTestCase:
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol4 = '2'
-        tdLog.info('select * from $mt where tgcol4 = '2'')
-        tdSql.query('select * from $mt where tgcol4 = '2'')
+        tdLog.info("select * from ta_ch_mt5 where tgcol4 = '2'")
+        tdSql.query("select * from ta_ch_mt5 where tgcol4 = '2'")
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -588,39 +588,39 @@ class TDTestCase:
         # TSIM: $tb = $tbPrefix . $i
         # TSIM:
         # TSIM: sql select * from $mt where tgcol1 = 1 -x step61
-        tdLog.info('select * from $mt where tgcol1 = 1 -x step61')
-        tdSql.error('select * from $mt where tgcol1 = 11')
+        tdLog.info('select * from ta_ch_mt6 where tgcol1 = 1 -x step61')
+        tdSql.error('select * from ta_ch_mt6 where tgcol1 = 11')
         # TSIM: return -1
         # TSIM: step61:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step62
-        tdLog.info('select * from $mt where tgcol2 = 1 -x step62')
-        tdSql.error('select * from $mt where tgcol2 = 12')
+        tdLog.info('select * from ta_ch_mt6 where tgcol2 = 1 -x step62')
+        tdSql.error('select * from ta_ch_mt6 where tgcol2 = 12')
         # TSIM: return -1
         # TSIM: step62:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step63
-        tdLog.info('select * from $mt where tgcol3 = 1 -x step63')
-        tdSql.error('select * from $mt where tgcol3 = 13')
+        tdLog.info('select * from ta_ch_mt6 where tgcol3 = 1 -x step63')
+        tdSql.error('select * from ta_ch_mt6 where tgcol3 = 13')
         # TSIM: return -1
         # TSIM: step63:
         # TSIM: sql select * from $mt where tgcol4 = 1 -x step64
-        tdLog.info('select * from $mt where tgcol4 = 1 -x step64')
-        tdSql.error('select * from $mt where tgcol4 = 14')
+        tdLog.info('select * from ta_ch_mt6 where tgcol4 = 1 -x step64')
+        tdSql.error('select * from ta_ch_mt6 where tgcol4 = 14')
         # TSIM: return -1
         # TSIM: step64:
         # TSIM: sql select * from $mt where tgcol5 = 1 -x step65
-        tdLog.info('select * from $mt where tgcol5 = 1 -x step65')
-        tdSql.error('select * from $mt where tgcol5 = 15')
+        tdLog.info('select * from ta_ch_mt6 where tgcol5 = 1 -x step65')
+        tdSql.error('select * from ta_ch_mt6 where tgcol5 = 15')
         # TSIM: return -1
         # TSIM: step65:
         # TSIM: sql select * from $mt where tgcol6 = 1 -x step66
-        tdLog.info('select * from $mt where tgcol6 = 1 -x step66')
-        tdSql.error('select * from $mt where tgcol6 = 16')
+        tdLog.info('select * from ta_ch_mt6 where tgcol6 = 1 -x step66')
+        tdSql.error('select * from ta_ch_mt6 where tgcol6 = 16')
         # TSIM: return -1
         # TSIM: step66:
         # TSIM:
         # TSIM: sql select * from $mt where tgcol7 = '1'
-        tdLog.info('select * from $mt where tgcol7 = '1'')
-        tdSql.query('select * from $mt where tgcol7 = '1'')
+        tdLog.info("select * from ta_ch_mt6 where tgcol7 = '1'")
+        tdSql.query("select * from ta_ch_mt6 where tgcol7 = '1'")
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -665,8 +665,8 @@ class TDTestCase:
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol8 = 2
-        tdLog.info('select * from $mt where tgcol8 = 2')
-        tdSql.query('select * from $mt where tgcol8 = 2')
+        tdLog.info('select * from ta_ch_mt6 where tgcol8 = 2')
+        tdSql.query('select * from ta_ch_mt6 where tgcol8 = 2')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -711,8 +711,8 @@ class TDTestCase:
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol9 = '4'
-        tdLog.info('select * from $mt where tgcol9 = '4'')
-        tdSql.query('select * from $mt where tgcol9 = '4'')
+        tdLog.info("select * from ta_ch_mt6 where tgcol9 = '4'")
+        tdSql.query("select * from ta_ch_mt6 where tgcol9 = '4'")
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -757,8 +757,8 @@ class TDTestCase:
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol10 = 5
-        tdLog.info('select * from $mt where tgcol10 = 5')
-        tdSql.query('select * from $mt where tgcol10 = 5')
+        tdLog.info('select * from ta_ch_mt6 where tgcol10 = 5')
+        tdSql.query('select * from ta_ch_mt6 where tgcol10 = 5')
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then
@@ -803,8 +803,8 @@ class TDTestCase:
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol11 = '6'
-        tdLog.info('select * from $mt where tgcol11 = '6'')
-        tdSql.query('select * from $mt where tgcol11 = '6'')
+        tdLog.info("select * from ta_ch_mt6 where tgcol11 = '6'")
+        tdSql.query("select * from ta_ch_mt6 where tgcol11 = '6'")
         # TSIM: print $data01 $data02 $data03
         tdLog.info('$data01 $data02 $data03')
         # TSIM: if $rows != 1 then

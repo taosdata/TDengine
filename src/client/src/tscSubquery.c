@@ -1662,12 +1662,13 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
    */
   if (code != TSDB_CODE_SUCCESS) {
     if (trsupport->numOfRetry++ >= MAX_NUM_OF_SUBQUERY_RETRY) {
-      tscTrace("%p sub:%p reach the max retry times, set global code:%d", pParentSql, pSql, code);
+      tscTrace("%p sub:%p reach the max retry times, set global code:%s", pParentSql, pSql, tstrerror(code));
       atomic_val_compare_exchange_32(&pState->code, 0, code);
     } else {  // does not reach the maximum retry time, go on
       tscTrace("%p sub:%p failed code:%s, retry:%d", pParentSql, pSql, tstrerror(code), trsupport->numOfRetry);
       
       SSqlObj *pNew = tscCreateSqlObjForSubquery(pParentSql, trsupport, pSql);
+
       if (pNew == NULL) {
         tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vgId:%d, orderOfSub:%d",
                  trsupport->pParentSqlObj, pSql, pVgroup->vgId, trsupport->subqueryIndex);
@@ -1677,7 +1678,8 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
       } else {
         SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
         assert(pNewQueryInfo->pTableMetaInfo[0]->pTableMeta != NULL);
-        
+
+        taos_free_result(pSql);
         tscProcessSql(pNew);
         return;
       }

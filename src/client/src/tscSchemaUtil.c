@@ -50,14 +50,6 @@ int32_t tscGetNumOfColumns(const STableMeta* pTableMeta) {
 
 SSchema *tscGetTableSchema(const STableMeta *pTableMeta) {
   assert(pTableMeta != NULL);
-  
-//  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-//    STableMeta* pSTableMeta = pTableMeta->pSTable;
-//    assert (pSTableMeta != NULL);
-//
-//    return pSTableMeta->schema;
-//  }
-  
   return (SSchema*) pTableMeta->schema;
 }
 

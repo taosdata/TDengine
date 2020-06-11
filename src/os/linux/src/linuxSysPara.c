@@ -332,33 +332,42 @@ bool taosGetDisk() {
 }
 
 static bool taosGetCardInfo(int64_t *bytes) {
+  *bytes = 0;
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsSysNetFile);
     return false;
   }
 
-  int64_t rbytes, rpackts, tbytes, tpackets;
-  int64_t nouse1, nouse2, nouse3, nouse4, nouse5, nouse6;
-  char    nouse0[200] = {0};
 
-  size_t len;
-  char * line = NULL;
-  *bytes = 0;
+  size_t len = 2048;
+  char * line = calloc(1, len);
 
   while (!feof(fp)) {
-    tfree(line);
-    len = 0;
+    memset(line, 0, len);
+    
+    int64_t rbytes = 0;
+    int64_t rpackts = 0;
+    int64_t tbytes = 0;
+    int64_t tpackets = 0;
+    int64_t nouse1 = 0;
+    int64_t nouse2 = 0;
+    int64_t nouse3 = 0;
+    int64_t nouse4 = 0;
+    int64_t nouse5 = 0;
+    int64_t nouse6 = 0;
+    char    nouse0[200] = {0};
+
     getline(&line, &len, fp);
-    if (line == NULL) {
-      break;
-    }
+    line[len - 1] = 0;
+
     if (strstr(line, "lo:") != NULL) {
       continue;
     }
 
     sscanf(line,
-           "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64,
+           "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
+           " %" PRId64,
            nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &tbytes, &tpackets);
     *bytes += (rbytes + tbytes);
   }

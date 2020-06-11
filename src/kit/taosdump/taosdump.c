@@ -177,8 +177,8 @@ typedef struct SDumpArguments {
   char *password;
   uint16_t port;
   // output file
-  char output[TSDB_FILENAME_LEN + 1];
-  char input[TSDB_FILENAME_LEN + 1];
+  char output[TSDB_FILENAME_LEN];
+  char input[TSDB_FILENAME_LEN];
   char *encode;
   // dump unit option
   bool all_databases;

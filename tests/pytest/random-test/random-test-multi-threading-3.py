@@ -127,6 +127,8 @@ class Test (Thread):
     def drop_stable(self):
         tdLog.info("drop_stable")
         global last_stb
+        global last_tb
+        global written
 
         if (last_stb == ""):
             tdLog.info("no super table")
@@ -135,6 +137,8 @@ class Test (Thread):
             tdLog.info("will drop last super table")
             tdSql.execute('drop table %s' % last_stb)
             last_stb = ""
+            last_tb = ""
+            written = 0
 
     def restart_database(self):
         tdLog.info("restart_database")

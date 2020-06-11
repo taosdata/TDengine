@@ -48,7 +48,7 @@ void gcInitHandle(HttpServer* pServer) { httpAddMethod(pServer, &gcDecodeMethod)
 
 bool gcGetUserFromUrl(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
-  if (pParser->path[GC_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[GC_USER_URL_POS].len <= 0) {
+  if (pParser->path[GC_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[GC_USER_URL_POS].len <= 0) {
     return false;
   }
 
@@ -58,7 +58,7 @@ bool gcGetUserFromUrl(HttpContext* pContext) {
 
 bool gcGetPassFromUrl(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
-  if (pParser->path[GC_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[GC_PASS_URL_POS].len <= 0) {
+  if (pParser->path[GC_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[GC_PASS_URL_POS].len <= 0) {
     return false;
   }
 

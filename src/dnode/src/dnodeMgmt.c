@@ -414,14 +414,34 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   
   dnodeProcessModuleStatus(pCfg->moduleStatus);
   dnodeUpdateDnodeCfg(pCfg);
+
   dnodeUpdateMnodeInfos(pMnodes);
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
+}
+
+static bool dnodeCheckMnodeInfos(SDMMnodeInfos *pMnodes) {
+  if (pMnodes->nodeNum <= 0 || pMnodes->nodeNum > 3) {
+    dError("invalid mnode infos, num:%d", pMnodes->nodeNum);
+    return false;
+  }
+
+  for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
+    SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
+    if (pMnodeInfo->nodeId <= 0 || strlen(pMnodeInfo->nodeEp) <= 5) {
+      dError("invalid mnode info:%d, nodeId:%d nodeEp:%s", i, pMnodeInfo->nodeId, pMnodeInfo->nodeEp);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   bool mnodesChanged = (memcmp(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos)) != 0);
   bool mnodesNotInit = (tsDMnodeInfos.nodeNum == 0);
   if (!(mnodesChanged || mnodesNotInit)) return;
+
+  if (!dnodeCheckMnodeInfos(pMnodes)) return;
 
   memcpy(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
   dPrint("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
@@ -552,6 +572,7 @@ static void dnodeSaveMnodeInfos() {
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
   free(content);
   
@@ -674,6 +695,7 @@ static void dnodeSaveDnodeCfg() {
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
   free(content);
   
