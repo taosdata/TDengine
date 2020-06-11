@@ -77,6 +77,12 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* co
  */
 bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
 
+/**
+ * kill current ongoing query and free query handle automatically
+ * @param qinfo
+ */
+int32_t qKillQuery(qinfo_t qinfo);
+
 #ifdef __cplusplus
 }
 #endif
