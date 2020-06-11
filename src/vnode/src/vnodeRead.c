@@ -68,6 +68,7 @@ static void vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId)
   killQueryMsg->header.vgId = htonl(vgId);
   killQueryMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
 
+  vTrace("QInfo:%p register qhandle to connect:%p", qhandle, handle);
   rpcReportProgress(handle, (char*) killQueryMsg, sizeof(SRetrieveTableMsg));
 }
 
@@ -85,7 +86,9 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     killQueryMsg->free = htons(killQueryMsg->free);
     killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
 
+    vWarn("QInfo:%p connection %p broken, kill query", killQueryMsg->qhandle, pReadMsg->rpcMsg.handle);
     assert(pReadMsg->rpcMsg.contLen > 0 && killQueryMsg->free == 1);
+
     qKillQuery((qinfo_t) killQueryMsg->qhandle);
     return TSDB_CODE_SUCCESS;
   }

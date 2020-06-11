@@ -393,7 +393,6 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   if ( pConn->inType == 0 || pConn->user[0] == 0 ) {
     tTrace("%s, connection is already released, rsp wont be sent", pConn->info);
     rpcUnlockConn(pConn);
-    rpcDecRef(pRpc);
     return;
   }
 
