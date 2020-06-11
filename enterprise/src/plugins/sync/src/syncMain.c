@@ -455,7 +455,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
   tstrncpy(pPeer->fqdn, pInfo->nodeFqdn, sizeof(pPeer->fqdn));
   pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
-  sprintf(pPeer->id, "vgId:%d peer:%s:%d", pNode->vgId, pPeer->fqdn, pPeer->port);
+  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d peer:%s:%d", pNode->vgId, pPeer->fqdn, pPeer->port);
 
   pPeer->peerFd = -1;
   pPeer->syncFd = -1;

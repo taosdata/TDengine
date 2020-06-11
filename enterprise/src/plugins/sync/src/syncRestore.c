@@ -39,7 +39,7 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eind
     magic = (*pNode->getFileInfo)(pNode->ahandle, name, &index, eindex, &size, &fversion);
     if (magic == 0) break;
 
-    sprintf(fname, "%s/%s", pNode->path, name);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, name);
     remove(fname);
     sTrace("%s, %s is removed", pPeer->id, fname);
 
@@ -100,7 +100,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
 
     // if sync is required, open file, receive from master, and write to file
     // get the full path to file
-    sprintf(name, "%s/%s", pNode->path, minfo.name);
+    snprintf(name, sizeof(name), "%s/%s", pNode->path, minfo.name);
 
     int dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if ( dfd < 0 ) {

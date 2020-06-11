@@ -124,7 +124,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     pPeer->sversion = fileInfo.fversion;
 
     // get the full path to file
-    sprintf(name, "%s/%s", pNode->path, fileInfo.name);
+    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
     
     // add the file into watch list
     if ( syncAddIntoWatchList(pPeer, name) <0) break;
@@ -291,7 +291,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     uint32_t event = 0;
 
     // get full path to wal file
-    sprintf(fname, "%s/%s", pNode->path, wname);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);
     sTrace("%s, start to retrieve last wal:%s", pPeer->id, fname);
 
     // monitor last wal
@@ -382,7 +382,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
     }
 
     // get the full path to wal file
-    sprintf(fname, "%s/%s", pNode->path, wname);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);
 
     // send wal file, 
     // inotify is not required, old wal file won't be modified, even remove is ok
