@@ -154,7 +154,7 @@ typedef struct {
 } SDbCfg;
 
 typedef struct SDbObj {
-  char    name[TSDB_DB_NAME_LEN];
+  char    name[TSDB_USERID_LEN + TSDB_DB_NAME_LEN];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int32_t cfgVersion;

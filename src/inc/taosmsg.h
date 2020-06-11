@@ -501,8 +501,7 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  char     acct[TSDB_USER_LEN];
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_USERID_LEN + TSDB_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
   int32_t  maxTables;
