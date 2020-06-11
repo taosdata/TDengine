@@ -66,6 +66,12 @@ void    taosPrintStrLog(int32_t dflag, int longorshort, const char *str);
   n = snprintf(p, bytes, fmt, ##__VA_ARGS__);                                               \
   p += n; bytes -= n;                                                                       \
                                                                                             \
+  n = snprintf(p, bytes, "\n");                                                             \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  buffer[sizeof(buffer)-2] = '\n';                                                          \
+  buffer[sizeof(buffer)-1] = '\0';                                                          \
+                                                                                            \
   taosPrintStrLog(dflag, 0, buffer);                                                        \
 } while (0)
 
@@ -93,8 +99,14 @@ void    taosPrintStrLog(int32_t dflag, int longorshort, const char *str);
   n = snprintf(p, bytes, "%s", flags);                                                      \
   p += n; bytes -= n;                                                                       \
                                                                                             \
-  n = snprintf(p, bytes, fmt, ##__VA_ARGS__);                                             \
+  n = snprintf(p, bytes, fmt, ##__VA_ARGS__);                                               \
   p += n; bytes -= n;                                                                       \
+                                                                                            \
+  n = snprintf(p, bytes, "\n");                                                             \
+  p += n; bytes -= n;                                                                       \
+                                                                                            \
+  buffer[sizeof(buffer)-2] = '\n';                                                          \
+  buffer[sizeof(buffer)-1] = '\0';                                                          \
                                                                                             \
   taosPrintStrLog(dflag, 1, buffer);                                                        \
 } while (0)
