@@ -375,7 +375,7 @@ int tscProcessSql(SSqlObj *pSql) {
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = NULL;
-  uint16_t        type = 0;
+  uint32_t        type = 0;
 
   if (pQueryInfo != NULL) {
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -424,7 +424,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
      * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
     pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    //taosStopRpcConn(pSql->pSubs[i]->thandle);
+//    taosStopRpcConn(pSql->pSubs[i]->);
   }
 
   /*
