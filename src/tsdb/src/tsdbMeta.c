@@ -280,7 +280,7 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable) {
   }
 }
 
-void* tsdbGetTableTagVal(TsdbRepoT* repo, const STableId* id, int32_t colId, int16_t type, int16_t bytes) {
+void* tsdbGetTableTagVal(TSDB_REPO_T* repo, const STableId* id, int32_t colId, int16_t type, int16_t bytes) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
 
@@ -300,7 +300,7 @@ void* tsdbGetTableTagVal(TsdbRepoT* repo, const STableId* id, int32_t colId, int
   return val;
 }
 
-char* tsdbGetTableName(TsdbRepoT *repo, const STableId* id) {
+char* tsdbGetTableName(TSDB_REPO_T *repo, const STableId* id) {
   STsdbMeta* pMeta = tsdbGetMeta(repo);
   STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
   
@@ -438,7 +438,7 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsdbCreateTable(TsdbRepoT *repo, STableCfg *pCfg) {
+int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
@@ -581,7 +581,7 @@ _err:
 }
 
 // int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
-int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
+int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   if (pRepo == NULL) return -1;
 

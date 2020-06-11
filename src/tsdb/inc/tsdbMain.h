@@ -142,7 +142,7 @@ STSchema * tsdbGetTableTagSchema(STsdbMeta *pMeta, STable *pTable);
 #define TSDB_TABLE_OF_ID(pHandle, id) ((pHandle)->pTables)[id]
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
-STsdbMeta *tsdbGetMeta(TsdbRepoT *pRepo);
+STsdbMeta *tsdbGetMeta(TSDB_REPO_T *pRepo);
 
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
 // int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
@@ -177,10 +177,10 @@ typedef struct {
   STsdbCacheBlock *curBlock;
   SCacheMem *      mem;
   SCacheMem *      imem;
-  TsdbRepoT *      pRepo;
+  TSDB_REPO_T *      pRepo;
 } STsdbCache;
 
-STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TsdbRepoT *pRepo);
+STsdbCache *tsdbInitCache(int cacheBlockSize, int totalBlocks, TSDB_REPO_T *pRepo);
 void        tsdbFreeCache(STsdbCache *pCache);
 void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key);
 
@@ -342,7 +342,7 @@ typedef struct {
   SCompCol cols[];
 } SCompData;
 
-STsdbFileH *tsdbGetFile(TsdbRepoT *pRepo);
+STsdbFileH *tsdbGetFile(TSDB_REPO_T *pRepo);
 
 int         tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast,
                                     SDataCols *pCols);
@@ -404,9 +404,9 @@ typedef struct {
 int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
 SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
 
-int32_t tsdbTriggerCommit(TsdbRepoT *repo);
-int32_t tsdbLockRepo(TsdbRepoT *repo);
-int32_t tsdbUnLockRepo(TsdbRepoT *repo);
+int32_t tsdbTriggerCommit(TSDB_REPO_T *repo);
+int32_t tsdbLockRepo(TSDB_REPO_T *repo);
+int32_t tsdbUnLockRepo(TSDB_REPO_T *repo);
 
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 
