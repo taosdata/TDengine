@@ -753,8 +753,8 @@ typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
-  char secret[TSDB_KEY_LEN + 1];
-  char ckey[TSDB_KEY_LEN + 1];
+  char secret[TSDB_KEY_LEN];
+  char ckey[TSDB_KEY_LEN];
 } SDMAuthMsg, SDMAuthRsp;
 
 #pragma pack(pop)

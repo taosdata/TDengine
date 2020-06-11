@@ -209,8 +209,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_SQL_SHOW_LEN     256
 #define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
 
-#define TSDB_MAX_BYTES_PER_ROW    (TSDB_MAX_COLUMNS * 64)
-#define TSDB_MAX_TAGS_LEN         65536
+#define TSDB_MAX_BYTES_PER_ROW    65535
+#define TSDB_MAX_TAGS_LEN         65535
 #define TSDB_MAX_TAGS             128
 
 #define TSDB_AUTH_LEN             16

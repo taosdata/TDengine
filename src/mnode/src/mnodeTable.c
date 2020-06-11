@@ -1251,10 +1251,10 @@ static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
   pMeta->contLen      = sizeof(STableMetaMsg) + mnodeSetSchemaFromSuperTable(pMeta->schema, pTable);
   tstrncpy(pMeta->tableId, pTable->info.tableId, sizeof(pMeta->tableId));
 
+  pMsg->rpcRsp.len = pMeta->contLen;
   pMeta->contLen = htons(pMeta->contLen);
 
   pMsg->rpcRsp.rsp = pMeta;
-  pMsg->rpcRsp.len = pMeta->contLen;
   
   mTrace("stable:%s, uid:%" PRIu64 " table meta is retrieved", pTable->info.tableId, pTable->uid);
   return TSDB_CODE_SUCCESS;

@@ -204,7 +204,7 @@ typedef struct {
 
 typedef struct SAcctObj {
   char      user[TSDB_USER_LEN];
-  char      pass[TSDB_KEY_LEN + 1];
+  char      pass[TSDB_KEY_LEN];
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
