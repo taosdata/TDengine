@@ -572,6 +572,7 @@ static void dnodeSaveMnodeInfos() {
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
   free(content);
   
@@ -694,6 +695,7 @@ static void dnodeSaveDnodeCfg() {
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
   free(content);
   
