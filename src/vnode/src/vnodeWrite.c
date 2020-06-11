@@ -131,11 +131,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
 }
 
 static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
-  if (pCfg == NULL) return terrno;
-  int32_t code = tsdbAlterTable(pVnode->tsdb, pCfg);
-  tsdbClearTableCfg(pCfg);
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {

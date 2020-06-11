@@ -404,11 +404,6 @@ STsdbRepoInfo *tsdbGetStatus(TSDB_REPO_T *pRepo) {
   return NULL;
 }
 
-int tsdbAlterTable(TSDB_REPO_T *pRepo, STableCfg *pCfg) {
-  // TODO
-  return 0;
-}
-
 int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
@@ -509,119 +504,6 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
   }
   pRsp->affectedRows = htonl(affectedrows);
   return code;
-}
-
-/**
- * Initialize a table configuration
- */
-int tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid) {
-  if (config == NULL) return -1;
-  if (type != TSDB_CHILD_TABLE && type != TSDB_NORMAL_TABLE && type != TSDB_STREAM_TABLE) return -1;
-
-  memset((void *)config, 0, sizeof(STableCfg));
-
-  config->type = type;
-  config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
-  config->tableId.uid = uid;
-  config->tableId.tid = tid;
-  config->name = NULL;
-  config->sql = NULL;
-  return 0;
-}
-
-/**
- * Set the super table UID of the created table
- */
-int tsdbTableSetSuperUid(STableCfg *config, uint64_t uid) {
-  if (config->type != TSDB_CHILD_TABLE) return -1;
-  if (uid == TSDB_INVALID_SUPER_TABLE_ID) return -1;
-
-  config->superUid = uid;
-  return 0;
-}
-
-/**
- * Set the table schema in the configuration
- * @param config the configuration to set
- * @param pSchema the schema to set
- * @param dup use the schema directly or duplicate one for use
- * 
- * @return 0 for success and -1 for failure
- */
-int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup) {
-  if (dup) {
-    config->schema = tdDupSchema(pSchema);
-  } else {
-    config->schema = pSchema;
-  }
-  return 0;
-}
-
-/**
- * Set the table schema in the configuration
- * @param config the configuration to set
- * @param pSchema the schema to set
- * @param dup use the schema directly or duplicate one for use
- * 
- * @return 0 for success and -1 for failure
- */
-int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
-  if (config->type != TSDB_CHILD_TABLE) return -1;
-
-  if (dup) {
-    config->tagSchema = tdDupSchema(pSchema);
-  } else {
-    config->tagSchema = pSchema;
-  }
-  return 0;
-}
-
-int tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup) {
-  if (config->type != TSDB_CHILD_TABLE) return -1;
-
-  if (dup) {
-    config->tagValues = tdKVRowDup(row);
-  } else {
-    config->tagValues = row;
-  }
-
-  return 0;
-}
-
-int tsdbTableSetName(STableCfg *config, char *name, bool dup) {
-  if (dup) {
-    config->name = strdup(name);
-    if (config->name == NULL) return -1;
-  } else {
-    config->name = name;
-  }
-
-  return 0;
-}
-
-int tsdbTableSetSName(STableCfg *config, char *sname, bool dup) {
-  if (config->type != TSDB_CHILD_TABLE) return -1;
-
-  if (dup) {
-    config->sname = strdup(sname);
-    if (config->sname == NULL) return -1;
-  } else {
-    config->sname = sname;
-  }
-  return 0;
-}
-
-int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
-  if (config->type != TSDB_STREAM_TABLE) return -1;
-  
-  if (dup) {
-    config->sql = strdup(sql);
-    if (config->sql == NULL) return -1;
-  } else {
-    config->sql = sql;
-  }
-
-  return 0;
 }
 
 void tsdbClearTableCfg(STableCfg *config) {

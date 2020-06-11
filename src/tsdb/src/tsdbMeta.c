@@ -8,11 +8,18 @@
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
 // #define TSDB_META_FILE_NAME "META"
 
-
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
 static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx);
 static int     tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable, bool rmFromIdx);
+static int     tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid);
+static int     tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
+static int     tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
+static int     tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
+static int     tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
+static int     tsdbTableSetName(STableCfg *config, char *name, bool dup);
+static int     tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
+static int     tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
 
 /**
  * Encode a TSDB table object as a binary content
@@ -796,4 +803,114 @@ int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
 char *getTSTupleKey(const void * data) {
   SDataRow row = (SDataRow)data;
   return POINTER_SHIFT(row, TD_DATA_ROW_HEAD_SIZE);
+}
+
+static int tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid) {
+  if (config == NULL) return -1;
+  if (type != TSDB_CHILD_TABLE && type != TSDB_NORMAL_TABLE && type != TSDB_STREAM_TABLE) return -1;
+
+  memset((void *)config, 0, sizeof(STableCfg));
+
+  config->type = type;
+  config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
+  config->tableId.uid = uid;
+  config->tableId.tid = tid;
+  config->name = NULL;
+  config->sql = NULL;
+  return 0;
+}
+
+/**
+ * Set the super table UID of the created table
+ */
+static int tsdbTableSetSuperUid(STableCfg *config, uint64_t uid) {
+  if (config->type != TSDB_CHILD_TABLE) return -1;
+  if (uid == TSDB_INVALID_SUPER_TABLE_ID) return -1;
+
+  config->superUid = uid;
+  return 0;
+}
+
+/**
+ * Set the table schema in the configuration
+ * @param config the configuration to set
+ * @param pSchema the schema to set
+ * @param dup use the schema directly or duplicate one for use
+ * 
+ * @return 0 for success and -1 for failure
+ */
+static int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup) {
+  if (dup) {
+    config->schema = tdDupSchema(pSchema);
+  } else {
+    config->schema = pSchema;
+  }
+  return 0;
+}
+
+/**
+ * Set the table schema in the configuration
+ * @param config the configuration to set
+ * @param pSchema the schema to set
+ * @param dup use the schema directly or duplicate one for use
+ * 
+ * @return 0 for success and -1 for failure
+ */
+static int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
+  if (config->type != TSDB_CHILD_TABLE) return -1;
+
+  if (dup) {
+    config->tagSchema = tdDupSchema(pSchema);
+  } else {
+    config->tagSchema = pSchema;
+  }
+  return 0;
+}
+
+static int tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup) {
+  if (config->type != TSDB_CHILD_TABLE) return -1;
+
+  if (dup) {
+    config->tagValues = tdKVRowDup(row);
+  } else {
+    config->tagValues = row;
+  }
+
+  return 0;
+}
+
+static int tsdbTableSetName(STableCfg *config, char *name, bool dup) {
+  if (dup) {
+    config->name = strdup(name);
+    if (config->name == NULL) return -1;
+  } else {
+    config->name = name;
+  }
+
+  return 0;
+}
+
+static int tsdbTableSetSName(STableCfg *config, char *sname, bool dup) {
+  if (config->type != TSDB_CHILD_TABLE) return -1;
+
+  if (dup) {
+    config->sname = strdup(sname);
+    if (config->sname == NULL) return -1;
+  } else {
+    config->sname = sname;
+  }
+  return 0;
+}
+
+static int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
+  if (config->type != TSDB_STREAM_TABLE) return -1;
+  
+  if (dup) {
+    config->sql = strdup(sql);
+    if (config->sql == NULL) return -1;
+  } else {
+    config->sql = sql;
+  }
+
+  return 0;
 }
