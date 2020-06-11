@@ -77,7 +77,7 @@ typedef void TSDB_REPO_T;  // use void to hide implementation details from outsi
 STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo);
 
 // --------- TSDB REPOSITORY DEFINITION
-int          tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
+int          tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg);
 int32_t      tsdbDropRepo(TSDB_REPO_T *repo);
 TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
 int32_t      tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit);

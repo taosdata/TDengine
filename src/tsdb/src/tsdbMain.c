@@ -91,7 +91,7 @@ STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo) {
  *
  * @return a TSDB repository handle on success, NULL for failure
  */
-int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) {
+int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
   if (mkdir(rootDir, 0755) != 0) {
     tsdbError("vgId:%d, failed to create rootDir! rootDir:%s, reason:%s", pCfg->tsdbId, rootDir, strerror(errno));
     if (errno == EACCES) {
@@ -117,7 +117,7 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) 
 
   pRepo->rootDir = strdup(rootDir);
   pRepo->config = *pCfg;
-  pRepo->limiter = limiter;
+  // pRepo->limiter = limiter;
 
   // Create the environment files and directories
   int32_t code = tsdbSetRepoEnv(pRepo);
