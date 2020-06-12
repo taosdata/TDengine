@@ -90,7 +90,7 @@ static void syncModuleInitFunc() {
   syncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
   vgIdHash = taosHashInit(TSDB_MAX_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true); 
 
-  taosGetFqdn(tsNodeFqdn);
+  tstrncpy(tsNodeFqdn, tsLocalFqdn, sizeof(tsNodeFqdn));
 }
 
 void *syncStart(const SSyncInfo *pInfo) 

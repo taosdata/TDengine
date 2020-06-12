@@ -144,8 +144,6 @@ static void arbProcessBrokenLink(void *param) {
   SNodeConn *pNode = param;
 
   sTrace("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
-  taosFreeTcpConn(pNode->pConn);
-
   tfree(pNode);
 }
 
