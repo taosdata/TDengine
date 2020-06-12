@@ -102,11 +102,13 @@ static int32_t mnodeUserActionDecode(SSdbOper *pOper) {
 }
 
 static int32_t mnodeUserActionRestored() {
-  if (dnodeIsFirstDeploy()) {
+  int32_t numOfRows = sdbGetNumOfRows(tsUserSdb);
+  if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
+    mPrint("dnode first deploy, create root user");
     SAcctObj *pAcct = mnodeGetAcct("root");
-    mnodeCreateUser(pAcct, "root", "taosdata");
-    mnodeCreateUser(pAcct, "monitor", tsInternalPass);
-    mnodeCreateUser(pAcct, "_root", tsInternalPass);
+    mnodeCreateUser(pAcct, "root", "taosdata", NULL);
+    mnodeCreateUser(pAcct, "monitor", tsInternalPass, NULL);
+    mnodeCreateUser(pAcct, "_root", tsInternalPass, NULL);
     mnodeDecAcctRef(pAcct);
   }
 
@@ -185,7 +187,7 @@ static int32_t mnodeUpdateUser(SUserObj *pUser) {
   return code;
 }
 
-int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass) {
+int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   int32_t code = acctCheck(pAcct, ACCT_GRANT_USER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -226,16 +228,17 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     .type = SDB_OPER_GLOBAL,
     .table = tsUserSdb,
     .pObj = pUser,
-    .rowSize = sizeof(SUserObj)
+    .rowSize = sizeof(SUserObj),
+    .pMnodeMsg = pMsg
   };
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pUser);
-    code = TSDB_CODE_MND_SDB_ERROR;
+    return code;
+  } else {
+    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
-
-  return code;
 }
 
 static int32_t mnodeDropUser(SUserObj *pUser) {
@@ -364,7 +367,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
   
   if (pOperUser->superAuth) {
     SCMCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
-    code = mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass);
+    code = mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass, pMsg);
     if (code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s, is created by %s", pCreate->user, pOperUser->user);
     }

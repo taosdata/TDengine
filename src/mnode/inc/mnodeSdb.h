@@ -48,8 +48,10 @@ typedef struct {
   ESdbOper type;
   void *   table;
   void *   pObj;
-  int32_t  rowSize;
+  void *   pMnodeMsg;
   void *   rowData;
+  int32_t  rowSize;
+  int32_t  retCode; // for callback in sdb queue
 } SSdbOper;
 
 typedef struct {

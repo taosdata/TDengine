@@ -117,6 +117,7 @@ static int32_t mnodeDnodeActionDecode(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
+    mPrint("dnode first deploy, create dnode:%s", tsLocalEp);
     mnodeCreateDnode(tsLocalEp);
     SDnodeObj *pDnode = mnodeGetDnodeByEp(tsLocalEp);
     mnodeAddMnode(pDnode->dnodeId);

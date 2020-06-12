@@ -28,7 +28,7 @@ void *    mnodeGetNextUser(void *pIter, SUserObj **pUser);
 void      mnodeIncUserRef(SUserObj *pUser);
 void      mnodeDecUserRef(SUserObj *pUser);
 SUserObj *mnodeGetUserFromConn(void *pConn);
-int32_t   mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass);
+int32_t   mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg);
 void      mnodeDropAllUsers(SAcctObj *pAcct);
 
 #ifdef __cplusplus

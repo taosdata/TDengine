@@ -128,6 +128,7 @@ static void dnodeFreeMnodeWriteMsg(SMnodeMsg *pWrite) {
 
 void dnodeSendRpcMnodeWriteRsp(void *pRaw, int32_t code) {
   SMnodeMsg *pWrite = pRaw;
+  if (pWrite == NULL) return;
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
   if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
     dnodeReprocessMnodeWriteMsg(pWrite);
