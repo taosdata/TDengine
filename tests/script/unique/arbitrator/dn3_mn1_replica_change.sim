@@ -51,7 +51,7 @@ system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 sleep 3000
 
-$totalTableNum = 10000
+$totalTableNum = 10
 $sleepTimer = 10000
 
 $db = db
@@ -192,7 +192,7 @@ if $data00 != $totalRows then
 endi
 
 
-print ============== step4: stop dnode2 for checking if sync success
+print ============== step4: stop dnode2 for checking if sync ok
 system sh/exec.sh -n dnode2 -s stop
 sleep $sleepTimer
 

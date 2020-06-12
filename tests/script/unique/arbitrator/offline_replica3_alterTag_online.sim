@@ -67,7 +67,7 @@ sql use $db
 
 # create table , insert data
 $stb = stb
-sql create table $stb (ts timestamp, c1 int, c2 int) tags(t1 int)
+sql create table $stb (ts timestamp, c1 int, c2 int) tags(t0 int, t1 int)
 $rowNum = 500
 $tblNum = $totalTableNum
 $totalRows = 0
@@ -77,7 +77,7 @@ $tsEnd = 0
 $i = 0
 while $i < $tblNum
   $tb = tb . $i
-  sql create table $tb using $stb tags( $i )
+  sql create table $tb using $stb tags( $i , $i )
  
   $x = 0
   while $x < $rowNum
@@ -164,7 +164,7 @@ $totalRows = 0
 $i = 0
 while $i < $tblNum
   $tb = tb . $i
-  sql create table $tb using $stb tags( $i , $i )
+  sql create table $tb using $stb tags( $i , $i , $i )
  
   $x = 0
   while $x < $rowNum
