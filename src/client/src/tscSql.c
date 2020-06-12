@@ -219,6 +219,11 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   sem_post(&pSql->rspSem);
 }
 
+static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
+  SSqlObj* pSql = (SSqlObj*) tres;
+  sem_post(&pSql->rspSem);
+}
+
 TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
@@ -369,11 +374,6 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   return (pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows;
 }
 
-static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
-  SSqlObj* pSql = (SSqlObj*) tres;
-  sem_post(&pSql->rspSem);
-}
-
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) {
@@ -496,14 +496,14 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
     tscProcessSql(pSql);
 
     // in case of sync model query, waits for response and then goes on
-    if (pSql->fp == waitForQueryRsp || pSql->fp == waitForRetrieveRsp) {
-      sem_wait(&pSql->rspSem);
+//    if (pSql->fp == waitForQueryRsp || pSql->fp == waitForRetrieveRsp) {
+//      sem_wait(&pSql->rspSem);
 
-      tscFreeSqlObj(pSql);
-      tscTrace("%p sqlObj is freed by app", pSql);
-    } else {
+//      tscFreeSqlObj(pSql);
+//      tscTrace("%p sqlObj is freed by app", pSql);
+//    } else {
       tscTrace("%p sqlObj will be freed while rsp received", pSql);
-    }
+//    }
 
     return true;
   }

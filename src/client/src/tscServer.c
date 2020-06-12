@@ -209,6 +209,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     tscError("%p sql is already released", pSql->signature);
     return;
   }
+
   if (pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
     return;
@@ -217,10 +218,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
-  // tscTrace("%p msg:%s is received from server", pSql, taosMsg[rpcMsg->msgType]);
 
   if (pObj->signature != pObj || pSql->freed == 1) {
-    tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
+    tscTrace("%p sqlObj needs to be released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
     tscFreeSqlObj(pSql);
     rpcFreeCont(rpcMsg->pCont);
