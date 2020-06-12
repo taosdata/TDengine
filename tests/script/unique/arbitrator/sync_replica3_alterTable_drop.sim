@@ -56,7 +56,7 @@ sql create dnode $hostname3
 sql create dnode $hostname4
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 
 $db = db
@@ -172,8 +172,8 @@ system sh/exec.sh -n dnode4 -s start
 run_back unique/arbitrator/sync_replica_alterTable_background_drop.sim
 
 print ============== step6: check result
-#in background.sim, drop one column and add one new column, then insert 200 rows
-$totalRows = $totalRows + 200
+#in background.sim, drop one column and add one new column, then insert 36 rows
+$totalRows = $totalRows + 36
 
 $cnt = 0
 wait_table_altered:

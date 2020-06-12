@@ -1289,7 +1289,10 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   
   SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) (pCmd->payload + tsRpcHeadSize);
   pCmd->payloadLen = htonl(pUpdateMsg->head.contLen);
-  
+  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  tscSetDnodeIpList(pSql, &pTableMetaInfo->pTableMeta->vgroupInfo);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1705,8 +1708,9 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, i);
-    tstrncpy(pMsg, pTableMetaInfo->name, sizeof(pTableMetaInfo->name));
-    pMsg += sizeof(pTableMetaInfo->name);
+    size_t size = sizeof(pTableMetaInfo->name);
+    tstrncpy(pMsg, pTableMetaInfo->name, size);
+    pMsg += size;
   }
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_STABLE_VGROUP;
@@ -2220,9 +2224,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
 
   if (pTableMetaInfo->pTableMeta) {
     bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
-//    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pMetricMeta), true);
 
     if (isSuperTable) {  // if it is a super table, reset whole query cache
       tscTrace("%p reset query cache since table:%s is stable", pSql, pTableMetaInfo->name);
