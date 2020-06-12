@@ -134,24 +134,6 @@ void tscGetDBInfoFromMeterId(char* tableId, char* db) {
   db[0] = 0;
 }
 
-//STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
-//  if (pSidList == NULL) {
-//    tscError("illegal sidlist");
-//    return 0;
-//  }
-//
-//  if (idx < 0 || idx >= pSidList->numOfSids) {
-//    int32_t sidRange = (pSidList->numOfSids > 0) ? (pSidList->numOfSids - 1) : 0;
-//
-//    tscError("illegal sidIdx:%d, reset to 0, sidIdx range:%d-%d", idx, 0, sidRange);
-//    idx = 0;
-//  }
-//
-//  assert(pSidList->pSidExtInfoList[idx] >= 0);
-//
-//  return (STableIdInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
-//}
-
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
@@ -176,8 +158,7 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
     return false;
   }
 
-  if (((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) != TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&
-      pQueryInfo->command == TSDB_SQL_SELECT) {
+  if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) && pQueryInfo->command == TSDB_SQL_SELECT) {
     return UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   }
 
