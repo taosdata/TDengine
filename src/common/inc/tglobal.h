@@ -53,6 +53,7 @@ extern int64_t tsMsPerDay[3];
 
 extern char  tsFirst[];
 extern char  tsSecond[];
+extern char  tsLocalFqdn[];
 extern char  tsLocalEp[];
 extern uint16_t tsServerPort;
 extern uint16_t tsDnodeShellPort;
