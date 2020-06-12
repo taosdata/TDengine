@@ -24,7 +24,7 @@
 #include "taosdef.h"
 #include "ttime.h"
 #include "tutil.h"
-
+#include "tglobal.h"
 /*
  * mktime64 - Converts date to seconds.
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
@@ -119,6 +119,12 @@ static int month[12] = {
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
 static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec);
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
+
+static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
+  parseLocaltime,
+  parseLocaltimeWithDst
+}; 
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
@@ -127,7 +133,7 @@ int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePre
   if (strnchr(timestr, 'T', len, false) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec);
   } else {
-    return parseLocaltime(timestr, time, timePrec);
+    return (*parseLocaltimeFp[tsDaylight])(timestr, time, timePrec);
   }
 }
 
@@ -304,9 +310,6 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
     return -1;
   }
 
-  /* mktime will be affected by TZ, set by using taos_options */
-  //int64_t seconds = mktime(&tm);
-  //int64_t seconds = (int64_t)user_mktime(&tm);
   int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   
   int64_t fraction = 0;
@@ -324,6 +327,32 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
+int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
+  *time = 0;
+  struct tm tm = {0};
+  tm.tm_isdst = -1;
+
+  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  if (str == NULL) {
+    return -1;
+  }
+
+  /* mktime will be affected by TZ, set by using taos_options */
+  int64_t seconds = mktime(&tm);
+  
+  int64_t fraction = 0;
+
+  if (*str == '.') {
+    /* parse the second fraction part */
+    if ((fraction = parseFraction(str + 1, &str, timePrec)) < 0) {
+      return -1;
+    }
+  }
+
+  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 : 1000000;
+  *time = factor * seconds + fraction;
+  return 0;
+}
 static int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t* result) {
   *result = val;
 

@@ -45,6 +45,7 @@ extern float   tsMinimalLogDirGB;
 extern float   tsMinimalTmpDirGB;
 extern float   tsMinimalDataDirGB;
 extern int32_t tsEnableCoreFile;
+extern int32_t tsDaylight;
 extern int32_t tsTotalMemoryMB;
 extern int32_t tsVersion;
 

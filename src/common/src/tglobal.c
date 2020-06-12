@@ -50,6 +50,7 @@ float   tsMinimalDataDirGB = 0.5;
 int32_t tsTotalMemoryMB = 0;
 int32_t tsVersion = 0;
 int32_t tsEnableCoreFile = 0;
+int32_t tsDaylight = 0;
 
 // global, not configurable
 int32_t tscEmbedded = 0;
