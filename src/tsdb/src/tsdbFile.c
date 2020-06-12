@@ -35,8 +35,35 @@ const char *tsdbFileSuffix[] = {
     ".last"   // TSDB_FILE_TYPE_LAST
 };
 
-static int compFGroup(const void *arg1, const void *arg2);
-static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid);
+// ---------------- INTERNAL FUNCTIONS ----------------
+STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg) {
+  STsdbFileH *pFileH = (STsdbFileH *)calloc(1, sizeof(*pFileH));
+  if (pFileH == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  pFileH->maxFGroups = pCfg->keep / pCfg->daysPerFile + 3;
+
+  pFileH->pFGroup = (SFileGroup *)calloc(pFileH->maxFGroups, sizeof(SFileGroup));
+  if (pFileH->pFGroup == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  return pFileH;
+
+  _err:
+  tsdbFreeFileH(pFileH);
+  return NULL;
+}
+
+void tsdbFreeFileH(STsdbFileH* pFileH) {
+  if (pFileH) {
+    tfree(pFileH->pFGroup);
+    free(pFileH);
+  }
+}
 
 STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg) {
   STsdbFileH *pFileH = (STsdbFileH *)calloc(1, sizeof(STsdbFileH));
@@ -78,41 +105,6 @@ void tsdbCloseFileH(STsdbFileH *pFileH) {
     tfree(pFileH->fGroup);
     free(pFileH);
   }
-}
-
-static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile) {
-  uint32_t version;
-  char buf[512] = "\0";
-
-  tsdbGetFileName(dataDir, fid, suffix, pFile->fname);
-  if (access(pFile->fname, F_OK|R_OK|W_OK) < 0) return -1;
-  pFile->fd = -1;
-  if (tsdbOpenFile(pFile, O_RDONLY) < 0) return -1;
-
-  if (tread(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) return -1;
-  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) return -1;
-
-  void *pBuf = buf;
-  pBuf = taosDecodeFixedU32(pBuf, &version);
-  pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
-
-  tsdbCloseFile(pFile);
-
-  return 0;
-}
-
-static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid) {
-  if (tsdbSearchFGroup(pFileH, fid) != NULL) return 0;
-
-  SFileGroup fGroup = {0};
-  fGroup.fileId = fid;
-
-  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-    if (tsdbInitFile(dataDir, fid, tsdbFileSuffix[type], &fGroup.files[type]) < 0) return -1;
-  }
-  pFileH->fGroup[pFileH->numOfFGroups++] = fGroup;
-  qsort((void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroup);
-  return 0;
 }
 
 /**
@@ -228,28 +220,6 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
   return ret;
 }
 
-// int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SDataCols *pCols, SCompData *pCompData) {
-//   SCompBlock *pBlock = pStartBlock;
-//   for (int i = 0; i < numOfBlocks; i++) {
-//     if (tsdbLoadCompCols(pFile, pBlock, (void *)pCompData) < 0) return -1;
-//     pCols->numOfRows += (pCompData->cols[0].len / 8);
-//     for (int iCol = 0; iCol < pBlock->numOfCols; iCol++) {
-//       SCompCol *pCompCol = &(pCompData->cols[iCol]);
-//       // pCols->numOfRows += pBlock->numOfRows;
-//       int k = 0;
-//       for (; k < pCols->numOfCols; k++) {
-//         if (pCompCol->colId == pCols->cols[k].colId) break;
-//       }
-
-//       if (tsdbLoadColData(pFile, pCompCol, pBlock->offset,
-//                           (void *)((char *)(pCols->cols[k].pData) + pCols->cols[k].len)) < 0)
-//         return -1;
-//     }
-//     pStartBlock++;
-//   }
-//   return 0;
-// }
-
 int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols) {
   SCompBlock *pSuperBlock = TSDB_COMPBLOCK_AT(pCompInfo, idx);
   SCompBlock *pStartBlock = NULL;
@@ -292,10 +262,6 @@ int compFGroupKey(const void *key, const void *fgroup) {
   } else {
     return fid > pFGroup->fileId? 1:-1;
   }
-}
-
-static int compFGroup(const void *arg1, const void *arg2) {
-  return ((SFileGroup *)arg1)->fileId - ((SFileGroup *)arg2)->fileId;
 }
 
 int tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname) {
@@ -371,4 +337,44 @@ SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid) {
   void *ptr = bsearch((void *)&fid, (void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey);
   if (ptr == NULL) return NULL;
   return (SFileGroup *)ptr;
+}
+
+// ---------------- LOCAL FUNCTIONS ----------------
+static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile) {
+  uint32_t version;
+  char buf[512] = "\0";
+
+  tsdbGetFileName(dataDir, fid, suffix, pFile->fname);
+  if (access(pFile->fname, F_OK|R_OK|W_OK) < 0) return -1;
+  pFile->fd = -1;
+  if (tsdbOpenFile(pFile, O_RDONLY) < 0) return -1;
+
+  if (tread(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) return -1;
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) return -1;
+
+  void *pBuf = buf;
+  pBuf = taosDecodeFixedU32(pBuf, &version);
+  pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
+
+  tsdbCloseFile(pFile);
+
+  return 0;
+}
+
+static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid) {
+  if (tsdbSearchFGroup(pFileH, fid) != NULL) return 0;
+
+  SFileGroup fGroup = {0};
+  fGroup.fileId = fid;
+
+  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+    if (tsdbInitFile(dataDir, fid, tsdbFileSuffix[type], &fGroup.files[type]) < 0) return -1;
+  }
+  pFileH->fGroup[pFileH->numOfFGroups++] = fGroup;
+  qsort((void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroup);
+  return 0;
+}
+
+static int compFGroup(const void *arg1, const void *arg2) {
+  return ((SFileGroup *)arg1)->fileId - ((SFileGroup *)arg2)->fileId;
 }

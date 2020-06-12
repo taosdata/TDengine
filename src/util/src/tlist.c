@@ -148,6 +148,13 @@ void tdListMove(SList *src, SList *dst) {
   }
 }
 
+void tdListDiscard(SList *list) {
+  if (list) {
+    list->head = list->tail = NULL;
+    list->numOfEles = 0;
+  }
+}
+
 void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(target, node->data, list->eleSize); }
 
 void tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction) {

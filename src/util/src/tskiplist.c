@@ -219,6 +219,8 @@ void *tSkipListDestroy(SSkipList *pSkipList) {
 
 void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize) {
   if (pSkipList == NULL) {
+    *level = 1;
+    *headSize = SL_NODE_HEADER_SIZE(*level);
     return;
   }
 
