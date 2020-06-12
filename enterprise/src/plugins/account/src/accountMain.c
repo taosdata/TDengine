@@ -368,7 +368,8 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAcct->user, sizeof(pAcct->user));
+    size_t size = sizeof(pAcct->user);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAcct->user, size);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
