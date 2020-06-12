@@ -105,12 +105,18 @@ class Test (threading.Thread):
             return
         else:
             tdLog.info("will create stable %s" % current_stb)
+            tdLog.info(
+                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))' %
+                current_stb)
             tdSql.execute(
                 'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))' %
                 current_stb)
             last_stb = current_stb
 
             current_tb = "tb%d" % int(round(time.time() * 1000))
+            tdLog.info(
+                "create table %s using %s tags (1, '表1')" %
+                (current_tb, last_stb))
             tdSql.execute(
                 "create table %s using %s tags (1, '表1')" %
                 (current_tb, last_stb))
@@ -128,6 +134,8 @@ class Test (threading.Thread):
     def drop_stable(self):
         tdLog.info("drop_stable")
         global last_stb
+        global last_tb
+        global written
 
         if (last_stb == ""):
             tdLog.info("no super table")
@@ -136,6 +144,8 @@ class Test (threading.Thread):
             tdLog.info("will drop last super table")
             tdSql.execute('drop table %s' % last_stb)
             last_stb = ""
+            last_tb = ""
+            written = 0
 
     def restart_database(self):
         tdLog.info("restart_database")

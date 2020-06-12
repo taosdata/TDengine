@@ -1942,7 +1942,7 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
       f1 = (char*) pTable1->name;
       f2 = (char*) pTable2->name;
       type = TSDB_DATA_TYPE_BINARY;
-      bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+      bytes = tGetTableNameColumnSchema().bytes;
     } else {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;
