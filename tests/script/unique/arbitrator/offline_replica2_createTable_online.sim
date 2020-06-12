@@ -47,7 +47,7 @@ system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 
-print ============== step2: start dnode2/dnode3/dnode4 and add into cluster , then create database with replica 3, and create table, insert data
+print ============== step2: start dnode2/dnode3/dnode4 and add into cluster , then create database with replica 2, and create table, insert data
 system sh/exec.sh -n dnode2 -s start
 #system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
@@ -56,12 +56,14 @@ sql create dnode $hostname2
 sql create dnode $hostname4
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 
+$maxTables = $totalTableNum * 2
+
 $db = db
-print create database $db replica 3 maxTables $totalTableNum
-sql create database $db replica 3 maxTables $totalTableNum
+print create database $db replica 2 maxTables $maxTables
+sql create database $db replica 2 maxTables $maxTables
 sql use $db
 
 # create table , insert data
@@ -113,8 +115,8 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
 #print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
 #$dnode1Status = $data4_1  
 $dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
+#$dnode3Status = $data4_3  
+$dnode4Status = $data4_3 
 #$dnode5Status = $data4_5
 
 if $dnode4Status != offline then
@@ -186,8 +188,8 @@ print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
 #print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
 #$dnode1Status = $data4_1  
 #$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
+#$dnode3Status = $data4_3  
+$dnode4Status = $data4_3 
 #$dnode5Status = $data4_5
 
 if $dnode4Status != ready then

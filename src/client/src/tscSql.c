@@ -45,11 +45,11 @@ static bool validImpl(const char* str, size_t maxsize) {
 }
 
 static bool validUserName(const char* user) {
-  return validImpl(user, TSDB_USER_LEN);
+  return validImpl(user, TSDB_USER_LEN - 1);
 }
 
 static bool validPassword(const char* passwd) {
-  return validImpl(passwd, TSDB_PASSWORD_LEN);
+  return validImpl(passwd, TSDB_PASSWORD_LEN - 1);
 }
 
 SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
@@ -219,6 +219,11 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   sem_post(&pSql->rspSem);
 }
 
+static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
+  SSqlObj* pSql = (SSqlObj*) tres;
+  sem_post(&pSql->rspSem);
+}
+
 TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
@@ -369,11 +374,6 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   return (pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows;
 }
 
-static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
-  SSqlObj* pSql = (SSqlObj*) tres;
-  sem_post(&pSql->rspSem);
-}
-
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) {
@@ -475,6 +475,42 @@ int taos_select_db(TAOS *taos, const char *db) {
   return code;
 }
 
+// send free message to vnode to free qhandle and corresponding resources in vnode
+static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
+  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && !tscIsTwoStageSTableQuery(pQueryInfo, 0) &&
+      (pCmd->command == TSDB_SQL_SELECT ||
+          pCmd->command == TSDB_SQL_SHOW ||
+          pCmd->command == TSDB_SQL_RETRIEVE ||
+          pCmd->command == TSDB_SQL_FETCH) &&
+      (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
+
+    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+    tscTrace("%p start to send msg to free qhandle in dnode, command:%s", pSql, sqlCmd[pCmd->command]);
+    pSql->freed = 1;
+    tscProcessSql(pSql);
+
+    // in case of sync model query, waits for response and then goes on
+//    if (pSql->fp == waitForQueryRsp || pSql->fp == waitForRetrieveRsp) {
+//      sem_wait(&pSql->rspSem);
+
+//      tscFreeSqlObj(pSql);
+//      tscTrace("%p sqlObj is freed by app", pSql);
+//    } else {
+      tscTrace("%p sqlObj will be freed while rsp received", pSql);
+//    }
+
+    return true;
+  }
+
+  return false;
+}
+
 void taos_free_result(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   tscTrace("%p start to free result", res);
@@ -484,10 +520,8 @@ void taos_free_result(TAOS_RES *res) {
     return;
   }
   
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-
   // The semaphore can not be changed while freeing async sub query objects.
+  SSqlRes *pRes = &pSql->res;
   if (pRes == NULL || pRes->qhandle == 0) {
     tscTrace("%p SqlObj is freed by app, qhandle is null", pSql);
     tscFreeSqlObj(pSql);
@@ -502,31 +536,10 @@ void taos_free_result(TAOS_RES *res) {
   }
 
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  /*
-   * If the query process is cancelled by user in stable query, tscProcessSql should not be called
-   * for each subquery. Because the failure of execution tsProcessSql may trigger the callback function
-   * be executed, and the retry efforts may result in double free the resources, e.g.,SRetrieveSupport
-   */
-  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false &&
-      (pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_SHOW ||
-       pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_FETCH) &&
-       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-
-    tscTrace("%p start to send msg to free qhandle in dnode, command:%s", pSql, sqlCmd[pCmd->command]);
-    pSql->freed = 1;
-    tscProcessSql(pSql);
-
-    // in case of sync model query, waits for response and then goes on
-    if (pSql->fp == waitForQueryRsp || pSql->fp == waitForRetrieveRsp) {
-      sem_wait(&pSql->rspSem);
-    }
+  if (!tscFreeQhandleInVnode(pSql)) {
+    tscFreeSqlObj(pSql);
+    tscTrace("%p sqlObj is freed by app", pSql);
   }
-
-  tscFreeSqlObj(pSql);
-  tscTrace("%p sql result is freed by app", pSql);
 }
 
 // todo should not be used in async query

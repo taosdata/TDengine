@@ -186,30 +186,31 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_BINARY_OP_MULTIPLY   14
 #define TSDB_BINARY_OP_DIVIDE     15
 #define TSDB_BINARY_OP_REMAINDER  16
-#define TSDB_USERID_LEN           9
 #define TS_PATH_DELIMITER_LEN     1
 
-#define TSDB_METER_ID_LEN_MARGIN  8
-#define TSDB_TABLE_ID_LEN         (TSDB_DB_NAME_LEN+TSDB_TABLE_NAME_LEN+2*TS_PATH_DELIMITER_LEN+TSDB_USERID_LEN+TSDB_METER_ID_LEN_MARGIN) //TSDB_DB_NAME_LEN+TSDB_TABLE_NAME_LEN+2*strlen(TS_PATH_DELIMITER)+strlen(USERID)
 #define TSDB_UNI_LEN              24
 #define TSDB_USER_LEN             TSDB_UNI_LEN
-#define TSDB_ACCT_LEN             TSDB_UNI_LEN
+// ACCOUNT is a 32 bit positive integer
+// this is the length of its string representation
+// including the terminator zero
+#define TSDB_ACCT_LEN             11
 #define TSDB_PASSWORD_LEN         TSDB_UNI_LEN
 
 #define TSDB_MAX_COLUMNS          1024
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN        64
-#define TSDB_TABLE_NAME_LEN       193
+#define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
+#define TSDB_TABLE_ID_LEN         (TSDB_ACCT_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN     256
 #define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
 
-#define TSDB_MAX_BYTES_PER_ROW    TSDB_MAX_COLUMNS * 64
-#define TSDB_MAX_TAGS_LEN         65536
+#define TSDB_MAX_BYTES_PER_ROW    65535
+#define TSDB_MAX_TAGS_LEN         65535
 #define TSDB_MAX_TAGS             128
 
 #define TSDB_AUTH_LEN             16

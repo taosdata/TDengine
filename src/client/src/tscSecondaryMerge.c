@@ -217,7 +217,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   pReducer->numOfBuffer = numOfFlush;
   pReducer->numOfVnode = numOfBuffer;
-  
+
   pReducer->pDesc = pDesc;
   tscTrace("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
 
@@ -604,7 +604,7 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
 
   tOrderDescriptor *pOrderDesc = pReducer->pDesc;
   SColumnOrderInfo* orderInfo = &pOrderDesc->orderInfo;
-  
+
   // no group by columns, all data belongs to one group
   int32_t numOfCols = orderInfo->numOfCols;
   if (numOfCols <= 0) {
@@ -627,7 +627,7 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
   // only one row exists
   int32_t index = orderInfo->pData[0];
   int32_t offset = (pOrderDesc->pColumnModel)->pFields[index].offset;
-  
+
   int32_t ret = memcmp(pPrev + offset, tmpBuffer->data + offset, pOrderDesc->pColumnModel->rowSize - offset);
   return ret == 0;
 }
@@ -1040,7 +1040,7 @@ static void savePreviousRow(SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) 
 static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer, bool needInit) {
   // the tag columns need to be set before all functions execution
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
+
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t j = 0; j < size; ++j) {
     SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[j];
@@ -1182,7 +1182,7 @@ int32_t finalizeRes(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {
  */
 bool needToMerge(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) {
   int32_t ret = 0;  // merge all result by default
-  
+
   int16_t functionId = pLocalReducer->pCtx[0].functionId;
 
   // todo opt performance

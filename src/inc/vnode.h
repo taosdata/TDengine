@@ -34,6 +34,13 @@ typedef struct {
   void *qhandle; //used by query and retrieve msg
 } SRspRet;
 
+typedef struct {
+  SRspRet  rspRet;
+  void    *pCont;
+  int32_t  contLen;
+  SRpcMsg  rpcMsg;
+} SReadMsg;
+
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeDrop(int32_t vgId);
 int32_t vnodeOpen(int32_t vgId, char *rootDir);
@@ -52,7 +59,7 @@ void*   vnodeGetWal(void *pVnode);
 int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
 void    vnodeBuildStatusMsg(void * param);
 
-int32_t vnodeProcessRead(void *pVnode, int msgType, void *pCont, int32_t contLen, SRspRet *ret);
+int32_t vnodeProcessRead(void *pVnode, SReadMsg *pReadMsg);
 
 #ifdef __cplusplus
 }

@@ -3,7 +3,7 @@ sql connect
 $db = db
 $stb = stb
 print =============== sync_replica_alterTable_background_add.sim step0: alter table and insert data
-$totalTableNum = 100
+$totalTableNum = 10
 
 sql use $db
 
@@ -12,7 +12,7 @@ print alter table $stb add column f1 float
 sql alter table $stb add column f1 float
 
 $tblNum = $totalTableNum
-$alterTblNum = 51
+$alterTblNum = 10
 
 $i = 1
 while $i < $alterTblNum

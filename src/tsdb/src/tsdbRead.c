@@ -72,7 +72,7 @@ typedef struct STableCheckInfo {
   int32_t       compSize;
   int32_t       numOfBlocks;    // number of qualified data blocks not the original blocks
   SDataCols*    pDataCols;
-  
+
   int32_t       chosen;         // indicate which iterator should move forward
   bool          initBuf;        // whether to initialize the in-memory skip list iterator or not
   SSkipListIterator* iter;      // mem buffer skip list iterator
@@ -311,14 +311,14 @@ SDataRow getSDataRowInTableMem(STableCheckInfo* pCheckInfo) {
       rmem = SL_GET_NODE_DATA(node);
     }
   }
-  
+
   if (pCheckInfo->iiter) {
     SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
     if (node != NULL) {
       rimem = SL_GET_NODE_DATA(node);
     }
   }
-  
+
   if (rmem != NULL && rimem != NULL) {
     if (dataRowKey(rmem) < dataRowKey(rimem)) {
       pCheckInfo->chosen = 0;
@@ -333,17 +333,17 @@ SDataRow getSDataRowInTableMem(STableCheckInfo* pCheckInfo) {
       return rimem;
     }
   }
-  
+
   if (rmem != NULL) {
     pCheckInfo->chosen = 0;
     return rmem;
   }
-  
+
   if (rimem != NULL) {
     pCheckInfo->chosen = 1;
     return rimem;
   }
-  
+
   return NULL;
 }
 
@@ -353,11 +353,11 @@ bool moveToNextRow(STableCheckInfo* pCheckInfo) {
     if (pCheckInfo->iter != NULL) {
       hasNext = tSkipListIterNext(pCheckInfo->iter);
     }
-    
+
     if (hasNext) {
       return hasNext;
     }
-    
+
     if (pCheckInfo->iiter != NULL) {
       return tSkipListIterGet(pCheckInfo->iiter) != NULL;
     }
@@ -366,17 +366,17 @@ bool moveToNextRow(STableCheckInfo* pCheckInfo) {
       if (pCheckInfo->iiter != NULL) {
         hasNext = tSkipListIterNext(pCheckInfo->iiter);
       }
-  
+
       if (hasNext) {
         return hasNext;
       }
-  
+
       if (pCheckInfo->iter != NULL) {
         return tSkipListIterGet(pCheckInfo->iter) != NULL;
       }
     }
   }
-  
+
   return hasNext;
 }
 
@@ -395,7 +395,7 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
   if (row == NULL) {
     return false;
   }
-  
+
   pCheckInfo->lastKey = dataRowKey(row);  // first timestamp in buffer
   tsdbTrace("%p uid:%" PRId64", tid:%d check data in buffer from skey:%" PRId64 ", order:%d, %p", pHandle,
       pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, pCheckInfo->lastKey, pHandle->order, pHandle->qinfo);
@@ -581,9 +581,9 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
   bool    blockLoaded = false;
   SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
-  
+
   int64_t st = taosGetTimestampUs();
-  
+
   if (pCheckInfo->pDataCols == NULL) {
     STsdbMeta* pMeta = tsdbGetMeta(pRepo);
     pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
@@ -603,13 +603,13 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
   assert(pCols->numOfRows != 0);
-  
+
   taosArrayDestroy(sa);
   tfree(data);
-  
+
   int64_t et = taosGetTimestampUs() - st;
   tsdbTrace("%p load file block into buffer, elapsed time:%"PRId64 " us", pQueryHandle, et);
-  
+
   return blockLoaded;
 }
 
@@ -681,7 +681,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
       if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
         return false;
       }
-      
+
       SDataCols* pTSCol = pQueryHandle->rhelper.pDataCols[0];
       assert(pTSCol->cols->type == TSDB_DATA_TYPE_TIMESTAMP && pTSCol->numOfRows == pBlock->numOfRows);
       
@@ -1212,7 +1212,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
   *numOfAllocBlocks = numOfBlocks;
 
   int32_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-  
+
   SBlockOrderSupporter sup = {0};
   sup.numOfTables = numOfTables;
   sup.numOfBlocksPerTable = calloc(1, sizeof(int32_t) * numOfTables);
@@ -1256,17 +1256,17 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
   }
 
   assert(numOfBlocks == cnt);
-  
+
   // since there is only one table qualified, blocks are not sorted
   if (numOfQualTables == 1) {
     memcpy(pQueryHandle->pDataBlockInfo, sup.pDataBlockInfo[0], sizeof(STableBlockInfo) * numOfBlocks);
     cleanBlockOrderSupporter(&sup, numOfQualTables);
-  
+
     tsdbTrace("%p create data blocks info struct completed for 1 table, %d blocks not sorted %p ", pQueryHandle, cnt,
         pQueryHandle->qinfo);
     return TSDB_CODE_SUCCESS;
   }
-  
+
   tsdbTrace("%p create data blocks info struct completed, %d blocks in %d tables %p", pQueryHandle, cnt,
       numOfQualTables, pQueryHandle->qinfo);
 
@@ -1683,7 +1683,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   int64_t elapsedTime = taosGetTimestampUs() - st;
   tsdbTrace("%p build data block from cache completed, elapsed time:%"PRId64" us, numOfRows:%d, numOfCols:%d", pQueryHandle,
             elapsedTime, numOfRows, numOfCols);
-  
+
   return numOfRows;
 }
 
@@ -1942,7 +1942,7 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
       f1 = (char*) pTable1->name;
       f2 = (char*) pTable2->name;
       type = TSDB_DATA_TYPE_BINARY;
-      bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+      bytes = tGetTableNameColumnSchema().bytes;
     } else {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;

@@ -27,13 +27,6 @@
 #include "vnode.h"
 
 typedef struct {
-  SRspRet  rspRet;
-  void    *pCont;
-  int32_t  contLen;
-  SRpcMsg  rpcMsg;
-} SReadMsg;
-
-typedef struct {
   pthread_t  thread;    // thread
   int32_t    workerId;  // worker ID
 } SReadWorker;
@@ -218,7 +211,7 @@ static void *dnodeProcessReadQueue(void *param) {
     }
 
     dTrace("%p, msg:%s will be processed in vread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);
-    int32_t code = vnodeProcessRead(pVnode, pReadMsg->rpcMsg.msgType, pReadMsg->pCont, pReadMsg->contLen, &pReadMsg->rspRet);
+    int32_t code = vnodeProcessRead(pVnode, pReadMsg);
     dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     taosFreeQitem(pReadMsg);
   }

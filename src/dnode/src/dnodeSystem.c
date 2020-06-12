@@ -29,7 +29,7 @@ int32_t main(int32_t argc, char *argv[]) {
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {        
-        if (strlen(argv[++i]) > TSDB_FILENAME_LEN - 1) {
+        if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           printf("config file path overflow");
           exit(EXIT_FAILURE);
         }
