@@ -192,7 +192,7 @@ if $data00 != $totalRows then
 endi
 
 
-print ============== step4: stop dnode2 for checking if sync success
+print ============== step4: stop dnode2 for checking if sync ok
 system sh/exec.sh -n dnode2 -s stop
 sleep $sleepTimer
 
