@@ -9,9 +9,9 @@ import java.util.Properties;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class StatementTest {
+public class PreparedStatementTest {
     static Connection connection = null;
-    static Statement statement = null;
+    static PreparedStatement statement = null;
     static String dbName = "test";
     static String tName = "t0";
     static String host = "localhost";
@@ -29,8 +29,8 @@ public class StatementTest {
         connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
                 , properties);
 
-        statement = connection.createStatement();
-        statement.executeUpdate("drop database if exists " + dbName);
+        String sql = "drop database if exists " + dbName;
+        statement = (TSDBPreparedStatement) connection.prepareStatement(sql);
 
     }
 
@@ -41,8 +41,10 @@ public class StatementTest {
         statement.executeUpdate("create database if not exists " + dbName);
         statement.executeUpdate("create table if not exists " + dbName + "." + tName + "(ts timestamp, k1 int)");
         statement.executeUpdate("insert into " + dbName + "." + tName + " values (" + ts + ", 1)");
-        statement.executeQuery("select * from " + dbName + "." + tName);
-        ResultSet resultSet = statement.getResultSet();
+
+        PreparedStatement selectStatement = connection.prepareStatement("select * from " + dbName + "." + tName);
+
+        ResultSet resultSet = selectStatement.executeQuery();
         assertTrue(null != resultSet);
 
         boolean isClosed = statement.isClosed();
@@ -54,7 +56,7 @@ public class StatementTest {
 //        if(null == resSet) {
 //            return;
 //        }
-        TSDBStatement tsdbStatement = (TSDBStatement) statement;
+        TSDBPreparedStatement tsdbStatement = (TSDBPreparedStatement) statement;
         try {
             tsdbStatement.unwrap(null);
         } catch (SQLException e) {
