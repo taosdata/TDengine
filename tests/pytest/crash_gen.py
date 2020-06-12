@@ -690,8 +690,8 @@ class StateHasData(AnyState):
         else: # should be STATE_HAS_DATA
             self.assertNoTask(tasks, DropDbTask)
             if (not self.hasTask(tasks, CreateFixedSuperTableTask)) :  # if we didn't create the table
-                self.assertNoTask(tasks, DropFixedSuperTableTask) # we should not have a task that drops it
-            self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
+                self.assertNoTask(tasks, DropFixedSuperTableTask) # we should not have a task that drops it            
+            # self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
 
 
 # State of the database as we believe it to be
