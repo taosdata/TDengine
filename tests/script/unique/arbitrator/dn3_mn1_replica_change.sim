@@ -51,7 +51,7 @@ system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 sleep 3000
 
-$totalTableNum = 10000
+$totalTableNum = 10
 $sleepTimer = 10000
 
 $db = db
