@@ -47,6 +47,7 @@ extern float   tsMinimalDataDirGB;
 extern int32_t tsEnableCoreFile;
 extern int32_t tsTotalMemoryMB;
 extern int32_t tsVersion;
+extern int32_t tsDaylight;
 
 extern int32_t tscEmbedded;
 extern int64_t tsMsPerDay[3];

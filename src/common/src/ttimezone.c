@@ -59,5 +59,6 @@ void tsSetTimeZone() {
   */
   sprintf(tsTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
+  tsDaylight = daylight;
   uPrint("timezone format changed to %s", tsTimezone);
 }

@@ -50,6 +50,7 @@ float   tsMinimalDataDirGB = 0.5;
 int32_t tsTotalMemoryMB = 0;
 int32_t tsVersion = 0;
 int32_t tsEnableCoreFile = 0;
+int32_t tsDaylight = 0;
 
 // global, not configurable
 int32_t tscEmbedded = 0;
@@ -65,7 +66,6 @@ int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 char  tsFirst[TSDB_EP_LEN] = {0};  
 char  tsSecond[TSDB_EP_LEN] = {0};
 char  tsArbitrator[TSDB_EP_LEN] = {0};
-char  tsLocalFqdn[TSDB_FQDN_LEN] = {0};
 char  tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
 uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
@@ -303,16 +303,6 @@ static void doInitGlobalConfig() {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_EP_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "fqdn";
-  cfg.ptr = tsLocalFqdn;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FQDN_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -729,7 +719,7 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_USER_LEN - 1;
+  cfg.ptrLength = TSDB_USER_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -739,7 +729,7 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_PASSWORD_LEN - 1;
+  cfg.ptrLength = TSDB_PASSWORD_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -1262,14 +1252,9 @@ bool taosCheckGlobalCfg() {
     taosSetAllDebugFlag();
   }
   
-  if (tsLocalFqdn[0] == 0) {
-    taosGetFqdn(tsLocalFqdn);
-  }
-
-  strcpy(tsLocalEp, tsLocalFqdn);
-
-  snprintf(tsLocalEp + strlen(tsLocalEp), sizeof(tsLocalEp), ":%d", tsServerPort);
-  uPrint("localEp is: %s", tsLocalEp);
+  taosGetFqdn(tsLocalEp);
+  sprintf(tsLocalEp + strlen(tsLocalEp), ":%d", tsServerPort);
+  uPrint("localEp is %s", tsLocalEp);
 
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);
