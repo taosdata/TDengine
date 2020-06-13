@@ -366,12 +366,13 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pDb);
-    return code;
+    tfree(pDb);;
   } else {
     mLPrint("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
@@ -931,15 +932,13 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter, void *pMsg) {
       .cb    = mnodeAlterDbCb
     };
 
-    int32_t code = sdbUpdateRow(&oper);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    } else {
-      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    code = sdbUpdateRow(&oper);
+    if (code == TSDB_CODE_SUCCESS) {
+      if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
@@ -967,12 +966,12 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  } else {
+  if (code == TSDB_CODE_SUCCESS) {
     mLPrint("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {

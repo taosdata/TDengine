@@ -181,12 +181,12 @@ static int32_t mnodeUpdateUser(SUserObj *pUser, void *pMsg) {
   };
 
   int32_t code = sdbUpdateRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  } else {
+  if (code == TSDB_CODE_SUCCESS) {
     mLPrint("user:%s, is altered by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
@@ -237,11 +237,12 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pUser);
-    return code;
   } else {
     mLPrint("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 static int32_t mnodeDropUser(SUserObj *pUser, void *pMsg) {
@@ -253,12 +254,12 @@ static int32_t mnodeDropUser(SUserObj *pUser, void *pMsg) {
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  } else {
+  if (code == TSDB_CODE_SUCCESS) {
     mLPrint("user:%s, is dropped by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
