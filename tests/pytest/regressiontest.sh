@@ -80,8 +80,8 @@ python3 ./test.py -f import_merge/importCacheFileTO.py
 python3 ./test.py -f import_merge/importCacheFileTPO.py
 python3 ./test.py -f import_merge/importCacheFileT.py
 python3 ./test.py -f import_merge/importDataH2.py
-# python3 ./test.py -f import_merge/importDataHO2.py
-# python3 ./test.py -f import_merge/importDataHO.py
+python3 ./test.py -f import_merge/importDataHO2.py
+python3 ./test.py -f import_merge/importDataHO.py
 python3 ./test.py -f import_merge/importDataHPO.py
 python3 ./test.py -f import_merge/importDataLastHO.py
 python3 ./test.py -f import_merge/importDataLastHPO.py
@@ -92,7 +92,7 @@ python3 ./test.py -f import_merge/importDataLastTO.py
 python3 ./test.py -f import_merge/importDataLastTPO.py
 python3 ./test.py -f import_merge/importDataLastT.py
 python3 ./test.py -f import_merge/importDataS.py
-# python3 ./test.py -f import_merge/importDataSub.py
+python3 ./test.py -f import_merge/importDataSub.py
 python3 ./test.py -f import_merge/importDataTO.py
 python3 ./test.py -f import_merge/importDataTPO.py
 python3 ./test.py -f import_merge/importDataT.py
