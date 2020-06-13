@@ -1004,7 +1004,7 @@ static int32_t mnodeAddSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, SS
           sizeof(SSchema) * pStable->numOfTags);
   memcpy(pStable->schema + pStable->numOfColumns, schema, sizeof(SSchema) * ncols);
 
-  SSchema *tschema = (SSchema *) (pStable->schema + sizeof(SSchema) * pStable->numOfColumns);
+  SSchema *tschema = (SSchema *) (pStable->schema + pStable->numOfColumns);
   for (int32_t i = 0; i < ncols; i++) {
     tschema[i].colId = pStable->nextColId++;
   }
