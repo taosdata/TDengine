@@ -241,7 +241,6 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
 
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pAcct);
-    return code;
   } else {
     mLPrint("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
 
@@ -250,8 +249,11 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
     sprintf(suser, "_%s", name);
     mnodeCreateUser(pAcct, name, pass, NULL);
     mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 static int32_t acctDropAcct(char *name, void *pMsg) {
@@ -271,7 +273,7 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
   int32_t code = sdbDeleteRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
     mLPrint("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   mnodeDecAcctRef(pAcct);
@@ -554,7 +556,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
     tfree(pAcct);
   } else {
     mLPrint("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   mnodeDecAcctRef(pAcct);
