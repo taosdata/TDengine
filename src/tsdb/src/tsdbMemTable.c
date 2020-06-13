@@ -18,6 +18,16 @@
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 
+static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo);
+
+static void *      tsdbAllocBytes(STsdbRepo *pRepo, int bytes);
+static void        tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes);
+static SMemTable * tsdbNewMemTable(STsdbCfg *pCfg);
+static void        tsdbFreeMemTable(SMemTable *pMemTable);
+static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
+static void        tsdbFreeTableData(STableData *pTableData);
+static char *      tsdbGetTsTupleKey(const void *data);
+
 // ---------------- INTERNAL FUNCTIONS ----------------
 int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   STsdbCfg *  pCfg = &pRepo->config;
@@ -104,7 +114,6 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     STsdbBufPool *pBufPool = pRepo->pPool;
 
     SListNode *pNode = NULL;
-    // TODO: check the correctness of this code part
     if (tsdbLockRepo(pRepo) < 0) return -1;
     while ((pNode = tdListPopHead(pMemTable->bufBlockList)) != NULL) {
       tdListAppendNode(pBufPool->bufBlockList, pNode);

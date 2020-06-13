@@ -292,6 +292,9 @@ int           tsdbOpenBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 
 // ------------------ tsdbMemTable.c
+int tsdbInsertRowToMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
+int tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
+int tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 
 // ------------------ tsdbFile.c
 #define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
