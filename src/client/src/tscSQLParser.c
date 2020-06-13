@@ -1452,6 +1452,13 @@ static int32_t setExprInfoForFunctions(SQueryInfo* pQueryInfo, SSchema* pSchema,
   
   SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionID, pColIndex, type, bytes, bytes, false);
   tstrncpy(pExpr->aliasName, columnName, sizeof(pExpr->aliasName));
+
+  // set reverse order scan data blocks for last query
+  if (functionID == TSDB_FUNC_LAST) {
+    pExpr->numOfParams = 1;
+    pExpr->param[0].i64Key = TSDB_ORDER_DESC;
+    pExpr->param[0].nType = TSDB_DATA_TYPE_INT;
+  }
   
   // for all queries, the timestamp column needs to be loaded
   SColumnIndex index = {.tableIndex = pColIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
@@ -1723,6 +1730,22 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
 
             if (setExprInfoForFunctions(pQueryInfo, pSchema, functionID, pItem->aliasName, colIndex + i, &index) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
+            }
+
+            if (optr == TK_LAST) {  // todo refactor
+              SSqlGroupbyExpr* pGroupBy = &pQueryInfo->groupbyExpr;
+              if (pGroupBy->numOfGroupCols > 0) {
+                for(int32_t k = 0; k < pGroupBy->numOfGroupCols; ++k) {
+                  SColIndex* pIndex = taosArrayGet(pGroupBy->columnInfo, k);
+                  if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) { // group by normal columns
+                    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, colIndex + i);
+                    pExpr->numOfParams = 1;
+                    pExpr->param->i64Key = TSDB_ORDER_ASC;
+
+                    break;
+                  }
+                }
+              }
             }
           }
         }
@@ -2586,9 +2609,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
 
       tscColumnListInsert(pQueryInfo->colList, &index);
       
-      SColIndex colIndex = {
-          .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId,
-      };
+      SColIndex colIndex = { .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId };
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
       pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
 

@@ -25,7 +25,7 @@ step1:
 sql create database $db cache 16
 print ====== create tables
 sql use $db
-
+sql reset query cache
 $i = 0
 $ts = $ts0
 $tb = $tbPrefix . $i
