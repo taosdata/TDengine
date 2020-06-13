@@ -56,7 +56,7 @@ sql create dnode $hostname3
 sql create dnode $hostname4
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 
 $db = db

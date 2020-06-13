@@ -1262,10 +1262,11 @@ bool taosCheckGlobalCfg() {
     taosSetAllDebugFlag();
   }
   
-  if (tsLocalFqdn[0] == 0) 
-    taosGetFqdn(tsLocalEp);
-  else 
-    strcpy(tsLocalEp, tsLocalFqdn);
+  if (tsLocalFqdn[0] == 0) {
+    taosGetFqdn(tsLocalFqdn);
+  }
+
+  strcpy(tsLocalEp, tsLocalFqdn);
 
   snprintf(tsLocalEp + strlen(tsLocalEp), sizeof(tsLocalEp), ":%d", tsServerPort);
   uPrint("localEp is: %s", tsLocalEp);

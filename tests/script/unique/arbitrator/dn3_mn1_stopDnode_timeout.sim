@@ -173,7 +173,7 @@ if $rows != 3 then
   return -1
 endi
 
-print ============== step5: remove dnode4 director, then recreate dnode4 into cluster, result should success
+print ============== step5: remove dnode4 director, then recreate dnode4 into cluster, result should ok 
 system sh/exec.sh -n dnode4 -s stop
 system rm -rf ../../../sim/dnode4
 

@@ -209,6 +209,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     tscError("%p sql is already released", pSql->signature);
     return;
   }
+
   if (pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
     return;
@@ -217,10 +218,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
-  // tscTrace("%p msg:%s is received from server", pSql, taosMsg[rpcMsg->msgType]);
 
-  if (pObj->signature != pObj) {
-    tscTrace("%p sql is already released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
+  if (pObj->signature != pObj || pSql->freed == 1) {
+    tscTrace("%p sqlObj needs to be released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
              pObj, pObj->signature);
     tscFreeSqlObj(pSql);
     rpcFreeCont(rpcMsg->pCont);
@@ -375,7 +375,7 @@ int tscProcessSql(SSqlObj *pSql) {
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = NULL;
-  uint16_t        type = 0;
+  uint32_t        type = 0;
 
   if (pQueryInfo != NULL) {
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -424,7 +424,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
      * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
     pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    //taosStopRpcConn(pSql->pSubs[i]->thandle);
+//    taosStopRpcConn(pSql->pSubs[i]->);
   }
 
   /*
@@ -1708,8 +1708,9 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, i);
-    tstrncpy(pMsg, pTableMetaInfo->name, sizeof(pTableMetaInfo->name));
-    pMsg += sizeof(pTableMetaInfo->name);
+    size_t size = sizeof(pTableMetaInfo->name);
+    tstrncpy(pMsg, pTableMetaInfo->name, size);
+    pMsg += size;
   }
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_STABLE_VGROUP;
