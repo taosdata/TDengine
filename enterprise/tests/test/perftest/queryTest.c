@@ -137,13 +137,16 @@ void create_table(TAOS* conn, char* dbname, int32_t start, int32_t total) {
   char sql[256] = {0};
   sprintf(sql, "use %s", dbname);
 
-  taos_query(conn, sql);
+  TAOS_RES* pSql = taos_query(conn, sql);
+  taos_free_result(pSql);
+
   memset(sql, 0, sizeof(sql) / sizeof(sql[0]));
 
   for (int32_t i = start; i < total + start; ++i) {
     sprintf(sql, "create table device%d using dev_mt tags('dev%d', %d)", i, i, i);
-    int32_t ret = taos_query(conn, sql);
-    if (ret != 0) {
+    pSql = taos_query(conn, sql);
+
+    if (taos_errno(pSql) != 0) {
       printf("%s", taos_errstr(conn));
     }
     memset(sql, 0, sizeof(sql) / sizeof(sql[0]));
@@ -156,7 +159,9 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
   char oneSql[1024] = {0};
   sprintf(oneSql, "use %s", dbname);
 
-  taos_query(conn, oneSql);
+  TAOS_RES* pSql = taos_query(conn, oneSql);
+  taos_free_result(pSql);
+
   memset(oneSql, 0, 1024);
 
   char sql[65536] = {0};
@@ -205,8 +210,8 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
       }
 
       while (1) {
-        int32_t ret = taos_query(conn, sql);
-        if (ret == 0) {
+        pSql = taos_query(conn, sql);
+        if (taos_errno(pSql) == 0) {
           break;
         }
 
