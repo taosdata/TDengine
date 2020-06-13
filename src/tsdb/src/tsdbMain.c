@@ -337,10 +337,12 @@ int tsdbLockRepo(STsdbRepo *pRepo) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
+  pRepo->repoLocked = true;
   return 0;
 }
 
 int tsdbUnlockRepo(STsdbRepo *pRepo) {
+  pRepo->repoLocked = false;
   int code = pthread_mutex_unlock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pRepo), strerror(errno));
@@ -678,6 +680,8 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
+
+  pRepo->repoLocked = false;
 
   pRepo->rootDir = strdup(rootDir);
   if (pRepo->rootDir == NULL) {

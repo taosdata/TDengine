@@ -20,60 +20,68 @@
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
-  STsdbCfg *pCfg = &pRepo->config;
-  int32_t   level = 0;
-  int32_t   headSize = 0;
-  TSKEY     key = dataRowKey(row);
+  STsdbCfg *  pCfg = &pRepo->config;
+  int32_t     level = 0;
+  int32_t     headSize = 0;
+  TSKEY       key = dataRowKey(row);
+  SMemTable * pMemTable = pRepo->mem;
+  STableData *pTableData = NULL;
+  int         bytes = 0;
 
-  // TODO
-  tSkipListNewNodeInfo(pRepo->mem->tData[TABLE_TID(pTable)]->pData, &level, &headSize);
-
-  // TODO: for duplicate keys, you do not need to allocate memory here
-  SSkipListNode *pNode = tsdbAllocBytes(pRepo, headSize + dataRowLen(row));
-  if (pNode == NULL) {
-    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s since %s", REPO_ID(pRepo), key,
-              TABLE_CHAR_NAME(pTable), tstrerror(terrno));
-    return -1;
+  if (pMemTable != NULL && pMemTable->tData[TABLE_TID(pTable)] != NULL &&
+      pMemTable->tData[TABLE_TID(pTable)]->uid == TALBE_UID(pTable)) {
+    pTableData = pMemTable->tData[TABLE_TID(pTable)];
   }
 
-  SMemTable *pMemTable = pRepo->mem;
-  ASSERT(pMemTable != NULL);
+  tSkipListNewNodeInfo(pTableData, &level, &headSize);
 
+  bytes = headSize + dataRowLen(row);
+  SSkipListNode *pNode = tsdbAllocBytes(pRepo, bytes);
+  if (pNode == NULL) {
+    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %d bytes since %s",
+              REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), bytes, tstrerror(terrno));
+    return -1;
+  }
   pNode->level = level;
   dataRowCpy(SL_GET_NODE_DATA(pNode), row);
 
-  STableData *pTableData = pMemTable->tData[TABLE_TID(pTable)];
-  if (pTableData == NULL) {
-    pTableData = tsdbNewTableData(pCfg);
+  // Operations above may change pRepo->mem, retake those values
+  ASSERT(pRepo->mem != NULL);
+  pMemTable = pRepo->mem;
+  pTableData = pMemTable->tData[TABLE_TID(pTable)];
+
+  if (pTableData == NULL || pTableData->uid != TALBE_UID(pTable)) {
+    if (pTableData != NULL) {  // destroy the table skiplist (may have race condition problem)
+      pMemTable->tData[TABLE_TID(pTable)] = NULL;
+      tsdbFreeTableData(pTableData);
+    }
+    pTableData = tsdbNewTableData(pCfg, pTable);
     if (pTableData == NULL) {
-      tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s since %s", REPO_ID(pRepo), key,
-                TABLE_CHAR_NAME(pTable), tstrerror(terrno));
+      tsdbError("vgId:%d failed to insert row with key %" PRId64
+                " to table %s while create new table data object since %s",
+                REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), tstrerror(terrno));
+      tsdbFreeBytes(pRepo, (void *)pNode, bytes);
       return -1;
     }
 
     pRepo->mem->tData[TABLE_TID(pTable)] = pTableData;
   }
 
-  ASSERT(pTableData != NULL);
-
-  if (pTableData->uid != TALBE_UID(pTable)) {
-    // TODO
-  }
+  ASSERT(pTableData != NULL) && pTableData->uid == TALBE_UID(pTable);
 
   if (tSkipListPut(pTableData->pData, pNode) == NULL) {
-    tsdbFreeBytes(pRepo, (void *)pNode, headSize + dataRowLen);
-    return 0;
+    tsdbFreeBytes(pRepo, (void *)pNode, bytes);
+  } else {
+    if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
+    if (pMemTable->keyLast < key) pMemTable->keyLast = key;
+    pMemTable->numOfRows++;
+
+    if (pTableData->keyFirst > key) pTableData->keyFirst = key;
+    if (pTableData->keyLast < key) pTableData->keyLast = key;
+    pTableData->numOfRows++;
+
+    ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
   }
-
-  if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
-  if (pMemTable->keyLast < key) pMemTable->keyLast = key;
-  pMemTable->numOfRows++;
-
-  if (pTableData->keyFirst > key) pTableData->keyFirst = key;
-  if (pTableData->keyLast < key) pTableData->keyLast = key;
-  pTableData->numOfRows++;
-
-  ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
 
   tsdbTrace("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
             TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TALBE_UID(pTable), key);
@@ -82,12 +90,14 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 }
 
 int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
+  ASSERT(IS_REPO_LOCKED(pRepo));
   ASSERT(pMemTable != NULL);
   T_REF_INC(pMemTable);
 }
 
 // Need to lock the repository
 int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
+  ASSERT(IS_REPO_LOCKED(pRepo));
   ASSERT(pMemTable != NULL);
 
   if (T_REF_DEC(pMemTable) == 0) {
@@ -117,7 +127,7 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
 
 // ---------------- LOCAL FUNCTIONS ----------------
 static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo) {
-  if (pRepo->mem == NULL) return NULL;
+  if (pRepo == NULL || pRepo->mem == NULL) return NULL;
 
   SListNode *pNode = listTail(pRepo->mem);
   if (pNode == NULL) return NULL;
@@ -258,13 +268,14 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   pTableData->keyLast = 0;
   pTableData->numOfRows = 0;
 
-  pTableData->pData = tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, );
+  pTableData->pData = tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP,
+                                      TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, tsdbGetTsTupleKey);
   if (pTableData->pData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
   }
 
-  // TODO
+  // TODO: operation here should not be here, remove it
   pTableData->pData->level = 1;
 
   return pTableData;
@@ -280,3 +291,5 @@ static void tsdbFreeTableData(STableData *pTableData) {
     free(pTableData);
   }
 }
+
+static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple(data); }

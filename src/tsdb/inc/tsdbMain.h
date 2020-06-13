@@ -254,7 +254,7 @@ typedef struct {
 
 // ------------------ tsdbMain.c
 typedef struct {
-  int8_t          state;
+  int8_t state;
 
   char*           rootDir;
   STsdbCfg        config;
@@ -265,9 +265,10 @@ typedef struct {
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFileH*     tsdbFileH;
-  pthread_mutex_t mutex;
   int             commit;
   pthread_t       commitThread;
+  pthread_mutex_t mutex;
+  bool            repoLocked;
 } STsdbRepo;
 
 // Operations
@@ -309,6 +310,7 @@ void          tsdbFreeFileH(STsdbFileH* pFileH);
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId
+#define IS_REPO_LOCKED(r) (r)->repoLocked
 
 char* tsdbGetMetaFileName(char* rootDir);
 int   tsdbLockRepo(STsdbRepo* pRepo);
