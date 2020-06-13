@@ -975,7 +975,10 @@ static void *sdbWorkerFp(void *param) {
       taosGetQitem(tsSdbWriteQall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pOper = (SSdbOper *)item;
-        dnodeSendRpcMnodeWriteRsp(pOper->pMnodeMsg, pOper->retCode);
+        if (pOper->cb) {
+          (*pOper->cb)(pOper->pMsg, pOper->retCode);
+        }
+        dnodeSendRpcMnodeWriteRsp(pOper->pMsg, pOper->retCode);
       }
       taosFreeQitem(item);
     }
