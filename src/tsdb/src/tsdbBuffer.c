@@ -114,7 +114,7 @@ void tsdbCloseBufPool(STsdbRepo *pRepo) {
 
 SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL && pRepo->pool != NULL);
-  // ASSERT pRepo is locked
+  ASSERT(IS_REPO_LOCKED(pRepo));
 
   STsdbCfg *    pCfg = &pRepo->config;
   STsdbBufPool *pBufPool = pRepo->pool;

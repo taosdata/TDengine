@@ -170,6 +170,17 @@ static void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 
         tsdbUnRefMemTable(pRepo, pIMem);
       }
+    } else {
+      if (tsdbLockRepo(pRepo) < 0) {
+        tsdbFreeMemTable(pMemTable);
+        return NULL;
+      }
+
+      SListNode *pNode = tsdbAllocBufBlockFromPool(pRepo);
+      tdListAppendNode(pMemTable->bufBlockList, pNode);
+      pRepo->mem = pMemTable;
+
+      if (tsdbUnlockRepo(pRepo) < 0) return NULL;
     }
   }
 
