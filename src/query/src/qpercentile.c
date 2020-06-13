@@ -241,7 +241,6 @@ void tBucketDoubleHash(tMemBucket *pBucket, void *value, int16_t *segIdx, int16_
 tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nElemSize, int16_t dataType,
                              tOrderDescriptor *pDesc) {
   tMemBucket *pBucket = (tMemBucket *)malloc(sizeof(tMemBucket));
-
   pBucket->nTotalSlots = totalSlots;
   pBucket->nSlotsOfSeg = 1 << 6;  // 64 Segments, 16 slots each seg.
   pBucket->dataType = dataType;
@@ -258,6 +257,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
   pBucket->numOfTotalPages = pBucket->nTotalBufferSize / pBucket->pageSize;
   pBucket->numOfAvailPages = pBucket->numOfTotalPages;
 
+  pBucket->pSegs = NULL;
   pBucket->pOrderDesc = pDesc;
 
   switch (pBucket->dataType) {
@@ -315,7 +315,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
     pBucket->pSegs[i].pBoundingEntries = NULL;
   }
 
-  uTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
+  uTrace("MemBucket:%p,created,buffer size:%ld,elem size:%d", pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
          pBucket->nElemSize);
 
   return pBucket;
@@ -751,7 +751,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
           char * thisVal = buffer->data + pMemBucket->nElemSize * currentIdx;
           char * nextVal = thisVal + pMemBucket->nElemSize;
-          double td, nd;
+          double td = 1.0, nd = 1.0;
           switch (pMemBucket->dataType) {
             case TSDB_DATA_TYPE_SMALLINT: {
               td = *(int16_t *)thisVal;
