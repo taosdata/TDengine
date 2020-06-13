@@ -83,7 +83,7 @@ void  rpcSendResponse(const SRpcMsg *pMsg);
 void  rpcSendRedirectRsp(void *pConn, const SRpcIpSet *pIpSet); 
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pReq, SRpcMsg *pRsp);
-void  rpcReportProgress(void *pConn, char *pCont, int contLen);
+int   rpcReportProgress(void *pConn, char *pCont, int contLen);
 
 #ifdef __cplusplus
 }

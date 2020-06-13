@@ -486,12 +486,19 @@ void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pMsg, SRpcMsg 
 }
 
 // this API is used by server app to keep an APP context in case connection is broken
-void rpcReportProgress(void *handle, char *pCont, int contLen) {
+int rpcReportProgress(void *handle, char *pCont, int contLen) {
   SRpcConn *pConn = (SRpcConn *)handle;
 
-  // pReqMsg and reqMsgLen is re-used to store the context from app server
-  pConn->pReqMsg = pCont;     
-  pConn->reqMsgLen = contLen;
+  if (pConn->user[0]) {
+    // pReqMsg and reqMsgLen is re-used to store the context from app server
+    pConn->pReqMsg = pCont;     
+    pConn->reqMsgLen = contLen;
+    return 0;
+  } 
+
+  tTrace("%s, rpc connection is already released", pConn->info);
+  rpcFreeCont(pCont);
+  return -1;
 }
 
 static void rpcFreeMsg(void *msg) {

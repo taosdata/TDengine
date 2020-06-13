@@ -1004,7 +1004,7 @@ static int32_t mnodeAddSuperTableColumn(SDbObj *pDb, SSuperTableObj *pStable, SS
           sizeof(SSchema) * pStable->numOfTags);
   memcpy(pStable->schema + pStable->numOfColumns, schema, sizeof(SSchema) * ncols);
 
-  SSchema *tschema = (SSchema *) (pStable->schema + sizeof(SSchema) * pStable->numOfColumns);
+  SSchema *tschema = (SSchema *) (pStable->schema + pStable->numOfColumns);
   for (int32_t i = 0; i < ncols; i++) {
     tschema[i].colId = pStable->nextColId++;
   }
@@ -1770,7 +1770,8 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  tstrncpy(pCreateMsg->tableId, pInfo->tableId, sizeof(pInfo->tableId));
+  size_t size = sizeof(pInfo->tableId);
+  tstrncpy(pCreateMsg->tableId, pInfo->tableId, size);
   tstrncpy(pCreateMsg->db, pMsg->pDb->name, sizeof(pCreateMsg->db));
   pCreateMsg->igExists = 1;
   pCreateMsg->getMeta = 1;

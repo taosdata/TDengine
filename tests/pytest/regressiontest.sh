@@ -131,6 +131,8 @@ python3 ./test.py -f user/pass_len.py
 
 #query
 python3 ./test.py -f query/filter.py
+python3 ./test.py -f query/filterAllIntTypes.py
+python3 ./test.py -f query/filterFloatAndDouble.py
 
 
 #stream

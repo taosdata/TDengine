@@ -55,7 +55,7 @@ sql create dnode $hostname3
 sql create dnode $hostname4
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 
 $db = db
@@ -152,7 +152,7 @@ print ============== step4: restart dnode2, then create database with replica 2,
 system sh/exec.sh -n dnode2 -s start
 sleep 3000
 
-$totalTableNum = 100
+$totalTableNum = 10
 $sleepTimer = 3000
 
 $db = db1
