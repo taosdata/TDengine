@@ -366,7 +366,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pDb);;
+    tfree(pDb);
   } else {
     mLPrint("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -888,8 +888,8 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   return newCfg;
 }
 
-static void mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
-  if (code != TSDB_CODE_SUCCESS) return;
+static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
+  if (code != TSDB_CODE_SUCCESS) return code;
   SDbObj *pDb = pMsg->pDb;
 
   void *pIter = NULL;
@@ -908,6 +908,8 @@ static void mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   mLPrint("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
   balanceNotify();
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter, void *pMsg) {

@@ -1473,7 +1473,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pMsg += len;
   }
 
-  pCmd->payloadLen = pMsg - (char*)pInfoMsg;;
+  pCmd->payloadLen = pMsg - (char*)pInfoMsg;
   pCmd->msgType = TSDB_MSG_TYPE_CM_TABLE_META;
 
   tfree(tmpData);

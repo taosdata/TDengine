@@ -53,7 +53,7 @@ typedef struct {
   void *   rowData;
   int32_t  rowSize;
   int32_t  retCode; // for callback in sdb queue
-  void     (*cb)(struct SMnodeMsg *pMsg, int32_t code);
+  int32_t  (*cb)(struct SMnodeMsg *pMsg, int32_t code);
   struct SMnodeMsg *pMsg;
 } SSdbOper;
 

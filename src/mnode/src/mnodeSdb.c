@@ -962,9 +962,7 @@ static void *sdbWorkerFp(void *param) {
       }
 
       int32_t code = sdbWrite(pOper, pHead, type);
-      if (pOper && code != TSDB_CODE_SUCCESS) {
-        pOper->retCode = code;
-      }
+      if (pOper) pOper->retCode = code;
     }
 
     walFsync(tsSdbObj.wal);
@@ -976,7 +974,7 @@ static void *sdbWorkerFp(void *param) {
       if (type == TAOS_QTYPE_RPC) {
         pOper = (SSdbOper *)item;
         if (pOper->cb) {
-          (*pOper->cb)(pOper->pMsg, pOper->retCode);
+          pOper->retCode = (*pOper->cb)(pOper->pMsg, pOper->retCode);
         }
         dnodeSendRpcMnodeWriteRsp(pOper->pMsg, pOper->retCode);
       }
