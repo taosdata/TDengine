@@ -133,6 +133,7 @@ python3 ./test.py -f user/pass_len.py
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterAllIntTypes.py
 python3 ./test.py -f query/filterFloatAndDouble.py
+python3 ./test.py -f query/querySort.py
 
 
 #stream
