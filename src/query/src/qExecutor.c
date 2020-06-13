@@ -1496,19 +1496,6 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
 static bool isQueryKilled(SQInfo *pQInfo) {
   return (pQInfo->code == TSDB_CODE_TSC_QUERY_CANCELLED);
-#if 0
-  /*
-   * check if the queried meter is going to be deleted.
-   * if it will be deleted soon, stop current query ASAP.
-   */
-  SMeterObj *pMeterObj = pQInfo->pObj;
-  if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DROPPING)) {
-    pQInfo->killed = 1;
-    return true;
-  }
-
-  return (pQInfo->killed == 1);
-#endif
 }
 
 static void setQueryKilled(SQInfo *pQInfo) { pQInfo->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
