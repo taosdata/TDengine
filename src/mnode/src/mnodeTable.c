@@ -157,10 +157,12 @@ static int32_t mnodeChildTableActionDelete(SSdbOper *pOper) {
   if (pDb != NULL) pAcct = mnodeGetAcct(pDb->acct);
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
-    grantRestore(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
-    if (pAcct != NULL) pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
-    mnodeRemoveTableFromStable(pTable->superTable, pTable);
-    mnodeDecTableRef(pTable->superTable);
+    if (pTable->superTable) {
+      grantRestore(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
+      if (pAcct != NULL) pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
+      mnodeRemoveTableFromStable(pTable->superTable, pTable);
+      mnodeDecTableRef(pTable->superTable);
+    }
   } else {
     grantRestore(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
     if (pAcct != NULL) pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
