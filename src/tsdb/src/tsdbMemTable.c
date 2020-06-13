@@ -108,9 +108,13 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     if (tsdbLockRepo(pRepo) < 0) return -1;
     while ((pNode = tdListPopHead(pMemTable->bufBlockList)) != NULL) {
       tdListAppendNode(pBufPool->bufBlockList, pNode);
-      if (pthread_cond_signal(&pBufPool->poolNotEmpty) != 0) {
-        // TODO
-      }
+    }
+    int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
+    if (code != 0) {
+      tsdbUnlockRepo(pRepo);
+      tsdbError("vgId:%d failed to signal pool not empty since %s", REPO_ID(pRepo), strerror(code));
+      terrno = TAOS_SYSTEM_ERROR(code);
+      return -1;
     }
     if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
