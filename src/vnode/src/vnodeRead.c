@@ -61,7 +61,7 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
 
 // notify connection(handle) that current qhandle is created, if current connection from
 // client is broken, the query needs to be killed immediately.
-static void vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId) {
+static int32_t vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId) {
   SRetrieveTableMsg* killQueryMsg = rpcMallocCont(sizeof(SRetrieveTableMsg));
   killQueryMsg->qhandle = htobe64((uint64_t) qhandle);
   killQueryMsg->free = htons(1);
@@ -69,7 +69,7 @@ static void vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId)
   killQueryMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
 
   vTrace("QInfo:%p register qhandle to connect:%p", qhandle, handle);
-  rpcReportProgress(handle, (char*) killQueryMsg, sizeof(SRetrieveTableMsg));
+  return rpcReportProgress(handle, (char*) killQueryMsg, sizeof(SRetrieveTableMsg));
 }
 
 static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
@@ -106,7 +106,17 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
 
-    vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId);
+    // current connect is broken
+    if (vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId) != TSDB_CODE_SUCCESS) {
+      vError("vgId:%d, QInfo:%p, dnode query discarded since link is broken, %p", pVnode->vgId, pQInfo, pReadMsg->rpcMsg.handle);
+      pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+
+      //NOTE: there two refcount, needs to kill twice, todo refactor
+      qKillQuery(pQInfo);
+      qKillQuery(pQInfo);
+
+      return pRsp->code;
+    }
 
     vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
   } else {

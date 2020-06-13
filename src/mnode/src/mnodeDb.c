@@ -84,9 +84,12 @@ static int32_t mnodeDbActionDelete(SSdbOper *pOper) {
   mnodeDropAllChildTables(pDb);
   mnodeDropAllSuperTables(pDb);
   mnodeDropAllDbVgroups(pDb);
-  mnodeDropDbFromAcct(pAcct, pDb);
-  mnodeDecAcctRef(pAcct);
-  
+
+  if (pAcct) {
+    mnodeDropDbFromAcct(pAcct, pDb);
+    mnodeDecAcctRef(pAcct);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
