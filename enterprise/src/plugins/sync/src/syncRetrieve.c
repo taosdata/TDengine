@@ -103,7 +103,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
   while (1) {
     // retrieve file info
     fileInfo.name[0] = 0;
-    fileInfo.magic = (*pNode->getFileInfo)(pNode->ahandle, fileInfo.name, &fileInfo.index, &fileInfo.size, &fileInfo.fversion);   
+    fileInfo.magic = (*pNode->getFileInfo)(pNode->ahandle, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX, &fileInfo.size, &fileInfo.fversion);   
     //fileInfo.size = htonl(size);
 
     // send the file info
@@ -120,8 +120,11 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
     if (ret <0)  break;
 
+    // set the peer sync version
+    pPeer->sversion = fileInfo.fversion;
+
     // get the full path to file
-    sprintf(name, "%s/%s", pNode->path, fileInfo.name);
+    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
     
     // add the file into watch list
     if ( syncAddIntoWatchList(pPeer, name) <0) break;
@@ -255,7 +258,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
     sTrace("%s, last wal is forwarded, ver:%d ", pPeer->id, pHead->version);
     int ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if ( ret != wsize ) break;
-    pPeer->version = pHead->version;
+    pPeer->sversion = pHead->version;
 
     bytes += wsize;
  
@@ -288,7 +291,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     uint32_t event = 0;
 
     // get full path to wal file
-    sprintf(fname, "%s/%s", pNode->path, wname);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);
     sTrace("%s, start to retrieve last wal:%s", pPeer->id, fname);
 
     // monitor last wal
@@ -310,7 +313,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
       }
 
       // if all data up to fversion is read out, it is over
-      if (pPeer->version >= fversion && fversion > 0) {
+      if (pPeer->sversion >= fversion && fversion > 0) {
         code = 0; 
         sTrace("%s, data up to fversion:%ld has been read out, bytes:%d", pPeer->id, fversion, bytes);
         break;
@@ -337,7 +340,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     }
 
     if (code < 0) break;
-    if (pPeer->version >= fversion && fversion > 0) break;  
+    if (pPeer->sversion >= fversion && fversion > 0) break;  
 
     index++;  wname[0] = 0;
     code = (*pNode->getWalInfo)(pNode->ahandle, wname, &index);
@@ -379,7 +382,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
     }
 
     // get the full path to wal file
-    sprintf(fname, "%s/%s", pNode->path, wname);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);
 
     // send wal file, 
     // inotify is not required, old wal file won't be modified, even remove is ok
@@ -420,7 +423,7 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_DATA;
   firstPkt.syncHead.vgId = pNode->vgId;
-  strcpy(firstPkt.fqdn, tsNodeFqdn);
+  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
 
   if (write(pPeer->syncFd, (char *) &firstPkt, sizeof(firstPkt)) < 0) {
@@ -428,13 +431,17 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
-  pPeer->version = 0;  
+  pPeer->sversion = 0;  
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
   sTrace("%s, start to retrieve file", pPeer->id);
   if (syncRetrieveFile(pPeer) < 0) {
     sError("%s, failed to retrieve file", pPeer->id);
     return -1;
   }
+
+  // if no files are synced, there must be wal to sync, sversion must be larger than one
+  if (pPeer->sversion == 0) 
+    pPeer->sversion = 1;
 
   sTrace("%s, start to retrieve wal", pPeer->id);
   if (syncRetrieveWal(pPeer) < 0) {

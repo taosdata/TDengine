@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "trpc.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -26,16 +25,18 @@
 #include "tdataformat.h"
 #include "monitor.h"
 #include "mnode.h"
-#include "mgmtDef.h"
-#include "mgmtInt.h"
-#include "mgmtAcct.h"
-#include "mgmtDnode.h"
-#include "mgmtDb.h"
-#include "mgmtMnode.h"
-#include "mgmtSdb.h"
-#include "mgmtShell.h"
-#include "mgmtUser.h"
-#include "mgmtVgroup.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeAcct.h"
+#include "mnodeDnode.h"
+#include "mnodeDb.h"
+#include "mnodeMnode.h"
+#include "mnodeSdb.h"
+#include "mnodeShow.h"
+#include "mnodeUser.h"
+#include "mnodeVgroup.h"
+#include "mnodeRead.h"
+#include "mnodeWrite.h"
 
 #define TSDB_MIN_USERS_PER_ACCT       2
 #define TSDB_MAX_USERS_PER_ACCT       10
@@ -55,13 +56,13 @@
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
 extern void *  tsAcctSdb;
-extern void *  tsMgmtTmr;
+extern void *  tsMnodeTmr;
 static void *  tsMgmtStatisTimer = NULL;
 
 static int64_t acctGetStatistic(SAcctObj *pAcct);
-static void    acctProcessCreateAcctMsg(SQueuedMsg *pMsg);
-static void    acctProcessDropAcctMsg(SQueuedMsg *pMsg);
-static void    acctProcessAlterAcctMsg(SQueuedMsg *pMsg);
+static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg);
+static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg);
+static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg);
 static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -72,27 +73,27 @@ static void acctDoStatistic(void *handle, void *tmrId) {
     int64_t   totalStorage = 0;
 
     while (1) {
-      pIter = mgmtGetNextAcct(pIter, &pAcct);
+      pIter = mnodeGetNextAcct(pIter, &pAcct);
       if (pAcct == NULL) break;
       totalStorage += acctGetStatistic(pAcct);
-      mgmtDecAcctRef(pAcct);
+      mnodeDecAcctRef(pAcct);
     }
     sdbFreeIter(pIter);
 
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
   }
 
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
 }
 
 int32_t acctInit() {
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, acctProcessAlterAcctMsg);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, acctProcessAlterAcctMsg);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
 
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
   
   mTrace("table:accounts, is initialized");
   return 0;
@@ -184,22 +185,22 @@ static int32_t acctCheckAcctParams(SAcctCfg *pCfg) {
 }
 
 static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
-  SAcctObj *pAcct = mgmtGetAcct(name);
+  SAcctObj *pAcct = mnodeGetAcct(name);
   if (pAcct != NULL) {
     mWarn("acct:%s, is already there", name);
-    mgmtDecAcctRef(pAcct);
-    return TSDB_CODE_ACCT_ALREADY_EXIST;
+    mnodeDecAcctRef(pAcct);
+    return TSDB_CODE_MND_ACCT_ALREADY_EXIST;
   }
 
-  SUserObj *pUser = mgmtGetUser(name);
+  SUserObj *pUser = mnodeGetUser(name);
   if (pUser != NULL) {
     mWarn("user:%s, is already there", name);
-    mgmtDecUserRef(pUser);
-    return TSDB_CODE_USER_ALREADY_EXIST;
+    mnodeDecUserRef(pUser);
+    return TSDB_CODE_MND_USER_ALREADY_EXIST;
   }
 
   if (acctCheckAcctParams(pCfg) < 0) {
-    return TSDB_CODE_INVALID_ACCT_PARAMETER;
+    return TSDB_CODE_MND_INVALID_ACCT_PARA;
   }
 
   pAcct = malloc(sizeof(SAcctObj));
@@ -237,14 +238,14 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   int32_t code = sdbInsertRow(&oper);
 
   if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
     tfree(pAcct);
   } else {
     // create a user in the same name and pass
     char suser[64] = {0};
     sprintf(suser, "_%s", name);
-    mgmtCreateUser(pAcct, name, pass);
-    mgmtCreateUser(pAcct, suser, tsInternalPass);  // create stream user
+    mnodeCreateUser(pAcct, name, pass);
+    mnodeCreateUser(pAcct, suser, tsInternalPass);  // create stream user
     pthread_mutex_init(&pAcct->mutex, NULL);
   }
 
@@ -252,10 +253,10 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
 }
 
 int32_t acctDropAcct(char *name) {
-  SAcctObj *pAcct = mgmtGetAcct(name);
+  SAcctObj *pAcct = mnodeGetAcct(name);
   if (pAcct == NULL) {
     mWarn("acct:%s, is not there", name);
-    return TSDB_CODE_INVALID_ACCT;
+    return TSDB_CODE_MND_INVALID_ACCT;
   }
 
   SSdbOper oper = {
@@ -266,10 +267,10 @@ int32_t acctDropAcct(char *name) {
 
   int32_t code = sdbDeleteRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
-  mgmtDecAcctRef(pAcct);
+  mnodeDecAcctRef(pAcct);
   return 0;
 }
 
@@ -281,18 +282,18 @@ void acctCleanUp() {
 }
 
 static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
-    mgmtDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    mnodeDecUserRef(pUser);
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = (TSDB_USER_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -349,7 +350,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pShow->numOfRows = sdbGetNumOfRows(tsAcctSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mgmtDecUserRef(pUser);
+  mnodeDecUserRef(pUser);
   return 0;
 }
 
@@ -361,13 +362,14 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
   char      tmp[24];
 
   while (numOfRows < rows) {
-    pShow->pIter = mgmtGetNextAcct(pShow->pIter, &pAcct);
+    pShow->pIter = mnodeGetNextAcct(pShow->pIter, &pAcct);
     if (pAcct == NULL) break;
 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAcct->user, TSDB_USER_LEN);
+    size_t size = sizeof(pAcct->user);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAcct->user, size);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -410,7 +412,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
 
     numOfRows++;
 
-    mgmtDecAcctRef(pAcct);
+    mnodeDecAcctRef(pAcct);
   }
 
   pShow->numOfReads += numOfRows;
@@ -492,7 +494,7 @@ static int32_t acctUpdateAcct(SAcctObj *pAcct) {
   int32_t code = sdbUpdateRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pAcct);
-    code = TSDB_CODE_SDB_ERROR;
+    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   return code;
@@ -501,13 +503,13 @@ static int32_t acctUpdateAcct(SAcctObj *pAcct) {
 static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
   SAcctObj *pAcct = NULL;
 
-  pAcct = mgmtGetAcct(name);
+  pAcct = mnodeGetAcct(name);
   if (pAcct == NULL) {
     mTrace("account: %s not exists", name);
-    return TSDB_CODE_INVALID_ACCT;
+    return TSDB_CODE_MND_INVALID_ACCT;
   }
 
-  if (acctCheckAlterAcctParams(pAcct, pCfg) < 0) return TSDB_CODE_INVALID_OPTION;
+  if (acctCheckAlterAcctParams(pAcct, pCfg) < 0) return TSDB_CODE_MND_INVALID_ACCT_OPTION;
 
   if (pCfg->maxUsers > 0) {
     mTrace("account: %s maxUsers is modified from %d to %d", name, pAcct->cfg.maxUsers, pCfg->maxUsers);
@@ -553,7 +555,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
   }
 
   acctUpdateAcct(pAcct);
-  mgmtDecAcctRef(pAcct);
+  mnodeDecAcctRef(pAcct);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -568,13 +570,13 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   TSKEY   sKey = taosGetTimestampMs();
 
   while (1) {
-    pIter = mgmtGetNextVgroup(pIter, &pVgroup);
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb != NULL && pVgroup->pDb->pAcct == pAcct) {
       totalStorage += pVgroup->totalStorage;
       pointsWritten += pVgroup->pointsWritten;
     }
-    mgmtDecVgroupRef(pVgroup);
+    mnodeDecVgroupRef(pVgroup);
   }
 
   sdbFreeIter(pIter);
@@ -614,14 +616,13 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   return totalStorage;
 }
 
-static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
-  SCMCreateAcctMsg *pCreate = pMsg->pCont;
-  SAcctObj *pAcct = mgmtGetAcct(pCreate->user);
+static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
+  SCMCreateAcctMsg *pCreate = pMsg->rpcMsg.pCont;
+  SAcctObj *pAcct = mnodeGetAcct(pCreate->user);
   if (pAcct != NULL) {
     mPrint("acct:%s, already exist, update it", pCreate->user);
-    acctProcessAlterAcctMsg(pMsg);
-    mgmtDecAcctRef(pAcct);
-    return;
+    mnodeDecAcctRef(pAcct);
+    return acctProcessAlterAcctMsg(pMsg);
   }
   
   pCreate->cfg.maxUsers           = htonl(pCreate->cfg.maxUsers);
@@ -638,8 +639,7 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
     mError("acct:%s, failed to create account, no rights", pCreate->user);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    return;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t code = acctCreateAcct(pCreate->user, pCreate->pass, &(pCreate->cfg));
@@ -649,17 +649,16 @@ static void acctProcessCreateAcctMsg(SQueuedMsg *pMsg) {
     mError("acct:%s, failed to create account, reason:%s", pCreate->user, tstrerror(code));
   }
 
-  mgmtSendSimpleResp(pMsg->thandle, code);
+  return code;
 }
 
-static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
-  SCMDropAcctMsg *pDrop = pMsg->pCont;
+static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
+  SCMDropAcctMsg *pDrop = pMsg->rpcMsg.pCont;
 
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
     mError("acct:%s, failed to drop account, invalid user", pDrop->user);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    return;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t code = acctDropAcct(pDrop->user);
@@ -669,11 +668,11 @@ static void acctProcessDropAcctMsg(SQueuedMsg *pMsg) {
     mError("acct:%s, failed to drop account, reason:%s", pDrop->user, tstrerror(code));
   }
 
-  mgmtSendSimpleResp(pMsg->thandle, code);
+  return code;
 }
 
-static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
-  SCMAlterAcctMsg *pAlter = pMsg->pCont;
+static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
+  SCMAlterAcctMsg *pAlter = pMsg->rpcMsg.pCont;
   pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
   pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);
   pAlter->cfg.maxTimeSeries      = htonl(pAlter->cfg.maxTimeSeries);
@@ -688,8 +687,7 @@ static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
     mError("acct:%s, failed to alter account, no rights", pAlter->user);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
-    return;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t code = acctAlterAcct(pAlter->user, pAlter->pass, &(pAlter->cfg));;
@@ -699,13 +697,13 @@ static void acctProcessAlterAcctMsg(SQueuedMsg *pMsg) {
     mError("acct:%s, failed to alter account, reason:%s", pAlter->user, tstrerror(code));
   }
 
-  mgmtSendSimpleResp(pMsg->thandle, code);
+  return code;
 }
 
 static int32_t acctCheckUserLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxUsers != 0 && pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
     mError("acct:%s, users:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
-    return TSDB_CODE_TOO_MANY_USERS;
+    return TSDB_CODE_MND_TOO_MANY_USERS;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -713,7 +711,7 @@ static int32_t acctCheckUserLimit(SAcctObj *pAcct) {
 static int32_t acctrCheckDbLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxDbs != 0 && pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
     mError("acct:%s, dbs:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
-    return TSDB_CODE_TOO_MANY_DATABASES;
+    return TSDB_CODE_MND_TOO_MANY_DATABASES;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -721,7 +719,7 @@ static int32_t acctrCheckDbLimit(SAcctObj *pAcct) {
 static int32_t acctCheckTableLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxTimeSeries != 0 && pAcct->acctInfo.numOfTimeSeries >= pAcct->cfg.maxTimeSeries) {
     mError("acct:%s, timeSeries:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
-    return TSDB_CODE_TOO_MANY_TIME_SERIES;
+    return TSDB_CODE_MND_TOO_MANY_TIMESERIES;
   }
   return TSDB_CODE_SUCCESS;
 }

@@ -530,14 +530,14 @@
 			var disk_db = data[7].toFixed(1) + "GB";
 			var disk_system = data[8].toFixed(0) + "GB";
 			
-			var band = data[9].toFixed(2) + "Kb/s";
+			var band = data[9].toFixed(1) + "Kb/s";
 			
-			var io_read = data[10].toFixed(2) + "KB/s";
-			var io_write = data[11].toFixed(2) + "KB/s";
+			var io_read = data[10].toFixed(1) + "KB/s";
+			var io_write = data[11].toFixed(1) + "KB/s";
 			
-			var req_http = data[12].toFixed(2) + "KB/s";
-			var req_select = data[13].toFixed(2) + "KB/s";
-			var req_insert = data[14].toFixed(2) + "KB/s";
+			var req_http = data[12].toFixed(1);
+			var req_select = data[13].toFixed(1);
+			var req_insert = data[14].toFixed(1);
 			
 			row = row + colBegin + ts + colEnd;
 			row = row + colBegin + cpu_db + colEnd;

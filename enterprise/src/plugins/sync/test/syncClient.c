@@ -71,6 +71,7 @@ void *sendRequest(void *param) {
 int main(int argc, char *argv[]) {
   SRpcInit  rpcInit;
   SRpcIpSet ipSet;
+  char      secret[TSDB_KEY_LEN] = "mypassword";
   int      msgSize = 128;
   int      numOfReqs = 0;
   int      appThreads = 1;
@@ -96,7 +97,7 @@ int main(int argc, char *argv[]) {
   rpcInit.sessions     = 100;
   rpcInit.idleTime     = tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
-  rpcInit.secret       = "mypassword";
+  rpcInit.secret       = secret;
   rpcInit.ckey         = "key";
   rpcInit.spi          = 1;
   rpcInit.connType     = TAOS_CONN_CLIENT;

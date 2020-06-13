@@ -35,8 +35,8 @@ typedef struct {
 
 ttpool_h   taosOpenTcpThreadPool(SPoolInfo *pInfo);
 void       taosCloseTcpThreadPool(ttpool_h);
-void      *taosAllocateTcpThread(void *, void *ahandle, int connFd);
-void       taosFreeTcpThread(void *, int *fd);
+void      *taosAllocateTcpConn(void *, void *ahandle, int connFd);
+void       taosFreeTcpConn(void *);
 
 
 #ifdef __cplusplus

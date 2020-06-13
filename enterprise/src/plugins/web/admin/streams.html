@@ -66,8 +66,9 @@
 					<thead id="dbTableHead">
 						<tr>
 							<th style="font-weight: normal">No</th>
+							<th style="font-weight: normal">streamId</th>
 							<th style="font-weight: normal">user</th>
-							<th style="font-weight: normal">ip:port:id</th>
+							<th style="font-weight: normal">ip:port</th>
 							<th style="font-weight: normal">created time</th>
 							<th style="font-weight: normal">exec time</th>
 							<th style="font-weight: normal">time(usecond)</th>
@@ -226,12 +227,12 @@
 				row = row + colBegin + data[colIndex] + colEnd;
 			}
 			
-			var id = data[1];
+			var id = data[0];
 			if (dbStreamIdArray[id] == true) {
 				row = row + colBegin + oper2 + colEnd + rowEnd;	
 			}
 			else {
-				var oper = oper1Begin + data[1] + oper1End;
+				var oper = oper1Begin + data[0] + oper1End;
 				row = row + colBegin + oper + colEnd + rowEnd;	
 			}
 			

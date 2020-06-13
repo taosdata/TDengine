@@ -52,6 +52,7 @@ typedef struct {
   SSyncHead syncHead;
   uint16_t  port;
   char      fqdn[TSDB_FQDN_LEN];
+  int32_t   sourceId;  // only for arbitrator
 } SFirstPkt;
 
 typedef struct {
@@ -119,10 +120,11 @@ typedef struct SsyncPeer {
   int8_t      role;
   int8_t      sstatus;    // sync status
   uint64_t    version;
+  uint64_t    sversion;   // track the peer version in retrieve process 
   int         syncFd;
   int         peerFd;     // forward FD
   void       *timer;
-  void       *pThread;
+  void       *pConn;
   int         notifyFd;
   int         watchNum;
   int        *watchFd;

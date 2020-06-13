@@ -42,7 +42,7 @@ int writeIntoWal(SWalHead *pHead)
 { 
   if (dataFd < 0) {
     char  walName[280];
-    sprintf(walName, "%s/wal/wal.%d", path, walNum);
+    snprintf(walName, sizeof(walName), "%s/wal/wal.%d", path, walNum);
     remove(walName);
     dataFd = open(walName, O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
     if (dataFd < 0) { 
@@ -234,7 +234,7 @@ void processRequestMsg(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
 }
 
-uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, uint64_t *fversion) 
+uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion) 
 {
   uint32_t     magic;
   struct stat  fstat;
@@ -247,10 +247,10 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, int32_t *size, 
 
   if (name[0] == 0) {
     // find the file 
-    sprintf(aname, "%s/data/data.%d", path, *index);
+    snprintf(aname, sizeof(aname), "%s/data/data.%d", path, *index);
     sprintf(name, "data/data.%d", *index); 
   } else {
-    sprintf(aname, "%s/%s", path, name);
+    snprintf(aname, sizeof(aname), "%s/%s", path, name);
   }
 
   uPrint("get file info:%s", aname);
@@ -270,7 +270,7 @@ int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
   name[0] = 0;
   if (*index + 1> walNum) return 0;
 
-  sprintf(aname, "%s/wal/wal.%d", path, *index);
+  snprintf(aname, sizeof(aname), "%s/wal/wal.%d", path, *index);
   sprintf(name, "wal/wal.%d", *index); 
   uPrint("get wal info:%s", aname);
 
@@ -346,7 +346,7 @@ void doSync()
       nodeId = pCfg->nodeInfo[i].nodeId;
   }
 
-  sprintf(path, "/root/test/d%d", nodeId);
+  snprintf(path, sizeof(path), "/root/test/d%d", nodeId);
   strcpy(syncInfo.path, path);
 
   if ( syncHandle == NULL) {
