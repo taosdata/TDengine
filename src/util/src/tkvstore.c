@@ -523,13 +523,14 @@ static int tdRestoreKVStore(SKVStore *pStore) {
       goto _err;
     }
 
-    if (!taosCheckChecksumWhole((uint8_t *)buf, pRecord->size)) {
-      uError("file %s has checksum error, offset " PRId64 " size %d", pStore->fname, pRecord->offset, pRecord->size);
-      terrno = TSDB_CODE_COM_FILE_CORRUPTED;
-      goto _err;
+    if (pStore->iFunc) {
+      if ((*pStore->iFunc)(pStore->appH, buf, pRecord->size) < 0) {
+        uError("failed to restore record uid %" PRIu64 " in kv store %s at offset %" PRId64 " size %" PRId64
+               " since %s",
+               pStore->fname, pRecord->uid, pRecord->offset, pRecord->size, tstrerror(terrno));
+        goto _err;
+      }
     }
-
-    if (pStore->iFunc) (*pStore->iFunc)(pStore->appH, buf, pRecord->size);
   }
 
   if (pStore->aFunc) (*pStore->aFunc)(pStore->appH);
