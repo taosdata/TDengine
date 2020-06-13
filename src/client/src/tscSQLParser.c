@@ -1990,6 +1990,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SSQLToken
 
     if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
       columnIndex = i;
+      break;
     }
   }
 
@@ -2886,7 +2887,8 @@ static int32_t extractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnIndex* pIn
   SSchema*    pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
 
   const char* msg1 = "non binary column not support like operator";
-  const char* msg2 = "binary column not support this operator";
+  const char* msg2 = "binary column not support this operator";  
+  const char* msg3 = "bool column not support this operator";
 
   SColumn* pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex);
   SColumnFilterInfo* pColFilter = NULL;
@@ -2919,6 +2921,12 @@ static int32_t extractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnIndex* pIn
   } else {
     if (pExpr->nSQLOptr == TK_LIKE) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
+    }
+    
+    if (pSchema->type == TSDB_DATA_TYPE_BOOL) {
+      if (pExpr->nSQLOptr != TK_EQ && pExpr->nSQLOptr != TK_NE) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+      }
     }
   }
 
@@ -6050,6 +6058,12 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray*
         } else if (pRight->pVal->nType == TSDB_DATA_TYPE_FLOAT && pRight->pVal->dKey == 0) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
+      }
+    }
+
+    if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL || pRight->pVal->nType == TSDB_DATA_TYPE_BINARY || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR) {
+      if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
+        return TSDB_CODE_TSC_INVALID_SQL;
       }
     }
   }
