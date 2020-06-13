@@ -107,8 +107,8 @@ typedef struct {
   int       tCols;
   int       nCols;
   int       tlen;
-  uint16_t   flen;
-  uint16_t   vlen;
+  uint16_t  flen;
+  uint16_t  vlen;
   int       version;
   STColumn *columns;
 } STSchemaBuilder;
