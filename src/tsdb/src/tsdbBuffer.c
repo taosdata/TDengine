@@ -123,8 +123,6 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
     pthread_cond_wait(&(pBufPool->poolNotEmpty), &(pRepo->mutex));
   }
 
-  ASSERT(!POOL_IS_EMPTY(pBufPool));
-
   SListNode *    pNode = tdListPopHead(pBufPool->bufBlockList);
   STsdbBufBlock *pBufBlock = NULL;
   tdListNodeGetData(pBufPool->bufBlockList, pNode, (void *)(&pBufBlock));
