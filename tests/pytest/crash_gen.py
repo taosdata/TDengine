@@ -14,6 +14,7 @@
 from __future__ import annotations  # For type hinting before definition, ref: https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel    
 
 import sys
+import os
 import traceback
 # Require Python 3
 if sys.version_info[0] < 3:
@@ -1168,6 +1169,24 @@ class DropFixedSuperTableTask(StateTransitionTask):
 
 class AddFixedDataTask(StateTransitionTask):
     activeTable : Set[int] = set() # Track which table is being actively worked on
+    LARGE_NUMBER_OF_TABLES = 35
+    SMALL_NUMBER_OF_TABLES = 3
+    LARGE_NUMBER_OF_RECORDS = 50
+    SMALL_NUMBER_OF_RECORDS = 3
+
+    # We use these two files to record operations to DB, useful for power-off tests
+    fAddLogReady = None
+    fAddLogDone = None
+
+    @classmethod
+    def prepToRecordOps(cls):
+        if gConfig.record_ops :            
+            if ( cls.fAddLogReady == None ):
+                logger.info("Recording in a file operations to be performed...")
+                cls.fAddLogReady = open("add_log_ready.txt", "w")
+            if ( cls.fAddLogDone == None ):
+                logger.info("Recording in a file operations completed...")
+                cls.fAddLogDone = open("add_log_done.txt", "w")
 
     @classmethod
     def getInfo(cls):
@@ -1183,7 +1202,7 @@ class AddFixedDataTask(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         ds = self._dbState
         wt.execSql("use db") # TODO: seems to be an INSERT bug to require this
-        tblSeq = list(range(35 if gConfig.larger_data else 2)) 
+        tblSeq = list(range(self.LARGE_NUMBER_OF_TABLES if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES)) 
         random.shuffle(tblSeq) 
         for i in tblSeq: 
             if ( i in self.activeTable ): # wow already active
@@ -1193,13 +1212,24 @@ class AddFixedDataTask(StateTransitionTask):
             else:
                 self.activeTable.add(i) # marking it active
             # No need to shuffle data sequence, unless later we decide to do non-increment insertion            
-            for j in range(50 if gConfig.larger_data else 2) : # number of records per table
-                sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
-                    i, 
+            for j in range(self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS) : # number of records per table
+                nextInt = ds.getNextInt()
+                regTableName = "db.reg_table_{}".format(i)
+                if gConfig.record_ops:
+                    self.prepToRecordOps()
+                    self.fAddLogReady.write("Ready to write {} to {}\n".format(nextInt, regTableName))
+                    self.fAddLogReady.flush()
+                    os.fsync(self.fAddLogReady)
+                sql = "insert into {} using {} tags ('{}', {}) values ('{}', {});".format(
+                    regTableName, 
                     ds.getFixedSuperTableName(), 
                     ds.getNextBinary(), ds.getNextFloat(),
-                    ds.getNextTick(), ds.getNextInt())
+                    ds.getNextTick(), nextInt)
                 wt.execSql(sql) 
+                if gConfig.record_ops:
+                    self.fAddLogDone.write("Wrote {} to {}\n".format(nextInt, regTableName))
+                    self.fAddLogDone.flush()
+                    os.fsync(self.fAddLogDone)
             self.activeTable.discard(i) # not raising an error, unlike remove
 
 
@@ -1329,6 +1359,8 @@ def main():
                         help='Write larger amount of data during write operations (default: false)')
     parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
                         help='Use a single shared db connection (default: false)')
+    parser.add_argument('-r', '--record-ops', action='store_true',                        
+                        help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')                    
     parser.add_argument('-s', '--max-steps', action='store', default=100, type=int,
                         help='Maximum number of steps to run (default: 100)')
     parser.add_argument('-t', '--num-threads', action='store', default=10, type=int,
