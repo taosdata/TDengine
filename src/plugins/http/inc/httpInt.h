@@ -188,6 +188,7 @@ typedef struct HttpContext {
   char         user[TSDB_USER_LEN];  // parsed from auth token or login message
   char         pass[TSDB_PASSWORD_LEN];
   void *       taos;
+  void *       ppContext;
   HttpSession *session;
   z_stream     gzipStream;
   HttpParser   parser;

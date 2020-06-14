@@ -272,7 +272,7 @@ static void *httpAcceptHttpConnection(void *arg) {
               taosIpStr(pServer->serverIp), pServer->serverPort, strerror(errno));
     return NULL;
   } else {
-    httpPrint("http service init success at %u", pServer->serverPort);
+    httpPrint("http server init success at %u", pServer->serverPort);
     pServer->status = HTTP_SERVER_RUNNING;
   }
 
@@ -316,12 +316,9 @@ static void *httpAcceptHttpConnection(void *arg) {
 
     pContext->pThread = pThread;
     sprintf(pContext->ipstr, "%s:%u", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
-    httpTrace("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, totalFds:%d, accept a new connection", pContext,
-              connFd, pContext->ipstr, pThread->label, pThread->numOfFds, totalFds);
-
+    
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-
     event.data.fd = connFd;
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
@@ -333,6 +330,8 @@ static void *httpAcceptHttpConnection(void *arg) {
 
     // notify the data process, add into the FdObj list
     atomic_add_fetch_32(&pThread->numOfFds, 1);
+    httpTrace("context:%p, fd:%d, ip:%s, thread:%s numOfFds:%d totalFds:%d, accept a new connection", pContext, connFd,
+              pContext->ipstr, pThread->label, pThread->numOfFds, totalFds);
 
     // pick up next thread for next connection
     threadId++;

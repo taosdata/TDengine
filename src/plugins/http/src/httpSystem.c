@@ -68,7 +68,7 @@ int httpStartSystem() {
   }
 
   if (!httpInitContexts()) {
-    httpError("http init session failed");
+    httpError("http init contexts failed");
     return -1;
   }
 

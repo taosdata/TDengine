@@ -108,8 +108,8 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
 }
 
 void mnodeReleaseConn(SConnObj *pConn) {
-  if(pConn == NULL) return;
-  taosCacheRelease(tsMnodeConnCache, (void**)&pConn, false);
+  if (pConn == NULL) return;
+  taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
 }
 
 SConnObj *mnodeAccquireConn(uint32_t connId, char *user, uint32_t ip, uint16_t port) {

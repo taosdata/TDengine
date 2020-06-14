@@ -105,15 +105,15 @@ HttpContext *httpCreateContext(int32_t fd) {
 
   char fdStr[12] = {0};
   snprintf(fdStr, sizeof(fdStr), "%d", fd);
-  //atomic_add_fetch_32(&pContext->refCount, 1);
-
+  
   pContext->fd = fd;
   pContext->httpVersion = HTTP_VERSION_10;
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
   
-  taosCachePut(tsHttpServer.contextCache, fdStr, &pContext, sizeof(HttpContext *), 5);
-  httpTrace("context:%p, fd:%d is created", pContext, fd);
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, fdStr, &pContext, sizeof(HttpContext *), 5);
+  pContext->ppContext = ppContext;
+  httpTrace("context:%p, fd:%d, is created", pContext, fd);
 
   return pContext;
 }
@@ -128,7 +128,7 @@ HttpContext *httpGetContext(int32_t fd) {
     HttpContext *pContext = *ppContext;
     if (pContext) {
       int32_t refCount = atomic_add_fetch_32(&pContext->refCount, 1);
-      httpTrace("context:%p, fd:%d is accquired, refCount:%d", pContext, pContext->fd, refCount);
+      httpTrace("context:%p, fd:%d, is accquired, refCount:%d", pContext, pContext->fd, refCount);
       return pContext;
     }
   }
@@ -138,9 +138,10 @@ HttpContext *httpGetContext(int32_t fd) {
 void httpReleaseContext(HttpContext *pContext) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
   assert(refCount >= 0);
-  httpTrace("context:%p, fd:%d is releasd, refCount:%d", pContext, pContext->fd, refCount);
+  httpTrace("context:%p, fd:%d, is releasd, refCount:%d", pContext, pContext->fd, refCount);
 
-  taosCacheRelease(tsHttpServer.contextCache, (void **)(&pContext), false);
+  HttpContext **ppContext = pContext->ppContext;
+  taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
 }
 
 bool httpInitContext(HttpContext *pContext) {
@@ -205,9 +206,6 @@ void httpCloseContextByApp(HttpContext *pContext) {
 }
 
 void httpCloseContextByServer(HttpContext *pContext) {
-  httpRemoveContextFromEpoll(pContext);
-  pContext->parsed = false;
-  
   if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_DROPPING)) {
     httpTrace("context:%p, fd:%d, ip:%s, epoll finished, still used by app", pContext, pContext->fd, pContext->ipstr);
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_DROPPING)) {
@@ -220,5 +218,7 @@ void httpCloseContextByServer(HttpContext *pContext) {
     httpError("context:%p, fd:%d, ip:%s, unknown state:%d", pContext, pContext->fd, pContext->ipstr, pContext->state);
   }
 
+  pContext->parsed = false;
+  httpRemoveContextFromEpoll(pContext);
   httpReleaseContext(pContext);
 }

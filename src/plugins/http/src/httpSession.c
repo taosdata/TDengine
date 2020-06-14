@@ -58,7 +58,7 @@ static void httpFetchSessionImp(HttpContext *pContext) {
 
   pContext->session = taosCacheAcquireByName(server->sessionCache, sessionId);
   if (pContext->session != NULL) {
-    atomic_add_fetch_32(&pContext->refCount, 1);
+    atomic_add_fetch_32(&pContext->session->refCount, 1);
     httpTrace("context:%p, fd:%d, ip:%s, user:%s, find an exist session:%p:%p, refCount:%d", pContext, pContext->fd,
               pContext->ipstr, pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
   } else {
@@ -83,7 +83,7 @@ void httpGetSession(HttpContext *pContext) {
 void httpReleaseSession(HttpContext *pContext) {
   if (pContext == NULL || pContext->session == NULL) return;
 
-  int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
+  int32_t refCount = atomic_sub_fetch_32(&pContext->session->refCount, 1);
   assert(refCount >= 0);
   httpTrace("context:%p, session:%p is releasd refCount:%d", pContext, pContext->session, pContext->session->refCount);
 
