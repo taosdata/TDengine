@@ -73,6 +73,7 @@ typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcIpSet ipSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
+  struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
   uint8_t  *pCont;      // content provided by app
   int32_t   contLen;    // content length
@@ -339,7 +340,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg) {
+void *rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -367,7 +368,7 @@ void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg)
   
   rpcSendReqToServer(pRpc, pContext);
 
-  return;
+  return pContext;
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
@@ -499,6 +500,19 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
   tTrace("%s, rpc connection is already released", pConn->info);
   rpcFreeCont(pCont);
   return -1;
+}
+
+/* todo: cancel process may have race condition, pContext may have been released 
+   just before app calls the rpcCancelRequest */
+void rpcCancelRequest(void *handle) {
+  SRpcReqContext *pContext = handle;
+
+  if (pContext->pConn) {
+    tTrace("%s, app trys to cancel request", pConn->info);
+    rpcCloseConn(pContext->pConn);
+    pContext->pConn = NULL;
+    rpcFreeCont(pContext->pCont);
+  }
 }
 
 static void rpcFreeMsg(void *msg) {
@@ -942,6 +956,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = pContext->pRpc;
 
+  pContext->pConn = NULL;
   if (pContext->pRsp) { 
     // for synchronous API
     memcpy(pContext->pSet, &pContext->ipSet, sizeof(SRpcIpSet));
@@ -1110,6 +1125,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
     return;
   }
 
+  pContext->pConn = pConn;
   pConn->ahandle = pContext->ahandle;
   rpcLockConn(pConn);
 
