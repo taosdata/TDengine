@@ -91,6 +91,9 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
     pTableData->numOfRows++;
 
     ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
+    STSchema *pSchema = tsdbGetTableSchema(pTable);
+    if (schemaNCols(pSchema) > pMemTable->maxCols) pMemTable->maxCols = schemaNCols;
+    if (schemaTLen(pSchema) > pMemTable->maxRowBytes) pMemTable->maxRowBytes = schemaTLen(pSchema);
   }
 
   tsdbTrace("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
