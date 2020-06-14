@@ -391,7 +391,6 @@ int       tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 STSchema *tsdbGetTableSchemaByVersion(STsdbMeta *pMeta, STable *pTable, int16_t version);
 STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 
-#define DEFAULT_TAG_INDEX_COLUMN 0  // skip list built based on the first column of tags
 
 int compFGroupKey(const void *key, const void *fgroup);
 #endif
