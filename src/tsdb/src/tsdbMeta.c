@@ -23,6 +23,30 @@
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
 
+static int     tsdbCompareSchemaVersion(const void *key1, const void *key2);
+static int     tsdbRestoreTable(void *pHandle, void *cont, int contLen);
+static void    tsdbOrgMeta(void *pHandle);
+static char *  getTagIndexKey(const void *pData);
+static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper);
+static void    tsdbFreeTable(STable *pTable);
+static int     tsdbUpdateTableTagSchema(STable *pTable, STSchema *newSchema);
+static int     tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx);
+static void    tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFromIdx);
+static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
+static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
+static int     tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid);
+static int     tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
+static int     tsdbTableSetName(STableCfg *config, char *name, bool dup);
+static int     tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
+static int     tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
+static int     tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
+static int     tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
+static int     tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
+static void *  tsdbEncodeTableName(void *buf, tstr *name);
+static void *  tsdbDecodeTableName(void *buf, tstr **name);
+static void *  tsdbEncodeTable(void *buf, STable *pTable);
+static void *  tsdbDecodeTable(void *buf, STable **pRTable);
+
 // ------------------ OUTER FUNCTIONS ------------------
 int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
@@ -395,11 +419,6 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-char *getTSTupleKey(const void *data) {
-  SDataRow row = (SDataRow)data;
-  return POINTER_SHIFT(row, TD_DATA_ROW_HEAD_SIZE);
 }
 
 int tsdbWLockRepoMeta(STsdbRepo *pRepo) {

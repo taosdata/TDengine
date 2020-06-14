@@ -1038,6 +1038,11 @@ _err:
   return -1;
 }
 
+static char *getTSTupleKey(const void *data) {
+  SDataRow row = (SDataRow)data;
+  return POINTER_SHIFT(row, TD_DATA_ROW_HEAD_SIZE);
+}
+
 #if 0
 **
  * Set the default TSDB configuration
