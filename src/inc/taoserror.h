@@ -178,7 +178,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "vnode app 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         0, 0x0600, "tsdb invalid table id")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       0, 0x0601, "tsdb invalid table type")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_SCHEMA_VERSION,     0, 0x0602, "tsdb invalid table schema version")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION,    0, 0x0602, "tsdb invalid table schema version")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_ALREADY_EXIST,      0, 0x0603, "tsdb table already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CONFIG,           0, 0x0604, "tsdb invalid configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INIT_FAILED,              0, 0x0605, "tsdb init failed")

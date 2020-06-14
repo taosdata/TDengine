@@ -87,7 +87,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
 }
 
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   // save insert result into item
 
@@ -96,7 +96,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   pRet->len = sizeof(SShellSubmitRspMsg);
   pRet->rsp = rpcMallocCont(pRet->len);
   SShellSubmitRspMsg *pRsp = pRet->rsp;
-  code = tsdbInsertData(pVnode->tsdb, pCont, pRsp);
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
   pRsp->numOfFailedBlocks = 0; //TODO
   //pRet->len += pRsp->numOfFailedBlocks * sizeof(SShellSubmitRspBlock); //TODO
   pRsp->code              = 0;

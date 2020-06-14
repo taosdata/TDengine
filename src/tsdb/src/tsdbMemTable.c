@@ -318,3 +318,244 @@ static void tsdbFreeTableData(STableData *pTableData) {
 }
 
 static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple(data); }
+
+static void *tsdbCommitData(void *arg) {
+  STsdbRepo *pRepo = (STsdbRepo *)arg;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  ASSERT(pRepo->imem != NULL);
+  ASSERT(pRepo->commit == 1);
+
+  tsdbPrint("vgId:%d start to commit! keyFirst " PRId64 " keyLast " PRId64 " numOfRows " PRId64, REPO_ID(pRepo),
+            pRepo->imem->keyFirst, pRepo->imem->keyLast, pRepo->imem->numOfRows);
+
+  // STsdbMeta * pMeta = pRepo->tsdbMeta;
+  // STsdbCache *pCache = pRepo->tsdbCache;
+  // STsdbCfg *  pCfg = &(pRepo->config);
+  // SDataCols * pDataCols = NULL;
+  // SRWHelper   whelper = {{0}};
+  // if (pCache->imem == NULL) return NULL;
+
+  tsdbPrint("vgId:%d, starting to commit....", pRepo->config.tsdbId);
+
+  // Create the iterator to read from cache
+  SSkipListIterator **iters = tsdbCreateTableIters(pRepo);
+  if (iters == NULL) {
+    tsdbError("vgId:%d failed to create table iterators since %s", REPO_ID(pRepo), tstrerror(terrno));
+    // TODO: deal with the error here
+    return NULL;
+  }
+
+  if (tsdbInitWriteHelper(&whelper, pRepo) < 0) {
+    tsdbError("vgId:%d failed to init write helper since %s", REPO_ID(pRepo), tstrerror(terrno));
+    // TODO
+    goto _exit;
+  }
+
+  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
+    tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d since %s", REPO_ID(pRepo),
+              pMeta->maxRowBytes, pMeta->maxCols, tstrerror(terrno));
+    // TODO
+    goto _exit;
+  }
+
+  int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
+  int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
+
+  // Loop to commit to each file
+  for (int fid = sfid; fid <= efid; fid++) {
+    if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
+      ASSERT(false);
+      goto _exit;
+    }
+  }
+
+  // Do retention actions
+  tsdbFitRetention(pRepo);
+  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER);
+
+_exit:
+  tdFreeDataCols(pDataCols);
+  tsdbDestroyTableIters(iters, pCfg->maxTables);
+  tsdbDestroyHelper(&whelper);
+
+  tsdbLockRepo(arg);
+  tdListMove(pCache->imem->list, pCache->pool.memPool);
+  tsdbAdjustCacheBlocks(pCache);
+  tdListFree(pCache->imem->list);
+  free(pCache->imem);
+  pCache->imem = NULL;
+  pRepo->commit = 0;
+  for (int i = 1; i < pCfg->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->imem) {
+      tsdbFreeMemTable(pTable->imem);
+      pTable->imem = NULL;
+    }
+  }
+  tsdbUnLockRepo(arg);
+  tsdbPrint("vgId:%d, commit over....", pRepo->config.tsdbId);
+
+  return NULL;
+}
+
+static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SRWHelper *pHelper,
+                            SDataCols *pDataCols) {
+  char        dataDir[128] = {0};
+  STsdbMeta * pMeta = pRepo->tsdbMeta;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  STsdbCfg *  pCfg = &pRepo->config;
+  SFileGroup *pGroup = NULL;
+
+  TSKEY minKey = 0, maxKey = 0;
+  tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+
+  // Check if there are data to commit to this file
+  int hasDataToCommit = tsdbHasDataToCommit(iters, pCfg->maxTables, minKey, maxKey);
+  if (!hasDataToCommit) return 0;  // No data to commit, just return
+
+  // Create and open files for commit
+  tsdbGetDataDirName(pRepo, dataDir);
+  if ((pGroup = tsdbCreateFGroup(pFileH, dataDir, fid, pCfg->maxTables)) == NULL) {
+    tsdbError("vgId:%d, failed to create file group %d", pRepo->config.tsdbId, fid);
+    goto _err;
+  }
+
+  // Open files for write/read
+  if (tsdbSetAndOpenHelperFile(pHelper, pGroup) < 0) {
+    tsdbError("vgId:%d, failed to set helper file", pRepo->config.tsdbId);
+    goto _err;
+  }
+
+  // Loop to commit data in each table
+  for (int tid = 1; tid < pCfg->maxTables; tid++) {
+    STable *pTable = pMeta->tables[tid];
+    if (pTable == NULL) continue;
+
+    SSkipListIterator *pIter = iters[tid];
+
+    // Set the helper and the buffer dataCols object to help to write this table
+    tsdbSetHelperTable(pHelper, pTable, pRepo);
+    tdInitDataCols(pDataCols, tsdbGetTableSchema(pMeta, pTable));
+
+    // Loop to write the data in the cache to files. If no data to write, just break the loop
+    int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
+    int nLoop = 0;
+    while (true) {
+      int rowsRead = tsdbReadRowsFromCache(pMeta, pTable, pIter, maxKey, maxRowsToRead, pDataCols);
+      assert(rowsRead >= 0);
+      if (pDataCols->numOfRows == 0) break;
+      nLoop++;
+
+      ASSERT(dataColsKeyFirst(pDataCols) >= minKey && dataColsKeyFirst(pDataCols) <= maxKey);
+      ASSERT(dataColsKeyLast(pDataCols) >= minKey && dataColsKeyLast(pDataCols) <= maxKey);
+
+      int rowsWritten = tsdbWriteDataBlock(pHelper, pDataCols);
+      ASSERT(rowsWritten != 0);
+      if (rowsWritten < 0) goto _err;
+      ASSERT(rowsWritten <= pDataCols->numOfRows);
+
+      tdPopDataColsPoints(pDataCols, rowsWritten);
+      maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5 - pDataCols->numOfRows;
+    }
+
+    ASSERT(pDataCols->numOfRows == 0);
+
+    // Move the last block to the new .l file if neccessary
+    if (tsdbMoveLastBlockIfNeccessary(pHelper) < 0) {
+      tsdbError("vgId:%d, failed to move last block", pRepo->config.tsdbId);
+      goto _err;
+    }
+
+    // Write the SCompBlock part
+    if (tsdbWriteCompInfo(pHelper) < 0) {
+      tsdbError("vgId:%d, failed to write compInfo part", pRepo->config.tsdbId);
+      goto _err;
+    }
+  }
+
+  if (tsdbWriteCompIdx(pHelper) < 0) {
+    tsdbError("vgId:%d, failed to write compIdx part", pRepo->config.tsdbId);
+    goto _err;
+  }
+
+  tsdbCloseHelperFile(pHelper, 0);
+  // TODO: make it atomic with some methods
+  pGroup->files[TSDB_FILE_TYPE_HEAD] = pHelper->files.headF;
+  pGroup->files[TSDB_FILE_TYPE_DATA] = pHelper->files.dataF;
+  pGroup->files[TSDB_FILE_TYPE_LAST] = pHelper->files.lastF;
+
+  return 0;
+
+_err:
+  ASSERT(false);
+  tsdbCloseHelperFile(pHelper, 1);
+  return -1;
+}
+
+static SSkipListIterator **tsdbCreateTableIters(STsdbRepo *pRepo) {
+  STsdbCfg *pCfg = &(pRepo->config);
+
+  SSkipListIterator **iters = (SSkipListIterator **)calloc(pCfg->maxTables, sizeof(SSkipListIterator *));
+  if (iters == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int tid = 1; tid < maxTables; tid++) {
+    STable *pTable = pMeta->tables[tid];
+    if (pTable == NULL || pTable->imem == NULL || pTable->imem->numOfRows == 0) continue;
+
+    iters[tid] = tSkipListCreateIter(pTable->imem->pData);
+    if (iters[tid] == NULL) goto _err;
+
+    if (!tSkipListIterNext(iters[tid])) goto _err;
+  }
+
+  return iters;
+
+_err:
+  tsdbDestroyTableIters(iters, maxTables);
+  return NULL;
+}
+
+static void tsdbDestroyTableIters(SSkipListIterator **iters, int maxTables) {
+  if (iters == NULL) return;
+
+  for (int tid = 1; tid < maxTables; tid++) {
+    if (iters[tid] == NULL) continue;
+    tSkipListDestroyIter(iters[tid]);
+  }
+
+  free(iters);
+}
+
+static int tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
+  ASSERT(maxRowsToRead > 0);
+  if (pIter == NULL) return 0;
+  STSchema *pSchema = NULL;
+
+  int numOfRows = 0;
+
+  do {
+    if (numOfRows >= maxRowsToRead) break;
+
+    SSkipListNode *node = tSkipListIterGet(pIter);
+    if (node == NULL) break;
+
+    SDataRow row = SL_GET_NODE_DATA(node);
+    if (dataRowKey(row) > maxKey) break;
+
+    if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
+      pSchema = tsdbGetTableSchemaByVersion(pMeta, pTable, dataRowVersion(row));
+      if (pSchema == NULL) {
+        // TODO: deal with the error here
+        ASSERT(false);
+      }
+    }
+
+    tdAppendDataRowToDataCol(row, pSchema, pCols);
+    numOfRows++;
+  } while (tSkipListIterNext(pIter));
+
+  return numOfRows;
+}

@@ -42,6 +42,7 @@ static int     tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 static int     tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
 static int     tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
 static int     tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
+static void    tsdbClearTableCfg(STableCfg *config);
 static void *  tsdbEncodeTableName(void *buf, tstr *name);
 static void *  tsdbDecodeTableName(void *buf, tstr **name);
 static void *  tsdbEncodeTable(void *buf, STable *pTable);
@@ -241,6 +242,67 @@ _err:
   tsdbClearTableCfg(pCfg);
   tfree(pCfg);
   return NULL;
+}
+
+int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  int16_t    tversion = htons(pMsg->tversion);
+
+  STable *pTable = tsdbGetTableByUid(pMeta, htobe64(pMsg->uid));
+  if (pTable == NULL) {
+    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    return -1;
+  }
+  if (TABLE_TID(pTable) != htonl(pMsg->tid)) {
+    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID
+    return -1;
+  }
+
+  if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
+    tsdbError("vgId:%d failed to update tag value of table %s since its type is %d", REPO_ID(pRepo),
+              TABLE_CHAR_NAME(pTable), TABLE_TYPE(pTable));
+    terrno = TSDB_CODE_TDB_INVALID_ACTION;
+    return -1;
+  }
+
+  if (schemaVersion(tsdbGetTableTagSchema(pTable)) < tversion) {
+    tsdbTrace("vgId:%d server tag version %d is older than client tag version %d, try to config", REPO_ID(pRepo),
+              schemaVersion(tsdbGetTableTagSchema(pTable)), tversion);
+    void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, htonl(pMsg->tid));
+    if (msg == NULL) return -1;
+
+    // Deal with error her
+    STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
+    STable *   super = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
+    ASSERT(super != NULL);
+
+    int32_t code = tsdbUpdateTable(pMeta, super, pTableCfg);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    tsdbClearTableCfg(pTableCfg);
+    rpcFreeCont(msg);
+  }
+
+  STSchema *pTagSchema = tsdbGetTableTagSchema(pTable);
+
+  if (schemaVersion(pTagSchema) > tversion) {
+    tsdbError(
+        "vgId:%d failed to update tag value of table %s since version out of date, client tag version:%d server tag "
+        "version:%d",
+        pRepo->config.tsdbId, varDataVal(pTable->name), tversion, schemaVersion(pTable->tagSchema));
+    return TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE;
+  }
+  if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
+    tsdbRemoveTableFromIndex(pMeta, pTable);
+  }
+  // TODO: remove table from index if it is the first column of tag
+  tdSetKVRowDataOfCol(&pTable->tagVal, htons(pMsg->colId), htons(pMsg->type), pMsg->data);
+  if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
+    tsdbAddTableIntoIndex(pMeta, pTable);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 // ------------------ INTERNAL FUNCTIONS ------------------
@@ -894,6 +956,18 @@ static int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
   }
 
   return 0;
+}
+
+static void tsdbClearTableCfg(STableCfg *config) {
+  if (config) {
+    if (config->schema) tdFreeSchema(config->schema);
+    if (config->tagSchema) tdFreeSchema(config->tagSchema);
+    if (config->tagValues) kvRowFree(config->tagValues);
+    tfree(config->name);
+    tfree(config->sname);
+    tfree(config->sql);
+    free(config);
+  }
 }
 
 static void *tsdbEncodeTableName(void *buf, tstr *name) {
