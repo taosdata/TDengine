@@ -48,6 +48,7 @@ typedef struct STable {
   ETableType type;
   tstr*      name;  // NOTE: there a flexible string here
   STableId   tableId;
+  uint64_t   suid;
   STable*    pSuper;  // super table pointer
   uint8_t    numOfSchemas;
   STSchema   schema[TSDB_MAX_TABLE_SCHEMAS];
@@ -59,6 +60,7 @@ typedef struct STable {
   TSKEY      lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   char*      sql;
   void*      cqhandle;
+  T_REF_DECLARE();
 } STable;
 
 typedef struct {
@@ -69,8 +71,6 @@ typedef struct {
   SList*    superList;
   SHashObj* uidMap;
   SKVStore* pStore;
-  int       maxRowBytes;
-  int       maxCols;
 } STsdbMeta;
 
 // ------------------ tsdbBuffer.c
@@ -107,6 +107,8 @@ typedef struct {
   STableData** tData;
   SList*       actList;
   SList*       bufBlockList;
+  int          maxCols;
+  int          maxRowBytes;
 } SMemTable;
 
 // ------------------ tsdbFile.c
@@ -278,7 +280,7 @@ typedef struct {
 #define TABLE_CHAR_NAME(t) TABLE_NAME(t)->data
 #define TALBE_UID(t) (t)->tableId.uid
 #define TABLE_TID(t) (t)->tableId.tid
-#define TABLE_SUID(t) (t)->superUid
+#define TABLE_SUID(t) (t)->suid
 #define TABLE_LASTKEY(t) (t)->lastKey
 
 STsdbMeta* tsdbNewMeta(STsdbCfg* pCfg);
