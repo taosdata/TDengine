@@ -888,6 +888,7 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcMsg rpcMsg;
   rpcMsg.pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
   rpcMsg.contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
+  rpcMsg.ahandle = pConn->ahandle;
   rpcMsg.handle = pConn;
   rpcMsg.msgType = pConn->inType;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
