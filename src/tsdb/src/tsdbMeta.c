@@ -100,27 +100,26 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   if (tsdbRemoveTableFromMeta(pMeta, pTable, true) < 0) return -1;
 
   return 0;
-
 }
 
-void* tsdbGetTableTagVal(TSDB_REPO_T* repo, const STableId* id, int32_t colId, int16_t type, int16_t bytes) {
+void *tsdbGetTableTagVal(TSDB_REPO_T *repo, const STableId *id, int32_t colId, int16_t type, int16_t bytes) {
   // TODO: this function should be changed also
-  STsdbMeta* pMeta = tsdbGetMeta(repo);
-  STable* pTable = tsdbGetTableByUid(pMeta, id->uid);
+  STsdbMeta *pMeta = tsdbGetMeta(repo);
+  STable *   pTable = tsdbGetTableByUid(pMeta, id->uid);
 
   STSchema *pSchema = tsdbGetTableTagSchema(pMeta, pTable);
   STColumn *pCol = tdGetColOfID(pSchema, colId);
   if (pCol == NULL) {
     return NULL;  // No matched tag volumn
   }
-  
-  char* val = tdGetKVRowValOfCol(pTable->tagVal, colId);
+
+  char *val = tdGetKVRowValOfCol(pTable->tagVal, colId);
   assert(type == pCol->type && bytes == pCol->bytes);
-  
+
   if (val != NULL && IS_VAR_DATA_TYPE(type)) {
     assert(varDataLen(val) < pCol->bytes);
   }
-  
+
   return val;
 }
 
@@ -129,7 +128,7 @@ char *tsdbGetTableName(TSDB_REPO_T *repo, const STableId *id) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  STable *   pTable = tsdbGetTableByUid(pMeta, id->uid);
+  STable *pTable = tsdbGetTableByUid(pMeta, id->uid);
 
   if (pTable == NULL) {
     return NULL;
@@ -398,7 +397,7 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-char *getTSTupleKey(const void * data) {
+char *getTSTupleKey(const void *data) {
   SDataRow row = (SDataRow)data;
   return POINTER_SHIFT(row, TD_DATA_ROW_HEAD_SIZE);
 }
@@ -457,8 +456,7 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
     return -1;
   }
 
-  pTable = tsdbDecodeTable(cont, contLen);
-  if (pTable == NULL) return -1;
+  tsdbDecodeTable(cont, &pTable);
 
   if (tsdbAddTableToMeta(pMeta, pTable, false) < 0) {
     tsdbFreeTable(pTable);
@@ -526,9 +524,8 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
       goto _err;
     }
     pTable->tagVal = NULL;
-    STColumn *pColSchema = schemaColAt(pTable->tagSchema, 0);
-    pTable->pIndex =
-        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, pColSchema->type, pColSchema->bytes, 1, 0, 1, getTagIndexKey);
+    STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), colBytes(pCol), 1, 0, 1, getTagIndexKey);
     if (pTable->pIndex == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
@@ -648,7 +645,8 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
   if (taosHashPut(pMeta->uidMap, (char *)(&pTable->tableId.uid), sizeof(pTable->tableId.uid), (void *)(&pTable),
                   sizeof(pTable)) < 0) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbError("vgId:%d failed to add table %s to meta while put into uid map since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), tstrerror(terrno));
+    tsdbError("vgId:%d failed to add table %s to meta while put into uid map since %s", REPO_ID(pRepo),
+              TABLE_CHAR_NAME(pTable), tstrerror(terrno));
     goto _err;
   }
 
@@ -727,22 +725,22 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
 
 static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   ASSERT(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
-  
-  STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
+
+  STable *pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
   ASSERT(pSTable != NULL);
 
   STSchema *pSchema = tsdbGetTableTagSchema(pTable);
   STColumn *pCol = schemaColAt(pSchema, DEFAULT_TAG_INDEX_COLUMN);
-  
-  char* key = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
-  SArray* res = tSkipListGet(pSTable->pIndex, key);
-  
+
+  char *  key = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
+  SArray *res = tSkipListGet(pSTable->pIndex, key);
+
   size_t size = taosArrayGetSize(res);
   ASSERT(size > 0);
-  
-  for(int32_t i = 0; i < size; ++i) {
-    SSkipListNode* pNode = taosArrayGetP(res, i);
-    
+
+  for (int32_t i = 0; i < size; ++i) {
+    SSkipListNode *pNode = taosArrayGetP(res, i);
+
     // STableIndexElem* pElem = (STableIndexElem*) SL_GET_NODE_DATA(pNode);
     if ((STable *)SL_GET_NODE_DATA(pNode) == pTable) {  // this is the exact what we need
       tSkipListRemoveNode(pSTable->pIndex, pNode);
@@ -957,12 +955,22 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
 
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
+      STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
+      pTable->pIndex =
+          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), colBytes(pCol), 1, 0, 1, getTagIndexKey);
+      if (pTable->pIndex == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tsdbFreeTable(pTable);
+        return NULL;
+      }
     }
 
     if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) {
       buf = taosDecodeString(buf, &(pTable->sql));
     }
   }
+
+  T_REF_INC(pTable);
 
   *pRTable = pTable;
 
