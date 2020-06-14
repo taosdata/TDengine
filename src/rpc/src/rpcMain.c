@@ -508,7 +508,7 @@ void rpcCancelRequest(void *handle) {
   SRpcReqContext *pContext = handle;
 
   if (pContext->pConn) {
-    tTrace("%s, app trys to cancel request", pConn->info);
+    tTrace("%s, app trys to cancel request", pContext->pConn->info);
     rpcCloseConn(pContext->pConn);
     pContext->pConn = NULL;
     rpcFreeCont(pContext->pCont);
