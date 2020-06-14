@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_HANDLE_H
-#define TDENGINE_HTTP_HANDLE_H
+#ifndef TDENGINE_HTTP_TOKEN_H
+#define TDENGINE_HTTP_TOKEN_H
 
-// http request handler
-void httpProcessRequest(HttpContext *pContext);
-bool httpProcessData(HttpContext *pContext);
+bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len);
+bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len);
+bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen);
 
 #endif

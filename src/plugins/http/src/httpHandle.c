@@ -19,11 +19,12 @@
 #include "tglobal.h"
 #include "tsocket.h"
 #include "ttimer.h"
-#include "http.h"
-#include "httpLog.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
 #include "httpResp.h"
+#include "httpAuth.h"
+#include "httpServer.h"
+#include "httpContext.h"
+#include "httpHandle.h"
 
 void httpToLowerUrl(char* url) {
   /*ignore case */
@@ -159,7 +160,7 @@ bool httpGetHttpMethod(HttpContext* pContext) {
 bool httpGetDecodeMethod(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
 
-  HttpServer* pServer = pContext->pThread->pServer;
+  HttpServer* pServer = &tsHttpServer;
   int         methodLen = pServer->methodScannerLen;
   for (int i = 0; i < methodLen; i++) {
     HttpDecodeMethod* method = pServer->methodScanner[i];
