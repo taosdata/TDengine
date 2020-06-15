@@ -295,6 +295,8 @@ int        tsdbUpdateTable(STsdbMeta* pMeta, STable* pTable, STableCfg* pCfg);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
+void       tsdbRefTable(STable* pTable);
+void       tsdbUnRefTable(STable* pTable);
 
 // ------------------ tsdbBuffer.c
 STsdbBufPool* tsdbNewBufPool();
@@ -317,8 +319,8 @@ int tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
 #define TSDB_FGROUP_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FGROUP_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFileH*   tsdbNewFileH(STsdbCfg* pCfg);
-void          tsdbFreeFileH(STsdbFileH* pFileH);
+STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
+void        tsdbFreeFileH(STsdbFileH* pFileH);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_MAX_SUBBLOCKS 8

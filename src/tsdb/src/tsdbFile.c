@@ -325,11 +325,6 @@ int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, SFile *pFile) 
   return 0;
 }
 
-void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey,
-                                    TSKEY *maxKey) {
-  *minKey = fileId * daysPerFile * tsMsPerDay[precision];
-  *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
-}
 
 SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid) {
   if (pFileH->numOfFGroups == 0 || fid < pFileH->fGroup[0].fileId || fid > pFileH->fGroup[pFileH->numOfFGroups - 1].fileId)

@@ -516,6 +516,14 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
+void tsdbRefTable(STable *pTable) { T_REF_INC(pTable); }
+
+void tsdbUnRefTable(STable *pTable) {
+  if (T_REF_DEC(pTable) == 0) {
+    tsdbFreeTable(pTable);
+  }
+}
+
 // ------------------ LOCAL FUNCTIONS ------------------
 static int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {

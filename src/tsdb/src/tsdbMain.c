@@ -844,35 +844,4 @@ TSKEY tsdbGetTableLastKey(TSDB_REPO_T *repo, uint64_t uid) {
   return TSDB_GET_TABLE_LAST_KEY(pTable);
 }
 
-
-/**
- * Return the next iterator key.
- *
- * @return the next key if iter has
- *         -1 if iter not
- */
-static TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
-  if (pIter == NULL) return -1;
-
-  SSkipListNode *node = tSkipListIterGet(pIter);
-  if (node == NULL) return -1;
-
-  SDataRow row = SL_GET_NODE_DATA(node);
-  return dataRowKey(row);
-}
-
-static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey) {
-  TSKEY nextKey;
-  for (int i = 0; i < nIters; i++) {
-    SSkipListIterator *pIter = iters[i];
-    nextKey = tsdbNextIterKey(pIter);
-    if (nextKey > 0 && (nextKey >= minKey && nextKey <= maxKey)) return 1;
-  }
-  return 0;
-}
-
-
-
-
-
 #endif
