@@ -115,15 +115,18 @@ typedef struct {
 typedef enum { TSDB_FILE_TYPE_HEAD = 0, TSDB_FILE_TYPE_DATA, TSDB_FILE_TYPE_LAST, TSDB_FILE_TYPE_MAX } TSDB_FILE_TYPE;
 
 typedef struct {
+  uint32_t offset;
+  uint32_t len;
+  uint64_t size;      // total size of the file
+  uint64_t tombSize;  // unused file size
+  uint32_t totalBlocks;
+  uint32_t totalSubBlocks;
 } STsdbFileInfo;
 
 typedef struct {
-  char*    fname;
-  int      fd;
-  uint64_t size;
-  uint64_t tombSize;
-  uint64_t totalBlocks;
-  uint64_t totalSubBlocks;
+  char*         fname;
+  int           fd;
+  STsdbFileInfo info;
 } SFile;
 
 typedef struct {
@@ -201,7 +204,7 @@ typedef struct {
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 
 typedef struct {
-  int fid;
+  int   fid;
   TSKEY minKey;
   TSKEY maxKey;
   // For read/write purpose
@@ -232,7 +235,7 @@ typedef struct {
   SCompInfo*   pCompInfo;
   bool         hasOldLastBlock;
   // For block set usage
-  SCompData* pCompData[TSDB_MAX_SUBBLOCKS];
+  SCompData* pCompData;
   SDataCols* pDataCols[2];
   void*      pBuffer;     // Buffer to hold the whole data block
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
@@ -313,9 +316,12 @@ void        tsdbFreeFileH(STsdbFileH* pFileH);
 #define TSDB_HELPER_TABLE_SET 0x4          // Table is set
 #define TSDB_HELPER_INFO_LOAD 0x8          // SCompInfo part is loaded
 #define TSDB_HELPER_FILE_DATA_LOAD 0x10    // SCompData part is loaded
+#define helperSetState(h, s) (((h)->state) |= (s))
+#define helperClearState(h, s) ((h)->state &= (~(s)))
+#define helperHasState(h, s) ((((h)->state) & (s)) == (s))
+#define blockAtIdx(h, idx) ((h)->pCompInfo->blocks + idx)
 #define TSDB_MAX_SUBBLOCKS 8
 #define IS_SUB_BLOCK(pBlock) ((pBlock)->numOfSubBlocks == 0)
-
 #define helperType(h) (h)->type
 #define helperRepo(h) (h)->pRepo
 #define helperState(h) (h)->state
@@ -333,12 +339,6 @@ void* tsdbCommitData(void* arg);
 
 // --------- Helper state
 
-#define TSDB_HELPER_TYPE(h) ((h)->config.type)
-
-#define helperSetState(h, s) (((h)->state) |= (s))
-#define helperClearState(h, s) ((h)->state &= (~(s)))
-#define helperHasState(h, s) ((((h)->state) & (s)) == (s))
-#define blockAtIdx(h, idx) ((h)->pCompInfo->blocks + idx)
 
 int  tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
 int  tsdbInitWriteHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
