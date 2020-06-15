@@ -17,9 +17,10 @@
 #define TDENGINE_ADMIN_HANDLE_H
 
 #include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpUtil.h"
 #include "httpResp.h"
+#include "httpSql.h"
 
 // this define is for url parse, such as:
 // 1. /admin/login/user/pwd
