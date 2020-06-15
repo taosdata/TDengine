@@ -588,7 +588,7 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
         if (kvRowNCols(nrow) - colIdx - 1 > 0) {
           for (int i = colIdx + 1; i < kvRowNCols(nrow); i++) {
             kvRowColIdxAt(nrow, i)->colId = kvRowColIdxAt(row, i)->colId;
-            kvRowColIdxAt(nrow, i)->offset += diff;
+            kvRowColIdxAt(nrow, i)->offset = kvRowColIdxAt(row, i)->offset + diff;
           }
           memcpy(kvRowColVal(nrow, kvRowColIdxAt(nrow, colIdx + 1)), kvRowColVal(row, kvRowColIdxAt(row, colIdx + 1)),
                  POINTER_DISTANCE(kvRowEnd(row), kvRowColVal(row, kvRowColIdxAt(row, colIdx + 1))));
