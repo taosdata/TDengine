@@ -1863,6 +1863,7 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
   }
   
   taos_free_result(tres);
+  tfree(pSupporter);
   if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
     return;
   }
@@ -1870,7 +1871,6 @@ static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
   tscTrace("%p Async insertion completed, total inserted:%" PRId64, pParentObj, pParentObj->res.numOfRows);
   
   tfree(pState);
-  tfree(pSupporter);
   
   // release data block data
   pParentCmd->pDataBlocks = tscDestroyBlockArrayList(pParentCmd->pDataBlocks);
@@ -1896,6 +1896,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   pState->numOfTotal = pSql->numOfSubs;
+  pState->numOfRemain = pSql->numOfSubs;
   
   pRes->code = TSDB_CODE_SUCCESS;
   
