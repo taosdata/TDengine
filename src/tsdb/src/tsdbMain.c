@@ -30,6 +30,18 @@
 #define TSDB_META_FILE_NAME "meta"
 #define TSDB_META_FILE_INDEX 10000000
 
+typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+typedef struct {
+  int32_t     totalLen;
+  int32_t     len;
+  SSubmitBlk *pBlock;
+} SSubmitMsgIter;
+
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
   if (mkdir(rootDir, 0755) < 0) {
@@ -50,9 +62,7 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
   return 0;
 }
 
-int32_t tsdbDropRepo(char *rootDir) {
-  return tsdbUnsetRepoEnv(rootDir);
-}
+int32_t tsdbDropRepo(char *rootDir) { return tsdbUnsetRepoEnv(rootDir); }
 
 TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
   STsdbCfg   config = {0};
@@ -210,7 +220,6 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 
   return magic;
 }
-
 
 void tsdbStartStream(TSDB_REPO_T *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
@@ -653,8 +662,8 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
   }
 
   // Check schema version
-  int32_t tversion = pBlock->sversion;
-  STSchema * pSchema = tsdbGetTableSchema(pMeta, pTable);
+  int32_t   tversion = pBlock->sversion;
+  STSchema *pSchema = tsdbGetTableSchema(pMeta, pTable);
   ASSERT(pSchema != NULL);
   int16_t nversion = schemaVersion(pSchema);
   if (tversion > nversion) {
@@ -688,7 +697,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       return -1;
     }
-  } 
+  }
 
   SSubmitBlkIter blkIter = {0};
   SDataRow       row = NULL;
@@ -752,7 +761,6 @@ static SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
 
   return row;
 }
-
 
 static int tsdbRestoreInfo(STsdbRepo *pRepo) {
   STsdbMeta * pMeta = pRepo->tsdbMeta;

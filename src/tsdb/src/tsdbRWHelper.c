@@ -1082,21 +1082,11 @@ static void tsdbDestroyHelperBlock(SRWHelper *pHelper) {
 }
 
 static int tsdbInitHelper(SRWHelper *pHelper, STsdbRepo *pRepo, tsdb_rw_helper_t type) {
-  if (pHelper == NULL || pRepo == NULL) return -1;
-
   memset((void *)pHelper, 0, sizeof(*pHelper));
 
-  // Init global configuration
-  pHelper->config.type = type;
-  pHelper->config.maxTables = pRepo->config.maxTables;
-  pHelper->config.maxRowSize = pRepo->tsdbMeta->maxRowBytes;
-  pHelper->config.maxRows = pRepo->config.maxRowsPerFileBlock;
-  pHelper->config.maxCols = pRepo->tsdbMeta->maxCols;
-  pHelper->config.minRowsPerFileBlock = pRepo->config.minRowsPerFileBlock;
-  pHelper->config.maxRowsPerFileBlock = pRepo->config.maxRowsPerFileBlock;
-  pHelper->config.compress = pRepo->config.compression;
-
-  pHelper->state = TSDB_HELPER_CLEAR_STATE;
+  helperType(pHelper) = type;
+  helperRepo(pHelper) = pRepo;
+  helperState(pHelper) = TSDB_HELPER_CLEAR_STATE;
 
   // Init file part
   if (tsdbInitHelperFile(pHelper) < 0) goto _err;

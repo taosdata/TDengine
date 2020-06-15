@@ -32,6 +32,16 @@ static void        tsdbFreeMemTable(SMemTable *pMemTable);
 static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
 static void        tsdbFreeTableData(STableData *pTableData);
 static char *      tsdbGetTsTupleKey(const void *data);
+static void *      tsdbCommitData(void *arg);
+static void        tsdbEndCommit(STsdbRepo *pRepo);
+static TSKEY       tsdbNextIterKey(SCommitIter *pIter);
+static int         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
+static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
+static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
+static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo);
+static void         tsdbDestroyTableIters(SCommitIter *iters, int maxTables);
+static int          tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey,
+                                          int maxRowsToRead, SDataCols *pCols);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
@@ -425,8 +435,7 @@ static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSK
   return 0;
 }
 
-static void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey,
-                                    TSKEY *maxKey) {
+static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
   *minKey = fileId * daysPerFile * tsMsPerDay[precision];
   *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
 }
@@ -439,7 +448,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   SFileGroup *pGroup = NULL;
 
   TSKEY minKey = 0, maxKey = 0;
-  tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
 
   // Check if there are data to commit to this file
   int hasDataToCommit = tsdbHasDataToCommit(iters, pCfg->maxTables, minKey, maxKey);

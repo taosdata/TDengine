@@ -201,18 +201,6 @@ typedef struct {
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 
 typedef struct {
-  tsdb_rw_helper_t type;  // helper type
-
-  int    maxTables;
-  int    maxRowSize;
-  int    maxRows;
-  int    maxCols;
-  int    minRowsPerFileBlock;
-  int    maxRowsPerFileBlock;
-  int8_t compress;
-} SHelperCfg;
-
-typedef struct {
   int fid;
   TSKEY minKey;
   TSKEY maxKey;
@@ -232,26 +220,22 @@ typedef struct {
 } SHelperTable;
 
 typedef struct {
-  // Global configuration
-  SHelperCfg config;
+  tsdb_rw_helper_t type;
 
-  int8_t state;
-
+  STsdbRepo* pRepo;
+  int8_t     state;
   // For file set usage
   SHelperFile files;
-  SCompIdx *  pCompIdx;
-
+  SCompIdx*   pCompIdx;
   // For table set usage
   SHelperTable tableInfo;
-  SCompInfo *  pCompInfo;
+  SCompInfo*   pCompInfo;
   bool         hasOldLastBlock;
-
   // For block set usage
-  SCompData *pCompData;
-  SDataCols *pDataCols[2];
-
-  void *pBuffer;  // Buffer to hold the whole data block
-  void *compBuffer;   // Buffer for temperary compress/decompress purpose
+  SCompData* pCompData[TSDB_MAX_SUBBLOCKS];
+  SDataCols* pDataCols[2];
+  void*      pBuffer;     // Buffer to hold the whole data block
+  void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
 // ------------------ tsdbMain.c
@@ -323,8 +307,18 @@ STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
 void        tsdbFreeFileH(STsdbFileH* pFileH);
 
 // ------------------ tsdbRWHelper.c
+#define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
+#define TSDB_HELPER_FILE_SET_AND_OPEN 0x1  // File is set
+#define TSDB_HELPER_IDX_LOAD 0x2           // SCompIdx part is loaded
+#define TSDB_HELPER_TABLE_SET 0x4          // Table is set
+#define TSDB_HELPER_INFO_LOAD 0x8          // SCompInfo part is loaded
+#define TSDB_HELPER_FILE_DATA_LOAD 0x10    // SCompData part is loaded
 #define TSDB_MAX_SUBBLOCKS 8
 #define IS_SUB_BLOCK(pBlock) ((pBlock)->numOfSubBlocks == 0)
+
+#define helperType(h) (h)->type
+#define helperRepo(h) (h)->pRepo
+#define helperState(h) (h)->state
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId
@@ -337,29 +331,7 @@ void* tsdbCommitData(void* arg);
 
 #if 0
 
-
-// TSDB repository definition
-
-typedef struct {
-  int32_t  totalLen;
-  int32_t  len;
-  SDataRow row;
-} SSubmitBlkIter;
-
-// SSubmitMsg Iterator
-typedef struct {
-  int32_t     totalLen;
-  int32_t     len;
-  SSubmitBlk *pBlock;
-} SSubmitMsgIter;
-
 // --------- Helper state
-#define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
-#define TSDB_HELPER_FILE_SET_AND_OPEN 0x1  // File is set
-#define TSDB_HELPER_IDX_LOAD 0x2           // SCompIdx part is loaded
-#define TSDB_HELPER_TABLE_SET 0x4          // Table is set
-#define TSDB_HELPER_INFO_LOAD 0x8          // SCompInfo part is loaded
-#define TSDB_HELPER_FILE_DATA_LOAD 0x10    // SCompData part is loaded
 
 #define TSDB_HELPER_TYPE(h) ((h)->config.type)
 
@@ -398,11 +370,6 @@ int       tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
 void      tsdbAdjustCacheBlocks(STsdbCache *pCache);
 int32_t   tsdbGetMetaFileName(char *rootDir, char *fname);
 int       tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
-int       tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg);
-int       tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
-int       tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
-STSchema *tsdbGetTableSchemaByVersion(STsdbMeta *pMeta, STable *pTable, int16_t version);
-STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 
 
 int compFGroupKey(const void *key, const void *fgroup);
