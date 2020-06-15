@@ -579,7 +579,7 @@ typedef struct {
   float       diskAvailable;  // GB
   uint8_t     alternativeRole;
   uint8_t     reserve[15];
-  SClusterCfg ClusterCfgPara;
+  SClusterCfg clusterCfg;
   SVnodeLoad  load[];
 } SDMStatusMsg;
 

@@ -352,7 +352,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     // Verify whether the cluster parameters are consistent when status change from offline to ready
-    bool ret = mnodeCheckClusterCfgPara(&(pStatus->ClusterCfgPara));
+    bool ret = mnodeCheckClusterCfgPara(&(pStatus->clusterCfg));
     if (false == ret) {
       mnodeDecDnodeRef(pDnode);
       mError("dnode %s cluster cfg parameters inconsistent", pStatus->dnodeEp);
