@@ -59,6 +59,10 @@ bool httpParseURL(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
   char* pSeek;
   char* pEnd = strchr(pParser->pLast, ' ');
+  if (pEnd == NULL) {
+    return false;
+  }
+
   if (*pParser->pLast != '/') {
     httpSendErrorResp(pContext, HTTP_UNSUPPORT_URL);
     return false;
