@@ -18,9 +18,10 @@
 #include "tglobal.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "httpInt.h"
 #include "tgHandle.h"
 #include "tgJson.h"
-#include "httpLog.h"
+#include "cJSON.h"
 
 /*
  * taos.telegraf.cfg formats like

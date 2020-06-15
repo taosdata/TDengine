@@ -21,6 +21,7 @@
 #include "httpResp.h"
 #include "httpCode.h"
 #include "httpJson.h"
+#include "httpContext.h"
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};
 

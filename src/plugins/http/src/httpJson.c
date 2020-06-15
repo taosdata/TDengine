@@ -22,6 +22,7 @@
 #include "httpCode.h"
 #include "httpJson.h"
 #include "httpResp.h"
+#include "httpUtil.h"
 
 #define MAX_NUM_STR_SZ 25
 
