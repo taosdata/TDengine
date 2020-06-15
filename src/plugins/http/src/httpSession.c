@@ -46,6 +46,7 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
   }
 
   HttpSession session;
+  memset(&session, 0, sizeof(HttpSession));
   session.taos = taos;
   session.expire = (int)taosGetTimestampSec() + server->sessionExpire;
   session.access = 1;
