@@ -37,7 +37,7 @@ sleep 4000
 sql select * from mt
 sql select * from strm
 sql drop table tb1
-sleep 10000
+sleep 100000
 sql select * from strm
 if $rows != 2 then
   if $rows != 1 then

@@ -198,6 +198,7 @@ char tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
+int8_t tsDaylight = 0;
 char tsTimezone[64] = {0};
 char tsLocale[TSDB_LOCALE_LEN] = {0};
 char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string

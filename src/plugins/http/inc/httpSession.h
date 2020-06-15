@@ -13,11 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_HANDLE_H
-#define TDENGINE_HTTP_HANDLE_H
+#ifndef TDENGINE_HTTP_SESSION_H
+#define TDENGINE_HTTP_SESSION_H
 
-// http request handler
-void httpProcessRequest(HttpContext *pContext);
-bool httpProcessData(HttpContext *pContext);
+bool httpInitSessions();
+void httpCleanUpSessions();
+
+// http session method
+void httpCreateSession(HttpContext *pContext, void *taos);
+void httpGetSession(HttpContext *pContext);
+void httpReleaseSession(HttpContext *pContext);
 
 #endif
