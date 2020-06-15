@@ -29,7 +29,8 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
 
   pthread_mutex_lock(&server->serverMutex);
 
-  HttpSession session = {0};
+  HttpSession session;
+  memset(&session, 0, sizeof(HttpSession);
   session.taos = taos;
   session.refCount = 1;
   snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
@@ -121,28 +122,4 @@ bool httpInitSessions() {
   }
 
   return true;
-}
-
-void httpRemoveExpireSessions(HttpServer *pServer) {  
-  SHashMutableIterator *pIter = taosHashCreateIter(pServer->pSessionHash);
-
-  while (taosHashIterNext(pIter)) {
-    HttpSession *pSession = taosHashIterGet(pIter);
-    if (pSession == NULL) continue;
-
-    pthread_mutex_lock(&pServer->serverMutex);
-    if (httpSessionExpired(pSession)) {
-      httpResetSession(pSession);
-      taosHashRemove(pServer->pSessionHash, pSession->id, strlen(pSession->id));
-    }
-    pthread_mutex_unlock(&pServer->serverMutex);
-  }
-
-  taosHashDestroyIter(pIter);
-}
-
-void httpProcessSessionExpire(void *handle, void *tmrId) {
-  HttpServer *pServer = (HttpServer *)handle;
-  httpRemoveExpireSessions(pServer);
-  taosTmrReset(httpProcessSessionExpire, 60000, pServer, pServer->timerHandle, &pServer->expireTimer);
 }
