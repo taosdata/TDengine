@@ -1,9 +1,11 @@
 package com.taosdata.jdbc;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
@@ -26,8 +28,8 @@ public class PreparedStatementTest {
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
-                , properties);
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata",
+                properties);
 
         String sql = "drop database if exists " + dbName;
         statement = (TSDBPreparedStatement) connection.prepareStatement(sql);
@@ -52,10 +54,33 @@ public class PreparedStatementTest {
     }
 
     @Test
+    public void testPreparedStatement() throws SQLException {
+        long ts = System.currentTimeMillis();
+        PreparedStatement saveStatement = connection
+                .prepareStatement("insert into " + dbName + "." + tName + " values (" + ts + ", 1)");
+
+        int affectedRows = saveStatement.executeUpdate();
+        assertTrue(1 == affectedRows);
+    }
+
+    @Test
+    public void testSavedPreparedStatement() throws SQLException {
+        long ts = System.currentTimeMillis();
+
+        TSDBPreparedStatement saveStatement = (TSDBPreparedStatement) connection
+                .prepareStatement("insert into  " + dbName + "." + tName + " values (?, ?)");
+
+        saveStatement.setObject(1, ts + 100);
+        saveStatement.setObject(2, 3);
+        int rows = saveStatement.executeUpdate();
+        assertEquals(1, rows);
+    }
+
+    @Test
     public void testUnsupport() {
-//        if(null == resSet) {
-//            return;
-//        }
+        // if(null == resSet) {
+        // return;
+        // }
         TSDBPreparedStatement tsdbStatement = (TSDBPreparedStatement) statement;
         try {
             tsdbStatement.unwrap(null);
@@ -130,11 +155,11 @@ public class PreparedStatementTest {
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.executeUpdate(null, new int[]{0});
+            tsdbStatement.executeUpdate(null, new int[] { 0 });
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.executeUpdate(null, new String[]{"str1", "str2"});
+            tsdbStatement.executeUpdate(null, new String[] { "str1", "str2" });
         } catch (SQLException e) {
         }
         try {
@@ -158,4 +183,12 @@ public class PreparedStatementTest {
         } catch (SQLException e) {
         }
     }
+
+    @AfterClass
+    public static void close() throws SQLException {
+        statement.executeUpdate("drop database " + dbName);
+        statement.close();
+        connection.close();
+    }
+
 }
