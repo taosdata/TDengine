@@ -258,6 +258,7 @@ sql select count(join_tb1.c3), count(join_tb0.ts) from $tb1 , $tb2 where $ts1 = 
 
 $val = 2
 if $data00 != $val then
+  print expect 2, actaul: $data00
   return -1
 endi
 

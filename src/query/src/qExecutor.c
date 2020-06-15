@@ -1072,6 +1072,10 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
     groupbyColumnData = getGroupbyColumnData(pQuery, &type, &bytes, pDataBlock);
   }
 
+  if (pRuntimeEnv->pTSBuf != NULL && pQuery->numOfOutput > 1) {
+    printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
+  }
+
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
     setExecParams(pQuery, &pCtx[k], dataBlock, tsCols, pDataBlockInfo, pStatis, &sasArray[k], k);
@@ -1089,7 +1093,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
   // from top to bottom in desc
   // from bottom to top in asc order
   if (pRuntimeEnv->pTSBuf != NULL) {
-    SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
+    SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pRuntimeEnv);
     qTrace("QInfo:%p process data rows, numOfRows:%d, query order:%d, ts comp order:%d", pQInfo, pDataBlockInfo->rows,
            pQuery->order.order, pRuntimeEnv->pTSBuf->cur.order);
   }
@@ -1495,6 +1499,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 }
 
 static bool isQueryKilled(SQInfo *pQInfo) {
+  return false;
   return (pQInfo->code == TSDB_CODE_TSC_QUERY_CANCELLED);
 }
 
@@ -3617,6 +3622,10 @@ bool queryHasRemainResults(SQueryRuntimeEnv* pRuntimeEnv) {
 
 static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+
+  if (pQInfo->runtimeEnv.pTSBuf != NULL && pQuery->numOfOutput > 1) {
+    printf("ffffffffffffffffffffffffff\n");
+  }
   for (int32_t col = 0; col < pQuery->numOfOutput; ++col) {
     int32_t bytes = pQuery->pSelectExpr[col].bytes;
 
@@ -5038,7 +5047,9 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   }
 
   char *pMsg = (char *)(pQueryMsg->colList) + sizeof(SColumnInfo) * pQueryMsg->numOfCols;
-
+  if (pQueryMsg->numOfCols > 1 && pQueryMsg->tsLen > 0) {
+    printf("ffffffffffffffff\n");
+  }
   for (int32_t col = 0; col < pQueryMsg->numOfCols; ++col) {
     SColumnInfo *pColInfo = &pQueryMsg->colList[col];
 
@@ -5230,6 +5241,9 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
   bool    isSuperTable = QUERY_IS_STABLE_QUERY(pQueryMsg->queryType);
   int16_t tagLen = 0;
 
+  if (pQueryMsg->numOfOutput > 1 && pQueryMsg->tsLen > 0) {
+    printf("ffffffffffffffffffff\n");
+  }
   for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
     pExprs[i].base = *pExprMsg[i];
     pExprs[i].bytes = 0;
@@ -5638,7 +5652,7 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
 
   STSBuf *pTSBuf = NULL;
   if (pQueryMsg->tsLen > 0) {  // open new file to save the result
-    char *tsBlock = (char *)pQueryMsg + pQueryMsg->tsOffset;
+    char *tsBlock = (char *) pQueryMsg + pQueryMsg->tsOffset;
     pTSBuf = tsBufCreateFromCompBlocks(tsBlock, pQueryMsg->tsNumOfBlocks, pQueryMsg->tsLen, pQueryMsg->tsOrder);
 
     tsBufResetPos(pTSBuf);
@@ -6119,6 +6133,17 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
     int32_t rsize = pExprInfo->bytes;
     count = 0;
 
+    int16_t bytes = pExprInfo->bytes;
+    int16_t type = pExprInfo->type;
+
+    for(int32_t i = 0; i < pQuery->numOfTags; ++i) {
+      if (pQuery->tagColList[i].colId == pExprInfo->base.colInfo.colId) {
+        bytes = pQuery->tagColList[i].bytes;
+        type = pQuery->tagColList[i].type;
+        break;
+      }
+    }
+
     while(pQInfo->tableIndex < num && count < pQuery->rec.capacity) {
       int32_t i = pQInfo->tableIndex++;
       SGroupItem *item = taosArrayGet(pa, i);
@@ -6135,9 +6160,6 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
 
       *(int32_t *)output = pQInfo->vgId;
       output += sizeof(pQInfo->vgId);
-
-      int16_t bytes = pExprInfo->bytes;
-      int16_t type = pExprInfo->type;
 
       if (pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
         char *data = tsdbGetTableName(pQInfo->tsdb, &item->id);

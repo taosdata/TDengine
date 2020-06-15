@@ -338,7 +338,18 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
       pExpr->param[0].i64Key = tagColIndex;
       pExpr->numOfParams = 1;
     }
-  
+
+    SColumnIndex index = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+    SSchema* s = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, 0);
+
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, 0);
+    if ((pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
+       (pExpr->functionId != TSDB_FUNC_TS || pExpr->functionId != TSDB_FUNC_TS_DUMMY)) {
+      tscAddSpecialColumnForSelect(pQueryInfo, 0, TSDB_FUNC_PRJ, &index, s, 0);
+      tscPrintSelectClause(pNew, 0);
+      tscFieldInfoUpdateOffset(pNewQueryInfo);
+    }
+
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
     tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type,
@@ -464,8 +475,8 @@ static void tSIntersectionAndLaunchSecQuery(SJoinSupporter* pSupporter, SSqlObj*
 }
 
 int32_t tscCompareTidTags(const void* p1, const void* p2) {
-  const STidTags* t1 = (const STidTags*) p1;
-  const STidTags* t2 = (const STidTags*) p2;
+  const STidTags* t1 = (const STidTags*) varDataVal(p1);
+  const STidTags* t2 = (const STidTags*) varDataVal(p2);
   
   if (t1->vgId != t2->vgId) {
     return (t1->vgId > t2->vgId) ? 1 : -1;
@@ -477,33 +488,33 @@ int32_t tscCompareTidTags(const void* p1, const void* p2) {
 }
 
 void tscBuildVgroupTableInfo(STableMetaInfo* pTableMetaInfo, SArray* tables) {
-  SArray* result = taosArrayInit( 4, sizeof(SVgroupTableInfo) );
-  SArray* vgTables = NULL;
+  SArray*   result = taosArrayInit(4, sizeof(SVgroupTableInfo));
+  SArray*   vgTables = NULL;
   STidTags* prev = NULL;
 
-  size_t numOfTables = taosArrayGetSize( tables );
-  for( size_t i = 0; i < numOfTables; i++ ) {
-    STidTags* tt = taosArrayGet( tables, i );
+  size_t numOfTables = taosArrayGetSize(tables);
+  for (size_t i = 0; i < numOfTables; i++) {
+    STidTags* tt = taosArrayGet(tables, i);
 
-    if( prev == NULL || tt->vgId != prev->vgId ) {
+    if (prev == NULL || tt->vgId != prev->vgId) {
       SVgroupsInfo* pvg = pTableMetaInfo->vgroupList;
 
-      SVgroupTableInfo info = {{ 0 }};
-      for( int32_t m = 0; m < pvg->numOfVgroups; ++m ) {
-        if( tt->vgId == pvg->vgroups[m].vgId ) {
+      SVgroupTableInfo info = {{0}};
+      for (int32_t m = 0; m < pvg->numOfVgroups; ++m) {
+        if (tt->vgId == pvg->vgroups[m].vgId) {
           info.vgInfo = pvg->vgroups[m];
           break;
         }
       }
-      assert( info.vgInfo.numOfIps != 0 );
+      assert(info.vgInfo.numOfIps != 0);
 
-      vgTables = taosArrayInit( 4, sizeof(STableIdInfo) );
+      vgTables = taosArrayInit(4, sizeof(STableIdInfo));
       info.itemList = vgTables;
-      taosArrayPush( result, &info );
+      taosArrayPush(result, &info);
     }
 
-    STableIdInfo item = { .uid = tt->uid, .tid = tt->tid, .key = INT64_MIN };
-    taosArrayPush( vgTables, &item );
+    STableIdInfo item = {.uid = tt->uid, .tid = tt->tid, .key = INT64_MIN};
+    taosArrayPush(vgTables, &item);
     prev = tt;
   }
 
@@ -574,6 +585,8 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   
   // response of tag retrieve
   if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) {
+    //todo handle error
+
     if (numOfRows == 0 || pSql->res.completed) {
       
       if (numOfRows > 0) {
@@ -616,8 +629,8 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       
       int32_t i = 0, j = 0;
       while(i < p1->num && j < p2->num) {
-        STidTags* pp1 = (STidTags*) p1->pIdTagList + i * p1->tagSize;
-        STidTags* pp2 = (STidTags*) p2->pIdTagList + j * p2->tagSize;
+        STidTags* pp1 = (STidTags*) varDataVal(p1->pIdTagList + i * p1->tagSize);
+        STidTags* pp2 = (STidTags*) varDataVal(p2->pIdTagList + j * p2->tagSize);
        
         int32_t ret = doCompare(pp1->tag, pp2->tag, pColSchema->type, pColSchema->bytes);
         if (ret == 0) {
@@ -660,6 +673,8 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       
     } else {
       size_t length = pSupporter->totalLen + pSql->res.rspLen;
+      assert(length > 0);
+
       char* tmp = realloc(pSupporter->pIdTagList, length);
       assert(tmp != NULL);
       
@@ -833,7 +848,10 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
           }
         }
       } else {  // has reach the limitation, no data anymore
-        hasData = false;
+        if (pRes->row >= pRes->numOfRows) {
+          hasData = false;
+          break;
+        }
       }
       
     }
@@ -1071,28 +1089,26 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
     
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) { // return the tableId & tag
-      SSchema s = {0};
       SColumnIndex index = {0};
-  
-      size_t numOfTags = taosArrayGetSize(pTableMetaInfo->tagColList);
-      for(int32_t i = 0; i < numOfTags; ++i) {
-        SColumn* c = taosArrayGetP(pTableMetaInfo->tagColList, i);
-        index = (SColumnIndex) {.tableIndex = 0, .columnIndex = c->colIndex.columnIndex};
-        
-        SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-        s = pTagSchema[c->colIndex.columnIndex];
-        
-        int16_t bytes = 0;
-        int16_t type = 0;
-        int32_t inter = 0;
-        
-        getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
-        
-        s.type = type;
-        s.bytes = bytes;
-        pSupporter->tagSize = s.bytes;
-      }
-  
+
+      STagCond* pTagCond = &pSupporter->tagCond;
+      assert(pTagCond->joinInfo.hasJoin);
+
+      int32_t tagIndex = tscGetJoinTagColIndexByUid(pTagCond, pTableMetaInfo->pTableMeta->uid);
+      SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+
+      SSchema s = pTagSchema[tagIndex];
+
+      int16_t bytes = 0;
+      int16_t type = 0;
+      int32_t inter = 0;
+
+      getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
+
+      s.type = type;
+      s.bytes = bytes;
+      pSupporter->tagSize = s.bytes;
+
       // set get tags query type
       TSDB_QUERY_SET_TYPE(pNewQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
       tscAddSpecialColumnForSelect(pNewQueryInfo, 0, TSDB_FUNC_TID_TAG, &index, &s, TSDB_COL_TAG);

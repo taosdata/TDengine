@@ -1922,8 +1922,10 @@ void tscDoQuery(SSqlObj* pSql) {
 int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->joinInfo.left.uid == uid) {
     return pTagCond->joinInfo.left.tagCol;
-  } else {
+  } else if (pTagCond->joinInfo.right.uid == uid){
     return pTagCond->joinInfo.right.tagCol;
+  } else {
+    return -2;
   }
 }
 

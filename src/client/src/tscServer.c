@@ -800,6 +800,27 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
+  // serialize tag column query condition
+  if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0) {
+    STagCond* pTagCond = &pQueryInfo->tagCond;
+    
+    SCond *pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->uid);
+    if (pCond != NULL && pCond->cond != NULL) {
+      pQueryMsg->tagCondLen = htons(pCond->len);
+      memcpy(pMsg, pCond->cond, pCond->len);
+      
+      pMsg += pCond->len;
+    }
+  }
+  
+  if (pQueryInfo->tagCond.tbnameCond.cond == NULL) {
+    *pMsg = 0;
+    pMsg++;
+  } else {
+    strcpy(pMsg, pQueryInfo->tagCond.tbnameCond.cond);
+    pMsg += strlen(pQueryInfo->tagCond.tbnameCond.cond) + 1;
+  }
+
   // compressed ts block
   pQueryMsg->tsOffset = htonl(pMsg - pStart);
   int32_t tsLen = 0;
@@ -822,27 +843,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tsNumOfBlocks = htonl(numOfBlocks);
   if (pQueryInfo->tsBuf != NULL) {
     pQueryMsg->tsOrder = htonl(pQueryInfo->tsBuf->tsOrder);
-  }
-
-  // serialize tag column query condition
-  if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0) {
-    STagCond* pTagCond = &pQueryInfo->tagCond;
-    
-    SCond *pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->uid);
-    if (pCond != NULL && pCond->cond != NULL) {
-      pQueryMsg->tagCondLen = htons(pCond->len);
-      memcpy(pMsg, pCond->cond, pCond->len);
-      
-      pMsg += pCond->len;
-    }
-  }
-  
-  if (pQueryInfo->tagCond.tbnameCond.cond == NULL) {
-    *pMsg = 0;
-    pMsg++;
-  } else {
-    strcpy(pMsg, pQueryInfo->tagCond.tbnameCond.cond);
-    pMsg += strlen(pQueryInfo->tagCond.tbnameCond.cond) + 1;
   }
 
   int32_t msgLen = pMsg - pStart;
