@@ -20,84 +20,64 @@
 #include "tsocket.h"
 #include "ttimer.h"
 #include "tadmin.h"
-#include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpContext.h"
+#include "httpSession.h"
+#include "httpServer.h"
 #include "httpResp.h"
-#include "httpLog.h"
-#include "gcHandle.h"
 #include "httpHandle.h"
+#include "gcHandle.h"
 #include "restHandle.h"
 #include "tgHandle.h"
 
 #ifndef _ADMIN
-
 void adminInitHandle(HttpServer* pServer) {}
 void opInitHandle(HttpServer* pServer) {}
-
 #endif
 
-static HttpServer *httpServer = NULL;
+HttpServer tsHttpServer;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 
 int httpInitSystem() {
-  // taos_init();
+  strcpy(tsHttpServer.label, "rest");
+  tsHttpServer.serverIp = 0;
+  tsHttpServer.serverPort = tsHttpPort;
+  tsHttpServer.numOfThreads = tsHttpMaxThreads;
+  tsHttpServer.processData = httpProcessData;
 
-  httpServer = (HttpServer *)malloc(sizeof(HttpServer));
-  memset(httpServer, 0, sizeof(HttpServer));
-
-  strcpy(httpServer->label, "rest");
-  httpServer->serverIp = 0;
-  httpServer->serverPort = tsHttpPort;
-  httpServer->cacheContext = tsHttpCacheSessions;
-  httpServer->sessionExpire = tsHttpSessionExpire;
-  httpServer->numOfThreads = tsHttpMaxThreads;
-  httpServer->processData = httpProcessData;
-
-  pthread_mutex_init(&httpServer->serverMutex, NULL);
+  pthread_mutex_init(&tsHttpServer.serverMutex, NULL);
 
   if (tsHttpEnableRecordSql != 0) {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"http_note");
   }
-  restInitHandle(httpServer);
-  adminInitHandle(httpServer);
-  gcInitHandle(httpServer);
-  tgInitHandle(httpServer);
-  opInitHandle(httpServer);
+  restInitHandle(&tsHttpServer);
+  adminInitHandle(&tsHttpServer);
+  gcInitHandle(&tsHttpServer);
+  tgInitHandle(&tsHttpServer);
+  opInitHandle(&tsHttpServer);
 
   return 0;
 }
 
 int httpStartSystem() {
-  httpPrint("starting to initialize http service ...");
+  httpPrint("start http server ...");
 
-  if (httpServer == NULL) {
-    httpError("http server is null");
-    httpInitSystem();
-  }
-
-  if (httpServer->pContextPool == NULL) {
-    httpServer->pContextPool = taosMemPoolInit(httpServer->cacheContext, sizeof(HttpContext));
-  }
-  if (httpServer->pContextPool == NULL) {
-    httpError("http init context pool failed");
+  if (tsHttpServer.status != HTTP_SERVER_INIT) {
+    httpError("http server is already started");
     return -1;
   }
 
-  if (httpServer->timerHandle == NULL) {
-    httpServer->timerHandle = taosTmrInit(tsHttpCacheSessions * 100 + 100, 200, 60000, "http");
-  }
-  if (httpServer->timerHandle == NULL) {
-    httpError("http init timer failed");
+  if (!httpInitContexts()) {
+    httpError("http init contexts failed");
     return -1;
   }
 
-  if (!httpInitAllSessions(httpServer)) {
+  if (!httpInitSessions()) {
     httpError("http init session failed");
     return -1;
   }
 
-  if (!httpInitConnect(httpServer)) {
+  if (!httpInitConnect()) {
     httpError("http init server failed");
     return -1;
   }
@@ -106,53 +86,23 @@ int httpStartSystem() {
 }
 
 void httpStopSystem() {
-  if (httpServer != NULL) {
-    httpServer->online = false;
-  }
+  tsHttpServer.status = HTTP_SERVER_CLOSING;
+  shutdown(tsHttpServer.fd, SHUT_RD);
   tgCleanupHandle();
 }
 
 void httpCleanUpSystem() {
-  httpPrint("http service cleanup");
+  httpPrint("http server cleanup");
   httpStopSystem();
 
-//#if 0
-  if (httpServer == NULL) {
-    return;
-  }
+  httpCleanupContexts();
+  httpCleanUpSessions();
+  httpCleanUpConnect();
+  pthread_mutex_destroy(&tsHttpServer.serverMutex);
 
-  if (httpServer->expireTimer != NULL) {
-    taosTmrStopA(&(httpServer->expireTimer));
-  }
-
-  if (httpServer->timerHandle != NULL) {
-    taosTmrCleanUp(httpServer->timerHandle);
-    httpServer->timerHandle = NULL;
-  }
-
-  if (httpServer->pThreads != NULL) {
-    httpCleanUpConnect(httpServer);
-    httpServer->pThreads = NULL;
-  }
-  
-
-#if 0
-  httpRemoveAllSessions(httpServer);
-
-  if (httpServer->pContextPool != NULL) {
-    taosMemPoolCleanUp(httpServer->pContextPool);
-    httpServer->pContextPool = NULL;
-  }
-
-  pthread_mutex_destroy(&httpServer->serverMutex);
-
-  tfree(httpServer);
-#endif
+  tsHttpServer.status = HTTP_SERVER_CLOSED;
 }
 
 int32_t httpGetReqCount() {
-  if (httpServer != NULL) {
-    return atomic_exchange_32(&httpServer->requestNum, 0);
-  }
-  return 0;
+  return atomic_exchange_32(&tsHttpServer.requestNum, 0);
 }

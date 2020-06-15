@@ -16,7 +16,7 @@
 #ifndef TDENGINE_HTTP_RESP_H
 #define TDENGINE_HTTP_RESP_H
 
-#include "httpHandle.h"
+#include "httpInt.h"
 
 enum _httpRespTempl {
   HTTP_RESPONSE_JSON_OK,

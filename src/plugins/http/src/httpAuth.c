@@ -18,8 +18,8 @@
 #include "tkey.h"
 #include "tutil.h"
 #include "http.h"
-#include "httpLog.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpAuth.h"
 
 #define KEY_DES_4 4971256377704625728L
 
