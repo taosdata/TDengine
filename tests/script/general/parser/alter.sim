@@ -38,7 +38,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
 sql alter table tb add column c3 nchar(4)
@@ -72,7 +72,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
 
@@ -169,7 +169,7 @@ endi
 if $data01 != 2 then
   return -1
 endi
-if $data02 != NULL then
+if $data02 != null then
   return -1
 endi
 sql alter table mt add column c2 int
