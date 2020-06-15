@@ -362,7 +362,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TAOS_QTYPE_WAL      2 
 #define TAOS_QTYPE_CQ       3
 
-typedef enum : uint8_t{
+typedef enum {
   TSDB_SUPER_TABLE        = 0,  // super table
   TSDB_CHILD_TABLE        = 1,  // table created from super table
   TSDB_NORMAL_TABLE       = 2,  // ordinary table

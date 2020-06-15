@@ -42,7 +42,7 @@ void *tdEncodeSchema(void *buf, STSchema *pSchema) {
     STColumn *pCol = schemaColAt(pSchema, i);
     buf = taosEncodeFixedI8(buf, colType(pCol));
     buf = taosEncodeFixedI16(buf, colColId(pCol));
-    buf = taosEncodeFixedI32(buf, colBytes(pCol)) :
+    buf = taosEncodeFixedI32(buf, colBytes(pCol));
   }
 
   return buf;
@@ -54,6 +54,7 @@ void *tdEncodeSchema(void *buf, STSchema *pSchema) {
 void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   int version = 0;
   int numOfCols = 0;
+  STSchemaBuilder schemaBuilder;
 
   buf = taosDecodeFixedI32(buf, &version);
   buf = taosDecodeFixedI32(buf, &numOfCols);

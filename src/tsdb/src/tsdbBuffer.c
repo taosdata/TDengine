@@ -86,7 +86,7 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
   }
 
   tsdbTrace("vgId:%d buffer pool is opened! bufBlockSize:%d tBufBlocks:%d nBufBlocks:%d", REPO_ID(pRepo),
-            pBufPool->bufBlockSize, pBufPool->tBufBlocks, pBufPool->nBufBlocks);
+            pPool->bufBlockSize, pPool->tBufBlocks, pPool->nBufBlocks);
 
   return 0;
 
@@ -113,11 +113,10 @@ void tsdbCloseBufPool(STsdbRepo *pRepo) {
 }
 
 SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
-  ASSERT(pRepo != NULL && pRepo->pool != NULL);
+  ASSERT(pRepo != NULL && pRepo->pPool != NULL);
   ASSERT(IS_REPO_LOCKED(pRepo));
 
-  STsdbCfg *    pCfg = &pRepo->config;
-  STsdbBufPool *pBufPool = pRepo->pool;
+  STsdbBufPool *pBufPool = pRepo->pPool;
 
   while (POOL_IS_EMPTY(pBufPool)) {
     pthread_cond_wait(&(pBufPool->poolNotEmpty), &(pRepo->mutex));

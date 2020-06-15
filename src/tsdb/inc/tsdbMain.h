@@ -40,26 +40,25 @@ extern int tsdbDebugFlag;
 #define TSDB_MAX_TABLE_SCHEMAS 16
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
-#define 
 
 // Definitions
 // ------------------ tsdbMeta.c
 typedef struct STable {
-  ETableType type;
-  tstr*      name;  // NOTE: there a flexible string here
-  STableId   tableId;
-  uint64_t   suid;
-  STable*    pSuper;  // super table pointer
-  uint8_t    numOfSchemas;
-  STSchema   schema[TSDB_MAX_TABLE_SCHEMAS];
-  STSchema*  tagSchema;
-  SKVRow     tagVal;
-  void*      pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
-  void*      eventHandler;   // TODO
-  void*      streamHandler;  // TODO
-  TSKEY      lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
-  char*      sql;
-  void*      cqhandle;
+  ETableType     type;
+  tstr*          name;  // NOTE: there a flexible string here
+  STableId       tableId;
+  uint64_t       suid;
+  struct STable* pSuper;  // super table pointer
+  uint8_t        numOfSchemas;
+  STSchema       schema[TSDB_MAX_TABLE_SCHEMAS];
+  STSchema*      tagSchema;
+  SKVRow         tagVal;
+  void*          pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
+  void*          eventHandler;   // TODO
+  void*          streamHandler;  // TODO
+  TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
+  char*          sql;
+  void*          cqhandle;
   T_REF_DECLARE();
 } STable;
 
@@ -148,6 +147,25 @@ typedef struct {
   SFileGroup *pFileGroup;
   int         direction;
 } SFileGroupIter;
+
+// ------------------ tsdbMain.c
+typedef struct {
+  int8_t state;
+
+  char*           rootDir;
+  STsdbCfg        config;
+  STsdbAppH       appH;
+  STsdbStat       stat;
+  STsdbMeta*      tsdbMeta;
+  STsdbBufPool*   pPool;
+  SMemTable*      mem;
+  SMemTable*      imem;
+  STsdbFileH*     tsdbFileH;
+  int             commit;
+  pthread_t       commitThread;
+  pthread_mutex_t mutex;
+  bool            repoLocked;
+} STsdbRepo;
 
 // ------------------ tsdbRWHelper.c
 typedef struct {
@@ -241,24 +259,6 @@ typedef struct {
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
-// ------------------ tsdbMain.c
-typedef struct {
-  int8_t state;
-
-  char*           rootDir;
-  STsdbCfg        config;
-  STsdbAppH       appH;
-  STsdbStat       stat;
-  STsdbMeta*      tsdbMeta;
-  STsdbBufPool*   pPool;
-  SMemTable*      mem;
-  SMemTable*      imem;
-  STsdbFileH*     tsdbFileH;
-  int             commit;
-  pthread_t       commitThread;
-  pthread_mutex_t mutex;
-  bool            repoLocked;
-} STsdbRepo;
 
 // Operations
 // ------------------ tsdbMeta.c
@@ -289,7 +289,7 @@ void       tsdbUnRefTable(STable* pTable);
 STsdbBufPool* tsdbNewBufPool();
 void          tsdbFreeBufPool(STsdbBufPool* pBufPool);
 int           tsdbOpenBufPool(STsdbRepo* pRepo);
-int           tsdbOpenBufPool(STsdbRepo* pRepo);
+void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 
 // ------------------ tsdbMemTable.c
@@ -333,7 +333,6 @@ void        tsdbFreeFileH(STsdbFileH* pFileH);
 char* tsdbGetMetaFileName(char* rootDir);
 int   tsdbLockRepo(STsdbRepo* pRepo);
 int   tsdbUnlockRepo(STsdbRepo* pRepo);
-void* tsdbCommitData(void* arg);
 
 #if 0
 
