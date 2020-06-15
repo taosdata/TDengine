@@ -103,14 +103,14 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 }
 
 int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
-  ASSERT(IS_REPO_LOCKED(pRepo));
-  ASSERT(pMemTable != NULL);
+  if (pMemTable == NULL) return 0;
   T_REF_INC(pMemTable);
+  return 0;
 }
 
 // Need to lock the repository
 int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
-  ASSERT(pMemTable != NULL);
+  if (pMemTable == NULL) return 0;
 
   if (T_REF_DEC(pMemTable) == 0) {
     STsdbCfg *    pCfg = &pRepo->config;
@@ -143,6 +143,17 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   return 0;
 }
 
+int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
+  if (tsdbLockRepo(pRepo) < 0) return -1;
+
+  *pMem = pRepo->mem;
+  *pIMem = pRepo->mem;
+  tsdbRefMemTable(pRepo, *pMem);
+  tsdbRefMemTable(pRepo, *pIMem);
+
+  if (tsdbUnlockRepo(pRepo) < 0) return -1;
+}
+
 // ---------------- LOCAL FUNCTIONS ----------------
 static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL);
@@ -171,10 +182,16 @@ static void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
           terrno = TAOS_SYSTEM_ERROR(errno);
           return NULL;
         }
+
+        if (tsdbUnRefMemTable(pRepo, pRepo->imem) < 0) {
+          tsdbError("vgId:%d failed to unref memtable since %s", REPO_ID(pRepo), tstrerror(terrno))
+          return NULL;
+        }
       }
 
       ASSERT(pRepo->commit == 0);
       SMemTable *pImem = pRepo->imem;
+      if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
 
       if (tsdbLockRepo(pRepo) < 0) return NULL;
       pRepo->imem = pRepo->mem;
@@ -322,20 +339,12 @@ static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple(data); }
 static void *tsdbCommitData(void *arg) {
   STsdbRepo *pRepo = (STsdbRepo *)arg;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
-  ASSERT(pRepo->imem != NULL);
+  SMemTable *pMem = pRepo->imem;
   ASSERT(pRepo->commit == 1);
+  ASSERT(pMem != NULL);
 
-  tsdbPrint("vgId:%d start to commit! keyFirst " PRId64 " keyLast " PRId64 " numOfRows " PRId64, REPO_ID(pRepo),
-            pRepo->imem->keyFirst, pRepo->imem->keyLast, pRepo->imem->numOfRows);
-
-  // STsdbMeta * pMeta = pRepo->tsdbMeta;
-  // STsdbCache *pCache = pRepo->tsdbCache;
-  // STsdbCfg *  pCfg = &(pRepo->config);
-  // SDataCols * pDataCols = NULL;
-  // SRWHelper   whelper = {{0}};
-  // if (pCache->imem == NULL) return NULL;
-
-  tsdbPrint("vgId:%d, starting to commit....", pRepo->config.tsdbId);
+  tsdbPrint("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64, REPO_ID(pRepo),
+            pMem->keyFirst, pMem->keyLast, pMem->numOfRows);
 
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pRepo);
