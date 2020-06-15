@@ -55,7 +55,7 @@ public class PreparedStatementTest {
 
     @Test
     public void testPreparedStatement() throws SQLException {
-        long ts = System.currentTimeMillis();
+        long ts = System.currentTimeMillis() + 20000;
         PreparedStatement saveStatement = connection
                 .prepareStatement("insert into " + dbName + "." + tName + " values (" + ts + ", 1)");
 
@@ -70,7 +70,7 @@ public class PreparedStatementTest {
         TSDBPreparedStatement saveStatement = (TSDBPreparedStatement) connection
                 .prepareStatement("insert into  " + dbName + "." + tName + " values (?, ?)");
 
-        saveStatement.setObject(1, ts + 100);
+        saveStatement.setObject(1, ts + 10000);
         saveStatement.setObject(2, 3);
         int rows = saveStatement.executeUpdate();
         assertEquals(1, rows);

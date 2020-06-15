@@ -1,5 +1,6 @@
 package com.taosdata.jdbc;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,6 +42,7 @@ public class DatabaseMetaDataTest {
                 System.out.printf("%d: %s\n", i, resultSet.getString(i));
             }
         }
+        resultSet.close();
         databaseMetaData.isWrapperFor(null);
         databaseMetaData.allProceduresAreCallable();
         databaseMetaData.allTablesAreSelectable();
@@ -227,5 +229,12 @@ public class DatabaseMetaDataTest {
         databaseMetaData.getPseudoColumns("", "", "", "");
         databaseMetaData.generatedKeyAlwaysReturned();
 
+    }
+
+    @AfterClass
+    public static void close() throws SQLException {
+        statement.executeUpdate("drop database " + dbName);
+        statement.close();
+        connection.close();
     }
 }

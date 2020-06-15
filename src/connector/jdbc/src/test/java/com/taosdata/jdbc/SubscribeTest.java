@@ -20,7 +20,7 @@ public class SubscribeTest {
     String host = "localhost";
     String topic = "test";
 
-//    @Before
+    @Before
     public void createDatabase() throws SQLException {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -36,13 +36,13 @@ public class SubscribeTest {
         statement.executeUpdate("create database if not exists " + dbName);
         statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
         long ts = System.currentTimeMillis();
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 2; i++) {
             ts += i;
             statement.executeUpdate("insert into \" + dbName + \".\" + tName + \" values (" + ts + ", " + (100 + i) + ", " + i + ")");
         }
     }
 
-//    @Test
+    @Test
     public void subscribe() throws Exception {
         TSDBSubscribe subscribe = null;
         long subscribId = 0;
@@ -68,7 +68,7 @@ public class SubscribeTest {
                 }
                 resSet.close();
                 a++;
-                if (a >= 3) {
+                if (a >= 2) {
                     break;
                 }
             }
@@ -81,7 +81,7 @@ public class SubscribeTest {
         }
     }
 
-//    @After
+    @After
     public void close() throws Exception {
         statement.executeQuery("drop database " + dbName);
         statement.close();

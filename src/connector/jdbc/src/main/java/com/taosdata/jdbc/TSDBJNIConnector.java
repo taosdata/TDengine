@@ -19,7 +19,7 @@ import java.sql.SQLWarning;
 import java.util.List;
 
 public class TSDBJNIConnector {
-    static volatile Boolean isInitialized = false;
+    private static volatile Boolean isInitialized = false;
 
     static {
         System.loadLibrary("taos");

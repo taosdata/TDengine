@@ -53,9 +53,10 @@ public class TestTSDBSubscribe {
             subscribe = ((TSDBConnection) connection).createSubscribe();
             subscribId = subscribe.subscribe(topic, rawSql, false, 1000);
             int a = 0;
+            TSDBResultSet resSet = null;
             while (true) {
                 Thread.sleep(900);
-                TSDBResultSet resSet = subscribe.consume(subscribId);
+                resSet = subscribe.consume(subscribId);
 
                 while (resSet.next()) {
                     for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
