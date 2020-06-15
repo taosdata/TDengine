@@ -1464,7 +1464,8 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static SChildTableObj* mnodeDoCreateChildTable(SMnodeMsg *pMsg, SVgObj *pVgroup, int32_t tid) {
+static SChildTableObj* mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
+  SVgObj *pVgroup = pMsg->pVgroup;
   SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
   SChildTableObj *pTable = calloc(1, sizeof(SChildTableObj));
   if (pTable == NULL) {
@@ -1578,7 +1579,9 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
         return mnodeCreateVgroup(pMsg, pMsg->pDb);
       }
 
-      pMsg->pTable = (STableObj *)mnodeDoCreateChildTable(pMsg, pVgroup, sid);
+      pMsg->pVgroup = pVgroup;
+      mnodeIncVgroupRef(pVgroup);
+      pMsg->pTable = (STableObj *)mnodeDoCreateChildTable(pMsg, sid);
       if (pMsg->pTable == NULL) {
         return terrno;
       }
