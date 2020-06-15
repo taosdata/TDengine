@@ -45,7 +45,9 @@ matrix:
           cd ${TRAVIS_BUILD_DIR}/debug
           make install > /dev/null || travis_terminate $?
 
+          pip install numpy
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
+          pip3 install numpy
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
@@ -164,7 +166,9 @@ matrix:
           cd ${TRAVIS_BUILD_DIR}/debug
           make install > /dev/null || travis_terminate $?
 
+          pip install numpy
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
+          pip3 install numpy
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests

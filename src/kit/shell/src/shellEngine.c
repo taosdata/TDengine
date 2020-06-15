@@ -469,7 +469,6 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
   } while( row != NULL);
 
   fclose(fp);
-  taos_free_result(result);
   return numOfRows;
 }
 
