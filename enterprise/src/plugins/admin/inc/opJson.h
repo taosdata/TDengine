@@ -17,7 +17,7 @@
 #define TDENGINE_OP_JSON_H
 
 #include "taos.h"
-#include "httpHandle.h"
+#include "httpInt.h"
 #include "httpJson.h"
 
 void opInitPutDetailJson(HttpContext *pContext);

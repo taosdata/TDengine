@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
-#include "httpLog.h"
 #include "adminHandle.h"
 #include "adminJson.h"
 

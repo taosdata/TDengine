@@ -17,9 +17,10 @@
 #define TDENGINE_OP_HANDLE_H
 
 #include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpUtil.h"
 #include "httpResp.h"
+#include "httpSql.h"
 
 #define OP_ROOT_URL_POS   0
 #define OP_DB_URL_POS     1
