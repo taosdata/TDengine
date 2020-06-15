@@ -92,7 +92,7 @@ void httpStopSystem() {
 }
 
 void httpCleanUpSystem() {
-  httpPrint("http service cleanup");
+  httpPrint("http server cleanup");
   httpStopSystem();
 
   httpCleanupContexts();

@@ -24,7 +24,7 @@ const char *httpContextStateStr(HttpContextState state);
 
 HttpContext *httpCreateContext(int32_t fd);
 bool         httpInitContext(HttpContext *pContext);
-HttpContext *httpGetContext(int32_t fd);
+HttpContext *httpGetContext(void * pContext);
 void         httpReleaseContext(HttpContext *pContext);
 void         httpCloseContextByServer(HttpContext *pContext);
 void         httpCloseContextByApp(HttpContext *pContext);

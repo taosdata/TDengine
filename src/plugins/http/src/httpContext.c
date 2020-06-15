@@ -22,6 +22,7 @@
 #include "ttimer.h"
 #include "tglobal.h"
 #include "tcache.h"
+#include "hash.h"
 #include "httpInt.h"
 #include "httpResp.h"
 #include "httpSql.h"
@@ -38,15 +39,13 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
 
 static void httpDestroyContext(void *data) {
   HttpContext *pContext = *(HttpContext **)data;
-  httpTrace("context:%p, is destroyed, refCount:%d", pContext, pContext->refCount);
-  
   if (pContext->fd > 0) tclose(pContext->fd);
 
   HttpThread *pThread = pContext->pThread;
   httpRemoveContextFromEpoll(pContext);
   httpReleaseSession(pContext);
   atomic_sub_fetch_32(&pThread->numOfFds, 1);
-
+  
   pContext->pThread = 0;
   pContext->state = HTTP_CONTEXT_STATE_CLOSED;
 
@@ -54,11 +53,12 @@ static void httpDestroyContext(void *data) {
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
   
+  httpTrace("context:%p, is destroyed, refCount:%d", pContext, pContext->refCount);
   tfree(pContext);
 }
 
 bool httpInitContexts() {
-  tsHttpServer.contextCache = taosCacheInitWithCb(5, httpDestroyContext);
+  tsHttpServer.contextCache = taosCacheInitWithCb(2, httpDestroyContext);
   if (tsHttpServer.contextCache == NULL) {
     httpError("failed to init context cache");
     return false;
@@ -70,7 +70,8 @@ bool httpInitContexts() {
 void httpCleanupContexts() {
   // TODO: wait until all context is closed
   if (tsHttpServer.contextCache != NULL) {
-    httpPrint("context cache is cleanup");
+    SCacheObj *cache = tsHttpServer.contextCache;
+    httpPrint("context cache is cleanuping, size:%d", taosHashGetSize(cache->pHashTable));
     taosCacheCleanup(tsHttpServer.contextCache);
     tsHttpServer.contextCache = NULL;
   }
@@ -103,26 +104,29 @@ HttpContext *httpCreateContext(int32_t fd) {
   HttpContext *pContext = calloc(1, sizeof(HttpContext));
   if (pContext == NULL) return NULL;
 
-  char fdStr[12] = {0};
-  snprintf(fdStr, sizeof(fdStr), "%d", fd);
+  char contextStr[16] = {0};
+  snprintf(contextStr, sizeof(contextStr), "%p", pContext);
   
   pContext->fd = fd;
   pContext->httpVersion = HTTP_VERSION_10;
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
   
-  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, fdStr, &pContext, sizeof(HttpContext *), 5);
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, contextStr, &pContext, sizeof(HttpContext *), 3);
   pContext->ppContext = ppContext;
-  httpTrace("context:%p, fd:%d, is created", pContext, fd);
+  httpTrace("context:%p, fd:%d, is created, item:%p", pContext, fd, ppContext);
+
+  // set the ref to 0 
+  taosCacheRelease(tsHttpServer.contextCache, (void**)&ppContext, false);
 
   return pContext;
 }
 
-HttpContext *httpGetContext(int32_t fd) {
-  char fdStr[12] = {0};
-  snprintf(fdStr, sizeof(fdStr), "%d", fd);
+HttpContext *httpGetContext(void *ptr) {
+  char contextStr[16] = {0};
+  snprintf(contextStr, sizeof(contextStr), "%p", ptr);
   
-  HttpContext **ppContext = taosCacheAcquireByName(tsHttpServer.contextCache, fdStr);
+  HttpContext **ppContext = taosCacheAcquireByName(tsHttpServer.contextCache, contextStr);
   
   if (ppContext) {
     HttpContext *pContext = *ppContext;

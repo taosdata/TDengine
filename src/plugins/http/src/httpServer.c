@@ -193,7 +193,7 @@ static void httpProcessHttpData(void *param) {
     if (fdNum <= 0) continue;
 
     for (int i = 0; i < fdNum; ++i) {
-      pContext = httpGetContext(events[i].data.fd);
+      pContext = httpGetContext(events[i].data.ptr);
       if (pContext == NULL) {
         httpError("fd:%d, is already released, close connect", events[i].data.fd);
         epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
@@ -319,7 +319,7 @@ static void *httpAcceptHttpConnection(void *arg) {
     
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-    event.data.fd = connFd;
+    event.data.ptr = pContext;
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
                 pContext->ipstr, pThread->label, strerror(errno));

@@ -35,6 +35,8 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
   snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
 
   pContext->session = taosCachePut(server->sessionCache, session.id, &session, sizeof(HttpSession), tsHttpSessionExpire);
+  // void *temp = pContext->session;
+  // taosCacheRelease(server->sessionCache, (void **)&temp, false);
 
   if (pContext->session == NULL) {
     httpError("context:%p, fd:%d, ip:%s, user:%s, error:%s", pContext, pContext->fd, pContext->ipstr, pContext->user,
@@ -44,7 +46,7 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
     return;
   }
 
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, create a new session:%p:%p refCount:%d", pContext, pContext->fd,
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, create a new session:%p:%p sessionRef:%d", pContext, pContext->fd,
             pContext->ipstr, pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
   pthread_mutex_unlock(&server->serverMutex);
 }
@@ -59,7 +61,7 @@ static void httpFetchSessionImp(HttpContext *pContext) {
   pContext->session = taosCacheAcquireByName(server->sessionCache, sessionId);
   if (pContext->session != NULL) {
     atomic_add_fetch_32(&pContext->session->refCount, 1);
-    httpTrace("context:%p, fd:%d, ip:%s, user:%s, find an exist session:%p:%p, refCount:%d", pContext, pContext->fd,
+    httpTrace("context:%p, fd:%d, ip:%s, user:%s, find an exist session:%p:%p, sessionRef:%d", pContext, pContext->fd,
               pContext->ipstr, pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
   } else {
     httpTrace("context:%p, fd:%d, ip:%s, user:%s, session not found", pContext, pContext->fd, pContext->ipstr,
@@ -85,26 +87,27 @@ void httpReleaseSession(HttpContext *pContext) {
 
   int32_t refCount = atomic_sub_fetch_32(&pContext->session->refCount, 1);
   assert(refCount >= 0);
-  httpTrace("context:%p, session:%p is releasd refCount:%d", pContext, pContext->session, pContext->session->refCount);
+  httpTrace("context:%p, release session:%p:%p, sessionRef:%d", pContext, pContext->session, pContext->session->taos,
+            pContext->session->refCount);
 
-  taosCacheRelease(tsHttpServer.sessionCache, (void**)(&(pContext->session)), false);
+  taosCacheRelease(tsHttpServer.sessionCache, (void **)&pContext->session, false);
   pContext->session = NULL;
 }
 
 static void httpDestroySession(void *data) {
-  HttpSession *pSession = data;
-  httpTrace("session:%p:%p, is destroyed, refCount:%d", pSession, pSession->taos, pSession->refCount);
+  HttpSession *session = data;
+  httpTrace("session:%p:%p, is destroyed, sessionRef:%d", session, session->taos, session->refCount);
 
-  if (pSession->taos != NULL) {
-    taos_close(pSession->taos);
-    pSession->taos = NULL;
+  if (session->taos != NULL) {
+    taos_close(session->taos);
+    session->taos = NULL;
   }
-  tfree(pSession);
 }
 
 void httpCleanUpSessions() {
   if (tsHttpServer.sessionCache != NULL) {
-    httpPrint("session cache is cleanup");
+    SCacheObj *cache = tsHttpServer.sessionCache;
+    httpPrint("session cache is cleanuping, size:%d", taosHashGetSize(cache->pHashTable));
     taosCacheCleanup(tsHttpServer.sessionCache);
     tsHttpServer.sessionCache = NULL;
   }
