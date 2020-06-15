@@ -68,7 +68,6 @@ bool httpInitContexts() {
 }
 
 void httpCleanupContexts() {
-  // TODO: wait until all context is closed
   if (tsHttpServer.contextCache != NULL) {
     SCacheObj *cache = tsHttpServer.contextCache;
     httpPrint("context cache is cleanuping, size:%d", taosHashGetSize(cache->pHashTable));

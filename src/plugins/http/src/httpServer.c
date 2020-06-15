@@ -56,8 +56,9 @@ static void httpStopThread(HttpThread* pThread) {
 
 void httpCleanUpConnect() {
   HttpServer *pServer = &tsHttpServer;
-  pthread_join(pServer->thread, NULL);
+  if (pServer->pThreads == NULL) return;
 
+  pthread_join(pServer->thread, NULL);
   for (int i = 0; i < pServer->numOfThreads; ++i) {
     HttpThread* pThread = pServer->pThreads + i;
     if (pThread != NULL) {
@@ -195,9 +196,9 @@ static void httpProcessHttpData(void *param) {
     for (int i = 0; i < fdNum; ++i) {
       pContext = httpGetContext(events[i].data.ptr);
       if (pContext == NULL) {
-        httpError("fd:%d, is already released, close connect", events[i].data.fd);
-        epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
-        tclose(events[i].data.fd);
+        httpError("context:%p, is already released, close connect", events[i].data.ptr);
+        //epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+        //tclose(events[i].data.fd);
         continue;
       }
 
