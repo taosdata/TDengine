@@ -250,7 +250,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
   int8_t  getMeta;
   int16_t numOfTags;
@@ -268,7 +268,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
@@ -682,7 +682,7 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SCMShowMsg;

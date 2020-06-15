@@ -13,11 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_HANDLE_H
-#define TDENGINE_HTTP_HANDLE_H
+#ifndef TDENGINE_HTTP_SERVER_H
+#define TDENGINE_HTTP_SERVER_H
 
-// http request handler
-void httpProcessRequest(HttpContext *pContext);
-bool httpProcessData(HttpContext *pContext);
+#include "httpInt.h"
+
+bool httpInitConnect();
+void httpCleanUpConnect();
+
+void *httpInitServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
+void httpCleanUpServer(HttpServer *pServer);
+bool httpReadDataImp(HttpContext *pContext);
 
 #endif

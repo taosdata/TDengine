@@ -11,6 +11,8 @@
 4.  pip install ../src/connector/python/linux/python2 ; pip3 install
     ../src/connector/python/linux/python3
 
+5.  pip install numpy; pip3 install numpy    
+
 >   Note: Both Python2 and Python3 are currently supported by the Python test
 >   framework. Since Python2 is no longer officially supported by Python Software
 >   Foundation since January 1, 2020, it is recommended that subsequent test case
