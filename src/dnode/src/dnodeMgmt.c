@@ -616,6 +616,16 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
+
+  // fill cluster cfg parameters
+  pStatus->ClusterCfgPara.numOfMnodes        = tsNumOfMnodes;
+  pStatus->ClusterCfgPara.mnodeEqualVnodeNum = tsMnodeEqualVnodeNum;
+  pStatus->ClusterCfgPara.offlineThreshold   = tsOfflineThreshold;
+  pStatus->ClusterCfgPara.statusInterval     = tsStatusInterval;
+  strcpy(pStatus->ClusterCfgPara.arbitrator, tsArbitrator);
+  strcpy(pStatus->ClusterCfgPara.timezone, tsTimezone);
+  strcpy(pStatus->ClusterCfgPara.locale, tsLocale);
+  strcpy(pStatus->ClusterCfgPara.charset, tsCharset);  
   
   vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
