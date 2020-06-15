@@ -209,7 +209,7 @@ void tgParseSchemaMetric(cJSON *metric) {
         goto ParseEnd;
       }
       int nameLen = (int)strlen(field->valuestring);
-      if (nameLen == 0 || nameLen > TSDB_TABLE_NAME_LEN) {
+      if (nameLen == 0 || nameLen >= TSDB_TABLE_NAME_LEN) {
         parsedOk = false;
         goto ParseEnd;
       }
@@ -306,21 +306,21 @@ void tgCleanupHandle() {
 
 bool tgGetUserFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  if (pParser->path[TG_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[TG_USER_URL_POS].len <= 0) {
+  if (pParser->path[TG_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[TG_USER_URL_POS].len <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->user, pParser->path[TG_USER_URL_POS].pos, TSDB_USER_LEN);
+  tstrncpy(pContext->user, pParser->path[TG_USER_URL_POS].pos, sizeof(pContext->user));
   return true;
 }
 
 bool tgGetPassFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  if (pParser->path[TG_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[TG_PASS_URL_POS].len <= 0) {
+  if (pParser->path[TG_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[TG_PASS_URL_POS].len <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
+  tstrncpy(pContext->pass, pParser->path[TG_PASS_URL_POS].pos, sizeof(pContext->pass));
   return true;
 }
 
@@ -409,7 +409,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_TG_METRIC_NAME_NULL);
     return false;
   }
-  if (nameLen >= TSDB_TABLE_NAME_LEN - 7) {
+  if (nameLen >= TSDB_TABLE_NAME_LEN - 8) {
     httpSendErrorResp(pContext, HTTP_TG_METRIC_NAME_LONG);
     return false;
   }
@@ -498,7 +498,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     return false;
   }
 
-  if (strlen(host->valuestring) >= TSDB_TABLE_NAME_LEN) {
+  if (strlen(host->valuestring) >= TSDB_TABLE_NAME_LEN - 1) {
     httpSendErrorResp(pContext, HTTP_TG_TABLE_SIZE);
     return false;
   }

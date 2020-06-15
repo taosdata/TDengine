@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInitWithCb(tsMnodeTmr, 10, mnodeFreeShowObj);
+  tsMnodeShowCache = taosCacheInitWithCb(10, mnodeFreeShowObj);
   return 0;
 }
 
@@ -138,15 +138,16 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   }
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
-  mTrace("%p, show type:%s, start to get meta", pShow, mnodeGetShowType(pShowMsg->type));
   int32_t code = (*tsMnodeShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->rpcMsg.handle);
-  if (code == 0) {
+  mTrace("%p, show type:%s index:%d, get meta finished, rows:%d cols:%d result:%s", pShow,
+         mnodeGetShowType(pShowMsg->type), pShow->index, pShow->numOfRows, pShow->numOfColumns, tstrerror(code));
+
+  if (code == TSDB_CODE_SUCCESS) {
     pMsg->rpcRsp.rsp = pShowRsp;
     pMsg->rpcRsp.len = sizeof(SCMShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
     mnodeReleaseShowObj(pShow, false);
     return TSDB_CODE_SUCCESS;
   } else {
-    mError("%p, show type:%s, failed to get meta, reason:%s", pShow, mnodeGetShowType(pShowMsg->type), tstrerror(code));
     rpcFreeCont(pShowRsp);
     mnodeReleaseShowObj(pShow, true);
     return code;
@@ -161,8 +162,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
   SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
-  mTrace("%p, show type:%s, retrieve data", pShow, mnodeGetShowType(pShow->type));
-
+  
   /*
    * in case of server restart, apps may hold qhandle created by server before
    * restart, which is actually invalid, therefore, signature check is required.
@@ -171,7 +171,10 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
     mError("%p, show is invalid", pShow);
     return TSDB_CODE_MND_INVALID_SHOWOBJ;
   }
-  
+
+  mTrace("%p, show type:%s index:%d, start retrieve data, numOfReads:%d numOfRows:%d", pShow,
+         mnodeGetShowType(pShow->type), pShow->index, pShow->numOfReads, pShow->numOfRows);
+
   if (mnodeCheckShowFinished(pShow)) {
     mTrace("%p, show is already read finished, numOfReads:%d numOfRows:%d", pShow, pShow->numOfReads, pShow->numOfRows);
     pShow->numOfReads = pShow->numOfRows;
@@ -198,6 +201,9 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
     rowsRead = (*tsMnodeShowRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pMsg->rpcMsg.handle);
 
+  mTrace("%p, show type:%s index:%d, stop retrieve data, rowsRead:%d rowsToRead:%d", pShow,
+         mnodeGetShowType(pShow->type), pShow->index, rowsRead, rowsToRead);
+
   if (rowsRead < 0) {
     rpcFreeCont(pRsp);
     mnodeReleaseShowObj(pShow, false);
@@ -211,7 +217,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = size;
 
-  if (rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows - pShow->numOfReads == rowsToRead)) {
+  if (rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
     pRsp->completed = 1;
     mnodeReleaseShowObj(pShow, true);
   } else {
@@ -324,6 +330,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
 
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pConnectRsp);
     mLError("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));
   } else {
     mLPrint("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));

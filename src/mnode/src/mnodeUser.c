@@ -315,7 +315,8 @@ static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, voi
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->user, TSDB_USER_LEN);
+    size_t size = sizeof(pUser->user);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->user, size);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -336,7 +337,7 @@ static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->acct, TSDB_USER_LEN);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->acct, sizeof(pUser->user));
     cols++;
 
     numOfRows++;

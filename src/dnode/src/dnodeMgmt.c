@@ -177,10 +177,12 @@ void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
     memcpy(item, pMsg, sizeof(SRpcMsg));
     taosWriteQitem(tsMgmtQueue, 1, item);
   } else {
-    SRpcMsg  rsp;
-    rsp.handle = pMsg->handle;
-    rsp.pCont  = NULL;
-    rsp.code = TSDB_CODE_DND_OUT_OF_MEMORY;
+    SRpcMsg rsp = {
+      .handle = pMsg->handle,
+      .pCont  = NULL,
+      .code   = TSDB_CODE_DND_OUT_OF_MEMORY
+    };
+    
     rpcSendResponse(&rsp);
     rpcFreeCont(pMsg->pCont);
   }
@@ -188,9 +190,9 @@ void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
 
 static void *dnodeProcessMgmtQueue(void *param) {
   SRpcMsg *pMsg;
-  SRpcMsg  rsp;
+  SRpcMsg  rsp = {0};
   int      type;
-  void    *handle;
+  void *   handle;
 
   while (1) {
     if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
@@ -251,6 +253,7 @@ static int32_t dnodeOpenVnodes() {
 
   if (status != TSDB_CODE_SUCCESS) {
     dPrint("Get dnode list failed");
+    free(vnodeList);
     return status;
   }
 
@@ -290,6 +293,7 @@ static void dnodeCloseVnodes() {
 
   if (status != TSDB_CODE_SUCCESS) {
     dPrint("Get dnode list failed");
+    free(vnodeList);
     return;
   }
 
@@ -410,14 +414,34 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   
   dnodeProcessModuleStatus(pCfg->moduleStatus);
   dnodeUpdateDnodeCfg(pCfg);
+
   dnodeUpdateMnodeInfos(pMnodes);
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
+}
+
+static bool dnodeCheckMnodeInfos(SDMMnodeInfos *pMnodes) {
+  if (pMnodes->nodeNum <= 0 || pMnodes->nodeNum > 3) {
+    dError("invalid mnode infos, num:%d", pMnodes->nodeNum);
+    return false;
+  }
+
+  for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
+    SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
+    if (pMnodeInfo->nodeId <= 0 || strlen(pMnodeInfo->nodeEp) <= 5) {
+      dError("invalid mnode info:%d, nodeId:%d nodeEp:%s", i, pMnodeInfo->nodeId, pMnodeInfo->nodeEp);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   bool mnodesChanged = (memcmp(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos)) != 0);
   bool mnodesNotInit = (tsDMnodeInfos.nodeNum == 0);
   if (!(mnodesChanged || mnodesNotInit)) return;
+
+  if (!dnodeCheckMnodeInfos(pMnodes)) return;
 
   memcpy(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
   dPrint("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
@@ -456,6 +480,7 @@ static bool dnodeReadMnodeInfos() {
     return false;
   }
 
+  content[len] = 0;
   cJSON* root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read mnodeIpList.json, invalid json format");
@@ -547,6 +572,7 @@ static void dnodeSaveMnodeInfos() {
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
   free(content);
   
@@ -628,6 +654,7 @@ static bool dnodeReadDnodeCfg() {
     return false;
   }
 
+  content[len] = 0;
   cJSON* root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read dnodeCfg.json, invalid json format");
@@ -668,6 +695,7 @@ static void dnodeSaveDnodeCfg() {
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
   free(content);
   

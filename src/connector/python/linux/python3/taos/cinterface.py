@@ -130,9 +130,9 @@ _CONVERT_FUNC = {
 
 # Corresponding TAOS_FIELD structure in C
 class TaosField(ctypes.Structure):
-    _fields_ = [('name', ctypes.c_char * 64),
-                ('bytes', ctypes.c_short),
-                ('type', ctypes.c_char)]
+    _fields_ = [('name', ctypes.c_char * 65),
+                ('type', ctypes.c_char),
+                ('bytes', ctypes.c_short)]
 
 # C interface class
 class CTaosInterface(object):
@@ -226,8 +226,8 @@ class CTaosInterface(object):
         if connection.value == None:
             print('connect to TDengine failed')
             # sys.exit(1)
-        else:
-            print('connect to TDengine success')
+        #else:
+        #    print('connect to TDengine success')
 
         return connection
 
@@ -236,7 +236,7 @@ class CTaosInterface(object):
         '''Close the TDengine handle
         '''
         CTaosInterface.libtaos.taos_close(connection)
-        print('connection is closed')
+        #print('connection is closed')
 
     @staticmethod
     def query(connection, sql):

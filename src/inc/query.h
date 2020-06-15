@@ -70,12 +70,19 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo);
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen);
 
 /**
- * Decide if more results will be produced or not
+ * Decide if more results will be produced or not, NOTE: this function will increase the ref count of QInfo,
+ * so it can be only called once for each retrieve
  *
  * @param qinfo
  * @return
  */
 bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
+
+/**
+ * kill current ongoing query and free query handle automatically
+ * @param qinfo
+ */
+int32_t qKillQuery(qinfo_t qinfo);
 
 #ifdef __cplusplus
 }

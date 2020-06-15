@@ -51,7 +51,7 @@ typedef struct {
   SSyncCfg     syncCfg;
   SWalCfg      walCfg;
   char        *rootDir;
-  char         db[TSDB_DB_NAME_LEN + 1];
+  char         db[TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
 int  vnodeWriteToQueue(void *param, void *pHead, int type);

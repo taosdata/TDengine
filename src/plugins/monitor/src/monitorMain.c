@@ -156,7 +156,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ", io_read float, io_write float"
              ", req_http int, req_select int, req_insert int"
              ") tags (dnodeid int, fqdn binary(%d))",
-             tsMonitorDbName, TSDB_FQDN_LEN + 1);
+             tsMonitorDbName, TSDB_FQDN_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn%d using %s.dn tags(%d, '%s')", tsMonitorDbName,
              dnodeGetDnodeId(), tsMonitorDbName, dnodeGetDnodeId(), tsLocalEp);
@@ -175,7 +175,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ", totalConns smallint, maxConns smallint"
              ", accessState smallint"
              ") tags (acctId binary(%d))",
-             tsMonitorDbName, TSDB_USER_LEN + 1);
+             tsMonitorDbName, TSDB_USER_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_ACCT_ROOT) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.acct_%s using %s.acct tags('%s')", tsMonitorDbName, "root",
              tsMonitorDbName, "root");
@@ -183,7 +183,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.slowquery(ts timestamp, username "
              "binary(%d), created_time timestamp, time bigint, sql binary(%d))",
-             tsMonitorDbName, TSDB_TABLE_ID_LEN, TSDB_SLOW_QUERY_SQL_LEN);
+             tsMonitorDbName, TSDB_TABLE_ID_LEN - 1, TSDB_SLOW_QUERY_SQL_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_LOG) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.log(ts timestamp, level tinyint, "

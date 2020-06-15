@@ -29,11 +29,12 @@ int taosGetFqdn(char *fqdn) {
 
   hints.ai_flags = AI_CANONNAME;
 
-  getaddrinfo(hostname, NULL, &hints, &result);
+  int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (result) {
     strcpy(fqdn, result->ai_canonname);
     freeaddrinfo(result);
   } else {
+    uError("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
     code = -1;
   }
 
@@ -42,9 +43,12 @@ int taosGetFqdn(char *fqdn) {
 
 uint32_t taosGetIpFromFqdn(const char *fqdn) {
   struct addrinfo hints = {0};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+
   struct addrinfo *result = NULL;
 
-  getaddrinfo(fqdn, NULL, &hints, &result);
+  int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
   if (result) {
     struct sockaddr *sa = result->ai_addr;
     struct sockaddr_in *si = (struct sockaddr_in*)sa;
@@ -53,7 +57,8 @@ uint32_t taosGetIpFromFqdn(const char *fqdn) {
     freeaddrinfo(result);
     return ip;
   } else {
-    return -1;
+    uError("failed get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+    return 0xFFFFFFFF;
   }
 }
 

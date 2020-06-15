@@ -217,7 +217,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   pReducer->numOfBuffer = numOfFlush;
   pReducer->numOfVnode = numOfBuffer;
-  
+
   pReducer->pDesc = pDesc;
   tscTrace("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
 
@@ -324,7 +324,6 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tfree(pReducer->discardData);
     tfree(pReducer->pResultBuf);
     tfree(pReducer->pFinalRes);
-//    tfree(pReducer->pBufForInterpo);
     tfree(pReducer->prevRowOfInput);
 
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -363,7 +362,8 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     SFillColInfo* pFillCol = createFillColInfo(pQueryInfo);
     pReducer->pFillInfo = taosInitFillInfo(pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
-                                           4096, numOfCols, pQueryInfo->slidingTime, pQueryInfo->fillType, pFillCol);
+                                           4096, numOfCols, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit,
+                                           tinfo.precision, pQueryInfo->fillType, pFillCol);
   }
 
   int32_t startIndex = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
@@ -494,7 +494,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
       tscTrace("%p waiting for delete procedure, status: %d", pSql, status);
     }
 
-    taosDestoryFillInfo(pLocalReducer->pFillInfo);
+    pLocalReducer->pFillInfo = taosDestoryFillInfo(pLocalReducer->pFillInfo);
 
     if (pLocalReducer->pCtx != NULL) {
       for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
@@ -604,7 +604,7 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
 
   tOrderDescriptor *pOrderDesc = pReducer->pDesc;
   SColumnOrderInfo* orderInfo = &pOrderDesc->orderInfo;
-  
+
   // no group by columns, all data belongs to one group
   int32_t numOfCols = orderInfo->numOfCols;
   if (numOfCols <= 0) {
@@ -627,7 +627,7 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
   // only one row exists
   int32_t index = orderInfo->pData[0];
   int32_t offset = (pOrderDesc->pColumnModel)->pFields[index].offset;
-  
+
   int32_t ret = memcmp(pPrev + offset, tmpBuffer->data + offset, pOrderDesc->pColumnModel->rowSize - offset);
   return ret == 0;
 }
@@ -980,8 +980,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
         }
 
         /* all output for current group are completed */
-        int32_t totalRemainRows =
-            taosGetNumOfResultWithFill(pFillInfo, rpoints, pFillInfo->slidingTime, actualETime);
+        int32_t totalRemainRows = getFilledNumOfRes(pFillInfo, actualETime, pLocalReducer->resColModel->capacity);
         if (totalRemainRows <= 0) {
           break;
         }
@@ -1041,7 +1040,7 @@ static void savePreviousRow(SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) 
 static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer, bool needInit) {
   // the tag columns need to be set before all functions execution
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
+
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t j = 0; j < size; ++j) {
     SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[j];
@@ -1183,7 +1182,7 @@ int32_t finalizeRes(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {
  */
 bool needToMerge(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) {
   int32_t ret = 0;  // merge all result by default
-  
+
   int16_t functionId = pLocalReducer->pCtx[0].functionId;
 
   // todo opt performance
@@ -1267,13 +1266,7 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
   
   SFillInfo* pFillInfo = pLocalReducer->pFillInfo;
   if (pFillInfo != NULL) {
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-    STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-  
-    TSKEY ekey = taosGetRevisedEndKey(pQueryInfo->window.ekey, pFillInfo->order, pFillInfo->slidingTime,
-                                      pQueryInfo->slidingTimeUnit, tinfo.precision);
-  
-    taosFillSetStartInfo(pFillInfo, pResBuf->num, ekey);
+    taosFillSetStartInfo(pFillInfo, pResBuf->num, pQueryInfo->window.ekey);
     taosFillCopyInputDataFromOneFilePage(pFillInfo, pResBuf);
   }
   
@@ -1327,23 +1320,15 @@ static bool doBuildFilledResultForGroup(SSqlObj *pSql) {
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
   SFillInfo *pFillInfo = pLocalReducer->pFillInfo;
 
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-  
-  int8_t p = tinfo.precision;
-
   if (pFillInfo != NULL && taosNumOfRemainRows(pFillInfo) > 0) {
     assert(pQueryInfo->fillType != TSDB_FILL_NONE);
 
     tFilePage *pFinalDataBuf = pLocalReducer->pResultBuf;
-    int64_t    etime = *(int64_t *)(pFinalDataBuf->data + TSDB_KEYSIZE * (pFillInfo->numOfRows - 1));
+    int64_t etime = *(int64_t *)(pFinalDataBuf->data + TSDB_KEYSIZE * (pFillInfo->numOfRows - 1));
 
-    int32_t remain = taosNumOfRemainRows(pFillInfo);
-    TSKEY ekey = taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit, p);
-    
     // the first column must be the timestamp column
-    int32_t rows = taosGetNumOfResultWithFill(pFillInfo, remain, ekey, pLocalReducer->resColModel->capacity);
-    if (rows > 0) {  // do interpo
+    int32_t rows = getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
+    if (rows > 0) {  // do fill gap
       doFillResult(pSql, pLocalReducer, false);
     }
 
@@ -1362,10 +1347,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
 
   bool prevGroupCompleted = (!pLocalReducer->discard) && pLocalReducer->hasUnprocessedRow;
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   if ((isAllSourcesCompleted(pLocalReducer) && !pLocalReducer->hasPrevRow) || pLocalReducer->pLocalDataSrc[0] == NULL ||
       prevGroupCompleted) {
@@ -1373,9 +1355,8 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
     if (pQueryInfo->fillType != TSDB_FILL_NONE) {
       int64_t etime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
-      etime = taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime,
-                                   pQueryInfo->slidingTimeUnit, tinfo.precision);
-      int32_t rows = taosGetNumOfResultWithFill(pFillInfo, 0, etime, pLocalReducer->resColModel->capacity);
+      assert(pFillInfo->numOfRows == 0);
+      int32_t rows = getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
       if (rows > 0) {  // do interpo
         doFillResult(pSql, pLocalReducer, true);
       }

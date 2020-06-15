@@ -45,11 +45,13 @@ matrix:
           cd ${TRAVIS_BUILD_DIR}/debug
           make install > /dev/null || travis_terminate $?
 
+          pip install numpy
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
+          pip3 install numpy
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
-          ./test-all.sh $TRAVIS_EVENT_TYPE || travis_terminate $?
+          ./test-all.sh smoke || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
           ./valgrind-test.sh 2>&1 > mem-error-out.log
@@ -164,12 +166,14 @@ matrix:
           cd ${TRAVIS_BUILD_DIR}/debug
           make install > /dev/null || travis_terminate $?
 
+          pip install numpy
           pip install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python2/
+          pip3 install numpy
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
 
-          ./test-all.sh $TRAVIS_EVENT_TYPE COVER
+          ./test-all.sh smoke COVER
 
           TEST_RESULT=$?
 
@@ -178,7 +182,7 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}
           lcov -d . --capture --rc lcov_branch_coverage=1 -o coverage.info
-          lcov --remove coverage.info '*/tests/*' '*/test/*' '*/deps/*' -o coverage.info
+          lcov --remove coverage.info '*/tests/*' '*/test/*' '*/deps/*' '*/plugins/*' -o coverage.info
           lcov -l --rc lcov_branch_coverage=1 coverage.info || travis_terminate $?
 
           gem install coveralls-lcov

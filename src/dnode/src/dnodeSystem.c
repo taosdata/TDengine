@@ -29,11 +29,11 @@ int32_t main(int32_t argc, char *argv[]) {
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {        
-        if (strlen(argv[++i]) > TSDB_FILENAME_LEN - 1) {
+        if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           printf("config file path overflow");
           exit(EXIT_FAILURE);
         }
-        strcpy(configDir, argv[i]);
+        tstrncpy(configDir, argv[i], TSDB_FILENAME_LEN);
       } else {
         printf("'-c' requires a parameter, default:%s\n", configDir);
         exit(EXIT_FAILURE);

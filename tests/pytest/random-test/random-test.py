@@ -111,6 +111,8 @@ class Test:
             tdLog.info("will drop last super table")
             tdSql.execute('drop table %s' % self.last_stb)
             self.last_stb = ""
+            self.last_tb = ""
+            self.written = 0
 
     def query_data_from_stable(self):
         tdLog.info("query_data_from_stable")
@@ -166,7 +168,8 @@ class Test:
     def delete_datafiles(self):
         tdLog.info("delete_datafiles")
         dnodesDir = tdDnodes.getDnodesRootDir()
-        dataDir = dnodesDir + '/dnode1/*'
+        tdDnodes.forcestop(1)
+        dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
 

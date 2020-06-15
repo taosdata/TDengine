@@ -36,7 +36,7 @@ python3 ./test.py -f tag_lite/binary.py
 python3 ./test.py -f tag_lite/bool_binary.py
 python3 ./test.py -f tag_lite/bool_int.py
 python3 ./test.py -f tag_lite/bool.py
-python3 ./test.py -f tag_lite/change.py
+# python3 ./test.py -f tag_lite/change.py
 python3 ./test.py -f tag_lite/column.py
 # python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
@@ -80,8 +80,8 @@ python3 ./test.py -f import_merge/importCacheFileTO.py
 python3 ./test.py -f import_merge/importCacheFileTPO.py
 python3 ./test.py -f import_merge/importCacheFileT.py
 python3 ./test.py -f import_merge/importDataH2.py
-# python3 ./test.py -f import_merge/importDataHO2.py
-# python3 ./test.py -f import_merge/importDataHO.py
+python3 ./test.py -f import_merge/importDataHO2.py
+python3 ./test.py -f import_merge/importDataHO.py
 python3 ./test.py -f import_merge/importDataHPO.py
 python3 ./test.py -f import_merge/importDataLastHO.py
 python3 ./test.py -f import_merge/importDataLastHPO.py
@@ -92,7 +92,7 @@ python3 ./test.py -f import_merge/importDataLastTO.py
 python3 ./test.py -f import_merge/importDataLastTPO.py
 python3 ./test.py -f import_merge/importDataLastT.py
 python3 ./test.py -f import_merge/importDataS.py
-# python3 ./test.py -f import_merge/importDataSub.py
+python3 ./test.py -f import_merge/importDataSub.py
 python3 ./test.py -f import_merge/importDataTO.py
 python3 ./test.py -f import_merge/importDataTPO.py
 python3 ./test.py -f import_merge/importDataT.py
@@ -127,10 +127,18 @@ python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
 # table
-#python3 ./test.py -f table/del_stable.py
+# python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py
-# python3 ./test.py -f query/filterCombo.py
-# python3 ./test.py -f query/queryNormal.py
-# python3 ./test.py -f query/queryError.py
+python3 ./test.py -f query/filterAllIntTypes.py
+python3 ./test.py -f query/filterFloatAndDouble.py
+python3 ./test.py -f query/querySort.py
+
+
+#stream
+python3 ./test.py -f stream/stream1.py
+python3 ./test.py -f stream/stream2.py
+
+
+

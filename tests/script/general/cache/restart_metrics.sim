@@ -50,6 +50,7 @@ endi
 
 print =============== step2
 system sh/exec.sh -n dnode1 -s stop
+sleep 5000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 10
@@ -57,7 +58,8 @@ system sh/exec.sh -n dnode1 -s start
 
 print =============== step3
 print ==> sleep 8 seconds to renew cache
-sleep 8000
+sql reset query cache
+sleep 1000
 
 print =============== step4
 sql create database $db

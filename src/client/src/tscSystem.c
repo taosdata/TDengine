@@ -144,11 +144,11 @@ void taos_init_imp() {
   }
   
   int64_t refreshTime = tsTableMetaKeepTimer;
-  refreshTime = refreshTime > 2 ? 2 : refreshTime;
-  refreshTime = refreshTime < 1 ? 1 : refreshTime;
+  refreshTime = refreshTime > 10 ? 10 : refreshTime;
+  refreshTime = refreshTime < 10 ? 10 : refreshTime;
 
   if (tscCacheHandle == NULL) {
-    tscCacheHandle = taosCacheInit(tscTmr, refreshTime);
+    tscCacheHandle = taosCacheInit(refreshTime);
   }
 
   tscTrace("client is initialized successfully");
@@ -180,7 +180,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
     
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        strncpy(configDir, pStr, TSDB_FILENAME_LEN);
+        tstrncpy(configDir, pStr, TSDB_FILENAME_LEN);
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("set config file directory:%s", pStr);
       } else {
@@ -234,7 +234,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           tscPrint("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
 
-        strncpy(tsLocale, locale, tListLen(tsLocale));
+        tstrncpy(tsLocale, locale, sizeof(tsLocale));
 
         char *charset = strrchr(tsLocale, sep);
         if (charset != NULL) {
@@ -249,7 +249,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
               tscPrint("charset changed from %s to %s", tsCharset, charset);
             }
 
-            strncpy(tsCharset, charset, tListLen(tsCharset));
+            tstrncpy(tsCharset, charset, sizeof(tsCharset));
             cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
 
           } else {
@@ -286,7 +286,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
             tscPrint("charset changed from %s to %s", tsCharset, pStr);
           }
 
-          strncpy(tsCharset, pStr, tListLen(tsCharset));
+          tstrncpy(tsCharset, pStr, sizeof(tsCharset));
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
           tscPrint("charset:%s not valid", pStr);
@@ -324,7 +324,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 //          return -1;
 //        }
 
-        strncpy(tsSocketType, pStr, tListLen(tsSocketType));
+        tstrncpy(tsSocketType, pStr, sizeof(tsSocketType));
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscPrint("socket type is set:%s", tsSocketType);
       }

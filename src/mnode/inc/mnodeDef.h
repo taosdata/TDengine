@@ -32,8 +32,8 @@ struct SMnodeObj;
 typedef struct SDnodeObj {
   int32_t    dnodeId;
   uint16_t   dnodePort;
-  char       dnodeFqdn[TSDB_FQDN_LEN + 1];
-  char       dnodeEp[TSDB_EP_LEN + 1];
+  char       dnodeFqdn[TSDB_FQDN_LEN];
+  char       dnodeEp[TSDB_EP_LEN];
   int64_t    createdTime;
   uint32_t   lastAccess;
   int32_t    openVnodes;
@@ -115,7 +115,7 @@ typedef struct {
 
 typedef struct SVgObj {
   uint32_t       vgId;
-  char           dbName[TSDB_DB_NAME_LEN + 1];
+  char           dbName[TSDB_DB_NAME_LEN];
   int64_t        createdTime;
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
   int32_t        numOfVnodes;
@@ -154,8 +154,8 @@ typedef struct {
 } SDbCfg;
 
 typedef struct SDbObj {
-  char    name[TSDB_DB_NAME_LEN + 1];
-  char    acct[TSDB_USER_LEN + 1];
+  char    name[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int32_t cfgVersion;
   SDbCfg  cfg;
@@ -172,9 +172,9 @@ typedef struct SDbObj {
 } SDbObj;
 
 typedef struct SUserObj {
-  char              user[TSDB_USER_LEN + 1];
-  char              pass[TSDB_KEY_LEN + 1];
-  char              acct[TSDB_USER_LEN + 1];
+  char              user[TSDB_USER_LEN];
+  char              pass[TSDB_KEY_LEN];
+  char              acct[TSDB_USER_LEN];
   int64_t           createdTime;
   int8_t            superAuth;
   int8_t            writeAuth;
@@ -203,8 +203,8 @@ typedef struct {
 } SAcctInfo;
 
 typedef struct SAcctObj {
-  char      user[TSDB_USER_LEN + 1];
-  char      pass[TSDB_KEY_LEN + 1];
+  char      user[TSDB_USER_LEN];
+  char      pass[TSDB_KEY_LEN];
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
@@ -219,7 +219,7 @@ typedef struct SAcctObj {
 typedef struct {
   int8_t   type;
   int32_t  index;
-  char     db[TSDB_DB_NAME_LEN + 1];
+  char     db[TSDB_DB_NAME_LEN];
   void *   pIter;
   int16_t  numOfColumns;
   int32_t  rowSize;

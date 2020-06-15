@@ -97,7 +97,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
     useconds = str2int64(pToken->z);
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
-    if (taosParseTime(pToken->z, time, pToken->n, timePrec) != TSDB_CODE_SUCCESS) {
+    if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(error, "invalid timestamp format", pToken->z);
     }
 
@@ -795,7 +795,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
     tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
 
-    strncpy(pTag->name, pSTableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
+    tstrncpy(pTag->name, pSTableMeterMetaInfo->name, sizeof(pTag->name));
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -989,7 +989,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
 int validateTableName(char *tblName, int len) {
   char buf[TSDB_TABLE_ID_LEN] = {0};
-  strncpy(buf, tblName, len);
+  tstrncpy(buf, tblName, sizeof(buf));
 
   SSQLToken token = {.n = len, .type = TK_ID, .z = buf};
   tSQLGetToken(buf, &token.type);
@@ -1512,7 +1512,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
     }
     pCmd->count = 1;
 
-    strncpy(path, pDataBlock->filename, PATH_MAX);
+    tstrncpy(path, pDataBlock->filename, sizeof(path));
 
     FILE *fp = fopen(path, "r");
     if (fp == NULL) {
@@ -1520,7 +1520,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
       continue;
     }
 
-    strncpy(pTableMetaInfo->name, pDataBlock->tableId, TSDB_TABLE_ID_LEN);
+    tstrncpy(pTableMetaInfo->name, pDataBlock->tableId, sizeof(pTableMetaInfo->name));
     memset(pDataBlock->pData, 0, pDataBlock->nAllocSize);
 
     int32_t ret = tscGetTableMeta(pSql, pTableMetaInfo);

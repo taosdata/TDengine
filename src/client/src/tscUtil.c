@@ -134,24 +134,6 @@ void tscGetDBInfoFromMeterId(char* tableId, char* db) {
   db[0] = 0;
 }
 
-//STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
-//  if (pSidList == NULL) {
-//    tscError("illegal sidlist");
-//    return 0;
-//  }
-//
-//  if (idx < 0 || idx >= pSidList->numOfSids) {
-//    int32_t sidRange = (pSidList->numOfSids > 0) ? (pSidList->numOfSids - 1) : 0;
-//
-//    tscError("illegal sidIdx:%d, reset to 0, sidIdx range:%d-%d", idx, 0, sidRange);
-//    idx = 0;
-//  }
-//
-//  assert(pSidList->pSidExtInfoList[idx] >= 0);
-//
-//  return (STableIdInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
-//}
-
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
@@ -176,8 +158,7 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
     return false;
   }
 
-  if (((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) != TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&
-      pQueryInfo->command == TSDB_SQL_SELECT) {
+  if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) && pQueryInfo->command == TSDB_SQL_SELECT) {
     return UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   }
 
@@ -593,7 +574,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->tableId, name, TSDB_TABLE_ID_LEN);
+  tstrncpy(dataBuf->tableId, name, sizeof(dataBuf->tableId));
 
   /*
    * The table meta may be released since the table meta cache are completed clean by other thread
@@ -801,7 +782,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
   TAOS_FIELD f = { .type = type, .bytes = bytes, };
-  strncpy(f.name, name, TSDB_COL_NAME_LEN);
+  tstrncpy(f.name, name, sizeof(f.name));
   return f;
 }
 
@@ -966,12 +947,12 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
     if (isTagCol) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
-      strncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, sizeof(pExpr->colInfo.name));
     } else if (pTableMetaInfo->pTableMeta != NULL) {
       // in handling select database/version/server_status(), the pTableMeta is NULL
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       pExpr->colInfo.colId = pSchema->colId;
-      strncpy(pExpr->colInfo.name, pSchema->name, TSDB_COL_NAME_LEN);
+      tstrncpy(pExpr->colInfo.name, pSchema->name, sizeof(pExpr->colInfo.name));
     }
   }
   
@@ -1666,7 +1647,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   assert(pTableMetaInfo != NULL);
 
   if (name != NULL) {
-    strncpy(pTableMetaInfo->name, name, TSDB_TABLE_ID_LEN);
+    tstrncpy(pTableMetaInfo->name, name, sizeof(pTableMetaInfo->name));
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;

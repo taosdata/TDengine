@@ -321,6 +321,22 @@ void vnodeRelease(void *pVnodeRaw) {
     return;
   }
 
+  if (pVnode->tsdb)
+    tsdbCloseRepo(pVnode->tsdb, 1);
+  pVnode->tsdb = NULL;
+
+  if (pVnode->wal) 
+    walClose(pVnode->wal);
+  pVnode->wal = NULL;
+
+  if (pVnode->wqueue) 
+    dnodeFreeVnodeWqueue(pVnode->wqueue);
+  pVnode->wqueue = NULL;
+
+  if (pVnode->rqueue) 
+    dnodeFreeVnodeRqueue(pVnode->rqueue);
+  pVnode->rqueue = NULL;
+ 
   tfree(pVnode->rootDir);
 
   if (pVnode->status == TAOS_VN_STATUS_DELETING) {
@@ -381,16 +397,18 @@ void *vnodeGetWal(void *pVnode) {
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
+  int64_t totalStorage, compStorage, pointsWritten = 0;
+  tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
   pLoad->cfgVersion = htonl(pVnode->cfgVersion);
-  pLoad->totalStorage = htobe64(pLoad->totalStorage);
-  pLoad->compStorage = htobe64(pLoad->compStorage);
-  pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
+  pLoad->totalStorage = htobe64(totalStorage);
+  pLoad->compStorage = htobe64(compStorage);
+  pLoad->pointsWritten = htobe64(pointsWritten);
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
-  pLoad->replica = pVnode->syncCfg.replica;
+  pLoad->replica = pVnode->syncCfg.replica;  
 }
 
 void vnodeBuildStatusMsg(void *param) {
@@ -409,33 +427,21 @@ void vnodeBuildStatusMsg(void *param) {
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
+  // remove from hash, so new messages wont be consumed
   taosHashRemove(tsDnodeVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t));
 
+  // stop replication module
   if (pVnode->sync) {
     syncStop(pVnode->sync);
     pVnode->sync = NULL;
   }
 
-  if (pVnode->tsdb)
-    tsdbCloseRepo(pVnode->tsdb, 1);
-  pVnode->tsdb = NULL;
-
-  if (pVnode->wal) 
-    walClose(pVnode->wal);
-  pVnode->wal = NULL;
-
+  // stop continuous query
   if (pVnode->cq) 
     cqClose(pVnode->cq);
   pVnode->cq = NULL;
 
-  if (pVnode->wqueue) 
-    dnodeFreeVnodeWqueue(pVnode->wqueue);
-  pVnode->wqueue = NULL;
-
-  if (pVnode->rqueue) 
-    dnodeFreeVnodeRqueue(pVnode->rqueue);
-  pVnode->rqueue = NULL;
- 
+  // release local resources only after cutting off outside connections
   vnodeRelease(pVnode);
 }
 
@@ -551,6 +557,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
   free(content);
 

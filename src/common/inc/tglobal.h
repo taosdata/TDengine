@@ -53,6 +53,7 @@ extern int64_t tsMsPerDay[3];
 
 extern char  tsFirst[];
 extern char  tsSecond[];
+extern char  tsLocalFqdn[];
 extern char  tsLocalEp[];
 extern uint16_t tsServerPort;
 extern uint16_t tsDnodeShellPort;
@@ -169,6 +170,7 @@ extern char gitinfo[];
 extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
+extern int8_t tsDaylight;
 extern char tsTimezone[64];
 extern char tsLocale[64];
 extern char tsCharset[64];  // default encode string

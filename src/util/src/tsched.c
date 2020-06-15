@@ -15,6 +15,7 @@
 
 #include "os.h"
 #include "taosdef.h"
+#include "tutil.h"
 #include "tulog.h"
 #include "tsched.h"
 #include "ttimer.h"
@@ -62,8 +63,7 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
   }
 
   pSched->queueSize = queueSize;
-  strncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
-  pSched->label[sizeof(pSched->label)-1] = '\0';
+  tstrncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
 
   pSched->fullSlot = 0;
   pSched->emptySlot = 0;
