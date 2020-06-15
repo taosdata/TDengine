@@ -324,10 +324,6 @@ static UNUSED_FUNC void createEnv(void* conn) {
 }
 
 int main(int argc, char** argv) {
-  if (argc < 5) {
-    return -1;
-  }
-
   taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
   //    taos_options(TSDB_OPTION_LOCALE,   "zh_cn.cp11936-8");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
@@ -339,7 +335,8 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  executeSQL(conn, "use test", NULL);
+  executeSQL(conn, "use join_db0", NULL);
+  executeSQL(conn, "select count(join_tb1.c3), count(join_tb0.ts) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true;;", NULL);
 //  executeSQL(conn, "select count(*) from test.m1 where ts>'2015-6-11 1:1:1' and ts<'2015-6-11 1:3:55' interval(10a);",
 //             NULL);
 //  createEnvironment(conn, 5, 5, 200000, 30);
