@@ -138,7 +138,7 @@ static int setColumnFilterInfoForTimestamp(SQueryInfo* pQueryInfo, tVariant* pVa
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   if (seg != NULL) {
-    if (taosParseTime(pVar->pz, &time, pVar->nLen, tinfo.precision) != TSDB_CODE_SUCCESS) {
+    if (taosParseTime(pVar->pz, &time, pVar->nLen, tinfo.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg);
     }
   } else {
@@ -1042,7 +1042,7 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
 
   /* db name is not specified, the tableName dose not include db name */
   if (pDB != NULL) {
-    if (pDB->n >= TSDB_DB_NAME_LEN) {
+    if (pDB->n >= TSDB_ACCT_LEN + TSDB_DB_NAME_LEN) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
@@ -1452,6 +1452,13 @@ static int32_t setExprInfoForFunctions(SQueryInfo* pQueryInfo, SSchema* pSchema,
   
   SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionID, pColIndex, type, bytes, bytes, false);
   tstrncpy(pExpr->aliasName, columnName, sizeof(pExpr->aliasName));
+
+  // set reverse order scan data blocks for last query
+  if (functionID == TSDB_FUNC_LAST) {
+    pExpr->numOfParams = 1;
+    pExpr->param[0].i64Key = TSDB_ORDER_DESC;
+    pExpr->param[0].nType = TSDB_DATA_TYPE_INT;
+  }
   
   // for all queries, the timestamp column needs to be loaded
   SColumnIndex index = {.tableIndex = pColIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
@@ -1724,6 +1731,22 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
             if (setExprInfoForFunctions(pQueryInfo, pSchema, functionID, pItem->aliasName, colIndex + i, &index) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
+
+            if (optr == TK_LAST) {  // todo refactor
+              SSqlGroupbyExpr* pGroupBy = &pQueryInfo->groupbyExpr;
+              if (pGroupBy->numOfGroupCols > 0) {
+                for(int32_t k = 0; k < pGroupBy->numOfGroupCols; ++k) {
+                  SColIndex* pIndex = taosArrayGet(pGroupBy->columnInfo, k);
+                  if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) { // group by normal columns
+                    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, colIndex + i);
+                    pExpr->numOfParams = 1;
+                    pExpr->param->i64Key = TSDB_ORDER_ASC;
+
+                    break;
+                  }
+                }
+              }
+            }
           }
         }
         
@@ -1990,6 +2013,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SSQLToken
 
     if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
       columnIndex = i;
+      break;
     }
   }
 
@@ -2586,9 +2610,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
 
       tscColumnListInsert(pQueryInfo->colList, &index);
       
-      SColIndex colIndex = {
-          .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId,
-      };
+      SColIndex colIndex = { .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId };
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
       pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
 
@@ -2886,7 +2908,8 @@ static int32_t extractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnIndex* pIn
   SSchema*    pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
 
   const char* msg1 = "non binary column not support like operator";
-  const char* msg2 = "binary column not support this operator";
+  const char* msg2 = "binary column not support this operator";  
+  const char* msg3 = "bool column not support this operator";
 
   SColumn* pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex);
   SColumnFilterInfo* pColFilter = NULL;
@@ -2919,6 +2942,12 @@ static int32_t extractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnIndex* pIn
   } else {
     if (pExpr->nSQLOptr == TK_LIKE) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
+    }
+    
+    if (pSchema->type == TSDB_DATA_TYPE_BOOL) {
+      if (pExpr->nSQLOptr != TK_EQ && pExpr->nSQLOptr != TK_NE) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+      }
     }
   }
 
@@ -3921,7 +3950,7 @@ int32_t getTimeRange(STimeWindow* win, tSQLExpr* pRight, int32_t optr, int16_t t
 
     char* seg = strnchr(pRight->val.pz, '-', pRight->val.nLen, false);
     if (seg != NULL) {
-      if (taosParseTime(pRight->val.pz, &val, pRight->val.nLen, TSDB_TIME_PRECISION_MICRO) == TSDB_CODE_SUCCESS) {
+      if (taosParseTime(pRight->val.pz, &val, pRight->val.nLen, TSDB_TIME_PRECISION_MICRO, tsDaylight) == TSDB_CODE_SUCCESS) {
         parsed = true;
       } else {
         return TSDB_CODE_TSC_INVALID_SQL;
@@ -6048,6 +6077,16 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray*
         if (pRight->pVal->nType == TSDB_DATA_TYPE_INT && pRight->pVal->i64Key == 0) {
           return TSDB_CODE_TSC_INVALID_SQL;
         } else if (pRight->pVal->nType == TSDB_DATA_TYPE_FLOAT && pRight->pVal->dKey == 0) {
+          return TSDB_CODE_TSC_INVALID_SQL;
+        }
+      }
+    }
+
+    if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
+      if (pRight->nodeType == TSQL_NODE_VALUE) {
+        if (  pRight->pVal->nType == TSDB_DATA_TYPE_BOOL 
+           || pRight->pVal->nType == TSDB_DATA_TYPE_BINARY 
+           || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
       }

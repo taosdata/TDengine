@@ -97,7 +97,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
     useconds = str2int64(pToken->z);
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
-    if (taosParseTime(pToken->z, time, pToken->n, timePrec) != TSDB_CODE_SUCCESS) {
+    if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(error, "invalid timestamp format", pToken->z);
     }
 

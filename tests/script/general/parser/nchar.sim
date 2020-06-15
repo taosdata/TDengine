@@ -198,15 +198,15 @@ if $rows != 100  then
   return -1
 endi
 
-sql select * from $mt where tgcol > '0'
-#print rows = $rows
-if $rows != 100 then
-  return -1
-endi
-#print $data03
-if $data03 != 1 then
-  return -1
-endi
+#sql select * from $mt where tgcol > '0'
+##print rows = $rows
+#if $rows != 100 then
+#  return -1
+#endi
+##print $data03
+#if $data03 != 1 then
+#  return -1
+#endi
 
 # cumulative query with nchar tag filtering
 sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tgcol = '1'

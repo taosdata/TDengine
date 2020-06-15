@@ -430,7 +430,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
   /*
    * 1. if the subqueries are not launched or partially launched, we need to waiting the launched
    * query return to successfully free allocated resources.
-   * 2. if no any subqueries are launched yet, which means the metric query only in parse sql stage,
+   * 2. if no any subqueries are launched yet, which means the super table query only in parse sql stage,
    * set the res.code, and return.
    */
   const int64_t MAX_WAITING_TIME = 10000;  // 10 Sec.
@@ -2201,7 +2201,7 @@ int tscProcessDropTableRsp(SSqlObj *pSql) {
    * The cached information is expired, however, we may have lost the ref of original meter. So, clear whole cache
    * instead.
    */
-  tscTrace("%p force release metermeta after drop table:%s", pSql, pTableMetaInfo->name);
+  tscTrace("%p force release table meta after drop table:%s", pSql, pTableMetaInfo->name);
   taosCacheRelease(tscCacheHandle, (void **)&pTableMeta, true);
 
   if (pTableMetaInfo->pTableMeta) {

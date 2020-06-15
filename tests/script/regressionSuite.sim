@@ -70,9 +70,9 @@ run general/http/restful_insert.sim
 run general/http/restful_limit.sim
 run general/http/restful_full.sim
 run general/http/prepare.sim
-# run general/http/telegraf.sim
-# run general/http/grafana_bug.sim
-# run general/http/grafana.sim
+run general/http/telegraf.sim
+run general/http/grafana_bug.sim
+run general/http/grafana.sim
 run general/import/basic.sim
 run general/import/commit.sim
 run general/import/large.sim
@@ -102,32 +102,32 @@ run general/parser/import_commit1.sim
 run general/parser/import_commit2.sim
 run general/parser/import_commit3.sim
 run general/parser/insert_tb.sim
-# run general/parser/first_last.sim
+run general/parser/first_last.sim
 #unsupport run general/parser/import_file.sim
-# run general/parser/lastrow.sim
+run general/parser/lastrow.sim
 run general/parser/nchar.sim
 #unsupport run general/parser/null_char.sim
-# run general/parser/single_row_in_tb.sim
+run general/parser/single_row_in_tb.sim
 run general/parser/select_from_cache_disk.sim
-# run general/parser/limit.sim
+run general/parser/limit.sim
 # run general/parser/limit1.sim
-# run general/parser/limit1_tblocks100.sim
-# run general/parser/mixed_blocks.sim
+run general/parser/limit1_tblocks100.sim
+run general/parser/mixed_blocks.sim
 # run general/parser/selectResNum.sim
 run general/parser/select_across_vnodes.sim
 run general/parser/slimit1.sim
 run general/parser/tbnameIn.sim
 run general/parser/binary_escapeCharacter.sim
-# run general/parser/projection_limit_offset.sim
+run general/parser/projection_limit_offset.sim
 run general/parser/limit2.sim
-# run general/parser/slimit.sim
+run general/parser/slimit.sim
 run general/parser/fill.sim
-# run general/parser/fill_stb.sim
+run general/parser/fill_stb.sim
 # run general/parser/interp.sim
 # run general/parser/where.sim
 #unsupport run general/parser/join.sim
 #unsupport run general/parser/join_multivnode.sim
-# run general/parser/select_with_tags.sim
+run general/parser/select_with_tags.sim
 #unsupport run general/parser/groupby.sim
 #unsupport run general/parser/bug.sim
 #unsupport run general/parser/tags_dynamically_specifiy.sim
@@ -142,7 +142,7 @@ run general/stable/dnode3.sim
 run general/stable/metrics.sim
 run general/stable/values.sim
 run general/stable/vnode3.sim
-# run general/table/autocreate.sim
+run general/table/autocreate.sim
 run general/table/basic1.sim
 run general/table/basic2.sim
 run general/table/basic3.sim
@@ -166,7 +166,7 @@ run general/table/int.sim
 run general/table/limit.sim
 run general/table/smallint.sim
 run general/table/table_len.sim
-# run general/table/table.sim
+run general/table/table.sim
 run general/table/tinyint.sim
 run general/table/vgroup.sim
 run general/tag/3.sim
@@ -214,6 +214,7 @@ run general/vector/table_time.sim
 run general/stream/stream_1.sim
 run general/stream/stream_2.sim
 run general/stream/stream_3.sim
+run general/stream/stream_restart.sim
 run general/stream/table_1.sim
 run general/stream/metrics_1.sim
 run general/stream/table_n.sim
