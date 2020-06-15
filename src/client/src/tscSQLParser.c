@@ -4508,7 +4508,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (pTagsSchema->type != TSDB_DATA_TYPE_BINARY && pTagsSchema->type != TSDB_DATA_TYPE_NCHAR) {
       len = tDataTypeDesc[pTagsSchema->type].nSize;
     } else {
-      len = varDataLen(pUpdateMsg->data);
+      len = varDataTLen(pUpdateMsg->data);
     }
     
     pUpdateMsg->tagValLen = htonl(len);  // length may be changed after dump data
