@@ -73,6 +73,7 @@ typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcIpSet ipSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
+  struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
   uint8_t  *pCont;      // content provided by app
   int32_t   contLen;    // content length
@@ -339,7 +340,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg) {
+void *rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -367,7 +368,7 @@ void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg)
   
   rpcSendReqToServer(pRpc, pContext);
 
-  return;
+  return pContext;
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
@@ -499,6 +500,19 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
   tTrace("%s, rpc connection is already released", pConn->info);
   rpcFreeCont(pCont);
   return -1;
+}
+
+/* todo: cancel process may have race condition, pContext may have been released 
+   just before app calls the rpcCancelRequest */
+void rpcCancelRequest(void *handle) {
+  SRpcReqContext *pContext = handle;
+
+  if (pContext->pConn) {
+    tTrace("%s, app trys to cancel request", pContext->pConn->info);
+    rpcCloseConn(pContext->pConn);
+    pContext->pConn = NULL;
+    rpcFreeCont(pContext->pCont);
+  }
 }
 
 static void rpcFreeMsg(void *msg) {
@@ -874,6 +888,7 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcMsg rpcMsg;
   rpcMsg.pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
   rpcMsg.contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
+  rpcMsg.ahandle = pConn->ahandle;
   rpcMsg.handle = pConn;
   rpcMsg.msgType = pConn->inType;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
@@ -909,7 +924,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   // underlying UDP layer does not know it is server or client
   pRecv->connType = pRecv->connType | pRpc->connType;  
 
-  if (pRecv->ip == 0) {
+  if (pRecv->msg == NULL) {
     rpcProcessBrokenLink(pConn);
     return NULL;
   }
@@ -942,6 +957,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = pContext->pRpc;
 
+  pContext->pConn = NULL;
   if (pContext->pRsp) { 
     // for synchronous API
     memcpy(pContext->pSet, &pContext->ipSet, sizeof(SRpcIpSet));
@@ -1110,6 +1126,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
     return;
   }
 
+  pContext->pConn = pConn;
   pConn->ahandle = pContext->ahandle;
   rpcLockConn(pConn);
 

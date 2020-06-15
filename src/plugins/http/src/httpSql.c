@@ -18,11 +18,12 @@
 #include "tnote.h"
 #include "taos.h"
 #include "tsclient.h"
-#include "http.h"
-#include "httpLog.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpContext.h"
+#include "httpSql.h"
 #include "httpResp.h"
+#include "httpAuth.h"
+#include "httpSession.h"
 
 void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
@@ -30,7 +31,7 @@ void httpProcessMultiSql(HttpContext *pContext);
 
 void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
   HttpContext *pContext = (HttpContext *)param;
-  if (pContext == NULL || pContext->signature != pContext) return;
+  if (pContext == NULL) return;
 
   HttpSqlCmds *     multiCmds = pContext->multiCmds;
   HttpEncodeMethod *encode = pContext->encodeMethod;
@@ -72,7 +73,7 @@ void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numO
 
 void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
   HttpContext *pContext = (HttpContext *)param;
-  if (pContext == NULL || pContext->signature != pContext) return;
+  if (pContext == NULL) return;
 
   HttpSqlCmds *     multiCmds = pContext->multiCmds;
   HttpEncodeMethod *encode = pContext->encodeMethod;
@@ -172,7 +173,7 @@ void httpProcessMultiSql(HttpContext *pContext) {
 }
 
 void httpProcessMultiSqlCmd(HttpContext *pContext) {
-  if (pContext == NULL || pContext->signature != pContext) return;
+  if (pContext == NULL) return;
 
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   if (multiCmds == NULL || multiCmds->size <= 0 || multiCmds->pos >= multiCmds->size || multiCmds->pos < 0) {
@@ -192,7 +193,7 @@ void httpProcessMultiSqlCmd(HttpContext *pContext) {
 
 void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
   HttpContext *pContext = (HttpContext *)param;
-  if (pContext == NULL || pContext->signature != pContext) return;
+  if (pContext == NULL) return;
 
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
@@ -230,7 +231,7 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
 
 void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
   HttpContext *pContext = (HttpContext *)param;
-  if (pContext == NULL || pContext->signature != pContext) return;
+  if (pContext == NULL) return;
 
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
@@ -354,7 +355,7 @@ void httpExecCmd(HttpContext *pContext) {
 
 void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
   HttpContext *pContext = param;
-  if (pContext == NULL || pContext->signature != pContext) return;
+  if (pContext == NULL) return;
 
   if (code < 0) {
     httpError("context:%p, fd:%d, ip:%s, user:%s, login error, code:%s", pContext, pContext->fd, pContext->ipstr,
@@ -383,16 +384,14 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
 }
 
 void httpProcessRequest(HttpContext *pContext) {
-  httpFetchSession(pContext);
+  httpGetSession(pContext);
 
-  if (pContext->session == NULL || pContext->session != pContext->session->signature ||
-      pContext->reqType == HTTP_REQTYPE_LOGIN) {
+  if (pContext->session == NULL || pContext->reqType == HTTP_REQTYPE_LOGIN) {
     taos_connect_a(NULL, pContext->user, pContext->pass, "", 0, httpProcessRequestCb, (void *)pContext,
                    &(pContext->taos));
     httpTrace("context:%p, fd:%d, ip:%s, user:%s, try connect tdengine, taos:%p", pContext, pContext->fd,
               pContext->ipstr, pContext->user, pContext->taos);
   } else {
-    httpAccessSession(pContext);
     httpExecCmd(pContext);
   }
 }

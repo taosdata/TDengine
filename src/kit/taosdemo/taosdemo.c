@@ -297,7 +297,7 @@ void *deleteTable();
 
 void *asyncWrite(void *sarg);
 
-void generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary);
+int generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary);
 
 void rand_string(char *str, int size);
 
@@ -817,7 +817,7 @@ void queryDB(TAOS *taos, char *command) {
     i--; 
   }
 
-  if (i == 0) {
+  if (code != 0) {
     fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
     taos_free_result(pSql);
 
@@ -846,14 +846,19 @@ void *syncWrite(void *sarg) {
       int k;
       for (k = 0; k < winfo->nrecords_per_request;) {
         int rand_num = rand() % 100;
-        if (winfo->data_of_order ==1 && rand_num < winfo->data_of_rate)
-        {
+        int len = -1;
+        if (winfo->data_of_order ==1 && rand_num < winfo->data_of_rate) {
           long d = tmp_time - rand() % 1000000 + rand_num;
-          generateData(data, data_type, ncols_per_record, d, len_of_binary);
-        } else 
-        {
-          generateData(data, data_type, ncols_per_record, tmp_time += 1000, len_of_binary);
+          len = generateData(data, data_type, ncols_per_record, d, len_of_binary);
+        } else {
+          len = generateData(data, data_type, ncols_per_record, tmp_time += 1000, len_of_binary);
         }
+
+        //assert(len + pstr - buffer < BUFFER_SIZE);
+        if (len + pstr - buffer >= BUFFER_SIZE) { // too long
+          break;
+        }
+
         pstr += sprintf(pstr, " %s", data);
         inserted++;
         k++;
@@ -968,7 +973,7 @@ double getCurrentTime() {
   return tv.tv_sec + tv.tv_usec / 1E6;
 }
 
-void generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary) {
+int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary) {
   memset(res, 0, MAX_DATA_SIZE);
   char *pstr = res;
   pstr += sprintf(pstr, "(%" PRId64, timestamp);
@@ -1002,9 +1007,16 @@ void generateData(char *res, char **data_type, int num_of_cols, int64_t timestam
       rand_string(s, len_of_binary);
       pstr += sprintf(pstr, ", \"%s\"", s);
     }
+
+    if (pstr - res > MAX_DATA_SIZE) {
+      perror("column length too long, abort");
+      exit(-1);
+    }
   }
 
   pstr += sprintf(pstr, ")");
+
+  return pstr - res;
 }
 
 static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJK1234567890";

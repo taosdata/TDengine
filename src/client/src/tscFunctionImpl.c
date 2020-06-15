@@ -699,7 +699,7 @@ static int32_t first_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end,
 }
 
 static int32_t last_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -727,7 +727,7 @@ static int32_t first_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY
 }
 
 static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -1593,7 +1593,7 @@ static void first_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
   }
-  
+
   if (pCtx->order == TSDB_ORDER_DESC) {
     return;
   }
@@ -1652,7 +1652,7 @@ static void first_dist_func_second_merge(SQLFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
   
@@ -1681,7 +1681,6 @@ static void last_function(SQLFunctionCtx *pCtx) {
 }
 
 static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  assert(pCtx->order != TSDB_ORDER_ASC);
   void *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
@@ -1725,7 +1724,7 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
    */
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
   
@@ -1763,7 +1762,7 @@ static void last_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
    */
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
   
