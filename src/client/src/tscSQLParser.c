@@ -1042,7 +1042,7 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
 
   /* db name is not specified, the tableName dose not include db name */
   if (pDB != NULL) {
-    if (pDB->n >= TSDB_DB_NAME_LEN) {
+    if (pDB->n >= TSDB_ACCT_LEN + TSDB_DB_NAME_LEN) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
