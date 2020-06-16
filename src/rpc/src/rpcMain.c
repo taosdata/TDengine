@@ -490,6 +490,7 @@ void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pMsg, SRpcMsg 
 int rpcReportProgress(void *handle, char *pCont, int contLen) {
   SRpcConn *pConn = (SRpcConn *)handle;
 
+  rpcLockConn(pConn);
   if (pConn->user[0]) {
     // pReqMsg and reqMsgLen is re-used to store the context from app server
     pConn->pReqMsg = pCont;     
@@ -499,6 +500,8 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
 
   tTrace("%s, rpc connection is already released", pConn->info);
   rpcFreeCont(pCont);
+  rpcUnlockConn(pConn);
+
   return -1;
 }
 
@@ -1254,13 +1257,17 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
 static void rpcProcessIdleTimer(void *param, void *tmrId) {
   SRpcConn *pConn = (SRpcConn *)param;
 
+  rpcLockConn(pConn);
+
   if (pConn->user[0]) {
     tTrace("%s, close the connection since no activity", pConn->info);
     if (pConn->inType) rpcReportBrokenLinkToServer(pConn); 
-    rpcCloseConn(pConn);
+    rpcReleaseConn(pConn);
   } else {
     tTrace("%s, idle timer:%p not processed", pConn->info, tmrId);
   }
+
+  rpcUnlockConn(pConn);
 }
 
 static void rpcProcessProgressTimer(void *param, void *tmrId) {
