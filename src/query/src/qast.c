@@ -496,7 +496,6 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
     printf("relation is like\n");
     assert(0);
   }
-  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -511,7 +510,7 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
   if (cond.start != NULL) {
     iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->keyInfo.type, TSDB_ORDER_ASC);
   } else {
-    iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.end->v, pSkipList->keyInfo.type, TSDB_ORDER_DESC);
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*)(cond.end ? cond.end->v: NULL), pSkipList->keyInfo.type, TSDB_ORDER_DESC);
   }
   
   if (cond.start != NULL) {
@@ -601,6 +600,9 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
       }
     }
   }
+  free(cond.start); 
+  free(cond.end);
+  tSkipListDestroyIter(iter);
 }
 
 int32_t merge(SArray *pLeft, SArray *pRight, SArray *pFinalRes) {
@@ -748,6 +750,7 @@ static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SExprTravers
   }
   
   taosArrayCopy(pResult, array);
+  taosArrayDestroy(array);
 }
 
 static void tSQLBinaryTraverseOnSkipList(tExprNode *pExpr, SArray *pResult, SSkipList *pSkipList, SExprTraverseSupp *param ) {

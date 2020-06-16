@@ -127,7 +127,7 @@ python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
 # table
-#python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py
