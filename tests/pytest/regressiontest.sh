@@ -38,9 +38,9 @@ python3 ./test.py -f tag_lite/bool_int.py
 python3 ./test.py -f tag_lite/bool.py
 python3 ./test.py -f tag_lite/change.py
 python3 ./test.py -f tag_lite/column.py
-# python3 ./test.py -f tag_lite/commit.py
+python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
-# python3 ./test.py -f tag_lite/datatype.py
+python3 ./test.py -f tag_lite/datatype.py
 python3 ./test.py -f tag_lite/datatype-without-alter.py
 # python3 ./test.py -f tag_lite/delete.py
 python3 ./test.py -f tag_lite/double.py
@@ -48,7 +48,7 @@ python3 ./test.py -f tag_lite/float.py
 python3 ./test.py -f tag_lite/int_binary.py
 python3 ./test.py -f tag_lite/int_float.py
 python3 ./test.py -f tag_lite/int.py
-# python3 ./test.py -f tag_lite/set.py
+python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
 
@@ -127,7 +127,7 @@ python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
 # table
-# python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py

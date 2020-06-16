@@ -97,8 +97,11 @@ class Test:
             sqlcmd = "create table %s using %s tags (1, 'test')" %(current_tb, self.last_stb)
             tdSql.execute(sqlcmd)
             self.last_tb = current_tb
-            sqlcmd = "insert into %s values (now, 27, 'testnchar')" % self.last_tb
-            tdSql.execute(sqlcmd)
+            self.written = 0
+
+            tdSql.execute(
+                "insert into %s values (now, 27, 'wsnchar')" %
+                self.last_tb)
             self.written = self.written + 1
 
     def drop_stable(self):

@@ -533,7 +533,7 @@ STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId) {
 }
 
 int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
-  if ((pTSBuf->f == NULL) || pHeader == NULL || pHeader->numOfVnode < 0 || pHeader->magic != TS_COMP_FILE_MAGIC) {
+  if ((pTSBuf->f == NULL) || pHeader == NULL || pHeader->numOfVnode == 0 || pHeader->magic != TS_COMP_FILE_MAGIC) {
     return -1;
   }
   
