@@ -1581,8 +1581,11 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
         return mnodeCreateVgroup(pMsg, pMsg->pDb);
       }
 
-      pMsg->pVgroup = pVgroup;
-      mnodeIncVgroupRef(pVgroup);
+      if (pMsg->pVgroup == NULL) {
+        pMsg->pVgroup = pVgroup;
+        mnodeIncVgroupRef(pVgroup);
+      }
+      
       pMsg->pTable = (STableObj *)mnodeDoCreateChildTable(pMsg, sid);
       if (pMsg->pTable == NULL) {
         return terrno;
