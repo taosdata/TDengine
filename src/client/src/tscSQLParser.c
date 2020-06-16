@@ -6082,11 +6082,14 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray*
       }
     }
 
+
     if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
       if (pRight->nodeType == TSQL_NODE_VALUE) {
-        if (  pRight->pVal->nType == TSDB_DATA_TYPE_BOOL 
-           || pRight->pVal->nType == TSDB_DATA_TYPE_BINARY 
-           || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR) {
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL) {
+          return TSDB_CODE_TSC_INVALID_SQL;
+        }
+        if ((pRight->pVal->nType == TSDB_DATA_TYPE_BINARY || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR)
+            && (*pExpr)->_node.optr != TSDB_RELATION_LIKE) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
       }
