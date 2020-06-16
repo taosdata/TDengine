@@ -48,7 +48,7 @@ python3 ./test.py -f tag_lite/float.py
 python3 ./test.py -f tag_lite/int_binary.py
 python3 ./test.py -f tag_lite/int_float.py
 python3 ./test.py -f tag_lite/int.py
-# python3 ./test.py -f tag_lite/set.py
+python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
 

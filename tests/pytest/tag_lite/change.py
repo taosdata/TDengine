@@ -93,9 +93,13 @@ class TDTestCase:
         tdSql.error("alter table ta_ch_mt2 change tag tgcol1 tgcol2")
         # TSIM: return -1
         # TSIM: step22:
-        # TSIM: sql alter table $mt change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20
-        tdLog.info("alter table ta_ch_mt2 change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20")
-        tdSql.error("alter table ta_ch_mt2 change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20")
+        # TSIM: sql alter table $mt change tag tgcol1
+        # xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x
+        # step20
+        tdLog.info(
+            "alter table ta_ch_mt2 change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20")
+        tdSql.error(
+            "alter table ta_ch_mt2 change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20")
         # TSIM: return -1
         # TSIM: step20:
         # TSIM:
@@ -267,8 +271,10 @@ class TDTestCase:
         tdSql.execute(
             'create table ta_ch_mt6 (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))')
         # TSIM: sql create table $tb using $mt tags( '1', 2, 3, '4', 5, '6' )
-        tdLog.info("create table tb6 using ta_ch_mt6 tags( '1', 2, 3, '4', 5, '6' )")
-        tdSql.execute("create table tb6 using ta_ch_mt6 tags( '1', 2, 3, '4', 5, '6' )")
+        tdLog.info(
+            "create table tb6 using ta_ch_mt6 tags( '1', 2, 3, '4', 5, '6' )")
+        tdSql.execute(
+            "create table tb6 using ta_ch_mt6 tags( '1', 2, 3, '4', 5, '6' )")
         # TSIM: sql insert into $tb values(now, 1)
         tdLog.info("insert into tb6 values(now, 1)")
         tdSql.execute("insert into tb6 values(now, 1)")
