@@ -40,13 +40,13 @@ class TDTestCase:
         try:
             tdSql.execute("select * from db.st")
         except Exception as e:
-            if e.args[0] != 'invalid table name':
+            if e.args[0] != 'mnode invalid table name':
                 tdLog.exit(e)
 
         try:
             tdSql.execute("select * from db.tb")
         except Exception as e:
-            if e.args[0] != 'invalid table name':
+            if e.args[0] != 'mnode invalid table name':
                 tdLog.exit(e)
 
     def stop(self):
