@@ -555,17 +555,9 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
   return pConn;
 }
 
-static void rpcCloseConn(void *thandle) {
-  SRpcConn *pConn = (SRpcConn *)thandle;
+static void rpcReleaseConn(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
   if (pConn->user[0] == 0) return;
-
-  rpcLockConn(pConn);
-
-  if (pConn->user[0] == 0) {
-    rpcUnlockConn(pConn);
-    return;
-  }
 
   pConn->user[0] = 0;
   if (taosCloseConn[pConn->connType]) (*taosCloseConn[pConn->connType])(pConn->chandle);
@@ -591,7 +583,21 @@ static void rpcCloseConn(void *thandle) {
   taosFreeId(pRpc->idPool, pConn->sid);
   pConn->pContext = NULL;
 
-  tTrace("%s, rpc connection is closed", pConn->info);
+  tTrace("%s, rpc connection is released", pConn->info);
+}
+
+static void rpcCloseConn(void *thandle) {
+  SRpcConn *pConn = (SRpcConn *)thandle;
+  if (pConn->user[0] == 0) return;
+
+  rpcLockConn(pConn);
+
+  if (pConn->user[0] == 0) {
+    rpcUnlockConn(pConn);
+    return;
+  }
+
+  rpcReleaseConn(pConn);
 
   rpcUnlockConn(pConn);
 }
@@ -911,8 +917,8 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
 
   if (pConn->inType) rpcReportBrokenLinkToServer(pConn); 
 
+  rpcReleaseConn(pConn);
   rpcUnlockConn(pConn);
-  rpcCloseConn(pConn);
 }
 
 static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
@@ -1217,7 +1223,6 @@ static void rpcProcessConnError(void *param, void *id) {
 static void rpcProcessRetryTimer(void *param, void *tmrId) {
   SRpcConn *pConn = (SRpcConn *)param;
   SRpcInfo *pRpc = pConn->pRpc;
-  int       reportDisc = 0;
 
   rpcLockConn(pConn);
 
@@ -1233,19 +1238,17 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
     } else {
       // close the connection
       tTrace("%s, failed to send msg:%s to %s:%hu", pConn->info, taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
-      reportDisc = 1;
+      if (pConn->pContext) {
+        pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+        rpcProcessConnError(pConn->pContext, NULL);
+        rpcReleaseConn(pConn);
+      }
     }
   } else {
     tTrace("%s, retry timer not processed", pConn->info);
   }
 
   rpcUnlockConn(pConn);
-
-  if (reportDisc && pConn->pContext) { 
-    pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-    rpcProcessConnError(pConn->pContext, NULL);
-    rpcCloseConn(pConn);
-  }
 }
 
 static void rpcProcessIdleTimer(void *param, void *tmrId) {
