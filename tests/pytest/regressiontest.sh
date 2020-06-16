@@ -38,7 +38,7 @@ python3 ./test.py -f tag_lite/bool_int.py
 python3 ./test.py -f tag_lite/bool.py
 python3 ./test.py -f tag_lite/change.py
 python3 ./test.py -f tag_lite/column.py
-# python3 ./test.py -f tag_lite/commit.py
+python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
 # python3 ./test.py -f tag_lite/datatype.py
 python3 ./test.py -f tag_lite/datatype-without-alter.py
