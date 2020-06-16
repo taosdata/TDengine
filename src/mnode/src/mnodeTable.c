@@ -849,7 +849,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   };
   
   int32_t code = sdbDeleteRow(&oper);
-  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->info.tableId, tstrerror(code));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
@@ -1585,7 +1585,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
         pMsg->pVgroup = pVgroup;
         mnodeIncVgroupRef(pVgroup);
       }
-      
+
       pMsg->pTable = (STableObj *)mnodeDoCreateChildTable(pMsg, sid);
       if (pMsg->pTable == NULL) {
         return terrno;
