@@ -600,6 +600,10 @@ int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
     return -1;
   }
 
+  if (pTable->cqhandle != NULL) {
+    pRepo->appH.cqDropFunc(pTable->cqhandle);
+  }
+
   tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
             tableId.tid, tableId.uid);
   if (tsdbRemoveTableFromMeta(pMeta, pTable, true) < 0) return -1;
