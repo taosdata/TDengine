@@ -30,7 +30,7 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
   pthread_mutex_lock(&server->serverMutex);
 
   HttpSession session;
-  memset(&session, 0, sizeof(HttpSession);
+  memset(&session, 0, sizeof(HttpSession));
   session.taos = taos;
   session.refCount = 1;
   snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
