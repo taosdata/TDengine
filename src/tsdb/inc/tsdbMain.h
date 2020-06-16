@@ -111,6 +111,7 @@ typedef struct {
 } SMemTable;
 
 // ------------------ tsdbFile.c
+extern const char* tsdbFileSuffix[];
 typedef enum {
   TSDB_FILE_TYPE_HEAD = 0,
   TSDB_FILE_TYPE_DATA,
@@ -340,6 +341,7 @@ void        tsdbFreeFileH(STsdbFileH* pFileH);
 #define IS_REPO_LOCKED(r) (r)->repoLocked
 
 char* tsdbGetMetaFileName(char* rootDir);
+char* tsdbGetDataFileName(STsdbRepo* pRepo, int fid, int type);
 int   tsdbLockRepo(STsdbRepo* pRepo);
 int   tsdbUnlockRepo(STsdbRepo* pRepo);
 

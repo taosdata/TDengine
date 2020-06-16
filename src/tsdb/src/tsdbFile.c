@@ -99,7 +99,13 @@ int *tsdbOpenFileH(STsdbRepo *pRepo) {
     SFileGroup fileGroup = {0};
 
     if (tsdbSearchFGroup(pFileH, fid, TD_EQ) != NULL) continue;
+    fileGroup.fileId = fid;
     for (int type = TSDB_FILE_TYPE_HEAD; type <= TSDB_FILE_TYPE_LAST; type++) {
+      fileGroup.headF.fname = tsdbGetDataFileName(pRepo, fid, type);
+      if (fileGroup.headF.fname == NULL) goto _err;
+      if (tsdbInitFile(fileGroup.headF))
+
+
     }
     for (int type = TSDB_FILE_TYPE_NHEAD; type <= TSDB_FILE_TYPE_NLAST; type++) {
 
@@ -236,20 +242,6 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
     }
   }
   return ret;
-}
-
-char *tsdbGetFileName(char *dataDir, int fileId, int type) {
-  int tlen = strlen(dataDir) + strlen(tsdbFileSuffix[type]) + 24;
-
-  char *fname = (char *)malloc(tlen);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  sprintf(fname, "%s/v%df%d%s", dataDir, fileId, tsdbFileSuffix[type]);
-
-  return 0;
 }
 
 int tsdbOpenFile(SFile *pFile, int oflag) {
