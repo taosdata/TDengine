@@ -177,7 +177,7 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-print ============== step5: stop dnode2, and check if dnode3 sync ok 
+print ============== step5: stop dnode2, and check if dnode3 sync ok
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep $sleepTimer
 wait_dnode2_offline_0:
@@ -223,4 +223,10 @@ endi
 if $dnode3Vtatus != master then
   sleep 2000
   goto wait_dnode3_vgroup_master
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
 endi
