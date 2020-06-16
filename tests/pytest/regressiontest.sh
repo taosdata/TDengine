@@ -29,14 +29,14 @@ python3 ./test.py -f tag_lite/3.py
 python3 ./test.py -f tag_lite/4.py
 python3 ./test.py -f tag_lite/5.py
 python3 ./test.py -f tag_lite/6.py
-# python3 ./test.py -f tag_lite/add.py
+python3 ./test.py -f tag_lite/add.py
 python3 ./test.py -f tag_lite/bigint.py
 python3 ./test.py -f tag_lite/binary_binary.py
 python3 ./test.py -f tag_lite/binary.py
 python3 ./test.py -f tag_lite/bool_binary.py
 python3 ./test.py -f tag_lite/bool_int.py
 python3 ./test.py -f tag_lite/bool.py
-# python3 ./test.py -f tag_lite/change.py
+python3 ./test.py -f tag_lite/change.py
 python3 ./test.py -f tag_lite/column.py
 # python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
