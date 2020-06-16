@@ -479,12 +479,12 @@ int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pC
 
       if (pDnode != NULL) {
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols] - VARSTR_HEADER_SIZE);
+        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols]);
         cols++;
 
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
         char *role = mnodeGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
-        STR_TO_VARSTR(pWrite, role);
+        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
         cols++;
       } else {
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

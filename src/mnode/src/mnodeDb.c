@@ -613,7 +613,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     
     char* name = mnodeGetDbStr(pDb->name);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, TSDB_DB_NAME_LEN - 1);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
