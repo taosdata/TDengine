@@ -593,16 +593,11 @@ static void rpcReleaseConn(SRpcConn *pConn) {
 
 static void rpcCloseConn(void *thandle) {
   SRpcConn *pConn = (SRpcConn *)thandle;
-  if (pConn->user[0] == 0) return;
 
   rpcLockConn(pConn);
 
-  if (pConn->user[0] == 0) {
-    rpcUnlockConn(pConn);
-    return;
-  }
-
-  rpcReleaseConn(pConn);
+  if (pConn->user[0])
+    rpcReleaseConn(pConn);
 
   rpcUnlockConn(pConn);
 }
