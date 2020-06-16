@@ -29,19 +29,20 @@
 #include "tutil.h"
 #include "ttime.h"
 
-const char *tsdbFileSuffix[] = {
-    ".head",
-    ".data",
-    ".last",
-    ".h",
-    ".l"
-};
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".h", ".l"};
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
   STsdbFileH *pFileH = (STsdbFileH *)calloc(1, sizeof(*pFileH));
   if (pFileH == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  int code = pthread_rwlock_init(&(pFileH->fhlock));
+  if (code != 0) {
+    tsdbError("vgId:%d failed to init file handle lock since %s", pCfg->tsdbId, strerror(code));
+    terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
 
@@ -62,6 +63,7 @@ _err:
 
 void tsdbFreeFileH(STsdbFileH *pFileH) {
   if (pFileH) {
+    pthread_rwlock_destroy(&pFileH->fhlock);
     tfree(pFileH->pFGroup);
     free(pFileH);
   }
@@ -74,7 +76,9 @@ int *tsdbOpenFileH(STsdbRepo *pRepo) {
   DIR * dir = NULL;
   int   fid = 0;
 
-  tsdbGetDataDirName(pRepo->rootDir);
+  STsdbFileH pFileH = pRepo->tsdbFileH;
+
+  tDataDir = tsdbGetDataDirName(pRepo->rootDir);
   if (tDataDir == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
@@ -91,9 +95,15 @@ int *tsdbOpenFileH(STsdbRepo *pRepo) {
   while ((dp = readdir(dir)) != NULL) {
     if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
     sscanf(dp->d_name, "f%d", &fid);
-    // if (tsdbOpenFGroup(pFileH, dataDir, fid) < 0) {
-    //   break;
-    // }
+    
+    SFileGroup fileGroup = {0};
+
+    if (tsdbSearchFGroup(pFileH, fid, TD_EQ) != NULL) continue;
+    for (int type = TSDB_FILE_TYPE_HEAD; type <= TSDB_FILE_TYPE_LAST; type++) {
+    }
+    for (int type = TSDB_FILE_TYPE_NHEAD; type <= TSDB_FILE_TYPE_NLAST; type++) {
+
+    }
   }
 
   tfree(tDataDir);
@@ -106,10 +116,12 @@ _err:
   return -1;
 }
 
-void tsdbCloseFileH(STsdbFileH *pFileH) {
-  if (pFileH) {
-    tfree(pFileH->fGroup);
-    free(pFileH);
+void tsdbCloseFileH(STsdbRepo *pRepo) {
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+
+  for (int i = 0; i < pFileH->nFGroups; i++) {
+    // TODO
+
   }
 }
 
@@ -146,7 +158,7 @@ _err:
 
 int tsdbRemoveFileGroup(STsdbFileH *pFileH, int fid) {
   SFileGroup *pGroup =
-      bsearch((void *)&fid, (void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey);
+      bsearch((void *)&fid, (void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), keyFGroupCompFunc);
   if (pGroup == NULL) return -1;
 
   // Remove from disk
@@ -198,7 +210,7 @@ void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) {
   }
   
   int flags = (pIter->direction == TSDB_FGROUP_ITER_FORWARD) ? TD_GE : TD_LE;
-  void *ptr = taosbsearch(&fid, pIter->base, pIter->numOfFGroups, sizeof(SFileGroup), compFGroupKey, flags);
+  void *ptr = taosbsearch(&fid, pIter->base, pIter->numOfFGroups, sizeof(SFileGroup), keyFGroupCompFunc, flags);
   if (ptr == NULL) {
     pIter->pFileGroup = NULL;
   } else {
@@ -226,81 +238,38 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
   return ret;
 }
 
-int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols) {
-  SCompBlock *pSuperBlock = TSDB_COMPBLOCK_AT(pCompInfo, idx);
-  SCompBlock *pStartBlock = NULL;
-  SCompBlock *pBlock = NULL;
-  int         numOfBlocks = pSuperBlock->numOfSubBlocks;
+char *tsdbGetFileName(char *dataDir, int fileId, int type) {
+  int tlen = strlen(dataDir) + strlen(tsdbFileSuffix[type]) + 24;
 
-  if (numOfBlocks == 1)
-    pStartBlock = pSuperBlock;
-  else
-    pStartBlock = TSDB_COMPBLOCK_AT(pCompInfo, pSuperBlock->offset);
-
-  int maxNumOfCols = 0;
-  pBlock = pStartBlock;
-  for (int i = 0; i < numOfBlocks; i++) {
-    if (pBlock->numOfCols > maxNumOfCols) maxNumOfCols = pBlock->numOfCols;
-    pBlock++;
+  char *fname = (char *)malloc(tlen);
+  if (fname == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
   }
 
-  SCompData *pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * maxNumOfCols);
-  if (pCompData == NULL) return -1;
-
-  // Load data from the block
-  // if (tsdbLoadDataBlock(pOutFile, pStartBlock, numOfBlocks, pCols, pCompData));
-
-  // Write data block to the file
-  {
-    // TODO
-  }
-
-
-  if (pCompData) free(pCompData);
-  return 0;
-}
-
-int compFGroupKey(const void *key, const void *fgroup) {
-  int         fid = *(int *)key;
-  SFileGroup *pFGroup = (SFileGroup *)fgroup;
-  if (fid == pFGroup->fileId) {
-    return 0;
-  } else {
-    return fid > pFGroup->fileId? 1:-1;
-  }
-}
-
-int tsdbGetFileName(char *dataDir, int fileId, const char *suffix, char *fname) {
-  if (dataDir == NULL || fname == NULL) return -1;
-
-  sprintf(fname, "%s/f%d%s", dataDir, fileId, suffix);
+  sprintf(fname, "%s/v%df%d%s", dataDir, fileId, tsdbFileSuffix[type]);
 
   return 0;
 }
 
-int tsdbOpenFile(SFile *pFile, int oflag) { // TODO: change the function
-  if (TSDB_IS_FILE_OPENED(pFile)) return -1;
+int tsdbOpenFile(SFile *pFile, int oflag) {
+  ASSERT(!TSDB_IS_FILE_OPENED(pFile));
 
   pFile->fd = open(pFile->fname, oflag, 0755);
-  if (pFile->fd < 0) return -1;
+  if (pFile->fd < 0) {
+    tsdbError("failed to open file %s since %s", pFile->fname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
 
   return 0;
 }
 
-int tsdbCloseFile(SFile *pFile) {
-  int ret = close(pFile->fd);
-  pFile->fd = -1;
-  return ret;
-}
-
-SFileGroup * tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid) {
-  SFileGroup *pGroup = tsdbSearchFGroup(pFileH, fid);
-  if (pGroup == NULL) return NULL;
-
-  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-    tsdbOpenFile(&(pGroup->files[type]), O_RDWR);
+void tsdbCloseFile(SFile *pFile) {
+  if (TSDB_IS_FILE_OPENED(pFile)) {
+    close(pFile->fd);
+    pFile->fd = -1;
   }
-  return pGroup;
 }
 
 int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, SFile *pFile) {
@@ -331,11 +300,9 @@ int tsdbCreateFile(char *dataDir, int fileId, const char *suffix, SFile *pFile) 
   return 0;
 }
 
-
-SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid) {
-  if (pFileH->numOfFGroups == 0 || fid < pFileH->fGroup[0].fileId || fid > pFileH->fGroup[pFileH->numOfFGroups - 1].fileId)
-    return NULL;
-  void *ptr = bsearch((void *)&fid, (void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey);
+SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid, int flags) {
+  void *ptr =
+      taosbsearch((void *)(&fid), (void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc);
   if (ptr == NULL) return NULL;
   return (SFileGroup *)ptr;
 }
@@ -362,20 +329,39 @@ static int tsdbInitFile(char *dataDir, int fid, const char *suffix, SFile *pFile
   return 0;
 }
 
-static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid) {
-  if (tsdbSearchFGroup(pFileH, fid) != NULL) return 0;
+// static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid) {
+//   if (tsdbSearchFGroup(pFileH, fid) != NULL) return 0;
 
-  SFileGroup fGroup = {0};
-  fGroup.fileId = fid;
+//   SFileGroup fGroup = {0};
+//   fGroup.fileId = fid;
 
-  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-    if (tsdbInitFile(dataDir, fid, tsdbFileSuffix[type], &fGroup.files[type]) < 0) return -1;
-  }
-  pFileH->fGroup[pFileH->numOfFGroups++] = fGroup;
-  qsort((void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroup);
-  return 0;
-}
+//   for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+//     if (tsdbInitFile(dataDir, fid, tsdbFileSuffix[type], &fGroup.files[type]) < 0) return -1;
+//   }
+//   pFileH->fGroup[pFileH->numOfFGroups++] = fGroup;
+//   qsort((void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroup);
+//   return 0;
+// }
 
 static int compFGroup(const void *arg1, const void *arg2) {
-  return ((SFileGroup *)arg1)->fileId - ((SFileGroup *)arg2)->fileId;
+  int val1 = ((SFileGroup *)arg1)->fileId;
+  int val2 = ((SFileGroup *)arg2)->fileId;
+
+  if (val1 < val2) {
+    return -1;
+  } else if (val1 > val2) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static int keyFGroupCompFunc(const void *key, const void *fgroup) {
+  int         fid = *(int *)key;
+  SFileGroup *pFGroup = (SFileGroup *)fgroup;
+  if (fid == pFGroup->fileId) {
+    return 0;
+  } else {
+    return fid > pFGroup->fileId ? 1 : -1;
+  }
 }

@@ -111,7 +111,13 @@ typedef struct {
 } SMemTable;
 
 // ------------------ tsdbFile.c
-typedef enum { TSDB_FILE_TYPE_HEAD = 0, TSDB_FILE_TYPE_DATA, TSDB_FILE_TYPE_LAST, TSDB_FILE_TYPE_MAX } TSDB_FILE_TYPE;
+typedef enum {
+  TSDB_FILE_TYPE_HEAD = 0,
+  TSDB_FILE_TYPE_DATA,
+  TSDB_FILE_TYPE_LAST,
+  TSDB_FILE_TYPE_NHEAD,
+  TSDB_FILE_TYPE_NLAST
+} TSDB_FILE_TYPE;
 
 typedef struct {
   uint32_t offset;
@@ -123,8 +129,9 @@ typedef struct {
 } STsdbFileInfo;
 
 typedef struct {
-  char*         fname;
-  int           fd;
+  char* fname;
+  int   fd;
+
   STsdbFileInfo info;
 } SFile;
 
@@ -136,6 +143,8 @@ typedef struct {
 } SFileGroup;
 
 typedef struct {
+  pthread_rwlock_t fhlock;
+
   int         maxFGroups;
   int         nFGroups;
   SFileGroup* pFGroup;
