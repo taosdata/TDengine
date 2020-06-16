@@ -30,20 +30,22 @@
 #include "ttime.h"
 
 const char *tsdbFileSuffix[] = {
-    ".head",  // TSDB_FILE_TYPE_HEAD
-    ".data",  // TSDB_FILE_TYPE_DATA
-    ".last"   // TSDB_FILE_TYPE_LAST
+    ".head",
+    ".data",
+    ".last",
+    ".h",
+    ".l"
 };
 
 // ---------------- INTERNAL FUNCTIONS ----------------
-STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg) {
+STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
   STsdbFileH *pFileH = (STsdbFileH *)calloc(1, sizeof(*pFileH));
   if (pFileH == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
   }
 
-  pFileH->maxFGroups = pCfg->keep / pCfg->daysPerFile + 3;
+  pFileH->maxFGroups = TSDB_MAX_FILE(pCfg->keep, pCfg->daysPerFile);
 
   pFileH->pFGroup = (SFileGroup *)calloc(pFileH->maxFGroups, sizeof(SFileGroup));
   if (pFileH->pFGroup == NULL) {
@@ -53,51 +55,55 @@ STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg) {
 
   return pFileH;
 
-  _err:
+_err:
   tsdbFreeFileH(pFileH);
   return NULL;
 }
 
-void tsdbFreeFileH(STsdbFileH* pFileH) {
+void tsdbFreeFileH(STsdbFileH *pFileH) {
   if (pFileH) {
     tfree(pFileH->pFGroup);
     free(pFileH);
   }
 }
 
-STsdbFileH *tsdbInitFileH(char *dataDir, STsdbCfg *pCfg) {
-  STsdbFileH *pFileH = (STsdbFileH *)calloc(1, sizeof(STsdbFileH));
-  if (pFileH == NULL) {  // TODO: deal with ERROR here
-    return NULL;
+int *tsdbOpenFileH(STsdbRepo *pRepo) {
+  ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
+
+  char *tDataDir = NULL;
+  DIR * dir = NULL;
+  int   fid = 0;
+
+  tsdbGetDataDirName(pRepo->rootDir);
+  if (tDataDir == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _err;
   }
 
-  pFileH->maxFGroups = pCfg->keep / pCfg->daysPerFile + 3;
-
-  pFileH->fGroup = (SFileGroup *)calloc(pFileH->maxFGroups, sizeof(SFileGroup));
-  if (pFileH->fGroup == NULL) {
-    free(pFileH);
-    return NULL;
-  }
-
-  DIR *dir = opendir(dataDir);
+  DIR *dir = opendir(tDataDir);
   if (dir == NULL) {
-    free(pFileH);
-    return NULL;
+    tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), tDataDir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
   }
 
   struct dirent *dp = NULL;
   while ((dp = readdir(dir)) != NULL) {
-    if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 1) == 0) continue;
-    int fid = 0;
+    if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
     sscanf(dp->d_name, "f%d", &fid);
-    if (tsdbOpenFGroup(pFileH, dataDir, fid) < 0) {
-      break;
-      // TODO
-    }
+    // if (tsdbOpenFGroup(pFileH, dataDir, fid) < 0) {
+    //   break;
+    // }
   }
-  closedir(dir);
 
-  return pFileH;
+  tfree(tDataDir);
+  closedir(dir);
+  return 0;
+
+_err:
+  tfree(tDataDir);
+  if (dir != NULL) closedir(tDataDir);
+  return -1;
 }
 
 void tsdbCloseFileH(STsdbFileH *pFileH) {

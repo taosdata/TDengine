@@ -595,7 +595,7 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  pRepo->tsdbFileH = tsdbNewFileH(pRepo);
+  pRepo->tsdbFileH = tsdbNewFileH(pCfg);
   if (pRepo->tsdbFileH == NULL) {
     tsdbError("vgId:%d failed to create file handle since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
