@@ -278,6 +278,20 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
   mPrint("cfg dnode rsp is received");
 }
 
+static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
+  if (clusterCfg->numOfMnodes        != tsNumOfMnodes)        return false;
+  if (clusterCfg->mnodeEqualVnodeNum != tsMnodeEqualVnodeNum) return false;
+  if (clusterCfg->offlineThreshold   != tsOfflineThreshold)   return false;
+  if (clusterCfg->statusInterval     != tsStatusInterval)     return false;
+
+  if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) return false;
+  if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone)))       return false;
+  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale)))              return false;
+  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset)))           return false;
+    
+  return true;
+}
+
 static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   SDMStatusMsg *pStatus = pMsg->rpcMsg.pCont;
   pStatus->dnodeId      = htonl(pStatus->dnodeId);
@@ -313,7 +327,6 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pDnode->alternativeRole  = pStatus->alternativeRole;
   pDnode->totalVnodes      = pStatus->numOfTotalVnodes; 
   pDnode->moduleStatus     = pStatus->moduleStatus;
-  pDnode->lastAccess       = tsAccessSquence;
   
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
@@ -339,6 +352,14 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   }
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
+    // Verify whether the cluster parameters are consistent when status change from offline to ready
+    bool ret = mnodeCheckClusterCfgPara(&(pStatus->clusterCfg));
+    if (false == ret) {
+      mnodeDecDnodeRef(pDnode);
+      mError("dnode %s cluster cfg parameters inconsistent", pStatus->dnodeEp);
+      return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
+    }
+    
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     balanceUpdateMnode();
@@ -352,6 +373,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   if (pRsp == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
+
+  pDnode->lastAccess = tsAccessSquence;
 
   mnodeGetMnodeInfos(&pRsp->mnodes);
 
