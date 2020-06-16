@@ -374,8 +374,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    size_t size = sizeof(pAcct->user);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAcct->user, size);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAcct->user, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -384,22 +383,22 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 14);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 18);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfStreams, pAcct->cfg.maxStreams);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 18);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -409,7 +408,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
       sprintf(tmp, "%.3f/%.3f", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024),
               pAcct->cfg.maxStorage / (1024. * 1024. * 1024));
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 22);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
