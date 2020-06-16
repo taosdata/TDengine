@@ -121,6 +121,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          0, 0x0331, "mnode dnod
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         0, 0x0332, "mnode vgroup not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_REMOVE_MASTER,         0, 0x0333, "mnode cant not remove master")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_DNODES,         0, 0x0334, "mnode no enough dnodes")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT, 0, 0x0335, "mnode cluster cfg inconsistent")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       0, 0x0340, "mnode accounts already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             0, 0x0341, "mnode invalid account")
