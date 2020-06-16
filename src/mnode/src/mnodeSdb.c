@@ -641,6 +641,11 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
   pHead->len = pOper->rowSize;
 
   memcpy(pNewOper, pOper, sizeof(SSdbOper));
+
+  if (pNewOper->pMsg != NULL) {
+    sdbTrace("app:%p:%p, insert action is add to write queue", pNewOper->pMsg->rpcMsg.ahandle, pNewOper->pMsg);
+  }
+
   taosWriteQitem(tsSdbWriteQueue, TAOS_QTYPE_RPC, pNewOper);
   return TSDB_CODE_SUCCESS;
 }
@@ -687,7 +692,6 @@ int32_t sdbDeleteRow(SSdbOper *pOper) {
       return TSDB_CODE_MND_SDB_INVAID_KEY_TYPE;
   }
 
-
   int32_t size = sizeof(SSdbOper) + sizeof(SWalHead) + keySize;
   SSdbOper *pNewOper = taosAllocateQitem(size);
 
@@ -698,6 +702,11 @@ int32_t sdbDeleteRow(SSdbOper *pOper) {
   memcpy(pHead->cont, key, keySize);
 
   memcpy(pNewOper, pOper, sizeof(SSdbOper));
+
+  if (pNewOper->pMsg != NULL) {
+    sdbTrace("app:%p:%p, delete action is add to write queue", pNewOper->pMsg->rpcMsg.ahandle, pNewOper->pMsg);
+  }
+
   taosWriteQitem(tsSdbWriteQueue, TAOS_QTYPE_RPC, pNewOper);
   return TSDB_CODE_SUCCESS;
 }
@@ -740,7 +749,12 @@ int32_t sdbUpdateRow(SSdbOper *pOper) {
   (*pTable->encodeFp)(pOper);
   pHead->len = pOper->rowSize;
 
-   memcpy(pNewOper, pOper, sizeof(SSdbOper));
+  memcpy(pNewOper, pOper, sizeof(SSdbOper));
+
+  if (pNewOper->pMsg != NULL) {
+    sdbTrace("app:%p:%p, update action is add to write queue", pNewOper->pMsg->rpcMsg.ahandle, pNewOper->pMsg);
+  }
+
   taosWriteQitem(tsSdbWriteQueue, TAOS_QTYPE_RPC, pNewOper);
   return TSDB_CODE_SUCCESS;
 }
@@ -961,6 +975,10 @@ static void *sdbWorkerFp(void *param) {
         pOper = NULL;
       }
 
+      if (pOper != NULL && pOper->pMsg != NULL) {
+        sdbTrace("app:%p:%p, will be processed in sdb queue", pOper->pMsg->rpcMsg.ahandle, pOper->pMsg);
+      }
+
       int32_t code = sdbWrite(pOper, pHead, type);
       if (pOper) pOper->retCode = code;
     }
@@ -976,6 +994,12 @@ static void *sdbWorkerFp(void *param) {
         if (pOper->cb) {
           pOper->retCode = (*pOper->cb)(pOper->pMsg, pOper->retCode);
         }
+
+        if (pOper != NULL && pOper->pMsg != NULL) {
+          sdbTrace("app:%p:%p, msg is processed, result:%s", pOper->pMsg->rpcMsg.ahandle, pOper->pMsg,
+                   tstrerror(pOper->retCode));
+        }
+
         dnodeSendRpcMnodeWriteRsp(pOper->pMsg, pOper->retCode);
       }
       taosFreeQitem(item);
