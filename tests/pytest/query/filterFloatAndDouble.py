@@ -21,28 +21,28 @@ from util.sql import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())    
+        tdSql.init(conn.cursor())
 
         self.rowNum = 10
         self.ts = 1537146000000
-        
+
     def run(self):
         tdSql.prepare()
 
         print("======= Verify filter for float and double type =========")
         tdLog.debug(
-                "create table st(ts timestamp, num float, speed double) tags(tagcol1 float, tagcol2 double)")
+            "create table st(ts timestamp, num float, speed double) tags(tagcol1 float, tagcol2 double)")
         tdSql.execute(
-                "create table st(ts timestamp, num float, speed double) tags(tagcol1 float, tagcol2 double)")
-                
-        for j in range(self.rowNum):             
-            tdSql.execute(
-                "insert into st1 using st tags(1.1, 2.3) values(%d, %f, %f)" % (self.ts + j + 1, 1.1 * (j + 1), 2.3 * (j + 1)))    
+            "create table st(ts timestamp, num float, speed double) tags(tagcol1 float, tagcol2 double)")
+
+        for j in range(self.rowNum):
+            tdSql.execute("insert into st1 using st tags(1.1, 2.3) values(%d, %f, %f)" % (
+                self.ts + j + 1, 1.1 * (j + 1), 2.3 * (j + 1)))
 
         # > for float type on column
         tdSql.query("select * from st where num > 5.5")
         tdSql.checkRows(5)
-        
+
         # >= for float type on column
         tdSql.query("select * from st where num >= 5.5")
         tdSql.checkRows(6)
@@ -70,11 +70,11 @@ class TDTestCase:
         # > for float type on tag
         tdSql.query("select * from st where tagcol1 > 1.1")
         tdSql.checkRows(0)
-        
+
         # >= for float type on tag
         tdSql.query("select * from st where tagcol1 >= 1.1")
         tdSql.checkRows(10)
-        
+
         # = for float type on tag
         tdSql.query("select * from st where tagcol1 = 1.1")
         tdSql.checkRows(10)
@@ -86,7 +86,7 @@ class TDTestCase:
         # != for float type on tag
         tdSql.query("select * from st where tagcol1 != 1.1")
         tdSql.checkRows(0)
-        
+
         # <= for float type on tag
         tdSql.query("select * from st where tagcol1 <= 1.1")
         tdSql.checkRows(10)
@@ -94,11 +94,11 @@ class TDTestCase:
         # < for float type on tag
         tdSql.query("select * from st where tagcol1 < 1.1")
         tdSql.checkRows(0)
-        
+
         # > for double type on column
         tdSql.query("select * from st where speed > 11.5")
         tdSql.checkRows(5)
-        
+
         # >= for double type on column
         tdSql.query("select * from st where speed >= 11.5")
         tdSql.checkRows(6)
@@ -126,11 +126,11 @@ class TDTestCase:
         # > for double type on tag
         tdSql.query("select * from st where tagcol2 > 2.3")
         tdSql.checkRows(0)
-        
+
         # >= for double type on tag
         tdSql.query("select * from st where tagcol2 >= 2.3")
         tdSql.checkRows(10)
-        
+
         # = for double type on tag
         tdSql.query("select * from st where tagcol2 = 2.3")
         tdSql.checkRows(10)
@@ -142,7 +142,7 @@ class TDTestCase:
         # != for double type on tag
         tdSql.query("select * from st where tagcol2 != 2.3")
         tdSql.checkRows(0)
-        
+
         # <= for double type on tag
         tdSql.query("select * from st where tagcol2 <= 2.3")
         tdSql.checkRows(10)
@@ -150,7 +150,7 @@ class TDTestCase:
         # < for double type on tag
         tdSql.query("select * from st where tagcol2 < 2.3")
         tdSql.checkRows(0)
-                                           
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
