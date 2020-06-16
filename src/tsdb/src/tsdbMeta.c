@@ -424,6 +424,11 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
       pTable->schema[pTable->numOfSchemas-1] = tSchema;
     }
 
+    STSchema *lSchema = pTable->schema[pTable->numOfSchemas - 1];
+    if (schemaNCols(lSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(lSchema);
+    int bytes = dataRowMaxBytesFromSchema(lSchema);
+    if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
+
     isChanged = true;
   }
 
