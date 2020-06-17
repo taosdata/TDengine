@@ -2207,6 +2207,10 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   for (int32_t i = 0; i < size; ++i) {
     STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+
+    tsdbUnRefMemTable(pQueryHandle->pTsdb, pTableCheckInfo->mem);
+    tsdbUnRefMemTable(pQueryHandle->pTsdb, pTableCheckInfo->imem);
+
     tSkipListDestroyIter(pTableCheckInfo->iter);
 
     if (pTableCheckInfo->pDataCols != NULL) {
