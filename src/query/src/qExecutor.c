@@ -1496,7 +1496,6 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 }
 
 static bool isQueryKilled(SQInfo *pQInfo) {
-  return false;
   return (pQInfo->code == TSDB_CODE_TSC_QUERY_CANCELLED);
 }
 
