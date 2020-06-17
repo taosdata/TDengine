@@ -105,7 +105,7 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
 }
 
 int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int32_t bytes) {
-  if (!isValidDataType(type, 0)) return -1;
+  if (!isValidDataType(type)) return -1;
 
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;

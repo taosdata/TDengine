@@ -22,7 +22,6 @@
 #include "taosdef.h"
 #include "tscLog.h"
 #include "qextbuffer.h"
-#include "tscSecondaryMerge.h"
 #include "tschemautil.h"
 #include "tname.h"
 

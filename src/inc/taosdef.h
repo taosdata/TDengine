@@ -156,7 +156,7 @@ typedef struct tDataTypeDescriptor {
 extern tDataTypeDescriptor tDataTypeDesc[11];
 #define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
-bool isValidDataType(int32_t type, int32_t length);
+bool isValidDataType(int32_t type);
 bool isNull(const char *val, int32_t type);
 
 void setVardataNull(char* val, int32_t type);

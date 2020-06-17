@@ -14,20 +14,18 @@
  */
 
 #include "os.h"
+#include "qsqltype.h"
 #include "tcache.h"
 #include "trpc.h"
+#include "tscLocalMerge.h"
+#include "tscLog.h"
 #include "tscProfile.h"
-#include "tscSecondaryMerge.h"
-#include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tsocket.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tscLog.h"
-#include "qsqltype.h"
 
 #define TSC_MGMT_VNODE 999
 
@@ -1933,113 +1931,6 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
 }
 
 int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
-#if 0
-  void **      metricMetaList = NULL;
-  int32_t *    sizes = NULL;
-  
-  int32_t num = htons(*(int16_t *)rsp);
-  rsp += sizeof(int16_t);
-
-  metricMetaList = calloc(1, POINTER_BYTES * num);
-  sizes = calloc(1, sizeof(int32_t) * num);
-
-  // return with error code
-  if (metricMetaList == NULL || sizes == NULL) {
-    tfree(metricMetaList);
-    tfree(sizes);
-    pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-
-    return pSql->res.code;
-  }
-
-  for (int32_t k = 0; k < num; ++k) {
-    pMeta = (SSuperTableMeta *)rsp;
-
-    size_t size = (size_t)pSql->res.rspLen - 1;
-    rsp = rsp + sizeof(SSuperTableMeta);
-
-    pMeta->numOfTables = htonl(pMeta->numOfTables);
-    pMeta->numOfVnodes = htonl(pMeta->numOfVnodes);
-    pMeta->tagLen = htons(pMeta->tagLen);
-
-    size += pMeta->numOfVnodes * sizeof(SVnodeSidList *) + pMeta->numOfTables * sizeof(STableIdInfo *);
-
-    char *pBuf = calloc(1, size);
-    if (pBuf == NULL) {
-      pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto _error_clean;
-    }
-
-    SSuperTableMeta *pNewMetricMeta = (SSuperTableMeta *)pBuf;
-    metricMetaList[k] = pNewMetricMeta;
-
-    pNewMetricMeta->numOfTables = pMeta->numOfTables;
-    pNewMetricMeta->numOfVnodes = pMeta->numOfVnodes;
-    pNewMetricMeta->tagLen = pMeta->tagLen;
-
-    pBuf = pBuf + sizeof(SSuperTableMeta) + pNewMetricMeta->numOfVnodes * sizeof(SVnodeSidList *);
-
-    for (int32_t i = 0; i < pMeta->numOfVnodes; ++i) {
-      SVnodeSidList *pSidLists = (SVnodeSidList *)rsp;
-      memcpy(pBuf, pSidLists, sizeof(SVnodeSidList));
-
-      pNewMetricMeta->list[i] = pBuf - (char *)pNewMetricMeta;  // offset value
-      SVnodeSidList *pLists = (SVnodeSidList *)pBuf;
-
-      tscTrace("%p metricmeta:vid:%d,numOfTables:%d", pSql, i, pLists->numOfSids);
-
-      pBuf += sizeof(SVnodeSidList) + sizeof(STableIdInfo *) * pSidLists->numOfSids;
-      rsp += sizeof(SVnodeSidList);
-
-      size_t elemSize = sizeof(STableIdInfo) + pNewMetricMeta->tagLen;
-      for (int32_t j = 0; j < pSidLists->numOfSids; ++j) {
-        pLists->pSidExtInfoList[j] = pBuf - (char *)pLists;
-        memcpy(pBuf, rsp, elemSize);
-
-        ((STableIdInfo *)pBuf)->uid = htobe64(((STableIdInfo *)pBuf)->uid);
-        ((STableIdInfo *)pBuf)->sid = htonl(((STableIdInfo *)pBuf)->sid);
-
-        rsp += elemSize;
-        pBuf += elemSize;
-      }
-    }
-
-    sizes[k] = pBuf - (char *)pNewMetricMeta;
-  }
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  for (int32_t i = 0; i < num; ++i) {
-    char name[TSDB_MAX_TAGS_LEN + 1] = {0};
-
-    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-    tscGetMetricMetaCacheKey(pQueryInfo, name, pTableMetaInfo->pTableMeta->uid);
-
-#ifdef _DEBUG_VIEW
-    printf("generate the metric key:%s, index:%d\n", name, i);
-#endif
-
-    // release the used metricmeta
-    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pMetricMeta), false);
-    pTableMetaInfo->pMetricMeta = (SSuperTableMeta *)taosCachePut(tscCacheHandle, name, (char *)metricMetaList[i],
-                                                                      sizes[i], tsMetricMetaKeepTimer);
-    tfree(metricMetaList[i]);
-
-    // failed to put into cache
-    if (pTableMetaInfo->pMetricMeta == NULL) {
-      pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto _error_clean;
-    }
-  }
-
-_error_clean:
-  // free allocated resource
-  for (int32_t i = 0; i < num; ++i) {
-    tfree(metricMetaList[i]);
-  }
-
-  free(sizes);
-  free(metricMetaList);
-#endif
   SSqlRes* pRes = &pSql->res;
   
   // NOTE: the order of several table must be preserved.

@@ -22,7 +22,7 @@
 #include "tkey.h"
 #include "tmd5.h"
 #include "tscProfile.h"
-#include "tscSecondaryMerge.h"
+#include "tscLocalMerge.h"
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
@@ -32,7 +32,7 @@
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
-  
+
   SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->pCond == NULL) {
     return NULL;

@@ -28,7 +28,7 @@ extern "C" {
 #include "exception.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
-#include "tscSecondaryMerge.h"
+#include "tscLocalMerge.h"
 #include "tsclient.h"
 
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \

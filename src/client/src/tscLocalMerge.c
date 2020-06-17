@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tscSecondaryMerge.h"
 #include "os.h"
 #include "tlosertree.h"
 #include "tscUtil.h"
@@ -21,6 +20,7 @@
 #include "tsclient.h"
 #include "tutil.h"
 #include "tscLog.h"
+#include "tscLocalMerge.h"
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;

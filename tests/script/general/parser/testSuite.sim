@@ -1,12 +1,12 @@
-#run general/parser/alter.sim
-#sleep 2000
-#run general/parser/alter1.sim
-#sleep 2000
-#run general/parser/alter_stable.sim
-#sleep 2000
-#run general/parser/auto_create_tb.sim
-#sleep 2000
-#run general/parser/auto_create_tb_drop_tb.sim
+run general/parser/alter.sim
+sleep 2000
+run general/parser/alter1.sim
+sleep 2000
+run general/parser/alter_stable.sim
+sleep 2000
+run general/parser/auto_create_tb.sim
+sleep 2000
+run general/parser/auto_create_tb_drop_tb.sim
 
 sleep 2000
 run general/parser/col_arithmetic_operation.sim
@@ -84,7 +84,7 @@ sleep 2000
 run general/parser/set_tag_vals.sim
 
 sleep 2000
-run general/parser/slimit_alter_tags.sim
+run general/parser/slimit_alter_tags.sim  # persistent failed
 
 sleep 2000
 run general/parser/join.sim

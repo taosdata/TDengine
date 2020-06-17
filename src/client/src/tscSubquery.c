@@ -1193,7 +1193,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       SSchema s1 = {.colId = s->colId, .type = type, .bytes = bytes};
       pSupporter->tagSize = s1.bytes;
-      assert(isValidDataType(s1.type, 0) && s1.bytes > 0);
+      assert(isValidDataType(s1.type) && s1.bytes > 0);
 
       // set get tags query type
       TSDB_QUERY_SET_TYPE(pNewQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);

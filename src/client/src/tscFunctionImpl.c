@@ -153,7 +153,7 @@ typedef struct SRateInfo {
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
-  if (!isValidDataType(dataType, dataBytes)) {
+  if (!isValidDataType(dataType)) {
     tscError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -2989,12 +2989,12 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
  */
 static void tag_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
 }
 
 static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
 }
 
 static void copy_function(SQLFunctionCtx *pCtx) {

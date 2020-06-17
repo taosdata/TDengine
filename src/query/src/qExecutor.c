@@ -1400,7 +1400,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
       pCtx->inputType = pQuery->colList[index].type;
     }
   
-    assert(isValidDataType(pCtx->inputType, pCtx->inputBytes));
+    assert(isValidDataType(pCtx->inputType));
     pCtx->ptsOutputBuf = NULL;
 
     pCtx->outputBytes = pQuery->pSelectExpr[i].bytes;
@@ -5315,7 +5315,7 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
     if (pExprs[i].base.functionId == TSDB_FUNC_TAG_DUMMY || pExprs[i].base.functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pExprs[i].bytes;
     }
-    assert(isValidDataType(pExprs[i].type, pExprs[i].bytes));
+    assert(isValidDataType(pExprs[i].type));
   }
 
   // TODO refactor
