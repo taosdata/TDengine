@@ -474,6 +474,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         free(pVariant->pz);
         pVariant->nLen = 0;
       }
+
       setNull((char *)result, type, tDataTypeDesc[type].nSize);
       return 0;
     }
@@ -597,10 +598,10 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
  * todo handle the return value
  */
 int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
-  if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType, pVariant->nLen))) {
+  if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType))) {
     return -1;
   }
-  
+
   errno = 0;  // reset global error code
   
   switch (type) {

@@ -19,9 +19,8 @@
 #include "tnote.h"
 #include "trpc.h"
 #include "tscLog.h"
-#include "tscProfile.h"
 #include "tscSubquery.h"
-#include "tscSecondaryMerge.h"
+#include "tscLocalMerge.h"
 #include "tscUtil.h"
 #include "tsched.h"
 #include "tschemautil.h"
@@ -46,7 +45,8 @@ int doAsyncParseSql(SSqlObj* pSql) {
   int32_t code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to malloc payload");
-    tscQueueAsyncError(pSql->fp, pSql->param, TSDB_CODE_TSC_OUT_OF_MEMORY);
+    tscQueueAsyncRes(pSql);
+//    tscQueueAsyncRes(pSql->fp, pSql->param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return code;
   }
   
@@ -211,7 +211,8 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_QHANDLE);
+    pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
+    tscQueueAsyncRes(pSql);
     return;
   }
 

@@ -455,7 +455,7 @@ typedef struct {
   int16_t     orderType;        // used in group by xx order by xxx
   int64_t     limit;
   int64_t     offset;
-  uint16_t    queryType;        // denote another query process
+  uint32_t    queryType;        // denote another query process
   int16_t     numOfOutput;  // final output columns numbers
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     fillType;      // interpolate type

@@ -29,7 +29,7 @@ int64_t* createTsList(int32_t num, int64_t start, int32_t step) {
 
 // simple test
 void simpleTest() {
-  STSBuf* pTSBuf = tsBufCreate(true);
+  STSBuf* pTSBuf = tsBufCreate(true, TSDB_ORDER_ASC);
 
   // write 10 ts points
   int32_t num = 10;
@@ -52,7 +52,7 @@ void simpleTest() {
 
 // one large list of ts, the ts list need to be split into several small blocks
 void largeTSTest() {
-  STSBuf* pTSBuf = tsBufCreate(true);
+  STSBuf* pTSBuf = tsBufCreate(true, TSDB_ORDER_ASC);
 
   // write 10 ts points
   int32_t num = 1000000;
@@ -75,7 +75,7 @@ void largeTSTest() {
 }
 
 void multiTagsTest() {
-  STSBuf* pTSBuf = tsBufCreate(true);
+  STSBuf* pTSBuf = tsBufCreate(true, TSDB_ORDER_ASC);
 
   int32_t num = 10000;
   int64_t tag = 1;
@@ -105,7 +105,7 @@ void multiTagsTest() {
 }
 
 void multiVnodeTagsTest() {
-  STSBuf* pTSBuf = tsBufCreate(true);
+  STSBuf* pTSBuf = tsBufCreate(true, TSDB_ORDER_ASC);
 
   int32_t num = 10000;
   int64_t start = 10000000;
@@ -143,7 +143,7 @@ void multiVnodeTagsTest() {
 }
 
 void loadDataTest() {
-  STSBuf* pTSBuf = tsBufCreate(true);
+  STSBuf* pTSBuf = tsBufCreate(true, TSDB_ORDER_ASC);
 
   int32_t num = 10000;
   int64_t oldStart = 10000000;
@@ -221,7 +221,7 @@ void TSTraverse() {
   int32_t step = 30;
   int32_t numOfVnode = 2;
 
-  STSBuf* pTSBuf = tsBufCreate(true);
+  STSBuf* pTSBuf = tsBufCreate(true, TSDB_ORDER_ASC);
 
   for (int32_t j = 0; j < numOfVnode; ++j) {
     // vnodeId:0
@@ -359,8 +359,8 @@ void invalidFileTest() {
 }
 
 void mergeDiffVnodeBufferTest() {
-  STSBuf* pTSBuf1 = tsBufCreate(true);
-  STSBuf* pTSBuf2 = tsBufCreate(true);
+  STSBuf* pTSBuf1 = tsBufCreate(true, TSDB_ORDER_ASC);
+  STSBuf* pTSBuf2 = tsBufCreate(true, TSDB_ORDER_ASC);
 
   int32_t step = 30;
   int32_t num = 1000;
@@ -391,8 +391,8 @@ void mergeDiffVnodeBufferTest() {
 }
 
 void mergeIdenticalVnodeBufferTest() {
-  STSBuf* pTSBuf1 = tsBufCreate(true);
-  STSBuf* pTSBuf2 = tsBufCreate(true);
+  STSBuf* pTSBuf1 = tsBufCreate(true, TSDB_ORDER_ASC);
+  STSBuf* pTSBuf2 = tsBufCreate(true, TSDB_ORDER_ASC);
 
   int32_t step = 30;
   int32_t num = 1000;

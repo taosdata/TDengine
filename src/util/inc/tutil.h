@@ -34,18 +34,19 @@ extern "C" {
 
 #define WCHAR wchar_t
 
-#define tfree(x) \
-  {              \
-    if (x) {     \
-      free((void*)(x));   \
-      x = 0;  \
-    }            \
+#define tfree(x)         \
+  {                      \
+    if (x) {             \
+      free((void *)(x)); \
+      x = 0;             \
+    }                    \
   }
 
-#define tstrncpy(dst, src, size) do { \
+#define tstrncpy(dst, src, size)   \
+  do {                             \
     strncpy((dst), (src), (size)); \
-    (dst)[(size) - 1] = 0; \
-} while (0);
+    (dst)[(size)-1] = 0;           \
+  } while (0);
 
 #define tclose(x) taosCloseSocket(x)
 

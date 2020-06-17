@@ -22,7 +22,7 @@
 #include "tkey.h"
 #include "tmd5.h"
 #include "tscProfile.h"
-#include "tscSecondaryMerge.h"
+#include "tscLocalMerge.h"
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
@@ -32,7 +32,7 @@
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
-  
+
   SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->pCond == NULL) {
     return NULL;
@@ -70,13 +70,6 @@ void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw) {
   taosArrayPush(pTagCond->pCond, &cond);
 }
 
-bool tscQueryOnSTable(SSqlCmd* pCmd) {
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-
-  return ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY) == TSDB_QUERY_TYPE_STABLE_QUERY) &&
-         (pCmd->msgType == TSDB_MSG_TYPE_QUERY);
-}
-
 bool tscQueryTags(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
@@ -95,32 +88,8 @@ bool tscQueryTags(SQueryInfo* pQueryInfo) {
   return true;
 }
 
-bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd) {
-  bool    hasTags = false;
-  int32_t numOfSelectivity = 0;
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    int32_t functId = tscSqlExprGet(pQueryInfo, i)->functionId;
-    if (functId == TSDB_FUNC_TAG_DUMMY) {
-      hasTags = true;
-      continue;
-    }
-
-    if ((aAggs[functId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-      numOfSelectivity++;
-    }
-  }
-
-  if (numOfSelectivity > 0 && hasTags) {
-    return true;
-  }
-
-  return false;
-}
-
-void tscGetDBInfoFromMeterId(char* tableId, char* db) {
+// todo refactor, extract methods and move the common module
+void tscGetDBInfoFromTableFullName(char* tableId, char* db) {
   char* st = strstr(tableId, TS_PATH_DELIMITER);
   if (st != NULL) {
     char* end = strstr(st + 1, TS_PATH_DELIMITER);
@@ -181,8 +150,14 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   
   for (int32_t i = 0; i < numOfExprs; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
-    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
-        functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
+
+    if (functionId != TSDB_FUNC_PRJ &&
+        functionId != TSDB_FUNC_TAGPRJ &&
+        functionId != TSDB_FUNC_TAG &&
+        functionId != TSDB_FUNC_TS &&
+        functionId != TSDB_FUNC_ARITHM &&
+        functionId != TSDB_FUNC_TS_COMP &&
+        functionId != TSDB_FUNC_TID_TAG) {
       return false;
     }
   }
@@ -209,10 +184,14 @@ bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableInde
   return pQueryInfo->order.orderColId >= 0;
 }
 
-bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo) {
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
-    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TS) {
+
+    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
+        functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
       return false;
     }
   }
@@ -225,9 +204,10 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
   
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-    if (pExpr == NULL) {
-      return false;
-    }
+    assert(pExpr != NULL);
+//    if (pExpr == NULL) {
+//      return false;
+//    }
 
     int32_t functionId = pExpr->functionId;
     if (functionId == TSDB_FUNC_TAG) {
@@ -238,6 +218,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
       return false;
     }
   }
+
   return true;
 }
 
@@ -1772,7 +1753,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     SQueryInfo* pPrevQueryInfo = tscGetQueryInfoDetail(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex);
     pNewQueryInfo->type = pPrevQueryInfo->type;
   } else {
-    pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;  // it must be the subquery
+    TSDB_QUERY_SET_TYPE(pNewQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY);// it must be the subquery
   }
 
   uint64_t uid = pTableMetaInfo->pTableMeta->uid;
@@ -1797,19 +1778,26 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     }
 
     // make sure the the sqlExpr for each fields is correct
-// todo handle the agg arithmetic expression
+    // todo handle the agg arithmetic expression
+    numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
+
     for(int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutput; ++f) {
       TAOS_FIELD* field = tscFieldInfoGetField(&pNewQueryInfo->fieldsInfo, f);
-      numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
-      
+      bool matched = false;
+
       for(int32_t k1 = 0; k1 < numOfExprs; ++k1) {
         SSqlExpr* pExpr1 = tscSqlExprGet(pNewQueryInfo, k1);
-        
-        if (strcmp(field->name, pExpr1->aliasName) == 0) {  // eatablish link according to the result field name
+
+        if (strcmp(field->name, pExpr1->aliasName) == 0) {  // establish link according to the result field name
           SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pNewQueryInfo->fieldsInfo, f);
           pInfo->pSqlExpr = pExpr1;
+
+          matched = true;
+          break;
         }
       }
+
+      assert(matched);
     }
   
     tscFieldInfoUpdateOffset(pNewQueryInfo);
@@ -1898,16 +1886,21 @@ void tscDoQuery(SSqlObj* pSql) {
     }
   
     if (QUERY_IS_JOIN_QUERY(type)) {
-      if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0) {
+      if (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) {
         tscHandleMasterJoinQuery(pSql);
-        return;
-      } else {
-        // for first stage sub query, iterate all vnodes to get all timestamp
-        if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) != TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
-//          doProcessSql(pSql);
-          assert(0);
+      } else { // for first stage sub query, iterate all vnodes to get all timestamp
+        if (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
+          tscProcessSql(pSql);
+        } else { // secondary stage join query.
+          if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
+            tscHandleMasterSTableQuery(pSql);
+          } else {
+            tscProcessSql(pSql);
+          }
         }
       }
+
+      return;
     } else if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
       tscHandleMasterSTableQuery(pSql);
       return;
@@ -1917,11 +1910,13 @@ void tscDoQuery(SSqlObj* pSql) {
   }
 }
 
-int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid) {
+int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->joinInfo.left.uid == uid) {
-    return pTagCond->joinInfo.left.tagCol;
+    return pTagCond->joinInfo.left.tagColId;
+  } else if (pTagCond->joinInfo.right.uid == uid) {
+    return pTagCond->joinInfo.right.tagColId;
   } else {
-    return pTagCond->joinInfo.right.tagCol;
+    assert(0);
   }
 }
 
@@ -1978,11 +1973,10 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
     return false;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   assert(pRes->completed);
-  
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
   // for normal table, no need to try any more if results are all retrieved from one vnode
   if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) || (pTableMetaInfo->vgroupList == NULL)) {
     return false;
@@ -2004,7 +1998,6 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
    * if case of: multi-vnode super table projection query
    */
   assert(pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
-
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
   int32_t totalVgroups = pTableMetaInfo->vgroupList->numOfVgroups;

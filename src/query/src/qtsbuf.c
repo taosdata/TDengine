@@ -15,7 +15,7 @@ static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
  * @param path
  * @return
  */
-STSBuf* tsBufCreate(bool autoDelete) {
+STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   STSBuf* pTSBuf = calloc(1, sizeof(STSBuf));
   if (pTSBuf == NULL) {
     return NULL;
@@ -40,7 +40,7 @@ STSBuf* tsBufCreate(bool autoDelete) {
   pTSBuf->cur.order = TSDB_ORDER_ASC;
   
   pTSBuf->autoDelete = autoDelete;
-  pTSBuf->tsOrder = -1;
+  pTSBuf->tsOrder = order;
   
   return pTSBuf;
 }
@@ -66,8 +66,8 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   // validate the file magic number
   STSBufFileHeader header = {0};
   fseek(pTSBuf->f, 0, SEEK_SET);
-  fread(&header, 1, sizeof(header), pTSBuf->f);
-  
+  fread(&header, 1, sizeof(STSBufFileHeader), pTSBuf->f);
+
   // invalid file
   if (header.magic != TS_COMP_FILE_MAGIC) {
     return NULL;
@@ -119,7 +119,6 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   // ascending by default
   pTSBuf->cur.order = TSDB_ORDER_ASC;
-  
   pTSBuf->autoDelete = autoDelete;
   
 //  tscTrace("create tsBuf from file:%s, fd:%d, size:%d, numOfVnode:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
@@ -536,7 +535,9 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
   if ((pTSBuf->f == NULL) || pHeader == NULL || pHeader->numOfVnode == 0 || pHeader->magic != TS_COMP_FILE_MAGIC) {
     return -1;
   }
-  
+
+  assert(pHeader->tsOrder == TSDB_ORDER_ASC || pHeader->tsOrder == TSDB_ORDER_DESC);
+
   int64_t r = fseek(pTSBuf->f, 0, SEEK_SET);
   if (r != 0) {
     return -1;
@@ -754,7 +755,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
 }
 
 STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t order) {
-  STSBuf* pTSBuf = tsBufCreate(true);
+  STSBuf* pTSBuf = tsBufCreate(true, order);
   
   STSVnodeBlockInfo* pBlockInfo = &(addOneVnodeInfo(pTSBuf, 0)->info);
   pBlockInfo->numOfBlocks = numOfBlocks;
@@ -845,7 +846,9 @@ STSBuf* tsBufClone(STSBuf* pTSBuf) {
   if (pTSBuf == NULL) {
     return NULL;
   }
-  
+
+  tsBufFlush(pTSBuf);
+
   return tsBufCreateFromFile(pTSBuf->path, false);
 }
 

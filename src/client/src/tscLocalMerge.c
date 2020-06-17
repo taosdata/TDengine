@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tscSecondaryMerge.h"
 #include "os.h"
 #include "tlosertree.h"
 #include "tscUtil.h"
@@ -21,6 +20,7 @@
 #include "tsclient.h"
 #include "tutil.h"
 #include "tscLog.h"
+#include "tscLocalMerge.h"
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;
@@ -1096,14 +1096,6 @@ static int64_t getNumOfResultLocal(SQueryInfo *pQueryInfo, SQLFunctionCtx *pCtx)
   
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t j = 0; j < size; ++j) {
-    //    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[j];
-    //    if (pExpr == NULL) {
-    //      assert(pQueryInfo->fieldsInfo.pExpr[j] != NULL);
-    //
-    //      maxOutput = 1;
-    //      continue;
-    //    }
-
     /*
      * ts, tag, tagprj function can not decide the output number of current query
      * the number of output result is decided by main output
@@ -1113,8 +1105,9 @@ static int64_t getNumOfResultLocal(SQueryInfo *pQueryInfo, SQLFunctionCtx *pCtx)
       continue;
     }
 
-    if (maxOutput < GET_RES_INFO(&pCtx[j])->numOfRes) {
-      maxOutput = GET_RES_INFO(&pCtx[j])->numOfRes;
+    SResultInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
+    if (maxOutput < pResInfo->numOfRes) {
+      maxOutput = pResInfo->numOfRes;
     }
   }
 
@@ -1264,7 +1257,6 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
 
 #ifdef _DEBUG_VIEW
   printf("final result before interpo:\n");
-  assert(0);
 //  tColModelDisplay(pLocalReducer->resColModel, pLocalReducer->pBufForInterpo, pResBuf->num, pResBuf->num);
 #endif
   

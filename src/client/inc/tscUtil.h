@@ -28,7 +28,7 @@ extern "C" {
 #include "exception.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
-#include "tscSecondaryMerge.h"
+#include "tscLocalMerge.h"
 #include "tsclient.h"
 
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \
@@ -122,15 +122,13 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableI
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
-bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
+bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
-bool tscQueryOnSTable(SSqlCmd* pCmd);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
-bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
 void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
-                                  SSchema* pColSchema, int16_t isTag);
+                                  SSchema* pColSchema, int16_t colType);
 
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
@@ -139,7 +137,7 @@ bool tscIsInsertData(char* sqlstr);
 
 /* use for keep current db info temporarily, for handle table with db prefix */
 // todo remove it
-void tscGetDBInfoFromMeterId(char* tableId, char* db);
+void tscGetDBInfoFromTableFullName(char* tableId, char* db);
 
 int tscAllocPayload(SSqlCmd* pCmd, int size);
 
@@ -253,7 +251,7 @@ void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t sub
 
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 
-int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid);
+int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
 
 void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 

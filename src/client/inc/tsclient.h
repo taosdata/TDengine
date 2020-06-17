@@ -85,7 +85,7 @@ typedef struct SSqlExpr {
   int16_t   functionId;     // function id in aAgg array
   int16_t   resType;        // return value type
   int16_t   resBytes;       // length of return value
-  int32_t   interBytes;  // inter result buffer size
+  int32_t   interBytes;     // inter result buffer size
   int16_t   numOfParams;    // argument value of each function
   tVariant  param[3];       // parameters are not more than 3
   int32_t   offset;         // sub result column value of arithmetic expression.
@@ -123,7 +123,7 @@ typedef struct SCond {
 typedef struct SJoinNode {
   char     tableId[TSDB_TABLE_ID_LEN];
   uint64_t uid;
-  int16_t  tagCol;
+  int16_t  tagColId;
 } SJoinNode;
 
 typedef struct SJoinInfo {
@@ -155,20 +155,19 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  int8_t  tsSource;     // where does the UNIX timestamp come from, server or client
-  bool    ordered;      // if current rows are ordered or not
-  int64_t vgId;         // virtual group id
-  int64_t prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
-  int32_t numOfTables;  // number of tables in current submit block
-
-  int32_t  rowSize;  // row size for current table
+  char     tableId[TSDB_TABLE_ID_LEN];
+  int8_t   tsSource;     // where does the UNIX timestamp come from, server or client
+  bool     ordered;      // if current rows are ordered or not
+  int64_t  vgId;         // virtual group id
+  int64_t  prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
+  int32_t  numOfTables;  // number of tables in current submit block
+  int32_t  rowSize;      // row size for current table
   uint32_t nAllocSize;
-  uint32_t headerSize;  // header for metadata (submit metadata)
+  uint32_t headerSize;   // header for table info (uid, tid, submit metadata)
   uint32_t size;
 
   /*
-   * the metermeta for current table, the metermeta will be used during submit stage, keep a ref
+   * the table meta of table, the table meta will be used during submit, keep a ref
    * to avoid it to be removed from cache
    */
   STableMeta *pTableMeta;
@@ -191,32 +190,28 @@ typedef struct SDataBlockList {  // todo remove
 } SDataBlockList;
 
 typedef struct SQueryInfo {
-  int16_t          command;  // the command may be different for each subclause, so keep it seperately.
-  uint32_t         type;     // query/insert/import type
+  int16_t          command;       // the command may be different for each subclause, so keep it seperately.
+  uint32_t         type;          // query/insert/import type
   char             slidingTimeUnit;
-                   
   STimeWindow      window;
   int64_t          intervalTime;  // aggregation time interval
   int64_t          slidingTime;   // sliding window in mseconds
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
-
-  SArray *         colList;      // SArray<SColumn*>
+  SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SArray *         exprList;    // SArray<SSqlExpr*>
+  SArray *         exprList;      // SArray<SSqlExpr*>
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;
   SOrderVal        order;
-  int16_t          fillType;    // final result fill type
+  int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
-  int64_t *        fillVal;      // default value for fill
-  char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
-  int64_t          clauseLimit;  // limit for current sub clause
-
-  // offset value in the original sql expression, NOT sent to virtual node, only applied at client side
-  int64_t          prjOffset;
+  int64_t *        fillVal;       // default value for fill
+  char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
+  int64_t          clauseLimit;   // limit for current sub clause
+  int64_t          prjOffset;     // offset value in the original sql expression, only applied at client side
 } SQueryInfo;
 
 typedef struct {
@@ -431,7 +426,7 @@ extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
 
 int32_t tscCompareTidTags(const void* p1, const void* p2);
-void tscBuildVgroupTableInfo(STableMetaInfo* pTableMetaInfo, SArray* tables);
+void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
 
 #ifdef __cplusplus
 }

@@ -1327,12 +1327,14 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
   int32_t ret = TSDB_CODE_SUCCESS;
   
   if (initialParse) {
+    assert(!pSql->cmd.parseFinished);
+
     char* p = pSql->sqlstr;
     pSql->sqlstr = NULL;
     
     tscPartiallyFreeSqlObj(pSql);
     pSql->sqlstr = p;
-  } else {
+  } else if (!pSql->cmd.parseFinished) {
     tscTrace("continue parse sql: %s", pSql->cmd.curSql);
   }
   

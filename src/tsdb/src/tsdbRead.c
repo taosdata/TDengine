@@ -1930,8 +1930,7 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     SColIndex* pColIndex = &pTableGroupSupp->pCols[i];
     int32_t colIndex = pColIndex->colIndex;
     
-    assert((colIndex >= 0 && colIndex < schemaNCols(pTableGroupSupp->pTagSchema)) ||
-           (colIndex == TSDB_TBNAME_COLUMN_INDEX));
+    assert(colIndex >= TSDB_TBNAME_COLUMN_INDEX);
     
     char *  f1 = NULL;
     char *  f2 = NULL;
@@ -1950,7 +1949,20 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
       f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
       f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
     }
-    
+
+    // this tags value may be NULL
+    if (f1 == NULL && f2 == NULL) {
+      continue;
+    }
+
+    if (f1 == NULL) {
+      return -1;
+    }
+
+    if (f2 == NULL) {
+      return 1;
+    }
+
     int32_t ret = doCompare(f1, f2, type, bytes);
     if (ret == 0) {
       continue;
@@ -2112,8 +2124,8 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
   }
   
   if (pTable->type != TSDB_SUPER_TABLE) {
-    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s",
-           tsdb, uid, pTable->tableId.tid, pTable->name);
+    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s", tsdb, uid, pTable->tableId.tid,
+        pTable->name);
     
     return TSDB_CODE_COM_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
   }
@@ -2128,7 +2140,7 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
       pGroupInfo->numOfTables = taosArrayGetSize(res);
       pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, tsdb);
       
-      tsdbTrace("no tbname condition or tagcond, all tables belongs to one group, numOfTables:%d", pGroupInfo->numOfTables);
+      tsdbTrace("%p no table name/tag condition, all tables belong to one group, numOfTables:%d", tsdb, pGroupInfo->numOfTables);
     } else {
       // todo add error
     }
@@ -2171,6 +2183,9 @@ int32_t tsdbQuerySTableByTagCond(TsdbRepoT* tsdb, uint64_t uid, const char* pTag
   doQueryTableList(pTable, res, expr);
   pGroupInfo->numOfTables = taosArrayGetSize(res);
   pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, tsdb);
+
+  tsdbTrace("%p stable tid:%d, uid:%"PRIu64" query, numOfTables:%d, belong to %d groups", tsdb, pTable->tableId.tid,
+      pTable->tableId.uid, pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
 
   taosArrayDestroy(res);
   return ret;
