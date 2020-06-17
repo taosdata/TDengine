@@ -51,14 +51,16 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   TSKEY       key = dataRowKey(row);
   SMemTable * pMemTable = pRepo->mem;
   STableData *pTableData = NULL;
+  SSkipList * pSList = NULL;
   int         bytes = 0;
 
   if (pMemTable != NULL && pMemTable->tData[TABLE_TID(pTable)] != NULL &&
-      pMemTable->tData[TABLE_TID(pTable)]->uid == TALBE_UID(pTable)) {
+      pMemTable->tData[TABLE_TID(pTable)]->uid == TABLE_UID(pTable)) {
     pTableData = pMemTable->tData[TABLE_TID(pTable)];
+    pSList = pTableData->pData;
   }
 
-  tSkipListNewNodeInfo(pTableData, &level, &headSize);
+  tSkipListNewNodeInfo(pSList, &level, &headSize);
 
   bytes = headSize + dataRowLen(row);
   SSkipListNode *pNode = tsdbAllocBytes(pRepo, bytes);
@@ -75,7 +77,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   pMemTable = pRepo->mem;
   pTableData = pMemTable->tData[TABLE_TID(pTable)];
 
-  if (pTableData == NULL || pTableData->uid != TALBE_UID(pTable)) {
+  if (pTableData == NULL || pTableData->uid != TABLE_UID(pTable)) {
     if (pTableData != NULL) {  // destroy the table skiplist (may have race condition problem)
       pMemTable->tData[TABLE_TID(pTable)] = NULL;
       tsdbFreeTableData(pTableData);
@@ -92,7 +94,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
     pRepo->mem->tData[TABLE_TID(pTable)] = pTableData;
   }
 
-  ASSERT((pTableData != NULL) && pTableData->uid == TALBE_UID(pTable));
+  ASSERT((pTableData != NULL) && pTableData->uid == TABLE_UID(pTable));
 
   if (tSkipListPut(pTableData->pData, pNode) == NULL) {
     tsdbFreeBytes(pRepo, (void *)pNode, bytes);
@@ -112,7 +114,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   }
 
   tsdbTrace("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
-            TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TALBE_UID(pTable), key);
+            TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), key);
 
   return 0;
 }
@@ -322,7 +324,7 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
     goto _err;
   }
 
-  pTableData->uid = TALBE_UID(pTable);
+  pTableData->uid = TABLE_UID(pTable);
   pTableData->keyFirst = INT64_MAX;
   pTableData->keyLast = 0;
   pTableData->numOfRows = 0;
@@ -355,7 +357,6 @@ static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple(data); }
 
 static void *tsdbCommitData(void *arg) {
   STsdbRepo *  pRepo = (STsdbRepo *)arg;
-  STsdbMeta *  pMeta = pRepo->tsdbMeta;
   SMemTable *  pMem = pRepo->imem;
   STsdbCfg *   pCfg = &pRepo->config;
   SDataCols *  pDataCols = NULL;
@@ -382,7 +383,7 @@ static void *tsdbCommitData(void *arg) {
   if ((pDataCols = tdNewDataCols(pMem->maxRowBytes, pMem->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
-              REPO_ID(pRepo), pMem->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
+              REPO_ID(pRepo), pMem->maxRowBytes, pMem->maxCols, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
     goto _exit;
   }
 
@@ -446,7 +447,6 @@ static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TS
 static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols) {
   char *      dataDir = NULL;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
-  STsdbFileH *pFileH = pRepo->tsdbFileH;
   STsdbCfg *  pCfg = &pRepo->config;
   SFileGroup *pGroup = NULL;
 
@@ -467,7 +467,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     return -1;
   }
 
-  if ((pGroup = tsdbCreateFGroupIfNeed(pFileH, dataDir, fid, pCfg->maxTables)) == NULL) {
+  if ((pGroup = tsdbCreateFGroupIfNeed(pRepo, dataDir, fid, pCfg->maxTables)) == NULL) {
     tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
     goto _err;
   }
@@ -485,7 +485,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     SCommitIter *pIter = iters + tid;
     if (pIter->pTable == NULL) continue;
 
-    tsdbSetHelperTable(pHelper, pTable, pRepo);
+    tsdbSetHelperTable(pHelper, pIter->pTable, pRepo);
 
     if (pIter->pIter != NULL) {
       tdInitDataCols(pDataCols, tsdbGetTableSchema(pIter->pTable));
@@ -574,7 +574,7 @@ static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo) {
   if (tsdbUnlockRepoMeta(pRepo) < 0) goto _err;
 
   for (int i = 0; i < pCfg->maxTables; i++) {
-    if ((iters[i].pTable != NULL) && (pMem->tData[i] != NULL) && (TALBE_UID(iters[i].pTable) == pMem->tData[i]->uid)) {
+    if ((iters[i].pTable != NULL) && (pMem->tData[i] != NULL) && (TABLE_UID(iters[i].pTable) == pMem->tData[i]->uid)) {
       if ((iters[i].pIter = tSkipListCreateIter(pMem->tData[i]->pData)) == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         goto _err;
@@ -624,7 +624,7 @@ static int tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIter
     if (dataRowKey(row) > maxKey) break;
 
     if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-      pSchema = tsdbGetTableSchemaByVersion(pMeta, pTable, dataRowVersion(row));
+      pSchema = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row));
       if (pSchema == NULL) {
         // TODO: deal with the error here
         ASSERT(false);

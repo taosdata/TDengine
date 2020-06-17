@@ -63,6 +63,8 @@ static int         tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIt
 static void        tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
 static void        tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
 static void        tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
+static int         tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
+static int         keyFGroupCompFunc(const void *key, const void *fgroup);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
@@ -198,7 +200,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       }
     } else {
       SFileGroup *pFGroup =
-          taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), compFGroupKey, TD_GE);
+          taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
         strcpy(fname, pFGroup->files[(*index) % 3].fname);
       } else {
@@ -248,7 +250,7 @@ void tsdbStartStream(TSDB_REPO_T *repo) {
   for (int i = 0; i < pRepo->config.maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
-      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TALBE_UID(pTable), TABLE_TID(pTable), pTable->sql,
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql,
                                                      tsdbGetTableSchema(pTable));
     }
   }
@@ -744,7 +746,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
     if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
       tsdbError("vgId:%d table %s tid %d uid %ld timestamp is out of range! now " PRId64 " maxKey " PRId64
                 " minKey " PRId64,
-                REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TALBE_UID(pTable), now, minKey, maxKey);
+                REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), now, minKey, maxKey);
       terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
       return -1;
     }
@@ -802,7 +804,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
   SFileGroup *pFGroup = NULL;
 
   SFileGroupIter iter;
-  SRWHelper      rhelper = {{0}};
+  SRWHelper      rhelper = {0};
 
   if (tsdbInitReadHelper(&rhelper, pRepo) < 0) goto _err;
 
@@ -872,6 +874,47 @@ static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   pRepo->config.maxTables = maxTables;
 
   tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
+}
+
+static int keyFGroupCompFunc(const void *key, const void *fgroup) {
+  int         fid = *(int *)key;
+  SFileGroup *pFGroup = (SFileGroup *)fgroup;
+  if (fid == pFGroup->fileId) {
+    return 0;
+  } else {
+    return fid > pFGroup->fileId ? 1 : -1;
+  }
+}
+
+static int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
+  // TODO
+  // STsdbCache *pCache = pRepo->tsdbCache;
+  // int         oldNumOfBlocks = pCache->totalCacheBlocks;
+
+  // tsdbLockRepo((TsdbRepoT *)pRepo);
+
+  // ASSERT(pCache->totalCacheBlocks != totalBlocks);
+
+  // if (pCache->totalCacheBlocks < totalBlocks) {
+  //   ASSERT(pCache->totalCacheBlocks == pCache->pool.numOfCacheBlocks);
+  //   int blocksToAdd = pCache->totalCacheBlocks - totalBlocks;
+  //   pCache->totalCacheBlocks = totalBlocks;
+  //   for (int i = 0; i < blocksToAdd; i++) {
+  //     if (tsdbAddCacheBlockToPool(pCache) < 0) {
+  //       tsdbUnLockRepo((TsdbRepoT *)pRepo);
+  //       tsdbError("tsdbId:%d, failed to add cache block to cache pool", pRepo->config.tsdbId);
+  //       return -1;
+  //     }
+  //   }
+  // } else {
+  //   pCache->totalCacheBlocks = totalBlocks;
+  //   tsdbAdjustCacheBlocks(pCache);
+  // }
+  // pRepo->config.totalBlocks = totalBlocks;
+
+  // tsdbUnLockRepo((TsdbRepoT *)pRepo);
+  // tsdbTrace("vgId:%d, tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks, totalBlocks);
+  return 0;
 }
 
 #if 0

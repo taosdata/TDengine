@@ -117,6 +117,8 @@ typedef enum {
   TSDB_FILE_TYPE_DATA,
   TSDB_FILE_TYPE_LAST,
   TSDB_FILE_TYPE_MAX,
+  TSDB_FILE_TYPE_NHEAD,
+  TSDB_FILE_TYPE_NLAST
 } TSDB_FILE_TYPE;
 
 typedef struct {
@@ -272,7 +274,7 @@ typedef struct {
 #define TABLE_TYPE(t) (t)->type
 #define TABLE_NAME(t) (t)->name
 #define TABLE_CHAR_NAME(t) TABLE_NAME(t)->data
-#define TALBE_UID(t) (t)->tableId.uid
+#define TABLE_UID(t) (t)->tableId.uid
 #define TABLE_TID(t) (t)->tableId.tid
 #define TABLE_SUID(t) (t)->suid
 #define TABLE_LASTKEY(t) (t)->lastKey
@@ -328,6 +330,9 @@ int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
 void        tsdbFitRetention(STsdbRepo* pRepo);
 int         tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
+void*       tsdbEncodeSFileInfo(void* buf, const STsdbFileInfo* pInfo);
+void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
+int         tsdbCpySFile(SFile* src, SFile* dst);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
@@ -359,17 +364,16 @@ int   tsdbWriteCompInfo(SRWHelper* pHelper);
 int   tsdbWriteCompIdx(SRWHelper* pHelper);
 int   tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
-int   tsdbloadcompdata(srwhelper* phelper, scompblock* pcompblock, void* target);
+int   tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
 void  tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
 int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SDataCols* pDataCols, int blkIdx, int16_t* colIds, int numOfColIds);
 int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SDataCols* target);
 int   tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
-void* tsdbEncodeSFileInfo(void* buf, const STsdbFileInfo* pInfo);
-void* tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId
 #define IS_REPO_LOCKED(r) (r)->repoLocked
+#define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
 char*       tsdbGetMetaFileName(char* rootDir);
 char*       tsdbGetDataFileName(STsdbRepo* pRepo, int fid, int type);
@@ -378,43 +382,6 @@ int         tsdbUnlockRepo(STsdbRepo* pRepo);
 char*       tsdbGetDataDirName(char* rootDir);
 STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
 STsdbFileH* tsdbGetFile(TSDB_REPO_T* pRepo);
-
-#if 0
-
-// --------- Helper state
-
-int  tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
-int  tsdbInitWriteHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
-void tsdbDestroyHelper(SRWHelper *pHelper);
-void tsdbResetHelper(SRWHelper *pHelper);
-
-// --------- For set operations
-int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup);
-void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo);
-int  tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError);
-
-// --------- For read operations
-int  tsdbLoadCompIdx(SRWHelper *pHelper, void *target);
-int  tsdbLoadCompInfo(SRWHelper *pHelper, void *target);
-int  tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target);
-int  tsdbLoadBlockDataCols(SRWHelper *pHelper, SDataCols *pDataCols, int blkIdx, int16_t *colIds, int numOfColIds);
-int  tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *target);
-void tsdbGetDataStatis(SRWHelper *pHelper, SDataStatis *pStatis, int numOfCols);
-
-// --------- For write operations
-int tsdbWriteDataBlock(SRWHelper *pHelper, SDataCols *pDataCols);
-int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper);
-int tsdbWriteCompInfo(SRWHelper *pHelper);
-int tsdbWriteCompIdx(SRWHelper *pHelper);
-
-// --------- Other functions need to further organize
-void      tsdbFitRetention(STsdbRepo *pRepo);
-int       tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
-void      tsdbAdjustCacheBlocks(STsdbCache *pCache);
-int32_t   tsdbGetMetaFileName(char *rootDir, char *fname);
-int       tsdbUpdateFileHeader(SFile *pFile, uint32_t version);
-
-#endif
 
 #ifdef __cplusplus
 }

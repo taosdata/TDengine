@@ -2119,7 +2119,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
   }
   
   SArray* res = taosArrayInit(8, sizeof(STableId));
-  STSchema* pTagSchema = tsdbGetTableTagSchema(tsdbGetMeta(tsdb), pTable);
+  STSchema* pTagSchema = tsdbGetTableTagSchema(pTable);
   
   // no tags and tbname condition, all child tables of this stable are involved
   if (tbnameCond == NULL && (pTagCond == NULL || len == 0)) {

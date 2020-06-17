@@ -29,15 +29,13 @@
 #include "tutil.h"
 #include "ttime.h"
 
-const char *tsdbFileSuffix[] = {".head", ".data", ".last"};
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".h"};
 
 static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
 static void  tsdbDestroyFile(SFile *pFile);
 static int   compFGroup(const void *arg1, const void *arg2);
 static int   keyFGroupCompFunc(const void *key, const void *fgroup);
 static void  tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup);
-static void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo);
-static void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -323,6 +321,40 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
   return 0;
 }
 
+void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo) {
+  buf = taosEncodeFixedU32(buf, pInfo->offset);
+  buf = taosEncodeFixedU32(buf, pInfo->len);
+  buf = taosEncodeFixedU64(buf, pInfo->size);
+  buf = taosEncodeFixedU64(buf, pInfo->tombSize);
+  buf = taosEncodeFixedU32(buf, pInfo->totalBlocks);
+  buf = taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
+
+  return buf;
+}
+
+void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
+  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
+  buf = taosDecodeFixedU32(buf, &(pInfo->len));
+  buf = taosDecodeFixedU64(buf, &(pInfo->size));
+  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
+  buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
+  buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
+
+  return buf;
+}
+
+int tsdbCpySFile(SFile *src, SFile *dst) {
+  *dst = *src;
+  dst->fname = strdup(dst->fname);
+
+  if (dst->fname == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
+}
+
 // ---------------- LOCAL FUNCTIONS ----------------
 static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   uint32_t version;
@@ -404,26 +436,4 @@ static void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
     remove(fileGroup.files[type].fname);
     tsdbDestroyFile(&fileGroup.files[type]);
   }
-}
-
-static void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo) {
-  buf = taosEncodeFixedU32(buf, pInfo->offset);
-  buf = taosEncodeFixedU32(buf, pInfo->len);
-  buf = taosEncodeFixedU64(buf, pInfo->size);
-  buf = taosEncodeFixedU64(buf, pInfo->tombSize);
-  buf = taosEncodeFixedU32(buf, pInfo->totalBlocks);
-  buf = taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
-
-  return buf;
-}
-
-static void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
-  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
-  buf = taosDecodeFixedU32(buf, &(pInfo->len));
-  buf = taosDecodeFixedU64(buf, &(pInfo->size));
-  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
-
-  return buf;
 }
