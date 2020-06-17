@@ -226,7 +226,7 @@ int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInf
 void taosNotePrint(taosNoteInfo * pNote, const char * const format, ...)
 {
     va_list argpointer;
-    char    buffer[MAX_NOTE_LINE_SIZE];
+    char    buffer[MAX_NOTE_LINE_SIZE+2];
     int     len;
     struct  tm      Tm, *ptm;
     struct  timeval timeSecs;

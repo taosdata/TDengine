@@ -557,7 +557,7 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
     return false;
   }
 
-  int versionNumberPos[4] = {0};
+  int versionNumberPos[5] = {0};
   int len = strlen(versionStr);
   int dot = 0;
   for (int pos = 0; pos < len && dot < 4; ++pos) {

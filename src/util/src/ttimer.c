@@ -290,6 +290,7 @@ static void addToExpired(tmr_obj_t* head) {
     SSchedMsg  schedMsg;
     schedMsg.fp = NULL;
     schedMsg.tfp = processExpiredTimer;
+    schedMsg.msg = NULL;
     schedMsg.ahandle = head;
     schedMsg.thandle = NULL;
     taosScheduleTask(tmrQhandle, &schedMsg);

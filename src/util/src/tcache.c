@@ -433,7 +433,6 @@ void taosCacheEmpty(SCacheObj *pCacheObj) {
   __cache_wr_lock(pCacheObj);
   while (taosHashIterNext(pIter)) {
     if (pCacheObj->deleting == 1) {
-      taosHashDestroyIter(pIter);
       break;
     }
     
