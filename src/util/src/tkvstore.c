@@ -382,7 +382,7 @@ static void *tdDecodeStoreInfo(void *buf, SStoreInfo *pInfo) {
 }
 
 static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH) {
-  SKVStore *pStore = (SKVStore *)malloc(sizeof(SKVStore));
+  SKVStore *pStore = (SKVStore *)calloc(1, sizeof(SKVStore));
   if (pStore == NULL) goto _err;
 
   pStore->fname = strdup(fname);
@@ -392,7 +392,9 @@ static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void
   }
 
   pStore->fsnap = tdGetKVStoreSnapshotFname(fname);
-  if (pStore->fsnap == NULL) goto _err;
+  if (pStore->fsnap == NULL) {
+    goto _err;
+  }
 
   pStore->fnew = tdGetKVStoreNewFname(fname);
   if (pStore->fnew == NULL) goto _err;
