@@ -1,8 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-
-system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 
@@ -42,9 +41,9 @@ if $data00 != 5 then
   return -1
 endi
 
-sql_error import into tb values(now-29d, -29, 0)
+sql import into tb values(now-29d, -29, 0)
 sql select count(b) from tb
-if $data00 != 5 then
+if $data00 != 6 then
   return -1
 endi
 

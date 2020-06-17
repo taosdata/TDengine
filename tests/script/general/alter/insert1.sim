@@ -1,8 +1,7 @@
 system sh/stop_dnodes.sh
 
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -14,41 +13,42 @@ sql use d3
 sql create table tb (ts timestamp, a int)
 sql insert into tb values(now-28d, -28)
 sql select * from tb order by ts desc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+
 if $rows != 1 then
   return -1
 endi
 if $data01 != -28 then
   return -1
 endi
-if $data02 != NULL then
+if $data02 != null then
   return -1
 endi
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
-if $data04 != NULL then
+if $data04 != null then
   return -1
 endi
-if $data05 != NULL then
+if $data05 != null then
   return -1
 endi
-if $data06 != NULL then
+if $data06 != null then
   return -1
 endi
-if $data07 != NULL then
+if $data07 != null then
   return -1
 endi
-if $data08 != NULL then
+if $data08 != null then
   return -1
 endi
 
 print ======== step2
-sleep 2500
 sql alter table tb add column b smallint
 sql insert into tb values(now-25d, -25, 0)
-sleep 3000
 sql select * from tb order by ts desc
-print $rows
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
 if $rows != 2 then
   return -1
 endi
@@ -64,31 +64,32 @@ endi
 if $data12 != NULL then
   return -1
 endi
-if $data13 != NULL then
+if $data13 != null then
   return -1
 endi
-if $data14 != NULL then
+if $data14 != null then
   return -1
 endi
-if $data15 != NULL then
+if $data15 != null then
   return -1
 endi
-if $data16 != NULL then
+if $data16 != null then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 
 print ======== step3
-sleep 2500
 sql alter table tb add column c tinyint
 sql insert into tb values(now-22d, -22, 3, 0)
-sleep 3000
 sql select * from tb order by ts asc
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+print $data20 $data21 $data22 $data23 $data24 $data25 $data26
 if $rows != 3 then then
   return -1
 endi
@@ -101,19 +102,19 @@ endi
 if $data03 != NULL then
   return -1
 endi
-if $data04 != NULL then
+if $data04 != null then
   return -1
 endi
-if $data05 != NULL then
+if $data05 != null then
   return -1
 endi
-if $data06 != NULL then
+if $data06 != null then
   return -1
 endi
-if $data07 != NULL then
+if $data07 != null then
   return -1
 endi
-if $data08 != NULL then
+if $data08 != null then
   return -1
 endi
 if $data11 != -25 then
@@ -125,19 +126,19 @@ endi
 if $data13 != NULL then
   return -1
 endi
-if $data14 != NULL then
+if $data14 != null then
   return -1
 endi
-if $data15 != NULL then
+if $data15 != null then
   return -1
 endi
-if $data16 != NULL then
+if $data16 != null then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data21 != -22 then
@@ -149,27 +150,25 @@ endi
 if $data23 != 0 then
   return -1
 endi
-if $data24 != NULL then
+if $data24 != null then
   return -1
 endi
-if $data25 != NULL then
+if $data25 != null then
   return -1
 endi
-if $data26 != NULL then
+if $data26 != null then
   return -1
 endi
-if $data27 != NULL then
+if $data27 != null then
   return -1
 endi
-if $data28 != NULL then
+if $data28 != null then
   return -1
 endi
 
 print ======== step4
-sleep 2500
 sql alter table tb add column d int
 sql insert into tb values(now-19d, -19, 6, 3, 0)
-sleep 3000
 sql select * from tb order by ts asc
 if $rows != 4 then then
   return -1
@@ -186,16 +185,16 @@ endi
 if $data04 != NULL then
   return -1
 endi
-if $data05 != NULL then
+if $data05 != null then
   return -1
 endi
-if $data06 != NULL then
+if $data06 != null then
   return -1
 endi
-if $data07 != NULL then
+if $data07 != null then
   return -1
 endi
-if $data08 != NULL then
+if $data08 != null then
   return -1
 endi
 if $data11 != -25 then
@@ -210,16 +209,16 @@ endi
 if $data14 != NULL then
   return -1
 endi
-if $data15 != NULL then
+if $data15 != null then
   return -1
 endi
-if $data16 != NULL then
+if $data16 != null then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data21 != -22 then
@@ -234,16 +233,16 @@ endi
 if $data24 != NULL then
   return -1
 endi
-if $data25 != NULL then
+if $data25 != null then
   return -1
 endi
-if $data26 != NULL then
+if $data26 != null then
   return -1
 endi
-if $data27 != NULL then
+if $data27 != null then
   return -1
 endi
-if $data28 != NULL then
+if $data28 != null then
   return -1
 endi
 if $data31 != -19 then
@@ -258,24 +257,22 @@ endi
 if $data34 != 0 then
   return -1
 endi
-if $data35 != NULL then
+if $data35 != null then
   return -1
 endi
-if $data36 != NULL then
+if $data36 != null then
   return -1
 endi
-if $data37 != NULL then
+if $data37 != null then
   return -1
 endi
-if $data38 != NULL then
+if $data38 != null then
   return -1
 endi
 
 print ======== step5
-sleep 2500
 sql alter table tb add column e bigint
 sql insert into tb values(now-16d, -16, 9, 5, 4, 3)
-sleep 3000
 sql select count(e) from tb
 if $data00 != 1 then
   return -1
@@ -303,13 +300,13 @@ endi
 if $data05 != NULL then
   return -1
 endi
-if $data06 != NULL then
+if $data06 != null then
   return -1
 endi
-if $data07 != NULL then
+if $data07 != null then
   return -1
 endi
-if $data08 != NULL then
+if $data08 != null then
   return -1
 endi
 if $data11 != -25 then
@@ -327,13 +324,13 @@ endi
 if $data15 != NULL then
   return -1
 endi
-if $data16 != NULL then
+if $data16 != null then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data21 != -22 then
@@ -351,13 +348,13 @@ endi
 if $data25 != NULL then
   return -1
 endi
-if $data26 != NULL then
+if $data26 != null then
   return -1
 endi
-if $data27 != NULL then
+if $data27 != null then
   return -1
 endi
-if $data28 != NULL then
+if $data28 != null then
   return -1
 endi
 if $data31 != -19 then
@@ -375,13 +372,13 @@ endi
 if $data35 != NULL then
   return -1
 endi
-if $data36 != NULL then
+if $data36 != null then
   return -1
 endi
-if $data37 != NULL then
+if $data37 != null then
   return -1
 endi
-if $data38 != NULL then
+if $data38 != null then
   return -1
 endi
 if $data41 != -16 then
@@ -399,21 +396,19 @@ endi
 if $data45 != 3 then
   return -1
 endi
-if $data46 != NULL then
+if $data46 != null then
   return -1
 endi
-if $data47 != NULL then
+if $data47 != null then
   return -1
 endi
-if $data48 != NULL then
+if $data48 != null then
   return -1
 endi
 
 print ======== step6
-sleep 2500
 sql alter table tb add column f float
 sql insert into tb values(now-13d, -13, 12, 11, 10, 9, 8)
-sleep 3000
 sql select * from tb order by ts asc
 if $rows != 6 then then
   return -1
@@ -436,10 +431,10 @@ endi
 if $data06 != NULL then
   return -1
 endi
-if $data07 != NULL then
+if $data07 != null then
   return -1
 endi
-if $data08 != NULL then
+if $data08 != null then
   return -1
 endi
 if $data11 != -25 then
@@ -460,10 +455,10 @@ endi
 if $data16 != NULL then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data21 != -22 then
@@ -484,10 +479,10 @@ endi
 if $data26 != NULL then
   return -1
 endi
-if $data27 != NULL then
+if $data27 != null then
   return -1
 endi
-if $data28 != NULL then
+if $data28 != null then
   return -1
 endi
 if $data31 != -19 then
@@ -508,10 +503,10 @@ endi
 if $data36 != NULL then
   return -1
 endi
-if $data37 != NULL then
+if $data37 != null then
   return -1
 endi
-if $data38 != NULL then
+if $data38 != null then
   return -1
 endi
 if $data41 != -16 then
@@ -532,10 +527,10 @@ endi
 if $data46 != NULL then
   return -1
 endi
-if $data47 != NULL then
+if $data47 != null then
   return -1
 endi
-if $data48 != NULL then
+if $data48 != null then
   return -1
 endi
 if $data51 != -13 then
@@ -556,18 +551,16 @@ endi
 if $data56 != 8.00000 then
   return -1
 endi
-if $data57 != NULL then
+if $data57 != null then
   return -1
 endi
-if $data58 != NULL then
+if $data58 != null then
   return -1
 endi
 
 print ======== step7
-sleep 2500
 sql alter table tb add column g double
 sql insert into tb values(now-10d, -10, 15, 14, 13, 12, 11, 10)
-sleep 3000
 sql select * from tb order by ts asc
 if $rows != 7 then
   return -1
@@ -593,7 +586,7 @@ endi
 if $data07 != NULL then
   return -1
 endi
-if $data08 != NULL then
+if $data08 != null then
   return -1
 endi
 if $data11 != -25 then
@@ -617,7 +610,7 @@ endi
 if $data17 != NULL then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data21 != -22 then
@@ -641,7 +634,7 @@ endi
 if $data27 != NULL then
   return -1
 endi
-if $data28 != NULL then
+if $data28 != null then
   return -1
 endi
 if $data31 != -19 then
@@ -665,7 +658,7 @@ endi
 if $data37 != NULL then
   return -1
 endi
-if $data38 != NULL then
+if $data38 != null then
   return -1
 endi
 if $data41 != -16 then
@@ -689,7 +682,7 @@ endi
 if $data47 != NULL then
   return -1
 endi
-if $data48 != NULL then
+if $data48 != null then
   return -1
 endi
 if $data51 != -13 then
@@ -713,7 +706,7 @@ endi
 if $data57 != NULL then
   return -1
 endi
-if $data58 != NULL then
+if $data58 != null then
   return -1
 endi
 if $data61 != -10 then
@@ -737,15 +730,13 @@ endi
 if $data67 != 10.000000000 then
   return -1
 endi
-if $data68 != NULL then
+if $data68 != null then
   return -1
 endi
 
 print ======== step8
-sleep 2500
 sql alter table tb add column h binary(10)
 sql insert into tb values(now-7d, -7, 18, 17, 16, 15, 14, 13, '11')
-sleep 3000
 sql select * from tb order by ts asc
 if $rows != 8 then
   return -1
@@ -942,17 +933,18 @@ endi
 if $data78 != 11 then
   return -1
 endi
-if $data79 != NULL then
+if $data79 != null then
   return -1
 endi
 
 print ======== step9
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 5000
 system sh/exec.sh -n dnode1 -s start
 sleep 5000
 
-sql select * from tb
+sql select * from tb order by ts asc
 if $rows != 8 then
   return -1
 endi
@@ -1146,6 +1138,9 @@ if $data77 != 13.000000000 then
   return -1
 endi
 if $data78 != 11 then
+  return -1
+endi
+if $data79 != null then
   return -1
 endi
 
