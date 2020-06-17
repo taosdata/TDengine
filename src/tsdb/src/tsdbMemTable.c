@@ -464,7 +464,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     return -1;
   }
 
-  if ((pGroup = tsdbCreateFGroup(pFileH, dataDir, fid, pCfg->maxTables)) == NULL) {
+  if ((pGroup = tsdbCreateFGroupIfNeed(pFileH, dataDir, fid, pCfg->maxTables)) == NULL) {
     tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
     goto _err;
   }

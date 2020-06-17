@@ -116,8 +116,7 @@ typedef enum {
   TSDB_FILE_TYPE_HEAD = 0,
   TSDB_FILE_TYPE_DATA,
   TSDB_FILE_TYPE_LAST,
-  TSDB_FILE_TYPE_NHEAD,
-  TSDB_FILE_TYPE_NLAST
+  TSDB_FILE_TYPE_MAX,
 } TSDB_FILE_TYPE;
 
 typedef struct {
@@ -137,10 +136,8 @@ typedef struct {
 } SFile;
 
 typedef struct {
-  int fileId;
-  SFile headF;
-  SFile dataF;
-  SFile lastF;
+  int   fileId;
+  SFile files[TSDB_FILE_TYPE_MAX];
 } SFileGroup;
 
 typedef struct {
@@ -313,11 +310,23 @@ int tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
 #define TSDB_MAX_FILE(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
 #define TSDB_MIN_FILE_ID(fh) (fh)->pFGroup[0].fileId
 #define TSDB_MAX_FILE_ID(fh) (fh)->pFGroup[(fh)->nFGroups - 1].fileId
+#define TSDB_IS_FILE_OPENED(f) ((f)->fd > 0)
 #define TSDB_FGROUP_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FGROUP_ITER_BACKWARD TSDB_ORDER_DESC
 
 STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
 void        tsdbFreeFileH(STsdbFileH* pFileH);
+int*        tsdbOpenFileH(STsdbRepo* pRepo);
+void        tsdbCloseFileH(STsdbRepo* pRepo);
+SFileGroup* tsdbCreateFGroupIfNeed(STsdbFileH* pFileH, char* dataDir, int fid, int maxTables);
+void        tsdbInitFileGroupIter(STsdbFileH* pFileH, SFileGroupIter* pIter, int direction);
+void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);
+SFileGroup* tsdbGetFileGroupNext(SFileGroupIter* pIter);
+int         tsdbOpenFile(SFile* pFile, int oflag);
+void        tsdbCloseFile(SFile* pFile);
+int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
+SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
+void        tsdbFitRetention(STsdbRepo* pRepo);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
@@ -348,7 +357,6 @@ int   tsdbUnlockRepo(STsdbRepo* pRepo);
 #if 0
 
 // --------- Helper state
-
 
 int  tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
 int  tsdbInitWriteHelper(SRWHelper *pHelper, STsdbRepo *pRepo);
