@@ -589,10 +589,10 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   int64_t st = taosGetTimestampUs();
 
   if (pCheckInfo->pDataCols == NULL) {
-    // STsdbMeta* pMeta = tsdbGetMeta(pRepo);
+    STsdbMeta* pMeta = tsdbGetMeta(pRepo);
     // TODO
     pCheckInfo->pDataCols =
-        tdNewDataCols(pCheckInfo->imem->maxRowBytes, pCheckInfo->imem->maxCols, pRepo->config.maxRowsPerFileBlock);
+        tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   }
 
   tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(pCheckInfo->pTableObj));

@@ -737,6 +737,12 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
     goto _err;
   }
 
+  if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
+    STSchema *pSchema = tsdbGetTableSchema(pTable);
+    if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
+    if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
+  }
+
   if (addIdx && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
 
   tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
@@ -754,6 +760,11 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   SListIter  lIter = {0};
   SListNode *pNode = NULL;
   STable *   tTable = NULL;
+  STsdbCfg * pCfg = &(pRepo->config);
+
+  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  int       maxCols = schemaNCols(pSchema);
+  int       maxRowBytes = schemaTLen(pSchema);
 
   if (rmFromIdx) tsdbWLockRepoMeta(pRepo);
 
@@ -778,6 +789,19 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   }
 
   taosHashRemove(pMeta->uidMap, (char *)(&(TABLE_UID(pTable))), sizeof(TABLE_UID(pTable)));
+
+  if (maxCols == pMeta->maxCols || maxRowBytes == pMeta->maxRowBytes) {
+    maxCols = 0;
+    maxRowBytes = 0;
+    for (int i = 0; i < pCfg->maxTables; i++) {
+      STable *pTable = pMeta->tables[i];
+      if (pTable != NULL) {
+        pSchema = tsdbGetTableSchema(pTable);
+        maxCols = MAX(maxCols, schemaNCols(pSchema));
+        maxRowBytes = MAX(maxRowBytes, schemaTLen(pSchema));
+      }
+    }
+  }
 
   if (rmFromIdx) tsdbUnlockRepoMeta(pRepo);
 }

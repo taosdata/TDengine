@@ -1096,11 +1096,12 @@ static void tsdbResetHelperBlock(SRWHelper *pHelper) {
 
 static int tsdbInitHelperBlock(SRWHelper *pHelper) {
   STsdbRepo *pRepo = helperRepo(pHelper);
+  STsdbMeta *pMeta = pHelper->pRepo->tsdbMeta;
 
   pHelper->pDataCols[0] =
-      tdNewDataCols(pRepo->imem->maxRowBytes, pRepo->imem->maxCols, pRepo->config.maxRowsPerFileBlock);
+      tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   pHelper->pDataCols[1] =
-      tdNewDataCols(pRepo->imem->maxRowBytes, pRepo->imem->maxCols, pRepo->config.maxRowsPerFileBlock);
+      tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   if (pHelper->pDataCols[0] == NULL || pHelper->pDataCols[1] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
@@ -1120,6 +1121,7 @@ static void tsdbDestroyHelperBlock(SRWHelper *pHelper) {
 static int tsdbInitHelper(SRWHelper *pHelper, STsdbRepo *pRepo, tsdb_rw_helper_t type) {
   STsdbCfg *pCfg = &pRepo->config;
   memset((void *)pHelper, 0, sizeof(*pHelper));
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   helperType(pHelper) = type;
   helperRepo(pHelper) = pRepo;
@@ -1135,8 +1137,8 @@ static int tsdbInitHelper(SRWHelper *pHelper, STsdbRepo *pRepo, tsdb_rw_helper_t
   if (tsdbInitHelperBlock(pHelper) < 0) goto _err;
 
   pHelper->pBuffer =
-      tmalloc(sizeof(SCompData) + (sizeof(SCompCol) + sizeof(TSCKSUM) + COMP_OVERFLOW_BYTES) * pRepo->imem->maxCols +
-              pRepo->imem->maxRowBytes * pCfg->maxRowsPerFileBlock + sizeof(TSCKSUM));
+      tmalloc(sizeof(SCompData) + (sizeof(SCompCol) + sizeof(TSCKSUM) + COMP_OVERFLOW_BYTES) * pMeta->maxCols +
+              pMeta->maxRowBytes * pCfg->maxRowsPerFileBlock + sizeof(TSCKSUM));
   if (pHelper->pBuffer == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;

@@ -108,9 +108,6 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
     pTableData->numOfRows++;
 
     ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
-    STSchema *pSchema = tsdbGetTableSchema(pTable);
-    if (schemaNCols(pSchema) > pMemTable->maxCols) pMemTable->maxCols = schemaNCols(pSchema);
-    if (schemaTLen(pSchema) > pMemTable->maxRowBytes) pMemTable->maxRowBytes = schemaTLen(pSchema);
   }
 
   tsdbTrace("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
@@ -360,6 +357,7 @@ static void *tsdbCommitData(void *arg) {
   SMemTable *  pMem = pRepo->imem;
   STsdbCfg *   pCfg = &pRepo->config;
   SDataCols *  pDataCols = NULL;
+  STsdbMeta *  pMeta = pRepo->tsdbMeta;
   SCommitIter *iters = NULL;
   SRWHelper    whelper = {0};
   ASSERT(pRepo->commit == 1);
@@ -380,10 +378,10 @@ static void *tsdbCommitData(void *arg) {
     goto _exit;
   }
 
-  if ((pDataCols = tdNewDataCols(pMem->maxRowBytes, pMem->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
+  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
-              REPO_ID(pRepo), pMem->maxRowBytes, pMem->maxCols, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
+              REPO_ID(pRepo), pMeta->maxCols, pMeta->maxRowBytes, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
     goto _exit;
   }
 

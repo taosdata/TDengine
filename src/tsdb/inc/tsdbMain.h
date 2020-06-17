@@ -70,6 +70,8 @@ typedef struct {
   SList*    superList;
   SHashObj* uidMap;
   SKVStore* pStore;
+  int       maxRowBytes;
+  int       maxCols;
 } STsdbMeta;
 
 // ------------------ tsdbBuffer.c
@@ -106,8 +108,6 @@ typedef struct {
   STableData** tData;
   SList*       actList;
   SList*       bufBlockList;
-  int          maxCols;
-  int          maxRowBytes;
 } SMemTable;
 
 // ------------------ tsdbFile.c
