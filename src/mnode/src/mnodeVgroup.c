@@ -613,7 +613,6 @@ SRpcIpSet mnodeGetIpSetFromIp(char *ep) {
 }
 
 void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
-  mTrace("vgId:%d, send create vnode:%d msg, ahandle:%p db:%s", pVgroup->vgId, pVgroup->vgId, ahandle, pVgroup->dbName);
   SMDCreateVnodeMsg *pCreate = mnodeBuildCreateVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
     .handle  = ahandle,
@@ -626,9 +625,12 @@ void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
 }
 
 void mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-  mTrace("vgId:%d, send create all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
+  mTrace("vgId:%d, send create all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes,
+         pVgroup->dbName);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcIpSet ipSet = mnodeGetIpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mTrace("vgId:%d, index:%d, send create vnode msg to dnode %s, ahandle:%p", pVgroup->vgId,
+           i, pVgroup->vnodeGid[i].pDnode->dnodeEp, ahandle);
     mnodeSendCreateVnodeMsg(pVgroup, &ipSet, ahandle);
   }
 }
@@ -746,6 +748,7 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
   }
   mnodeDecVgroupRef(pVgroup);
 
+  mTrace("vgId:%d, send create vnode msg to dnode %s for vnode cfg msg", pVgroup->vgId, pDnode->dnodeEp);
   SRpcIpSet ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
   mnodeSendCreateVnodeMsg(pVgroup, &ipSet, NULL);
 

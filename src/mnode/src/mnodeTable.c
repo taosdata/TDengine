@@ -2067,7 +2067,22 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
   assert(pTable);
 
-  if (!(rpcMsg->code == TSDB_CODE_SUCCESS || rpcMsg->code != TSDB_CODE_TDB_TABLE_ALREADY_EXIST)) {
+  if (rpcMsg->code == TSDB_CODE_SUCCESS || rpcMsg->code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+    SCMCreateTableMsg *pCreate = mnodeMsg->rpcMsg.pCont;
+    if (pCreate->getMeta) {
+      mTrace("app:%p:%p, table:%s, created in dnode and continue to get meta, thandle:%p result:%s",
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->rpcMsg.handle,
+             tstrerror(rpcMsg->code));
+
+      mnodeMsg->retry = 0;
+      dnodeReprocessMnodeWriteMsg(mnodeMsg);
+    } else {
+      mTrace("app:%p:%p, table:%s, created in dnode, thandle:%p result:%s", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
+             pTable->info.tableId, mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
+
+      dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
+    }
+  } else {
     if (mnodeMsg->retry++ < 10) {
       mTrace("app:%p:%p, table:%s, create table rsp received, need retry, times:%d result:%s thandle:%p",
              mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, tstrerror(rpcMsg->code),
@@ -2078,28 +2093,10 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
       mError("app:%p:%p, table:%s, failed to create in dnode, result:%s thandle:%p", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
              pTable->info.tableId, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
-      SSdbOper oper = {
-        .type = SDB_OPER_GLOBAL,
-        .table = tsChildTableSdb,
-        .pObj = pTable
-      };
+      SSdbOper oper = {.type = SDB_OPER_GLOBAL, .table = tsChildTableSdb, .pObj = pTable};
       sdbDeleteRow(&oper);
-    
+
       dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
-    }
-  } else {
-    SCMCreateTableMsg *pCreate = mnodeMsg->rpcMsg.pCont;
-    if (pCreate->getMeta) {
-      mTrace("app:%p:%p, table:%s, created in dnode and continue to get meta, thandle:%p", mnodeMsg->rpcMsg.ahandle,
-             mnodeMsg, pTable->info.tableId, mnodeMsg->rpcMsg.handle);
-
-      mnodeMsg->retry = 0;
-      dnodeReprocessMnodeWriteMsg(mnodeMsg);
-    } else {
-      mTrace("app:%p:%p, table:%s, created in dnode, thandle:%p", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
-             pTable->info.tableId, mnodeMsg->rpcMsg.handle);
-
-      dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
     }
   }
 }
