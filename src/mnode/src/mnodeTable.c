@@ -1748,9 +1748,9 @@ static int32_t mnodeFindNormalTableColumnIndex(SChildTableObj *pTable, char *col
 }
 
 static int32_t mnodeAddNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
-  SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
+  SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   mLPrint("app:%p:%p, ctable %s, add column result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
-         tstrerror(code));
+          tstrerror(code));
   return code;
 }
 
@@ -1808,7 +1808,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
 }
 
 static int32_t mnodeDropNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
-  SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
+  SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   mLPrint("app:%p:%p, ctable %s, drop column result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
           tstrerror(code));
   return code;
@@ -1845,7 +1845,7 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
   };
 
   int32_t code = sdbUpdateRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
