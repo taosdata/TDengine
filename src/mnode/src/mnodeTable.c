@@ -182,14 +182,19 @@ static int32_t mnodeChildTableActionUpdate(SSdbOper *pOper) {
   SChildTableObj *pNew = pOper->pObj;
   SChildTableObj *pTable = mnodeGetChildTable(pNew->info.tableId);
   if (pTable != pNew) {
-    void *oldTableId = pTable->info.tableId;
+    void *oldTableId = pTable->info.tableId;    
     void *oldSql = pTable->sql;
     void *oldSchema = pTable->schema;
+    void *oldSTable = pTable->superTable;
     int32_t oldRefCount = pTable->refCount;
+    
     memcpy(pTable, pNew, sizeof(SChildTableObj));
+    
     pTable->refCount = oldRefCount;
     pTable->sql = pNew->sql;
     pTable->schema = pNew->schema;
+    pTable->superTable = oldSTable;
+    
     free(pNew);
     free(oldSql);
     free(oldSchema);
