@@ -368,7 +368,6 @@ int   tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target)
 void  tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
 int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SDataCols* pDataCols, int blkIdx, int16_t* colIds, int numOfColIds);
 int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SDataCols* target);
-int   tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId

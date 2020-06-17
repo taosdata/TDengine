@@ -559,51 +559,6 @@ _err:
   return -1;
 }
 
-int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
-  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
-
-  void *pBuf = (void *)buf;
-  pBuf = taosEncodeFixedU32(pBuf, version);
-  pBuf = tsdbEncodeSFileInfo(pBuf, &(pFile->info));
-
-  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
-
-  if (lseek(pFile->fd, 0, SEEK_SET) < 0) {
-    tsdbError("failed to lseek file %s since %s", pFile->fname, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-  if (twrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
-    tsdbError("failed to write %d bytes to file %s since %s", TSDB_FILE_HEAD_SIZE, pFile->fname, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return 0;
-}
-
-void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo) {
-  buf = taosEncodeFixedU32(buf, pInfo->offset);
-  buf = taosEncodeFixedU32(buf, pInfo->len);
-  buf = taosEncodeFixedU64(buf, pInfo->size);
-  buf = taosEncodeFixedU64(buf, pInfo->tombSize);
-  buf = taosEncodeFixedU32(buf, pInfo->totalBlocks);
-  buf = taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
-
-  return buf;
-}
-
-void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
-  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
-  buf = taosDecodeFixedU32(buf, &(pInfo->len));
-  buf = taosDecodeFixedU64(buf, &(pInfo->size));
-  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
-
-  return buf;
-}
-
 // ---------------------- INTERNAL FUNCTIONS ----------------------
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper) {
   ASSERT(pHelper->files.lastF.fd > 0);
