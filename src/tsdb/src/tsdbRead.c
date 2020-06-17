@@ -589,7 +589,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
     pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   }
 
-  tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(tsdbGetMeta(pQueryHandle->pTsdb), pCheckInfo->pTableObj));
+  tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(pCheckInfo->pTableObj));
 
   if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, NULL) == 0) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
@@ -836,7 +836,7 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
   char* pData = NULL;
 
   // the schema version info is embeded in SDataRow
-  STSchema* pSchema = tsdbGetTableSchemaByVersion(pMeta, pTable, dataRowVersion(row));
+  STSchema* pSchema = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row));
   int32_t numOfRowCols = schemaNCols(pSchema);
 
   int32_t i = 0, j = 0;

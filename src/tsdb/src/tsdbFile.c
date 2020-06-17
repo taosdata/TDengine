@@ -31,11 +31,13 @@
 
 const char *tsdbFileSuffix[] = {".head", ".data", ".last"};
 
-static int  tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
-static void tsdbDestroyFile(SFile *pFile);
-static int  compFGroup(const void *arg1, const void *arg2);
-static int  keyFGroupCompFunc(const void *key, const void *fgroup);
-static void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup);
+static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
+static void  tsdbDestroyFile(SFile *pFile);
+static int   compFGroup(const void *arg1, const void *arg2);
+static int   keyFGroupCompFunc(const void *key, const void *fgroup);
+static void  tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup);
+static void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo);
+static void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -75,7 +77,7 @@ void tsdbFreeFileH(STsdbFileH *pFileH) {
   }
 }
 
-int *tsdbOpenFileH(STsdbRepo *pRepo) {
+int tsdbOpenFileH(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
 
   char *tDataDir = NULL;
@@ -83,7 +85,7 @@ int *tsdbOpenFileH(STsdbRepo *pRepo) {
   int   fid = 0;
 
   SFileGroup fileGroup = {0};
-  STsdbFileH pFileH = pRepo->tsdbFileH;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
 
   tDataDir = tsdbGetDataDirName(pRepo->rootDir);
   if (tDataDir == NULL) {
@@ -91,7 +93,7 @@ int *tsdbOpenFileH(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  DIR *dir = opendir(tDataDir);
+  dir = opendir(tDataDir);
   if (dir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), tDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -105,7 +107,7 @@ int *tsdbOpenFileH(STsdbRepo *pRepo) {
 
     if (tsdbSearchFGroup(pRepo->tsdbFileH, fid, TD_EQ) != NULL) return 0;
 
-    fileGroup = {0};
+    memset((void *)(&fileGroup), 0, sizeof(SFileGroup));
     fileGroup.fileId = fid;
     for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
       if (tsdbInitFile(&fileGroup.files[type], pRepo, fid, type) < 0) {
@@ -116,7 +118,7 @@ int *tsdbOpenFileH(STsdbRepo *pRepo) {
 
     tsdbTrace("vgId:%d file group %d init", REPO_ID(pRepo), fid);
 
-    pFileH->[pFileH->nFGroups++] = fileGroup;
+    pFileH->pFGroup[pFileH->nFGroups++] = fileGroup;
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
   }
 
@@ -128,7 +130,7 @@ _err:
   for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&fileGroup.files[type]);
 
   tfree(tDataDir);
-  if (dir != NULL) closedir(tDataDir);
+  if (dir != NULL) closedir(dir);
   tsdbCloseFileH(pRepo);
   return -1;
 }
@@ -139,28 +141,30 @@ void tsdbCloseFileH(STsdbRepo *pRepo) {
   for (int i = 0; i < pFileH->nFGroups; i++) {
     SFileGroup *pFGroup = pFileH->pFGroup + i;
     for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-      tsdbDestroyFile(pFGroup->files[type]);
+      tsdbDestroyFile(&pFGroup->files[type]);
     }
   }
 }
 
-SFileGroup *tsdbCreateFGroupIfNeed(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables) {
-  if (pFileH->numOfFGroups >= pFileH->maxFGroups) return NULL;
+SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid, int maxTables) {
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+
+  if (pFileH->nFGroups >= pFileH->maxFGroups) return NULL;
 
   SFileGroup  fGroup;
   SFileGroup *pFGroup = &fGroup;
 
-  SFileGroup *pGroup = tsdbSearchFGroup(pFileH, fid);
+  SFileGroup *pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
   if (pGroup == NULL) {  // if not exists, create one
     pFGroup->fileId = fid;
     for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-      if (tsdbCreateFile(dataDir, fid, tsdbFileSuffix[type], &(pFGroup->files[type])) < 0)
+      if (tsdbCreateFile(&pFGroup->files[type], pRepo, fid, type) < 0)
         goto _err;
     }
 
-    pFileH->fGroup[pFileH->numOfFGroups++] = fGroup;
-    qsort((void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroup);
-    return tsdbSearchFGroup(pFileH, fid);
+    pFileH->pFGroup[pFileH->nFGroups++] = fGroup;
+    qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
+    return tsdbSearchFGroup(pFileH, fid, TD_EQ);
   }
 
   return pGroup;
@@ -172,15 +176,15 @@ _err:
 
 void tsdbInitFileGroupIter(STsdbFileH *pFileH, SFileGroupIter *pIter, int direction) { // TODO
   pIter->direction = direction;
-  pIter->base = pFileH->fGroup;
-  pIter->numOfFGroups = pFileH->numOfFGroups;
-  if (pFileH->numOfFGroups == 0) {
+  pIter->base = pFileH->pFGroup;
+  pIter->numOfFGroups = pFileH->nFGroups;
+  if (pFileH->nFGroups == 0) {
     pIter->pFileGroup = NULL;
   } else {
     if (direction == TSDB_FGROUP_ITER_FORWARD) {
-      pIter->pFileGroup = pFileH->fGroup;
+      pIter->pFileGroup = pFileH->pFGroup;
     } else {
-      pIter->pFileGroup = pFileH->fGroup + pFileH->numOfFGroups - 1;
+      pIter->pFileGroup = pFileH->pFGroup + pFileH->nFGroups - 1;
     }
   }
 }
@@ -274,7 +278,7 @@ _err:
 
 SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid, int flags) {
   void *ptr =
-      taosbsearch((void *)(&fid), (void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc);
+      taosbsearch((void *)(&fid), (void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, flags);
   if (ptr == NULL) return NULL;
   return (SFileGroup *)ptr;
 }
@@ -289,13 +293,35 @@ void tsdbFitRetention(STsdbRepo *pRepo) {
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
-  while (pFileH->numOfFGroups > 0 && pGroup[0].fileId < mfid) {
-    tsdbRemoveFileGroup(pFileH, pGroup);
+  while (pFileH->nFGroups > 0 && pGroup[0].fileId < mfid) {
+    tsdbRemoveFileGroup(pRepo, pGroup);
   }
 
-  pthread_rwlock_unlock(&(pFileH->fhlock))
+  pthread_rwlock_unlock(&(pFileH->fhlock));
 }
 
+int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  void *pBuf = (void *)buf;
+  pBuf = taosEncodeFixedU32(pBuf, version);
+  pBuf = tsdbEncodeSFileInfo(pBuf, &(pFile->info));
+
+  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
+
+  if (lseek(pFile->fd, 0, SEEK_SET) < 0) {
+    tsdbError("failed to lseek file %s since %s", pFile->fname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (twrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+    tsdbError("failed to write %d bytes to file %s since %s", TSDB_FILE_HEAD_SIZE, pFile->fname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
+}
 
 // ---------------- LOCAL FUNCTIONS ----------------
 static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
@@ -378,4 +404,26 @@ static void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
     remove(fileGroup.files[type].fname);
     tsdbDestroyFile(&fileGroup.files[type]);
   }
+}
+
+static void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo) {
+  buf = taosEncodeFixedU32(buf, pInfo->offset);
+  buf = taosEncodeFixedU32(buf, pInfo->len);
+  buf = taosEncodeFixedU64(buf, pInfo->size);
+  buf = taosEncodeFixedU64(buf, pInfo->tombSize);
+  buf = taosEncodeFixedU32(buf, pInfo->totalBlocks);
+  buf = taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
+
+  return buf;
+}
+
+static void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
+  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
+  buf = taosDecodeFixedU32(buf, &(pInfo->len));
+  buf = taosDecodeFixedU64(buf, &(pInfo->size));
+  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
+  buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
+  buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
+
+  return buf;
 }

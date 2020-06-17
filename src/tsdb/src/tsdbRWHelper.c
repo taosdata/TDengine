@@ -20,6 +20,39 @@
 #include "tscompression.h"
 #include "tsdbMain.h"
 
+static bool  tsdbShouldCreateNewLast(SRWHelper *pHelper);
+static int   tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDataCols, int rowsToWrite,
+                                  SCompBlock *pCompBlock, bool isLast, bool isSuperBlock);
+static int   compareKeyBlock(const void *arg1, const void *arg2);
+static int   tsdbMergeDataWithBlock(SRWHelper *pHelper, int blkIdx, SDataCols *pDataCols);
+static int   compTSKEY(const void *key1, const void *key2);
+static int   tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t esize);
+static int   tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
+static int   tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded);
+static int   tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
+static int   tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey);
+static void  tsdbResetHelperFileImpl(SRWHelper *pHelper);
+static int   tsdbInitHelperFile(SRWHelper *pHelper);
+static void  tsdbDestroyHelperFile(SRWHelper *pHelper);
+static void  tsdbResetHelperTableImpl(SRWHelper *pHelper);
+static void  tsdbResetHelperTable(SRWHelper *pHelper);
+static void  tsdbInitHelperTable(SRWHelper *pHelper);
+static void  tsdbDestroyHelperTable(SRWHelper *pHelper);
+static void  tsdbResetHelperBlockImpl(SRWHelper *pHelper);
+static void  tsdbResetHelperBlock(SRWHelper *pHelper);
+static int   tsdbInitHelperBlock(SRWHelper *pHelper);
+static int   tsdbInitHelper(SRWHelper *pHelper, STsdbRepo *pRepo, tsdb_rw_helper_t type);
+static int   comparColIdCompCol(const void *arg1, const void *arg2);
+static int   comparColIdDataCol(const void *arg1, const void *arg2);
+static int   tsdbLoadSingleColumnData(int fd, SCompBlock *pCompBlock, SCompCol *pCompCol, void *buf);
+static int   tsdbLoadSingleBlockDataCols(SRWHelper *pHelper, SCompBlock *pCompBlock, int16_t *colIds, int numOfColIds,
+                                         SDataCols *pDataCols);
+static int   tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32_t len, int8_t comp, int numOfRows,
+                                          int maxPoints, char *buffer, int bufferSize);
+static int   tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *pDataCols);
+static void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx);
+static void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx);
+
 // ---------------------- INTERNAL FUNCTIONS ----------------------
 int tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo) {
   return tsdbInitHelper(pHelper, pRepo, TSDB_READ_HELPER);
@@ -69,7 +102,7 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   pHelper->files.headF = pGroup->files[TSDB_FILE_TYPE_HEAD];
   pHelper->files.dataF = pGroup->files[TSDB_FILE_TYPE_DATA];
   pHelper->files.lastF = pGroup->files[TSDB_FILE_TYPE_LAST];
-  if (TSDB_HELPER_TYPE(pHelper) == TSDB_WRITE_HELPER) {
+  if (helperType(pHelper) == TSDB_WRITE_HELPER) {
     char *fnameDup = strdup(pHelper->files.headF.fname);
     if (fnameDup == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -437,7 +470,7 @@ int tsdbLoadCompInfo(SRWHelper *pHelper, void *target) {
   return 0;
 }
 
-int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target) {
+int tsdbloadcompdata(srwhelper *phelper, scompblock *pcompblock, void *target) {
   ASSERT(pCompBlock->numOfSubBlocks <= 1);
   int fd = (pCompBlock->last) ? pHelper->files.lastF.fd : pHelper->files.dataF.fd;
 

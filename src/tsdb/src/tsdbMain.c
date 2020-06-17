@@ -29,6 +29,10 @@
 #define TSDB_DATA_DIR_NAME "data"
 #define TSDB_META_FILE_NAME "meta"
 #define TSDB_META_FILE_INDEX 10000000
+#define IS_VALID_PRECISION(precision) \
+  (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
+#define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
+#define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 
 typedef struct {
   int32_t  totalLen;
@@ -41,6 +45,24 @@ typedef struct {
   int32_t     len;
   SSubmitBlk *pBlock;
 } SSubmitMsgIter;
+
+static int32_t     tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
+static int32_t     tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg);
+static int32_t     tsdbUnsetRepoEnv(char *rootDir);
+static int32_t     tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg);
+static int         tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg);
+static char *      tsdbGetCfgFname(char *rootDir);
+static STsdbRepo * tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg);
+static void        tsdbFreeRepo(STsdbRepo *pRepo);
+static int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
+static int32_t     tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows);
+static SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
+static SDataRow    tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+static int         tsdbRestoreInfo(STsdbRepo *pRepo);
+static int         tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
+static void        tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
+static void        tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
+static void        tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
@@ -122,8 +144,6 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   tsdbCloseBufPool(pRepo);
   tsdbCloseMeta(pRepo);
   tsdbTrace("vgId:%d repository is closed", REPO_ID(pRepo));
-
-  return 0;
 }
 
 int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
@@ -136,7 +156,6 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
   }
 
   SSubmitBlk *pBlock = NULL;
-  int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     affectedrows = 0;
 
   TSKEY now = taosGetTimestamp(pRepo->config.precision);
@@ -156,7 +175,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   // STsdbMeta *pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   uint32_t    magic = 0;
-  char        fname[256] = "\0";
+  char        *fname = NULL;
 
   struct stat fState;
 
@@ -169,9 +188,9 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
     int fid = (*index) / 3;
 
-    if (pFileH->numOfFGroups == 0 || fid > pFileH->fGroup[pFileH->numOfFGroups - 1].fileId) {
+    if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
       if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
-        tsdbGetMetaFileName(pRepo->rootDir, fname);
+        fname = tsdbGetMetaFileName(pRepo->rootDir);
         *index = TSDB_META_FILE_INDEX;
       } else {
         tfree(sdup);
@@ -179,7 +198,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       }
     } else {
       SFileGroup *pFGroup =
-          taosbsearch(&fid, pFileH->fGroup, pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey, TD_GE);
+          taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), compFGroupKey, TD_GE);
       if (pFGroup->fileId == fid) {
         strcpy(fname, pFGroup->files[(*index) % 3].fname);
       } else {
@@ -195,10 +214,10 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     strcpy(name, fname + strlen(prefix));
   } else {                                 // get the named file at the specified index. If not there, return 0
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
-      tsdbGetMetaFileName(pRepo->rootDir, fname);
+      fname = tsdbGetMetaFileName(pRepo->rootDir);
     } else {
       int         fid = (*index) / 3;
-      SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid);
+      SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
       if (pFGroup == NULL) {  // not found
         tfree(sdup);
         return 0;
@@ -218,6 +237,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   *size = fState.st_size;
   magic = *size;
 
+  tfree(fname);
   return magic;
 }
 
@@ -229,7 +249,7 @@ void tsdbStartStream(TSDB_REPO_T *repo) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
       pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TALBE_UID(pTable), TABLE_TID(pTable), pTable->sql,
-                                                     tsdbGetTableSchema(pMeta, pTable));
+                                                     tsdbGetTableSchema(pTable));
     }
   }
 }
@@ -270,7 +290,7 @@ int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
     tsdbAlterMaxTables(pRepo, pCfg->maxTables);
   }
 
-  if (configChanged) tsdbSaveConfig(pRepo);
+  if (configChanged) tsdbSaveConfig(pRepo->rootDir, &pRepo->config);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -302,7 +322,7 @@ char *tsdbGetDataFileName(STsdbRepo *pRepo, int fid, int type) {
   char *fname = malloc(tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
+    return NULL;
   }
 
   sprintf(fname, "%s/%s/v%df%d.%s", pRepo->rootDir, TSDB_DATA_DIR_NAME, REPO_ID(pRepo), fid, tsdbFileSuffix[type]);
@@ -329,6 +349,18 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
     return -1;
   }
   return 0;
+}
+
+char *tsdbGetDataDirName(char *rootDir) {
+  int   tlen = strlen(rootDir) + strlen(TSDB_DATA_DIR_NAME) + 2;
+  char *fname = calloc(1, tlen);
+  if (fname == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  snprintf(fname, tlen, "%s/%s", rootDir, TSDB_DATA_DIR_NAME);
+  return fname;
 }
 
 STsdbMeta *    tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }
@@ -413,7 +445,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   }
 
   if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
-    tsdbError("vgId:%d invalid configuration! minRowsPerFileBlock %d maxRowsPerFileBlock %d" pCfg->tsdbId,
+    tsdbError("vgId:%d invalid configuration! minRowsPerFileBlock %d maxRowsPerFileBlock %d", pCfg->tsdbId,
               pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock);
     goto _err;
   }
@@ -488,7 +520,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
   if (fd < 0) {
     tsdbError("vgId:%d failed to open file %s since %s", pCfg->tsdbId, fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err
+    goto _err;
   }
 
   if (twrite(fd, (void *)pCfg, sizeof(STsdbCfg)) < sizeof(STsdbCfg)) {
@@ -560,17 +592,6 @@ static char *tsdbGetCfgFname(char *rootDir) {
   return fname;
 }
 
-static char *tsdbGetDataDirName(char *rootDir) {
-  int   tlen = strlen(rootDir) + strlen(TSDB_DATA_DIR_NAME) + 2;
-  char *fname = calloc(1, tlen);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  snprintf(fname, tlen, "%s/%s", rootDir, TSDB_DATA_DIR_NAME);
-  return fname;
-}
 
 static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)calloc(1, sizeof(STsdbRepo));
@@ -626,8 +647,8 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     tsdbFreeFileH(pRepo->tsdbFileH);
     tsdbFreeBufPool(pRepo->pPool);
     tsdbFreeMeta(pRepo->tsdbMeta);
-    tsdbFreeMemTable(pRepo->mem);
-    tsdbFreeMemTable(pRepo->imem);
+    // tsdbFreeMemTable(pRepo->mem);
+    // tsdbFreeMemTable(pRepo->imem);
     tfree(pRepo->rootDir);
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);
@@ -660,7 +681,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   int64_t    points = 0;
 
-  STable *pTable == tsdbGetTableByUid(pMeta, pBlock->uid);
+  STable *pTable = tsdbGetTableByUid(pMeta, pBlock->uid);
   if (pTable == NULL || TABLE_TID(pTable) != pBlock->tid) {
     tsdbError("vgId:%d failed to get table to insert data, uid " PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
               pBlock->tid);
@@ -676,7 +697,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
 
   // Check schema version
   int32_t   tversion = pBlock->sversion;
-  STSchema *pSchema = tsdbGetTableSchema(pMeta, pTable);
+  STSchema *pSchema = tsdbGetTableSchema(pTable);
   ASSERT(pSchema != NULL);
   int16_t nversion = schemaVersion(pSchema);
   if (tversion > nversion) {
@@ -701,9 +722,9 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
     tsdbClearTableCfg(pTableCfg);
     rpcFreeCont(msg);
 
-    pSchema = tsdbGetTableSchemaByVersion(pMeta, pTable, tversion);
+    pSchema = tsdbGetTableSchemaByVersion(pTable, tversion);
   } else if (tversion < nversion) {
-    pSchema = tsdbGetTableSchemaByVersion(pMeta, pTable, tversion);
+    pSchema = tsdbGetTableSchemaByVersion(pTable, tversion);
     if (pSchema == NULL) {
       tsdbError("vgId:%d table %s tid %d invalid schema version %d from client", REPO_ID(pRepo),
                 TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), tversion);
@@ -829,8 +850,8 @@ static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
     pRepo->tsdbFileH->maxFGroups = maxFiles;
   } else {
     pRepo->config.keep = keep;
-    pRepo->tsdbFileH->fGroup = realloc(pRepo->tsdbFileH->fGroup, sizeof(SFileGroup));
-    if (pRepo->tsdbFileH->fGroup == NULL) {
+    pRepo->tsdbFileH->pFGroup = realloc(pRepo->tsdbFileH->pFGroup, sizeof(SFileGroup));
+    if (pRepo->tsdbFileH->pFGroup == NULL) {
       // TODO: deal with the error
     }
     pRepo->tsdbFileH->maxFGroups = maxFiles;
@@ -846,7 +867,6 @@ static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
 
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  pMeta->maxTables = maxTables;
   pMeta->tables = realloc(pMeta->tables, maxTables * sizeof(STable *));
   memset(&pMeta->tables[oldMaxTables], 0, sizeof(STable *) * (maxTables - oldMaxTables));
   pRepo->config.maxTables = maxTables;

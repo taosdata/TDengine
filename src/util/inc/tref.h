@@ -31,7 +31,7 @@ typedef void (*_ref_fn_t)(const void* pObj);
     _ref_fn_t end;                \
   } _ref_func = {.begin = (s), .end = (e)};
 
-#define T_REF_INC(x) (atomic_add_fetch_16(&((x)->_ref.val), 1));
+#define T_REF_INC(x) (atomic_add_fetch_16(&((x)->_ref.val), 1))
 
 #define T_REF_INC_WITH_CB(x, p)                           \
   do {                                                    \
@@ -41,7 +41,7 @@ typedef void (*_ref_fn_t)(const void* pObj);
     }                                                     \
   } while (0)
 
-#define T_REF_DEC(x) (atomic_sub_fetch_16(&((x)->_ref.val), 1));
+#define T_REF_DEC(x) (atomic_sub_fetch_16(&((x)->_ref.val), 1))
 
 #define T_REF_DEC_WITH_CB(x, p)                           \
   do {                                                    \

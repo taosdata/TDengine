@@ -42,7 +42,6 @@ static int     tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 static int     tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
 static int     tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
 static int     tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
-static void    tsdbClearTableCfg(STableCfg *config);
 static void *  tsdbEncodeTableName(void *buf, tstr *name);
 static void *  tsdbDecodeTableName(void *buf, tstr **name);
 static void *  tsdbEncodeTable(void *buf, STable *pTable);
@@ -122,7 +121,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
 
   tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
             tableId.tid, tableId.uid);
-  if (tsdbRemoveTableFromMeta(pMeta, pTable, true) < 0) return -1;
+  tsdbRemoveTableFromMeta(pMeta, pTable, true);
 
   return 0;
 }
@@ -132,7 +131,7 @@ void *tsdbGetTableTagVal(TSDB_REPO_T *repo, const STableId *id, int32_t colId, i
   STsdbMeta *pMeta = tsdbGetMeta(repo);
   STable *   pTable = tsdbGetTableByUid(pMeta, id->uid);
 
-  STSchema *pSchema = tsdbGetTableTagSchema(pMeta, pTable);
+  STSchema *pSchema = tsdbGetTableTagSchema(pTable);
   STColumn *pCol = tdGetColOfID(pSchema, colId);
   if (pCol == NULL) {
     return NULL;  // No matched tag volumn
@@ -255,7 +254,7 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
     return -1;
   }
   if (TABLE_TID(pTable) != htonl(pMsg->tid)) {
-    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID
+    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     return -1;
   }
 
@@ -457,7 +456,7 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
     isChanged = true;
   }
 
-  STSchema *pTSchema = tsdbGetTableSchema(pMeta, pTable);
+  STSchema *pTSchema = tsdbGetTableSchema(pTable);
   if (schemaVersion(pTSchema) < schemaVersion(pCfg->schema)) {
     if (pTable->numOfSchemas < TSDB_MAX_TABLE_SCHEMAS) {
       pTable->schema[pTable->numOfSchemas++] = tdDupSchema(pCfg->schema);
@@ -475,8 +474,8 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
   if (isChanged) {
     char *buf = malloc(1024 * 1024);
     int   bufLen = 0;
-    tsdbEncodeTable(pTable, buf, &bufLen);
-    tsdbInsertMetaRecord(pMeta->mfh, pTable->tableId.uid, buf, bufLen);
+    tsdbEncodeTable(buf, pTable);
+    // tsdbInsertMetaRecord(pMeta->mfh, pTable->tableId.uid, buf, bufLen);
     free(buf);
   }
 
@@ -966,7 +965,7 @@ static int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
   return 0;
 }
 
-static void tsdbClearTableCfg(STableCfg *config) {
+void tsdbClearTableCfg(STableCfg *config) {
   if (config) {
     if (config->schema) tdFreeSchema(config->schema);
     if (config->tagSchema) tdFreeSchema(config->tagSchema);
@@ -985,7 +984,7 @@ static void *tsdbEncodeTableName(void *buf, tstr *name) {
   memcpy(pBuf, name->data, name->len);
   pBuf = POINTER_SHIFT(pBuf, name->len);
 
-  return POINTER_DISTANCE(pBuf, buf);
+  return pBuf;
 }
 
 static void *tsdbDecodeTableName(void *buf, tstr **name) {

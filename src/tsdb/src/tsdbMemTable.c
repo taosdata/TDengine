@@ -92,7 +92,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
     pRepo->mem->tData[TABLE_TID(pTable)] = pTableData;
   }
 
-  ASSERT(pTableData != NULL) && pTableData->uid == TALBE_UID(pTable);
+  ASSERT((pTableData != NULL) && pTableData->uid == TALBE_UID(pTable));
 
   if (tSkipListPut(pTableData->pData, pNode) == NULL) {
     tsdbFreeBytes(pRepo, (void *)pNode, bytes);
@@ -107,7 +107,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 
     ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
     STSchema *pSchema = tsdbGetTableSchema(pTable);
-    if (schemaNCols(pSchema) > pMemTable->maxCols) pMemTable->maxCols = schemaNCols;
+    if (schemaNCols(pSchema) > pMemTable->maxCols) pMemTable->maxCols = schemaNCols(pSchema);
     if (schemaTLen(pSchema) > pMemTable->maxRowBytes) pMemTable->maxRowBytes = schemaTLen(pSchema);
   }
 
@@ -167,6 +167,8 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
   tsdbRefMemTable(pRepo, *pIMem);
 
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
+
+  return 0;
 }
 
 // ---------------- LOCAL FUNCTIONS ----------------
@@ -174,11 +176,11 @@ static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL);
   if (pRepo->mem == NULL) return NULL;
 
-  SListNode *pNode = listTail(pRepo->mem);
+  SListNode *pNode = listTail(pRepo->mem->bufBlockList);
   if (pNode == NULL) return NULL;
 
   STsdbBufBlock *pBufBlock = NULL;
-  tdListNodeGetData(pMemTable->bufBlockList, pNode, (void *)(&pBufBlock));
+  tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void *)(&pBufBlock));
 
   return pBufBlock;
 }
@@ -189,7 +191,7 @@ static void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   int            code = 0;
 
   if (pBufBlock != NULL && pBufBlock->remain < bytes) {
-    if (listNEles(pRepo->mem) >= pCfg->totalBlocks / 2) {  // need to commit mem
+    if (listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 2) {  // need to commit mem
       if (pRepo->imem) {
         code = pthread_join(pRepo->commitThread, NULL);
         if (code != 0) {
@@ -358,6 +360,7 @@ static void *tsdbCommitData(void *arg) {
   STsdbCfg *   pCfg = &pRepo->config;
   SDataCols *  pDataCols = NULL;
   SCommitIter *iters = NULL;
+  SRWHelper    whelper = {0};
   ASSERT(pRepo->commit == 1);
   ASSERT(pMem != NULL);
 
@@ -379,7 +382,7 @@ static void *tsdbCommitData(void *arg) {
   if ((pDataCols = tdNewDataCols(pMem->maxRowBytes, pMem->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
-              REPO_ID(pRepo), pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
+              REPO_ID(pRepo), pMem->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
     goto _exit;
   }
 
