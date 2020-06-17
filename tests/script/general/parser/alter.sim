@@ -135,7 +135,7 @@ endi
 sql alter table tb1 drop column c3 
 sleep 6000
 sql insert into tb1 values (now, 2, 'taos')
-sleep 3000
+sleep 30000
 sql select * from strm
 if $rows != 2 then
    return -1

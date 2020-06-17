@@ -182,14 +182,19 @@ static int32_t mnodeChildTableActionUpdate(SSdbOper *pOper) {
   SChildTableObj *pNew = pOper->pObj;
   SChildTableObj *pTable = mnodeGetChildTable(pNew->info.tableId);
   if (pTable != pNew) {
-    void *oldTableId = pTable->info.tableId;
+    void *oldTableId = pTable->info.tableId;    
     void *oldSql = pTable->sql;
     void *oldSchema = pTable->schema;
+    void *oldSTable = pTable->superTable;
     int32_t oldRefCount = pTable->refCount;
+    
     memcpy(pTable, pNew, sizeof(SChildTableObj));
+    
     pTable->refCount = oldRefCount;
     pTable->sql = pNew->sql;
     pTable->schema = pNew->schema;
+    pTable->superTable = oldSTable;
+    
     free(pNew);
     free(oldSql);
     free(oldSchema);
@@ -1743,9 +1748,9 @@ static int32_t mnodeFindNormalTableColumnIndex(SChildTableObj *pTable, char *col
 }
 
 static int32_t mnodeAddNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
-  SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
+  SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   mLPrint("app:%p:%p, ctable %s, add column result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
-         tstrerror(code));
+          tstrerror(code));
   return code;
 }
 
@@ -1803,7 +1808,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
 }
 
 static int32_t mnodeDropNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
-  SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
+  SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   mLPrint("app:%p:%p, ctable %s, drop column result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
           tstrerror(code));
   return code;
@@ -1840,7 +1845,7 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
   };
 
   int32_t code = sdbUpdateRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 

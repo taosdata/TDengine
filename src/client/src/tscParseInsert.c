@@ -252,7 +252,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         numType = tscToInteger(pToken, &iv, &endptr);
         if (TK_ILLEGAL == numType) {
           return tscInvalidSQLErrMsg(msg, "invalid bigint data", pToken->z);
-        } else if (errno == ERANGE || iv > INT64_MAX || iv <= INT64_MIN) {
+        } else if (errno == ERANGE || iv == INT64_MIN) {
           return tscInvalidSQLErrMsg(msg, "bigint data overflow", pToken->z);
         }
 
@@ -594,7 +594,6 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
   const int factor = 5;
   uint32_t nAllocSizeOld = pDataBlock->nAllocSize;
-  assert(pDataBlock->headerSize >= 0);
   
   // expand the allocated size
   if (remain < rowSize * factor) {

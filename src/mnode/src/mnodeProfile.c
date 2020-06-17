@@ -39,6 +39,7 @@
 #define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
 #define CONN_CHECK_TIME (tsShellActivityTimer * 2)
 #define QUERY_ID_SIZE   20
+#define QUERY_STREAM_SAVE_SIZE 20
 
 extern void *tsMnodeTmr;
 static SCacheObj *tsMnodeConnCache = NULL;
@@ -264,16 +265,27 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
 // not thread safe, need optimized
 int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
   pConn->numOfQueries = htonl(pHBMsg->numOfQueries);
-  if (pConn->numOfQueries > 0 && pConn->numOfQueries < 20) {
-    pConn->pQueries = calloc(sizeof(SQueryDesc), pConn->numOfQueries);
-    memcpy(pConn->pQueries, pHBMsg->pData, pConn->numOfQueries * sizeof(SQueryDesc));
+  if (pConn->numOfQueries > 0) {
+    if (pConn->pQueries == NULL) {
+      pConn->pQueries = calloc(sizeof(SQueryDesc), QUERY_STREAM_SAVE_SIZE);
+    }
+
+    int32_t saveSize = MIN(QUERY_STREAM_SAVE_SIZE, pConn->numOfQueries) * sizeof(SQueryDesc);
+    if (saveSize > 0 && pConn->pQueries != NULL) {
+      memcpy(pConn->pQueries, pHBMsg->pData, saveSize);
+    }
   }
 
   pConn->numOfStreams = htonl(pHBMsg->numOfStreams);
-  if (pConn->numOfStreams > 0 && pConn->numOfStreams < 20) {
-    pConn->pStreams = calloc(sizeof(SStreamDesc), pConn->numOfStreams);
-    memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc),
-           pConn->numOfStreams * sizeof(SStreamDesc));
+  if (pConn->numOfStreams > 0) {
+    if (pConn->pStreams == NULL) {
+      pConn->pStreams = calloc(sizeof(SStreamDesc), QUERY_STREAM_SAVE_SIZE);
+    }
+
+    int32_t saveSize = MIN(QUERY_STREAM_SAVE_SIZE, pConn->numOfStreams) * sizeof(SStreamDesc);
+    if (saveSize > 0 && pConn->pStreams != NULL) {
+      memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc), saveSize);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
