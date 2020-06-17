@@ -709,7 +709,7 @@ void taosRemoveDir(char *rootDir) {
     if (de->d_type & DT_DIR) {
       taosRemoveDir(filename);
     } else {
-      remove(filename);
+      (void)remove(filename);
       uPrint("file:%s is removed", filename);
     }
   }

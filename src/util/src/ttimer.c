@@ -139,7 +139,7 @@ static void unlockTimerList(timer_list_t* list) {
   int64_t tid = taosGetPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
     assert(false);
-    tmrError("%d trying to unlock a timer list not locked by current thread.", tid);
+    tmrError("%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
   }
 }
 
@@ -514,14 +514,17 @@ static void taosTmrModuleInit(void) {
       tmrError("failed to create the mutex for wheel, reason:%s", strerror(errno));
       return;
     }
+    pthread_mutex_lock(&wheel->mutex);
     wheel->nextScanAt = now + wheel->resolution;
     wheel->index = 0;
     wheel->slots = (tmr_obj_t**)calloc(wheel->size, sizeof(tmr_obj_t*));
     if (wheel->slots == NULL) {
       tmrError("failed to allocate wheel slots");
+      pthread_mutex_unlock(&wheel->mutex);
       return;
     }
     timerMap.size += wheel->size;
+    pthread_mutex_unlock(&wheel->mutex);
   }
 
   timerMap.count = 0;
