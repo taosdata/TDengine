@@ -37,7 +37,7 @@ sleep 4000
 sql select * from mt
 sql select * from strm
 sql drop table tb1
-sleep 10000
+sleep 100000
 sql select * from strm
 if $rows != 2 then
   if $rows != 1 then
@@ -51,19 +51,20 @@ sql drop table strm
 ## [TBASE304]
 print ====== TBASE-304
 sleep 10000
-print create mt
-sql create table mt (ts timestamp, c1 int) tags(t1 int, t2 int)
+# we cannot reset query cache in server side, as a workaround,
+# set super table name to mt304, need to change back to mt later
+print create mt304
+sql create table mt304 (ts timestamp, c1 int) tags(t1 int, t2 int)
 print create tb1
-sql create table tb1 using mt tags(1, 1)
+sql create table tb1 using mt304 tags(1, 1)
 print create tb2
-sql create table tb2 using mt tags(1, -1)
+sql create table tb2 using mt304 tags(1, -1)
 print create strm
-sql create table strm as select count(*), avg(c1) from mt where t2 >= 0 interval(4s) sliding(2s)
+sql create table strm as select count(*), avg(c1) from mt304 where t2 >= 0 interval(4s) sliding(2s)
 sql insert into tb1 values (now,1)
 sql insert into tb2 values (now,2)
-sleep 20000
+sleep 100000
 sql select * from strm;
-sleep 1000
 if $rows != 2 then
   print ==== expect rows = 2, actually returned rows = $rows
   return -1
@@ -75,11 +76,11 @@ print data02 = $data02
 if $data02 != 1.000000000 then
   return -1
 endi
-sql alter table mt drop tag t2;
+sql alter table mt304 drop tag t2;
 sql insert into tb2 values (now,2);
 sql insert into tb1 values (now,1);
 sql select * from strm;
-sql alter table mt add tag t2 int;
+sql alter table mt304 add tag t2 int;
 sleep 10000
 sql select * from strm
 
@@ -98,7 +99,7 @@ sleep 4000
 sql insert into tb2 values (now, 2, 'tb2')
 sleep 4000
 sql insert into tb3 values (now, 0, 'tb3')
-sleep 6000
+sleep 60000
 
 sql describe strm
 if $rows == 0 then
@@ -134,11 +135,9 @@ endi
 ## The vnode client needs to refresh metadata cache to allow strm calculate tb4's data. But the current refreshing frequency is every 10 min
 ## commented out the case below to save running time
 sql create table tb4 using stb tags('a4')
-sleep 6000
 sql insert into tb4 values(now, 4, 'tb4')
-sleep 10000
+sleep 60000
 sql select * from strm order by ts desc
-sleep 1000
 print ======== data0: $data00 $data01 $data02 $data03 
 #print ======== data1: $data10 $data11 $data12 $data13 
 #print ======== data2: $data20 $data21 $data22 $data23 
@@ -160,7 +159,7 @@ sleep 3000   # waiting for new tag valid
 sql insert into tb1 values (now, 1, 'tb1_a1')
 sleep 4000
 sql insert into tb4 values (now, -4, 'tb4_b4')
-sleep 10000
+sleep 100000
 sql select * from strm order by ts desc
 sleep 1000
 print ======== data0: $data00 $data01 $data02 $data03 
@@ -191,9 +190,9 @@ sql create table tb3 using stb tags(3, 'tb3')
 sql create table tb4 using stb tags(4, 'tb4')
 
 sql create table strm0 as select count(ts), count(c1), max(c2), min(c4), first(c5), last(c6) from stb where ts < now + 30s interval(4s) sliding(2s)
-sleep 10000
+sleep 1000
 sql insert into tb0 values (now, 0, 0, 0, 0, 'binary0', '涛思0', true) tb1 values (now, 1, 1, 1, 1, 'binary1', '涛思1', false) tb2 values (now, 2, 2, 2, 2, 'binary2', '涛思2', true) tb3 values (now, 3, 3, 3, 3, 'binary3', '涛思3', false) tb4 values (now, 4, 4, 4, 4, 'binary4', '涛思4', true) 
-sleep 5000
+sleep 20000
 sql select * from strm0 order by ts desc
 sleep 1000
 if $rows != 2 then
@@ -202,23 +201,12 @@ if $rows != 2 then
 endi
 
 sql insert into tb0 values (now, 10, 10, 10, 10, 'binary0', '涛思0', true) tb1 values (now, 11, 11, 11, 11, 'binary1', '涛思1', false) tb2 values (now, 12, 12, 12, 12, 'binary2', '涛思2', true) tb3 values (now, 13, 13, 13, 13, 'binary3', '涛思3', false) tb4 values (now, 14, 14, 14, 14, 'binary4', '涛思4', true) 
-sleep 5000
+sleep 30000
 sql select * from strm0 order by ts desc
 sleep 1000
 if $rows != 4 then
   print ==== expect rows = 4, actually returned rows = $rows
   return -1
 endi
-
-sql drop database if exists strm_db_0
-sql show databases
-if $rows != 0 then 
-  return -1
-endi
-
-sql create database $db
-sql use $db
-sql create table stb (ts timestamp, c1 int) tags(t1 int)
-sql create table tb1 using stb tags(1)
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

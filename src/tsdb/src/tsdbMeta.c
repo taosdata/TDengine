@@ -424,6 +424,11 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
       pTable->schema[pTable->numOfSchemas-1] = tSchema;
     }
 
+    STSchema *lSchema = pTable->schema[pTable->numOfSchemas - 1];
+    if (schemaNCols(lSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(lSchema);
+    int bytes = dataRowMaxBytesFromSchema(lSchema);
+    if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
+
     isChanged = true;
   }
 
@@ -593,6 +598,10 @@ int tsdbDropTable(TsdbRepoT *repo, STableId tableId) {
     tsdbError("vgId:%d, failed to drop table since table not exists! tid:%d, uid:" PRId64, pRepo->config.tsdbId,
               tableId.tid, tableId.uid);
     return -1;
+  }
+
+  if (pTable->cqhandle != NULL) {
+    pRepo->appH.cqDropFunc(pTable->cqhandle);
   }
 
   tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),

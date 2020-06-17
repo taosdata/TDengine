@@ -15,44 +15,29 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "hash.h"
 #include "taos.h"
 #include "ttime.h"
-#include "ttimer.h"
-#include "http.h"
-#include "httpLog.h"
-#include "httpCode.h"
-#include "httpHandle.h"
-#include "httpResp.h"
-
-void httpAccessSession(HttpContext *pContext) {
-  HttpServer *server = pContext->pThread->pServer;
-  pthread_mutex_lock(&server->serverMutex);
-  if (pContext->session == pContext->session->signature) {
-    pContext->session->expire = (int) taosGetTimestampSec() + pContext->pThread->pServer->sessionExpire;
-  }
-  pthread_mutex_unlock(&server->serverMutex);
-}
+#include "tglobal.h"
+#include "tcache.h"
+#include "httpInt.h"
+#include "httpContext.h"
+#include "httpSession.h"
 
 void httpCreateSession(HttpContext *pContext, void *taos) {
-  HttpServer *server = pContext->pThread->pServer;
+  HttpServer *server = &tsHttpServer;
+  httpReleaseSession(pContext);
+
   pthread_mutex_lock(&server->serverMutex);
 
-  if (pContext->session != NULL && pContext->session == pContext->session->signature) {
-    httpTrace("context:%p, fd:%d, ip:%s, user:%s, set exist session:%p:%p expired", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, pContext->session, pContext->session->taos);
-    pContext->session->expire = 0;
-    pContext->session->access--;
-  }
-
   HttpSession session;
+  memset(&session, 0, sizeof(HttpSession));
   session.taos = taos;
-  session.expire = (int)taosGetTimestampSec() + server->sessionExpire;
-  session.access = 1;
-  int sessionIdLen = snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
+  session.refCount = 1;
+  snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
 
-  taosHashPut(server->pSessionHash, session.id, sessionIdLen, (char *)(&session), sizeof(HttpSession));
-  pContext->session = taosHashGet(server->pSessionHash, session.id, sessionIdLen);
+  pContext->session = taosCachePut(server->sessionCache, session.id, &session, sizeof(HttpSession), tsHttpSessionExpire);
+  // void *temp = pContext->session;
+  // taosCacheRelease(server->sessionCache, (void **)&temp, false);
 
   if (pContext->session == NULL) {
     httpError("context:%p, fd:%d, ip:%s, user:%s, error:%s", pContext, pContext->fd, pContext->ipstr, pContext->user,
@@ -62,26 +47,23 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
     return;
   }
 
-  pContext->session->signature = pContext->session;
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, create a new session:%p:%p", pContext, pContext->fd, pContext->ipstr,
-            pContext->user, pContext->session, pContext->session->taos);
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, create a new session:%p:%p sessionRef:%d", pContext, pContext->fd,
+            pContext->ipstr, pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
   pthread_mutex_unlock(&server->serverMutex);
 }
 
-void httpFetchSessionImp(HttpContext *pContext) {
-  HttpServer *server = pContext->pThread->pServer;
+static void httpFetchSessionImp(HttpContext *pContext) {
+  HttpServer *server = &tsHttpServer;
   pthread_mutex_lock(&server->serverMutex);
 
   char sessionId[HTTP_SESSION_ID_LEN];
-  int sessonIdLen = snprintf(sessionId, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
+  snprintf(sessionId, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
 
-  pContext->session = taosHashGet(server->pSessionHash, sessionId, sessonIdLen);
-  if (pContext->session != NULL && pContext->session == pContext->session->signature) {
-    pContext->session->access++;
-    httpTrace("context:%p, fd:%d, ip:%s, user:%s, find an exist session:%p:%p, access:%d, expire:%d",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session,
-              pContext->session->taos, pContext->session->access, pContext->session->expire);
-    pContext->session->expire = (int)taosGetTimestampSec() + server->sessionExpire;
+  pContext->session = taosCacheAcquireByName(server->sessionCache, sessionId);
+  if (pContext->session != NULL) {
+    atomic_add_fetch_32(&pContext->session->refCount, 1);
+    httpTrace("context:%p, fd:%d, ip:%s, user:%s, find an exist session:%p:%p, sessionRef:%d", pContext, pContext->fd,
+              pContext->ipstr, pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
   } else {
     httpTrace("context:%p, fd:%d, ip:%s, user:%s, session not found", pContext, pContext->fd, pContext->ipstr,
               pContext->user);
@@ -90,113 +72,54 @@ void httpFetchSessionImp(HttpContext *pContext) {
   pthread_mutex_unlock(&server->serverMutex);
 }
 
-void httpFetchSession(HttpContext *pContext) {
+void httpGetSession(HttpContext *pContext) {
   if (pContext->session == NULL) {
     httpFetchSessionImp(pContext);
   } else {
     char sessionId[HTTP_SESSION_ID_LEN];
     snprintf(sessionId, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
-    if (strcmp(pContext->session->id, sessionId) != 0) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, password may be changed", pContext, pContext->fd, pContext->ipstr, pContext->user);
-      httpRestoreSession(pContext);
-      httpFetchSessionImp(pContext);
-    }
+    httpReleaseSession(pContext);
+    httpFetchSessionImp(pContext);
   }
 }
 
-void httpRestoreSession(HttpContext *pContext) {
-  HttpServer * server = pContext->pThread->pServer;
+void httpReleaseSession(HttpContext *pContext) {
+  if (pContext == NULL || pContext->session == NULL) return;
 
-  // all access to the session is via serverMutex
-  pthread_mutex_lock(&server->serverMutex);
-  HttpSession *session = pContext->session;
-  if (session == NULL || session != session->signature) {
-    pthread_mutex_unlock(&server->serverMutex);
-    return;
-  }
-  session->access--;
-  httpTrace("context:%p, ip:%s, user:%s, restore session:%p:%p, access:%d, expire:%d",
-            pContext, pContext->ipstr, pContext->user, session, session->taos,
-            session->access, pContext->session->expire);
+  int32_t refCount = atomic_sub_fetch_32(&pContext->session->refCount, 1);
+  assert(refCount >= 0);
+  httpTrace("context:%p, release session:%p:%p, sessionRef:%d", pContext, pContext->session, pContext->session->taos,
+            pContext->session->refCount);
+
+  taosCacheRelease(tsHttpServer.sessionCache, (void **)&pContext->session, false);
   pContext->session = NULL;
-  pthread_mutex_unlock(&server->serverMutex);
 }
 
-void httpResetSession(HttpSession *pSession) {
-  httpTrace("close session:%p:%p", pSession, pSession->taos);
-  if (pSession->taos != NULL) {
-    taos_close(pSession->taos);
-    pSession->taos = NULL;
+static void httpDestroySession(void *data) {
+  HttpSession *session = data;
+  httpTrace("session:%p:%p, is destroyed, sessionRef:%d", session, session->taos, session->refCount);
+
+  if (session->taos != NULL) {
+    taos_close(session->taos);
+    session->taos = NULL;
   }
-  pSession->signature = NULL;
 }
 
-void httpRemoveAllSessions(HttpServer *pServer) {
-  SHashMutableIterator *pIter = taosHashCreateIter(pServer->pSessionHash);
-
-  while (taosHashIterNext(pIter)) {
-    HttpSession *pSession = taosHashIterGet(pIter);
-    if (pSession == NULL) continue;
-    httpResetSession(pSession);
+void httpCleanUpSessions() {
+  if (tsHttpServer.sessionCache != NULL) {
+    SCacheObj *cache = tsHttpServer.sessionCache;
+    httpPrint("session cache is cleanuping, size:%d", taosHashGetSize(cache->pHashTable));
+    taosCacheCleanup(tsHttpServer.sessionCache);
+    tsHttpServer.sessionCache = NULL;
   }
-
-  taosHashDestroyIter(pIter);
 }
 
-bool httpInitAllSessions(HttpServer *pServer) {
-  if (pServer->pSessionHash == NULL) {
-    pServer->pSessionHash = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true);
-  }
-  if (pServer->pSessionHash == NULL) {
-    httpError("http init session pool failed");
+bool httpInitSessions() {
+  tsHttpServer.sessionCache = taosCacheInitWithCb(5, httpDestroySession);
+  if (tsHttpServer.sessionCache == NULL) {
+    httpError("failed to init session cache");
     return false;
   }
-  if (pServer->expireTimer == NULL) {
-    taosTmrReset(httpProcessSessionExpire, 50000, pServer, pServer->timerHandle, &pServer->expireTimer);
-  }
 
   return true;
-}
-
-bool httpSessionExpired(HttpSession *pSession) {
-  time_t cur = taosGetTimestampSec();
-
-  if (pSession->taos != NULL) {
-    if (pSession->expire > cur) {
-      return false;  // un-expired, so return false
-    }
-    if (pSession->access > 0) {
-      httpTrace("session:%p:%p is expired, but still access:%d", pSession, pSession->taos,
-                pSession->access);
-      return false;  // still used, so return false
-    }
-    httpTrace("need close session:%p:%p for it expired, cur:%d, expire:%d, invertal:%d",
-              pSession, pSession->taos, cur, pSession->expire, cur - pSession->expire);
-  }
-
-  return true;
-}
-
-void httpRemoveExpireSessions(HttpServer *pServer) {  
-  SHashMutableIterator *pIter = taosHashCreateIter(pServer->pSessionHash);
-
-  while (taosHashIterNext(pIter)) {
-    HttpSession *pSession = taosHashIterGet(pIter);
-    if (pSession == NULL) continue;
-
-    pthread_mutex_lock(&pServer->serverMutex);
-    if (httpSessionExpired(pSession)) {
-      httpResetSession(pSession);
-      taosHashRemove(pServer->pSessionHash, pSession->id, strlen(pSession->id));
-    }
-    pthread_mutex_unlock(&pServer->serverMutex);
-  }
-
-  taosHashDestroyIter(pIter);
-}
-
-void httpProcessSessionExpire(void *handle, void *tmrId) {
-  HttpServer *pServer = (HttpServer *)handle;
-  httpRemoveExpireSessions(pServer);
-  taosTmrReset(httpProcessSessionExpire, 60000, pServer, pServer->timerHandle, &pServer->expireTimer);
 }

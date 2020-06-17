@@ -1432,8 +1432,6 @@ bool tscShouldBeFreed(SSqlObj* pSql) {
     return false;
   }
   
-  assert(pSql->fp != NULL);
-  
   STscObj* pTscObj = pSql->pTscObj;
   if (pSql->pStream != NULL || pTscObj->pHb == pSql || pSql->pSubscription != NULL) {
     return false;

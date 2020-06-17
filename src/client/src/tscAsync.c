@@ -370,7 +370,9 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
     pSql->fp = pSql->fetchFp;
   }
 
-  (*pSql->fp)(pSql->param, taosres, code);
+  if (pSql->fp) {
+    (*pSql->fp)(pSql->param, taosres, code);
+  }
 
   if (shouldFree) {
     tscTrace("%p sqlObj is automatically freed in async res", pSql);

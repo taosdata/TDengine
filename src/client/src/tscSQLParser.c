@@ -136,7 +136,7 @@ static int setColumnFilterInfoForTimestamp(SQueryInfo* pQueryInfo, tVariant* pVa
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   if (seg != NULL) {
-    if (taosParseTime(pVar->pz, &time, pVar->nLen, tinfo.precision) != TSDB_CODE_SUCCESS) {
+    if (taosParseTime(pVar->pz, &time, pVar->nLen, tinfo.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg);
     }
   } else {
@@ -1034,7 +1034,7 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
 
   /* db name is not specified, the tableName dose not include db name */
   if (pDB != NULL) {
-    if (pDB->n >= TSDB_DB_NAME_LEN) {
+    if (pDB->n >= TSDB_ACCT_LEN + TSDB_DB_NAME_LEN) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
@@ -3903,7 +3903,7 @@ int32_t getTimeRange(STimeWindow* win, tSQLExpr* pRight, int32_t optr, int16_t t
 
     char* seg = strnchr(pRight->val.pz, '-', pRight->val.nLen, false);
     if (seg != NULL) {
-      if (taosParseTime(pRight->val.pz, &val, pRight->val.nLen, TSDB_TIME_PRECISION_MICRO) == TSDB_CODE_SUCCESS) {
+      if (taosParseTime(pRight->val.pz, &val, pRight->val.nLen, TSDB_TIME_PRECISION_MICRO, tsDaylight) == TSDB_CODE_SUCCESS) {
         parsed = true;
       } else {
         return TSDB_CODE_TSC_INVALID_SQL;
@@ -4461,7 +4461,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (pTagsSchema->type != TSDB_DATA_TYPE_BINARY && pTagsSchema->type != TSDB_DATA_TYPE_NCHAR) {
       len = tDataTypeDesc[pTagsSchema->type].nSize;
     } else {
-      len = varDataLen(pUpdateMsg->data);
+      len = varDataTLen(pUpdateMsg->data);
     }
     
     pUpdateMsg->tagValLen = htonl(len);  // length may be changed after dump data
@@ -6021,11 +6021,14 @@ int32_t exprTreeFromSqlExpr(tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray*
       }
     }
 
+
     if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
       if (pRight->nodeType == TSQL_NODE_VALUE) {
-        if (  pRight->pVal->nType == TSDB_DATA_TYPE_BOOL 
-           || pRight->pVal->nType == TSDB_DATA_TYPE_BINARY 
-           || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR) {
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL) {
+          return TSDB_CODE_TSC_INVALID_SQL;
+        }
+        if ((pRight->pVal->nType == TSDB_DATA_TYPE_BINARY || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR)
+            && (*pExpr)->_node.optr != TSDB_RELATION_LIKE) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
       }

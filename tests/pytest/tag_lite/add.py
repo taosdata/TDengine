@@ -296,13 +296,13 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data23 != 1 then
-        tdLog.info('tdSql.checkData(2, 3, 1)')
-        tdSql.checkData(2, 3, 1)
+        tdLog.info('tdSql.checkData(2, 3, TAG)')
+        tdSql.checkData(2, 3, "TAG")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data33 != 2.000000 then
         tdLog.info('tdSql.checkData(3, 3, 2.000000)')
-        tdSql.checkData(3, 3, 2.000000)
+        tdSql.checkData(3, 3, "TAG")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -396,7 +396,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
-        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 3, "2")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -553,12 +553,12 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != 5 then
         tdLog.info('tdSql.checkData(0, 3, 5)')
-        tdSql.checkData(0, 3, 5)
+        tdSql.checkData(0, 3, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 6 then
         tdLog.info('tdSql.checkData(0, 4, 6)')
-        tdSql.checkData(0, 4, 6)
+        tdSql.checkData(0, 4, "6")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -584,12 +584,12 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != 5 then
         tdLog.info('tdSql.checkData(0, 3, 5)')
-        tdSql.checkData(0, 3, 5)
+        tdSql.checkData(0, 3, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 6 then
         tdLog.info('tdSql.checkData(0, 4, 6)')
-        tdSql.checkData(0, 4, 6)
+        tdSql.checkData(0, 4, "6")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -654,7 +654,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data04 != 3 then
         tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -779,7 +779,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data04 != 3 then
         tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -838,7 +838,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != 5 then
         tdLog.info('tdSql.checkData(0, 3, 5)')
-        tdSql.checkData(0, 3, 5)
+        tdSql.checkData(0, 3, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 1 then
@@ -900,12 +900,12 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
-        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 3, "2")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 3 then
         tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -1024,28 +1024,28 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
-        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 2, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 2 then
         tdLog.info('tdSql.checkData(0, 3, 2)')
-        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 3, "2")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 3 then
         tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != 4 then
         tdLog.info('tdSql.checkData(0, 5, 4)')
-        tdSql.checkData(0, 5, 4)
+        tdSql.checkData(0, 5, "4")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt change tag tgcol1 tgcol4 -x step103
         tdLog.info('alter table %s change tag tgcol1 tgcol4 -x step103' % (mt))
-        tdSql.error('alter table %s change tag tgcol1 tgcol403' % (mt))
+        tdSql.error('alter table %s change tag tgcol1 tgcol4' % (mt))
         # TSIM: return -1
         # TSIM: step103:
         # TSIM:
@@ -1098,12 +1098,12 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
-        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 2, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 4 then
         tdLog.info('tdSql.checkData(0, 3, 4)')
-        tdSql.checkData(0, 3, 4)
+        tdSql.checkData(0, 3, "4")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 0 then
@@ -1112,8 +1112,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != NULL then
-        tdLog.info('tdSql.checkData(0, 5, NULL)')
-        tdSql.checkData(0, 5, None)
+       #tdLog.info('tdSql.checkData(0, 5, NULL)')
+       # tdSql.checkData(0, 5, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -1189,13 +1189,13 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data06 != 5 then
         tdLog.info('tdSql.checkData(0, 6, 5)')
-        tdSql.checkData(0, 6, 5)
+        tdSql.checkData(0, 6, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt change tag tgcol1 tgcol4 -x step114
         tdLog.info('alter table %s change tag tgcol1 tgcol4 -x step114' % (mt))
-        tdSql.error('alter table %s change tag tgcol1 tgcol414' % (mt))
+        tdSql.error('alter table %s change tag tgcol1 tgcol4' % (mt))
         # TSIM: return -1
         # TSIM: step114:
         # TSIM:
@@ -1274,7 +1274,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != 4 then
         tdLog.info('tdSql.checkData(0, 3, 4)')
-        tdSql.checkData(0, 3, 4)
+        tdSql.checkData(0, 3, "4")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 5 then
@@ -1284,7 +1284,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data05 != 6 then
         tdLog.info('tdSql.checkData(0, 5, 6)')
-        tdSql.checkData(0, 5, 6)
+        tdSql.checkData(0, 5, "6")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != 7 then
@@ -1376,12 +1376,12 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data06 != 5 then
         tdLog.info('tdSql.checkData(0, 6, 5)')
-        tdSql.checkData(0, 6, 5)
+        tdSql.checkData(0, 6, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data07 != 6 then
         tdLog.info('tdSql.checkData(0, 7, 6)')
-        tdSql.checkData(0, 7, 6)
+        tdSql.checkData(0, 7, "6")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -1460,12 +1460,12 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != 1 then
         tdLog.info('tdSql.checkData(0, 3, 1)')
-        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 3, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 5 then
         tdLog.info('tdSql.checkData(0, 4, 5)')
-        tdSql.checkData(0, 4, 5)
+        tdSql.checkData(0, 4, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != 4 then
@@ -1475,7 +1475,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data06 != 3 then
         tdLog.info('tdSql.checkData(0, 6, 3)')
-        tdSql.checkData(0, 6, 3)
+        tdSql.checkData(0, 6, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data07 != 2 then
@@ -1562,7 +1562,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data02 != 1 then
         tdLog.info('tdSql.checkData(0, 2, 1)')
-        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 2, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 2 then
@@ -1577,7 +1577,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data05 != 4 then
         tdLog.info('tdSql.checkData(0, 5, 4)')
-        tdSql.checkData(0, 5, 4)
+        tdSql.checkData(0, 5, "4")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != 5.000000000 then
@@ -1587,7 +1587,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data07 != 6 then
         tdLog.info('tdSql.checkData(0, 7, 6)')
-        tdSql.checkData(0, 7, 6)
+        tdSql.checkData(0, 7, "6")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -1655,7 +1655,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data02 != 7 then
         tdLog.info('tdSql.checkData(0, 2, 7)')
-        tdSql.checkData(0, 2, 7)
+        tdSql.checkData(0, 2, "7")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 9 then
@@ -1670,7 +1670,7 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data05 != 8 then
         tdLog.info('tdSql.checkData(0, 5, 8)')
-        tdSql.checkData(0, 5, 8)
+        tdSql.checkData(0, 5, "8")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != 10 then
@@ -1744,8 +1744,8 @@ class TDTestCase:
         # TSIM: print =============== clear
         tdLog.info('=============== clear')
         # TSIM: sql drop database $db
-        tdLog.info('sql drop database $db')
-        tdSql.execute('sql drop database $db')
+        tdLog.info('sql drop database db')
+        tdSql.execute('drop database db')
         # TSIM: sql show databases
         tdLog.info('show databases')
         tdSql.query('show databases')

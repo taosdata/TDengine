@@ -817,7 +817,7 @@ void queryDB(TAOS *taos, char *command) {
     i--; 
   }
 
-  if (i == 0) {
+  if (code != 0) {
     fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
     taos_free_result(pSql);
 

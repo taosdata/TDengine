@@ -250,7 +250,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
   int8_t  getMeta;
   int16_t numOfTags;
@@ -268,7 +268,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
@@ -557,18 +557,30 @@ typedef struct {
 } SDMMnodeInfos;
 
 typedef struct {
-  uint32_t   version;
-  int32_t    dnodeId;
-  char       dnodeEp[TSDB_EP_LEN];
-  uint32_t   moduleStatus;
-  uint32_t   lastReboot;        // time stamp for last reboot
-  uint16_t   numOfTotalVnodes;  // from config file
-  uint16_t   openVnodes;
-  uint16_t   numOfCores;
-  float      diskAvailable;  // GB
-  uint8_t    alternativeRole;
-  uint8_t    reserve[15];
-  SVnodeLoad load[];
+  int32_t  numOfMnodes;               // tsNumOfMnodes
+  int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
+  int32_t  offlineThreshold;          // tsOfflineThreshold
+  int32_t  statusInterval;            // tsStatusInterval
+  char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
+  char     timezone[64];              // tsTimezone
+  char     locale[TSDB_LOCALE_LEN];   // tsLocale
+  char     charset[TSDB_LOCALE_LEN];  // tsCharset
+} SClusterCfg;
+
+typedef struct {
+  uint32_t    version;
+  int32_t     dnodeId;
+  char        dnodeEp[TSDB_EP_LEN];
+  uint32_t    moduleStatus;
+  uint32_t    lastReboot;        // time stamp for last reboot
+  uint16_t    numOfTotalVnodes;  // from config file
+  uint16_t    openVnodes;
+  uint16_t    numOfCores;
+  float       diskAvailable;  // GB
+  uint8_t     alternativeRole;
+  uint8_t     reserve[15];
+  SClusterCfg clusterCfg;
+  SVnodeLoad  load[];
 } SDMStatusMsg;
 
 typedef struct {
@@ -670,7 +682,7 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SCMShowMsg;

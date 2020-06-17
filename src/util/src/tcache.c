@@ -63,10 +63,12 @@ static FORCE_INLINE void __cache_lock_destroy(SCacheObj *pCacheObj) {
 #endif
 }
 
+#if 0
 static FORCE_INLINE void taosFreeNode(void *data) {
   SCacheDataNode *pNode = *(SCacheDataNode **)data;
   free(pNode);
 }
+#endif
 
 /**
  * @param key      key of object for hash, usually a null-terminated string
@@ -241,7 +243,7 @@ SCacheObj *taosCacheInitWithCb(int64_t refreshTime, void (*freeCb)(void *data)) 
   }
   
   // set free cache node callback function for hash table
-  taosHashSetFreecb(pCacheObj->pHashTable, taosFreeNode);
+  // taosHashSetFreecb(pCacheObj->pHashTable, taosFreeNode);
   
   pCacheObj->freeFp = freeCb;
   pCacheObj->refreshTime = refreshTime * 1000;
@@ -565,7 +567,17 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
 
 void doCleanupDataCache(SCacheObj *pCacheObj) {
   __cache_wr_lock(pCacheObj);
-  taosHashCleanup(pCacheObj->pHashTable);
+
+  SHashMutableIterator *pIter = taosHashCreateIter(pCacheObj->pHashTable);
+  while (taosHashIterNext(pIter)) {
+    SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
+    // if (pNode->expiredTime <= expiredTime && T_REF_VAL_GET(pNode) <= 0) {
+    taosCacheReleaseNode(pCacheObj, pNode);
+    //}
+  }
+  taosHashDestroyIter(pIter);
+
+  taosHashCleanup(pCacheObj->pHashTable); 
   __cache_unlock(pCacheObj);
 
   taosTrashCanEmpty(pCacheObj, true);

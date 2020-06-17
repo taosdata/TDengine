@@ -896,6 +896,7 @@ void tColModelDisplay(SColumnModel *pModel, void *pData, int32_t numOfRows, int3
           char buf[4096] = {0};
           taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
           printf("%s\t", buf);
+          break;
         }
         case TSDB_DATA_TYPE_BINARY: {
           printBinaryData(val, pModel->pFields[j].field.bytes);
@@ -947,6 +948,7 @@ void tColModelDisplayEx(SColumnModel *pModel, void *pData, int32_t numOfRows, in
           char buf[128] = {0};
           taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
           printf("%s\t", buf);
+          break;
         }
         case TSDB_DATA_TYPE_BINARY: {
           printBinaryDataEx(val, pModel->pFields[j].field.bytes, &param[j]);

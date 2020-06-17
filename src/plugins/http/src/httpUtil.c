@@ -17,11 +17,10 @@
 #include "os.h"
 #include "tmd5.h"
 #include "taos.h"
-#include "http.h"
-#include "httpLog.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
 #include "httpResp.h"
+#include "httpSql.h"
+#include "httpUtil.h"
 
 bool httpCheckUsedbSql(char *sql) {
   if (strstr(sql, "use ") != NULL) {

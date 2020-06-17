@@ -325,6 +325,11 @@ void vnodeRelease(void *pVnodeRaw) {
     tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
 
+  // stop continuous query
+  if (pVnode->cq) 
+    cqClose(pVnode->cq);
+  pVnode->cq = NULL;
+
   if (pVnode->wal) 
     walClose(pVnode->wal);
   pVnode->wal = NULL;
@@ -435,11 +440,6 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     syncStop(pVnode->sync);
     pVnode->sync = NULL;
   }
-
-  // stop continuous query
-  if (pVnode->cq) 
-    cqClose(pVnode->cq);
-  pVnode->cq = NULL;
 
   // release local resources only after cutting off outside connections
   vnodeRelease(pVnode);

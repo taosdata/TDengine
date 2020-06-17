@@ -848,7 +848,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
   }
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-  if (isIntervalQuery(pQuery)) {
+  if (isIntervalQuery(pQuery) && tsCols != NULL) {
     int32_t offset = GET_COL_DATA_POS(pQuery, 0, step);
     TSKEY   ts = tsCols[offset];
 
@@ -4285,7 +4285,8 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       assert(taosArrayGetSize(s) >= 1);
       
       setTagVal(pRuntimeEnv, (STableId*) taosArrayGet(s, 0), pQInfo->tsdb);
-      
+        
+      taosArrayDestroy(s);
       if (isFirstLastRowQuery(pQuery)) {
         assert(taosArrayGetSize(s) == 1);
       }
@@ -4350,6 +4351,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
 
         // no results generated for current group, continue to try the next group
+      taosArrayDestroy(s); 
       if (pWindowResInfo->size <= 0) {
         continue;
       }

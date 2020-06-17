@@ -7,6 +7,7 @@ system sh/deploy.sh -n dnode4 -i 4
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
 
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/cfg.sh -n dnode2 -c walLevel -v 2
@@ -32,11 +33,11 @@ system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
 
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
 
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
@@ -94,21 +95,30 @@ if $data00 != $totalRows then
 endi
 
 print ============== step3: corrupt vnode data file in dnode3, not stop dnode3
-# del the second row
-system sed '2d' ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/v1849.data
+system echo "haha, nothing......" > ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/f1643.data
 sleep 1000
 
-print ============== step4: run query 
+print ============== step4: insert new data, and run query 
+sql insert into $tb values ( now + 0a , $x ) ( now + 1a , $x ) ( now + 2a , $x ) 
+$totalRows = $totalRows + 3
+
 sql select count(*) from $stb
 print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
 
-print ============== step5: stop dnode2, and check if dnode3 sync ok 
+print ============== step5: stop dnode2, and check if dnode3 sync ok
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep $sleepTimer
+
+$loopCnt = 0
 wait_dnode2_offline_0:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
+
 sql show dnodes
 if $rows != 3 then
   sleep 2000
@@ -131,7 +141,13 @@ if $dnode2Status != offline then
   goto wait_dnode2_offline_0
 endi
 
+$loopCnt = 0
 wait_dnode3_vgroup_master:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
+
 sql show vgroups
 if $rows != 1 then
   sleep 2000
@@ -151,4 +167,10 @@ endi
 if $dnode3Vtatus != master then
   sleep 2000
   goto wait_dnode3_vgroup_master
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
 endi
