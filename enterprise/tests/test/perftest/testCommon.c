@@ -103,7 +103,7 @@ void createEnvironment(TAOS *conn, int32_t count, int32_t totalCnt, int32_t poin
 int32_t executeSQL(TAOS *conn, char *sql, ResultInfo *pRes) {
   TAOS_RES* pSql = taos_query(conn, sql);
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
-    printf("failed to execute %s, reason:%s\n", sql, taos_errstr(conn));
+    printf("failed to execute %s, reason:%s\n", sql, taos_errstr(pSql));
     return -1;
   }
 
