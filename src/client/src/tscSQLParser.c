@@ -1839,7 +1839,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
       } else {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
-        int64_t nTop = *((int32_t*)val);
+        int64_t nTop = GET_INT32_VAL(val);
         if (nTop <= 0 || nTop > 100) {  // todo use macro
           return invalidSqlErrMsg(pQueryInfo->msg, msg5);
         }
@@ -1849,12 +1849,14 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
           return TSDB_CODE_TSC_INVALID_SQL;
         }
 
+        // todo REFACTOR
         // set the first column ts for top/bottom query
         SColumnIndex index1 = {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
         pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS, &index1, TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE,
             TSDB_KEYSIZE, false);
+        tstrncpy(pExpr->aliasName, aAggs[TSDB_FUNC_TS].aName, sizeof(pExpr->aliasName));
 
-        const int32_t TS_COLUMN_INDEX = 0;
+        const int32_t TS_COLUMN_INDEX = PRIMARYKEY_TIMESTAMP_COL_INDEX;
         SColumnList   ids = getColumnList(1, 0, TS_COLUMN_INDEX);
         insertResultField(pQueryInfo, TS_COLUMN_INDEX, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP,
                           aAggs[TSDB_FUNC_TS].aName, pExpr);
