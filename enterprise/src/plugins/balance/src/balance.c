@@ -430,7 +430,7 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
 
   if (!hasThisDnode) {
     mPrint("dnode:%d, dropped for all vnodes are moving to other dnodes", pDnode->dnodeId);
-    mnodeDropDnode(pDnode);
+    mnodeDropDnode(pDnode, NULL);
     return true;
   }
 
