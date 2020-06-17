@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+struct SMnodeMsg;
+
 typedef enum {
   SDB_TABLE_DNODE   = 0,
   SDB_TABLE_MNODE   = 1,
@@ -48,8 +50,11 @@ typedef struct {
   ESdbOper type;
   void *   table;
   void *   pObj;
-  int32_t  rowSize;
   void *   rowData;
+  int32_t  rowSize;
+  int32_t  retCode; // for callback in sdb queue
+  int32_t  (*cb)(struct SMnodeMsg *pMsg, int32_t code);
+  struct SMnodeMsg *pMsg;
 } SSdbOper;
 
 typedef struct {

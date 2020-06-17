@@ -20,10 +20,10 @@ system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
+system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 20
+system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 20
+system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 20
+system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 20
 
 system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/cfg.sh -n dnode2 -c http -v 1

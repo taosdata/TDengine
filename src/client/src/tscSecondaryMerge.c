@@ -353,7 +353,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pRes->numOfGroups = 0;
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);;
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   TSKEY stime = MIN(pQueryInfo->window.skey, pQueryInfo->window.ekey);
   int64_t revisedSTime =

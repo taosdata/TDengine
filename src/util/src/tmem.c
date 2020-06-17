@@ -29,7 +29,7 @@ static FILE* fpAllocLog = NULL;
 // memory allocator which fails randomly
 
 extern int32_t taosGetTimestampSec();
-static int32_t startTime = INT32_MAX;;
+static int32_t startTime = INT32_MAX;
 
 static bool random_alloc_fail(size_t size, const char* file, uint32_t line) {
   if (taosGetTimestampSec() < startTime) {

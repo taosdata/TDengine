@@ -359,3 +359,4 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
 ./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
 ./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
+

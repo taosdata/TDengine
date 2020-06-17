@@ -3356,7 +3356,7 @@ void setWindowResOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *
 
 int32_t setAdditionalInfo(SQInfo *pQInfo, STableId* pTableId, STableQueryInfo *pTableQueryInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  assert(pTableQueryInfo->lastKey >= TSKEY_INITIAL_VAL);
+  //assert(pTableQueryInfo->lastKey >= TSKEY_INITIAL_VAL);
 
   setTagVal(pRuntimeEnv, pTableId, pQInfo->tsdb);
 
@@ -4252,7 +4252,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       SArray* group = taosArrayGetP(pQInfo->groupInfo.pGroupList, pQInfo->groupIndex);
 
       qTrace("QInfo:%p last_row query on group:%d, total group:%d, current group:%d", pQInfo, pQInfo->groupIndex,
-             numOfGroups);
+             numOfGroups, group);
 
       STsdbQueryCond cond = {
           .twindow = pQuery->window,
@@ -4286,10 +4286,10 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       
       setTagVal(pRuntimeEnv, (STableId*) taosArrayGet(s, 0), pQInfo->tsdb);
         
-      taosArrayDestroy(s);
       if (isFirstLastRowQuery(pQuery)) {
         assert(taosArrayGetSize(s) == 1);
       }
+      taosArrayDestroy(s);
       
       // here we simply set the first table as current table
       pQuery->current = ((SGroupItem*) taosArrayGet(group, 0))->info;
@@ -5405,6 +5405,7 @@ static int32_t createFilterInfo(void *pQInfo, SQuery *pQuery) {
 
         if ((lower == TSDB_RELATION_GREATER_EQUAL || lower == TSDB_RELATION_GREATER) &&
             (upper == TSDB_RELATION_LESS_EQUAL || upper == TSDB_RELATION_LESS)) {
+          assert(rangeFilterArray != NULL);
           if (lower == TSDB_RELATION_GREATER_EQUAL) {
             if (upper == TSDB_RELATION_LESS_EQUAL) {
               pSingleColFilter->fp = rangeFilterArray[4];
@@ -5419,11 +5420,12 @@ static int32_t createFilterInfo(void *pQInfo, SQuery *pQuery) {
             }
           }
         } else {  // set callback filter function
+          assert(filterArray != NULL);
           if (lower != TSDB_RELATION_INVALID) {
             pSingleColFilter->fp = filterArray[lower];
 
             if (upper != TSDB_RELATION_INVALID) {
-              qError("pQInfo:%p failed to get filter function, invalid filter condition", pQInfo, type);
+              qError("pQInfo:%p failed to get filter function, invalid filter condition: %d", pQInfo, type);
               return TSDB_CODE_QRY_INVALID_MSG;
             }
           } else {

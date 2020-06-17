@@ -41,7 +41,7 @@
 static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
-static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
+static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMsg);
 static int32_t mnodeDropDb(SMnodeMsg *newMsg);
 static int32_t mnodeSetDbDropping(SDbObj *pDb);
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -311,7 +311,7 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
 }
 
-static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
+static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMsg) {
   int32_t code = acctCheck(pAcct, ACCT_GRANT_DB);
   if (code != 0) return code;
 
@@ -364,12 +364,15 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
     .table   = tsDbSdb,
     .pObj    = pDb,
     .rowSize = sizeof(SDbObj),
+    .pMsg    = pMsg
   };
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pDb);
-    code = TSDB_CODE_MND_SDB_ERROR;
+  } else {
+    mLPrint("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   return code;
@@ -771,12 +774,7 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   } else if (!pMsg->pUser->writeAuth) {
     code = TSDB_CODE_MND_NO_RIGHTS;
   } else {
-    code = mnodeCreateDb(pMsg->pUser->pAcct, pCreate);
-    if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("db:%s, is created by %s", pCreate->db, pMsg->pUser->user);
-    } else {
-      mError("db:%s, failed to create, reason:%s", pCreate->db, tstrerror(code));
-    }
+    code = mnodeCreateDb(pMsg->pUser->pAcct, pCreate, pMsg);
   }
 
   return code;
@@ -893,7 +891,31 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   return newCfg;
 }
 
-static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
+static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SDbObj *pDb = pMsg->pDb;
+
+  void *pIter = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+    if (pVgroup->pDb == pDb) {
+      mnodeSendCreateVgroupMsg(pVgroup, NULL);
+    }
+    mnodeDecVgroupRef(pVgroup);
+  }
+  sdbFreeIter(pIter);
+
+  mTrace("db:%s, all vgroups is altered", pDb->name);
+  mLPrint("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+
+  balanceNotify();
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter, void *pMsg) {
   SDbCfg newCfg = mnodeGetAlterDbOption(pDb, pAlter);
   if (terrno != TSDB_CODE_SUCCESS) {
     return terrno;
@@ -904,38 +926,24 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     return code;
   }
 
-  int32_t oldReplica = pDb->cfg.replications;
-
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
     pDb->cfgVersion++;
     SSdbOper oper = {
-      .type = SDB_OPER_GLOBAL,
+      .type  = SDB_OPER_GLOBAL,
       .table = tsDbSdb,
-      .pObj = pDb
+      .pObj  = pDb,
+      .pMsg  = pMsg,
+      .cb    = mnodeAlterDbCb
     };
 
-    int32_t code = sdbUpdateRow(&oper);
-    if (code != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_MND_SDB_ERROR;
+    code = sdbUpdateRow(&oper);
+    if (code == TSDB_CODE_SUCCESS) {
+      if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
     }
   }
 
-  void *pIter = NULL;
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
-    if (pVgroup == NULL) break;   
-    mnodeSendCreateVgroupMsg(pVgroup, NULL);
-    mnodeDecVgroupRef(pVgroup);
-  }
-  sdbFreeIter(pIter);
-
-  if (oldReplica != pDb->cfg.replications) {
-    balanceNotify();
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
@@ -948,14 +956,7 @@ static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_INVALID_DB;
   }
 
-  int32_t code = mnodeAlterDb(pMsg->pDb, pAlter);
-  if (code != TSDB_CODE_SUCCESS) {
-    mError("db:%s, failed to alter, invalid db option", pAlter->db);
-    return code;
-  }
-
-  mTrace("db:%s, all vgroups is altered", pMsg->pDb->name);
-  return TSDB_CODE_SUCCESS;
+  return mnodeAlterDb(pMsg->pDb, pAlter, pMsg);
 }
 
 static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
@@ -963,13 +964,16 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   mPrint("db:%s, drop db from sdb", pDb->name);
 
   SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
+    .type  = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
-    .pObj = pDb
+    .pObj  = pDb,
+    .pMsg  = pMsg
   };
+
   int32_t code = sdbDeleteRow(&oper);
-  if (code != 0) {
-    code = TSDB_CODE_MND_SDB_ERROR;
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   return code;

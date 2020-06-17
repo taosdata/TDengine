@@ -155,22 +155,31 @@ if $dnode2Vtatus != master then
   goto wait_dnode3_vgroup_offline
 endi
 
-#system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l | sed 's/^[ \t]*//g'
-#system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l | sed 's/[ \t]*$//g'
+#$expectCnt = 3 . : 
+#print expectCnt: [ $expectCnt ]
+#system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l | tr '\n' ':'
+#system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l | tr '\n' ':'
 #print --2-->dnode3 data files: [ $system_content ]
 
-system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l
-print ---->dnode2 data files: [ $system_content ], expect is 0
 
-system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l
-print ---->dnode3 data files: [ $system_content ], expect is 3
-#if $system_content != 3 then 
-#  return -1
-#endi
+system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l | tr -d '\n'
+print ---->dnode2 data files: $system_content   expect: 0
+if $system_content != 0 then
+  return -1
+endi
+
+system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l | tr -d '\n'
+print ---->dnode3 data files: $system_content   expect: 3
+if $system_content != 3 then 
+  return -1
+endi
 
 system echo "haha, nothing......" > ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/f1643.data
+
+print ============== step3-1: insert some news data for let version changed
 sql insert into $tb values ( now + 0a , $x ) ( now + 1a , $x ) ( now + 2a , $x )
-$totalRows = $totalRows + 3
+sql insert into $tb values ( now + 10a , $x ) ( now + 11a , $x ) ( now + 12a , $x )
+$totalRows = $totalRows + 6
 sql select count(*) from $stb
 print data00 $data00
 if $data00 != $totalRows then
@@ -242,18 +251,18 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l
-print ----> dnode2 data files: [ $system_content ], expect is 0
-#if $system_content != 0 then 
-#  return -1
-#endi
+system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l | tr -d '\n'
+print ----> dnode2 data files: $system_content  expect: 0
+if $system_content != 0 then 
+  return -1
+endi
 
-system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l
-print ----> dnode3 data files: [ $system_content ], expect is 0
-#if $system_content != 0 then
-#  print there should be no data file in dnode3 after sync 
-#  return -1
-#endi
+system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l | tr -d '\n'
+print ----> dnode3 data files: $system_content   expect: 0
+if $system_content != 0 then
+  print there should be no data file in dnode3 after sync 
+  return -1
+endi
 
 print ============== step5: stop dnode2, and check if dnode3 sync ok
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
