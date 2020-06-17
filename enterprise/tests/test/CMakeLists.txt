@@ -1,7 +1,8 @@
 PROJECT(TDengine)
 
 include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ${TD_COMMUNITY_DIR}/src/client/inc/
-        ${TD_COMMUNITY_DIR}/src/query/inc  ${TD_COMMUNITY_DIR}/src/util/inc ../../tests/test/perftest/inc ${TD_OS_DIR}/inc)
+        ${TD_COMMUNITY_DIR}/src/query/inc  ${TD_COMMUNITY_DIR}/src/util/inc ../../tests/test/perftest/inc
+        ${TD_COMMUNITY_DIR}/src/common/inc ${TD_OS_DIR}/inc)
 
 add_executable(synctest ./cdriver/synctest.c )
 target_link_libraries(synctest taos pthread)
@@ -15,11 +16,8 @@ target_link_libraries(sync_insert_bug taos pthread)
 add_executable(asynctest ./cdriver/asynctest.c )
 target_link_libraries(asynctest taos pthread)
 
-add_executable(perftest ./perftest/taosperf.c ./perftest/perftestcommon.c)
-target_link_libraries(perftest taos pthread tutil)
-
-add_executable(loaddata ./perftest/loadData.c)
-target_link_libraries(loaddata taos_static pthread tutil)
+#add_executable(perftest ./perftest/taosperf.c ./perftest/perftestcommon.c)
+#target_link_libraries(perftest taos pthread tutil)
 
 add_executable(percentiletest ./perftest/percentileTest.c)
 target_link_libraries(percentiletest taos_static tutil)
@@ -27,8 +25,8 @@ target_link_libraries(percentiletest taos_static tutil)
 add_executable(sqltest ./perftest/sqlTest.c ./perftest/testCommon.c)
 target_link_libraries(sqltest taos tutil)
 
-add_executable(asttest ./perftest/astTest.c ./perftest/testCommon.c)
-target_link_libraries(asttest taos tutil)
+#add_executable(asttest ./perftest/astTest.c ./perftest/testCommon.c)
+#target_link_libraries(asttest taos tutil)
 
 #add_executable(localmerge ./perftest/localMergeTest.c)
 #target_link_libraries(localmerge taos tutil)
