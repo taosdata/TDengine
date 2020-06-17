@@ -192,7 +192,7 @@ sql create table tb4 using stb tags(4, 'tb4')
 sql create table strm0 as select count(ts), count(c1), max(c2), min(c4), first(c5), last(c6) from stb where ts < now + 30s interval(4s) sliding(2s)
 sleep 1000
 sql insert into tb0 values (now, 0, 0, 0, 0, 'binary0', '涛思0', true) tb1 values (now, 1, 1, 1, 1, 'binary1', '涛思1', false) tb2 values (now, 2, 2, 2, 2, 'binary2', '涛思2', true) tb3 values (now, 3, 3, 3, 3, 'binary3', '涛思3', false) tb4 values (now, 4, 4, 4, 4, 'binary4', '涛思4', true) 
-sleep 20000
+sleep 30000
 sql select * from strm0 order by ts desc
 sleep 1000
 if $rows != 2 then
@@ -203,9 +203,9 @@ endi
 sql insert into tb0 values (now, 10, 10, 10, 10, 'binary0', '涛思0', true) tb1 values (now, 11, 11, 11, 11, 'binary1', '涛思1', false) tb2 values (now, 12, 12, 12, 12, 'binary2', '涛思2', true) tb3 values (now, 13, 13, 13, 13, 'binary3', '涛思3', false) tb4 values (now, 14, 14, 14, 14, 'binary4', '涛思4', true) 
 sleep 30000
 sql select * from strm0 order by ts desc
-sleep 1000
-if $rows != 4 then
-  print ==== expect rows = 4, actually returned rows = $rows
+sleep 10000
+if $rows == 4 then
+  print ==== actually returned rows = $rows, expect always not equal to 4
   return -1
 endi
 

@@ -230,6 +230,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
       if (ds == NULL) {
         tscError("%p failed to create merge structure", pSql);
         pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        tfree(pReducer);
         return;
       }
       
@@ -266,6 +267,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   
   // no data actually, no need to merge result.
   if (idx == 0) {
+    tfree(pReducer);
     return;
   }
 
@@ -282,6 +284,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   pRes->code = tLoserTreeCreate(&pReducer->pLoserTree, pReducer->numOfBuffer, param, treeComparator);
   if (pReducer->pLoserTree == NULL || pRes->code != 0) {
+    tfree(pReducer);
     return;
   }
 
@@ -325,7 +328,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tfree(pReducer->pResultBuf);
     tfree(pReducer->pFinalRes);
     tfree(pReducer->prevRowOfInput);
-
+    tfree(pReducer);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;
   }
@@ -685,6 +688,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   if (createOrderDescriptor(pOrderDesc, pCmd, pModel) != TSDB_CODE_SUCCESS) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tfree(pSchema);
     return pRes->code;
   }
 
