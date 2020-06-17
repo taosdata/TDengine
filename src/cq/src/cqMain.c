@@ -256,11 +256,30 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SDataRow trow = (SDataRow)pBlk->data;
   tdInitDataRow(trow, pSchema);
 
+  union {
+    char buf[sizeof(int64_t)];
+    tstr str;
+  } nullVal;
+
   for (int32_t i = 0; i < pSchema->numOfCols; i++) {
     STColumn *c = pSchema->columns + i;
     char* val = (char*)row[i];
     if (IS_VAR_DATA_TYPE(c->type)) {
-      val -= sizeof(VarDataLenT);
+      if (val == NULL) {
+        val = nullVal.buf;
+        if (c->type == TSDB_DATA_TYPE_BINARY) {
+          setNull(nullVal.str.data, TSDB_DATA_TYPE_BINARY, 1);
+          nullVal.str.len = 1;
+        } else {
+          setNull(nullVal.str.data, TSDB_DATA_TYPE_NCHAR, 4);
+          nullVal.str.len = 4;
+        }
+      } else {
+        val -= sizeof(VarDataLenT);
+      }
+    } else if (val == NULL) {
+      val = nullVal.buf;
+      setNull(val, c->type, c->bytes);
     }
     tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
   }
