@@ -25,7 +25,6 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.error('create table tb (ts timestamp, col nchar(1022))')
         tdSql.execute('create table tb (ts timestamp, col nchar(1021))')
         tdSql.execute("insert into tb values (now, 'taosdata')")
         tdSql.query("select * from tb")
