@@ -1367,7 +1367,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->pParentSqlObj = pSql;
     trs->pFinalColModel = pModel;
     
-    pthread_mutexattr_t mutexattr = {0};
+    pthread_mutexattr_t mutexattr;
+    memset(&mutexattr, 0, sizeof(pthread_mutexattr_t));
+
     pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE_NP);
     pthread_mutex_init(&trs->queryMutex, &mutexattr);
     pthread_mutexattr_destroy(&mutexattr);
