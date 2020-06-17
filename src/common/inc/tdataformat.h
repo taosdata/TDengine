@@ -83,7 +83,7 @@ typedef struct {
 #define tdFreeSchema(s) tfree((s))
 
 STSchema *tdDupSchema(STSchema *pSchema);
-void *    tdEncodeSchema(void *buf, STSchema *pSchema);
+int       tdEncodeSchema(void **buf, STSchema *pSchema);
 void *    tdDecodeSchema(void *buf, STSchema **pRSchema);
 
 static FORCE_INLINE int comparColId(const void *key1, const void *key2) {
@@ -288,7 +288,7 @@ typedef struct {
 
 SKVRow tdKVRowDup(SKVRow row);
 int    tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
-void * tdEncodeKVRow(void *buf, SKVRow row);
+int    tdEncodeKVRow(void **buf, SKVRow row);
 void * tdDecodeKVRow(void *buf, SKVRow *row);
 
 static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {

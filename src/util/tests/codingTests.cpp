@@ -9,120 +9,144 @@ static bool test_fixed_uint16(uint16_t value) {
   char     buf[20] = "\0";
   uint16_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixedU16(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixedU16(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeFixedU16(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeFixedU16(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_fixed_int16(int16_t value) {
   char    buf[20] = "\0";
   int16_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixedI16(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixedI16(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeFixedI16(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeFixedI16(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_fixed_uint32(uint32_t value) {
   char     buf[20] = "\0";
   uint32_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixedU32(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixedU32(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeFixedU32(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeFixedU32(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_fixed_int32(int32_t value) {
   char    buf[20] = "\0";
   int32_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixedI32(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixedI32(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeFixedI32(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeFixedI32(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_fixed_uint64(uint64_t value) {
   char     buf[20] = "\0";
   uint64_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixedU64(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixedU64(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeFixedU64(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeFixedU64(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_fixed_int64(int64_t value) {
   char    buf[20] = "\0";
   int64_t value_check = 0;
 
-  void *ptr1 = taosEncodeFixedI64(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeFixedI64(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeFixedI64(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeFixedI64(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_variant_uint16(uint16_t value) {
   char     buf[20] = "\0";
   uint16_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariantU16(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariantU16(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeVariantU16(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeVariantU16(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_variant_int16(int16_t value) {
   char    buf[20] = "\0";
   int16_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariantI16(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariantI16(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeVariantI16(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeVariantI16(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_variant_uint32(uint32_t value) {
   char     buf[20] = "\0";
   uint32_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariantU32(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariantU32(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeVariantU32(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeVariantU32(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_variant_int32(int32_t value) {
   char    buf[20] = "\0";
   int32_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariantI32(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariantI32(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeVariantI32(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeVariantI32(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_variant_uint64(uint64_t value) {
   char     buf[20] = "\0";
   uint64_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariantU64(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariantU64(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeVariantU64(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeVariantU64(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 static bool test_variant_int64(int64_t value) {
   char    buf[20] = "\0";
   int64_t value_check = 0;
 
-  void *ptr1 = taosEncodeVariantI64(static_cast<void *>(buf), value);
-  void *ptr2 = taosDecodeVariantI64(static_cast<void *>(buf), &value_check);
+  void *pBuf = (void *)buf;
 
-  return ((ptr2 != NULL) && (value == value_check) && (ptr1 == ptr2));
+  int   tlen = taosEncodeVariantI64(static_cast<void **>(&pBuf), value);
+  void *ptr = taosDecodeVariantI64(static_cast<void *>(buf), &value_check);
+
+  return ((ptr != NULL) && (value == value_check) && (pBuf == ptr) && POINTER_DISTANCE(pBuf, buf) == tlen);
 }
 
 TEST(codingTest, fixed_encode_decode) {

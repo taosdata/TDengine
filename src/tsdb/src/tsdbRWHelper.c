@@ -50,7 +50,7 @@ static int   tsdbLoadSingleBlockDataCols(SRWHelper *pHelper, SCompBlock *pCompBl
 static int   tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32_t len, int8_t comp, int numOfRows,
                                           int maxPoints, char *buffer, int bufferSize);
 static int   tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDataCols *pDataCols);
-static void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx);
+static int   tsdbEncodeSCompIdx(void **buf, SCompIdx *pIdx);
 static void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx);
 static void  tsdbDestroyHelperBlock(SRWHelper *pHelper);
 
@@ -371,8 +371,8 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
         pHelper->pBuffer = trealloc(pHelper->pBuffer, tsizeof(pHelper->pBuffer) * 2);
       }
       buf = POINTER_SHIFT(pHelper->pBuffer, drift);
-      buf = taosEncodeVariantU32(buf, i);
-      buf = tsdbEncodeSCompIdx(buf, pCompIdx);
+      taosEncodeVariantU32(&buf, i);
+      tsdbEncodeSCompIdx(&buf, pCompIdx);
     }
   }
 
@@ -1298,15 +1298,17 @@ _err:
   return -1;
 }
 
-static void *tsdbEncodeSCompIdx(void *buf, SCompIdx *pIdx) {
-  buf = taosEncodeVariantU32(buf, pIdx->len);
-  buf = taosEncodeVariantU32(buf, pIdx->offset);
-  buf = taosEncodeFixedU8(buf, pIdx->hasLast);
-  buf = taosEncodeVariantU32(buf, pIdx->numOfBlocks);
-  buf = taosEncodeFixedU64(buf, pIdx->uid);
-  buf = taosEncodeFixedU64(buf, pIdx->maxKey);
+static int tsdbEncodeSCompIdx(void **buf, SCompIdx *pIdx) {
+  int tlen = 0;
 
-  return buf;
+  tlen += taosEncodeVariantU32(buf, pIdx->len);
+  tlen += taosEncodeVariantU32(buf, pIdx->offset);
+  tlen += taosEncodeFixedU8(buf, pIdx->hasLast);
+  tlen += taosEncodeVariantU32(buf, pIdx->numOfBlocks);
+  tlen += taosEncodeFixedU64(buf, pIdx->uid);
+  tlen += taosEncodeFixedU64(buf, pIdx->maxKey);
+
+  return tlen;
 }
 
 static void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx) {

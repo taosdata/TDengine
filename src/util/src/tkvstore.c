@@ -41,7 +41,7 @@ typedef struct {
 } SKVRecord;
 
 static int       tdInitKVStoreHeader(int fd, char *fname);
-static void *    tdEncodeStoreInfo(void *buf, SStoreInfo *pInfo);
+static int       tdEncodeStoreInfo(void **buf, SStoreInfo *pInfo);
 static void *    tdDecodeStoreInfo(void *buf, SStoreInfo *pInfo);
 static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH);
 static char *    tdGetKVStoreSnapshotFname(char *fdata);
@@ -49,7 +49,7 @@ static char *    tdGetKVStoreNewFname(char *fdata);
 static void      tdFreeKVStore(SKVStore *pStore);
 static int       tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo);
 static int       tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo);
-static void *    tdEncodeKVRecord(void *buf, SKVRecord *pRecord);
+static int       tdEncodeKVRecord(void **buf, SKVRecord *pRecord);
 static void *    tdDecodeKVRecord(void *buf, SKVRecord *pRecord);
 static int       tdRestoreKVStore(SKVStore *pStore);
 
@@ -269,7 +269,8 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   rInfo.uid = pRecord->uid;
   rInfo.size = pRecord->size;
 
-  void *pBuf = tdEncodeKVRecord(buf, &rInfo);
+  void *pBuf = buf;
+  tdEncodeKVRecord(&pBuf, &rInfo);
 
   if (twrite(pStore->fd, buf, POINTER_DISTANCE(pBuf, buf)) < POINTER_DISTANCE(pBuf, buf)) {
     uError("failed to write %d bytes to file %s since %s", POINTER_DISTANCE(pBuf, buf), pStore->fname, strerror(errno));
@@ -344,7 +345,8 @@ static int tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo) {
     return -1;
   }
 
-  void *pBuf = tdEncodeStoreInfo(buf, pInfo);
+  void *pBuf = buf;
+  tdEncodeStoreInfo(&pBuf, pInfo);
   ASSERT(POINTER_DISTANCE(pBuf, buf) + sizeof(TSCKSUM) <= TD_KVSTORE_HEADER_SIZE);
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TD_KVSTORE_HEADER_SIZE);
@@ -363,13 +365,14 @@ static int tdInitKVStoreHeader(int fd, char *fname) {
   return tdUpdateKVStoreHeader(fd, fname, &info);
 }
 
-static void *tdEncodeStoreInfo(void *buf, SStoreInfo *pInfo) {
-  buf = taosEncodeVariantI64(buf, pInfo->size);
-  buf = taosEncodeVariantI64(buf, pInfo->tombSize);
-  buf = taosEncodeVariantI64(buf, pInfo->nRecords);
-  buf = taosEncodeVariantI64(buf, pInfo->nDels);
+static int tdEncodeStoreInfo(void **buf, SStoreInfo *pInfo) {
+  int tlen = 0;
+  tlen += taosEncodeVariantI64(buf, pInfo->size);
+  tlen += taosEncodeVariantI64(buf, pInfo->tombSize);
+  tlen += taosEncodeVariantI64(buf, pInfo->nRecords);
+  tlen += taosEncodeVariantI64(buf, pInfo->nDels);
 
-  return buf;
+  return tlen;
 }
 
 static void *tdDecodeStoreInfo(void *buf, SStoreInfo *pInfo) {
@@ -450,12 +453,13 @@ static char *tdGetKVStoreNewFname(char *fdata) {
   return fname;
 }
 
-static void *tdEncodeKVRecord(void *buf, SKVRecord *pRecord) {
-  buf = taosEncodeFixedU64(buf, pRecord->uid);
-  buf = taosEncodeFixedI64(buf, pRecord->offset);
-  buf = taosEncodeFixedI64(buf, pRecord->size);
+static int tdEncodeKVRecord(void **buf, SKVRecord *pRecord) {
+  int tlen = 0;
+  tlen += taosEncodeFixedU64(buf, pRecord->uid);
+  tlen += taosEncodeFixedI64(buf, pRecord->offset);
+  tlen += taosEncodeFixedI64(buf, pRecord->size);
 
-  return buf;
+  return tlen;
 }
 
 static void *tdDecodeKVRecord(void *buf, SKVRecord *pRecord) {

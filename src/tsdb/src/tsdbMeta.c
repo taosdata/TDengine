@@ -42,9 +42,9 @@ static int     tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
 static int     tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
 static int     tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
 static int     tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
-static void *  tsdbEncodeTableName(void *buf, tstr *name);
+static int     tsdbEncodeTableName(void **buf, tstr *name);
 static void *  tsdbDecodeTableName(void *buf, tstr **name);
-static void *  tsdbEncodeTable(void *buf, STable *pTable);
+static int     tsdbEncodeTable(void **buf, STable *pTable);
 static void *  tsdbDecodeTable(void *buf, STable **pRTable);
 
 // ------------------ OUTER FUNCTIONS ------------------
@@ -84,6 +84,9 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
     if (tsdbAddTableToMeta(pRepo, super, true) < 0) goto _err;
   }
   if (tsdbAddTableToMeta(pRepo, table, true) < 0) goto _err;
+
+  int tlen = tsdbEncodeTable(NULL, pTable);
+  ASSERT(tlen > 0);
 
   // // Write to meta file
   // int   bufLen = 0;
@@ -472,10 +475,11 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
   }
 
   if (isChanged) {
-    char *buf = malloc(1024 * 1024);
-    tsdbEncodeTable(buf, pTable);
-    // tsdbInsertMetaRecord(pMeta->mfh, pTable->tableId.uid, buf, bufLen);
-    free(buf);
+    // TODO
+    // char *buf = malloc(1024 * 1024);
+    // tsdbEncodeTable(buf, pTable);
+    // // tsdbInsertMetaRecord(pMeta->mfh, pTable->tableId.uid, buf, bufLen);
+    // free(buf);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -999,14 +1003,17 @@ void tsdbClearTableCfg(STableCfg *config) {
   }
 }
 
-static void *tsdbEncodeTableName(void *buf, tstr *name) {
-  void *pBuf = buf;
+static int tsdbEncodeTableName(void **buf, tstr *name) {
+  int tlen = 0;
 
-  pBuf = taosEncodeFixedI16(pBuf, name->len);
-  memcpy(pBuf, name->data, name->len);
-  pBuf = POINTER_SHIFT(pBuf, name->len);
+  tlen += taosEncodeFixedI16(buf, name->len);
+  if (buf != NULL) {
+    memcpy(*buf, name->data, name->len);
+    *buf = POINTER_SHIFT(*buf, name->len);
+  }
+  tlen += name->len;
 
-  return pBuf;
+  return tlen;
 }
 
 static void *tsdbDecodeTableName(void *buf, tstr **name) {
@@ -1025,33 +1032,34 @@ static void *tsdbDecodeTableName(void *buf, tstr **name) {
   return buf;
 }
 
-static void *tsdbEncodeTable(void *buf, STable *pTable) {
+static int tsdbEncodeTable(void **buf, STable *pTable) {
   ASSERT(pTable != NULL);
+  int tlen = 0;
 
-  buf = taosEncodeFixedU8(buf, pTable->type);
-  buf = tsdbEncodeTableName(buf, pTable->name);
-  buf = taosEncodeFixedU64(buf, TABLE_UID(pTable));
-  buf = taosEncodeFixedI32(buf, TABLE_TID(pTable));
+  tlen = taosEncodeFixedU8(buf, pTable->type);
+  tlen = tsdbEncodeTableName(buf, pTable->name);
+  tlen = taosEncodeFixedU64(buf, TABLE_UID(pTable));
+  tlen = taosEncodeFixedI32(buf, TABLE_TID(pTable));
 
   if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
-    buf = taosEncodeFixedU64(buf, TABLE_SUID(pTable));
-    buf = tdEncodeKVRow(buf, pTable->tagVal);
+    tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
+    tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
-    buf = taosEncodeFixedU8(buf, pTable->numOfSchemas);
+    tlen += taosEncodeFixedU8(buf, pTable->numOfSchemas);
     for (int i = 0; i < pTable->numOfSchemas; i++) {
-      buf = tdEncodeSchema(buf, pTable->schema[i]);
+      tlen += tdEncodeSchema(buf, pTable->schema[i]);
     }
 
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      buf = tdEncodeSchema(buf, pTable->tagSchema);
+      tlen += tdEncodeSchema(buf, pTable->tagSchema);
     }
 
     if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) {
-      buf = taosEncodeString(buf, pTable->sql);
+      tlen += taosEncodeString(buf, pTable->sql);
     }
   }
 
-  return buf;
+  return tlen;
 }
 
 static void *tsdbDecodeTable(void *buf, STable **pRTable) {

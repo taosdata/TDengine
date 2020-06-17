@@ -330,7 +330,7 @@ int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
 void        tsdbFitRetention(STsdbRepo* pRepo);
 int         tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
-void*       tsdbEncodeSFileInfo(void* buf, const STsdbFileInfo* pInfo);
+int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 int         tsdbCpySFile(SFile* src, SFile* dst);
 

@@ -34,18 +34,19 @@ STSchema *tdDupSchema(STSchema *pSchema) {
 /**
  * Encode a schema to dst, and return the next pointer
  */
-void *tdEncodeSchema(void *buf, STSchema *pSchema) {
-  buf = taosEncodeFixedI32(buf, schemaVersion(pSchema));
-  buf = taosEncodeFixedI32(buf, schemaNCols(pSchema));
+int tdEncodeSchema(void **buf, STSchema *pSchema) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, schemaVersion(pSchema));
+  tlen += taosEncodeFixedI32(buf, schemaNCols(pSchema));
 
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
-    buf = taosEncodeFixedI8(buf, colType(pCol));
-    buf = taosEncodeFixedI16(buf, colColId(pCol));
-    buf = taosEncodeFixedI32(buf, colBytes(pCol));
+    tlen += taosEncodeFixedI8(buf, colType(pCol));
+    tlen += taosEncodeFixedI16(buf, colColId(pCol));
+    tlen += taosEncodeFixedI32(buf, colBytes(pCol));
   }
 
-  return buf;
+  return tlen;
 }
 
 /**
@@ -605,10 +606,14 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
   return 0;
 }
 
-void *tdEncodeKVRow(void *buf, SKVRow row) {
+int tdEncodeKVRow(void **buf, SKVRow row) {
   // May change the encode purpose
-  kvRowCpy(buf, row);
-  return POINTER_SHIFT(buf, kvRowLen(row));
+  if (buf != NULL) {
+    kvRowCpy(*buf, row);
+    *buf = POINTER_SHIFT(*buf, kvRowLen(row));
+  }
+
+  return kvRowLen(row);
 }
 
 void *tdDecodeKVRow(void *buf, SKVRow *row) {

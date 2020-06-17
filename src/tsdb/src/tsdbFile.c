@@ -302,8 +302,8 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
   void *pBuf = (void *)buf;
-  pBuf = taosEncodeFixedU32(pBuf, version);
-  pBuf = tsdbEncodeSFileInfo(pBuf, &(pFile->info));
+  taosEncodeFixedU32(pBuf, version);
+  tsdbEncodeSFileInfo(pBuf, &(pFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
 
@@ -321,15 +321,16 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
   return 0;
 }
 
-void *tsdbEncodeSFileInfo(void *buf, const STsdbFileInfo *pInfo) {
-  buf = taosEncodeFixedU32(buf, pInfo->offset);
-  buf = taosEncodeFixedU32(buf, pInfo->len);
-  buf = taosEncodeFixedU64(buf, pInfo->size);
-  buf = taosEncodeFixedU64(buf, pInfo->tombSize);
-  buf = taosEncodeFixedU32(buf, pInfo->totalBlocks);
-  buf = taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
+int tsdbEncodeSFileInfo(void **buf, const STsdbFileInfo *pInfo) {
+  int tlen = 0;
+  tlen += taosEncodeFixedU32(buf, pInfo->offset);
+  tlen += taosEncodeFixedU32(buf, pInfo->len);
+  tlen += taosEncodeFixedU64(buf, pInfo->size);
+  tlen += taosEncodeFixedU64(buf, pInfo->tombSize);
+  tlen += taosEncodeFixedU32(buf, pInfo->totalBlocks);
+  tlen += taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
 
-  return buf;
+  return tlen;
 }
 
 void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
