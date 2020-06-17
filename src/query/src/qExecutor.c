@@ -5981,7 +5981,7 @@ static void doDestoryQueryInfo(SQInfo* pQInfo) {
   freeQInfo(pQInfo);
 }
 
-void qDestroyQueryInfo(qinfo_t qHandle) {
+void qDestroyQueryInfo(qinfo_t qHandle, void (*fp)(void*), void* param) {
   SQInfo* pQInfo = (SQInfo*) qHandle;
   if (!isValidQInfo(pQInfo)) {
     return;
@@ -5992,10 +5992,14 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
 
   if (ref == 0) {
     doDestoryQueryInfo(pQInfo);
+
+    if (fp != NULL) {
+      fp(param);
+    }
   }
 }
 
-void qTableQuery(qinfo_t qinfo) {
+void qTableQuery(qinfo_t qinfo, void (*fp)(void*), void* param) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || pQInfo->signature != pQInfo) {
@@ -6005,7 +6009,7 @@ void qTableQuery(qinfo_t qinfo) {
 
   if (isQueryKilled(pQInfo)) {
     qTrace("QInfo:%p it is already killed, abort", pQInfo);
-    qDestroyQueryInfo(pQInfo);
+    qDestroyQueryInfo(pQInfo, fp, param);
     return;
   }
 
@@ -6021,7 +6025,7 @@ void qTableQuery(qinfo_t qinfo) {
   }
 
   sem_post(&pQInfo->dataReady);
-  qDestroyQueryInfo(pQInfo);
+  qDestroyQueryInfo(pQInfo, fp, param);
 }
 
 int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
@@ -6114,7 +6118,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   return code;
 }
 
-int32_t qKillQuery(qinfo_t qinfo) {
+int32_t qKillQuery(qinfo_t qinfo, void (*fp)(void*), void* param) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
@@ -6122,7 +6126,7 @@ int32_t qKillQuery(qinfo_t qinfo) {
   }
 
   setQueryKilled(pQInfo);
-  qDestroyQueryInfo(pQInfo);
+  qDestroyQueryInfo(pQInfo, fp, param);
 
   return TSDB_CODE_SUCCESS;
 }

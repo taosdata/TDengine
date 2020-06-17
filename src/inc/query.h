@@ -32,11 +32,11 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMs
 
 /**
  * Destroy QInfo object
- *
- * @param qinfo
- * @return
+ * @param qinfo  qhandle
+ * @param fp     destroy callback function, while the qhandle is destoried, invoke the fp
+ * @param param  free callback params
  */
-void qDestroyQueryInfo(qinfo_t qinfo);
+void qDestroyQueryInfo(qinfo_t qinfo, void (*fp)(void*), void* param);
 
 /**
  * the main query execution function, including query on both table and multitables,
@@ -45,7 +45,7 @@ void qDestroyQueryInfo(qinfo_t qinfo);
  * @param qinfo
  * @return
  */
-void qTableQuery(qinfo_t qinfo);
+void qTableQuery(qinfo_t qinfo, void (*fp)(void*), void* param);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
@@ -80,9 +80,12 @@ bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
 
 /**
  * kill current ongoing query and free query handle automatically
- * @param qinfo
+ * @param qinfo  qhandle
+ * @param fp     destroy callback function, while the qhandle is destoried, invoke the fp
+ * @param param  free callback params
+ * @return
  */
-int32_t qKillQuery(qinfo_t qinfo);
+int32_t qKillQuery(qinfo_t qinfo, void (*fp)(void*), void* param);
 
 #ifdef __cplusplus
 }
