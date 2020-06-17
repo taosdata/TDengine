@@ -149,7 +149,7 @@ static int32_t mnodeVgroupActionUpdate(SSdbOper *pOper) {
       }
     }
 
-    memcpy(pVgroup, pNew, pOper->rowSize);
+    memcpy(pVgroup, pNew, sizeof(SVgObj));
     free(pNew);
 
     for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
