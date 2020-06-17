@@ -33,6 +33,7 @@ typedef struct {
   int       threadIndex;
   char      dbName[32];
   char      stableName[64];
+  float     createTableSpeed;
   pthread_t thread;
 } SInfo;
 
@@ -49,8 +50,8 @@ int64_t numOfThreads = 1;
 int64_t numOfTablesPerThread = 200;
 char    dbName[32] = "db";
 char    stableName[64] = "st";
-int32_t cache = 16384;
-int32_t tables = 1000;
+int32_t cache = 16;
+int32_t tables = 5000;
 
 int main(int argc, char *argv[]) {
   shellParseArgument(argc, argv);
@@ -63,9 +64,8 @@ int main(int argc, char *argv[]) {
 void createDbAndTable() {
   pPrint("start to create table");
 
+  TAOS_RES *     pSql;
   TAOS *         con;
-  struct timeval systemTime;
-  int64_t        st, et;
   char           qstr[64000];
 
   char fqdn[TSDB_FQDN_LEN];
@@ -77,22 +77,24 @@ void createDbAndTable() {
     exit(1);
   }
 
-  sprintf(qstr, "create database if not exists %s cache %d tables %d", dbName, cache, tables);
-  if (taos_query(con, qstr)) {
-    pError("failed to create database:%s, code:%d reason:%s", dbName, taos_errno(con), taos_errstr(con));
+  sprintf(qstr, "create database if not exists %s cache %d maxtables %d", dbName, cache, tables);
+  pSql = taos_query(con, qstr);
+  int32_t code = taos_errno(pSql);
+  if (code != 0) {
+    pError("failed to create database:%s, sql:%s, code:%d reason:%s", dbName, qstr, taos_errno(con), taos_errstr(con));
     exit(0);
   }
+  taos_free_result(pSql);
 
   sprintf(qstr, "use %s", dbName);
-  if (taos_query(con, qstr)) {
+  pSql = taos_query(con, qstr);
+  code = taos_errno(pSql);
+  if (code != 0) {
     pError("failed to use db, code:%d reason:%s", taos_errno(con), taos_errstr(con));
     exit(0);
   }
+  taos_free_result(pSql);
 
-  gettimeofday(&systemTime, NULL);
-  st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-  int64_t totalTables = numOfTablesPerThread * numOfThreads;
-    
   if (strcmp(stableName, "no") != 0) {
     int len = sprintf(qstr, "create table if not exists %s(ts timestamp", stableName);
     for (int64_t f = 0; f < pointsPerTable; ++f) {
@@ -100,36 +102,14 @@ void createDbAndTable() {
     }
     sprintf(qstr + len, ") tags(t int)");
 
-    if (taos_query(con, qstr)) {
+    pSql = taos_query(con, qstr);
+    code = taos_errno(pSql);
+    if (code != 0) {
       pError("failed to create stable, code:%d reason:%s", taos_errno(con), taos_errstr(con));
       exit(0);
     }
-    
-    for (int64_t t = 0; t < totalTables; ++t) {
-      sprintf(qstr, "create table if not exists %s%ld using %s tags(%ld)", stableName, t, stableName, t);
-      if (taos_query(con, qstr)) {
-        pError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
-        exit(0);
-      }
-    }
-  } else {
-    for (int64_t t = 0; t < totalTables; ++t) {
-      int len = sprintf(qstr, "create table if not exists %s%ld(ts timestamp", stableName, t);
-      for (int64_t f = 0; f < pointsPerTable; ++f) {
-        len += sprintf(qstr + len, ", f%ld double", f);
-      }
-      sprintf(qstr + len, ")");
-
-      if (taos_query(con, qstr)) {
-        pError("failed to create table %s%ld, reason:%s", stableName, t, taos_errstr(con));
-        exit(0);
-      }
-    }
+    taos_free_result(pSql);
   }
-
-  gettimeofday(&systemTime, NULL);
-  et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-  pPrint("%.1f seconds to create %ld tables", (et - st) / 1000.0 / 1000.0, totalTables);
 }
 
 void insertData() {
@@ -144,7 +124,7 @@ void insertData() {
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  SInfo *pInfo = (SInfo *)malloc(sizeof(SInfo) * numOfThreads);
+  SInfo *pInfo = (SInfo *)calloc(numOfThreads, sizeof(SInfo));
 
   // Start threads to write
   for (int i = 0; i < numOfThreads; ++i) {
@@ -173,10 +153,15 @@ void insertData() {
   double  speedOfRows = totalRows / seconds;
   double  speedOfPoints = totalPoints / seconds;
 
+  float createTableSpeed = 0;
+  for (int i = 0; i < numOfThreads; ++i) {
+    createTableSpeed += pInfo[i].createTableSpeed;
+  }
+
   pPrint(
       "%sall threads:%ld finished, use %.1lf seconds, tables:%.ld rows:%ld points:%ld, speed RowsPerSecond:%.1lf "
-      "PointsPerSecond:%.1lf%s",
-      GREEN, numOfThreads, seconds, totalTables, totalRows, totalPoints, speedOfRows, speedOfPoints, NC);
+      "PointsPerSecond:%.1lf CreateTableSpeed:%.1f t/s %s",
+      GREEN, numOfThreads, seconds, totalTables, totalRows, totalPoints, speedOfRows, speedOfPoints, createTableSpeed, NC);
 
   pPrint("threads exit");
 
@@ -191,6 +176,7 @@ void *syncTest(void *param) {
   int64_t        st, et;
   char           qstr[65000];
   int            maxBytes = 60000;
+  int            code;
 
   pPrint("thread:%d, start to run", pInfo->threadIndex);
 
@@ -206,6 +192,48 @@ void *syncTest(void *param) {
 
   sprintf(qstr, "use %s", pInfo->dbName);
   taos_query(con, qstr);
+
+  gettimeofday(&systemTime, NULL);
+  st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
+
+  if (strcmp(stableName, "no") != 0) {
+    for (int64_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
+      sprintf(qstr, "create table if not exists %s%ld using %s tags(%ld)", stableName, t, stableName, t);
+      TAOS_RES *pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
+        pError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
+        exit(0);
+      }
+      taos_free_result(pSql);
+    }
+  } else {
+    for (int64_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
+      int len = sprintf(qstr, "create table if not exists %s%ld(ts timestamp", stableName, t);
+      for (int64_t f = 0; f < pointsPerTable; ++f) {
+        len += sprintf(qstr + len, ", f%ld double", f);
+      }
+      sprintf(qstr + len, ")");
+
+      TAOS_RES *pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
+        pError("failed to create table %s%ld, reason:%s", stableName, t, taos_errstr(con));
+        exit(0);
+      }
+      taos_free_result(pSql);
+    }
+  }
+
+  gettimeofday(&systemTime, NULL);
+  et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
+  float seconds = (et - st) / 1000.0 / 1000.0;
+  int64_t tables = pInfo->tableEndIndex - pInfo->tableBeginIndex;
+  pInfo->createTableSpeed = (float)tables / seconds;
+  pPrint("thread:%d, %.1f seconds to create %ld tables, speed:%.1f", pInfo->threadIndex, seconds, tables,
+         pInfo->createTableSpeed);
+
+  if (pInfo->rowsPerTable == 0) return NULL;       
 
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
@@ -227,10 +255,13 @@ void *syncTest(void *param) {
       }
       len += sprintf(sql + len, ")");
       if (len > maxBytes) {
-        if (taos_query(con, qstr)) {
+        TAOS_RES *pSql = taos_query(con, qstr);
+        int32_t code = taos_errno(pSql);
+        if (code != 0) {
           pError("thread:%d, failed to insert table:%s%ld row:%ld, reason:%s", pInfo->threadIndex, pInfo->stableName,
                  table, row, taos_errstr(con));
         }
+        taos_free_result(pSql);
 
         // "insert into"
         len = sprintf(sql, "%s", inserStr);
@@ -239,7 +270,8 @@ void *syncTest(void *param) {
   }
 
   if (len != strlen(inserStr)) {
-    taos_query(con, qstr);
+    TAOS_RES *pSql = taos_query(con, qstr);
+    taos_free_result(pSql);
   }
 
   gettimeofday(&systemTime, NULL);

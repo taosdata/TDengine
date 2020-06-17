@@ -499,7 +499,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     tscFreeSqlObj(pSql);
-    return NULL;;
+    return NULL;
   }
   strtolower(pSql->sqlstr, sqlstr);
 

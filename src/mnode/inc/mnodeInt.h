@@ -36,10 +36,10 @@ extern int32_t sdbDebugFlag;
 #define mLWarn(...)  { monitorSaveLog(1, __VA_ARGS__); mWarn(__VA_ARGS__)  }
 #define mLPrint(...) { monitorSaveLog(0, __VA_ARGS__); mPrint(__VA_ARGS__) }
 
-#define sdbError(...) { if (sdbDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR MND-SDB ", 255, __VA_ARGS__); }}
-#define sdbWarn(...)  { if (sdbDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN MND-SDB ", sdbDebugFlag, __VA_ARGS__); }}
-#define sdbTrace(...) { if (sdbDebugFlag & DEBUG_TRACE) { taosPrintLog("MND-SDB ", sdbDebugFlag, __VA_ARGS__);}}
-#define sdbPrint(...) { taosPrintLog("MND-SDB ", 255, __VA_ARGS__); }
+#define sdbError(...) { if (sdbDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR SDB ", 255, __VA_ARGS__); }}
+#define sdbWarn(...)  { if (sdbDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN SDB ", sdbDebugFlag, __VA_ARGS__); }}
+#define sdbTrace(...) { if (sdbDebugFlag & DEBUG_TRACE) { taosPrintLog("SDB ", sdbDebugFlag, __VA_ARGS__);}}
+#define sdbPrint(...) { taosPrintLog("SDB ", 255, __VA_ARGS__); }
 
 #define sdbLError(...) { monitorSaveLog(2, __VA_ARGS__); sdbError(__VA_ARGS__) }
 #define sdbLWarn(...)  { monitorSaveLog(1, __VA_ARGS__); sdbWarn(__VA_ARGS__)  }
