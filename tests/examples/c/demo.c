@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// TAOS standard API example. The same syntax as MySQL, but only a subet
+// TAOS standard API example. The same syntax as MySQL, but only a subset
 // to compile: gcc -o demo demo.c -ltaos
 
 #include <stdio.h>
