@@ -1930,8 +1930,7 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     SColIndex* pColIndex = &pTableGroupSupp->pCols[i];
     int32_t colIndex = pColIndex->colIndex;
     
-    assert((colIndex >= 0 && colIndex < schemaNCols(pTableGroupSupp->pTagSchema)) ||
-           (colIndex == TSDB_TBNAME_COLUMN_INDEX));
+    assert(colIndex >= TSDB_TBNAME_COLUMN_INDEX);
     
     char *  f1 = NULL;
     char *  f2 = NULL;
@@ -1950,7 +1949,20 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
       f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
       f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
     }
-    
+
+    // this tags value may be NULL
+    if (f1 == NULL && f2 == NULL) {
+      continue;
+    }
+
+    if (f1 == NULL) {
+      return -1;
+    }
+
+    if (f2 == NULL) {
+      return 1;
+    }
+
     int32_t ret = doCompare(f1, f2, type, bytes);
     if (ret == 0) {
       continue;

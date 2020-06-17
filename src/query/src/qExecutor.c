@@ -2206,8 +2206,18 @@ static void doSetTagValueInParam(void *tsdb, STableId* pTableId, int32_t tagColI
     }
     
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+      if (isNull(varDataVal(val), type)) {
+        tag->nType = TSDB_DATA_TYPE_NULL;
+        return;
+      }
+
       tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
     } else {
+      if (isNull(val, type)) {
+        tag->nType = TSDB_DATA_TYPE_NULL;
+        return;
+      }
+
       tVariantCreateFromBinary(tag, val, bytes, type);
     }
   }
@@ -4285,12 +4295,12 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       assert(taosArrayGetSize(s) >= 1);
       
       setTagVal(pRuntimeEnv, (STableId*) taosArrayGet(s, 0), pQInfo->tsdb);
-        
       if (isFirstLastRowQuery(pQuery)) {
         assert(taosArrayGetSize(s) == 1);
       }
+
       taosArrayDestroy(s);
-      
+
       // here we simply set the first table as current table
       pQuery->current = ((SGroupItem*) taosArrayGet(group, 0))->info;
       scanOneTableDataBlocks(pRuntimeEnv, pQuery->current->lastKey);
