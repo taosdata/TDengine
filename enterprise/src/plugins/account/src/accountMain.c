@@ -184,7 +184,7 @@ static int32_t acctCheckAcctParams(SAcctCfg *pCfg) {
   return 0;
 }
 
-static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
+static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg) {
   SAcctObj *pAcct = mnodeGetAcct(name);
   if (pAcct != NULL) {
     mWarn("acct:%s, is already there", name);
@@ -230,29 +230,33 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
    SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsAcctSdb,
-    .pObj = pAcct,
-    .rowSize = sizeof(SAcctObj)
+    .type    = SDB_OPER_GLOBAL,
+    .table   = tsAcctSdb,
+    .pObj    = pAcct,
+    .rowSize = sizeof(SAcctObj),
+    .pMsg    = pMsg
   };
+  
   int32_t code = sdbInsertRow(&oper);
 
   if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_SDB_ERROR;
     tfree(pAcct);
   } else {
+    mLPrint("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+
     // create a user in the same name and pass
     char suser[64] = {0};
     sprintf(suser, "_%s", name);
-    mnodeCreateUser(pAcct, name, pass);
-    mnodeCreateUser(pAcct, suser, tsInternalPass);  // create stream user
-    pthread_mutex_init(&pAcct->mutex, NULL);
+    mnodeCreateUser(pAcct, name, pass, NULL);
+    mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
+
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   return code;
 }
 
-int32_t acctDropAcct(char *name) {
+static int32_t acctDropAcct(char *name, void *pMsg) {
   SAcctObj *pAcct = mnodeGetAcct(name);
   if (pAcct == NULL) {
     mWarn("acct:%s, is not there", name);
@@ -260,18 +264,20 @@ int32_t acctDropAcct(char *name) {
   }
 
   SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
+    .type  = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
-    .pObj = pAcct
+    .pObj  = pAcct,
+    .pMsg  = pMsg
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_SDB_ERROR;
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   mnodeDecAcctRef(pAcct);
-  return 0;
+  return code;
 }
 
 void acctCleanUp() {
@@ -483,23 +489,7 @@ static int32_t acctCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
   return 0;
 }
 
-static int32_t acctUpdateAcct(SAcctObj *pAcct) {
-  SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsAcctSdb,
-    .pObj = pAcct
-  };
-
-  int32_t code = sdbUpdateRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    tfree(pAcct);
-    code = TSDB_CODE_MND_SDB_ERROR;
-  }
-
-  return code;
-}
-
-static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
+static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg) {
   SAcctObj *pAcct = NULL;
 
   pAcct = mnodeGetAcct(name);
@@ -553,10 +543,23 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
     pAcct->cfg.accessState = pCfg->accessState;
   }
 
-  acctUpdateAcct(pAcct);
-  mnodeDecAcctRef(pAcct);
+  SSdbOper oper = {
+    .type  = SDB_OPER_GLOBAL,
+    .table = tsAcctSdb,
+    .pObj  = pAcct,
+    .pMsg  = pMsg
+  };
 
-  return TSDB_CODE_SUCCESS;
+  int32_t code = sdbUpdateRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(pAcct);
+  } else {
+    mLPrint("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  }
+
+  mnodeDecAcctRef(pAcct);
+  return code;
 }
 
 static int64_t acctGetStatistic(SAcctObj *pAcct) {
@@ -641,14 +644,7 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
-  int32_t code = acctCreateAcct(pCreate->user, pCreate->pass, &(pCreate->cfg));
-  if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("acct:%s, is created by %s", pCreate->user, pUser->user);
-  } else {
-    mError("acct:%s, failed to create account, reason:%s", pCreate->user, tstrerror(code));
-  }
-
-  return code;
+  return acctCreateAcct(pCreate->user, pCreate->pass, &(pCreate->cfg), pMsg);
 }
 
 static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
@@ -660,14 +656,7 @@ static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
-  int32_t code = acctDropAcct(pDrop->user);
-  if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("acct:%s, is dropped by %s", pDrop->user, pUser->user);
-  } else {
-    mError("acct:%s, failed to drop account, reason:%s", pDrop->user, tstrerror(code));
-  }
-
-  return code;
+  return acctDropAcct(pDrop->user, pMsg);
 }
 
 static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
@@ -689,14 +678,7 @@ static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
-  int32_t code = acctAlterAcct(pAlter->user, pAlter->pass, &(pAlter->cfg));;
-  if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("acct:%s, is altered by %s", pAlter->user, pUser->user);
-  } else {
-    mError("acct:%s, failed to alter account, reason:%s", pAlter->user, tstrerror(code));
-  }
-
-  return code;
+  return acctAlterAcct(pAlter->user, pAlter->pass, &(pAlter->cfg), pMsg);
 }
 
 static int32_t acctCheckUserLimit(SAcctObj *pAcct) {
