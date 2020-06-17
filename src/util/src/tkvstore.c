@@ -226,12 +226,32 @@ _err:
 }
 
 int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLen) {
-  SKVRecord *pRecord = taosHashGet(pStore->map, (void *)&uid, sizeof(uid));
-  if (pRecord != NULL) {
-    pStore->info.tombSize += (pRecord->size + sizeof(SKVRecord));
+  SKVRecord rInfo = {0};
+
+  rInfo.offset = lseek(pStore->fd, 0, SEEK_CUR);
+  if (rInfo.offset < 0) {
+    uError("failed to lseek file %s since %s", pStore->fname, strerror(errno));
+    return -1;
   }
 
-  // TODO
+  rInfo.uid = uid;
+  rInfo.size = contLen;
+
+  if (twrite(pStore->fd, cont, contLen) < contLen) {
+    uError("failed to write %d bytes to file %s since %s", contLen, pStore->fname, strerror(errno));
+    return -1;
+  }
+
+  pStore->info.size += (sizeof(SKVRecord) + contLen);
+  SKVRecord *pRecord = taosHashGet(pStore->map, (void *)&uid, sizeof(uid));
+  if (pRecord != NULL) {  // just to insert
+    pStore->info.nRecords++;
+  } else {
+    pStore->info.tombSize += pRecord->size;
+  }
+
+  taosHashPut(pStore->map, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
+
   return 0;
 }
 
@@ -239,7 +259,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   SKVRecord rInfo = {0};
   char      buf[128] = "\0";
 
-  SKVRecord *pRecord = taosHashGet(pStore->map, &uid, sizeof(uid));
+  SKVRecord *pRecord = taosHashGet(pStore->map, (void *)(&uid), sizeof(uid));
   if (pRecord == NULL) {
     uError("failed to drop KV store record with key " PRIu64 " since not find", uid);
     return -1;
@@ -261,6 +281,8 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   pStore->info.nDels++;
   pStore->info.nRecords--;
   pStore->info.tombSize += (rInfo.size + sizeof(SKVRecord) * 2);
+
+  taosHashRemove(pStore->map, (void *)(&uid), sizeof(uid));
 
   return 0;
 }
