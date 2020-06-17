@@ -1604,7 +1604,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
       }
 
       int16_t resultType = 0;
-      int16_t resultSize = 0;
+      uint16_t resultSize = 0;
       int32_t intermediateResSize = 0;
 
       int16_t functionID = 0;
@@ -1940,7 +1940,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
         s = pTagSchema[index.columnIndex];
       }
       
-      int16_t bytes = 0;
+      uint16_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
 
@@ -2334,7 +2334,7 @@ int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 
   assert(tscGetNumOfTags(pTableMetaInfo->pTableMeta) >= 0);
 
-  int16_t bytes = 0;
+  uint16_t bytes = 0;
   int16_t type = 0;
   int32_t interBytes = 0;
   

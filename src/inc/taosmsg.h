@@ -223,10 +223,10 @@ typedef struct {
 } SShellSubmitRspMsg;
 
 typedef struct SSchema {
-  uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
-  int16_t colId;
-  int16_t bytes;
+  uint8_t  type;
+  char     name[TSDB_COL_NAME_LEN];
+  int16_t  colId;
+  uint16_t bytes;
 } SSchema;
 
 typedef struct {
@@ -284,7 +284,7 @@ typedef struct {
   int16_t   tversion;
   int16_t   colId;
   int16_t   type;
-  int16_t   bytes;
+  uint16_t  bytes;
   int32_t   tagValLen;
   char      data[];
 } SUpdateTableTagValMsg;
@@ -384,7 +384,7 @@ typedef struct SSqlFuncMsg {
 typedef struct SExprInfo {
   SSqlFuncMsg base;
   struct tExprNode* pExpr;
-  int16_t     bytes;
+  uint16_t    bytes;
   int16_t     type;
   int32_t     interBytes;
 } SExprInfo;
@@ -417,7 +417,7 @@ typedef struct SColumnFilterInfo {
 typedef struct SColumnInfo {
   int16_t            colId;
   int16_t            type;
-  int16_t            bytes;
+  uint16_t           bytes;
   int16_t            numOfFilters;
   SColumnFilterInfo *filters;
 } SColumnInfo;

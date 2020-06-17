@@ -84,7 +84,7 @@ typedef struct SSqlExpr {
   int64_t   uid;            // refactor use the pointer
   int16_t   functionId;     // function id in aAgg array
   int16_t   resType;        // return value type
-  int16_t   resBytes;       // length of return value
+  uint16_t  resBytes;       // length of return value
   int32_t   interBytes;  // inter result buffer size
   int16_t   numOfParams;    // argument value of each function
   tVariant  param[3];       // parameters are not more than 3

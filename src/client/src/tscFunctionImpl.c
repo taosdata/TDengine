@@ -152,7 +152,7 @@ typedef struct SRateInfo {
 } SRateInfo;
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
+                          uint16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType, dataBytes)) {
     tscError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -162,7 +162,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
       functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
     *type = (int16_t)dataType;
-    *bytes = (int16_t)dataBytes;
+    *bytes = (uint16_t)dataBytes;
     *interBytes = *bytes + sizeof(SResultInfo);
     return TSDB_CODE_SUCCESS;
   }

@@ -165,10 +165,10 @@ typedef struct SQLFunctionCtx {
   int32_t      size;      // number of rows
   uint32_t     order;     // asc|desc
   int16_t      inputType;
-  int16_t      inputBytes;
+  uint16_t     inputBytes;
   
   int16_t      outputType;
-  int16_t      outputBytes;  // size of results, determined by function and input column data type
+  uint16_t     outputBytes;  // size of results, determined by function and input column data type
   bool         hasNull;      // null value exist in current block
   int16_t      functionId;   // function id
   void *       aInputElemBuf;
@@ -217,7 +217,7 @@ typedef struct SQLAggFuncElem {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
+                          uint16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)

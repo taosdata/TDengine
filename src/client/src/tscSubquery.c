@@ -1082,7 +1082,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
         SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
         s = pTagSchema[c->colIndex.columnIndex];
         
-        int16_t bytes = 0;
+        uint16_t bytes = 0;
         int16_t type = 0;
         int32_t inter = 0;
         
