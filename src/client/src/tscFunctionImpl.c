@@ -1853,26 +1853,14 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
 static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   // do nothing at the first stage
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
-    if (pResInfo->hasResult != DATA_SET_FLAG) {
-      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
-      } else {
-        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      }
-      
-      return;
+  if (pResInfo->hasResult != DATA_SET_FLAG) {
+    if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+    } else {
+      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
     }
-  } else {
-    if (pResInfo->hasResult != DATA_SET_FLAG) {
-      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
-      } else {
-        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      }
-      
-      return;
-    }
+    
+    return;
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;
