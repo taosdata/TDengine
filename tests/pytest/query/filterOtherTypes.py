@@ -30,9 +30,9 @@ class TDTestCase:
 
         print("======= Verify filter for bool, nchar and binary type =========")
         tdLog.debug(
-            "create table st(ts timestamp, tbcol1 bool, tbcol2 nchar(10), tbcol3 binary(20)) tags(tagcol1 bool, tagcol2 nchar(10), tagcol3 binary(10))")
+            "create table st(ts timestamp, tbcol1 bool, tbcol2 binary(10), tbcol3 nchar(20)) tags(tagcol1 bool, tagcol2 binary(10), tagcol3 nchar(10))")
         tdSql.execute(
-            "create table st(ts timestamp, tbcol1 bool, tbcol2 nchar(10), tbcol3 binary(20)) tags(tagcol1 bool, tagcol2 nchar(10), tagcol3 binary(10))")
+            "create table st(ts timestamp, tbcol1 bool, tbcol2 binary(10), tbcol3 nchar(20)) tags(tagcol1 bool, tagcol2 binary(10), tagcol3 nchar(10))")
 
         tdSql.execute("create table st1 using st tags(true, 'table1', '水表')")
         for i in range(1, 6):
