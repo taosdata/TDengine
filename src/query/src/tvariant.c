@@ -357,7 +357,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
     size_t newSize = pVariant->nLen * TSDB_NCHAR_SIZE;
     if (pBuf != NULL) {
-      if (newSize > INITIAL_ALLOC_SIZE) {
+      if (newSize >= INITIAL_ALLOC_SIZE) {
         pBuf = realloc(pBuf, newSize + 1);
       }
       

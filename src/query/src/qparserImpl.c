@@ -775,19 +775,14 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
 
   while (nParam-- > 0) {
     SSQLToken *pToken = va_arg(va, SSQLToken *);
-    (void)tTokenListAppend(pInfo->pDCLInfo, pToken);
+    pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
   }
   va_end(va);
 }
 
 void setDropDBTableInfo(SSqlInfo *pInfo, int32_t type, SSQLToken* pToken, SSQLToken* existsCheck) {
   pInfo->type = type;
-  
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
-  }
-  
-  tTokenListAppend(pInfo->pDCLInfo, pToken);
+  pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
   pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
 }
 

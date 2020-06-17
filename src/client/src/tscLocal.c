@@ -132,14 +132,14 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   for (int32_t i = 0; i < numOfRows; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
     char* dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i;
-    STR_WITH_MAXSIZE_TO_VARSTR(dst, pSchema[i].name, TSDB_COL_NAME_LEN - 1);
+    STR_WITH_MAXSIZE_TO_VARSTR(dst, pSchema[i].name, pField->bytes);
 
     char *type = tDataTypeDesc[pSchema[i].type].aName;
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
     dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i;
     
-    STR_TO_VARSTR(dst, type);
+    STR_WITH_MAXSIZE_TO_VARSTR(dst, type, pField->bytes);
     
     int32_t bytes = pSchema[i].bytes;
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
@@ -157,7 +157,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     if (i >= tscGetNumOfColumns(pMeta) && tscGetNumOfTags(pMeta) != 0) {
       char* output = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i;
       const char *src = "TAG";
-      STR_WITH_SIZE_TO_VARSTR(output, src, strlen(src));
+      STR_WITH_MAXSIZE_TO_VARSTR(output, src, pField->bytes);
     }
   }
 
@@ -171,7 +171,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     // field name
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
     char* output = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i;
-    STR_WITH_MAXSIZE_TO_VARSTR(output, pSchema[i].name, TSDB_COL_NAME_LEN - 1);
+    STR_WITH_MAXSIZE_TO_VARSTR(output, pSchema[i].name, pField->bytes);
 
     // type name
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
@@ -193,7 +193,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 3);
     char *target = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i;
     const char *src = "TAG";
-    STR_WITH_SIZE_TO_VARSTR(target, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(target, src, pField->bytes);
 
     pTagValue += pSchema[i].bytes;
   }
@@ -220,15 +220,15 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   
   rowLen += ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE);
 
-  f.bytes = typeColLength;
+  f.bytes = typeColLength + VARSTR_HEADER_SIZE;
   f.type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(f.name, "Type", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, typeColLength,
+  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, typeColLength + VARSTR_HEADER_SIZE,
       typeColLength, false);
   
-  rowLen += typeColLength;
+  rowLen += typeColLength + VARSTR_HEADER_SIZE;
 
   f.bytes = sizeof(int32_t);
   f.type = TSDB_DATA_TYPE_INT;
@@ -240,15 +240,15 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   
   rowLen += sizeof(int32_t);
 
-  f.bytes = noteColLength;
+  f.bytes = noteColLength + VARSTR_HEADER_SIZE;
   f.type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(f.name, "Note", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, noteColLength,
+  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, noteColLength + VARSTR_HEADER_SIZE,
       noteColLength, false);
   
-  rowLen += noteColLength;
+  rowLen += noteColLength + VARSTR_HEADER_SIZE;
   return rowLen;
 }
 
