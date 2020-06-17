@@ -238,7 +238,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     taosArraySort( tables, tscCompareTidTags );
-    tscBuildVgroupTableInfo( pTableMetaInfo, tables );
+    tscBuildVgroupTableInfo(pSql, pTableMetaInfo, tables);
   }
   taosArrayDestroy(tables);
 

@@ -214,7 +214,6 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
     tscError("qhandle is NULL");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     tscQueueAsyncRes(pSql);
-//    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_QHANDLE);
     return;
   }
 

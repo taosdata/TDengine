@@ -3903,7 +3903,7 @@ static bool ts_comp_function_setup(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   STSCompInfo *pInfo = pResInfo->interResultBuf;
   
-  pInfo->pTSBuf = tsBufCreate(false);
+  pInfo->pTSBuf = tsBufCreate(false, pCtx->order);
   pInfo->pTSBuf->tsOrder = pCtx->order;
   return true;
 }
@@ -3925,7 +3925,6 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   }
   
   SET_VAL(pCtx, pCtx->size, 1);
-  
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 

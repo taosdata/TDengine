@@ -644,7 +644,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
-  pQueryMsg->queryType      = htons(pQueryInfo->type);
+  pQueryMsg->queryType      = htonl(pQueryInfo->type);
   
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons(numOfOutput);
@@ -723,6 +723,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pMsg += sizeof(SSqlFuncMsg);
 
     for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
+      // todo add log
       pSqlFuncExpr->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
       pSqlFuncExpr->arg[j].argBytes = htons(pExpr->param[j].nLen);
 
@@ -1175,7 +1176,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   strcpy(pCreateTableMsg->tableId, pTableMetaInfo->name);
 
   // use dbinfo from table id without modifying current db info
-  tscGetDBInfoFromMeterId(pTableMetaInfo->name, pCreateTableMsg->db);
+  tscGetDBInfoFromTableFullName(pTableMetaInfo->name, pCreateTableMsg->db);
 
   SCreateTableSQL *pCreateTable = pInfo->pCreateTableInfo;
 
@@ -1252,7 +1253,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
   
   SCMAlterTableMsg *pAlterTableMsg = (SCMAlterTableMsg *)pCmd->payload;
-  tscGetDBInfoFromMeterId(pTableMetaInfo->name, pAlterTableMsg->db);
+  tscGetDBInfoFromTableFullName(pTableMetaInfo->name, pAlterTableMsg->db);
 
   strcpy(pAlterTableMsg->tableId, pTableMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
@@ -1577,7 +1578,7 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg = pStart;
 
   SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-  tscGetDBInfoFromMeterId(pTableMetaInfo->name, pMgmt->db);
+  tscGetDBInfoFromTableFullName(pTableMetaInfo->name, pMgmt->db);
 
   pMsg += sizeof(SMgmtHead);
 
