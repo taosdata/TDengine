@@ -1,13 +1,14 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/time.h>
 #include <assert.h>
-#include <math.h>
 #include <float.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
 
+#include "qextbuffer.h"
+#include "qpercentile.h"
 #include "taos.h"
 #include "taosmsg.h"
-#include "textbuffer.h"
 
 void intDataTest();
 void bigintDataTest();
@@ -20,235 +21,229 @@ void qsortTest();
 
 void differentMemoryBufferTest();
 
-tMemBucket *createBigIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor*);
-tMemBucket *createIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor*);
-tMemBucket *createDoubleDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor*);
+tMemBucket *createBigIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor *);
+tMemBucket *createIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor *);
+tMemBucket *createDoubleDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor *);
 
 int32_t main(int32_t argc, char **argv) {
-    debugFlag = 199;
-    qsortTest();
-    intDataTest();
-    bigintDataTest();
-    doubleDataTest();
-    largeDataTest();
+  qsortTest();
+  intDataTest();
+  bigintDataTest();
+  doubleDataTest();
+  largeDataTest();
 }
 
 /*
  * test int data percentile process
  */
 void intDataTest() {
-    printf("running %s\n", __FUNCTION__);
+  printf("running %s\n", __FUNCTION__);
 
-    tMemBucket *pBucket = NULL;
-    double result = 0.;
+  tMemBucket *pBucket = NULL;
+  double      result = 0.;
 
-    int32_t colOffset[1] = {0};
-    SSchema field[1] = {
-            {TSDB_DATA_TYPE_INT, "k", sizeof(int32_t)},
-    };
+  int32_t colOffset[1] = {0};
+  SSchema field[1] = {
+      {TSDB_DATA_TYPE_INT, "k", sizeof(int32_t)},
+  };
 
-    SColumnModel* pModel = createColumnModel(field, 1, 1000);
-    tOrderDescriptor* pDesc = tOrderDesCreate(colOffset, 1, pModel, TSQL_SO_ASC);
+  SColumnModel *    pModel = createColumnModel(field, 1, 1000);
+  tOrderDescriptor *pDesc = tOrderDesCreate(colOffset, 1, pModel, 1);
 
-    pBucket = createIntDataBucket(-1, 1, 1 << 20, pDesc);
+  pBucket = createIntDataBucket(-1, 1, 1 << 20, pDesc);
 
-    result = getPercentile(pBucket, 50);
-    assert(fabs(result) < DBL_EPSILON);
-    printf("%lf\n", result);
+  result = getPercentile(pBucket, 50);
+  assert(fabs(result) < DBL_EPSILON);
+  printf("%lf\n", result);
 
-    result = getPercentile(pBucket, 0);
-    assert(fabs(result + 1) < DBL_EPSILON);
-    printf("%lf\n", result);
+  result = getPercentile(pBucket, 0);
+  assert(fabs(result + 1) < DBL_EPSILON);
+  printf("%lf\n", result);
 
-    result = getPercentile(pBucket, 75);
-    assert(fabs(result - 0.5) < DBL_EPSILON);
-    printf("%lf\n", result);
+  result = getPercentile(pBucket, 75);
+  assert(fabs(result - 0.5) < DBL_EPSILON);
+  printf("%lf\n", result);
 
-    result = getPercentile(pBucket, 100);
-    assert(fabs(result - 1) < DBL_EPSILON);
-    printf("%lf\n", result);
-    tMemBucketDestroy(pBucket);
+  result = getPercentile(pBucket, 100);
+  assert(fabs(result - 1) < DBL_EPSILON);
+  printf("%lf\n", result);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createIntDataBucket(0, 99999, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 50);
-    assert(result - 49999.5 < DBL_EPSILON);
-    printf("%lf\n", result);
+  pBucket = createIntDataBucket(0, 99999, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 50);
+  assert(result - 49999.5 < DBL_EPSILON);
+  printf("%lf\n", result);
 
-    destroyColumnModel(pModel);
-    tOrderDescDestroy(&pDesc);
-    tMemBucketDestroy(pBucket);
+  destroyColumnModel(pModel);
+  tMemBucketDestroy(pBucket);
 }
 
 void bigintDataTest() {
-    printf("running %s\n", __FUNCTION__);
+  printf("running %s\n", __FUNCTION__);
 
-    tMemBucket *pBucket = NULL;
-    double result = 0.0;
+  tMemBucket *pBucket = NULL;
+  double      result = 0.0;
 
-    int32_t orderIdx[1] = {0};
-    SSchema field[1] = {
-            {TSDB_DATA_TYPE_BIGINT, "k", sizeof(int64_t)},
-    };
+  int32_t orderIdx[1] = {0};
+  SSchema field[1] = {
+      {TSDB_DATA_TYPE_BIGINT, "k", sizeof(int64_t)},
+  };
 
-    SColumnModel* pModel = createColumnModel(field, 1, 1000);
-    tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
+  SColumnModel *    pModel = createColumnModel(field, 1, 1000);
+  tOrderDescriptor *pDesc = tOrderDesCreate(orderIdx, 1, pModel, 1);
 
-    pBucket = createBigIntDataBucket(-1000, 1000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 50);
-    assert(result == 0.);
-    tMemBucketDestroy(pBucket);
+  pBucket = createBigIntDataBucket(-1000, 1000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 50);
+  assert(result == 0.);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createBigIntDataBucket(-10000, 10000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 100);
-    assert(result == 10000.0);
-    tMemBucketDestroy(pBucket);
+  pBucket = createBigIntDataBucket(-10000, 10000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 100);
+  assert(result == 10000.0);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createBigIntDataBucket(-10000, 10000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 75);
-    assert(result == 5000.0);
+  pBucket = createBigIntDataBucket(-10000, 10000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 75);
+  assert(result == 5000.0);
 
-    destroyColumnModel(pModel);
-    tOrderDescDestroy(&pDesc);
-    tMemBucketDestroy(pBucket);
+  destroyColumnModel(pModel);
+  tMemBucketDestroy(pBucket);
 }
 
-tMemBucket *createDoubleDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor* pDesc) {
-    tMemBucket *pBucket = tMemBucketCreate(1024, bufferSize, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pDesc);
-    for (int32_t i = start; i <= end; ++i) {
-        double val = i;
-        tMemBucketPut(pBucket, &val, 1);
-    }
+tMemBucket *createDoubleDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor *pDesc) {
+  tMemBucket *pBucket = tMemBucketCreate(1024, bufferSize, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pDesc);
+  for (int32_t i = start; i <= end; ++i) {
+    double val = i;
+    tMemBucketPut(pBucket, &val, 1);
+  }
 
-    return pBucket;
+  return pBucket;
 }
 
-tMemBucket *createIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor* pDesc) {
-    tMemBucket *pBucket = tMemBucketCreate(1024, bufferSize, sizeof(int32_t), TSDB_DATA_TYPE_INT, pDesc);
+tMemBucket *createIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor *pDesc) {
+  tMemBucket *pBucket = tMemBucketCreate(1024, bufferSize, sizeof(int32_t), TSDB_DATA_TYPE_INT, pDesc);
 
-    for (int32_t i = start; i <= end; ++i) {
-        int32_t val = i;
-        tMemBucketPut(pBucket, &val, 1);
-    }
+  for (int32_t i = start; i <= end; ++i) {
+    int32_t val = i;
+    tMemBucketPut(pBucket, &val, 1);
+  }
 
-    return pBucket;
+  return pBucket;
 }
 
-tMemBucket *createBigIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor* pDesc) {
-    tMemBucket *pBucket = tMemBucketCreate(1024, bufferSize, sizeof(int64_t), TSDB_DATA_TYPE_BIGINT, pDesc);
-    for (int32_t i = start; i <= end; ++i) {
-        int64_t val = i;
-        tMemBucketPut(pBucket, &val, 1);
-    }
+tMemBucket *createBigIntDataBucket(int32_t start, int32_t end, int32_t bufferSize, tOrderDescriptor *pDesc) {
+  tMemBucket *pBucket = tMemBucketCreate(1024, bufferSize, sizeof(int64_t), TSDB_DATA_TYPE_BIGINT, pDesc);
+  for (int32_t i = start; i <= end; ++i) {
+    int64_t val = i;
+    tMemBucketPut(pBucket, &val, 1);
+  }
 
-    return pBucket;
+  return pBucket;
 }
 
 void createShortDataArrays(int32_t start, int32_t end) {
-    int32_t orderIdx[1] = {0};
-    SSchema field[1] = {
-            {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
-    };
-    SColumnModel* pModel = createColumnModel(field, 1, 1000);
-    tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
+  int32_t orderIdx[1] = {0};
+  SSchema field[1] = {
+      {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
+  };
+  SColumnModel *    pModel = createColumnModel(field, 1, 1000);
+  tOrderDescriptor *pDesc = tOrderDesCreate(orderIdx, 1, pModel, 1);
 
-    tMemBucket *pBucket = NULL;
-    double result = 0;
+  tMemBucket *pBucket = NULL;
+  double      result = 0;
 
-    pBucket = createDoubleDataBucket(-10, 10, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 0);
-    assert(fabs(result - 10.0) < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-10, 10, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 0);
+  assert(fabs(result - 10.0) < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
-    tMemBucketDestroy(pBucket);
+  printf("result is: %lf\n", result);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 25);
-    assert(fabs(result + 75000) < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 25);
+  assert(fabs(result + 75000) < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
+  printf("result is: %lf\n", result);
 
-    tMemBucketDestroy(pBucket);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 50);
-    assert(result < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 50);
+  assert(result < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
+  printf("result is: %lf\n", result);
 
-    tMemBucketDestroy(pBucket);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 75);
-    assert(fabs(result - 75000) < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 75);
+  assert(fabs(result - 75000) < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
+  printf("result is: %lf\n", result);
 
-    tMemBucketDestroy(pBucket);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 100);
-    assert(fabs(result - 100000.0) < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 100);
+  assert(fabs(result - 100000.0) < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
+  printf("result is: %lf\n", result);
 
-    destroyColumnModel(pModel);
-    tOrderDescDestroy(&pDesc);
-    tMemBucketDestroy(pBucket);
+  destroyColumnModel(pModel);
+  tMemBucketDestroy(pBucket);
 }
 
 void doubleDataTest() {
-    printf("running %s\n", __FUNCTION__);
+  printf("running %s\n", __FUNCTION__);
 
-    int32_t orderIdx[1] = {0};
-    SSchema field[1] = {
-            {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
-    };
-    tMemBucket *pBucket = NULL;
-    SColumnModel* pModel = createColumnModel(field, 1, 1000);
-    tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
+  int32_t orderIdx[1] = {0};
+  SSchema field[1] = {
+      {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
+  };
+  tMemBucket *      pBucket = NULL;
+  SColumnModel *    pModel = createColumnModel(field, 1, 1000);
+  tOrderDescriptor *pDesc = tOrderDesCreate(orderIdx, 1, pModel, 1);
 
-    double result = 0;
+  double result = 0;
 
-    pBucket = createDoubleDataBucket(-10, 10, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 0);
-    assert(fabs(result + 10.0) < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-10, 10, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 0);
+  assert(fabs(result + 10.0) < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
-    tMemBucketDestroy(pBucket);
+  printf("result is: %lf\n", result);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 25);
-    assert(fabs(result + 50000) < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 25);
+  assert(fabs(result + 50000) < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
+  printf("result is: %lf\n", result);
 
-    tMemBucketDestroy(pBucket);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 50);
-    assert(result < DBL_EPSILON);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 50);
+  assert(result < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
+  printf("result is: %lf\n", result);
 
-    tMemBucketDestroy(pBucket);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 75);
-    printf("result is: %lf\n", result);
-    assert(fabs(result - 50000) < DBL_EPSILON);
-    tMemBucketDestroy(pBucket);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 75);
+  printf("result is: %lf\n", result);
+  assert(fabs(result - 50000) < DBL_EPSILON);
+  tMemBucketDestroy(pBucket);
 
-    pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
+  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20, pDesc);
 
-    result = getPercentile(pBucket, 100);
-    assert(fabs(result - 100000.0) < DBL_EPSILON);
+  result = getPercentile(pBucket, 100);
+  assert(fabs(result - 100000.0) < DBL_EPSILON);
 
-    printf("result is: %lf\n", result);
+  printf("result is: %lf\n", result);
 
-    destroyColumnModel(pModel);
-    tOrderDescDestroy(&pDesc);
-
-    tMemBucketDestroy(pBucket);
+  destroyColumnModel(pModel);
+  tMemBucketDestroy(pBucket);
 }
 
 /*
@@ -256,69 +251,63 @@ void doubleDataTest() {
  * which is 800MB data
  */
 void largeDataTest() {
-    printf("running : %s\n", __FUNCTION__);
+  printf("running : %s\n", __FUNCTION__);
 
-    int32_t orderIdx[1] = {0};
-    SSchema field[1] = {
-            {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
-    };
+  int32_t orderIdx[1] = {0};
+  SSchema field[1] = {
+      {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
+  };
 
-    SColumnModel* pModel = createColumnModel(field, 1, 1000);
-    tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
+  SColumnModel *    pModel = createColumnModel(field, 1, 1000);
+  tOrderDescriptor *pDesc = tOrderDesCreate(orderIdx, 1, pModel, 1);
 
-    tMemBucket *pBucket = NULL;
-    double result = 0;
+  tMemBucket *pBucket = NULL;
+  double      result = 0;
 
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
 
-    int64_t start = tv.tv_sec;
-    printf("start time: %lld\n", tv.tv_sec);
-    pBucket = createDoubleDataBucket(0, 100000000, 1 << 20, pDesc);
-    result = getPercentile(pBucket, 50);
-    assert(result - 50000000 < DBL_EPSILON);
+  int64_t start = tv.tv_sec;
+  printf("start time: %"PRId64"\n", tv.tv_sec);
+  pBucket = createDoubleDataBucket(0, 100000000, 1 << 20, pDesc);
+  result = getPercentile(pBucket, 50);
+  assert(result - 50000000 < DBL_EPSILON);
 
-    gettimeofday(&tv, NULL);
-    printf("total elapsed time: %lld\n sec.", -start + tv.tv_sec);
-    printf("the result of %d is: %lf\n", 50, result);
+  gettimeofday(&tv, NULL);
+  printf("total elapsed time: %"PRId64"\n sec.", -start + tv.tv_sec);
+  printf("the result of %d is: %lf\n", 50, result);
 
-    destroyColumnModel(pModel);
-    tOrderDescDestroy(&pDesc);
-    tMemBucketDestroy(pBucket);
+  destroyColumnModel(pModel);
+  tMemBucketDestroy(pBucket);
 }
 
-void hashTest() {
-    printf("running : %s\n", __FUNCTION__);
-
-}
+void hashTest() { printf("running : %s\n", __FUNCTION__); }
 
 void qsortTest() {
-    printf("running : %s\n", __FUNCTION__);
+  printf("running : %s\n", __FUNCTION__);
 
-    SSchema field[1] = {
-            {TSDB_DATA_TYPE_INT, "k", sizeof(int32_t)},
-    };
+  SSchema field[1] = {
+      {TSDB_DATA_TYPE_INT, "k", sizeof(int32_t)},
+  };
 
-    const int32_t num = 2000;
+  const int32_t num = 2000;
 
-    int32_t *d = (int32_t *) malloc(sizeof(int32_t) * num);
-    for (int32_t i = 0; i < num; ++i) {
-        d[i] = i % 4;
-    }
+  int32_t *d = (int32_t *)malloc(sizeof(int32_t) * num);
+  for (int32_t i = 0; i < num; ++i) {
+    d[i] = i % 4;
+  }
 
-    const int32_t numOfOrderCols = 1;
-    int32_t orderColIdx = 0;
-    SColumnModel* pModel = createColumnModel(field, 1, 1000);
-    tOrderDescriptor* pDesc = tOrderDesCreate(&orderColIdx, numOfOrderCols, pModel, TSQL_SO_ASC);
+  const int32_t     numOfOrderCols = 1;
+  int32_t           orderColIdx = 0;
+  SColumnModel *    pModel = createColumnModel(field, 1, 1000);
+  tOrderDescriptor *pDesc = tOrderDesCreate(&orderColIdx, numOfOrderCols, pModel, 1);
 
-    tColDataQSort(pDesc, num, 0, num - 1, d, TSQL_SO_ASC);
+  tColDataQSort(pDesc, num, 0, num - 1, (char*) d, 1);
 
-    for(int32_t i=0; i<num; ++i) {
-        printf("%d\t", d[i]);
-    }
-    printf("\n");
+  for (int32_t i = 0; i < num; ++i) {
+    printf("%d\t", d[i]);
+  }
+  printf("\n");
 
-    destroyColumnModel(pModel);
-    tOrderDescDestroy(&pDesc);
+  destroyColumnModel(pModel);
 }
-
