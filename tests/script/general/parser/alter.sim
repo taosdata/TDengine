@@ -137,7 +137,7 @@ sleep 6000
 sql insert into tb1 values (now, 2, 'taos')
 sleep 3000
 sql select * from strm
-if $rows != 1 then
+if $rows != 2 then
    return -1
 endi
 if $data04 != 1 then
@@ -148,7 +148,7 @@ sleep 6000
 sql insert into tb1 values (now, 3, 'taos', 3);
 sleep 3000
 sql select * from strm
-if $rows != 1 then
+if $rows != 3 then
    return -1
 endi
 if $data04 != 1 then
@@ -188,9 +188,9 @@ sql create table tb using mt tags(1)
 sleep 3000
 sql insert into tb values ('2018-11-01 16:30:00.000', 1, 'insert', 1)
 sql alter table mt drop column c3
-# the below query should be deleted after bug fix
+
 sql insert into tb values ('2018-11-01 16:29:59.000', 1, 'insert')
-sql_error import into tb values ('2018-11-01 16:29:59.000', 1, 'import')
+sql import into tb values ('2018-11-01 16:29:59.000', 1, 'import')
 sql select * from tb order by ts desc
 if $data01 != 1 then
   return -1
@@ -203,13 +203,13 @@ sql select * from tb order by ts desc
 if $data03 != NULL then
   return -1
 endi
-# the query below should be deleted after bug fix
+
 sql reset query cache
 sql insert into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
-sql_error import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
+sql import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
 sql import into tb values ('2018-11-01 16:39:58.000', 2, 'import', 3)
 sql select * from tb order by ts desc 
-if $rows != 2 then
+if $rows != 4 then
   return -1
 endi
 if $data03 != 3 then
