@@ -44,7 +44,7 @@ static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
 extern void *  tsVgroupSdb;
 
-static int32_t mnodeCreateDnode(char *ep);
+static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg);
@@ -117,7 +117,8 @@ static int32_t mnodeDnodeActionDecode(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
-    mnodeCreateDnode(tsLocalEp);
+    mPrint("dnode first deploy, create dnode:%s", tsLocalEp);
+    mnodeCreateDnode(tsLocalEp, NULL);
     SDnodeObj *pDnode = mnodeGetDnodeByEp(tsLocalEp);
     mnodeAddMnode(pDnode->dnodeId);
     mnodeDecDnodeRef(pDnode);
@@ -391,7 +392,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeCreateDnode(char *ep) {
+static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   int32_t grantCode = grantCheck(TSDB_GRANT_DNODE);
   if (grantCode != TSDB_CODE_SUCCESS) {
     return grantCode;
@@ -415,7 +416,8 @@ static int32_t mnodeCreateDnode(char *ep) {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode,
-    .rowSize = sizeof(SDnodeObj)
+    .rowSize = sizeof(SDnodeObj),
+    .pMsg = pMsg
   };
 
   int32_t code = sdbInsertRow(&oper);
@@ -423,30 +425,32 @@ static int32_t mnodeCreateDnode(char *ep) {
     int dnodeId = pDnode->dnodeId;
     tfree(pDnode);
     mError("failed to create dnode:%d, result:%s", dnodeId, tstrerror(code));
-    return TSDB_CODE_MND_SDB_ERROR;
+  } else {
+    mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
-  mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
   return code;
 }
 
-int32_t mnodeDropDnode(SDnodeObj *pDnode) {
+int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
-    .pObj = pDnode
+    .pObj = pDnode,
+    .pMsg = pMsg
   };
 
-  int32_t code = sdbDeleteRow(&oper); 
-  if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_SDB_ERROR;
+  int32_t code = sdbDeleteRow(&oper);
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
-  mLPrint("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
   return code;
 }
 
-static int32_t mnodeDropDnodeByEp(char *ep) {
+static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
     mError("dnode:%s, is not exist", ep);
@@ -461,7 +465,7 @@ static int32_t mnodeDropDnodeByEp(char *ep) {
 
   mPrint("dnode:%d, start to drop it", pDnode->dnodeId);
 #ifndef _SYNC
-  return mnodeDropDnode(pDnode);
+  return mnodeDropDnode(pDnode, pMsg);
 #else
   return balanceDropDnode(pDnode);
 #endif
@@ -473,17 +477,7 @@ static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   } else {
-    int32_t code = mnodeCreateDnode(pCreate->ep);
-
-    if (code == TSDB_CODE_SUCCESS) {
-      SDnodeObj *pDnode = mnodeGetDnodeByEp(pCreate->ep);
-      mLPrint("dnode:%d, %s is created by %s", pDnode->dnodeId, pCreate->ep, pMsg->pUser->user);
-      mnodeDecDnodeRef(pDnode);
-    } else {
-      mError("failed to create dnode:%s, reason:%s", pCreate->ep, tstrerror(code));
-    }
-
-    return code;
+    return mnodeCreateDnode(pCreate->ep, pMsg);
   }
 }
 
@@ -493,15 +487,7 @@ static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg) {
   if (strcmp(pMsg->pUser->user, "root") != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   } else {
-    int32_t code = mnodeDropDnodeByEp(pDrop->ep);
-
-    if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("dnode:%s is dropped by %s", pDrop->ep, pMsg->pUser->user);
-    } else {
-      mError("failed to drop dnode:%s, reason:%s", pDrop->ep, tstrerror(code));
-    }
-
-    return code;
+    return mnodeDropDnodeByEp(pDrop->ep, pMsg);
   }
 }
 

@@ -887,7 +887,7 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
         free(pVariant->pz);
         pVariant->dKey = v;
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-        pVariant->dKey = pVariant->i64Key;
+        pVariant->dKey = (double)(pVariant->i64Key);
       }
       
       pVariant->nType = TSDB_DATA_TYPE_DOUBLE;

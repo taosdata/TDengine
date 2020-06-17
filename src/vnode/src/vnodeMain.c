@@ -119,7 +119,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-  tsdbCfg.compression         = pVnodeCfg->cfg.compression;;
+  tsdbCfg.compression         = pVnodeCfg->cfg.compression;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
@@ -325,6 +325,11 @@ void vnodeRelease(void *pVnodeRaw) {
     tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
 
+  // stop continuous query
+  if (pVnode->cq) 
+    cqClose(pVnode->cq);
+  pVnode->cq = NULL;
+
   if (pVnode->wal) 
     walClose(pVnode->wal);
   pVnode->wal = NULL;
@@ -435,11 +440,6 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     syncStop(pVnode->sync);
     pVnode->sync = NULL;
   }
-
-  // stop continuous query
-  if (pVnode->cq) 
-    cqClose(pVnode->cq);
-  pVnode->cq = NULL;
 
   // release local resources only after cutting off outside connections
   vnodeRelease(pVnode);

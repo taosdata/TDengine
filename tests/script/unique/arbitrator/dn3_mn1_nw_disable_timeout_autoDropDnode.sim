@@ -3,37 +3,31 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
-system sh/deploy.sh -n dnode5 -i 5
 
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
-system sh/cfg.sh -n dnode5 -c numOfMnodes -v 1
 
 system sh/cfg.sh -n dnode1 -c walLevel -v 1 
 system sh/cfg.sh -n dnode2 -c walLevel -v 1
 system sh/cfg.sh -n dnode3 -c walLevel -v 1
 system sh/cfg.sh -n dnode4 -c walLevel -v 1
-system sh/cfg.sh -n dnode5 -c walLevel -v 1
 
 system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
-system sh/cfg.sh -n dnode5 -c balanceInterval -v 10
 
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
 
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
 
 system sh/cfg.sh -n dnode1 -c alternativeRole -v 1
 system sh/cfg.sh -n dnode2 -c alternativeRole -v 2
@@ -44,19 +38,16 @@ system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
-system sh/cfg.sh -n dnode5 -c arbitrator -v $arbitrator
 
 system sh/cfg.sh -n dnode1 -c offlineThreshold -v 10
 system sh/cfg.sh -n dnode2 -c offlineThreshold -v 10
 system sh/cfg.sh -n dnode3 -c offlineThreshold -v 10
 system sh/cfg.sh -n dnode4 -c offlineThreshold -v 10
-system sh/cfg.sh -n dnode5 -c offlineThreshold -v 10
 
 system sh/cfg.sh -n dnode1 -c enableCoreFile -v 1
 system sh/cfg.sh -n dnode2 -c enableCoreFile -v 1
 system sh/cfg.sh -n dnode3 -c enableCoreFile -v 1
 system sh/cfg.sh -n dnode4 -c enableCoreFile -v 1
-system sh/cfg.sh -n dnode5 -c enableCoreFile -v 1
 
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
@@ -126,7 +117,13 @@ system sh/exec.sh -n dnode4 -s stop
 #system sh/port.sh -p 7400 -s down
 sleep 12000
 
+$loopCnt = 0
 wait_dnode4_dropped:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then 
+  return -1
+endi
+
 sql show dnodes
 if $rows != 3 then
   sleep 2000
