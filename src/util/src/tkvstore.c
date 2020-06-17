@@ -386,7 +386,7 @@ static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void
   if (pStore == NULL) goto _err;
 
   pStore->fname = strdup(fname);
-  if (pStore->map == NULL) {
+  if (pStore->fname == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     goto _err;
   }
