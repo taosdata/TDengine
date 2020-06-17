@@ -149,9 +149,17 @@ static int32_t mnodeVgroupActionUpdate(SSdbOper *pOper) {
       }
     }
 
-    memcpy(pVgroup, pNew, sizeof(SVgObj));
-    free(pNew);
+    void *idPool = pVgroup->idPool;
+    void *tableList = pVgroup->tableList;
+    int32_t oldRefCount = pVgroup->refCount;
 
+    memcpy(pVgroup, pNew, sizeof(SVgObj));
+    
+    free(pNew);
+    pVgroup->refCount = oldRefCount;
+    pVgroup->idPool = idPool;
+    pVgroup->tableList = tableList;
+    
     for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
       SDnodeObj *pDnode = mnodeGetDnode(pVgroup->vnodeGid[i].dnodeId);
       pVgroup->vnodeGid[i].pDnode = pDnode;

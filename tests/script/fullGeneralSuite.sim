@@ -135,7 +135,7 @@ run general/parser/select_with_tags.sim
 #unsupport run general/parser/repeatAlter.sim
 #unsupport run general/parser/slimit_alter_tags.sim
 #unsupport run general/parser/stream_on_sys.sim
-#unsupport run general/parser/stream.sim
+run general/parser/stream.sim
 #unsupport run general/parser/repeatStream.sim
 run general/stable/disk.sim
 run general/stable/dnode3.sim

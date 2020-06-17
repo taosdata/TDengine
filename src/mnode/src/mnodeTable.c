@@ -185,7 +185,9 @@ static int32_t mnodeChildTableActionUpdate(SSdbOper *pOper) {
     void *oldTableId = pTable->info.tableId;
     void *oldSql = pTable->sql;
     void *oldSchema = pTable->schema;
+    int32_t oldRefCount = pTable->refCount;
     memcpy(pTable, pNew, sizeof(SChildTableObj));
+    pTable->refCount = oldRefCount;
     pTable->sql = pNew->sql;
     pTable->schema = pNew->schema;
     free(pNew);
@@ -375,7 +377,7 @@ static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCt
   pStable->numOfTables++;
 
   if (pStable->vgHash == NULL) {
-    pStable->vgHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+    pStable->vgHash = taosHashInit(100000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
   }
 
   if (pStable->vgHash != NULL) {
@@ -439,9 +441,14 @@ static int32_t mnodeSuperTableActionUpdate(SSdbOper *pOper) {
   if (pTable != pNew) {
     void *oldTableId = pTable->info.tableId;
     void *oldSchema = pTable->schema;
+    void *oldVgHash = pTable->vgHash;
+    int32_t oldRefCount = pTable->refCount;
+
     memcpy(pTable, pNew, sizeof(SSuperTableObj));
+
+    pTable->vgHash = oldVgHash;
+    pTable->refCount = oldRefCount;
     pTable->schema = pNew->schema;
-    free(pNew->vgHash);
     free(pNew);
     free(oldTableId);
     free(oldSchema);

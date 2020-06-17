@@ -67,6 +67,19 @@ class TDTestCase:
         tdSql.query("select * from st where num < 5.5")
         tdSql.checkRows(4)
 
+        # range for float type on column
+        tdSql.query("select * from st where num > 5.5 and num < 11.0")
+        tdSql.checkRows(4)
+
+        tdSql.query("select * from st where num >= 5.5 and num < 11.0")
+        tdSql.checkRows(5)
+
+        tdSql.query("select * from st where num > 5.5 and num <= 11.0")
+        tdSql.checkRows(5)
+
+        tdSql.query("select * from st where num >= 5.5 and num <= 11.0")
+        tdSql.checkRows(6)
+
         # > for float type on tag
         tdSql.query("select * from st where tagcol1 > 1.1")
         tdSql.checkRows(0)
@@ -122,6 +135,19 @@ class TDTestCase:
         # < for double type on column
         tdSql.query("select * from st where speed < 11.5")
         tdSql.checkRows(4)
+
+        # range for double type on column
+        tdSql.query("select * from st where speed > 11.5 and speed < 20.7")
+        tdSql.checkRows(3)
+
+        tdSql.query("select * from st where speed >= 11.5 and speed < 20.7")
+        tdSql.checkRows(4)
+
+        tdSql.query("select * from st where speed > 11.5 and speed <= 20.7")
+        tdSql.checkRows(4)
+
+        tdSql.query("select * from st where speed >= 11.5 and speed <= 20.7")
+        tdSql.checkRows(5)
 
         # > for double type on tag
         tdSql.query("select * from st where tagcol2 > 2.3")
