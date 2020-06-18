@@ -83,7 +83,7 @@ int tdListPrepend(SList *list, void *data) {
 }
 
 int tdListAppend(SList *list, void *data) {
-  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
+  SListNode *node = (SListNode *)calloc(1, sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
   memcpy((void *)(node->data), data, list->eleSize);

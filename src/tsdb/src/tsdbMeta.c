@@ -415,6 +415,7 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
   while ((pNode = tdListPopHead(pMeta->superList)) != NULL) {
     tdListNodeGetData(pMeta->superList, pNode, (void *)(&pTable));
     tsdbFreeTable(pTable);
+    listNodeFree(pNode);
   }
 
   tsdbTrace("vgId:%d TSDB meta is closed", REPO_ID(pRepo));
