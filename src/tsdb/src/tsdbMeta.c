@@ -98,7 +98,7 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
     ASSERT(POINTER_DISTANCE(pBuf, buf) == tlen1);
     buf = pBuf;
   }
-  tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, super);
+  tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, table);
 
   return 0;
 
@@ -722,7 +722,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
       goto _err;
     }
   } else {
-    if (TABLE_TID(pTable) == TSDB_CHILD_TABLE && addIdx) {  // add STABLE to the index
+    if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE && addIdx) {  // add STABLE to the index
       if (tsdbAddTableIntoIndex(pMeta, pTable) < 0) {
         tsdbTrace("vgId:%d failed to add table %s to meta while add table to index since %s", REPO_ID(pRepo),
                   TABLE_CHAR_NAME(pTable), tstrerror(terrno));

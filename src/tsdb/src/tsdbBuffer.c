@@ -67,13 +67,13 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
 
   ASSERT(pPool != NULL);
 
-  pPool->bufBlockSize = pCfg->cacheBlockSize;
+  pPool->bufBlockSize = pCfg->cacheBlockSize * 1024 * 1024;
   pPool->tBufBlocks = pCfg->totalBlocks;
   pPool->nBufBlocks = 0;
   pPool->index = 0;
 
   for (int i = 0; i < pCfg->totalBlocks; i++) {
-    STsdbBufBlock *pBufBlock = tsdbNewBufBlock(pCfg->cacheBlockSize);
+    STsdbBufBlock *pBufBlock = tsdbNewBufBlock(pPool->bufBlockSize);
     if (pBufBlock == NULL) goto _err;
 
     if (tdListAppend(pPool->bufBlockList, (void *)(&pBufBlock)) < 0) {
