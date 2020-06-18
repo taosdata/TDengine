@@ -485,7 +485,7 @@ static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
 
   if (mkdir(dirName, 0755) < 0) {
     tsdbError("vgId:%d failed to create directory %s since %s", pCfg->tsdbId, dirName, strerror(errno));
-    errno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     free(dirName);
     return -1;
   }
