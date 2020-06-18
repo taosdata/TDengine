@@ -1036,10 +1036,10 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
   ASSERT(pTable != NULL);
   int tlen = 0;
 
-  tlen = taosEncodeFixedU8(buf, pTable->type);
-  tlen = tsdbEncodeTableName(buf, pTable->name);
-  tlen = taosEncodeFixedU64(buf, TABLE_UID(pTable));
-  tlen = taosEncodeFixedI32(buf, TABLE_TID(pTable));
+  tlen += taosEncodeFixedU8(buf, pTable->type);
+  tlen += tsdbEncodeTableName(buf, pTable->name);
+  tlen += taosEncodeFixedU64(buf, TABLE_UID(pTable));
+  tlen += taosEncodeFixedI32(buf, TABLE_TID(pTable));
 
   if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
     tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
