@@ -381,6 +381,10 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     balanceNotify();
   }
 
+  if (openVnodes != pDnode->openVnodes) {
+    mnodeCheckUnCreatedVgroup(pDnode, pStatus->load, openVnodes);
+  }
+
   pDnode->lastAccess = tsAccessSquence;
   mnodeDecDnodeRef(pDnode);
 

@@ -256,6 +256,8 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
   mnodeSendCreateVgroupMsg(pVgroup, NULL);
 }
 
+void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t openVnodes) {}
+
 void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVload) {
   bool dnodeExist = false;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
