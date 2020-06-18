@@ -53,11 +53,11 @@ int writeIntoWal(SWalHead *pHead)
       uPrint("file:%s is opened to write, walNum:%d", walName, walNum);
     }
   }
-  
-  if ( write(dataFd, pHead, sizeof(SWalHead)+pHead->len) <0 ) {
-    uError("ver:%d, failed to write wal file(%s)", pHead->version, strerror(errno));
+
+  if (write(dataFd, pHead, sizeof(SWalHead) + pHead->len) < 0) {
+    uError("ver:%" PRIu64 ", failed to write wal file(%s)", pHead->version, strerror(errno));
   } else {
-    uTrace("ver:%d, written to wal", pHead->version);
+    uTrace("ver:%" PRIu64 ", written to wal", pHead->version);
   }
 
   numOfWrites++;
@@ -76,7 +76,7 @@ void confirmForward(void *ahandle, void *mhandle, int32_t code)
   SRpcMsg  *pMsg = (SRpcMsg *)mhandle;
   SWalHead *pHead = (SWalHead *)(((char *)pMsg->pCont) - sizeof(SWalHead));
 
-  uTrace("ver:%d, confirm is received", pHead->version);
+  uTrace("ver:%" PRIu64 ", confirm is received", pHead->version);
 
   rpcFreeCont(pMsg->pCont);
 
@@ -96,14 +96,14 @@ int processRpcMsg(void *item) {
   int        code = -1;
 
   if (role != TAOS_SYNC_ROLE_MASTER) {
-    uError("not master, write failed", syncRole[role]);
+    uError("not master, write failed, role:%s", syncRole[role]);
   } else {
 
     pHead->version = ++tversion;
     pHead->msgType = pMsg->msgType;
     pHead->len = pMsg->contLen;
- 
-    uTrace("ver:%d, pkt from client processed", pHead->version);
+
+    uTrace("ver:%" PRIu64 ", pkt from client processed", pHead->version);
     writeIntoWal(pHead); 
     syncForwardToPeer(syncHandle, pHead, item, TAOS_QTYPE_RPC);
 
@@ -128,13 +128,13 @@ int processRpcMsg(void *item) {
 int processFwdMsg(void *item) {
 
   SWalHead *pHead = (SWalHead *)item;
-   
-  if (pHead->version <= tversion) {
-    uError("ver:%d, forward is even lower than local:%d", pHead->version, tversion);
-    return -1;
-  };
 
-  uTrace("ver:%d, forward from peer is received", pHead->version);
+  if (pHead->version <= tversion) {
+    uError("ver:%" PRIu64 ", forward is even lower than local:%" PRIu64, pHead->version, tversion);
+    return -1;
+  }
+
+  uTrace("ver:%" PRIu64 ", forward from peer is received", pHead->version);
   writeIntoWal(pHead);
   tversion = pHead->version;
 
@@ -156,13 +156,13 @@ int processFwdMsg(void *item) {
 int processWalMsg(void *item) {
 
   SWalHead *pHead = (SWalHead *)item;
-   
+
   if (pHead->version <= tversion) {
-    uError("ver:%d, wal is even lower than local:%d", pHead->version, tversion);
+    uError("ver:%" PRIu64 ", wal is even lower than local:%" PRIu64, pHead->version, tversion);
     return -1;
   };
 
-  uTrace("ver:%d, wal from peer is received", pHead->version);
+  uTrace("ver:%" PRIu64 ", wal from peer is received", pHead->version);
   writeIntoWal(pHead);
   tversion = pHead->version;
 
@@ -285,7 +285,7 @@ int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
 int writeToCache(void *ahandle, void *data, int type) {
   SWalHead *pHead = data;
 
-  uTrace("pkt from peer is received, ver:%d len:%d type:%d", pHead->version, pHead->len, type);
+  uTrace("pkt from peer is received, ver:%" PRIu64 " len:%d type:%d", pHead->version, pHead->len, type);
 
   int   msgSize = pHead->len + sizeof(SWalHead);
   void *pMsg = taosAllocateQitem(msgSize);
