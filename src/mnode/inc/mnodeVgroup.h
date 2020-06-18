@@ -34,7 +34,7 @@ void    mnodeUpdateAllDbVgroups(SDbObj *pAlterDb);
 
 void *  mnodeGetNextVgroup(void *pIter, SVgObj **pVgroup);
 void    mnodeUpdateVgroup(SVgObj *pVgroup);
-void    mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *dnodeId, SVnodeLoad *pVload);
+void    mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVload);
 
 int32_t mnodeCreateVgroup(struct SMnodeMsg *pMsg, SDbObj *pDb);
 void    mnodeDropVgroup(SVgObj *pVgroup, void *ahandle);
