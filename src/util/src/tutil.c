@@ -40,10 +40,17 @@ int taosRand(void)
   unsigned long seed;
   
   fd = open("/dev/urandom", 0);
-  if ((fd < 0) || (read(fd, &seed, sizeof(seed)) < 0)) seed = time(0);  
-  if (fd >= 0) close(fd);
+  if (fd < 0) {
+    seed = time(0);
+  } else {
+    int len = read(fd, &seed, sizeof(seed));
+    if (len < 0) {
+      seed = time(0);
+    }    
+    srand(seed);
+    close(fd);
+  }
   
-  srand(seed);
   return rand();
 }
 #endif
