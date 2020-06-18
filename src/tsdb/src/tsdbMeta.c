@@ -46,6 +46,8 @@ static int     tsdbEncodeTableName(void **buf, tstr *name);
 static void *  tsdbDecodeTableName(void *buf, tstr **name);
 static int     tsdbEncodeTable(void **buf, STable *pTable);
 static void *  tsdbDecodeTable(void *buf, STable **pRTable);
+static int     tsdbGetTableEncodeSize(int8_t act, STable *pTable);
+static void *  tsdbInsertTableAct(STsdbRepo *pRepo, int8_t act, void *buf, STable *pTable);
 
 // ------------------ OUTER FUNCTIONS ------------------
 int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
@@ -85,20 +87,18 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   }
   if (tsdbAddTableToMeta(pRepo, table, true) < 0) goto _err;
 
-  int tlen = tsdbEncodeTable(NULL, pTable);
-  ASSERT(tlen > 0);
-
-  // // Write to meta file
-  // int   bufLen = 0;
-  // char *buf = malloc(1024 * 1024);
-  // if (newSuper) {
-  //   tsdbEncodeTable(super, buf, &bufLen);
-  //   tsdbInsertMetaRecord(pMeta->mfh, super->tableId.uid, buf, bufLen);
-  // }
-
-  // tsdbEncodeTable(table, buf, &bufLen);
-  // tsdbInsertMetaRecord(pMeta->mfh, table->tableId.uid, buf, bufLen);
-  // tfree(buf);
+  // Write to memtable action
+  int   tlen1 = (newSuper) ? tsdbGetTableEncodeSize(TSDB_UPDATE_META, super) : 0;
+  int   tlen2 = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
+  int   tlen = tlen1 + tlen2;
+  void *buf = tsdbAllocBytes(pRepo, tlen);
+  ASSERT(buf != NULL);
+  if (newSuper) {
+    void *pBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, super);
+    ASSERT(POINTER_DISTANCE(pBuf, buf) == tlen1);
+    buf = pBuf;
+  }
+  tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, super);
 
   return 0;
 
@@ -1107,4 +1107,33 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
   *pRTable = pTable;
 
   return buf;
+}
+
+static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
+  int tlen = sizeof(SListNode) + sizeof(SActObj);
+  if (act == TSDB_UPDATE_META) tlen += (sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM));
+
+  return tlen;
+}
+
+static void *tsdbInsertTableAct(STsdbRepo *pRepo, int8_t act, void *buf, STable *pTable) {
+  SListNode *pNode = (SListNode *)buf;
+  SActObj *  pAct = (SActObj *)(pNode->data);
+  SActCont * pCont = (SActCont *)POINTER_SHIFT(pAct, sizeof(*pAct));
+  void *     pBuf = (void *)pCont;
+
+  pNode->prev = pNode->next = NULL;
+  pAct->act = act;
+  pAct->uid = TABLE_UID(pTable);
+
+  if (act == TSDB_UPDATE_META) {
+    pBuf = (void *)(pCont->cont);
+    pCont->len = tsdbEncodeTable(&pBuf, pTable) + sizeof(TSCKSUM);
+    taosCalcChecksumAppend(0, (uint8_t *)pCont->cont, pCont->len);
+    pBuf = POINTER_SHIFT(pBuf, sizeof(TSCKSUM));
+  }
+
+  tdListAppendNode(pRepo->mem->actList, pNode);
+
+  return pBuf;
 }

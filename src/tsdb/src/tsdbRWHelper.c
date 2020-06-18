@@ -1136,6 +1136,7 @@ static int tsdbInitHelper(SRWHelper *pHelper, STsdbRepo *pRepo, tsdb_rw_helper_t
   // Init block part
   if (tsdbInitHelperBlock(pHelper) < 0) goto _err;
 
+  // TODO: pMeta->maxRowBytes and pMeta->maxCols may change here causing invalid write
   pHelper->pBuffer =
       tmalloc(sizeof(SCompData) + (sizeof(SCompCol) + sizeof(TSCKSUM) + COMP_OVERFLOW_BYTES) * pMeta->maxCols +
               pMeta->maxRowBytes * pCfg->maxRowsPerFileBlock + sizeof(TSCKSUM));

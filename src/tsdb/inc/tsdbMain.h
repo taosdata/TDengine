@@ -110,6 +110,17 @@ typedef struct {
   SList*       bufBlockList;
 } SMemTable;
 
+enum { TSDB_UPDATE_META, TSDB_DROP_META };
+typedef struct __attribute__((packed)){
+  char     act;
+  uint64_t uid;
+} SActObj;
+
+typedef struct {
+  int  len;
+  char cont[];
+} SActCont;
+
 // ------------------ tsdbFile.c
 extern const char* tsdbFileSuffix[];
 typedef enum {
@@ -302,10 +313,11 @@ void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 
 // ------------------ tsdbMemTable.c
-int tsdbInsertRowToMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
-int tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
-int tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
-int tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
+int   tsdbInsertRowToMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
+int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
+int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
+int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
+void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 
 // ------------------ tsdbFile.c
 #define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))

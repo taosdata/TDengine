@@ -25,7 +25,6 @@ typedef struct {
 
 static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo);
 
-static void *      tsdbAllocBytes(STsdbRepo *pRepo, int bytes);
 static void        tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes);
 static SMemTable * tsdbNewMemTable(STsdbCfg *pCfg);
 static void        tsdbFreeMemTable(SMemTable *pMemTable);
@@ -33,6 +32,7 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
 static void        tsdbFreeTableData(STableData *pTableData);
 static char *      tsdbGetTsTupleKey(const void *data);
 static void *      tsdbCommitData(void *arg);
+static int         tsdbCommitMeta(STsdbRepo *pRepo);
 static void        tsdbEndCommit(STsdbRepo *pRepo);
 static TSKEY       tsdbNextIterKey(SCommitIter *pIter);
 static int         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
@@ -170,21 +170,7 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
   return 0;
 }
 
-// ---------------- LOCAL FUNCTIONS ----------------
-static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo) {
-  ASSERT(pRepo != NULL);
-  if (pRepo->mem == NULL) return NULL;
-
-  SListNode *pNode = listTail(pRepo->mem->bufBlockList);
-  if (pNode == NULL) return NULL;
-
-  STsdbBufBlock *pBufBlock = NULL;
-  tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void *)(&pBufBlock));
-
-  return pBufBlock;
-}
-
-static void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
+void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   STsdbCfg *     pCfg = &pRepo->config;
   STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
   int            code = 0;
@@ -254,6 +240,20 @@ static void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   pBufBlock->remain -= bytes;
 
   return ptr;
+}
+
+// ---------------- LOCAL FUNCTIONS ----------------
+static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo) {
+  ASSERT(pRepo != NULL);
+  if (pRepo->mem == NULL) return NULL;
+
+  SListNode *pNode = listTail(pRepo->mem->bufBlockList);
+  if (pNode == NULL) return NULL;
+
+  STsdbBufBlock *pBufBlock = NULL;
+  tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void *)(&pBufBlock));
+
+  return pBufBlock;
 }
 
 static void tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes) {
@@ -396,10 +396,13 @@ static void *tsdbCommitData(void *arg) {
     }
   }
 
-  // TODO: Do retention actions
-  tsdbFitRetention(pRepo);
+  // Commit to update meta file
+  if (tsdbCommitMeta(pRepo) < 0) {
+    tsdbError("vgId:%d failed to commit data while committing meta data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _exit;
+  }
 
-  // TODO: Commit action meta data
+  tsdbFitRetention(pRepo);
 
 _exit:
   tdFreeDataCols(pDataCols);
@@ -409,6 +412,52 @@ _exit:
   tsdbPrint("vgId:%d commit over", pRepo->config.tsdbId);
 
   return NULL;
+}
+
+static int tsdbCommitMeta(STsdbRepo *pRepo) {
+  SMemTable *pMem = pRepo->imem;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  SActObj *  pAct = NULL;
+  SActCont * pCont = NULL;
+
+  if (listNEles(pMem->actList) > 0) {
+    if (tdKVStoreStartCommit(pMeta->pStore) < 0) {
+      tsdbError("vgId:%d failed to commit data while start commit meta since %s", REPO_ID(pRepo), tstrerror(terrno));
+      goto _err;
+    }
+
+    SListNode *pNode = NULL;
+
+    while ((pNode = tdListPopHead(pMem->actList)) != NULL) {
+      pAct = (SActObj *)pNode->data;
+      if (pAct->act == TSDB_UPDATE_META) {
+        pCont = (SActCont *)POINTER_SHIFT(pAct, sizeof(SActObj));
+        if (tdUpdateKVStoreRecord(pMeta->pStore, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
+          tsdbError("vgId:%d failed to update meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
+                    tstrerror(terrno));
+          goto _err;
+        }
+      } else if (pAct->act == TSDB_DROP_META) {
+        if (tdDropKVStoreRecord(pMeta->pStore, pAct->uid) < 0) {
+          tsdbError("vgId:%d failed to drop meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
+                    tstrerror(terrno));
+          goto _err;
+        }
+      } else {
+        ASSERT(false);
+      }
+    }
+
+    if (tdKVStoreEndCommit(pMeta->pStore) < 0) {
+      tsdbError("vgId:%d failed to commit data while end commit meta since %s", REPO_ID(pRepo), tstrerror(terrno));
+      goto _err;
+    }
+  }
+
+  return 0;
+
+_err:
+  return -1;
 }
 
 static void tsdbEndCommit(STsdbRepo *pRepo) {
