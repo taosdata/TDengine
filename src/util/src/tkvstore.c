@@ -241,9 +241,9 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
   pStore->info.size += (sizeof(SKVRecord) + contLen);
   SKVRecord *pRecord = taosHashGet(pStore->map, (void *)&uid, sizeof(uid));
   if (pRecord != NULL) {  // just to insert
-    pStore->info.nRecords++;
-  } else {
     pStore->info.tombSize += pRecord->size;
+  } else {
+    pStore->info.nRecords++;
   }
 
   taosHashPut(pStore->map, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));

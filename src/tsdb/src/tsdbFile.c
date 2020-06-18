@@ -300,8 +300,8 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
   void *pBuf = (void *)buf;
-  taosEncodeFixedU32(pBuf, version);
-  tsdbEncodeSFileInfo(pBuf, &(pFile->info));
+  taosEncodeFixedU32((void *)(&pBuf), version);
+  tsdbEncodeSFileInfo((void *)(&pBuf), &(pFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
 

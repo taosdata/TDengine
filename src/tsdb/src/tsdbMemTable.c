@@ -161,7 +161,7 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
   if (tsdbLockRepo(pRepo) < 0) return -1;
 
   *pMem = pRepo->mem;
-  *pIMem = pRepo->mem;
+  *pIMem = pRepo->imem;
   tsdbRefMemTable(pRepo, *pMem);
   tsdbRefMemTable(pRepo, *pIMem);
 
