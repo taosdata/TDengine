@@ -100,7 +100,7 @@ cd ../../../debug; make
 ./test.sh -f general/insert/query_multi_file.sim
 ./test.sh -f general/insert/tcp.sim
 
-#./test.sh -f general/parser/alter.sim
+./test.sh -f general/parser/alter.sim
 ./test.sh -f general/parser/alter1.sim
 ./test.sh -f general/parser/alter_stable.sim
 ./test.sh -f general/parser/auto_create_tb.sim
