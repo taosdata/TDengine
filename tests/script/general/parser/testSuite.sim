@@ -82,26 +82,22 @@ sleep 2000
 run general/parser/groupby.sim
 sleep 2000
 run general/parser/set_tag_vals.sim
-
 sleep 2000
 run general/parser/slimit_alter_tags.sim  # persistent failed
-
 sleep 2000
 run general/parser/join.sim
 sleep 2000
 run general/parser/join_multivnode.sim
-
 sleep 2000
-#run general/parser/repeatAlter.sim
-sleep 2000
-#run general/parser/repeatStream.sim
-
+run general/parser/repeatAlter.sim
 sleep 2000
 run general/parser/binary_escapeCharacter.sim
 sleep 2000
 run general/parser/bug.sim
 
-sleep 2000
-run general/parser/stream_on_sys.sim
-sleep 2000
-run general/parser/stream.sim
+#sleep 2000
+#run general/parser/repeatStream.sim
+#sleep 2000
+#run general/parser/stream_on_sys.sim
+#sleep 2000
+#run general/parser/stream.sim

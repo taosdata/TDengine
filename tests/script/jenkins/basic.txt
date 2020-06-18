@@ -100,9 +100,9 @@ cd ../../../debug; make
 ./test.sh -f general/insert/query_multi_file.sim
 ./test.sh -f general/insert/tcp.sim
 
-#unsupport ./test.sh -f general/parser/alter.sim
-#unsupport ./test.sh -f general/parser/alter1.sim
-#unsupport ./test.sh -f general/parser/alter_stable.sim
+./test.sh -f general/parser/alter.sim
+./test.sh -f general/parser/alter1.sim
+./test.sh -f general/parser/alter_stable.sim
 ./test.sh -f general/parser/auto_create_tb.sim
 ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f general/parser/col_arithmetic_operation.sim
@@ -139,15 +139,15 @@ cd ../../../debug; make
 ./test.sh -f general/parser/fill_stb.sim
 ./test.sh -f general/parser/interp.sim
 ./test.sh -f general/parser/where.sim
-#unsupport ./test.sh -f general/parser/join.sim
-#unsupport ./test.sh -f general/parser/join_multivnode.sim
+./test.sh -f general/parser/join.sim
+./test.sh -f general/parser/join_multivnode.sim
 ./test.sh -f general/parser/select_with_tags.sim
-#unsupport ./test.sh -f general/parser/groupby.sim
-#unsupport ./test.sh -f general/parser/bug.sim
-#unsupport ./test.sh -f general/parser/tags_dynamically_specifiy.sim
-#unsupport ./test.sh -f general/parser/set_tag_vals.sim
-#unsupport ./test.sh -f general/parser/repeatAlter.sim
-#unsupport ./test.sh -f general/parser/slimit_alter_tags.sim
+./test.sh -f general/parser/groupby.sim
+./test.sh -f general/parser/bug.sim
+./test.sh -f general/parser/tags_dynamically_specifiy.sim
+./test.sh -f general/parser/set_tag_vals.sim
+./test.sh -f general/parser/slimit_alter_tags.sim
+./test.sh -f general/parser/repeatAlter.sim
 #unsupport ./test.sh -f general/parser/stream_on_sys.sim
 #unsupport ./test.sh -f general/parser/stream.sim
 #unsupport ./test.sh -f general/parser/repeatStream.sim
