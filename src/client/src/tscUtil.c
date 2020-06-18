@@ -1840,7 +1840,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     size_t size = taosArrayGetSize(pNewQueryInfo->colList);
     
     tscTrace(
-        "%p new subquery:%p, tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d,"
+        "%p new subquery:%p, tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%z, colList:%z,"
         "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
         pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
         size, pNewQueryInfo->fieldsInfo.numOfOutput, pFinalInfo->name, pNewQueryInfo->window.skey,
@@ -2002,7 +2002,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   
   int32_t totalVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
   while (++pTableMetaInfo->vgroupIndex < totalVgroups) {
-    tscTrace("%p results from vgroup index:%d completed, try next:%d. total vgroups:%d. current numOfRes:%d", pSql,
+    tscTrace("%p results from vgroup index:%d completed, try next:%d. total vgroups:%d. current numOfRes:%" PRId64, pSql,
              pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVgroups, pRes->numOfClauseTotal);
 
     /*

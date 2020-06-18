@@ -1703,7 +1703,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
              pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
     
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
-      tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId64 " , current:%" PRId64,
+      tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pPObj, pSql, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
       return;
@@ -1728,6 +1728,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
                                pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
     if (ret < 0) { // set no disk space error info, and abort retry
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
+      pthread_mutex_unlock(&trsupport->queryMutex);
       
     } else if (pRes->completed) {
       tscAllDataRetrievedFromDnode(trsupport, pSql);
@@ -1738,7 +1739,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
       taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
     }
     
-    pthread_mutex_unlock(&trsupport->queryMutex);
   } else { // all data has been retrieved to client
     tscAllDataRetrievedFromDnode(trsupport, pSql);
   }
