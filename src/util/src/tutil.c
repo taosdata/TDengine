@@ -37,7 +37,7 @@ int taosRand(void)
 int taosRand(void)
 {
   int fd;
-  unsigned long seed;
+  int seed;
   
   fd = open("/dev/urandom", 0);
   if (fd < 0) {
@@ -46,12 +46,11 @@ int taosRand(void)
     int len = read(fd, &seed, sizeof(seed));
     if (len < 0) {
       seed = time(0);
-    }    
-    srand(seed);
+    }  
     close(fd);
   }
-  
-  return rand();
+
+  return seed;
 }
 #endif
 
