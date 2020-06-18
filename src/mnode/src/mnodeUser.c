@@ -216,7 +216,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   }
 
   pUser = calloc(1, sizeof(SUserObj));
-  strcpy(pUser->user, name);
+  tstrncpy(pUser->user, name, TSDB_USER_LEN);
   taosEncryptPass((uint8_t*) pass, strlen(pass), pUser->pass);
   strcpy(pUser->acct, pAcct->user);
   pUser->createdTime = taosGetTimestampMs();
@@ -368,7 +368,7 @@ SUserObj *mnodeGetUserFromConn(void *pConn) {
 
 char *mnodeGetUserFromMsg(void *pMsg) {
   SMnodeMsg *pMnodeMsg = pMsg;
-  if (pMnodeMsg != NULL &&pMnodeMsg->pUser != NULL) {
+  if (pMnodeMsg != NULL && pMnodeMsg->pUser != NULL) {
     return pMnodeMsg->pUser->user;
   } else {
     return "system";
