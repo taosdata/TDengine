@@ -83,7 +83,7 @@ static void acctDoStatistic(void *handle, void *tmrId) {
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
   }
 
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
+  taosTmrReset(acctDoStatistic, tsMonitorInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
 }
 
 int32_t acctInit() {
@@ -577,6 +577,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
     if (pVgroup->pDb != NULL && pVgroup->pDb->pAcct == pAcct) {
       totalStorage += pVgroup->totalStorage;
       pointsWritten += pVgroup->pointsWritten;
+      pVgroup->accessState = pAcct->acctInfo.accessState;
     }
     mnodeDecVgroupRef(pVgroup);
   }
@@ -589,6 +590,28 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   pAcct->acctInfo.sKey = sKey;
   pAcct->acctInfo.totalPoints = pointsWritten;
 
+  // set vnode access
+  char accessState = TSDB_VN_ALL_ACCCESS;
+  if (pAcct->acctInfo.totalStorage > pAcct->cfg.maxStorage) {
+    accessState &= (~TSDB_VN_WRITE_ACCCESS);
+    mTrace("acct:%s, set state to no write access, totalStorage:%" PRId64 " maxStorage:%" PRId64, pAcct->user,
+           pAcct->acctInfo.totalStorage, pAcct->cfg.maxStorage);
+  }
+
+  if (grantCheck(TSDB_GRANT_STORAGE) != 0) {
+    accessState &= (~TSDB_VN_WRITE_ACCCESS);
+    mTrace("acct:%s, set state to no write access, totalStorage:%" PRId64 " larger than grant value", pAcct->user,
+           pAcct->acctInfo.totalStorage);
+  }
+
+  if (pAcct->acctInfo.queryTime > pAcct->cfg.maxQueryTime) {
+    accessState &= (~TSDB_VN_READ_ACCCESS);
+  }
+
+  accessState &= pAcct->cfg.accessState;
+  pAcct->acctInfo.accessState = accessState;
+
+  // record monitor info
   SAcctMonitorObj monObj = {0};
   monObj.acctId                 = pAcct->user;
   monObj.currentPointsPerSecond = pAcct->acctInfo.numOfPointsPerSecond;
