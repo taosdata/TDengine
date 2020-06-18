@@ -337,17 +337,8 @@ char *tsdbGetMetaFileName(char *rootDir) {
   return fname;
 }
 
-char *tsdbGetDataFileName(STsdbRepo *pRepo, int fid, int type) {
-  int tlen = strlen(pRepo->rootDir) + strlen(tsdbFileSuffix[type]) + 24;
-
-  char *fname = malloc(tlen);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  sprintf(fname, "%s/%s/v%df%d.%s", pRepo->rootDir, TSDB_DATA_DIR_NAME, REPO_ID(pRepo), fid, tsdbFileSuffix[type]);
-  return fname;
+void tsdbGetDataFileName(STsdbRepo *pRepo, int fid, int type, char *fname) {
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d.%s", pRepo->rootDir, TSDB_DATA_DIR_NAME, REPO_ID(pRepo), fid, tsdbFileSuffix[type]);
 }
 
 int tsdbLockRepo(STsdbRepo *pRepo) {

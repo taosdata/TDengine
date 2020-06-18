@@ -499,6 +499,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   char *      dataDir = NULL;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCfg *  pCfg = &pRepo->config;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = NULL;
 
   TSKEY minKey = 0, maxKey = 0;
@@ -588,10 +589,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   }
 
   tsdbCloseHelperFile(pHelper, 0);
-  // TODO: make it atomic with some methods
+
+  pthread_rwlock_wrlock(&(pFileH->fhlock));
   pGroup->files[TSDB_FILE_TYPE_HEAD] = pHelper->files.headF;
   pGroup->files[TSDB_FILE_TYPE_DATA] = pHelper->files.dataF;
   pGroup->files[TSDB_FILE_TYPE_LAST] = pHelper->files.lastF;
+  pthread_rwlock_unlock(&(pFileH->fhlock));
 
   return 0;
 

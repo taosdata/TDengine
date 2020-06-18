@@ -100,13 +100,12 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
   // Set the files
   pHelper->files.fid = pGroup->fileId;
-  tsdbCpySFile(&pHelper->files.headF, &pGroup->files[TSDB_FILE_TYPE_HEAD]);
-  tsdbCpySFile(&pHelper->files.dataF, &pGroup->files[TSDB_FILE_TYPE_DATA]);
-  tsdbCpySFile(&pHelper->files.lastF, &pGroup->files[TSDB_FILE_TYPE_LAST]);
+  pHelper->files.headF = pGroup->files[TSDB_FILE_TYPE_HEAD];
+  pHelper->files.dataF = pGroup->files[TSDB_FILE_TYPE_DATA];
+  pHelper->files.lastF = pGroup->files[TSDB_FILE_TYPE_LAST];
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-
-    pHelper->files.nHeadF.fname = tsdbGetDataFileName(pHelper->pRepo, pGroup->fileId, TSDB_FILE_TYPE_NHEAD);
-    pHelper->files.nLastF.fname = tsdbGetDataFileName(pHelper->pRepo, pGroup->fileId, TSDB_FILE_TYPE_NLAST);
+    tsdbGetDataFileName(pHelper->pRepo, pGroup->fileId, TSDB_FILE_TYPE_NHEAD, pHelper->files.nHeadF.fname);
+    tsdbGetDataFileName(pHelper->pRepo, pGroup->fileId, TSDB_FILE_TYPE_NLAST, pHelper->files.nLastF.fname);
   }
 
   // Open the files
@@ -1036,15 +1035,10 @@ static int tsdbGetRowsInRange(SDataCols *pDataCols, TSKEY minKey, TSKEY maxKey) 
 static void tsdbResetHelperFileImpl(SRWHelper *pHelper) {
   memset((void *)&pHelper->files, 0, sizeof(pHelper->files));
   pHelper->files.fid = -1;
-  tfree(pHelper->files.headF.fname);
   pHelper->files.headF.fd = -1;
-  tfree(pHelper->files.dataF.fname);
   pHelper->files.dataF.fd = -1;
-  tfree(pHelper->files.lastF.fname);
   pHelper->files.lastF.fd = -1;
-  tfree(pHelper->files.nHeadF.fname);
   pHelper->files.nHeadF.fd = -1;
-  tfree(pHelper->files.nLastF.fname);
   pHelper->files.nLastF.fd = -1;
 }
 

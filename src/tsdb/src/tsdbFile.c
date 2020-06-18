@@ -245,8 +245,7 @@ int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   memset((void *)pFile, 0, sizeof(SFile));
   pFile->fd = -1;
 
-  pFile->fname = tsdbGetDataFileName(pRepo, fid, type);
-  if (pFile->fname == NULL) return -1;
+  tsdbGetDataFileName(pRepo, fid, type, pFile->fname);
 
   if (access(pFile->fname, F_OK) == 0) {
     tsdbError("vgId:%d file %s already exists", REPO_ID(pRepo), fid);
@@ -343,18 +342,6 @@ void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
   return buf;
 }
 
-int tsdbCpySFile(SFile *src, SFile *dst) {
-  *dst = *src;
-  dst->fname = strdup(dst->fname);
-
-  if (dst->fname == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  return 0;
-}
-
 void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   ASSERT(pFGroup != NULL);
   STsdbFileH *pFileH = pRepo->tsdbFileH;
@@ -380,8 +367,7 @@ static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   uint32_t version;
   char     buf[512] = "\0";
 
-  pFile->fname = tsdbGetDataFileName(pRepo, fid, type);
-  if (pFile->fname == NULL) return -1;
+  tsdbGetDataFileName(pRepo, fid, type, pFile->fname);
 
   pFile->fd = -1;
   if (tsdbOpenFile(pFile, O_RDONLY) < 0) goto _err;
@@ -410,10 +396,7 @@ _err:
   return -1;
 }
 
-static void tsdbDestroyFile(SFile *pFile) {
-  tsdbCloseFile(pFile);
-  tfree(pFile->fname);
-}
+static void tsdbDestroyFile(SFile *pFile) { tsdbCloseFile(pFile); }
 
 static int compFGroup(const void *arg1, const void *arg2) {
   int val1 = ((SFileGroup *)arg1)->fileId;

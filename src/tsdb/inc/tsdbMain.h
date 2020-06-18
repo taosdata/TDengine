@@ -142,7 +142,7 @@ typedef struct {
 } STsdbFileInfo;
 
 typedef struct {
-  char* fname;
+  char  fname[TSDB_FILENAME_LEN];
   int   fd;
 
   STsdbFileInfo info;
@@ -345,7 +345,6 @@ void        tsdbFitRetention(STsdbRepo* pRepo);
 int         tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
-int         tsdbCpySFile(SFile* src, SFile* dst);
 void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 
 // ------------------ tsdbRWHelper.c
@@ -389,7 +388,7 @@ int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SDataCols* t
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
 char*       tsdbGetMetaFileName(char* rootDir);
-char*       tsdbGetDataFileName(STsdbRepo* pRepo, int fid, int type);
+void        tsdbGetDataFileName(STsdbRepo* pRepo, int fid, int type, char* fname);
 int         tsdbLockRepo(STsdbRepo* pRepo);
 int         tsdbUnlockRepo(STsdbRepo* pRepo);
 char*       tsdbGetDataDirName(char* rootDir);
