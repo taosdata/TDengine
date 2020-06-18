@@ -576,11 +576,13 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     taosHashRemove(pRpc->hash, hashstr, size);
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
   } 
-
-  taosFreeId(pRpc->idPool, pConn->sid);
+  
+  // lockedBy can not be reset, since it maybe hold by a thread
+  int sid = pConn->sid;
   int64_t lockedBy = pConn->lockedBy; 
   memset(pConn, 0, sizeof(SRpcConn));
   pConn->lockedBy = lockedBy;
+  taosFreeId(pRpc->idPool, sid);
 
   tTrace("%s, rpc connection is released", pConn->info);
 }
