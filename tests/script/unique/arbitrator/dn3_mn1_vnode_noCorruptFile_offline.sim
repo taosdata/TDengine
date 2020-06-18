@@ -345,11 +345,12 @@ print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $dat
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
 
 
-print ============== step7: restart dnode3, and run query 
+print ============== step7: restart dnode2/dnode3, and run query 
+system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sleep $sleepTimer
 $loopCnt = 0
-wait_dnode3_reready_2:
+wait_dnode23_reready_2:
 $loopCnt = $loopCnt + 1
 if $loopCnt == 10 then 
   return -1
@@ -357,7 +358,7 @@ endi
 sql show dnodes
 if $rows != 3 then
   sleep 2000
-  goto wait_dnode3_reready_2
+  goto wait_dnode23_reready_2
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -366,13 +367,17 @@ $dnode1Status = $data4_1
 $dnode2Status = $data4_2
 $dnode3Status = $data4_3 
 
+if $dnode2Status != ready then
+  sleep 2000
+  goto wait_dnode23_reready_2
+endi
 if $dnode3Status != ready then
   sleep 2000
-  goto wait_dnode3_reready_2
+  goto wait_dnode23_reready_2
 endi
 
 $loopCnt = 0
-wait_dnode3_vgroup_master_2:
+wait_dnode23_vgroup_ok:
 $loopCnt = $loopCnt + 1
 if $loopCnt == 10 then 
   return -1
@@ -380,7 +385,7 @@ endi
 sql show vgroups
 if $rows != 1 then
   sleep 2000
-  goto wait_dnode3_vgroup_master_2
+  goto wait_dnode23_vgroup_ok
 endi
 print show vgroups:
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
@@ -389,13 +394,13 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode2Vtatus = $data7_2
 $dnode3Vtatus = $data4_2
 
-if $dnode2Vtatus != offline then
+if $dnode2Vtatus == offline then
   sleep 2000
-  goto wait_dnode3_vgroup_master_2
+  goto wait_dnode23_vgroup_ok
 endi
-if $dnode3Vtatus != master then
+if $dnode3Vtatus == offline then
   sleep 2000
-  goto wait_dnode3_vgroup_master_2
+  goto wait_dnode23_vgroup_ok
 endi
 
 sql select count(*) from $stb
