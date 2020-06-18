@@ -138,7 +138,6 @@ static FORCE_INLINE int32_t isValidNumber(const SSQLToken* pToken) {
 
           goto _end;
         }
-        break;
       }
       case '1':
       case '2':
