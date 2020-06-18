@@ -173,42 +173,10 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
 void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   STsdbCfg *     pCfg = &pRepo->config;
   STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
-  int            code = 0;
 
   if (pBufBlock != NULL && pBufBlock->remain < bytes) {
     if (listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 2) {  // need to commit mem
-      if (pRepo->imem) {
-        code = pthread_join(pRepo->commitThread, NULL);
-        if (code != 0) {
-          tsdbError("vgId:%d failed to thread join since %s", REPO_ID(pRepo), strerror(errno));
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          return NULL;
-        }
-
-        if (tsdbUnRefMemTable(pRepo, pRepo->imem) < 0) {
-          tsdbError("vgId:%d failed to unref memtable since %s", REPO_ID(pRepo), tstrerror(terrno))
-          return NULL;
-        }
-      }
-
-      ASSERT(pRepo->commit == 0);
-      SMemTable *pImem = pRepo->imem;
-      if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
-
-      if (tsdbLockRepo(pRepo) < 0) return NULL;
-      pRepo->imem = pRepo->mem;
-      pRepo->mem = NULL;
-      pRepo->commit = 1;
-      code = pthread_create(&pRepo->commitThread, NULL, tsdbCommitData, (void *)pRepo);
-      if (code != 0) {
-        tsdbError("vgId:%d failed to create commit thread since %s", REPO_ID(pRepo), strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(code);
-        tsdbUnlockRepo(pRepo);
-        return NULL;
-      }
-      if (tsdbUnlockRepo(pRepo) < 0) return NULL;
-
-      if (pImem && tsdbUnRefMemTable(pRepo, pImem) < 0) return NULL;
+      if (tsdbAsyncCommit(pRepo) < 0) return NULL;
     } else {
       if (tsdbLockRepo(pRepo) < 0) return NULL;
       SListNode *pNode = tsdbAllocBufBlockFromPool(pRepo);
@@ -240,6 +208,42 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   pBufBlock->remain -= bytes;
 
   return ptr;
+}
+
+int tsdbAsyncCommit(STsdbRepo *pRepo) {
+  SMemTable *pIMem = pRepo->imem;
+  int        code = 0;
+
+  if (pIMem != NULL) {
+    ASSERT(pRepo->commit);
+    code = pthread_join(pRepo->commitThread, NULL);
+    if (code != 0) {
+      tsdbError("vgId:%d failed to thread join since %s", REPO_ID(pRepo), strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+  }
+
+  ASSERT(pRepo->commit == 0);
+  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
+  if (pRepo->mem != NULL) {
+    if (tsdbLockRepo(pRepo) < 0) return -1;
+    pRepo->imem = pRepo->mem;
+    pRepo->mem = NULL;
+    pRepo->commit = 1;
+    code = pthread_create(&pRepo->commitThread, NULL, tsdbCommitData, (void *)pRepo);
+    if (code != 0) {
+      tsdbError("vgId:%d failed to create commit thread since %s", REPO_ID(pRepo), strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(code);
+      tsdbUnlockRepo(pRepo);
+      return -1;
+    }
+    if (tsdbUnlockRepo(pRepo) < 0) return -1;
+  }
+
+  if (pIMem && tsdbUnRefMemTable(pRepo, pIMem) < 0) return -1;
+
+  return 0;
 }
 
 // ---------------- LOCAL FUNCTIONS ----------------

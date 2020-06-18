@@ -135,12 +135,14 @@ _err:
   return NULL;
 }
 
+// Note: all working thread and query thread must stopped when calling this function
 void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   if (repo == NULL) return;
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  // TODO: wait for commit over
+  tsdbAsyncCommit(pRepo);
+  if (pRepo->commit) pthread_join(pRepo->commitThread, NULL);
 
   tsdbCloseFileH(pRepo);
   tsdbCloseBufPool(pRepo);

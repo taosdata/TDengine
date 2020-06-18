@@ -318,6 +318,7 @@ int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
+int   tsdbAsyncCommit(STsdbRepo* pRepo);
 
 // ------------------ tsdbFile.c
 #define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
