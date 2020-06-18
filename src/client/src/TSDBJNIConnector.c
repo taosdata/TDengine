@@ -192,7 +192,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv
     const char *tz1 = (*env)->GetStringUTFChars(env, optionValue, NULL);
     if (tz1 && strlen(tz1) != 0) {
       res = taos_options(TSDB_OPTION_TIMEZONE, tz1);
-      jniTrace("set timezone to %s, result:%d", timezone, res);
+      jniTrace("set timezone to %s, result:%d", tz1, res);
     } else {
       jniTrace("input timezone is empty");
     }

@@ -506,7 +506,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
 
 void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != (uint64_t)pElem->pData) {
-    uError("key:sig:0x%x %p data has been released, ignore", pElem->pData->signature, pElem->pData);
+    uError("key:sig:0x%" PRIx64 " %p data has been released, ignore", pElem->pData->signature, pElem->pData);
     return;
   }
 
