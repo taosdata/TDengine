@@ -58,25 +58,21 @@ int tdCreateKVStore(char *fname) {
   if (fd < 0) {
     uError("failed to open file %s since %s", fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (tdInitKVStoreHeader(fd, fname) < 0) {
-    close(fd);
     return -1;
   }
+
+  if (tdInitKVStoreHeader(fd, fname) < 0) goto _err;
 
   if (fsync(fd) < 0) {
     uError("failed to fsync file %s since %s", fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
-    close(fd);
-    return -1;
+    goto _err;
   }
 
   if (close(fd) < 0) {
     uError("failed to close file %s since %s", fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    goto _err;
   }
 
   return 0;

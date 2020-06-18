@@ -74,7 +74,7 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
       // TODO
       if (super->type != TSDB_SUPER_TABLE) return -1;
       if (super->tableId.uid != pCfg->superUid) return -1;
-      tsdbUpdateTable(pMeta, super, pCfg);
+      tsdbUpdateTable(pRepo, super, pCfg);
     }
   }
 
@@ -279,7 +279,7 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
     STable *   super = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
     ASSERT(super != NULL);
 
-    int32_t code = tsdbUpdateTable(pMeta, super, pTableCfg);
+    int32_t code = tsdbUpdateTable(pRepo, super, pTableCfg);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -447,16 +447,21 @@ STSchema *tsdbGetTableTagSchema(STable *pTable) {
   }
 }
 
-int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
-  ASSERT(pTable->type != TSDB_CHILD_TABLE);
-  bool isChanged = false;
+int tsdbUpdateTable(STsdbRepo *pRepo, STable *pTable, STableCfg *pCfg) {
+  // TODO: this function can only be called when there is no query and commit on this table
+  ASSERT(TABLE_TYPE(pTable) != TSDB_CHILD_TABLE);
+  bool       changed = false;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   if (pTable->type == TSDB_SUPER_TABLE) {
     if (schemaVersion(pTable->tagSchema) < schemaVersion(pCfg->tagSchema)) {
-      int32_t code = tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema);
-      if (code != TSDB_CODE_SUCCESS) return code;
+      if (tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema) < 0) {
+        tsdbError("vgId:%d failed to update table %s tag schema since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                  tstrerror(terrno));
+        return -1;
+      }
     }
-    isChanged = true;
+    changed = true;
   }
 
   STSchema *pTSchema = tsdbGetTableSchema(pTable);
@@ -471,18 +476,19 @@ int tsdbUpdateTable(STsdbMeta *pMeta, STable *pTable, STableCfg *pCfg) {
       pTable->schema[pTable->numOfSchemas - 1] = tSchema;
     }
 
-    isChanged = true;
+    pMeta->maxRowBytes = MAX(pMeta->maxRowBytes, dataRowMaxBytesFromSchema(pCfg->schema));
+    pMeta->maxCols = MAX(pMeta->maxCols, schemaNCols(pCfg->schema));
+
+    changed = true;
   }
 
-  if (isChanged) {
-    // TODO
-    // char *buf = malloc(1024 * 1024);
-    // tsdbEncodeTable(buf, pTable);
-    // // tsdbInsertMetaRecord(pMeta->mfh, pTable->tableId.uid, buf, bufLen);
-    // free(buf);
+  if (changed) {
+    int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pTable);
+    void *buf = tsdbAllocBytes(pRepo, tlen);
+    tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pTable);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }
 
 int tsdbWLockRepoMeta(STsdbRepo *pRepo) {

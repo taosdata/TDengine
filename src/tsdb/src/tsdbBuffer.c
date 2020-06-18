@@ -67,7 +67,7 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
 
   ASSERT(pPool != NULL);
 
-  pPool->bufBlockSize = pCfg->cacheBlockSize * 1024 * 1024;
+  pPool->bufBlockSize = pCfg->cacheBlockSize * 1024 * 1024; // MB
   pPool->tBufBlocks = pCfg->totalBlocks;
   pPool->nBufBlocks = 0;
   pPool->index = 0;
@@ -106,6 +106,7 @@ void tsdbCloseBufPool(STsdbRepo *pRepo) {
     while ((pNode = tdListPopHead(pBufPool->bufBlockList)) != NULL) {
       tdListNodeGetData(pBufPool->bufBlockList, pNode, (void *)(&pBufBlock));
       tsdbFreeBufBlock(pBufBlock);
+      free(pNode);
     }
   }
 

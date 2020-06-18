@@ -67,6 +67,7 @@ static int         tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
 static int         keyFGroupCompFunc(const void *key, const void *fgroup);
 static int         tsdbEncodeCfg(void **buf, STsdbCfg *pCfg);
 static void *      tsdbDecodeCfg(void *buf, STsdbCfg *pCfg);
+static int         tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
@@ -81,7 +82,7 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
   if (tsdbSetRepoEnv(rootDir, pCfg) < 0) return -1;
 
   tsdbTrace(
-      "vgId%d tsdb env create succeed! cacheBlockSize %d totalBlocks %d maxTables %d daysPerFile %d keep "
+      "vgId:%d tsdb env create succeed! cacheBlockSize %d totalBlocks %d maxTables %d daysPerFile %d keep "
       "%d minRowsPerFileBlock %d maxRowsPerFileBlock %d precision %d compression %d",
       pCfg->tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->maxTables, pCfg->daysPerFile, pCfg->keep,
       pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression);
@@ -142,6 +143,7 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   if (repo == NULL) return;
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  int        vgId = REPO_ID(pRepo);
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
@@ -151,7 +153,8 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   tsdbCloseFileH(pRepo);
   tsdbCloseBufPool(pRepo);
   tsdbCloseMeta(pRepo);
-  tsdbTrace("vgId:%d repository is closed", REPO_ID(pRepo));
+  tsdbFreeRepo(pRepo);
+  tsdbTrace("vgId:%d repository is closed", vgId);
 }
 
 int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
@@ -170,7 +173,6 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
 
   while ((pBlock = tsdbGetSubmitMsgNext(&msgIter)) != NULL) {
     if (tsdbInsertDataToTable(pRepo, pBlock, now, &affectedrows) < 0) {
-      pRsp->affectedRows = htonl(affectedrows);
       return -1;
     }
   }
@@ -534,7 +536,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
   }
 
   int tlen = tsdbEncodeCfg((void *)(&pBuf), pCfg);
-  ASSERT(tlen + sizeof(TSCKSUM) <= TSDB_FILE_HEAD_SIZE);
+  ASSERT((tlen + sizeof(TSCKSUM) <= TSDB_FILE_HEAD_SIZE) && (POINTER_DISTANCE(pBuf, buf) == tlen));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
 
@@ -718,42 +720,11 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
     return -1;
   }
 
-  // Check schema version
-  int32_t   tversion = pBlock->sversion;
-  STSchema *pSchema = tsdbGetTableSchema(pTable);
-  ASSERT(pSchema != NULL);
-  int16_t nversion = schemaVersion(pSchema);
-  if (tversion > nversion) {
-    tsdbTrace("vgId:%d table %s tid %d server schema version %d is older than clien version %d, try to config.",
-              REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), nversion, tversion);
-    void *msg = (*pRepo->appH.configFunc)(REPO_ID(pRepo), TABLE_TID(pTable));
-    if (msg == NULL) return -1;
-
-    // TODO: Deal with error her
-    STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
-    STable *   pTableUpdate = NULL;
-    if (pTable->type == TSDB_CHILD_TABLE) {
-      pTableUpdate = tsdbGetTableByUid(pMeta, pTableCfg->superUid);
-    } else {
-      pTableUpdate = pTable;
-    }
-
-    int32_t code = tsdbUpdateTable(pMeta, pTableUpdate, pTableCfg);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-    tsdbClearTableCfg(pTableCfg);
-    rpcFreeCont(msg);
-
-    pSchema = tsdbGetTableSchemaByVersion(pTable, tversion);
-  } else if (tversion < nversion) {
-    pSchema = tsdbGetTableSchemaByVersion(pTable, tversion);
-    if (pSchema == NULL) {
-      tsdbError("vgId:%d table %s tid %d invalid schema version %d from client", REPO_ID(pRepo),
-                TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), tversion);
-      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-      return -1;
-    }
+  // Check schema version and update schema if needed
+  if (tsdbCheckTableSchema(pRepo, pBlock, pTable) < 0) {
+    tsdbError("vgId:%d failed to insert data to table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+              tstrerror(terrno));
+    return -1;
   }
 
   SSubmitBlkIter blkIter = {0};
@@ -777,6 +748,8 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
     (*affectedrows)++;
     points++;
   }
+
+  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
   pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
   pRepo->stat.totalStorage += points * schemaVLen(pSchema);
 
@@ -820,6 +793,7 @@ static SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
 }
 
 static int tsdbRestoreInfo(STsdbRepo *pRepo) {
+  // TODO
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pFGroup = NULL;
@@ -942,6 +916,55 @@ static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
 
   return buf;
 }
+
+static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable) {
+  ASSERT(pTable != NULL);
+
+  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  int       sversion = schemaVersion(pSchema);
+
+  if (pBlock->sversion == sversion) return 0;
+  if (pBlock->sversion > sversion) {  // need to config
+    tsdbTrace("vgId:%d table %s tid %d has version %d smaller than client version %d, try to config", REPO_ID(pRepo),
+              TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), sversion, pBlock->sversion);
+    if (pRepo->appH.configFunc) {
+      void *msg = (*pRepo->appH.configFunc)(REPO_ID(pRepo), TABLE_TID(pTable));
+      if (msg == NULL) {
+        tsdbError("vgId:%d failed to config table %s tid %d since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                  TABLE_TID(pTable), tstrerror(terrno));
+        return -1;
+      }
+
+      STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
+      if (pTableCfg == NULL) {
+        rpcFreeCont(msg);
+        return -1;
+      }
+
+      if (tsdbUpdateTable(pRepo, (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable, pTableCfg) < 0) {
+        tsdbError("vgId:%d failed to update table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                  tstrerror(terrno));
+        tsdbClearTableCfg(pTableCfg);
+        rpcFreeCont(msg);
+        return -1;
+      }
+      tsdbClearTableCfg(pTableCfg);
+      rpcFreeCont(msg);
+    } else {
+      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+      return -1;
+    }
+  } else {
+    if (tsdbGetTableSchemaByVersion(pTable, pBlock->sversion) == NULL) {
+      tsdbError("vgId:%d invalid submit schema version %d to table %s tid %d from client", REPO_ID(pRepo),
+                pBlock->sversion, TABLE_CHAR_NAME(pTable), TABLE_TID(pTable));
+    }
+    terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+    return -1;
+  }
+
+  return 0;
+ }
 
 static int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
   // TODO

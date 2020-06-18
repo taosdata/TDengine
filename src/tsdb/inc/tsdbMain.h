@@ -298,7 +298,7 @@ STSchema*  tsdbGetTableSchema(STable* pTable);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
 STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t version);
 STSchema*  tsdbGetTableTagSchema(STable* pTable);
-int        tsdbUpdateTable(STsdbMeta* pMeta, STable* pTable, STableCfg* pCfg);
+int        tsdbUpdateTable(STsdbRepo* pRepo, STable* pTable, STableCfg* pCfg);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);

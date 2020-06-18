@@ -39,8 +39,10 @@ void tdListEmpty(SList *list) {
 }
 
 void tdListFree(SList *list) {
-  tdListEmpty(list);
-  free(list);
+  if (list) {
+    tdListEmpty(list);
+    free(list);
+  }
 }
 
 void tdListPrependNode(SList *list, SListNode *node) {
