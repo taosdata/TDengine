@@ -121,7 +121,7 @@ void createDbAndTable() {
       pSql = taos_query(con, qstr);
       code = taos_errno(pSql);
       if (code != 0) {
-        pError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
+        pError("failed to create table %s%" PRId64 ", reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
       taos_stop_query(pSql);
@@ -158,10 +158,10 @@ void insertData() {
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   if (rowsPerTable <= 0) {
-    pPrint("not insert data for rowsPerTable is :%d", rowsPerTable);
+    pPrint("not insert data for rowsPerTable is :%" PRId64, rowsPerTable);
     exit(0);
   } else {
-    pPrint("%d threads are spawned to insert data", numOfThreads);
+    pPrint("%" PRId64 " threads are spawned to insert data", numOfThreads);
   }
 
   pthread_attr_t thattr;
@@ -348,8 +348,8 @@ void shellParseArgument(int argc, char *argv[]) {
   pPrint("%spointsPerTable:%" PRId64 "%s", GREEN, pointsPerTable, NC);
   pPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
   pPrint("%snumOfTablesPerThread:%" PRId64 "%s", GREEN, numOfTablesPerThread, NC);
-  pPrint("%scache:%" PRId64 "%s", GREEN, cache, NC);
-  pPrint("%stables:%" PRId64 "%s", GREEN, tables, NC);
+  pPrint("%scache:%" PRId32 "%s", GREEN, cache, NC);
+  pPrint("%stables:%" PRId32 "%s", GREEN, tables, NC);
   pPrint("%sdbName:%s%s", GREEN, dbName, NC);
   pPrint("%stableName:%s%s", GREEN, stableName, NC);
   pPrint("%sstart to run%s", GREEN, NC);

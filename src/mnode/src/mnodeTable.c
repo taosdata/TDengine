@@ -1061,7 +1061,7 @@ static int32_t mnodeAddSuperTableColumn(SMnodeMsg *pMsg, SSchema schema[], int32
   SDbObj *pDb = pMsg->pDb;
   SSuperTableObj *pStable = (SSuperTableObj *)pMsg->pTable;
   if (ncols <= 0) {
-    mError("app:%p:%p, stable:%s, add column, ncols:%d <= 0", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId);
+    mError("app:%p:%p, stable:%s, add column, ncols:%d <= 0", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId, ncols);
     return TSDB_CODE_MND_APP_ERROR;
   }
 
@@ -1689,7 +1689,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
   }
 
   if (pMsg->pTable == NULL) {
-    mError("app:%p:%p, table:%s, object not found, retry:%d reason:%s", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
+    mError("app:%p:%p, table:%s, object not found, retry:%d reason:%s", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId, pMsg->retry,
            tstrerror(terrno));
     return terrno;
   } else {
@@ -1758,7 +1758,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   SDbObj *pDb = pMsg->pDb;
   if (ncols <= 0) {
-    mError("app:%p:%p, ctable:%s, add column, ncols:%d <= 0", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId);
+    mError("app:%p:%p, ctable:%s, add column, ncols:%d <= 0", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId, ncols);
     return TSDB_CODE_MND_APP_ERROR;
   }
 
@@ -2023,7 +2023,7 @@ static void mnodeDropAllChildTablesInStable(SSuperTableObj *pStable) {
   int32_t numOfTables = 0;
   SChildTableObj *pTable = NULL;
 
-  mPrint("stable:%s, all child tables will dropped from sdb", pStable->info.tableId, numOfTables);
+  mPrint("stable:%s, all child tables(%d) will dropped from sdb", pStable->info.tableId, numOfTables);
 
   while (1) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);

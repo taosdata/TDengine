@@ -439,7 +439,7 @@ void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
     if (pVnode != NULL) {
       pVnode->accessState = pAccess[i].accessState;
       if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {
-        vTrace("vgId:%d, access state is set to %d", pAccess[i].vgId)
+        vTrace("vgId:%d, access state is set to %d", pAccess[i].vgId, pVnode->accessState)
       }
       vnodeRelease(pVnode);
     }
@@ -734,7 +734,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
 
   cJSON *quorum = cJSON_GetObjectItem(root, "quorum");
   if (!quorum || quorum->type != cJSON_Number) {
-    vError("failed to read vnode cfg, quorum not found", pVnode->vgId);
+    vError("vgId: %d, failed to read vnode cfg, quorum not found", pVnode->vgId);
     goto PARSE_OVER;
   }
   pVnode->syncCfg.quorum = (int8_t)quorum->valueint;
