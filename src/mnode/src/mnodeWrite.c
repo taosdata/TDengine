@@ -43,7 +43,7 @@ void mnodeAddWriteMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg))
 
 int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
-    mError("%p, msg:%s  in mwrite queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("app:%p:%p, msg:%s content is null", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
@@ -54,27 +54,31 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
     rpcRsp->rsp = ipSet;
     rpcRsp->len = sizeof(SRpcIpSet);
 
-    mTrace("%p, msg:%s in mwrite queue, will be redireced inUse:%d", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], ipSet->inUse);
+    mTrace("app:%p:%p, msg:%s will be redireced inUse:%d", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType],
+           ipSet->inUse);
     for (int32_t i = 0; i < ipSet->numOfIps; ++i) {
-      mTrace("mnode index:%d ip:%s:%d", i, ipSet->fqdn[i], htons(ipSet->port[i]));
+      mTrace("app:%p:%p, mnode index:%d ip:%s:%d", pMsg->rpcMsg.ahandle, pMsg, i, ipSet->fqdn[i],
+             htons(ipSet->port[i]));
     }
 
     return TSDB_CODE_RPC_REDIRECT;
   }
 
   if (tsMnodeProcessWriteMsgFp[pMsg->rpcMsg.msgType] == NULL) {
-    mError("%p, msg:%s in mwrite queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("app:%p:%p, msg:%s not processed", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
   int32_t code = mnodeInitMsg(pMsg);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("%p, msg:%s in mwrite queue, not processed reason:%s", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], tstrerror(code));
+    mError("app:%p:%p, msg:%s not processed, reason:%s", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType],
+           tstrerror(code));
     return code;
   }
 
   if (!pMsg->pUser->writeAuth) {
-    mError("%p, msg:%s  in mwrite queue, not processed, no write auth", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("app:%p:%p, msg:%s not processed, no write auth", pMsg->rpcMsg.ahandle, pMsg,
+           taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 

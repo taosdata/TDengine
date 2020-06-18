@@ -127,13 +127,17 @@ python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
 # table
-#python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
 python3 ./test.py -f query/queryError.py
+python3 ./test.py -f query/filterAllIntTypes.py
+python3 ./test.py -f query/filterFloatAndDouble.py
+python3 ./test.py -f query/filterOtherTypes.py
+python3 ./test.py -f query/querySort.py
 
 #stream
 python3 ./test.py -f stream/stream1.py

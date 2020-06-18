@@ -64,14 +64,6 @@ SSchema* tscGetTableTagSchema(const STableMeta* pTableMeta) {
 
 STableComInfo tscGetTableInfo(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
-
-#if 0
-  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-    assert (pTableMeta->pSTable != NULL);
-    return pTableMeta->pSTable->tableInfo;
-  }
-#endif
-
   return pTableMeta->tableInfo;
 }
 
@@ -119,11 +111,24 @@ bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
   return (rowLen <= TSDB_MAX_BYTES_PER_ROW);
 }
 
-SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t startCol) {
+SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
   assert(pTableMeta != NULL);
   
   SSchema* pSchema = (SSchema*) pTableMeta->schema;
-  return &pSchema[startCol];
+  return &pSchema[colIndex];
+}
+
+// TODO for large number of columns, employ the binary search method
+SSchema* tscGetTableColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+
+  for(int32_t i = 0; i < tinfo.numOfColumns + tinfo.numOfTags; ++i) {
+    if (pTableMeta->schema[i].colId == colId) {
+      return &pTableMeta->schema[i];
+    }
+  }
+
+  return NULL;
 }
 
 struct SSchema tscGetTbnameColumnSchema() {

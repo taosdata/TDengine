@@ -118,6 +118,8 @@ void dnodeDispatchToMnodeWriteQueue(SRpcMsg *pMsg) {
 
   SMnodeMsg *pWrite = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
   mnodeCreateMsg(pWrite, pMsg);
+
+  dTrace("app:%p:%p, msg:%s is put into mwrite queue", pWrite->rpcMsg.ahandle, pWrite, taosMsg[pWrite->rpcMsg.msgType]);
   taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
 }
 
@@ -128,6 +130,7 @@ static void dnodeFreeMnodeWriteMsg(SMnodeMsg *pWrite) {
 
 void dnodeSendRpcMnodeWriteRsp(void *pRaw, int32_t code) {
   SMnodeMsg *pWrite = pRaw;
+  if (pWrite == NULL) return;
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
   if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
     dnodeReprocessMnodeWriteMsg(pWrite);
@@ -146,19 +149,21 @@ void dnodeSendRpcMnodeWriteRsp(void *pRaw, int32_t code) {
 }
 
 static void *dnodeProcessMnodeWriteQueue(void *param) {
-  SMnodeMsg *pWriteMsg;
+  SMnodeMsg *pWrite;
   int32_t    type;
   void *     unUsed;
   
   while (1) {
-    if (taosReadQitemFromQset(tsMWriteQset, &type, (void **)&pWriteMsg, &unUsed) == 0) {
+    if (taosReadQitemFromQset(tsMWriteQset, &type, (void **)&pWrite, &unUsed) == 0) {
       dTrace("dnodeProcessMnodeWriteQueue: got no message from qset, exiting...");
       break;
     }
 
-    dTrace("%p, msg:%s will be processed in mwrite queue", pWriteMsg->rpcMsg.ahandle, taosMsg[pWriteMsg->rpcMsg.msgType]);    
-    int32_t code = mnodeProcessWrite(pWriteMsg);    
-    dnodeSendRpcMnodeWriteRsp(pWriteMsg, code);
+    dTrace("app:%p:%p, msg:%s will be processed in mwrite queue", pWrite->rpcMsg.ahandle, pWrite,
+           taosMsg[pWrite->rpcMsg.msgType]);
+
+    int32_t code = mnodeProcessWrite(pWrite);
+    dnodeSendRpcMnodeWriteRsp(pWrite, code);
   }
 
   return NULL;
@@ -168,9 +173,15 @@ void dnodeReprocessMnodeWriteMsg(void *pMsg) {
   SMnodeMsg *pWrite = pMsg;
 
   if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
+    dTrace("app:%p:%p, msg:%s is redirected for mnode not running, retry times:%d", pWrite->rpcMsg.ahandle, pWrite,
+           taosMsg[pWrite->rpcMsg.msgType], pWrite->retry);
+
     dnodeSendRedirectMsg(pMsg, true);
     dnodeFreeMnodeWriteMsg(pWrite);
-  } else {    
+  } else {
+    dTrace("app:%p:%p, msg:%s is reput into mwrite queue, retry times:%d", pWrite->rpcMsg.ahandle, pWrite,
+           taosMsg[pWrite->rpcMsg.msgType], pWrite->retry);
+
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
 }

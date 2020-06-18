@@ -99,7 +99,12 @@ endi
 print ============== step3: stop dnode4 
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
 sleep $sleepTimer
+$cnt = 0
 wait_dnode4_offline_0:
+$cnt = $cnt + 1
+if $cnt == 10 then
+  return -1
+endi
 sql show dnodes
 if $rows != 4 then
   sleep 2000
@@ -122,7 +127,12 @@ if $dnode4Status != offline then
   goto wait_dnode4_offline_0
 endi
 
+$cnt = 0
 wait_dnode4_vgroup_offline:
+$cnt = $cnt + 1
+if $cnt == 10 then
+  return -1
+endi
 sql show vgroups
 if $rows != 1 then
   sleep 2000
@@ -143,7 +153,7 @@ if $dnode3Vtatus != master then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-sleep 2000
+
 print ============== step4: insert more data rows
 $tsStart = $tsEnd + 1000
 $i = 0
@@ -162,17 +172,17 @@ while $i < $tblNum
 endw 
 
 sql select count(*) from $stb
-print data00 $data00
+print data00:$data00  totalRows:$totalRows
 if $data00 != $totalRows then
 	return -1
 endi
 
-print ============== step5: restart dnode4, while drop database in other thead when dnode4 is syncing
+print ============== step5: restart dnode4, while drop some tables in other thread when dnode4 is syncing
 system sh/exec.sh -n dnode4 -s start
 run_back unique/arbitrator/sync_replica_dropTable_background.sim
 
 print ============== step6: check result
-#in background.sim, drop 10 tables
+#in background.sim, drop 5 tables
 $totalRows = $totalRows - 5400
 
 $cnt = 0
@@ -183,7 +193,7 @@ if $cnt == 20 then
 endi
 sql select count(*) from $stb
 if $data00 != $totalRows then
-  print data00: $data00
+  print data00:$data00  totalRows:$totalRows
 	sleep 2000
 	goto wait_table_dropped
 endi
@@ -191,7 +201,7 @@ endi
 $tblNum = $tblNum - 5
 sql select count(tbname) from $stb
 if $data00 != $tblNum then
-  print data00: $data00
+  print data00: $data00   tblNum: $tblNum
 	sleep 2000
 	goto wait_table_dropped
 endi

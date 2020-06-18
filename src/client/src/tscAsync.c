@@ -19,9 +19,8 @@
 #include "tnote.h"
 #include "trpc.h"
 #include "tscLog.h"
-#include "tscProfile.h"
 #include "tscSubquery.h"
-#include "tscSecondaryMerge.h"
+#include "tscLocalMerge.h"
 #include "tscUtil.h"
 #include "tsched.h"
 #include "tschemautil.h"
@@ -46,7 +45,8 @@ int doAsyncParseSql(SSqlObj* pSql) {
   int32_t code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to malloc payload");
-    tscQueueAsyncError(pSql->fp, pSql->param, TSDB_CODE_TSC_OUT_OF_MEMORY);
+    tscQueueAsyncRes(pSql);
+//    tscQueueAsyncRes(pSql->fp, pSql->param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return code;
   }
   
@@ -211,7 +211,8 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_QHANDLE);
+    pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
+    tscQueueAsyncRes(pSql);
     return;
   }
 
@@ -285,7 +286,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
     
     tscProcessSql(pSql);
   } else {
-    SSchedMsg schedMsg;
+    SSchedMsg schedMsg = { 0 };
     schedMsg.fp = tscProcessFetchRow;
     schedMsg.ahandle = pSql;
     schedMsg.thandle = pRes->tsrow;
@@ -368,7 +369,9 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
     pSql->fp = pSql->fetchFp;
   }
 
-  (*pSql->fp)(pSql->param, taosres, code);
+  if (pSql->fp) {
+    (*pSql->fp)(pSql->param, taosres, code);
+  }
 
   if (shouldFree) {
     tscTrace("%p sqlObj is automatically freed in async res", pSql);
@@ -385,7 +388,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
   int32_t* c = malloc(sizeof(int32_t));
   *c = code;
   
-  SSchedMsg schedMsg;
+  SSchedMsg schedMsg = { 0 };
   schedMsg.fp = tscProcessAsyncError;
   schedMsg.ahandle = fp;
   schedMsg.thandle = param;
@@ -401,7 +404,7 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
     tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
   }
 
-  SSchedMsg schedMsg;
+  SSchedMsg schedMsg = { 0 };
   schedMsg.fp = tscProcessAsyncRes;
   schedMsg.ahandle = pSql;
   schedMsg.thandle = (void *)1;
@@ -418,7 +421,7 @@ void tscProcessAsyncFree(SSchedMsg *pMsg) {
 void tscQueueAsyncFreeResult(SSqlObj *pSql) {
   tscTrace("%p sqlObj put in queue to async free", pSql);
 
-  SSchedMsg schedMsg;
+  SSchedMsg schedMsg = { 0 };
   schedMsg.fp = tscProcessAsyncFree;
   schedMsg.ahandle = pSql;
   schedMsg.thandle = (void *)1;

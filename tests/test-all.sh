@@ -41,7 +41,7 @@ if [ "$2" != "python" ]; then
   elif [ "$1" == "full" ]; then
     echo "### run TSIM full test ###"
     runSimCaseOneByOne fullGeneralSuite.sim
-  else
+  elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run TSIM smoke test ###"
     runSimCaseOneByOne basicSuite.sim
   fi
@@ -77,7 +77,7 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "full" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
-  else
+  elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run Python smoke test ###"
     runPyCaseOneByOne smoketest.sh
   fi

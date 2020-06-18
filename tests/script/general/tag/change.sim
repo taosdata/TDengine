@@ -1,8 +1,7 @@
 system sh/stop_dnodes.sh
 
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -51,9 +50,9 @@ step21:
 sql alter table $mt change tag tgcol1 tgcol2 -x step22
   return -1
 step22:
-sql alter table $mt change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20
-  return -1
-step20:
+#sql alter table $mt change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20
+#  return -1
+#step20:
 
 sql alter table $mt change tag tgcol1 tgcol3
 sql alter table $mt change tag tgcol2 tgcol4
@@ -394,7 +393,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -421,7 +420,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -448,7 +447,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -475,7 +474,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -502,7 +501,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 

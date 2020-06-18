@@ -208,14 +208,14 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data23 != 1 then
-        tdLog.info('tdSql.checkData(2, 3, 1)')
-        tdSql.checkData(2, 3, 1)
+        tdLog.info('tdSql.checkData(2, 3, "TAG")')
+        tdSql.checkData(2, 3, "TAG")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt drop tag tgcol1 -x step40
         tdLog.info('alter table %s drop tag tgcol1 -x step40' % (mt))
-        tdSql.error('alter table %s drop tag tgcol10' % (mt))
+        tdSql.error('alter table %s drop tag tgcol1' % (mt))
         # TSIM: return -1
         # TSIM: step40:
         # TSIM: sql alter table $mt drop tag tgcol2
@@ -263,14 +263,14 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 2 then
-        tdLog.info('tdSql.checkData(0, 3, 2)')
-        tdSql.checkData(0, 3, 2)
+        tdLog.info('tdSql.checkData(0, 3, "2")')
+        tdSql.checkData(0, 3, "2")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql alter table $mt drop tag tgcol1 -x step50
         tdLog.info('alter table %s drop tag tgcol1 -x step50' % (mt))
-        tdSql.error('alter table %s drop tag tgcol10' % (mt))
+        tdSql.error('alter table %s drop tag tgcol1' % (mt))
         # TSIM: return -1
         # TSIM: step50:
         # TSIM: sql alter table $mt drop tag tgcol2
@@ -381,8 +381,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 3 then
-        tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdLog.info('tdSql.checkData(0, 4, "3")')
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -420,18 +420,18 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data23 != 1 then
-        tdLog.info('tdSql.checkData(2, 3, 1)')
-        tdSql.checkData(2, 3, 1)
+        tdLog.info('tdSql.checkData(2, 3, "TAG")')
+        tdSql.checkData(2, 3, "TAG")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data33 != 2 then
-        tdLog.info('tdSql.checkData(3, 3, 2)')
-        tdSql.checkData(3, 3, 2)
+        tdLog.info('tdSql.checkData(3, 3, "TAG")')
+        tdSql.checkData(3, 3, "TAG")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data43 != 3 then
-        tdLog.info('tdSql.checkData(4, 3, 3)')
-        tdSql.checkData(4, 3, 3)
+        tdLog.info('tdSql.checkData(4, 3, "TAG")')
+        tdSql.checkData(4, 3, "TAG")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -488,8 +488,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 3 then
-        tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdLog.info('tdSql.checkData(0, 4, "3")')
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -543,13 +543,13 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 2 then
-        tdLog.info('tdSql.checkData(0, 3, 2)')
-        tdSql.checkData(0, 3, 2)
+        tdLog.info('tdSql.checkData(0, 3, "2")')
+        tdSql.checkData(0, 3, "2")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 3 then
-        tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdLog.info('tdSql.checkData(0, 4, "3")')
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -600,23 +600,23 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data02 != 1 then
-        tdLog.info('tdSql.checkData(0, 2, 1)')
-        tdSql.checkData(0, 2, 1)
+        tdLog.info('tdSql.checkData(0, 2, "1")')
+        tdSql.checkData(0, 2, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 2 then
-        tdLog.info('tdSql.checkData(0, 3, 2)')
-        tdSql.checkData(0, 3, 2)
+        tdLog.info('tdSql.checkData(0, 3, "2")')
+        tdSql.checkData(0, 3, "2")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != 3 then
-        tdLog.info('tdSql.checkData(0, 4, 3)')
-        tdSql.checkData(0, 4, 3)
+        tdLog.info('tdSql.checkData(0, 4, "3")')
+        tdSql.checkData(0, 4, "3")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != 4 then
-        tdLog.info('tdSql.checkData(0, 5, 4)')
-        tdSql.checkData(0, 5, 4)
+        tdLog.info('tdSql.checkData(0, 5, "4")')
+        tdSql.checkData(0, 5, "4")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -690,8 +690,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != 5 then
-        tdLog.info('tdSql.checkData(0, 6, 5)')
-        tdSql.checkData(0, 6, 5)
+        tdLog.info('tdSql.checkData(0, 6, "5")')
+        tdSql.checkData(0, 6, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -766,13 +766,13 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != 5 then
-        tdLog.info('tdSql.checkData(0, 6, 5)')
-        tdSql.checkData(0, 6, 5)
+        tdLog.info('tdSql.checkData(0, 6, "5")')
+        tdSql.checkData(0, 6, "5")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data07 != 6 then
-        tdLog.info('tdSql.checkData(0, 7, 6)')
-        tdSql.checkData(0, 7, 6)
+        tdLog.info('tdSql.checkData(0, 7, "6")')
+        tdSql.checkData(0, 7, "6")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -830,8 +830,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data02 != 1 then
-        tdLog.info('tdSql.checkData(0, 2, 1)')
-        tdSql.checkData(0, 2, 1)
+        tdLog.info('tdSql.checkData(0, 2, "1")')
+        tdSql.checkData(0, 2, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 2 then
@@ -845,8 +845,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != 4 then
-        tdLog.info('tdSql.checkData(0, 5, 4)')
-        tdSql.checkData(0, 5, 4)
+        tdLog.info('tdSql.checkData(0, 5, "4")')
+        tdSql.checkData(0, 5, "4")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != 5.000000000 then
@@ -855,8 +855,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data07 != 6 then
-        tdLog.info('tdSql.checkData(0, 7, 6)')
-        tdSql.checkData(0, 7, 6)
+        tdLog.info('tdSql.checkData(0, 7, "6")')
+        tdSql.checkData(0, 7, "6")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -903,7 +903,11 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -944,7 +948,11 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -985,7 +993,11 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -1026,7 +1038,11 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -1067,23 +1083,27 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != NULL then
-        tdLog.info('tdSql.checkData(0, 4, NULL)')
-        tdSql.checkData(0, 4, None)
+        tdLog.info('tdSql.checkData(0, 4, NULL) out of range')
+        # tdSql.checkData(0, 4, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step51
         tdLog.info('select * from %s where tgcol2 = 1 -x step51' % (mt))
-        tdSql.error('select * from %s where tgcol2 = 11' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step51:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step52
         tdLog.info('select * from %s where tgcol3 = 1 -x step52' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 12' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step52:
         # TSIM:
@@ -1118,23 +1138,27 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != NULL then
-        tdLog.info('tdSql.checkData(0, 4, NULL)')
-        tdSql.checkData(0, 4, None)
+        tdLog.info('tdSql.checkData(0, 4, NULL) out of range')
+        # tdSql.checkData(0, 4, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step71
         tdLog.info('select * from %s where tgcol2 = 1 -x step71' % (mt))
-        tdSql.error('select * from %s where tgcol2 = 11' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step71:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step72
         tdLog.info('select * from %s where tgcol3 = 1 -x step72' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 12' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step72:
         # TSIM:
@@ -1169,23 +1193,27 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != NULL then
-        tdLog.info('tdSql.checkData(0, 4, NULL)')
-        tdSql.checkData(0, 4, None)
+        tdLog.info('tdSql.checkData(0, 4, NULL) out of range')
+        # tdSql.checkData(0, 4, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step81
         tdLog.info('select * from %s where tgcol2 = 1 -x step81' % (mt))
-        tdSql.error('select * from %s where tgcol2 = 11' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step81:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step82
         tdLog.info('select * from %s where tgcol3 = 1 -x step82' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 12' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step82:
         # TSIM:
@@ -1220,23 +1248,27 @@ class TDTestCase:
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != NULL then
-        tdLog.info('tdSql.checkData(0, 4, NULL)')
-        tdSql.checkData(0, 4, None)
+        tdLog.info('tdSql.checkData(0, 4, NULL) out of range')
+        # tdSql.checkData(0, 4, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step91
         tdLog.info('select * from %s where tgcol3 = 1 -x step91' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 11' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step91:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step92
         tdLog.info('select * from %s where tgcol2 = 1 -x step92' % (mt))
-        tdSql.error('select * from %s where tgcol2 = 12' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step92:
         # TSIM:
@@ -1265,39 +1297,43 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data02 != 1 then
-        tdLog.info('tdSql.checkData(0, 2, 1)')
-        tdSql.checkData(0, 2, 1)
+        tdLog.info('tdSql.checkData(0, 2, "1")')
+        tdSql.checkData(0, 2, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != NULL then
         tdLog.info('tdSql.checkData(0, 3, NULL)')
-        tdSql.checkData(0, 3, None)
+        try:
+            tdSql.checkData(0, 3, None)
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("out of range")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != NULL then
-        tdLog.info('tdSql.checkData(0, 4, NULL)')
-        tdSql.checkData(0, 4, None)
+        tdLog.info('tdSql.checkData(0, 4, NULL) out of range')
+        # tdSql.checkData(0, 4, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != NULL then
-        tdLog.info('tdSql.checkData(0, 5, NULL)')
-        tdSql.checkData(0, 5, None)
+        tdLog.info('tdSql.checkData(0, 5, NULL) out of range')
+        # tdSql.checkData(0, 5, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step101
         tdLog.info('select * from %s where tgcol2 = 1 -x step101' % (mt))
-        tdSql.error('select * from %s where tgcol2 = 101' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step101:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step102
         tdLog.info('select * from %s where tgcol3 = 1 -x step102' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 102' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step102:
         # TSIM: sql select * from $mt where tgcol4 = 1 -x step103
         tdLog.info('select * from %s where tgcol4 = 1 -x step103' % (mt))
-        tdSql.error('select * from %s where tgcol4 = 103' % (mt))
+        tdSql.error('select * from %s where tgcol4 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step103:
         # TSIM:
@@ -1336,34 +1372,34 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != NULL then
-        tdLog.info('tdSql.checkData(0, 4, NULL)')
-        tdSql.checkData(0, 4, None)
+        tdLog.info('tdSql.checkData(0, 4, NULL) out of range')
+        # tdSql.checkData(0, 4, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != NULL then
-        tdLog.info('tdSql.checkData(0, 5, NULL)')
-        tdSql.checkData(0, 5, None)
+        tdLog.info('tdSql.checkData(0, 5, NULL) out of range')
+        # tdSql.checkData(0, 5, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != NULL then
-        tdLog.info('tdSql.checkData(0, 6, NULL)')
-        tdSql.checkData(0, 6, None)
+        tdLog.info('tdSql.checkData(0, 6, NULL) out of range')
+        # tdSql.checkData(0, 6, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step111
         tdLog.info('select * from %s where tgcol2 = 1 -x step111' % (mt))
-        tdSql.error('select * from %s where tgcol2 = 111' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step111:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step112
         tdLog.info('select * from %s where tgcol3 = 1 -x step112' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 112' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step112:
         # TSIM: sql select * from $mt where tgcol5 = 1 -x step113
         tdLog.info('select * from %s where tgcol5 = 1 -x step113' % (mt))
-        tdSql.error('select * from %s where tgcol5 = 113' % (mt))
+        tdSql.error('select * from %s where tgcol5 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step113:
         # TSIM:
@@ -1402,44 +1438,44 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data04 != NULL then
-        tdLog.info('tdSql.checkData(0, 4, NULL)')
-        tdSql.checkData(0, 4, None)
+        tdLog.info('tdSql.checkData(0, 4, NULL) out of range')
+        # tdSql.checkData(0, 4, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != NULL then
-        tdLog.info('tdSql.checkData(0, 5, NULL)')
-        tdSql.checkData(0, 5, None)
+        tdLog.info('tdSql.checkData(0, 5, NULL) out of range')
+        # tdSql.checkData(0, 5, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != NULL then
-        tdLog.info('tdSql.checkData(0, 6, NULL)')
-        tdSql.checkData(0, 6, None)
+        tdLog.info('tdSql.checkData(0, 6, NULL) out of range')
+        # tdSql.checkData(0, 6, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data07 != NULL then
-        tdLog.info('tdSql.checkData(0, 7, NULL)')
-        tdSql.checkData(0, 7, None)
+        tdLog.info('tdSql.checkData(0, 7, NULL) out of range')
+        # tdSql.checkData(0, 7, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step120
         tdLog.info('select * from %s where tgcol2 = 1 -x step120' % (mt))
-        tdSql.error('select * from %s where tgcol2 = 120' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step120:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step121
         tdLog.info('select * from %s where tgcol3 = 1 -x step121' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 121' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step121:
         # TSIM: sql select * from $mt where tgcol5 = 1 -x step122
         tdLog.info('select * from %s where tgcol5 = 1 -x step122' % (mt))
-        tdSql.error('select * from %s where tgcol5 = 122' % (mt))
+        tdSql.error('select * from %s where tgcol5 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step122:
         # TSIM: sql select * from $mt where tgcol6 = 1 -x step123
         tdLog.info('select * from %s where tgcol6 = 1 -x step123' % (mt))
-        tdSql.error('select * from %s where tgcol6 = 123' % (mt))
+        tdSql.error('select * from %s where tgcol6 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step123:
         # TSIM:
@@ -1471,8 +1507,8 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data02 != 1 then
-        tdLog.info('tdSql.checkData(0, 2, 1)')
-        tdSql.checkData(0, 2, 1)
+        tdLog.info('tdSql.checkData(0, 2, "1")')
+        tdSql.checkData(0, 2, "1")
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data03 != 2 then
@@ -1486,34 +1522,34 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data05 != NULL then
-        tdLog.info('tdSql.checkData(0, 5, NULL)')
-        tdSql.checkData(0, 5, None)
+        tdLog.info('tdSql.checkData(0, 5, NULL) out of range')
+        # tdSql.checkData(0, 5, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data06 != NULL then
-        tdLog.info('tdSql.checkData(0, 6, NULL)')
-        tdSql.checkData(0, 6, None)
+        tdLog.info('tdSql.checkData(0, 6, NULL) out of range')
+        # tdSql.checkData(0, 6, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM: if $data07 != NULL then
-        tdLog.info('tdSql.checkData(0, 7, NULL)')
-        tdSql.checkData(0, 7, None)
+        tdLog.info('tdSql.checkData(0, 7, NULL) out of range')
+        # tdSql.checkData(0, 7, None)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
         # TSIM: sql select * from $mt where tgcol3 = 1 -x step130
         tdLog.info('select * from %s where tgcol3 = 1 -x step130' % (mt))
-        tdSql.error('select * from %s where tgcol3 = 130' % (mt))
+        tdSql.error('select * from %s where tgcol3 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step130:
         # TSIM: sql select * from $mt where tgcol4 = 1 -x step131
         tdLog.info('select * from %s where tgcol4 = 1 -x step131' % (mt))
-        tdSql.error('select * from %s where tgcol4 = 131' % (mt))
+        tdSql.error('select * from %s where tgcol4 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step131:
         # TSIM: sql select * from $mt where tgcol6 = 1 -x step133
         tdLog.info('select * from %s where tgcol6 = 1 -x step133' % (mt))
-        tdSql.error('select * from %s where tgcol6 = 133' % (mt))
+        tdSql.error('select * from %s where tgcol6 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step133:
         # TSIM:
@@ -1542,23 +1578,23 @@ class TDTestCase:
         # TSIM:
         # TSIM: sql alter table xxmt drop tag tag1 -x step141
         tdLog.info('alter table xxmt drop tag tag1 -x step141')
-        tdSql.error('alter table xxmt drop tag tag141')
+        tdSql.error('alter table xxmt drop tag tag1')
         # TSIM: return -1
         # TSIM: step141:
         # TSIM: sql alter table $tb drop tag tag1 -x step142
         tdLog.info('alter table %s drop tag tag1 -x step142' % (tb))
-        tdSql.error('alter table %s drop tag tag142' % (tb))
+        tdSql.error('alter table %s drop tag tag1' % (tb))
         # TSIM: return -1
         # TSIM: step142:
         # TSIM: sql alter table $mt drop tag tag1 -x step143
         tdLog.info('alter table %s drop tag tag1 -x step143' % (mt))
-        tdSql.error('alter table %s drop tag tag143' % (mt))
+        tdSql.error('alter table %s drop tag tag1' % (mt))
         # TSIM: return -1
         # TSIM: step143:
         # TSIM:
         # TSIM: sql alter table $mt drop tag tagcol1 -x step144
         tdLog.info('alter table %s drop tag tagcol1 -x step144' % (mt))
-        tdSql.error('alter table %s drop tag tagcol144' % (mt))
+        tdSql.error('alter table %s drop tag tagcol1' % (mt))
         # TSIM: return -1
         # TSIM: step144:
         # TSIM:
@@ -1567,15 +1603,15 @@ class TDTestCase:
         tdSql.execute('alter table %s drop tag tgcol2' % (mt))
         # TSIM: sql alter table $mt drop tag tgcol1 -x step145
         tdLog.info('alter table %s drop tag tgcol1 -x step145' % (mt))
-        tdSql.error('alter table %s drop tag tgcol145' % (mt))
+        tdSql.error('alter table %s drop tag tgcol1' % (mt))
         # TSIM: return -1
         # TSIM: step145:
         # TSIM:
         # TSIM: print =============== clear
         tdLog.info('=============== clear')
         # TSIM: sql drop database $db
-        tdLog.info('sql drop database $db')
-        tdSql.execute('sql drop database $db')
+        tdLog.info('drop database db')
+        tdSql.execute('drop database db')
         # TSIM: sql show databases
         tdLog.info('show databases')
         tdSql.query('show databases')

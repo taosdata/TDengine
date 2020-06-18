@@ -97,4 +97,8 @@ void httpJsonPrint(JsonBuf* buf, const char* json, int len);
 // quick
 void httpJsonPairStatus(JsonBuf* buf, int code);
 
+// http json printer
+JsonBuf* httpMallocJsonBuf(struct HttpContext* pContext);
+void     httpFreeJsonBuf(struct HttpContext* pContext);
+
 #endif
