@@ -90,11 +90,12 @@ static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionUpdate(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   SDnodeObj *pSaved = mnodeGetDnode(pDnode->dnodeId);
-  if (pDnode != pSaved && pDnode != NULL && pSaved != NULL) {
+  if (pSaved != NULL && pDnode != pSaved) {
     memcpy(pSaved, pDnode, pOper->rowSize);
     free(pDnode);
+    mnodeDecDnodeRef(pSaved);
   }
-  mnodeDecDnodeRef(pSaved);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -120,8 +121,10 @@ static int32_t mnodeDnodeActionRestored() {
     mPrint("dnode first deploy, create dnode:%s", tsLocalEp);
     mnodeCreateDnode(tsLocalEp, NULL);
     SDnodeObj *pDnode = mnodeGetDnodeByEp(tsLocalEp);
-    mnodeAddMnode(pDnode->dnodeId);
-    mnodeDecDnodeRef(pDnode);
+    if (pDnode != NULL) {
+      mnodeAddMnode(pDnode->dnodeId);
+      mnodeDecDnodeRef(pDnode);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -371,6 +374,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     bool ret = mnodeCheckClusterCfgPara(&(pStatus->clusterCfg));
     if (false == ret) {
       mnodeDecDnodeRef(pDnode);
+      rpcFreeCont(pRsp);
       mError("dnode %s cluster cfg parameters inconsistent", pStatus->dnodeEp);
       return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
     }

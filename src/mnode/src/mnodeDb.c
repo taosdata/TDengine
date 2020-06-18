@@ -960,6 +960,8 @@ static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
+  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+  
   SDbObj *pDb = pMsg->pDb;
   mPrint("db:%s, drop db from sdb", pDb->name);
 
@@ -973,7 +975,7 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   int32_t code = sdbDeleteRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
     mLPrint("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   return code;

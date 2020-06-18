@@ -133,7 +133,7 @@ static void mnodeVgroupUpdateIdPool(SVgObj *pVgroup) {
       taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxTables);
       int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
       pVgroup->tableList = (SChildTableObj **)realloc(pVgroup->tableList, size);
-      memset(pVgroup->tableList + oldTables, 0, (pDb->cfg.maxTables - oldTables) * sizeof(SChildTableObj **));
+      memset(pVgroup->tableList + oldTables, 0, (pDb->cfg.maxTables - oldTables) * sizeof(SChildTableObj *));
     }
   }
 }
@@ -252,7 +252,9 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
     .pObj = pVgroup
   };
 
-  sdbUpdateRow(&oper);
+  if (sdbUpdateRow(&oper) != TSDB_CODE_SUCCESS) {
+    mError("vgId:%d, failed to update vgroup", pVgroup->vgId);
+  }
   mnodeSendCreateVgroupMsg(pVgroup, NULL);
 }
 
@@ -323,8 +325,10 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
 }
 
 int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
+  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+
   SVgObj *pVgroup = (SVgObj *)calloc(1, sizeof(SVgObj));
-  strcpy(pVgroup->dbName, pDb->name);
+  tstrncpy(pVgroup->dbName, pDb->name, TSDB_DB_NAME_LEN);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
@@ -350,7 +354,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
     pMsg->pVgroup = NULL;
     tfree(pVgroup);
   } else {
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   return code;
