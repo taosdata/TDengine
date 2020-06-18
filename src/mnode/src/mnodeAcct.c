@@ -39,6 +39,7 @@ static int32_t mnodeAcctActionDestroy(SSdbOper *pOper) {
 static int32_t mnodeAcctActionInsert(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memset(&pAcct->acctInfo, 0, sizeof(SAcctInfo));
+  pAcct->acctInfo.accessState = TSDB_VN_ALL_ACCCESS;
   pthread_mutex_init(&pAcct->mutex, NULL);
   return TSDB_CODE_SUCCESS;
 }

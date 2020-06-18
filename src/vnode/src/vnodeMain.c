@@ -195,6 +195,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->version  = 0;  
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
   pVnode->rootDir = strdup(rootDir);
+  pVnode->accessState = TSDB_VN_ALL_ACCCESS;
 
   int32_t code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -429,6 +430,20 @@ void vnodeBuildStatusMsg(void *param) {
   }
 
   taosHashDestroyIter(pIter);
+}
+
+void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    pAccess[i].vgId = htonl(pAccess[i].vgId);
+    SVnodeObj *pVnode = vnodeAccquireVnode(pAccess[i].vgId);
+    if (pVnode != NULL) {
+      pVnode->accessState = pAccess[i].accessState;
+      if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {
+        vTrace("vgId:%d, access state is set to %d", pAccess[i].vgId)
+      }
+      vnodeRelease(pVnode);
+    }
+  }
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {

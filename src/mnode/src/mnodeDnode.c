@@ -335,6 +335,19 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
+  int32_t contLen = sizeof(SDMStatusRsp) + openVnodes * sizeof(SDMVgroupAccess);
+  SDMStatusRsp *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    mnodeDecDnodeRef(pDnode);
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
+
+  pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
+  pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
+  pRsp->dnodeCfg.numOfVnodes = htonl(openVnodes);
+  mnodeGetMnodeInfos(&pRsp->mnodes);
+  SDMVgroupAccess *pAccess = (SDMVgroupAccess *)((char *)pRsp + sizeof(SDMStatusRsp));
+
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
     pVload->vgId = htonl(pVload->vgId);
@@ -347,6 +360,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       mnodeSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
       mnodeUpdateVgroupStatus(pVgroup, pDnode, pVload);
+      pAccess->vgId = htonl(pVload->vgId);
+      pAccess->accessState = pVgroup->accessState;
       mnodeDecVgroupRef(pVgroup);
     }
   }
@@ -366,26 +381,13 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     balanceNotify();
   }
 
-  mnodeDecDnodeRef(pDnode);
-
-  int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SDMVgroupAccess);
-  SDMStatusRsp *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) {
-    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  if (openVnodes != pDnode->openVnodes) {
+    mnodeCheckUnCreatedVgroup(pDnode, pStatus->load, openVnodes);
   }
 
   pDnode->lastAccess = tsAccessSquence;
+  mnodeDecDnodeRef(pDnode);
 
-  mnodeGetMnodeInfos(&pRsp->mnodes);
-
-  pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
-  pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
-  pRsp->dnodeCfg.numOfVnodes = 0;
-  
-  contLen = sizeof(SDMStatusRsp);
-
-  //TODO: set vnode access
-  
   pMsg->rpcRsp.len = contLen;
   pMsg->rpcRsp.rsp =  pRsp;
 

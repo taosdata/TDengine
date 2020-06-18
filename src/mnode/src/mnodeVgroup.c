@@ -74,6 +74,7 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
   pVgroup->pDb = pDb;
   pVgroup->prev = NULL;
   pVgroup->next = NULL;
+  pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
 
   int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxTables;
   pVgroup->tableList = calloc(pDb->cfg.maxTables, sizeof(SChildTableObj *));
@@ -255,6 +256,8 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
   mnodeSendCreateVgroupMsg(pVgroup, NULL);
 }
 
+void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t openVnodes) {}
+
 void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVload) {
   bool dnodeExist = false;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
@@ -324,6 +327,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
+  pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
   if (balanceAllocVnodes(pVgroup) != 0) {
     mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
