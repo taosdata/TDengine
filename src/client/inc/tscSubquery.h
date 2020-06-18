@@ -26,11 +26,9 @@ extern "C" {
 void tscFetchDatablockFromSubquery(SSqlObj* pSql);
 
 void tscSetupOutputColumnIndex(SSqlObj* pSql);
-int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql);
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 
 SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
-void tscDestroyJoinSupporter(SJoinSupporter* pSupporter);
 
 int32_t tscHandleMasterJoinQuery(SSqlObj* pSql);
 

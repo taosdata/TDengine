@@ -64,7 +64,8 @@ typedef struct SJoinSupporter {
   SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
-  int64_t         interval;       // interval time
+  int64_t         intervalTime;   // interval time
+  int64_t         slidingTime;    // sliding time
   SLimitVal       limit;          // limit info
   uint64_t        uid;            // query meter uid
   SArray*         colList;        // previous query information, no need to use this attribute, and the corresponding attribution

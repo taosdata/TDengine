@@ -1216,7 +1216,6 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
 
   // interval query with limit applied
   int32_t numOfRes = 0;
-  
   if (isIntervalQuery(pQuery)) {
     numOfRes = doCheckQueryCompleted(pRuntimeEnv, lastKey, pWindowResInfo);
   } else {
