@@ -149,7 +149,7 @@ static int syncRestoreWal(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret <0)  break;
 
-    sTrace("%s, restore a record, ver:%d", pPeer->id, pHead->version);
+    sTrace("%s, restore a record, ver:%" PRIu64, pPeer->id, pHead->version);
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
   }
 
@@ -213,10 +213,9 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
     memcpy(pRecv->offset, pHead, len);
     pRecv->offset += len;
     pRecv->forwards++;
-    sTrace("%s, fwd is saved into queue, ver:%d fwds:%d", 
-           pPeer->id, pHead->version, pRecv->forwards);
+    sTrace("%s, fwd is saved into queue, ver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
   } else {
-    sError("%s, buffer size:%d is too small", pRecv->bufferSize); 
+    sError("%s, buffer size:%d is too small", pPeer->id, pRecv->bufferSize);
     pRecv->code = -1;  // set error code
   }
 
