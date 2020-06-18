@@ -142,6 +142,10 @@ static void *taosThreadToOpenNewFile(void *param) {
   umask(0);
 
   int32_t fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  if (fd < 0) {
+    uError("open new log file fail! fd:%d reason:%s", fd, strerror(errno));
+    return NULL;
+  }
   taosLockFile(fd);
   lseek(fd, 0, SEEK_SET);
 
@@ -184,7 +188,7 @@ void taosResetLog() {
   tsLogObj.lines = tsLogObj.maxLines + 10;
 
   taosOpenNewLogFile();
-  remove(lastName);
+  (void)remove(lastName);
 
   uPrint("==================================");
   uPrint("   reset log file ");
@@ -229,7 +233,9 @@ static void taosGetLogFileName(char *fn) {
     }
   }
 
-  strcpy(tsLogObj.logName, fn);
+  if (strlen(fn) < LOG_FILE_NAME_LEN) {
+    strcpy(tsLogObj.logName, fn);
+  }
 }
 
 static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
@@ -249,15 +255,20 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   tsLogObj.fileNum = maxFileNum;
   taosGetLogFileName(fn);
 
-  strcpy(name, fn);
-  strcat(name, ".0");
+  if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
+    strcpy(name, fn);
+    strcat(name, ".0");
+  }
 
   // if none of the log files exist, open 0, if both exists, open the old one
   if (stat(name, &logstat0) < 0) {
     tsLogObj.flag = 0;
   } else {
-    strcpy(name, fn);
-    strcat(name, ".1");
+    if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
+      strcpy(name, fn);
+      strcat(name, ".1");
+    }
+    
     if (stat(name, &logstat1) < 0) {
       tsLogObj.flag = 1;
     } else {
@@ -279,7 +290,10 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 
   // only an estimate for number of lines
   struct stat filestat;
-  fstat(tsLogObj.logHandle->fd, &filestat);
+  if (fstat(tsLogObj.logHandle->fd, &filestat) < 0) {
+    printf("\nfailed to fstat log file:%s, reason:%s\n", name, strerror(errno));
+    return -1;
+  }
   size = (int32_t)filestat.st_size;
   tsLogObj.lines = size / 60;
 

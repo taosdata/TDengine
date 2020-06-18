@@ -100,7 +100,7 @@ cd ../../../debug; make
 ./test.sh -f general/insert/query_multi_file.sim
 ./test.sh -f general/insert/tcp.sim
 
-#./test.sh -f general/parser/alter.sim
+./test.sh -f general/parser/alter.sim
 ./test.sh -f general/parser/alter1.sim
 ./test.sh -f general/parser/alter_stable.sim
 ./test.sh -f general/parser/auto_create_tb.sim
@@ -117,10 +117,10 @@ cd ../../../debug; make
 ./test.sh -f general/parser/import_commit3.sim
 ./test.sh -f general/parser/insert_tb.sim
 ./test.sh -f general/parser/first_last.sim
-#unsupport ./test.sh -f general/parser/import_file.sim
+#./test.sh -f general/parser/import_file.sim
 ./test.sh -f general/parser/lastrow.sim
 ./test.sh -f general/parser/nchar.sim
-#unsupport ./test.sh -f general/parser/null_char.sim
+#./test.sh -f general/parser/null_char.sim
 ./test.sh -f general/parser/single_row_in_tb.sim
 ./test.sh -f general/parser/select_from_cache_disk.sim
 ./test.sh -f general/parser/mixed_blocks.sim
@@ -147,10 +147,10 @@ cd ../../../debug; make
 ./test.sh -f general/parser/join_multivnode.sim
 ./test.sh -f general/parser/binary_escapeCharacter.sim
 ./test.sh -f general/parser/bug.sim
-#unsupport ./test.sh -f general/parser/stream_on_sys.sim
+#./test.sh -f general/parser/stream_on_sys.sim
 ./test.sh -f general/parser/stream.sim
-#unsupport ./test.sh -f general/parser/repeatAlter.sim
-#unsupport ./test.sh -f general/parser/repeatStream.sim
+./test.sh -f general/parser/repeatAlter.sim
+#./test.sh -f general/parser/repeatStream.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
@@ -159,20 +159,20 @@ cd ../../../debug; make
 ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
 
-#./test.sh -f general/stream/metrics_1.sim
-#./test.sh -f general/stream/metrics_del.sim
-#./test.sh -f general/stream/metrics_n.sim
-#./test.sh -f general/stream/metrics_replica1_vnoden.sim
+./test.sh general/stream/stream_1.sim
+./test.sh general/stream/stream_2.sim
+./test.sh general/stream/stream_3.sim
+./test.sh general/stream/stream_restart.sim
+./test.sh general/stream/table_1.sim
+./test.sh general/stream/metrics_1.sim
+./test.sh general/stream/table_n.sim
+./test.sh general/stream/metrics_n.sim
+./test.sh general/stream/table_del.sim
+./test.sh general/stream/metrics_del.sim
+./test.sh general/stream/table_replica1_vnoden.sim
+./test.sh general/stream/metrics_replica1_vnoden.sim
 #./test.sh -f general/stream/new_stream.sim
 #./test.sh -f general/stream/restart_stream.sim
-#./test.sh -f general/stream/stream_1.sim
-#./test.sh -f general/stream/stream_2.sim
-#./test.sh -f general/stream/stream_3.sim
-#./test.sh -f general/stream/stream_restart.sim
-#./test.sh -f general/stream/table_1.sim
-#./test.sh -f general/stream/table_del.sim
-#./test.sh -f general/stream/table_n.sim
-#./test.sh -f general/stream/table_replica1_vnoden.sim
 
 ./test.sh -f general/table/autocreate.sim
 ./test.sh -f general/table/basic1.sim
@@ -324,7 +324,7 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_vgroup.sim
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
-./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim 
+./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_dropDnodeFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
@@ -337,7 +337,7 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim                  # unsupport
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
 ./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
 ./test.sh -f unique/arbitrator/insert_duplicationTs.sim

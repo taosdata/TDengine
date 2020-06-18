@@ -566,5 +566,6 @@ static int tdRestoreKVStore(SKVStore *pStore) {
 _err:
   taosHashDestroyIter(pIter);
   tfree(buf);
+  taosHashDestroyIter(pIter);
   return -1;
 }

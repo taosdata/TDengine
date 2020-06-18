@@ -278,7 +278,7 @@ int taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   /* bind socket to local address */
   if (bind(sockFd, (struct sockaddr *)&localAddr, sizeof(localAddr)) < 0) {
     uError("failed to bind udp socket: %d (%s), 0x%x:%hu", errno, strerror(errno), ip, port);
-    taosCloseSocket(sockFd);
+    close(sockFd);
     return -1;
   }
 
@@ -321,7 +321,7 @@ int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientI
 
   if (ret != 0) {
     //uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
-    taosCloseSocket(sockFd);
+    close(sockFd);
     sockFd = -1;
   }
 

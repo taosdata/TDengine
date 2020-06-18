@@ -74,7 +74,7 @@ static void taosReadInt32Config(SGlobalCfg *cfg, char *input_value) {
       *option = value;
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
-      uWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, input_value,
+      uWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, input_value,
             tsCfgStatusStr[cfg->cfgStatus], *option);
     }
   }
@@ -106,7 +106,11 @@ static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
   } else {
     if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
       wordexp_t full_path;
-      wordexp(input_value, &full_path, 0);
+      if (0 != wordexp(input_value, &full_path, 0)) {
+        printf("\nconfig dir: %s wordexp fail! reason:%s\n", input_value, strerror(errno));
+        wordfree(&full_path);
+        return;
+      }
       if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
         strcpy(option, full_path.we_wordv[0]);
       }
@@ -115,8 +119,13 @@ static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
       struct stat dirstat;
       if (stat(option, &dirstat) < 0) {
         int code = mkdir(option, 0755);
-        uPrint("config option:%s, input value:%s, directory not exist, create with return code:%d",
-               cfg->option, input_value, code);
+        if (code < 0) {
+          uError("config option:%s, input value:%s, directory not exist, create fail with return code:%d",
+               cfg->option, input_value, code); 
+        } else {
+          uPrint("config option:%s, input value:%s, directory not exist, create with return code:%d",
+               cfg->option, input_value, code); 
+        }
       }
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
@@ -240,7 +249,12 @@ void taosReadGlobalLogCfg() {
   sdbDebugFlag = 135;
 
   wordexp_t full_path;
-  wordexp(configDir, &full_path, 0);
+  if ( 0 != wordexp(configDir, &full_path, 0)) {
+    printf("\nconfig file: %s wordexp fail! reason:%s\n", configDir, strerror(errno));
+    wordfree(&full_path);
+    return;
+  }
+  
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {    
     if (strlen(full_path.we_wordv[0]) >= TSDB_FILENAME_LEN) {
       printf("\nconfig file: %s path overflow max len %d, all variables are set to default\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);

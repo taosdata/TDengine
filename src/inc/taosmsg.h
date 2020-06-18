@@ -543,6 +543,7 @@ typedef struct {
   int32_t  dnodeId;
   uint32_t moduleStatus;
   uint32_t numOfVnodes;
+  uint32_t reserved;
 } SDMDnodeCfg;
 
 typedef struct {
