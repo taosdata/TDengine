@@ -212,12 +212,11 @@ if $data00 != shanghai then
 endi
 
 ##### test 'space' case
-$tagvalue = ''
-$tagvalue = $tagvalue '
+system_content echo '   ' | sed 's/ //g' | tr -d '\n' # Construct an empty result for later result checking
 sql alter table st41 set tag tag_binary = ""
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
-if $data00 != @@ then
-  print expect , actual $data00
+if $data00 != $system_content  then
+  print expect [ $system_content ], actual [ $data00 ]
   return -1
 endi
 
