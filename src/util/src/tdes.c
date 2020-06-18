@@ -140,7 +140,7 @@ void print_char_as_binary(char input) {
 void generate_key(unsigned char* key) {
   int i;
   for (i = 0; i < 8; i++) {
-    key[i] = rand() % 255;
+    key[i] = taosRand() % 255;
   }
 }
 

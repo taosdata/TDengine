@@ -119,8 +119,13 @@ static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
       struct stat dirstat;
       if (stat(option, &dirstat) < 0) {
         int code = mkdir(option, 0755);
-        uPrint("config option:%s, input value:%s, directory not exist, create with return code:%d",
-               cfg->option, input_value, code);
+        if (code < 0) {
+          uError("config option:%s, input value:%s, directory not exist, create fail with return code:%d",
+               cfg->option, input_value, code); 
+        } else {
+          uPrint("config option:%s, input value:%s, directory not exist, create with return code:%d",
+               cfg->option, input_value, code); 
+        }
       }
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
