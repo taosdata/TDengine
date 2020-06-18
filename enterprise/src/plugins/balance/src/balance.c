@@ -554,7 +554,7 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
     }
   } else {
     int64_t mseconds = (int64_t)handle;
-    mTrace("balance function is scheduled by event for %d mseconds arrived", mseconds);
+    mTrace("balance function is scheduled by event for %" PRId64 " mseconds arrived", mseconds);
     updateSoon = balanceStart();
   }
 
