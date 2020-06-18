@@ -324,7 +324,7 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_vgroup.sim
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
-./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim 
+./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_dropDnodeFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
