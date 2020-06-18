@@ -158,11 +158,11 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l
-print ---->dnode3 data files: $system_content , expect is 9 
-#if $system_content != @9@ then 
-#  return -1
-#endi
+system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l | tr -d '\n'
+print ---->dnode3 data files: $system_content    expect: 9 
+if $system_content != 9 then 
+  return -1
+endi
 
 print ============== step5: insert two data rows: now-16d, now+16d, 
 sql insert into $tb values ( now - 21d , -21 )
@@ -175,11 +175,11 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l
-print ---->dnode2 data files: $system_content , expect is 3
-#if $system_content != @3@ then 
-#  return -1
-#endi
+system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l | tr -d '\n'
+print ---->dnode2 data files: $system_content    expect: 3 
+if $system_content != 3 then 
+  return -1
+endi
 
 print ============== step7: restart dnode3, waiting sync end
 system sh/exec.sh -n dnode3 -s start
@@ -215,13 +215,13 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l
-print ---->dnode2 data files: $system_content , expect is 3
-#if $system_content != @3@ then 
-#  return -1
-#endi
-system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l
-print ---->dnode3 data files: $system_content , expect is 3
-#if $system_content != @3@ then 
-#  return -1
-#endi
+system_content ls ../../../sim/dnode2/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l | tr -d '\n'
+print ---->dnode2 data files: $system_content    expect: 3 
+if $system_content != 3 then 
+  return -1
+endi
+system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l |grep "^-"|wc -l | tr -d '\n'
+print ---->dnode3 data files: $system_content    expect: 3 
+if $system_content != 3 then 
+  return -1
+endi
