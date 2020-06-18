@@ -120,7 +120,7 @@ cd ../../../debug; make
 #./test.sh -f general/parser/import_file.sim
 ./test.sh -f general/parser/lastrow.sim
 ./test.sh -f general/parser/nchar.sim
-#./test.sh -f general/parser/null_char.sim
+./test.sh -f general/parser/null_char.sim
 ./test.sh -f general/parser/single_row_in_tb.sim
 ./test.sh -f general/parser/select_from_cache_disk.sim
 ./test.sh -f general/parser/mixed_blocks.sim
