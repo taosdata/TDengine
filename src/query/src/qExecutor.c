@@ -4259,7 +4259,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
     while (pQInfo->groupIndex < numOfGroups) {
       SArray* group = taosArrayGetP(pQInfo->groupInfo.pGroupList, pQInfo->groupIndex);
 
-      qTrace("QInfo:%p last_row query on group:%d, total group:%d, current group:%d", pQInfo, pQInfo->groupIndex,
+      qTrace("QInfo:%p last_row query on group:%d, total group:%u, current group:%p", pQInfo, pQInfo->groupIndex,
              numOfGroups, group);
 
       STsdbQueryCond cond = {
@@ -4510,7 +4510,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
   }
 
   qTrace(
-      "QInfo %p numOfTables:%d, index:%d, numOfGroups:%d, %d points returned, total:%"PRId64", offset:%" PRId64,
+      "QInfo %p numOfTables:%"PRIu64", index:%d, numOfGroups:%d, %"PRId64" points returned, total:%"PRId64", offset:%" PRId64,
       pQInfo, pQInfo->groupInfo.numOfTables, pQInfo->tableIndex, numOfGroups, pQuery->rec.rows, pQuery->rec.total,
       pQuery->limit.offset);
 }
@@ -4597,7 +4597,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
       copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
     }
 
-    qTrace("QInfo:%p current:%lld, total:%lld", pQInfo, pQuery->rec.rows, pQuery->rec.total);
+    qTrace("QInfo:%p current:%"PRId64", total:%"PRId64"", pQInfo, pQuery->rec.rows, pQuery->rec.total);
     return;
   }
 
@@ -4869,13 +4869,13 @@ static void tableQueryImpl(SQInfo *pQInfo) {
         clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
 
         if (pQuery->rec.rows > 0) {
-          qTrace("QInfo:%p %d rows returned from group results, total:%d", pQInfo, pQuery->rec.rows, pQuery->rec.total);
+          qTrace("QInfo:%p %"PRId64" rows returned from group results, total:%"PRId64"", pQInfo, pQuery->rec.rows, pQuery->rec.total);
           return;
         }
       }
     }
 
-    qTrace("QInfo:%p query over, %d rows are returned", pQInfo, pQuery->rec.total);
+    qTrace("QInfo:%p query over, %"PRId64" rows are returned", pQInfo, pQuery->rec.total);
     return;
   }
 
@@ -4931,7 +4931,7 @@ static void stableQueryImpl(SQInfo *pQInfo) {
   pQInfo->runtimeEnv.summary.elapsedTime += (taosGetTimestampUs() - st);
   
   if (pQuery->rec.rows == 0) {
-    qTrace("QInfo:%p over, %d tables queried, %d rows are returned", pQInfo, pQInfo->groupInfo.numOfTables, pQuery->rec.total);
+    qTrace("QInfo:%p over, %d tables queried, %"PRId64" rows are returned", pQInfo, pQInfo->groupInfo.numOfTables, pQuery->rec.total);
   }
 }
 
@@ -6041,7 +6041,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
   }
 
   sem_wait(&pQInfo->dataReady);
-  qTrace("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%d", pQInfo, pQuery->rowSize, pQuery->rec.rows,
+  qTrace("QInfo:%p retrieve result info, rowsize:%d, rows:%"PRId64", code:%d", pQInfo, pQuery->rowSize, pQuery->rec.rows,
          pQInfo->code);
 
   return pQInfo->code;

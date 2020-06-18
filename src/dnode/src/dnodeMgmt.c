@@ -407,11 +407,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
     pMnodeInfo->nodeId   = htonl(pMnodeInfo->nodeId);
   }
 
-  SDMVgroupAccess *pVgAcccess = pStatusRsp->vgAccess;
-  for (int32_t i = 0; i < pCfg->numOfVnodes; ++i) {
-    pVgAcccess[i].vgId = htonl(pVgAcccess[i].vgId);
-  }
-  
+  vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
   dnodeProcessModuleStatus(pCfg->moduleStatus);
   dnodeUpdateDnodeCfg(pCfg);
 

@@ -214,7 +214,10 @@ int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInf
 
     // only an estimate for number of lines
     struct stat filestat;
-    fstat(pNote->taosNoteFd, &filestat);
+    if (fstat(pNote->taosNoteFd, &filestat) < 0) {
+      fprintf(stderr, "failed to fstat note file:%s reason:%s\n", name, strerror(errno));
+      return -1;
+    }    
     size = (int)filestat.st_size;
     pNote->taosNoteLines = size / 60;
 
@@ -226,7 +229,7 @@ int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInf
 void taosNotePrint(taosNoteInfo * pNote, const char * const format, ...)
 {
     va_list argpointer;
-    char    buffer[MAX_NOTE_LINE_SIZE];
+    char    buffer[MAX_NOTE_LINE_SIZE+2];
     int     len;
     struct  tm      Tm, *ptm;
     struct  timeval timeSecs;

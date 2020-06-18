@@ -17,6 +17,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+import codecs
 
 
 class Test:
@@ -93,14 +94,13 @@ class Test:
             self.last_stb = current_stb
 
             current_tb = "tb%d" % int(round(time.time() * 1000))
-            tdSql.execute(
-                "create table %s using %s tags (1, '表1')" %
-                (current_tb, self.last_stb))
+            sqlcmd = "create table %s using %s tags (1, 'test')" %(current_tb, self.last_stb)
+            tdSql.execute(sqlcmd)
             self.last_tb = current_tb
             self.written = 0
 
             tdSql.execute(
-                "insert into %s values (now, 27, '我是nchar字符串')" %
+                "insert into %s values (now, 27, 'wsnchar')" %
                 self.last_tb)
             self.written = self.written + 1
 

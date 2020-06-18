@@ -53,6 +53,10 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
     return TSDB_CODE_VND_MSG_NOT_PROCESSED; 
 
+  if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
+    return TSDB_CODE_VND_NO_WRITE_AUTH;
+  }
+
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) 
       return TSDB_CODE_VND_INVALID_VGROUP_ID;  // it may be in deleting or closing state

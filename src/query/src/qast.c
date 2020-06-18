@@ -577,8 +577,7 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
       assert(0);
     }
   } else {
-    int32_t optr = cond.end->optr;
-    
+    int32_t optr = cond.end ? cond.end->optr : TSDB_RELATION_INVALID;
     if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
       bool comp = true;
       int32_t ret = 0;

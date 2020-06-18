@@ -55,7 +55,7 @@ typedef enum {
 typedef struct taosField {
   char     name[65];
   uint8_t  type;
-  uint16_t bytes;
+  int16_t  bytes;
 } TAOS_FIELD;
 
 #ifdef _TD_GO_DLL_

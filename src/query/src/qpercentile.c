@@ -283,7 +283,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
       break;
     };
     default: {
-      uError("MemBucket:%p,not support data type %d,failed", *pBucket, pBucket->dataType);
+      uError("MemBucket:%p,not support data type %d,failed", pBucket, pBucket->dataType);
       tfree(pBucket);
       return NULL;
     }
