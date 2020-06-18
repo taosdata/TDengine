@@ -1,10 +1,10 @@
 #unsupport run general/alter/cached_schema_after_alter.sim
-#unsupport run general/alter/count.sim
-#unsupport run general/alter/import.sim
+run general/alter/count.sim
+run general/alter/import.sim
 #unsupport run general/alter/insert1.sim
-#unsupport run general/alter/insert2.sim
-#unsupport run general/alter/metrics.sim
-#unsupport run general/alter/table.sim
+run general/alter/insert2.sim
+run general/alter/metrics.sim
+run general/alter/table.sim
 run general/cache/new_metrics.sim
 run general/cache/restart_metrics.sim
 run general/cache/restart_table.sim
@@ -87,8 +87,8 @@ run general/insert/query_file_memory.sim
 run general/insert/query_multi_file.sim
 run general/insert/tcp.sim
 #unsupport run general/parser/alter.sim
-#unsupport run general/parser/alter1.sim
-#unsupport run general/parser/alter_stable.sim
+run general/parser/alter1.sim
+run general/parser/alter_stable.sim
 run general/parser/auto_create_tb.sim
 run general/parser/auto_create_tb_drop_tb.sim
 run general/parser/col_arithmetic_operation.sim
@@ -125,13 +125,13 @@ run general/parser/fill.sim
 run general/parser/fill_stb.sim
 run general/parser/interp.sim
 run general/parser/where.sim
-#unsupport run general/parser/join.sim
-#unsupport run general/parser/join_multivnode.sim
+run general/parser/join.sim
+run general/parser/join_multivnode.sim
 run general/parser/select_with_tags.sim
-#unsupport run general/parser/groupby.sim
-#unsupport run general/parser/bug.sim
-#unsupport run general/parser/tags_dynamically_specifiy.sim
-#unsupport run general/parser/set_tag_vals.sim
+run general/parser/groupby.sim
+run general/parser/bug.sim
+run general/parser/tags_dynamically_specifiy.sim
+run general/parser/set_tag_vals.sim
 #unsupport run general/parser/repeatAlter.sim
 #unsupport run general/parser/slimit_alter_tags.sim
 #unsupport run general/parser/stream_on_sys.sim
@@ -173,25 +173,25 @@ run general/tag/3.sim
 run general/tag/4.sim
 run general/tag/5.sim
 run general/tag/6.sim
-#unsupport run general/tag/add.sim
+run general/tag/add.sim
 run general/tag/bigint.sim
 run general/tag/binary_binary.sim
 run general/tag/binary.sim
 run general/tag/bool_binary.sim
 run general/tag/bool_int.sim
 run general/tag/bool.sim
-#unsupport run general/tag/change.sim
+run general/tag/change.sim
 run general/tag/column.sim
 #unsupport run general/tag/commit.sim
 run general/tag/create.sim
-#unsupport run general/tag/delete.sim
+run general/tag/delete.sim
 run general/tag/double.sim
 run general/tag/filter.sim
 run general/tag/float.sim
 run general/tag/int_binary.sim
 run general/tag/int_float.sim
 run general/tag/int.sim
-#unsupport run general/tag/set.sim
+run general/tag/set.sim
 run general/tag/smallint.sim
 run general/tag/tinyint.sim
 run general/user/authority.sim
@@ -211,6 +211,7 @@ run general/vector/table_field.sim
 run general/vector/table_mix.sim
 run general/vector/table_query.sim
 run general/vector/table_time.sim
+run general/stream/restart_stream.sim
 run general/stream/stream_1.sim
 run general/stream/stream_2.sim
 run general/stream/stream_3.sim
