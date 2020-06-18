@@ -148,6 +148,8 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
     if (pRepo->commit) pthread_join(pRepo->commitThread, NULL);
+  } else {
+    // TODO
   }
 
   tsdbCloseFileH(pRepo);
