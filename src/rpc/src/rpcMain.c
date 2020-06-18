@@ -574,19 +574,13 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     char hashstr[40] = {0};
     size_t size = snprintf(hashstr, sizeof(hashstr), "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
     taosHashRemove(pRpc->hash, hashstr, size);
-  
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
-    pConn->pRspMsg = NULL;
-    pConn->inType = 0;
-    pConn->inTranId = 0;
-  } else {
-    pConn->outType = 0;
-    pConn->outTranId = 0;
-    pConn->pReqMsg = NULL;
-  }
+  } 
 
   taosFreeId(pRpc->idPool, pConn->sid);
-  pConn->pContext = NULL;
+  int64_t lockedBy = pConn->lockedBy; 
+  memset(pConn, 0, sizeof(SRpcConn));
+  pConn->lockedBy = lockedBy;
 
   tTrace("%s, rpc connection is released", pConn->info);
 }
@@ -611,7 +605,6 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
     terrno = TSDB_CODE_RPC_MAX_SESSIONS;
   } else {
     pConn = pRpc->connList + sid;
-    memset(pConn, 0, sizeof(SRpcConn));
 
     pConn->pRpc = pRpc;
     pConn->sid = sid;
