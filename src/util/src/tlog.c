@@ -233,7 +233,9 @@ static void taosGetLogFileName(char *fn) {
     }
   }
 
-  strcpy(tsLogObj.logName, fn);
+  if (strlen(fn) < LOG_FILE_NAME_LEN) {
+    strcpy(tsLogObj.logName, fn);
+  }
 }
 
 static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
@@ -253,15 +255,20 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   tsLogObj.fileNum = maxFileNum;
   taosGetLogFileName(fn);
 
-  strcpy(name, fn);
-  strcat(name, ".0");
+  if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
+    strcpy(name, fn);
+    strcat(name, ".0");
+  }
 
   // if none of the log files exist, open 0, if both exists, open the old one
   if (stat(name, &logstat0) < 0) {
     tsLogObj.flag = 0;
   } else {
-    strcpy(name, fn);
-    strcat(name, ".1");
+    if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
+      strcpy(name, fn);
+      strcat(name, ".1");
+    }
+    
     if (stat(name, &logstat1) < 0) {
       tsLogObj.flag = 1;
     } else {

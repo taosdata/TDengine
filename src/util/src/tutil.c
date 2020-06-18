@@ -27,6 +27,27 @@
 #include "tulog.h"
 #include "taoserror.h"
 
+
+#ifdef WINDOWS
+int taosRand(void)
+{
+  return rand();
+}
+#else
+int taosRand(void)
+{
+  int fd;
+  unsigned long seed;
+  
+  fd = open("/dev/urandom", 0);
+  if ((fd < 0) || (read(fd, &seed, sizeof(seed)) < 0)) seed = time(0);  
+  if (fd >= 0) close(fd);
+  
+  srand(seed);
+  return rand();
+}
+#endif
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -434,8 +455,10 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
-  strcat(tmpPath, fileNamePrefix);
-  strcat(tmpPath, "-%d-%s");
+  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
+    strcat(tmpPath, fileNamePrefix);
+    strcat(tmpPath, "-%d-%s");
+  }
   
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
@@ -447,7 +470,7 @@ void taosRandStr(char* str, int32_t size) {
   int32_t len = 39;
   
   for(int32_t i = 0; i < size; ++i) {
-    str[i] = set[rand()%len];
+    str[i] = set[taosRand()%len];
   }
 }
 

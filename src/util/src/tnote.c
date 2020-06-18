@@ -169,7 +169,9 @@ void taosGetNoteName(char *fn, taosNoteInfo * pNote)
         }
     }
 
-    strcpy(pNote->taosNoteName, fn);
+    if (strlen(fn) < NOTE_FILE_NAME_LEN) {
+      strcpy(pNote->taosNoteName, fn);
+    }
 }
 
 int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInfo * pNote)
@@ -182,14 +184,18 @@ int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInf
     pNote->taosNoteFileNum = maxNoteNum;
     taosGetNoteName(fn, pNote);
 
+    if (strlen(fn) > NOTE_FILE_NAME_LEN * 2 - 2) {
+      fprintf(stderr, "the len of file name overflow:%s\n", fn);
+      return -1;
+    } 
+
     strcpy(name, fn);
     strcat(name, ".0");
 
     // if none of the note files exist, open 0, if both exists, open the old one
     if (stat(name, &notestat0) < 0) {
         pNote->taosNoteFlag = 0;
-    }
-    else {
+    } else {
         strcpy(name, fn);
         strcat(name, ".1");
         if (stat(name, &notestat1) < 0) {
