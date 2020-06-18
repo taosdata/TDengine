@@ -84,7 +84,7 @@ void  rpcSendRedirectRsp(void *pConn, const SRpcIpSet *pIpSet);
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcReportProgress(void *pConn, char *pCont, int contLen);
-void  rpcCanelRequest(void *pContext);
+void  rpcCancelRequest(void *pContext);
 
 #ifdef __cplusplus
 }
