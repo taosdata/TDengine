@@ -299,7 +299,7 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
     return NULL;
   }
 
-  tTrace("%s TCP client is initialized, ip:%s:%hu", label, ip, port);
+  tTrace("%s TCP client is initialized, ip:%u:%hu", label, ip, port);
 
   return pThreadObj;
 }

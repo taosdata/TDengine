@@ -1835,7 +1835,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     assert(pFinalInfo->vgroupList != NULL);
   }
-  
+
   if (cmd == TSDB_SQL_SELECT) {
     size_t size = taosArrayGetSize(pNewQueryInfo->colList);
     

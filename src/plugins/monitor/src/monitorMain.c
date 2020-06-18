@@ -208,7 +208,7 @@ static void monitorInitDatabase() {
 
 static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
   if (-code == TSDB_CODE_MND_TABLE_ALREADY_EXIST || -code == TSDB_CODE_MND_DB_ALREADY_EXIST || code >= 0) {
-    monitorTrace("monitor:%p, sql success, reason:%d, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
+    monitorTrace("monitor:%p, sql success, reason:%s, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
     if (tsMonitorConn.cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
       monitorPrint("dnode:%s is started", tsLocalEp);
     }

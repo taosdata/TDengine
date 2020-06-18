@@ -583,7 +583,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub) {
-  jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%" PRId64, jobj, sub);
+  jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%lld", jobj, sub);
   jniGetGlobalMethod(env);
 
   TAOS_SUB *tsub = (TAOS_SUB *)sub;

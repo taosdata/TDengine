@@ -420,7 +420,7 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
 
   if (pTable->type != TSDB_CHILD_TABLE) {
     tsdbError("vgId:%d failed to update tag value of table %s since its type is %d", pRepo->config.tsdbId,
-              varDataVal(pTable->name), pTable->type);
+              pTable->name->data, pTable->type);
     return TSDB_CODE_TDB_INVALID_TABLE_TYPE;
   }
 
@@ -450,7 +450,7 @@ int tsdbUpdateTagValue(TsdbRepoT *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbError(
         "vgId:%d failed to update tag value of table %s since version out of date, client tag version:%d server tag "
         "version:%d",
-        pRepo->config.tsdbId, varDataVal(pTable->name), tversion, schemaVersion(pTable->tagSchema));
+        pRepo->config.tsdbId, pTable->name->data, tversion, schemaVersion(pTable->tagSchema));
     return TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE;
   }
   if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
@@ -945,7 +945,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   pTable->mem->numOfRows = tSkipListGetSize(pTable->mem->pData);
 
   tsdbTrace("vgId:%d, tid:%d, uid:%" PRId64 ", table:%s a row is inserted to table! key:%" PRId64, pRepo->config.tsdbId,
-            pTable->tableId.tid, pTable->tableId.uid, varDataVal(pTable->name), dataRowKey(row));
+            pTable->tableId.tid, pTable->tableId.uid, pTable->name->data, dataRowKey(row));
 
   return 0;
 }
@@ -958,7 +958,7 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
   if (pTable == NULL) {
-    tsdbError("vgId:%d, failed to get table for insert, uid:" PRIu64 ", tid:%d", pRepo->config.tsdbId, pBlock->uid,
+    tsdbError("vgId:%d, failed to get table for insert, uid:%" PRIu64 ", tid:%d", pRepo->config.tsdbId, pBlock->uid,
               pBlock->tid);
     return TSDB_CODE_TDB_INVALID_TABLE_ID;
   }
@@ -970,7 +970,7 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   int16_t nversion = schemaVersion(pSchema);
   if (tversion > nversion) {
     tsdbTrace("vgId:%d table:%s tid:%d server schema version %d is older than clien version %d, try to config.",
-              pRepo->config.tsdbId, varDataVal(pTable->name), pTable->tableId.tid, nversion, tversion);
+              pRepo->config.tsdbId, pTable->name->data, pTable->tableId.tid, nversion, tversion);
     void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, pTable->tableId.tid);
     if (msg == NULL) {
       return terrno;
@@ -993,7 +993,7 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   } else {
     if (tsdbGetTableSchemaByVersion(pMeta, pTable, tversion) == NULL) {
       tsdbError("vgId:%d table:%s tid:%d invalid schema version %d from client", pRepo->config.tsdbId,
-                varDataVal(pTable->name), pTable->tableId.tid, tversion);
+                pTable->name->data, pTable->tableId.tid, tversion);
       return TSDB_CODE_TDB_TABLE_SCHEMA_VERSION;
     }
   }
@@ -1007,9 +1007,9 @@ static int32_t tsdbInsertDataToTable(TsdbRepoT *repo, SSubmitBlk *pBlock, TSKEY 
   tsdbInitSubmitBlkIter(pBlock, &blkIter);
   while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
     if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
-      tsdbError("vgId:%d, table:%s, tid:%d, talbe uid:%ld timestamp is out of range. now:" PRId64 ", maxKey:" PRId64
-                ", minKey:" PRId64,
-                pRepo->config.tsdbId, varDataVal(pTable->name), pTable->tableId.tid, pTable->tableId.uid, now, minKey, maxKey);
+      tsdbError("vgId:%d, table:%s, tid:%d, talbe uid:%ld timestamp is out of range. now:%" PRId64 ", maxKey:%" PRId64
+                ", minKey:%" PRId64,
+                pRepo->config.tsdbId, pTable->name->data, pTable->tableId.tid, pTable->tableId.uid, now, minKey, maxKey);
       return TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
     }
 
@@ -1279,7 +1279,7 @@ static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minK
 static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
   int8_t oldCompRession = pRepo->config.compression;
   pRepo->config.compression = compression;
-  tsdbTrace("vgId:%d, tsdb compression is changed from %d to %d", oldCompRession, compression);
+  tsdbTrace("tsdb compression is changed from %d to %d", oldCompRession, compression);
 }
 
 static void tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {

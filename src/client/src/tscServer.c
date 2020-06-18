@@ -272,7 +272,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (pRes->code != TSDB_CODE_TSC_QUERY_CANCELLED) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_RPC_NETWORK_UNAVAIL;
   } else {
-    tscTrace("%p query is cancelled, code:%d", pSql, tstrerror(pRes->code));
+    tscTrace("%p query is cancelled, code:%s", pSql, tstrerror(pRes->code));
   }
 
   if (pRes->code == TSDB_CODE_SUCCESS) {
@@ -2180,7 +2180,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscTrace("%p numOfRows:%d, offset:%d, complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
+  tscTrace("%p numOfRows:%" PRId64 ", offset:%" PRId64 ", complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
 
   return 0;
 }

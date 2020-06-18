@@ -739,7 +739,7 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
 
   SDnodeObj *pDnode = mnodeGetDnode(pCfg->dnodeId);
   if (pDnode == NULL) {
-    mTrace("dnode:%s, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
+    mTrace("dnode:%s, vgId:%d, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
   mnodeDecDnodeRef(pDnode);

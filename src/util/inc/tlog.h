@@ -32,8 +32,18 @@ int32_t taosInitLog(char *logName, int32_t numOfLogLines, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
 
-void    taosPrintLog(const char *const flags, int32_t dflag, const char *const format, ...);
-void    taosPrintLongString(const char *const flags, int32_t dflag, const char *const format, ...);
+void    taosPrintLog(const char *flags, int32_t dflag, const char *format, ...)
+#ifdef __GNUC__
+ __attribute__((format(printf, 3, 4)))
+#endif
+;
+
+void    taosPrintLongString(const char * flags, int32_t dflag, const char *format, ...)
+#ifdef __GNUC__
+ __attribute__((format(printf, 3, 4)))
+#endif
+;
+
 void    taosDumpData(unsigned char *msg, int32_t len);
 
 #ifdef __cplusplus

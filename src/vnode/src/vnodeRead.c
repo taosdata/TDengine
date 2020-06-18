@@ -86,7 +86,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     killQueryMsg->free = htons(killQueryMsg->free);
     killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
 
-    vWarn("QInfo:%p connection %p broken, kill query", killQueryMsg->qhandle, pReadMsg->rpcMsg.handle);
+    vWarn("QInfo:%p connection %p broken, kill query", (void*)killQueryMsg->qhandle, pReadMsg->rpcMsg.handle);
     assert(pReadMsg->rpcMsg.contLen > 0 && killQueryMsg->free == 1);
 
     // this message arrived here by means of the query message, so release the vnode is necessary
