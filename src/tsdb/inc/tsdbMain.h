@@ -346,6 +346,7 @@ int         tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 int         tsdbCpySFile(SFile* src, SFile* dst);
+void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state

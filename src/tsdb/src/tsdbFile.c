@@ -35,7 +35,6 @@ static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
 static void  tsdbDestroyFile(SFile *pFile);
 static int   compFGroup(const void *arg1, const void *arg2);
 static int   keyFGroupCompFunc(const void *key, const void *fgroup);
-static void  tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -356,6 +355,26 @@ int tsdbCpySFile(SFile *src, SFile *dst) {
   return 0;
 }
 
+void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
+  ASSERT(pFGroup != NULL);
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+
+  SFileGroup fileGroup = *pFGroup;
+
+  int nFilesLeft = pFileH->nFGroups - (POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);
+  if (nFilesLeft > 0) {
+    memmove((void *)pFGroup, POINTER_SHIFT(pFGroup, sizeof(SFileGroup)), sizeof(SFileGroup) * nFilesLeft);
+  }
+
+  pFileH->nFGroups--;
+  ASSERT(pFileH->nFGroups >= 0);
+
+  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+    remove(fileGroup.files[type].fname);
+    tsdbDestroyFile(&fileGroup.files[type]);
+  }
+}
+
 // ---------------- LOCAL FUNCTIONS ----------------
 static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   uint32_t version;
@@ -416,25 +435,5 @@ static int keyFGroupCompFunc(const void *key, const void *fgroup) {
     return 0;
   } else {
     return fid > pFGroup->fileId ? 1 : -1;
-  }
-}
-
-static void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
-  ASSERT(pFGroup != NULL);
-  STsdbFileH *pFileH = pRepo->tsdbFileH;
-
-  SFileGroup fileGroup = *pFGroup;
-
-  int nFilesLeft = pFileH->nFGroups - (POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);
-  if (nFilesLeft > 0) {
-    memmove((void *)pFGroup, POINTER_SHIFT(pFGroup, sizeof(SFileGroup)), sizeof(SFileGroup) * nFilesLeft);
-  }
-
-  pFileH->nFGroups--;
-  ASSERT(pFileH->nFGroups >= 0);
-
-  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-    remove(fileGroup.files[type].fname);
-    tsdbDestroyFile(&fileGroup.files[type]);
   }
 }
