@@ -441,8 +441,8 @@ void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
       if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {
         vTrace("vgId:%d, access state is set to %d", pAccess[i].vgId)
       }
+      vnodeRelease(pVnode);
     }
-    vnodeRelease(pVnode);
   }
 }
 
