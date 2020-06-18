@@ -354,7 +354,7 @@ static int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     }
 
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
-    tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+    tscTrace("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%z, colList:%z, fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, taosArrayGetSize(pNewQueryInfo->exprList),
              numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, pTableMetaInfo->name);
   }
@@ -551,7 +551,7 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   
   tscTrace(
       "%p subquery:%p tableIndex:%d, vgroupIndex:%d, numOfVgroups:%d, type:%d, ts_comp query to retrieve timestamps, "
-      "numOfExpr:%d, colList:%d, numOfOutputFields:%d, name:%s",
+      "numOfExpr:%z, colList:%z, numOfOutputFields:%d, name:%s",
       pParent, pSql, 0, pTableMetaInfo->vgroupIndex, pTableMetaInfo->vgroupList->numOfVgroups, pQueryInfo->type,
       tscSqlExprNumOfExprs(pQueryInfo), numOfCols, pQueryInfo->fieldsInfo.numOfOutput, pTableMetaInfo->name);
   
@@ -713,28 +713,31 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   if (taosArrayGetSize(s1) == 0 || taosArrayGetSize(s2) == 0) {  // no results,return.
     tscTrace("%p free all sub SqlObj and quit", pParentSql);
     freeJoinSubqueryObj(pParentSql);
-    return;
+
+  } else {
+    // proceed to for ts_comp query
+    SSqlCmd* pSubCmd1 = &pParentSql->pSubs[0]->cmd;
+    SSqlCmd* pSubCmd2 = &pParentSql->pSubs[1]->cmd;
+
+    SQueryInfo*     pQueryInfo1 = tscGetQueryInfoDetail(pSubCmd1, 0);
+    STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo1, 0);
+    tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo1, s1);
+
+    SQueryInfo*     pQueryInfo2 = tscGetQueryInfoDetail(pSubCmd2, 0);
+    STableMetaInfo* pTableMetaInfo2 = tscGetMetaInfo(pQueryInfo2, 0);
+    tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo2, s2);
+
+    pSupporter->pState->numOfTotal = 2;
+    pSupporter->pState->numOfRemain = pSupporter->pState->numOfTotal;
+
+    for (int32_t m = 0; m < pParentSql->numOfSubs; ++m) {
+      SSqlObj* sub = pParentSql->pSubs[m];
+      issueTSCompQuery(sub, sub->param, pParentSql);
+    }
   }
 
-  // proceed to for ts_comp query
-  SSqlCmd* pSubCmd1 = &pParentSql->pSubs[0]->cmd;
-  SSqlCmd* pSubCmd2 = &pParentSql->pSubs[1]->cmd;
-
-  SQueryInfo*     pQueryInfo1 = tscGetQueryInfoDetail(pSubCmd1, 0);
-  STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo1, 0);
-  tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo1, s1);
-
-  SQueryInfo*     pQueryInfo2 = tscGetQueryInfoDetail(pSubCmd2, 0);
-  STableMetaInfo* pTableMetaInfo2 = tscGetMetaInfo(pQueryInfo2, 0);
-  tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo2, s2);
-
-  pSupporter->pState->numOfTotal = 2;
-  pSupporter->pState->numOfRemain = pSupporter->pState->numOfTotal;
-
-  for (int32_t m = 0; m < pParentSql->numOfSubs; ++m) {
-    SSqlObj* sub = pParentSql->pSubs[m];
-    issueTSCompQuery(sub, sub->param, pParentSql);
-  }
+  taosArrayDestroy(s1);
+  taosArrayDestroy(s2);
 }
 
 static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRows) {
@@ -1242,7 +1245,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   
       tscTrace(
           "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to tid_tag query to retrieve (tableId, tags), "
-          "exprInfo:%d, colList:%d, fieldsInfo:%d, tagIndex:%d, name:%s",
+          "exprInfo:%z, colList:%z, fieldsInfo:%d, tagIndex:%d, name:%s",
           pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, index.columnIndex, pNewQueryInfo->pTableMetaInfo[0]->name);
     } else {
@@ -1276,8 +1279,8 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
 
       tscTrace(
-          "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
-          "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+          "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%u, transfer to ts_comp query to retrieve timestamps, "
+          "exprInfo:%z, colList:%z, fieldsInfo:%d, name:%s",
           pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, pNewQueryInfo->pTableMetaInfo[0]->name);
     }
@@ -1699,7 +1702,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
     
-    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%s, orderOfSub:%d", pPObj, pSql,
+    tscTrace("%p sub:%p retrieve numOfRows:%" PRId64 " totalNumOfRows:%" PRIu64 " from ip:%s, orderOfSub:%d", pPObj, pSql,
              pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
     
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
@@ -1827,7 +1830,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   }
   
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {  // at least one peer subquery failed, abort current query
-    tscTrace("%p sub:%p query failed,ip:%u,vgId:%d,orderOfSub:%d,global code:%d", pParentSql, pSql,
+    tscTrace("%p sub:%p query failed,ip:%s,vgId:%d,orderOfSub:%d,global code:%d", pParentSql, pSql,
                pVgroup->ipAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex, pParentSql->res.code);
   
     tscHandleSubqueryError(param, tres, pParentSql->res.code);
