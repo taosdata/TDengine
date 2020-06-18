@@ -134,7 +134,6 @@ TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
 
 _err:
   tsdbCloseRepo(pRepo, false);
-  tsdbFreeRepo(pRepo);
   return NULL;
 }
 

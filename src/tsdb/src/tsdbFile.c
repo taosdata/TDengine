@@ -80,6 +80,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   char *tDataDir = NULL;
   DIR * dir = NULL;
   int   fid = 0;
+  int   vid = 0;
 
   SFileGroup fileGroup = {0};
   STsdbFileH *pFileH = pRepo->tsdbFileH;
@@ -100,7 +101,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   struct dirent *dp = NULL;
   while ((dp = readdir(dir)) != NULL) {
     if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
-    sscanf(dp->d_name, "f%d", &fid);
+    sscanf(dp->d_name, "v%df%d", &vid, &fid);
 
     if (tsdbSearchFGroup(pRepo->tsdbFileH, fid, TD_EQ) != NULL) return 0;
 

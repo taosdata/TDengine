@@ -223,6 +223,8 @@ _err:
 
 int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLen) {
   SKVRecord rInfo = {0};
+  char      buf[64] = "\0";
+  char *    pBuf = buf;
 
   rInfo.offset = lseek(pStore->fd, 0, SEEK_CUR);
   if (rInfo.offset < 0) {
@@ -232,6 +234,16 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
 
   rInfo.uid = uid;
   rInfo.size = contLen;
+
+  int tlen = tdEncodeKVRecord((void *)(&pBuf), &rInfo);
+  ASSERT(tlen == POINTER_DISTANCE(pBuf, buf));
+  ASSERT(tlen == sizeof(SKVRecord));
+
+  if (twrite(pStore->fd, buf, tlen) < tlen) {
+    uError("failed to write %d bytes to file %s since %s", tlen, pStore->fname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
 
   if (twrite(pStore->fd, cont, contLen) < contLen) {
     uError("failed to write %d bytes to file %s since %s", contLen, pStore->fname, strerror(errno));
@@ -534,7 +546,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
   while (taosHashIterNext(pIter)) {
     SKVRecord *pRecord = taosHashIterGet(pIter);
 
-    if (lseek(pStore->fd, pRecord->offset, SEEK_SET) < 0) {
+    if (lseek(pStore->fd, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
       uError("failed to lseek file %s since %s, offset %" PRId64, pStore->fname, strerror(errno), pRecord->offset);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
@@ -551,7 +563,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
       if ((*pStore->iFunc)(pStore->appH, buf, pRecord->size) < 0) {
         uError("failed to restore record uid %" PRIu64 " in kv store %s at offset %" PRId64 " size %" PRId64
                " since %s",
-               pStore->fname, pRecord->uid, pRecord->offset, pRecord->size, tstrerror(terrno));
+               pRecord->uid, pStore->fname, pRecord->offset, pRecord->size, tstrerror(terrno));
         goto _err;
       }
     }
