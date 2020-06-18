@@ -125,7 +125,7 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
   }
 
   // launch stream computing in a new thread
-  SSchedMsg schedMsg;
+  SSchedMsg schedMsg = { 0 };
   schedMsg.fp = tscProcessStreamLaunchQuery;
   schedMsg.ahandle = pStream;
   schedMsg.thandle = (void *)1;
@@ -239,7 +239,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
         /* no resuls in the query range, retry */
         // todo set retry dynamic time
         int32_t retry = tsProjectExecInterval;
-        tscError("%p stream:%p, retrieve no data, code:%d, retry in %" PRId64 "ms", pSql, pStream, numOfRows, retry);
+        tscError("%p stream:%p, retrieve no data, code:%d, retry in %" PRId32 "ms", pSql, pStream, numOfRows, retry);
 
         tscSetRetryTimer(pStream, pStream->pSql, retry);
         return;
@@ -250,7 +250,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
       }
     }
 
-    tscTrace("%p stream:%p, query on:%s, fetch result completed, fetched rows:%d", pSql, pStream, pTableMetaInfo->name,
+    tscTrace("%p stream:%p, query on:%s, fetch result completed, fetched rows:%" PRId64, pSql, pStream, pTableMetaInfo->name,
              pStream->numOfRes);
 
     // release the metric/meter meta information reference, so data in cache can be updated

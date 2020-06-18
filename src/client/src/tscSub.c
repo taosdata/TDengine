@@ -291,7 +291,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   fclose(fp);
 
   taosArraySort(progress, tscCompareSubscriptionProgress);
-  tscTrace("subscription progress loaded, %d tables: %s", taosArrayGetSize(progress), pSub->topic);
+  tscTrace("subscription progress loaded, %z tables: %s", taosArrayGetSize(progress), pSub->topic);
   return 1;
 }
 
@@ -350,7 +350,7 @@ TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char 
 
   pSub->interval = interval;
   if (fp != NULL) {
-    tscTrace("asynchronize subscription, create new timer", topic);
+    tscTrace("asynchronize subscription, create new timer: %s", topic);
     pSub->fp = fp;
     pSub->param = param;
     taosTmrReset(tscProcessSubscriptionTimer, interval, pSub, tscTmr, &pSub->pTimer);
@@ -435,7 +435,9 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
   } else {
     char path[256];
     sprintf(path, "%s/subscribe/%s", tsDataDir, pSub->topic);
-    remove(path);
+    if (remove(path) != 0) {
+      tscError("failed to remove progress file, topic = %s, error = %s", pSub->topic, strerror(errno));
+    }
   }
 
   tscFreeSqlObj(pSub->pSql);
