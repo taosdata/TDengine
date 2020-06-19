@@ -103,7 +103,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
     sscanf(dp->d_name, "v%df%d", &vid, &fid);
 
-    if (tsdbSearchFGroup(pRepo->tsdbFileH, fid, TD_EQ) != NULL) return 0;
+    if (tsdbSearchFGroup(pRepo->tsdbFileH, fid, TD_EQ) != NULL) continue;
 
     memset((void *)(&fileGroup), 0, sizeof(SFileGroup));
     fileGroup.fileId = fid;
