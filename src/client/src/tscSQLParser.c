@@ -1690,7 +1690,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
           return invalidSqlErrMsg(pQueryInfo->msg, msg3);
         }
 
-        if (pItem->pNode->pParam->nExpr > 1 && strlen(pItem->aliasName) > 0) {
+        if (pItem->pNode->pParam->nExpr > 1 && (pItem->aliasName != NULL && strlen(pItem->aliasName) > 0)) {
           return invalidSqlErrMsg(pQueryInfo->msg, msg8);
         }
 
@@ -1761,7 +1761,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
         int32_t numOfFields = 0;
 
         // multicolumn selection does not support alias name
-        if (strlen(pItem->aliasName) != 0) {
+        if (pItem->aliasName != NULL && strlen(pItem->aliasName) > 0) {
           return invalidSqlErrMsg(pQueryInfo->msg, msg8);
         }
 
