@@ -83,6 +83,9 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
 
+#define TSDB_DEFAULT_USER               "root"
+#define TSDB_DEFAULT_PASS               "taosdata"
+
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0

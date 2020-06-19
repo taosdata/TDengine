@@ -412,7 +412,6 @@ void tscKillSTableQuery(SSqlObj *pSql) {
 
   for (int i = 0; i < pSql->numOfSubs; ++i) {
     SSqlObj *pSub = pSql->pSubs[i];
-
     if (pSub == NULL) {
       continue;
     }

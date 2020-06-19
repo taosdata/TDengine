@@ -56,11 +56,11 @@ TAOS *shellInit(SShellArguments *args) {
   if (args->is_use_passwd) {
     if (args->password == NULL) args->password = getpass("Enter password: ");
   } else {
-    args->password = tsDefaultPass;
+    args->password = TSDB_DEFAULT_PASS;
   }
 
   if (args->user == NULL) {
-    args->user = tsDefaultUser;
+    args->user = TSDB_DEFAULT_USER;
   }
 
   taos_init();
@@ -276,6 +276,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   st = taosGetTimestampUs();
 
   TAOS_RES* pSql = taos_query(con, command);
+  result = pSql;  // set it into the global variable
+
   if (taos_errno(pSql)) {
     taos_error(pSql);
     return;
@@ -284,7 +286,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
-    
+
+    result = NULL;
     taos_free_result(pSql);
     return;
   }
@@ -294,6 +297,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     int error_no = 0;
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
+      result = NULL;
       taos_free_result(pSql);
       return;
     }
@@ -315,7 +319,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   if (fname != NULL) {
     wordfree(&full_path);
   }
-  
+
+  result = NULL;
   taos_free_result(pSql);
 }
 
@@ -419,8 +424,8 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
   }
 }
 
-static int dumpResultToFile(const char* fname, TAOS_RES* result) {
-  TAOS_ROW row = taos_fetch_row(result);
+static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
+  TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
   }
@@ -441,9 +446,9 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
 
   wordfree(&full_path);
 
-  int num_fields = taos_num_fields(result);
-  TAOS_FIELD *fields = taos_fetch_fields(result);
-  int precision = taos_result_precision(result);
+  int num_fields = taos_num_fields(tres);
+  TAOS_FIELD *fields = taos_fetch_fields(tres);
+  int precision = taos_result_precision(tres);
 
   for (int col = 0; col < num_fields; col++) {
     if (col > 0) {
@@ -455,7 +460,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
   
   int numOfRows = 0;
   do {
-    int32_t* length = taos_fetch_lengths(result);
+    int32_t* length = taos_fetch_lengths(tres);
     for (int i = 0; i < num_fields; i++) {
       if (i > 0) {
         fputc(',', fp);
@@ -465,10 +470,13 @@ static int dumpResultToFile(const char* fname, TAOS_RES* result) {
     fputc('\n', fp);
 
     numOfRows++;
-    row = taos_fetch_row(result);
+    row = taos_fetch_row(tres);
   } while( row != NULL);
 
+  result = NULL;
+  taos_free_result(tres);
   fclose(fp);
+
   return numOfRows;
 }
 
@@ -769,8 +777,7 @@ void write_history() {
 
 void taos_error(TAOS_RES *tres) {
   fprintf(stderr, "\nDB error: %s\n", taos_errstr(tres));
-
-  /* free local resouce: allocated memory/metric-meta refcnt */
+  result = NULL;
   taos_free_result(tres);
 }
 
@@ -845,9 +852,9 @@ void shellGetGrantInfo(void *con) {
 
   char sql[] = "show grants";
 
-  result = taos_query(con, sql);
+  TAOS_RES* tres = taos_query(con, sql);
 
-  int code = taos_errno(result);
+  int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_COM_OPS_NOT_SUPPORT) {
       fprintf(stdout, "Server is Community Edition, version is %s\n\n", taos_get_server_info(con));
@@ -857,18 +864,18 @@ void shellGetGrantInfo(void *con) {
     return;
   }
 
-  int num_fields = taos_field_count(result);
+  int num_fields = taos_field_count(tres);
   if (num_fields == 0) {
     fprintf(stderr, "\nInvalid grant information.\n");
     exit(0);
   } else {
-    if (result == NULL) {
+    if (tres == NULL) {
       fprintf(stderr, "\nGrant information is null.\n");
       exit(0);
     }
 
-    TAOS_FIELD *fields = taos_fetch_fields(result);
-    TAOS_ROW row = taos_fetch_row(result);
+    TAOS_FIELD *fields = taos_fetch_fields(tres);
+    TAOS_ROW row = taos_fetch_row(tres);
     if (row == NULL) {
       fprintf(stderr, "\nFailed to get grant information from server. Abort.\n");
       exit(0);
@@ -888,8 +895,8 @@ void shellGetGrantInfo(void *con) {
       fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will expire at %s.\n", serverVersion, taos_get_server_info(con), expiretime);
     }
 
-    taos_free_result(result);
     result = NULL;
+    taos_free_result(tres);
   }
 
   fprintf(stdout, "\n");

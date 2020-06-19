@@ -227,12 +227,10 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
   }
 
   if (user == NULL) {
-    jniTrace("jobj:%p, user is null, use tsDefaultUser", jobj);
-    user = tsDefaultUser;
+    jniTrace("jobj:%p, user is null, use default user %s", jobj, TSDB_DEFAULT_USER);
   }
   if (pass == NULL) {
-    jniTrace("jobj:%p, pass is null, use tsDefaultPass", jobj);
-    pass = tsDefaultPass;
+    jniTrace("jobj:%p, pass is null, use default password", jobj);
   }
 
   /*
@@ -252,8 +250,8 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
 
   if (host != NULL) (*env)->ReleaseStringUTFChars(env, jhost, host);
   if (dbname != NULL) (*env)->ReleaseStringUTFChars(env, jdbName, dbname);
-  if (user != NULL && user != tsDefaultUser) (*env)->ReleaseStringUTFChars(env, juser, user);
-  if (pass != NULL && pass != tsDefaultPass) (*env)->ReleaseStringUTFChars(env, jpass, pass);
+  if (user != NULL) (*env)->ReleaseStringUTFChars(env, juser, user);
+  if (pass != NULL) (*env)->ReleaseStringUTFChars(env, jpass, pass);
 
   return ret;
 }
@@ -344,7 +342,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
   STscObj *pObj = pSql->pTscObj;
 
   if (tscIsUpdateQuery(pSql)) {
-    taos_free_result(pSql);  // free result here
+    // taos_free_result(pSql);  // free result here
     jniTrace("jobj:%p, conn:%p, no resultset, %p", jobj, pObj, (void *)tres);
     return 0;
   } else {
@@ -385,7 +383,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getAffectedRowsIm
   }
 
   jint ret = taos_affected_rows((SSqlObj *)res);
-  jniTrace("jobj:%p, conn:%p, sql:%p, affect rows:%d", jobj, tscon, (SSqlObj*)res, ret);
+  jniTrace("jobj:%p, conn:%p, sql:%p, res: %p, affect rows:%d", jobj, tscon, (void *)con, (void *)res, ret);
 
   return ret;
 }
@@ -411,10 +409,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
   // jobject arrayListObj = (*env)->NewObject(env, g_arrayListClass, g_arrayListConstructFp, "");
 
   if (num_fields == 0) {
-    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, (void*)res, num_fields);
+    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, (void *)res, num_fields);
     return JNI_NUM_OF_FIELDS_0;
   } else {
-    jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, (void*)res, num_fields);
+    jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, (void *)res, num_fields);
     for (int i = 0; i < num_fields; ++i) {
       jobject metadataObj = (*env)->NewObject(env, g_metadataClass, g_metadataConstructFp);
       (*env)->SetIntField(env, metadataObj, g_metadataColtypeField, fields[i].type);

@@ -478,7 +478,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   cols++;
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pUser->user, "root") == 0) {
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -490,7 +490,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
 #endif
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pUser->user, "root") == 0) {
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
@@ -514,7 +514,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   cols++;
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pUser->user, "root") == 0) {
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -628,7 +628,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pUser->user, "root") == 0) {
+    if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->numOfVgroups;
@@ -638,7 +638,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 #endif
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pUser->user, "root") == 0) {
+    if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int16_t *)pWrite = pDb->cfg.replications;
@@ -659,7 +659,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pUser->user, "root") == 0) {
+    if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->cfg.maxTables;  // table num can be created should minus 1

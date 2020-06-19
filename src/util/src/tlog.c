@@ -327,7 +327,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());
   len += sprintf(buffer + len, "%s", flags);
 
@@ -414,7 +414,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());
   len += sprintf(buffer + len, "%s", flags);
 

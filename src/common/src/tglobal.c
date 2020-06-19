@@ -109,10 +109,6 @@ int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
 int16_t tsAffectedRowsMod = 0;
 int32_t tsNumOfMnodes = 3;
 int32_t tsMaxShellConns = 5000;
-
-char    tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
-char    tsDefaultUser[64] = "root";
-char    tsDefaultPass[64] = "taosdata";
 int32_t tsMaxConnections = 5000;
 
 int32_t tsBalanceInterval = 300;  // seconds
@@ -710,37 +706,6 @@ static void doInitGlobalConfig() {
   cfg.minValue = TSDB_MIN_REPLICA_NUM;
   cfg.maxValue = TSDB_MAX_REPLICA_NUM;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  // login configs
-  cfg.option = "defaultDB";
-  cfg.ptr = tsDefaultDB;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_DB_NAME_LEN - 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "defaultUser";
-  cfg.ptr = tsDefaultUser;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_USER_LEN - 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "defaultPass";
-  cfg.ptr = tsDefaultPass;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_PASSWORD_LEN - 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
