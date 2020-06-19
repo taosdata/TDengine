@@ -196,8 +196,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = pSql,
       .code    = 0
   };
-  rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
 
+  pSql->SRpcReqContext = rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -422,7 +422,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
      * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
     pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-//    taosStopRpcConn(pSql->pSubs[i]->);
+    rpcCancelRequest(pSql->pSubs[i]->SRpcReqContext);
   }
 
   /*

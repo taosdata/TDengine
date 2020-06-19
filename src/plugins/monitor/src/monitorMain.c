@@ -61,7 +61,7 @@ typedef struct {
   char   ep[TSDB_EP_LEN];
   int8_t cmdIndex;
   int8_t state;
-  char   sql[SQL_LENGTH];
+  char   sql[SQL_LENGTH + 1];
   void * initTimer;
   void * diskTimer;
 } SMonitorConn;

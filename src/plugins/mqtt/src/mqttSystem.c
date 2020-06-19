@@ -164,7 +164,7 @@ void mqtt_PublishCallback(void** unused, struct mqtt_response_publish* published
 void* mqttClientRefresher(void* client) {
   while (mttIsRuning) {
     mqtt_sync((struct mqtt_client*)client);
-    usleep(100000U);
+    taosMsleep(100);
   }
   mqttPrint("Exit  mqttClientRefresher");
   return NULL;
