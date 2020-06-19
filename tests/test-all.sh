@@ -11,7 +11,7 @@ function runSimCaseOneByOne {
   while read -r line; do
     if [[ $line =~ ^run.* ]]; then
       case=`echo $line | awk '{print $NF}'`
-      ./test.sh -f $case > /dev/null && \
+      ./test.sh -f $case > /dev/null 2>&1 && \
         echo -e "${GREEN}$case success${NC}" || \
         echo -e "${RED}$case failed${NC}" | tee -a out.log
     fi
