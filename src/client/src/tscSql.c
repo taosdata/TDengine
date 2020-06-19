@@ -147,6 +147,8 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscTrace("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
+  if (user == NULL) user = TSDB_DEFAULT_USER;
+  if (pass == NULL) pass = TSDB_DEFAULT_PASS;
 
   STscObj* pObj = NULL;
   SSqlObj *pSql = taosConnectImpl(ip, user, pass, db, port, syncConnCallback, NULL, (void**) &pObj);

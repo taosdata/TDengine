@@ -228,11 +228,9 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
 
   if (user == NULL) {
     jniTrace("jobj:%p, user is null, use default user %s", jobj, TSDB_DEFAULT_USER);
-    user = TSDB_DEFAULT_USER;
   }
   if (pass == NULL) {
     jniTrace("jobj:%p, pass is null, use default password", jobj);
-    pass = TSDB_DEFAULT_PASS;
   }
 
   /*
@@ -252,8 +250,8 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
 
   if (host != NULL) (*env)->ReleaseStringUTFChars(env, jhost, host);
   if (dbname != NULL) (*env)->ReleaseStringUTFChars(env, jdbName, dbname);
-  if (user != NULL && user != (const char *)TSDB_DEFAULT_USER) (*env)->ReleaseStringUTFChars(env, juser, user);
-  if (pass != NULL && pass != (const char *)TSDB_DEFAULT_PASS) (*env)->ReleaseStringUTFChars(env, jpass, pass);
+  if (user != NULL) (*env)->ReleaseStringUTFChars(env, juser, user);
+  if (pass != NULL) (*env)->ReleaseStringUTFChars(env, jpass, pass);
 
   return ret;
 }
