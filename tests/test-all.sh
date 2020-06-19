@@ -1,22 +1,5 @@
 #!/bin/bash
 
-function runSimCaseOneByOne {
-  while read -r line; do
-    if [[ $line =~ ^run.* ]]; then
-      case=`echo $line | awk '{print $2}'`
-      ./test.sh -f $case 2>&1 | grep 'success\|failed\|fault' | grep -v 'default' | tee -a out.log
-    fi
-  done < $1
-}
-
-function runPyCaseOneByOne {
-  while read -r line; do
-    if [[ $line =~ ^python.* ]]; then
-      $line 2>&1 | grep 'successfully executed\|failed\|fault' | grep -v 'default'| tee -a pytest-out.log
-    fi
-  done < $1
-}
-
 # Color setting
 RED='\033[0;31m'
 GREEN='\033[1;32m'
@@ -24,9 +7,34 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
+function runSimCaseOneByOne {
+  while read -r line; do
+    if [[ $line =~ ^run.* ]]; then
+      case=`echo $line | awk '{print $NF}'`
+      ./test.sh -f $case > /dev/null && \
+        echo -e "${GREEN}$case success${NC}" || \
+        echo -e "${RED}$case failed${NC}" | tee -a out.log
+    fi
+  done < $1
+}
+
+function runPyCaseOneByOne {
+  while read -r line; do
+    if [[ $line =~ ^python.* ]]; then
+      if [[ $line != *sleep* ]]; then
+        case=`echo $line|awk '{print $NF}'`
+        $line > /dev/null 2>&1 && \
+          echo -e "${GREEN}$case success${NC}" || \
+          echo -e "${RED}$case failed${NC}" | tee -a pytest-out.log
+      else
+        $line > /dev/null 2>&1
+      fi
+    fi
+  done < $1
+}
+
 totalFailed=0
 totalPyFailed=0
-
 
 current_dir=`pwd`
 
@@ -67,6 +75,25 @@ fi
 
 if [ "$2" != "sim" ]; then
   echo "### run Python test case ###"
+
+  IN_TDINTERNAL="community"
+
+  if [[ "$current_dir" == *"$IN_TDINTERNAL"* ]]; then
+    cd ../..
+  else
+    cd ../
+  fi
+
+  TOP_DIR=`pwd`
+  TAOSLIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1`
+  if [[ "$TAOSLIB_DIR" == *"$IN_TDINTERNAL"* ]]; then
+    LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4,5`
+  else
+    LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4`
+  fi
+
+  export LD_LIBRARY_PATH=$TOP_DIR/$LIB_DIR:$LD_LIBRARY_PATH
+
   cd $current_dir/pytest
 
   [ -f pytest-out.log ] && rm -f pytest-out.log
@@ -81,7 +108,7 @@ if [ "$2" != "sim" ]; then
     echo "### run Python smoke test ###"
     runPyCaseOneByOne smoketest.sh
   fi
-  totalPySuccess=`grep 'successfully executed' pytest-out.log | wc -l`
+  totalPySuccess=`grep 'success' pytest-out.log | wc -l`
 
   if [ "$totalPySuccess" -gt "0" ]; then
     echo -e "${GREEN} ### Total $totalPySuccess python case(s) succeed! ### ${NC}"
