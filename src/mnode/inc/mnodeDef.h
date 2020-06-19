@@ -89,14 +89,14 @@ typedef struct SSuperTableObj {
   int32_t    tversion;
   int32_t    numOfColumns;
   int32_t    numOfTags;
-  int8_t     reserved0[3];
+  int8_t     reserved1[3];
   int8_t     updateEnd[1];
   int32_t    refCount;
   int32_t    numOfTables;
   SSchema *  schema;
   void *     vgHash;
   int16_t    nextColId;
-  int8_t     reserved1[6];
+  int8_t     reserved2[6];
 } SSuperTableObj;
 
 typedef struct {
