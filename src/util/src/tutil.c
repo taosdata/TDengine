@@ -29,12 +29,12 @@
 
 
 #ifdef WINDOWS
-int taosRand(void)
+uint32_t taosRand(void)
 {
   return rand();
 }
 #else
-int taosRand(void)
+uint32_t taosRand(void)
 {
   int fd;
   int seed;
@@ -50,7 +50,7 @@ int taosRand(void)
     close(fd);
   }
 
-  return seed;
+  return (uint32_t)seed;
 }
 #endif
 
@@ -474,9 +474,9 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
 void taosRandStr(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
   int32_t len = 39;
-  
-  for(int32_t i = 0; i < size; ++i) {
-    str[i] = set[taosRand()%len];
+
+  for (int32_t i = 0; i < size; ++i) {
+    str[i] = set[taosRand() % len];
   }
 }
 

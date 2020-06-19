@@ -117,7 +117,7 @@ extern "C" {
 
 #define POW2(x) ((x) * (x))
 
-int taosRand(void);
+uint32_t taosRand(void);
 
 int32_t strdequote(char *src);
 
