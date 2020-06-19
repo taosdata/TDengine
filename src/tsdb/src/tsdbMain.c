@@ -62,7 +62,7 @@ static int         tsdbRestoreInfo(STsdbRepo *pRepo);
 static int         tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 static void        tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
 static int         tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
-static void        tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
+static int         tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
 static int         tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
 static int         keyFGroupCompFunc(const void *key, const void *fgroup);
 static int         tsdbEncodeCfg(void **buf, STsdbCfg *pCfg);
@@ -303,7 +303,10 @@ int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
     configChanged = true;
   }
   if (pRCfg->maxTables != pCfg->maxTables) {
-    tsdbAlterMaxTables(pRepo, pCfg->maxTables);
+    if (tsdbAlterMaxTables(pRepo, pCfg->maxTables) < 0) {
+      tsdbError("vgId:%d failed to configure repo when alter maxTables since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
     configChanged = true;
   }
 
@@ -885,11 +888,12 @@ static int tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
   return 0;
 }
 
-static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
+static int tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   // TODO
   int oldMaxTables = pRepo->config.maxTables;
   if (oldMaxTables < pRepo->config.maxTables) {
-    // TODO
+    terrno = TSDB_CODE_TDB_INVALID_ACTION;
+    return -1;
   }
 
   STsdbMeta *pMeta = pRepo->tsdbMeta;
@@ -898,7 +902,20 @@ static void tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
   memset(&pMeta->tables[oldMaxTables], 0, sizeof(STable *) * (maxTables - oldMaxTables));
   pRepo->config.maxTables = maxTables;
 
+  if (pRepo->mem) {
+    pRepo->mem->tData = realloc(pRepo->mem->tData, maxTables * sizeof(STableData *));
+    memset(POINTER_SHIFT(pRepo->mem->tData, sizeof(STableData *) * oldMaxTables), 0,
+           sizeof(STableData *) * (maxTables - oldMaxTables));
+  }
+
+  if (pRepo->imem) {
+    pRepo->imem->tData = realloc(pRepo->imem->tData, maxTables * sizeof(STableData *));
+    memset(POINTER_SHIFT(pRepo->imem->tData, sizeof(STableData *) * oldMaxTables), 0,
+           sizeof(STableData *) * (maxTables - oldMaxTables));
+  }
+
   tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
+  return 0;
 }
 
 static int keyFGroupCompFunc(const void *key, const void *fgroup) {
