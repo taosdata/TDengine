@@ -83,7 +83,7 @@ static void acctDoStatistic(void *handle, void *tmrId) {
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
   }
 
-  taosTmrReset(acctDoStatistic, tsStatusInterval * 30000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
+  taosTmrReset(acctDoStatistic, tsMonitorInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
 }
 
 int32_t acctInit() {
@@ -164,14 +164,14 @@ static int32_t acctCheckAcctParams(SAcctCfg *pCfg) {
   }
 
   if (pCfg->maxStorage < TSDB_MIN_STORAGE_PER_ACCT || pCfg->maxStorage > TSDB_MAX_STORAGE_PER_ACCT) {
-    mWarn("Invalid acct parameter maxStorage: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxStorage, TSDB_MIN_STORAGE_PER_ACCT,
-          TSDB_MAX_STORAGE_PER_ACCT);
+    mWarn("Invalid acct parameter maxStorage: %" PRId64 ", range: %d--%" PRId64, pCfg->maxStorage,
+          TSDB_MIN_STORAGE_PER_ACCT, TSDB_MAX_STORAGE_PER_ACCT);
     return -1;
   }
 
   if (pCfg->maxQueryTime < TSDB_MIN_QUERYTIME_PER_ACCT || pCfg->maxQueryTime > TSDB_MAX_QUERYTIME_PER_ACCT) {
-    mWarn("Invalid acct parameter maxQueryTime: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxQueryTime, TSDB_MIN_QUERYTIME_PER_ACCT,
-          TSDB_MAX_QUERYTIME_PER_ACCT);
+    mWarn("Invalid acct parameter maxQueryTime: %" PRId64 ", range: %d--%" PRId64, pCfg->maxQueryTime,
+          TSDB_MIN_QUERYTIME_PER_ACCT, TSDB_MAX_QUERYTIME_PER_ACCT);
     return -1;
   }
 
@@ -467,15 +467,15 @@ static int32_t acctCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
 
   if (pCfg->maxStorage >= 0 &&
       (pCfg->maxStorage < TSDB_MIN_STORAGE_PER_ACCT || pCfg->maxStorage > TSDB_MAX_STORAGE_PER_ACCT)) {
-    mWarn("Invalid acct parameter maxStorage: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxStorage, TSDB_MIN_STORAGE_PER_ACCT,
-          TSDB_MAX_STORAGE_PER_ACCT);
+    mWarn("Invalid acct parameter maxStorage: %" PRId64 ", range: %d--%" PRId64, pCfg->maxStorage,
+          TSDB_MIN_STORAGE_PER_ACCT, TSDB_MAX_STORAGE_PER_ACCT);
     return -1;
   }
 
   if (pCfg->maxQueryTime >= 0 &&
       (pCfg->maxQueryTime < TSDB_MIN_QUERYTIME_PER_ACCT || pCfg->maxQueryTime > TSDB_MAX_QUERYTIME_PER_ACCT)) {
-    mWarn("Invalid acct parameter maxQueryTime: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxQueryTime, TSDB_MIN_QUERYTIME_PER_ACCT,
-          TSDB_MAX_QUERYTIME_PER_ACCT);
+    mWarn("Invalid acct parameter maxQueryTime: %" PRId64 ", range: %d--%" PRId64, pCfg->maxQueryTime,
+          TSDB_MIN_QUERYTIME_PER_ACCT, TSDB_MAX_QUERYTIME_PER_ACCT);
     return -1;
   }
 
@@ -527,13 +527,15 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
   }
 
   if (pCfg->maxStorage > 0) {
-    mTrace("account: %s maxStorage is modified from %d to %d", name, pAcct->cfg.maxStorage, pCfg->maxStorage);
+    mTrace("account: %s maxStorage is modified from %" PRId64 " to %" PRId64, name, pAcct->cfg.maxStorage,
+           pCfg->maxStorage);
     pAcct->cfg.maxStorage = pCfg->maxStorage;
     // TODO : Reactive account vnodes
   }
 
   if (pCfg->maxQueryTime > 0) {
-    mTrace("account: %s maxQueryTime is modified from %d to %d", name, pAcct->cfg.maxQueryTime, pCfg->maxQueryTime);
+    mTrace("account: %s maxQueryTime is modified from %" PRId64 " to %" PRId64, name, pAcct->cfg.maxQueryTime,
+           pCfg->maxQueryTime);
     pAcct->cfg.maxQueryTime = pCfg->maxQueryTime;
     // TODO : Reactive account vnodes
   }
@@ -577,6 +579,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
     if (pVgroup->pDb != NULL && pVgroup->pDb->pAcct == pAcct) {
       totalStorage += pVgroup->totalStorage;
       pointsWritten += pVgroup->pointsWritten;
+      pVgroup->accessState = pAcct->acctInfo.accessState;
     }
     mnodeDecVgroupRef(pVgroup);
   }
@@ -589,6 +592,28 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   pAcct->acctInfo.sKey = sKey;
   pAcct->acctInfo.totalPoints = pointsWritten;
 
+  // set vnode access
+  char accessState = TSDB_VN_ALL_ACCCESS;
+  if (pAcct->acctInfo.totalStorage > pAcct->cfg.maxStorage) {
+    accessState &= (~TSDB_VN_WRITE_ACCCESS);
+    mTrace("acct:%s, set state to no write access, totalStorage:%" PRId64 " maxStorage:%" PRId64, pAcct->user,
+           pAcct->acctInfo.totalStorage, pAcct->cfg.maxStorage);
+  }
+
+  if (grantCheck(TSDB_GRANT_STORAGE) != 0) {
+    accessState &= (~TSDB_VN_WRITE_ACCCESS);
+    mTrace("acct:%s, set state to no write access, totalStorage:%" PRId64 " larger than grant value", pAcct->user,
+           pAcct->acctInfo.totalStorage);
+  }
+
+  if (pAcct->acctInfo.queryTime > pAcct->cfg.maxQueryTime) {
+    accessState &= (~TSDB_VN_READ_ACCCESS);
+  }
+
+  accessState &= pAcct->cfg.accessState;
+  pAcct->acctInfo.accessState = accessState;
+
+  // record monitor info
   SAcctMonitorObj monObj = {0};
   monObj.acctId                 = pAcct->user;
   monObj.currentPointsPerSecond = pAcct->acctInfo.numOfPointsPerSecond;
@@ -683,7 +708,7 @@ static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
 
 static int32_t acctCheckUserLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxUsers != 0 && pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
-    mError("acct:%s, users:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
+    mError("acct:%s, users:%d exceed limit:%d", pAcct->user, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
     return TSDB_CODE_MND_TOO_MANY_USERS;
   }
   return TSDB_CODE_SUCCESS;
@@ -691,7 +716,7 @@ static int32_t acctCheckUserLimit(SAcctObj *pAcct) {
 
 static int32_t acctrCheckDbLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxDbs != 0 && pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
-    mError("acct:%s, dbs:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
+    mError("acct:%s, dbs:%d exceed limit:%d", pAcct->user, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
     return TSDB_CODE_MND_TOO_MANY_DATABASES;
   }
   return TSDB_CODE_SUCCESS;
@@ -699,7 +724,8 @@ static int32_t acctrCheckDbLimit(SAcctObj *pAcct) {
 
 static int32_t acctCheckTableLimit(SAcctObj *pAcct) {
   if (pAcct->cfg.maxTimeSeries != 0 && pAcct->acctInfo.numOfTimeSeries >= pAcct->cfg.maxTimeSeries) {
-    mError("acct:%s, timeSeries:%d exceed limit:%d", pAcct->acctId, pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
+    mError("acct:%s, timeSeries:%d exceed limit:%d", pAcct->user, pAcct->acctInfo.numOfTimeSeries,
+           pAcct->cfg.maxTimeSeries);
     return TSDB_CODE_MND_TOO_MANY_TIMESERIES;
   }
   return TSDB_CODE_SUCCESS;

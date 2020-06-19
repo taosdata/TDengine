@@ -248,14 +248,14 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   sfd = open(name, O_RDONLY);
   if (sfd < 0) return -1;
   lseek(sfd, offset, SEEK_SET);
-  sTrace("%s, retrieve last wal, offset:%d fversion:%ld", pPeer->id, offset, fversion);
+  sTrace("%s, retrieve last wal, offset:%" PRId64 " fversion:%" PRIu64, pPeer->id, offset, fversion);
 
   while (1) {
     int wsize = syncReadOneWalRecord(sfd, pHead, pEvent); 
     if (wsize <0) break;
     if (wsize == 0) { code = 0; break; }
 
-    sTrace("%s, last wal is forwarded, ver:%d ", pPeer->id, pHead->version);
+    sTrace("%s, last wal is forwarded, ver:%" PRIu64, pPeer->id, pHead->version);
     int ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if ( ret != wsize ) break;
     pPeer->sversion = pHead->version;

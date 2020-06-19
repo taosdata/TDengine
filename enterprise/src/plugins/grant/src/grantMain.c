@@ -431,9 +431,9 @@ static int32_t grantCheckStorage() {
 
   if (grantStatus.limitStorage == GRANT_STORAGE_LIMITS || grantStatus.curStorage <= grantStatus.limitStorage) {
     return 0;
-  }
-  else {
-    uError("grant storage in-available, used:%lld, grant:%lld, reason:grant storage limited", grantStatus.curStorage, grantStatus.limitStorage);
+  } else {
+    uError("grant storage in-available, used:%" PRIu64 ", grant:%" PRIu64 ", reason:grant storage limited",
+           grantStatus.curStorage, grantStatus.limitStorage);
     return TSDB_CODE_GRANT_STORAGE_LIMITED;
   }
 }
