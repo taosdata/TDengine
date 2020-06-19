@@ -198,8 +198,6 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   };
 
   pSql->SRpcReqContext = rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
-  assert(pSql->SRpcReqContext != NULL);
-
   return TSDB_CODE_SUCCESS;
 }
 
