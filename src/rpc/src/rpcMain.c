@@ -577,17 +577,23 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     size_t size = snprintf(hashstr, sizeof(hashstr), "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
     taosHashRemove(pRpc->hash, hashstr, size);
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
-  } 
+    pConn->pRspMsg = NULL;
   
-  tTrace("%s, rpc connection is released", pConn->info);
+    if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);
+  } 
 
-  // lockedBy can not be reset, since it maybe hold by a thread
-  int sid = pConn->sid;
-  int64_t lockedBy = pConn->lockedBy; 
-  memset(pConn, 0, sizeof(SRpcConn));
-  pConn->lockedBy = lockedBy;
-  pConn->pRpc = pRpc;
-  taosFreeId(pRpc->idPool, sid);
+  // memset could not be used, since lockeBy can not be reset
+  pConn->inType = 0;
+  pConn->outType = 0;
+  pConn->inTranId = 0;
+  pConn->outTranId = 0;
+  pConn->secured = 0;
+  pConn->pReqMsg = NULL;
+  pConn->reqMsgLen = 0;
+  pConn->pContext = NULL;
+
+  taosFreeId(pRpc->idPool, pConn->sid);
+  tTrace("%s, rpc connection is released", pConn->info);
 }
 
 static void rpcCloseConn(void *thandle) {
@@ -645,7 +651,6 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     terrno = TSDB_CODE_RPC_MAX_SESSIONS;
   } else {
     pConn = pRpc->connList + sid;
-    memset(pConn, 0, sizeof(SRpcConn));
     memcpy(pConn->user, pHead->user, tListLen(pConn->user));
     pConn->pRpc = pRpc;
     pConn->sid = sid;
@@ -886,6 +891,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
 
 static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
+  if (pConn->pReqMsg == NULL) return;
 
   // if there are pending request, notify the app
   rpcAddRef(pRpc);
@@ -898,6 +904,8 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   rpcMsg.handle = pConn;
   rpcMsg.msgType = pConn->inType;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+  pConn->pReqMsg = NULL;
+  pConn->reqMsgLen = 0;
   if (pRpc->cfp) (*(pRpc->cfp))(&rpcMsg, NULL);
 }
 
