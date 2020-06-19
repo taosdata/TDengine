@@ -36,6 +36,7 @@ uint32_t taosRand(void)
 #else
 uint32_t taosRand(void)
 {
+/*
   int fd;
   int seed;
   
@@ -51,6 +52,8 @@ uint32_t taosRand(void)
   }
 
   return (uint32_t)seed;
+*/
+  return rand();
 }
 #endif
 
