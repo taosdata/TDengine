@@ -33,7 +33,7 @@ struct SMnodeObj;
 struct define notes:
 1. The first field must be the xxxxId field or name field , e.g. 'int32_t dnodeId', 'int32_t mnodeId', 'char name[]', 'char user[]', ...
 2. From the dnodeId field to the updataEnd field, these information will be falled disc;
-3. The fields behind the updataEnd field are changing;
+3. The fields behind the updataEnd field can be changed;
 */
 
 typedef struct SDnodeObj {
