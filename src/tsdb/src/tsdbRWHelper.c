@@ -152,7 +152,7 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
     pHelper->files.headF.fd = -1;
   }
   if (pHelper->files.dataF.fd > 0) {
-    if ((helperType(pHelper) == TSDB_WRITE_HELPER)) {
+    if (helperType(pHelper) == TSDB_WRITE_HELPER) {
       tsdbUpdateFileHeader(&(pHelper->files.dataF), 0);
       fsync(pHelper->files.dataF.fd);
     }
