@@ -64,12 +64,20 @@ SSchema* tscGetTableSchema(const STableMeta* pTableMeta);
 SSchema *tscGetTableTagSchema(const STableMeta *pMeta);
 
 /**
- *
+ * get the column schema according to the column index
  * @param pMeta
- * @param startCol
+ * @param colIndex
  * @return
  */
-SSchema *tscGetTableColumnSchema(const STableMeta *pMeta, int32_t startCol);
+SSchema *tscGetTableColumnSchema(const STableMeta *pMeta, int32_t colIndex);
+
+/**
+ * get the column schema according to the column id
+ * @param pTableMeta
+ * @param colId
+ * @return
+ */
+SSchema* tscGetTableColumnSchemaById(STableMeta* pTableMeta, int16_t colId);
 
 /**
  * check if the schema is valid or not, including following aspects:

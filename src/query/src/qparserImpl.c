@@ -497,10 +497,18 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
          * number of bytes in UCS-4 format, which is 4 times larger than the
          * number of characters
          */
-        pField->bytes = -(int32_t)type->type * TSDB_NCHAR_SIZE + LENGTH_SIZE_OF_STR;
+        if (type->type == 0) {
+          pField->bytes = 0;
+        } else {
+          pField->bytes = -(int32_t)type->type * TSDB_NCHAR_SIZE + LENGTH_SIZE_OF_STR;
+        }
       } else if (i == TSDB_DATA_TYPE_BINARY) {
         /* for binary, the TOKENTYPE is the length of binary */
-        pField->bytes = -(int32_t) type->type + LENGTH_SIZE_OF_STR;
+        if (type->type == 0) {
+          pField->bytes = 0;
+        } else {
+          pField->bytes = -(int32_t) type->type + LENGTH_SIZE_OF_STR;
+        } 
       }
       break;
     }
@@ -775,19 +783,14 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
 
   while (nParam-- > 0) {
     SSQLToken *pToken = va_arg(va, SSQLToken *);
-    (void)tTokenListAppend(pInfo->pDCLInfo, pToken);
+    pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
   }
   va_end(va);
 }
 
 void setDropDBTableInfo(SSqlInfo *pInfo, int32_t type, SSQLToken* pToken, SSQLToken* existsCheck) {
   pInfo->type = type;
-  
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
-  }
-  
-  tTokenListAppend(pInfo->pDCLInfo, pToken);
+  pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
   pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
 }
 

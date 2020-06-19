@@ -7,6 +7,7 @@ system sh/deploy.sh -n dnode4 -i 4
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
 
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/cfg.sh -n dnode2 -c walLevel -v 2
@@ -32,11 +33,11 @@ system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
 
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
 
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
@@ -97,8 +98,13 @@ print ============== step3: drop dnode4, then check rows
 #system sh/exec.sh -n dnode4 -s stop -x SIGINT
 sql drop dnode $hostname4
 sleep $sleepTimer
-
+$loopCnt = 0
 wait_dnode4_dropped:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then 
+  return -1
+endi
+
 sql show dnodes
 if $rows != 3 then
   sleep 2000

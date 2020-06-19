@@ -6,7 +6,12 @@
 #include "queryLog.h"
 
 int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize, void* handle) {
-  SDiskbasedResultBuf* pResBuf = calloc(1, sizeof(SDiskbasedResultBuf));
+  *pResultBuf = calloc(1, sizeof(SDiskbasedResultBuf));
+  SDiskbasedResultBuf* pResBuf = *pResultBuf;
+  if (pResBuf == NULL) {
+    return TSDB_CODE_COM_OUT_OF_MEMORY;  
+  }
+  
   pResBuf->numOfRowsPerPage = (DEFAULT_INTERN_BUF_PAGE_SIZE - sizeof(tFilePage)) / rowSize;
   pResBuf->numOfPages = size;
 
@@ -46,7 +51,6 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
   qTrace("QInfo:%p create tmp file for output result, %s, %" PRId64 "bytes", handle, pResBuf->path,
       pResBuf->totalBufSize);
   
-  *pResultBuf = pResBuf;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -210,7 +214,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
 }
 
 int32_t getLastPageId(SIDList *pList) {
-  if (pList == NULL && pList->size <= 0) {
+  if (pList == NULL || pList->size <= 0) {
     return -1;
   }
   

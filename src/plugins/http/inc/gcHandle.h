@@ -16,15 +16,11 @@
 #ifndef TDENGINE_GC_HANDLE_H
 #define TDENGINE_GC_HANDLE_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
 #include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpUtil.h"
 #include "httpResp.h"
+#include "httpSql.h"
 
 #define GC_ROOT_URL_POS   0
 #define GC_ACTION_URL_POS 1

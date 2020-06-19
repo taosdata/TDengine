@@ -1,8 +1,7 @@
 system sh/stop_dnodes.sh
 
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -91,10 +90,10 @@ endi
 if $data31 != INT then 
   return -1
 endi
-if $data23 != false then
+if $data23 != TAG then
   return -1
 endi
-if $data33 != 4 then 
+if $data33 != TAG then 
   return -1
 endi
 
@@ -338,7 +337,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -365,7 +364,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -392,7 +391,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -419,7 +418,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -446,7 +445,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 

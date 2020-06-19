@@ -7,6 +7,7 @@ system sh/deploy.sh -n dnode4 -i 4
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
 
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/cfg.sh -n dnode2 -c walLevel -v 2
@@ -32,11 +33,11 @@ system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
 
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
 
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
@@ -96,7 +97,13 @@ print ============== step3: stop dnode4/dnode2
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep $sleepTimer
+
+$loopCnt = 0
 wait_dnode4_offline_0:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
 sql show dnodes
 if $rows != 4 then
   sleep 2000
@@ -123,7 +130,13 @@ if $dnode2Status != offline then
   goto wait_dnode4_offline_0
 endi
 
+$loopCnt = 0
 wait_dnode4_vgroup_offline:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
+
 sql show vgroups
 if $rows != 1 then
   sleep 2000
@@ -192,7 +205,12 @@ endi
 print ============== step5: stop dnode3
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep $sleepTimer
+$loopCnt = 0
 wait_dnode3_offline_0:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
 sql show dnodes
 if $rows != 4 then
   sleep 2000
@@ -221,7 +239,12 @@ if $dnode2Status != ready then
   goto wait_dnode3_offline_0
 endi
 
+$loopCnt = 0
 wait_dnode2_vgroup_master:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
 sql show vgroups
 if $rows != 1 then
   sleep 2000
@@ -243,8 +266,8 @@ if $dnode2Vtatus != master then
   goto wait_dnode2_vgroup_master
 endi
 
-sql insert into tb98 values (now, 9000) (now + 1s, 9001) (now + 2s, 9002) tb99 values (now, 9000) (now + 1s, 9001) (now + 2s, 9002)
-$totalRows = $totalRows + 6
+sql insert into $tb values (now, 9000) (now + 1s, 9001) (now + 2s, 9002)
+$totalRows = $totalRows + 3
 sql select count(*) from $stb
 print data00 $data00
 if $data00 != $totalRows then

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCSECONARYMERGE_H
-#define TDENGINE_TSCSECONARYMERGE_H
+#ifndef TDENGINE_TSCLOCALMERGE_H
+#define TDENGINE_TSCLOCALMERGE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,14 +27,7 @@ extern "C" {
 #include "tsclient.h"
 
 #define MAX_NUM_OF_SUBQUERY_RETRY 3
-
-/*
- * @version 0.1
- * @date   2018/01/05
- * @author liaohj
- * management of client-side reducer for metric query
- */
-
+  
 struct SQLFunctionCtx;
 
 typedef struct SLocalDataSource {
@@ -60,7 +53,6 @@ typedef struct SLocalReducer {
   char *                 prevRowOfInput;
   tFilePage *            pResultBuf;
   int32_t                nResultBufSize;
-//  char *                 pBufForInterpo;  // intermediate buffer for interpolation
   tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
   int32_t                rowSize;      // size of each intermediate result.
@@ -81,13 +73,8 @@ typedef struct SLocalReducer {
 } SLocalReducer;
 
 typedef struct SSubqueryState {
-  /*
-   * the number of completed retrieval subquery, once this value equals to numOfVnodes,
-   * all retrieval are completed.Local merge is launched.
-   */
-  int32_t  numOfCompleted;
-  int32_t  numOfTotal;          // number of total sub-queries
-  int32_t  code;                // code from subqueries
+  int32_t  numOfRemain;         // the number of remain unfinished subquery
+  int32_t  numOfTotal;          // the number of total sub-queries
   uint64_t numOfRetrievedRows;  // total number of points in this query
 } SSubqueryState;
 
@@ -128,4 +115,4 @@ int32_t tscDoLocalMerge(SSqlObj *pSql);
 }
 #endif
 
-#endif  // TDENGINE_TSCSECONARYMERGE_H
+#endif  // TDENGINE_TSCLOCALMERGE_H

@@ -108,6 +108,7 @@ sql select join_mt0.ts,join_mt0.ts,join_mt0.t1 from join_mt0, join_mt1 where joi
 
 print $row
 if $row != 3000 then
+  print expect 3000, actual: $row
   return -1
 endi
 

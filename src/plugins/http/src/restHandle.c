@@ -65,7 +65,7 @@ bool restGetUserFromUrl(HttpContext* pContext) {
     return false;
   }
 
-  strcpy(pContext->user, pParser->path[REST_USER_URL_POS].pos);
+  tstrncpy(pContext->user, pParser->path[REST_USER_URL_POS].pos, TSDB_USER_LEN);
   return true;
 }
 
@@ -75,7 +75,7 @@ bool restGetPassFromUrl(HttpContext* pContext) {
     return false;
   }
 
-  strcpy(pContext->pass, pParser->path[REST_PASS_URL_POS].pos);
+  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
   return true;
 }
 

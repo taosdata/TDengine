@@ -109,7 +109,7 @@ void* taos_execute(void *param) {
 
   taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
-  void *taos = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
+  void *taos = taos_connect(fqdn, "root", "taosdata", NULL, port);
   if (taos == NULL) taos_error(taos);
 
   char sql[1024] = {0};

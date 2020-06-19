@@ -27,6 +27,33 @@
 #include "tulog.h"
 #include "taoserror.h"
 
+
+#ifdef WINDOWS
+uint32_t taosRand(void)
+{
+  return rand();
+}
+#else
+uint32_t taosRand(void)
+{
+  int fd;
+  int seed;
+  
+  fd = open("/dev/urandom", 0);
+  if (fd < 0) {
+    seed = time(0);
+  } else {
+    int len = read(fd, &seed, sizeof(seed));
+    if (len < 0) {
+      seed = time(0);
+    }  
+    close(fd);
+  }
+
+  return (uint32_t)seed;
+}
+#endif
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -434,8 +461,10 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
-  strcat(tmpPath, fileNamePrefix);
-  strcat(tmpPath, "-%d-%s");
+  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
+    strcat(tmpPath, fileNamePrefix);
+    strcat(tmpPath, "-%d-%s");
+  }
   
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
@@ -445,9 +474,9 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
 void taosRandStr(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
   int32_t len = 39;
-  
-  for(int32_t i = 0; i < size; ++i) {
-    str[i] = set[rand()%len];
+
+  for (int32_t i = 0; i < size; ++i) {
+    str[i] = set[taosRand() % len];
   }
 }
 
@@ -557,7 +586,7 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
     return false;
   }
 
-  int versionNumberPos[4] = {0};
+  int versionNumberPos[5] = {0};
   int len = strlen(versionStr);
   int dot = 0;
   for (int pos = 0; pos < len && dot < 4; ++pos) {
@@ -709,7 +738,7 @@ void taosRemoveDir(char *rootDir) {
     if (de->d_type & DT_DIR) {
       taosRemoveDir(filename);
     } else {
-      remove(filename);
+      (void)remove(filename);
       uPrint("file:%s is removed", filename);
     }
   }

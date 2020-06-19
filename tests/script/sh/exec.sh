@@ -97,13 +97,17 @@ else
   #relative path
   RCFG_DIR=sim/$NODE_NAME/cfg
   PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
-  if [ -n "$PID" ]; then 
+  while [ -n "$PID" ]
+  do
     if [ "$SIGNAL" = "SIGINT" ]; then 
-      echo killed by signal
+      echo try to kill by signal SIGINT
       kill -SIGINT $PID
     else
+      echo try to kill by signal SIGKILL
       kill -9 $PID
     fi
-  fi 
+    sleep 1
+    PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
+  done 
 fi
 

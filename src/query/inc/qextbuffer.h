@@ -149,7 +149,7 @@ int16_t tExtMemBufferPut(tExtMemBuffer *pMemBuffer, void *data, int32_t numOfRow
  * @param pMemBuffer
  * @return
  */
-bool tExtMemBufferFlush(tExtMemBuffer *pMemBuffer);
+int32_t tExtMemBufferFlush(tExtMemBuffer *pMemBuffer);
 
 /**
  *

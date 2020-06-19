@@ -37,6 +37,7 @@ typedef struct {
   int32_t      refCount;  // reference count
   int          status; 
   int8_t       role;   
+  int8_t       accessState;
   int64_t      version;   // current version 
   int64_t      fversion;  // version on saved data file
   void        *wqueue;

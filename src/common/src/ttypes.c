@@ -363,16 +363,8 @@ char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_NCHAR,   // TK_NCHAR
 };
 
-bool isValidDataType(int32_t type, int32_t length) {
-  if (type < TSDB_DATA_TYPE_NULL || type > TSDB_DATA_TYPE_NCHAR) {
-    return false;
-  }
-
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-//    return length >= 0 && length <= TSDB_MAX_BINARY_LEN;
-  }
-
-  return true;
+bool isValidDataType(int32_t type) {
+  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_NCHAR;
 }
 
 bool isNull(const char *val, int32_t type) {

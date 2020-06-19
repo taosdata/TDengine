@@ -7,6 +7,7 @@ system sh/deploy.sh -n dnode4 -i 4
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
 
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/cfg.sh -n dnode2 -c walLevel -v 2
@@ -37,6 +38,7 @@ system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
 
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start

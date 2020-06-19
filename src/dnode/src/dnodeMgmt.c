@@ -407,11 +407,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
     pMnodeInfo->nodeId   = htonl(pMnodeInfo->nodeId);
   }
 
-  SDMVgroupAccess *pVgAcccess = pStatusRsp->vgAccess;
-  for (int32_t i = 0; i < pCfg->numOfVnodes; ++i) {
-    pVgAcccess[i].vgId = htonl(pVgAcccess[i].vgId);
-  }
-  
+  vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
   dnodeProcessModuleStatus(pCfg->moduleStatus);
   dnodeUpdateDnodeCfg(pCfg);
 
@@ -616,6 +612,16 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
+
+  // fill cluster cfg parameters
+  pStatus->clusterCfg.numOfMnodes        = tsNumOfMnodes;
+  pStatus->clusterCfg.mnodeEqualVnodeNum = tsMnodeEqualVnodeNum;
+  pStatus->clusterCfg.offlineThreshold   = tsOfflineThreshold;
+  pStatus->clusterCfg.statusInterval     = tsStatusInterval;
+  strcpy(pStatus->clusterCfg.arbitrator, tsArbitrator);
+  strcpy(pStatus->clusterCfg.timezone, tsTimezone);
+  strcpy(pStatus->clusterCfg.locale, tsLocale);
+  strcpy(pStatus->clusterCfg.charset, tsCharset);  
   
   vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);

@@ -122,7 +122,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   SShowObj *pShow = (SShowObj *) calloc(1, showObjSize);
   pShow->type       = pShowMsg->type;
   pShow->payloadLen = htons(pShowMsg->payloadLen);
-  strcpy(pShow->db, pShowMsg->db);
+  tstrncpy(pShow->db, pShowMsg->db, TSDB_DB_NAME_LEN);
   memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
 
   pShow = mnodePutShowObj(pShow, showObjSize);

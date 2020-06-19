@@ -49,7 +49,7 @@ if $rows != 0 then
 endi
 
 print =============== step4
-sql create database a012345678901201234567890120123456789012 -x step4
+sql create database a012345678901201234567890120123456789012a012345678901201234567890120123456789012 -x step4
 	return -1
 step4:
 sql show databases
