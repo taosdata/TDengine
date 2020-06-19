@@ -1581,24 +1581,6 @@ void tscClearSubqueryInfo(SSqlCmd* pCmd) {
   }
 }
 
-void doRemoveTableMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFromCache) {
-  if (index < 0 || index >= pQueryInfo->numOfTables) {
-    return;
-  }
-  
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index);
-  
-  tscClearTableMetaInfo(pTableMetaInfo, removeFromCache);
-  free(pTableMetaInfo);
-  
-  int32_t after = pQueryInfo->numOfTables - index - 1;
-  if (after > 0) {
-    memmove(&pQueryInfo->pTableMetaInfo[index], &pQueryInfo->pTableMetaInfo[index + 1], after * POINTER_BYTES);
-  }
-  
-  pQueryInfo->numOfTables -= 1;
-}
-
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
   tscTrace("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
   

@@ -1354,7 +1354,7 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
     if (TSDB_CODE_SUCCESS != ret) {
       return ret;
     }
-    
+
     SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     SQLInfoDestroy(&SQLInfo);
