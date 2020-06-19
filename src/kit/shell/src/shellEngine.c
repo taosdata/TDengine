@@ -56,11 +56,11 @@ TAOS *shellInit(SShellArguments *args) {
   if (args->is_use_passwd) {
     if (args->password == NULL) args->password = getpass("Enter password: ");
   } else {
-    args->password = tsDefaultPass;
+    args->password = TSDB_DEFAULT_PASS;
   }
 
   if (args->user == NULL) {
-    args->user = tsDefaultUser;
+    args->user = TSDB_DEFAULT_USER;
   }
 
   taos_init();

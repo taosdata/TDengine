@@ -306,7 +306,7 @@ double getCurrentTime();
 void callBack(void *param, TAOS_RES *res, int code);
 
 int main(int argc, char *argv[]) {
-  SDemoArguments arguments = {NULL,            // host
+  SDemoArguments arguments = {  NULL,            // host
                                 0,               // port
                                 "root",          // user
                                 "taosdata",      // password

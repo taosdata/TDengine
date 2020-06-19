@@ -612,7 +612,7 @@ bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
 }
 
 bool simCreateTaosdConnect(SScript *script, char *rest) {
-  char *user = tsDefaultUser;
+  char *user = TSDB_DEFAULT_USER;
   char *token;
   int tokenLen;
   rest = paGetToken(rest, &token, &tokenLen);
@@ -622,9 +622,9 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
   }
 
   if (simAsyncQuery) {
-    return simCreateRestFulConnect(script, user, tsDefaultPass);
+    return simCreateRestFulConnect(script, user, TSDB_DEFAULT_PASS);
   } else {
-    return simCreateNativeConnect(script, user, tsDefaultPass);
+    return simCreateNativeConnect(script, user, TSDB_DEFAULT_PASS);
   }
 }
 

@@ -31,6 +31,8 @@
 #include "mnodeShow.h"
 #include "mnodeUser.h"
 
+#include "tglobal.h"
+
 static void *        tsMnodeSdb = NULL;
 static int32_t       tsMnodeUpdateSize = 0;
 static SRpcIpSet     tsMnodeIpSetForShell;
@@ -333,7 +335,7 @@ static int32_t mnodeGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->pAcct->user, "root") != 0)  {
+  if (strcmp(pUser->pAcct->user, TSDB_DEFAULT_USER) != 0)  {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }

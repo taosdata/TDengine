@@ -34,6 +34,8 @@
 #include "taosdef.h"
 #include "tutil.h"
 
+#include "tglobal.h"
+
 #define COMMAND_SIZE 65536
 #define DEFAULT_DUMP_FILE "taosdump.sql"
 
@@ -324,7 +326,7 @@ void taosFreeDbInfos();
 int main(int argc, char *argv[]) {
   SDumpArguments arguments = {
     // connection option
-    NULL, "root", "taosdata", 0,
+    NULL, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS, 0,
     // output file
     DEFAULT_DUMP_FILE, DEFAULT_DUMP_FILE, NULL,
     // dump unit option
@@ -502,7 +504,7 @@ int taosDumpOut(SDumpArguments *arguments) {
     }
 
     strncpy(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX], fields[TSDB_SHOW_DB_NAME_INDEX].bytes);
-    if (strcmp(arguments->user, "root") == 0) {
+    if (strcmp(arguments->user, TSDB_DEFAULT_USER) == 0) {
       dbInfos[count]->replica = (int)(*((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]));
       dbInfos[count]->days = (int)(*((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]));
       dbInfos[count]->keep = *((int *)row[TSDB_SHOW_DB_KEEP_INDEX]);

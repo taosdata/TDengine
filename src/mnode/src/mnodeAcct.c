@@ -25,6 +25,8 @@
 #include "mnodeSdb.h"
 #include "mnodeUser.h"
 
+#include "tglobal.h"
+
 void *  tsAcctSdb = NULL;
 static int32_t tsAcctUpdateSize;
 static int32_t mnodeCreateRootAcct();
@@ -174,8 +176,8 @@ static int32_t mnodeCreateRootAcct() {
 
   SAcctObj *pAcct = malloc(sizeof(SAcctObj));
   memset(pAcct, 0, sizeof(SAcctObj));
-  strcpy(pAcct->user, "root");
-  taosEncryptPass((uint8_t*)"taosdata", strlen("taosdata"), pAcct->pass);
+  strcpy(pAcct->user, TSDB_DEFAULT_USER);
+  taosEncryptPass((uint8_t *)TSDB_DEFAULT_PASS, strlen(TSDB_DEFAULT_PASS), pAcct->pass);
   pAcct->cfg = (SAcctCfg){
     .maxUsers           = 10,
     .maxDbs             = 64,
