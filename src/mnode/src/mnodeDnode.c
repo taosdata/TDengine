@@ -365,8 +365,10 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       mnodeUpdateVgroupStatus(pVgroup, pDnode, pVload);
       pAccess->vgId = htonl(pVload->vgId);
       pAccess->accessState = pVgroup->accessState;
+      pAccess++;
       mnodeDecVgroupRef(pVgroup);
     }
+
   }
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {

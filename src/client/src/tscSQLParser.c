@@ -1482,7 +1482,8 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
   const char* msg5 = "parameter is out of range [0, 100]";
   const char* msg6 = "function applied to tags not allowed";
   const char* msg7 = "normal table can not apply this function";
-  
+  const char* msg8 = "multi-columns selection does not support alias column name";
+
   switch (optr) {
     case TK_COUNT: {
       if (pItem->pNode->pParam != NULL && pItem->pNode->pParam->nExpr != 1) {
@@ -1689,6 +1690,10 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
           return invalidSqlErrMsg(pQueryInfo->msg, msg3);
         }
 
+        if (pItem->pNode->pParam->nExpr > 1 && strlen(pItem->aliasName) > 0) {
+          return invalidSqlErrMsg(pQueryInfo->msg, msg8);
+        }
+
         /* in first/last function, multiple columns can be add to resultset */
         for (int32_t i = 0; i < pItem->pNode->pParam->nExpr; ++i) {
           tSQLExprItem* pParamElem = &(pItem->pNode->pParam->a[i]);
@@ -1754,6 +1759,11 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
         return TSDB_CODE_SUCCESS;
       } else {  // select * from xxx
         int32_t numOfFields = 0;
+
+        // multicolumn selection does not support alias name
+        if (strlen(pItem->aliasName) != 0) {
+          return invalidSqlErrMsg(pQueryInfo->msg, msg8);
+        }
 
         for (int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
           pTableMetaInfo = tscGetMetaInfo(pQueryInfo, j);
