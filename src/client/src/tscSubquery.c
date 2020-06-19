@@ -1986,6 +1986,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
         SColumnIndex* pIndex = &pRes->pColumnIndex[i];
         SSqlRes *pRes1 = &pSql->pSubs[pIndex->tableIndex]->res;
         pRes->tsrow[i] = pRes1->tsrow[pIndex->columnIndex];
+        pRes->length[i] = pRes1->length[pIndex->columnIndex];
       }
       
       pRes->numOfClauseTotal++;
