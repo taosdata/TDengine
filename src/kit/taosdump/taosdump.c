@@ -425,6 +425,7 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo) {
 
 int taosDumpOut(SDumpArguments *arguments) {
   TAOS_ROW row;
+  TAOS_RES* result = NULL;
   char *temp = NULL;
   FILE *fp = NULL;
   int count = 0;
@@ -464,7 +465,7 @@ int taosDumpOut(SDumpArguments *arguments) {
   taosDumpCharset(fp);
 
   sprintf(command, "show databases");
-  TAOS_RES* result = taos_query(taos, command);
+  result = taos_query(taos, command);
   int32_t code = taos_errno(result);
   if (code != 0) {
     fprintf(stderr, "failed to run command: %s, reason: %s\n", command, taos_errstr(result));
