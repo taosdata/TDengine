@@ -445,10 +445,11 @@ static void *tdDecodeKVRecord(void *buf, SKVRecord *pRecord) {
 }
 
 static int tdRestoreKVStore(SKVStore *pStore) {
-  char      tbuf[128] = "\0";
-  void *    buf = NULL;
-  int       maxBufSize = 0;
-  SKVRecord rInfo = {0};
+  char                  tbuf[128] = "\0";
+  void *                buf = NULL;
+  int                   maxBufSize = 0;
+  SKVRecord             rInfo = {0};
+  SHashMutableIterator *pIter = NULL;
 
   ASSERT(TD_KVSTORE_HEADER_SIZE == lseek(pStore->fd, 0, SEEK_CUR));
 
@@ -497,7 +498,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     goto _err;
   }
 
-  SHashMutableIterator *pIter = taosHashCreateIter(pStore->map);
+  pIter = taosHashCreateIter(pStore->map);
   if (pIter == NULL) {
     uError("failed to create hash iter while opening KV store %s", pStore->fname);
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
