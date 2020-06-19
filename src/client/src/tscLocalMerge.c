@@ -413,13 +413,13 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
 }
 
 int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePage *pPage, int32_t orderType) {
-  int32_t ret = tscFlushTmpBufferImpl(pMemoryBuf, pDesc, pPage, orderType);
-  if (ret != 0) {
-    return -1;
+  int32_t ret = 0;
+  if ((ret = tscFlushTmpBufferImpl(pMemoryBuf, pDesc, pPage, orderType)) != 0) {
+    return ret;
   }
 
-  if (!tExtMemBufferFlush(pMemoryBuf)) {
-    return -1;
+  if ((ret = tExtMemBufferFlush(pMemoryBuf)) != 0) {
+    return ret;
   }
 
   return 0;

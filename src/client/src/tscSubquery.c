@@ -1492,7 +1492,7 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
   tscError("sub:%p failed to flush data to disk:reason:%s", tres, lpMsgBuf);
   LocalFree(lpMsgBuf);
 #else
-  tscError("sub:%p failed to flush data to disk:reason:%s", tres, strerror(errno));
+  tscError("sub:%p failed to flush data to disk, reason:%s", tres, tstrerror(code));
 #endif
 
   SSqlObj* pParentSql = trsupport->pParentSqlObj;
@@ -1630,10 +1630,9 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   
   // each result for a vnode is ordered as an independant list,
   // then used as an input of loser tree for disk-based merge routine
-  int32_t ret = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer,
-                                  pQueryInfo->groupbyExpr.orderType);
+  int32_t ret = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pQueryInfo->groupbyExpr.orderType);
   if (ret != 0) { // set no disk space error info, and abort retry
-    return tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_TSC_NO_DISKSPACE);
+    return tscAbortFurtherRetryRetrieval(trsupport, pSql, ret);
   }
   
   int32_t remain = -1;
@@ -1704,7 +1703,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     
     tscTrace("%p sub:%p retrieve numOfRows:%" PRId64 " totalNumOfRows:%" PRIu64 " from ip:%s, orderOfSub:%d", pPObj, pSql,
              pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
-    
+
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pPObj, pSql, tsMaxNumOfOrderedResults, num);
@@ -1729,7 +1728,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pRes->data,
                                pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
-    if (ret < 0) { // set no disk space error info, and abort retry
+    if (ret != 0) { // set no disk space error info, and abort retry
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
       pthread_mutex_unlock(&trsupport->queryMutex);
       
