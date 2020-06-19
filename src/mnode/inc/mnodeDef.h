@@ -78,18 +78,18 @@ typedef struct SMnodeObj {
 typedef struct STableObj {
   char  *tableId;
   int8_t type;
-  int8_t reserved[7];
 } STableObj;
 
 typedef struct SSuperTableObj {
-  STableObj  info;
+  STableObj  info; 
+  int8_t     reserved0[3]; // for fill struct STableObj to 4byte align
+  int32_t    sversion;
   uint64_t   uid;
   int64_t    createdTime;
-  int32_t    sversion;
   int32_t    tversion;
   int32_t    numOfColumns;
   int32_t    numOfTags;
-  int8_t     reserved0[15];
+  int8_t     reserved0[3];
   int8_t     updateEnd[1];
   int32_t    refCount;
   int32_t    numOfTables;
@@ -100,20 +100,20 @@ typedef struct SSuperTableObj {
 } SSuperTableObj;
 
 typedef struct {
-  STableObj  info;
+  STableObj  info;  
+  int8_t     reserved0[3]; // for fill struct STableObj to 4byte align
+  int32_t    sversion;     //used by normal table  
   uint64_t   uid;
   uint64_t   suid;
   int64_t    createdTime;
-  int32_t    sversion;     //used by normal table
   int32_t    numOfColumns; //used by normal table
   int32_t    sid;
   int32_t    vgId;
   int32_t    sqlLen;
-  int8_t     reserved0[3]; 
   int8_t     updateEnd[1];
-  int32_t    refCount;
+  int8_t     reserved1[1]; 
   int16_t    nextColId;    //used by normal table
-  int8_t     reserved1[2];
+  int32_t    refCount;
   char*      sql;          //used by normal table
   SSchema*   schema;       //used by normal table
   SSuperTableObj *superTable;
