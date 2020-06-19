@@ -279,7 +279,7 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode) {
       pthread_rwlock_unlock(pSkipList->lock);
     }
 
-    return forward[0];
+    return NULL;
   }
   
   tSkipListDoInsert(pSkipList, forward, pNode);
