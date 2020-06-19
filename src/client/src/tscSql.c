@@ -627,7 +627,7 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  //taosStopRpcConn(pSql->thandle);
+  rpcCancelRequest(pSql->SRpcReqContext);
   tscTrace("%p query is cancelled", res);
 }
 

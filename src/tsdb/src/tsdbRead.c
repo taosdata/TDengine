@@ -792,37 +792,76 @@ static int32_t copyDataFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t cap
   int32_t requiredNumOfCols = taosArrayGetSize(pQueryHandle->pColumns);
   
   //data in buffer has greater timestamp, copy data in file block
-  for (int32_t i = 0; i < requiredNumOfCols; ++i) {
+  int32_t i = 0, j = 0;
+  while(i < requiredNumOfCols && j < pCols->numOfCols) {
     SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-    int32_t          bytes = pColInfo->info.bytes;
-    
+
+    SDataCol* src = &pCols->cols[j];
+    if (src->colId < pColInfo->info.colId) {
+      j++;
+      continue;
+    }
+
+    int32_t bytes = pColInfo->info.bytes;
+
     if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
       pData = pColInfo->pData + numOfRows * pColInfo->info.bytes;
     } else {
       pData = pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
     }
-    
-    for (int32_t j = 0; j < pCols->numOfCols; ++j) {  // todo opt performance
-      SDataCol* src = &pCols->cols[j];
-      
-      if (pColInfo->info.colId == src->colId) {
-        
-        if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
-          memmove(pData, src->pData + bytes * start, bytes * num);
-        } else {  // handle the var-string
-          char* dst = pData;
-          
-          // todo refactor, only copy one-by-one
-          for (int32_t k = start; k < num + start; ++k) {
-            char* p = tdGetColDataOfRow(src, k);
-            memcpy(dst, p, varDataTLen(p));
-            dst += bytes;
-          }
+
+    if (pColInfo->info.colId == src->colId) {
+
+      if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
+        memmove(pData, src->pData + bytes * start, bytes * num);
+      } else {  // handle the var-string
+        char* dst = pData;
+
+        // todo refactor, only copy one-by-one
+        for (int32_t k = start; k < num + start; ++k) {
+          char* p = tdGetColDataOfRow(src, k);
+          memcpy(dst, p, varDataTLen(p));
+          dst += bytes;
         }
-        
-        break;
       }
+
+      j++;
+      i++;
+    } else { // pColInfo->info.colId < src->colId, it is a NULL data
+      if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+        char* dst = pData;
+
+        for(int32_t k = start; k < num + start; ++k) {
+          setVardataNull(dst, pColInfo->info.type);
+          dst += bytes;
+        }
+      } else {
+        setNullN(pData, pColInfo->info.type, pColInfo->info.bytes, num);
+      }
+      i++;
     }
+  }
+
+  while (i < requiredNumOfCols) { // the remain columns are all null data
+    SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+    if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+      pData = pColInfo->pData + numOfRows * pColInfo->info.bytes;
+    } else {
+      pData = pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
+    }
+
+    if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+      char* dst = pData;
+
+      for(int32_t k = start; k < num + start; ++k) {
+        setVardataNull(dst, pColInfo->info.type);
+        dst += pColInfo->info.bytes;
+      }
+    } else {
+      setNullN(pData, pColInfo->info.type, pColInfo->info.bytes, num);
+    }
+
+    i++;
   }
   
   pQueryHandle->cur.win.ekey = tsArray[end];

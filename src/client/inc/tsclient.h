@@ -294,11 +294,12 @@ typedef struct STscObj {
 } STscObj;
 
 typedef struct SSqlObj {
-  void *   signature;
-  STscObj *pTscObj;
-  void (*fp)();
-  void (*fetchFp)();
-  void *           param;
+  void            *signature;
+  STscObj         *pTscObj;
+  void            *SRpcReqContext;
+  void            (*fp)();
+  void            (*fetchFp)();
+  void            *param;
   int64_t          stime;
   uint32_t         queryId;
   void *           pStream;
