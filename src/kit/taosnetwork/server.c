@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <argp.h>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -33,6 +34,36 @@ typedef struct {
   int port;
   int type;  // 0: tcp, 1: udo, default: 0
 } info;
+
+typedef struct Arguments {
+  char *   host;
+  uint16_t port;
+  uint16_t max_port;
+} SArguments;
+
+static struct argp_option options[] = {
+    {0, 'h', "host", 0, "The host to connect to TDEngine. Default is localhost.", 0},
+    {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6020.", 1},
+    {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6050.", 2}};
+
+static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+
+  SArguments *arguments = state->input;
+  switch (key) {
+    case 'h':
+      arguments->host = arg;
+      break;
+    case 'p':
+      arguments->port = atoi(arg);
+      break;
+    case 'm':
+      arguments->max_port = atoi(arg);
+      break;
+  }
+  return 0;
+}
+
+static struct argp argp = {options, parse_opt, 0, 0};
 
 static void *bindPort(void *sarg) {
   info *pinfo = (info *)sarg;
@@ -170,15 +201,21 @@ static void *bindUPort(void *sarg) {
 }
 
 
-int main() {
-  int        port = 6020;
-  pthread_t *pids = malloc(60 * sizeof(pthread_t));
-  info *     infos = malloc(30 * sizeof(info));
-  info *     uinfos = malloc(30 * sizeof(info));
+int main(int argc, char *argv[]) {
+  SArguments arguments = {"127.0.0.1", 6020, 6050};
+  argp_parse(&argp, argc, argv, 0, 0, &arguments);
+  int port = arguments.port;
 
-  for (size_t i = 0; i < 30; i++) {
-    port++;
+  int num = arguments.max_port - arguments.port;
 
+  if (num < 0) {
+    num = 1;
+  }
+  pthread_t *pids = malloc(2 * num * sizeof(pthread_t));
+  info *     infos = malloc(num * sizeof(info));
+  info *     uinfos = malloc(num * sizeof(info));
+
+  for (size_t i = 0; i < num; i++) {
     info *pinfo = infos++;
     pinfo->port = port;
 
@@ -191,14 +228,15 @@ int main() {
     info *uinfo = uinfos++;
     uinfo->port = port;
     uinfo->type = 1;
-    if (pthread_create(pids + 30 + i, NULL, bindUPort, uinfo) != 0)  //创建线程
+    port++;
+    if (pthread_create(pids + num + i, NULL, bindUPort, uinfo) != 0)  //创建线程
     {                                                                //创建线程失败
       printf("创建线程失败: %d.\n", port);
       exit(0);
     }
   }
-  for (int i = 0; i < 30; i++) {
+  for (int i = 0; i < num; i++) {
     pthread_join(pids[i], NULL);
-    pthread_join(pids[(10 + i)], NULL);
+    pthread_join(pids[(num + i)], NULL);
   }
 }

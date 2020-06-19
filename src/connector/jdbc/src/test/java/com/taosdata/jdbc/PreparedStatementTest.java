@@ -2,15 +2,17 @@ package com.taosdata.jdbc;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 
 import java.sql.*;
-import java.util.ArrayList;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@FixMethodOrder(MethodSorters.DEFAULT)
 public class PreparedStatementTest {
     static Connection connection = null;
     static PreparedStatement statement = null;
@@ -28,6 +30,9 @@ public class PreparedStatementTest {
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata",
                 properties);
 
@@ -155,11 +160,11 @@ public class PreparedStatementTest {
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.executeUpdate(null, new int[] { 0 });
+            tsdbStatement.executeUpdate(null, new int[]{0});
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.executeUpdate(null, new String[] { "str1", "str2" });
+            tsdbStatement.executeUpdate(null, new String[]{"str1", "str2"});
         } catch (SQLException e) {
         }
         try {
@@ -185,10 +190,12 @@ public class PreparedStatementTest {
     }
 
     @AfterClass
-    public static void close() throws SQLException {
+    public static void close() throws Exception {
         statement.executeUpdate("drop database " + dbName);
         statement.close();
         connection.close();
+        Thread.sleep(10);
+
     }
 
 }

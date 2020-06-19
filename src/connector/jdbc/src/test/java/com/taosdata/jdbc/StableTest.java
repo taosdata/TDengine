@@ -2,13 +2,16 @@ package com.taosdata.jdbc;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 
 import java.sql.*;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class StableTest {
     static Connection connection = null;
     static Statement statement = null;
@@ -25,6 +28,9 @@ public class StableTest {
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
                 , properties);
 
@@ -33,7 +39,7 @@ public class StableTest {
         statement.executeQuery("use " + dbName);
     }
 
-    @Test
+//    @Test
     public void createStable() {
         String sql = "create table " + stbName + " (ts timestamp, v1 int, v2 int) tags (tg nchar(20)) ";
 
@@ -44,7 +50,7 @@ public class StableTest {
         }
     }
 
-    @Test
+//    @Test
     public void createTable() {
         String sql = "create table t1 using " + stbName + " tags (\"beijing\")";
 
@@ -57,6 +63,7 @@ public class StableTest {
 
     @Test
     public void describeSTable() {
+        createStable();
         String sql = "describe " + stbName;
         int num = 0;
         System.out.println("describe stable");
@@ -68,6 +75,7 @@ public class StableTest {
                 }
                 num++;
             }
+            res.close();
             assertEquals(4, num);
         } catch (SQLException e) {
             assert false : "error describe stable" + e.getMessage();
@@ -76,6 +84,7 @@ public class StableTest {
 
     @Test
     public void describeTable() {
+        createTable();
         String sql = "describe t1";
         int num = 0;
         System.out.println("describe table");
@@ -87,16 +96,17 @@ public class StableTest {
                 }
                 num++;
             }
+            res.close();
             assertEquals(4, num);
         } catch (SQLException e) {
             assert false : "error describe stable" + e.getMessage();
         }
     }
 
-    @Test
+    //    @Test
     public void validCreateSql() {
         String sql = "create table t2 using " + stbName + " tags (\"beijing\")";
-        boolean valid = ((TSDBConnection)connection).getConnection().validateCreateTableSql(sql);
+        boolean valid = ((TSDBConnection) connection).getConnection().validateCreateTableSql(sql);
         assertEquals(true, valid);
     }
 
@@ -106,6 +116,8 @@ public class StableTest {
             statement.executeUpdate("drop database " + dbName);
             statement.close();
             connection.close();
+            Thread.sleep(10);
+
         }
     }
 }

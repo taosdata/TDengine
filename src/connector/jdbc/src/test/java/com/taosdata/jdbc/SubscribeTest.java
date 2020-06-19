@@ -29,6 +29,9 @@ public class SubscribeTest {
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
                 , properties);
 
@@ -86,5 +89,6 @@ public class SubscribeTest {
         statement.executeQuery("drop database " + dbName);
         statement.close();
         connection.close();
+        Thread.sleep(10);
     }
 }

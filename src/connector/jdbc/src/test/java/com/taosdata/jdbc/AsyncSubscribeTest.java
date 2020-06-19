@@ -30,6 +30,9 @@ public class AsyncSubscribeTest {
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
                 , properties);
 
@@ -91,5 +94,6 @@ public class AsyncSubscribeTest {
         statement.executeQuery("drop database test");
         statement.close();
         connection.close();
+        Thread.sleep(10);
     }
 }

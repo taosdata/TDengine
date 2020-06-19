@@ -25,6 +25,9 @@ public class ImportTest {
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
                 , properties);
 
@@ -40,7 +43,7 @@ public class ImportTest {
         long ts = 1496732686000l;
 
         for (int i = 0; i < 50; i++) {
-            ts ++;
+            ts++;
             int row = statement.executeUpdate("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")");
             System.out.println("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")\t" + row);
             assertEquals(1, row);
@@ -84,5 +87,7 @@ public class ImportTest {
         statement.executeUpdate("drop database " + dbName);
         statement.close();
         connection.close();
+        Thread.sleep(10);
+
     }
 }
