@@ -108,7 +108,7 @@ typedef struct SRpcConn {
   uint16_t  outTranId;      // outgoing transcation ID
   uint16_t  inTranId;       // transcation ID for incoming msg
   uint8_t   outType;        // message type for outgoing request
-  char      inType;         // message type for incoming request  
+  uint8_t   inType;         // message type for incoming request  
   void     *chandle;  // handle passed by TCP/UDP connection layer
   void     *ahandle;  // handle provided by upper app layter
   int       retry;    // number of retry for sending request
@@ -394,6 +394,8 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   if ( pConn->inType == 0 || pConn->user[0] == 0 ) {
     tTrace("%s, connection is already released, rsp wont be sent", pConn->info);
     rpcUnlockConn(pConn);
+    rpcFreeCont(pMsg->pCont);
+    rpcDecRef(pRpc);
     return;
   }
 
@@ -885,6 +887,7 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
 
   // if there are pending request, notify the app
+  rpcAddRef(pRpc);
   tTrace("%s, notify the server app, connection is gone", pConn->info);
 
   SRpcMsg rpcMsg;
