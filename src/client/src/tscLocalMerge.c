@@ -413,13 +413,13 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
 }
 
 int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePage *pPage, int32_t orderType) {
-  int32_t ret = tscFlushTmpBufferImpl(pMemoryBuf, pDesc, pPage, orderType);
-  if (ret != 0) {
-    return -1;
+  int32_t ret = 0;
+  if ((ret = tscFlushTmpBufferImpl(pMemoryBuf, pDesc, pPage, orderType)) != 0) {
+    return ret;
   }
 
-  if (!tExtMemBufferFlush(pMemoryBuf)) {
-    return -1;
+  if ((ret = tExtMemBufferFlush(pMemoryBuf)) != 0) {
+    return ret;
   }
 
   return 0;
@@ -440,9 +440,9 @@ int32_t saveToBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePa
 
   // current buffer is full, need to flushed to disk
   assert(pPage->num == pModel->capacity);
-  int32_t ret = tscFlushTmpBuffer(pMemoryBuf, pDesc, pPage, orderType);
-  if (ret != 0) {
-    return -1;
+  int32_t code = tscFlushTmpBuffer(pMemoryBuf, pDesc, pPage, orderType);
+  if (code != 0) {
+    return code;
   }
 
   int32_t remain = numOfRows - numOfRemainEntries;
@@ -458,8 +458,8 @@ int32_t saveToBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePa
     tColModelAppend(pModel, pPage, data, numOfRows - remain, numOfWriteElems, numOfRows);
 
     if (pPage->num == pModel->capacity) {
-      if (tscFlushTmpBuffer(pMemoryBuf, pDesc, pPage, orderType) != TSDB_CODE_SUCCESS) {
-        return -1;
+      if ((code = tscFlushTmpBuffer(pMemoryBuf, pDesc, pPage, orderType)) != TSDB_CODE_SUCCESS) {
+        return code;
       }
     } else {
       pPage->num = numOfWriteElems;

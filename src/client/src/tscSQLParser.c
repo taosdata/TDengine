@@ -2622,7 +2622,7 @@ static int32_t doExtractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnFilterIn
     tVariantDump(&pRight->val, (char*)&pColumnFilter->upperBndd, colType, false);
   } else {  // TK_GT,TK_GE,TK_EQ,TK_NE are based on the pColumn->lowerBndd
     if (colType == TSDB_DATA_TYPE_BINARY) {
-      pColumnFilter->pz = (int64_t)calloc(1, pRight->val.nLen + 1);
+      pColumnFilter->pz = (int64_t)calloc(1, pRight->val.nLen + TSDB_NCHAR_SIZE);
       pColumnFilter->len = pRight->val.nLen;
 
       tVariantDump(&pRight->val, (char*)pColumnFilter->pz, colType, false);
