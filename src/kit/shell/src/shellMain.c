@@ -15,7 +15,6 @@
 
 #include "os.h"
 #include "shell.h"
-#include "tsclient.h"
 
 pthread_t pid;
 
@@ -23,14 +22,6 @@ pthread_t pid;
 void interruptHandler(int signum) {
 #ifdef LINUX
   taos_stop_query(result);
-  if (result != NULL) {
-    /*
-     * we need to free result in async model, in order to avoid free
-     * results while the master thread is waiting for server response.
-     */
-    tscQueueAsyncFreeResult(result);
-  }
-  
   result = NULL;
 #else
   printf("\nReceive ctrl+c or other signal, quit shell.\n");
