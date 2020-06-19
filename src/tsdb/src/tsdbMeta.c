@@ -112,12 +112,21 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   uint64_t   uid = tableId.uid;
+  int        tid = 0;
+  char *     tbname = NULL;
 
   STable *pTable = tsdbGetTableByUid(pMeta, uid);
   if (pTable == NULL) {
     tsdbError("vgId:%d failed to drop table since table not exists! tid:%d uid %" PRId64, REPO_ID(pRepo), tableId.tid,
               uid);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    return -1;
+  }
+
+  tid = TABLE_TID(pTable);
+  tbname = strdup(TABLE_CHAR_NAME(pTable));
+  if (tbname == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -140,8 +149,8 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
 
   tsdbRemoveTableFromMeta(pRepo, pTable, true);
 
-  tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, varDataVal(pTable->name),
-            tableId.tid, tableId.uid);
+  tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
+  free(tbname);
 
   return 0;
 }
