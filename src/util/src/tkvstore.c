@@ -269,7 +269,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
 
   SKVRecord *pRecord = taosHashGet(pStore->map, (void *)(&uid), sizeof(uid));
   if (pRecord == NULL) {
-    uError("failed to drop KV store record with key " PRIu64 " since not find", uid);
+    uError("failed to drop KV store record with key %" PRIu64 " since not find", uid);
     return -1;
   }
 
@@ -281,7 +281,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   tdEncodeKVRecord(&pBuf, &rInfo);
 
   if (twrite(pStore->fd, buf, POINTER_DISTANCE(pBuf, buf)) < POINTER_DISTANCE(pBuf, buf)) {
-    uError("failed to write %d bytes to file %s since %s", POINTER_DISTANCE(pBuf, buf), pStore->fname, strerror(errno));
+    uError("failed to write %" PRId64 " bytes to file %s since %s", POINTER_DISTANCE(pBuf, buf), pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }

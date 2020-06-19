@@ -197,7 +197,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
     }
   }
   
-  tsdbTrace("%p total numOfTable:%d in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
+  tsdbTrace("%p total numOfTable:%zu in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
 
   tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
@@ -1101,7 +1101,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
   cur->rows = numOfRows;
   cur->pos = pos;
 
-  tsdbTrace("%p uid:%" PRIu64",tid:%d data block created, brange:%"PRIu64"-%"PRIu64" %p", pQueryHandle, cur->win.skey,
+  tsdbTrace("%p uid:%" PRIu64",tid:%d data block created, brange:%"PRIu64"-%"PRIu64" rows:%d, %p", pQueryHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, cur->win.skey,
       cur->win.ekey, cur->rows, pQueryHandle->qinfo);
 }
 
@@ -1201,7 +1201,7 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   if (pLeftBlockInfoEx->compBlock->offset == pRightBlockInfoEx->compBlock->offset &&
       pLeftBlockInfoEx->compBlock->last == pRightBlockInfoEx->compBlock->last) {
     // todo add more information
-    tsdbError("error in header file, two block with same offset:%p", pLeftBlockInfoEx->compBlock->offset);
+    tsdbError("error in header file, two block with same offset:%" PRId64, (int64_t)pLeftBlockInfoEx->compBlock->offset);
   }
 
   return pLeftBlockInfoEx->compBlock->offset > pRightBlockInfoEx->compBlock->offset ? 1 : -1;
@@ -2026,7 +2026,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
     }
     
     taosArrayPush(pTableGroup, &sa);
-    tsdbTrace("all %d tables belong to one group", size);
+    tsdbTrace("all %zu tables belong to one group", size);
   } else {
     STableGroupSupporter *pSupp = (STableGroupSupporter *) calloc(1, sizeof(STableGroupSupporter));
     pSupp->tsdbMeta = tsdbGetMeta(tsdb);
@@ -2131,7 +2131,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
   
   if (pTable->type != TSDB_SUPER_TABLE) {
     tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", tid:%d, name:%s", tsdb, uid, pTable->tableId.tid,
-        pTable->name);
+        pTable->name->data);
     
     return TSDB_CODE_COM_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
   }
@@ -2146,7 +2146,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
       pGroupInfo->numOfTables = taosArrayGetSize(res);
       pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, tsdb);
       
-      tsdbTrace("%p no table name/tag condition, all tables belong to one group, numOfTables:%d", tsdb, pGroupInfo->numOfTables);
+      tsdbTrace("%p no table name/tag condition, all tables belong to one group, numOfTables:%zu", tsdb, pGroupInfo->numOfTables);
     } else {
       // todo add error
     }
@@ -2190,7 +2190,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
   pGroupInfo->numOfTables = taosArrayGetSize(res);
   pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, tsdb);
 
-  tsdbTrace("%p stable tid:%d, uid:%"PRIu64" query, numOfTables:%d, belong to %d groups", tsdb, pTable->tableId.tid,
+  tsdbTrace("%p stable tid:%d, uid:%"PRIu64" query, numOfTables:%zu, belong to %zu groups", tsdb, pTable->tableId.tid,
       pTable->tableId.uid, pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
 
   taosArrayDestroy(res);

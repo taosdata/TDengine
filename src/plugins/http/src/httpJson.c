@@ -139,7 +139,7 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
         return 0;  // there is no data to dump.
       }
     } else {
-      httpError("context:%p, fd:%d, ip:%s, failed to compress data, chunkSize:%d, last:%d, error:%d, response:\n%s",
+      httpError("context:%p, fd:%d, ip:%s, failed to compress data, chunkSize:%" PRIu64 ", last:%d, error:%d, response:\n%s",
                 buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, isTheLast, ret, buf->buf);
       return 0;
     }

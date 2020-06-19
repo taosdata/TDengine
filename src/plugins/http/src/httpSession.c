@@ -108,7 +108,7 @@ static void httpDestroySession(void *data) {
 void httpCleanUpSessions() {
   if (tsHttpServer.sessionCache != NULL) {
     SCacheObj *cache = tsHttpServer.sessionCache;
-    httpPrint("session cache is cleanuping, size:%d", taosHashGetSize(cache->pHashTable));
+    httpPrint("session cache is cleanuping, size:%zu", taosHashGetSize(cache->pHashTable));
     taosCacheCleanup(tsHttpServer.sessionCache);
     tsHttpServer.sessionCache = NULL;
   }
