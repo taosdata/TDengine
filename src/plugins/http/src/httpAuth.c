@@ -29,6 +29,7 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
   char *base64 = (char *)base64_decode(token, len, &outlen);
   if (base64 == NULL || outlen == 0) {
     httpError("context:%p, fd:%d, ip:%s, basic token:%s parsed error", pContext, pContext->fd, pContext->ipstr, token);
+    free(base64);
     return false;
   }
 
