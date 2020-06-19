@@ -249,7 +249,7 @@ int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   tsdbGetDataFileName(pRepo, fid, type, pFile->fname);
 
   if (access(pFile->fname, F_OK) == 0) {
-    tsdbError("vgId:%d file %s already exists", REPO_ID(pRepo), fid);
+    tsdbError("vgId:%d file %s already exists", REPO_ID(pRepo), pFile->fname);
     terrno = TSDB_CODE_TDB_FILE_ALREADY_EXISTS;
     goto _err;
   }

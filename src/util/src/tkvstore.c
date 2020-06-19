@@ -119,7 +119,7 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
       if (terrno != TSDB_CODE_COM_FILE_CORRUPTED) goto _err;
     } else {
       if (ftruncate(pStore->fd, info.size) < 0) {
-        uError("failed to truncate %s to " PRId64 " size since %s", pStore->fname, info.size, strerror(errno));
+        uError("failed to truncate %s to %" PRId64 " size since %s", pStore->fname, info.size, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
         goto _err;
       }
@@ -492,7 +492,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     ssize_t tsize = tread(pStore->fd, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
     if (tsize < sizeof(SKVRecord)) {
-      uError("failed to read %d bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,
+      uError("failed to read %zu bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,
              pStore->info.size, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;

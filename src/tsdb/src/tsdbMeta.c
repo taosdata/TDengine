@@ -317,9 +317,9 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
 
   if (schemaVersion(pTagSchema) > tversion) {
     tsdbError(
-        "vgId:%d failed to update tag value of table %s since version out of date, client tag version:%d server tag "
-        "version:%d",
-        pRepo->config.tsdbId, varDataVal(pTable->name), tversion, schemaVersion(pTable->tagSchema));
+        "vgId:%d failed to update tag value of table %s since version out of date, client tag version %d server tag "
+        "version %d",
+        REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), tversion, schemaVersion(pTable->tagSchema));
     return TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE;
   }
   if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {

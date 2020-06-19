@@ -710,7 +710,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
 
   STable *pTable = tsdbGetTableByUid(pMeta, pBlock->uid);
   if (pTable == NULL || TABLE_TID(pTable) != pBlock->tid) {
-    tsdbError("vgId:%d failed to get table to insert data, uid " PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
+    tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
               pBlock->tid);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     return -1;
@@ -738,8 +738,8 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
   tsdbInitSubmitBlkIter(pBlock, &blkIter);
   while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
     if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
-      tsdbError("vgId:%d table %s tid %d uid %ld timestamp is out of range! now " PRId64 " maxKey " PRId64
-                " minKey " PRId64,
+      tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
+                " maxKey %" PRId64,
                 REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), now, minKey, maxKey);
       terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
       return -1;
@@ -836,7 +836,7 @@ static int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
 static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
   int8_t ocompression = pRepo->config.compression;
   pRepo->config.compression = compression;
-  tsdbTrace("vgId:%d tsdb compression is changed from %d to %d", ocompression, compression);
+  tsdbTrace("vgId:%d tsdb compression is changed from %d to %d", REPO_ID(pRepo), ocompression, compression);
 }
 
 static int tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {

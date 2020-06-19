@@ -659,7 +659,8 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
 
   // Write the whole block to file
   if (twrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
-    tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(helperRepo(pHelper)), lsize, strerror(errno));
+    tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(helperRepo(pHelper)), lsize, pFile->fname,
+              strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
@@ -678,8 +679,9 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
 
   tsdbTrace("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
-            REPO_ID(helperRepo(pHelper)), pHelper->tableInfo.tid, pFile->fname, pCompBlock->offset,
-            pCompBlock->numOfRows, pCompBlock->len, pCompBlock->numOfCols, pCompBlock->keyFirst, pCompBlock->keyLast);
+            REPO_ID(helperRepo(pHelper)), pHelper->tableInfo.tid, pFile->fname, (int64_t)(pCompBlock->offset),
+            (int)(pCompBlock->numOfRows), pCompBlock->len, pCompBlock->numOfCols, pCompBlock->keyFirst,
+            pCompBlock->keyLast);
 
   return 0;
 
@@ -1239,7 +1241,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
   int32_t tsize = sizeof(SCompData) + sizeof(SCompCol) * pCompBlock->numOfCols + sizeof(TSCKSUM);
   if (!taosCheckChecksumWhole((uint8_t *)pCompData, tsize)) {
     tsdbError("vgId:%d file %s block data is corrupted offset %" PRId64 " len %d", REPO_ID(pHelper->pRepo),
-              pFile->fname, pCompBlock->offset, pCompBlock->len);
+              pFile->fname, (int64_t)(pCompBlock->offset), pCompBlock->len);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     goto _err;
   }
