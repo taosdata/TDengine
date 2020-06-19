@@ -1501,7 +1501,6 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
   trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
   
   pthread_mutex_unlock(&trsupport->queryMutex);
-  
   tscHandleSubqueryError(trsupport, tres, pParentSql->res.code);
 }
 
@@ -1630,9 +1629,9 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   
   // each result for a vnode is ordered as an independant list,
   // then used as an input of loser tree for disk-based merge routine
-  int32_t ret = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pQueryInfo->groupbyExpr.orderType);
-  if (ret != 0) { // set no disk space error info, and abort retry
-    return tscAbortFurtherRetryRetrieval(trsupport, pSql, ret);
+  int32_t code = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pQueryInfo->groupbyExpr.orderType);
+  if (code != 0) { // set no disk space error info, and abort retry
+    return tscAbortFurtherRetryRetrieval(trsupport, pSql, code);
   }
   
   int32_t remain = -1;
