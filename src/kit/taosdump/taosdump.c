@@ -572,7 +572,7 @@ int taosDumpOut(SDumpArguments *arguments) {
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  free(temp);
+  tfree(temp);
   taosFreeDbInfos();
   return 0;
 
@@ -580,7 +580,7 @@ _exit_failure:
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  free(temp);
+  tfree(temp);
   taosFreeDbInfos();
   return -1;
 }
