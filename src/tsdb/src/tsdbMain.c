@@ -147,9 +147,11 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
     if (pRepo->commit) pthread_join(pRepo->commitThread, NULL);
-  } else {
-    // TODO
   }
+  tsdbUnRefMemTable(pRepo, pRepo->mem);
+  tsdbUnRefMemTable(pRepo, pRepo->imem);
+  pRepo->mem = NULL;
+  pRepo->imem = NULL;
 
   tsdbCloseFileH(pRepo);
   tsdbCloseBufPool(pRepo);
