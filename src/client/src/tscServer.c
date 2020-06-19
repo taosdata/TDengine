@@ -198,6 +198,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   };
 
   pSql->SRpcReqContext = rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
+  assert(pSql->SRpcReqContext != NULL);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -412,7 +414,6 @@ void tscKillSTableQuery(SSqlObj *pSql) {
 
   for (int i = 0; i < pSql->numOfSubs; ++i) {
     SSqlObj *pSub = pSql->pSubs[i];
-
     if (pSub == NULL) {
       continue;
     }
