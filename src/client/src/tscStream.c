@@ -503,8 +503,10 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
   strtolower(pSql->sqlstr, sqlstr);
 
+  tscDump("%p SQL: %s", pSql, pSql->sqlstr);
   tsem_init(&pSql->rspSem, 0, 0);
-  int32_t code = doAsyncParseSql(pSql);
+
+  int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     sem_wait(&pSql->rspSem);
   }

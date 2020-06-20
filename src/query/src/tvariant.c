@@ -184,7 +184,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
     
     case TSDB_DATA_TYPE_NCHAR: {
       dst[0] = '\'';
-      taosUcs4ToMbs(pVar->wpz, (wcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
+      taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
       int32_t len = strlen(dst);
       dst[len] = '\'';
       dst[len + 1] = 0;
@@ -416,7 +416,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     }
     
     pVariant->wpz = pWStr;
-    *pDestSize = wcslen(pVariant->wpz);
+    *pDestSize = twcslen(pVariant->wpz);
     
     // shrink the allocate memory, no need to check here.
     char* tmp = realloc(pVariant->wpz, (*pDestSize + 1)*TSDB_NCHAR_SIZE);
