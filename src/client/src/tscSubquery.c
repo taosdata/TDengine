@@ -1853,17 +1853,16 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
   SSubqueryState* pState = pSupporter->pState;
 
   // record the total inserted rows
-  if (numOfRows > 0) {
-    if (tres != pParentObj) {
+  if (numOfRows > 0 && tres != pParentObj) {
       pParentObj->res.numOfRows += numOfRows;
-    }
-  } else {
+  }
+
+  if (taos_errno(tres) != 0) {
     SSqlObj* pSql = (SSqlObj*) tres;
     assert(pSql != NULL && pSql->res.code == numOfRows);
     
     pParentObj->res.code = pSql->res.code;
   }
-
 
   // it is not the initial sqlObj, free it
   if (tres != pParentObj) {
