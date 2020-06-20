@@ -175,7 +175,7 @@ class Test (threading.Thread):
         global last_stb
         global colAdded
 
-        if last_stb != "" and colAdded == False:
+        if last_stb != "" and not colAdded:
             tdSql.execute(
                 "alter table %s add column col binary(20)" %
                 last_stb)
@@ -187,7 +187,7 @@ class Test (threading.Thread):
         global last_stb
         global colAdded
 
-        if last_stb != "" and not colAdded:
+        if last_stb != "" and colAdded:
             tdSql.execute("alter table %s drop column col" % last_stb)
             colAdded = False
         return 0
