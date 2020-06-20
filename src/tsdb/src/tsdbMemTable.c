@@ -371,32 +371,34 @@ static void *tsdbCommitData(void *arg) {
             pMem->keyFirst, pMem->keyLast, pMem->numOfRows);
 
   // Create the iterator to read from cache
-  iters = tsdbCreateTableIters(pRepo);
-  if (iters == NULL) {
-    tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _exit;
-  }
-
-  if (tsdbInitWriteHelper(&whelper, pRepo) < 0) {
-    tsdbError("vgId:%d failed to init write helper since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _exit;
-  }
-
-  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
-              REPO_ID(pRepo), pMeta->maxCols, pMeta->maxRowBytes, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
-    goto _exit;
-  }
-
-  int sfid = TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision);
-  int efid = TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision);
-
-  // Loop to commit to each file
-  for (int fid = sfid; fid <= efid; fid++) {
-    if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
-      tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+  if (pMem->numOfRows > 0) {
+    iters = tsdbCreateTableIters(pRepo);
+    if (iters == NULL) {
+      tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
       goto _exit;
+    }
+
+    if (tsdbInitWriteHelper(&whelper, pRepo) < 0) {
+      tsdbError("vgId:%d failed to init write helper since %s", REPO_ID(pRepo), tstrerror(terrno));
+      goto _exit;
+    }
+
+    if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
+                REPO_ID(pRepo), pMeta->maxCols, pMeta->maxRowBytes, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
+      goto _exit;
+    }
+
+    int sfid = TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision);
+    int efid = TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision);
+
+    // Loop to commit to each file
+    for (int fid = sfid; fid <= efid; fid++) {
+      if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
+        tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+        goto _exit;
+      }
     }
   }
 
