@@ -364,7 +364,6 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   
   tfree(pSql->pSubs);
-  pSql->freed = 0;
   pSql->numOfSubs = 0;
   
   tscResetSqlCmdObj(pCmd);
@@ -1653,6 +1652,46 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
   pRes->numOfRows = 0;
 }
 
+SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
+  SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  if (pNew == NULL) {
+    tscError("%p new subquery failed, tableIndex:%d", pSql, 0);
+    return NULL;
+  }
+
+  pNew->pTscObj = pSql->pTscObj;
+  pNew->signature = pNew;
+
+  SSqlCmd* pCmd = &pNew->cmd;
+  pCmd->command = cmd;
+
+  if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
+    tscFreeSqlObj(pNew);
+    return NULL;
+  }
+
+  pNew->fp = fp;
+  pNew->param = param;
+  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
+
+  pNew->sqlstr = strdup(pSql->sqlstr);
+  if (pNew->sqlstr == NULL) {
+    tscError("%p new subquery failed", pSql);
+
+    free(pNew);
+    return NULL;
+  }
+
+  SQueryInfo* pQueryInfo = NULL;
+  tscGetQueryInfoDetailSafely(pCmd, 0, &pQueryInfo);
+
+  assert(pSql->cmd.clauseIndex == 0);
+  STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
+
+  tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
+  return pNew;
+}
+
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
@@ -1795,6 +1834,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   if (pPrevSql == NULL) {
     STableMeta* pTableMeta = taosCacheAcquireByData(tscCacheHandle, pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
     assert(pTableMeta != NULL);
+
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->tagColList);
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);

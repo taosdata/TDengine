@@ -197,29 +197,34 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .code    = 0
   };
 
-  pSql->SRpcReqContext = rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
+  pSql->pRpcCtx = rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
-  if (pSql == NULL) {
+  if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released", pSql->signature);
     return;
   }
 
-  if (pSql->signature != pSql) {
-    tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
+  STscObj *pObj = pSql->pTscObj;
+  SSqlRes *pRes = &pSql->res;
+  SSqlCmd *pCmd = &pSql->cmd;
+
+  if (pObj->signature != pObj) {
+    tscTrace("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
+
+    tscFreeSqlObj(pSql);
+    rpcFreeCont(rpcMsg->pCont);
     return;
   }
 
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  STscObj *pObj = pSql->pTscObj;
-
-  if (pObj->signature != pObj || pSql->freed == 1) {
-    tscTrace("%p sqlObj needs to be released or DB connection is closed, freed:%d pObj:%p signature:%p", pSql, pSql->freed,
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
+    tscTrace("%p sqlObj needs to be released or DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command,
              pObj, pObj->signature);
+
     tscFreeSqlObj(pSql);
     rpcFreeCont(rpcMsg->pCont);
     return;
@@ -421,7 +426,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
      * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
     pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    rpcCancelRequest(pSql->pSubs[i]->SRpcReqContext);
+    rpcCancelRequest(pSql->pSubs[i]->pRpcCtx);
   }
 
   /*
