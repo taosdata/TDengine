@@ -119,6 +119,8 @@ extern "C" {
 
 uint32_t taosRand(void);
 
+size_t twcslen(const wchar_t *wcs);
+
 int32_t strdequote(char *src);
 
 size_t strtrim(char *src);
