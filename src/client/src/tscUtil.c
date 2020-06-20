@@ -1664,6 +1664,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
+  pCmd->parseFinished = 1;
 
   if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
@@ -1724,6 +1725,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   pnCmd->numOfClause = 0;
   pnCmd->clauseIndex = 0;
   pnCmd->pDataBlocks = NULL;
+  pnCmd->parseFinished = 1;
 
   if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
