@@ -1901,7 +1901,6 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   pState->numOfTotal = pSql->numOfSubs;
-
   pState->numOfRemain = pSql->numOfSubs;
  
   pRes->code = TSDB_CODE_SUCCESS;
@@ -1928,7 +1927,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     pSupporter1->pSql = pSql;
     pSupporter1->pState = pState;
     
-    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertFinalize, pSupporter, TSDB_SQL_INSERT, NULL);
+    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertFinalize, pSupporter1, TSDB_SQL_INSERT, NULL);
     if (pNew == NULL) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
       goto _error;
