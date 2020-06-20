@@ -123,7 +123,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
-  code = tsdbCreateRepo(tsdbDir, &tsdbCfg, NULL);
+  code = tsdbCreateRepo(tsdbDir, &tsdbCfg);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
     return TSDB_CODE_VND_INIT_FAILED;

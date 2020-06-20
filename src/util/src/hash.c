@@ -309,9 +309,7 @@ void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 void taosHashCleanup(SHashObj *pHashObj) {
-  if (pHashObj == NULL || pHashObj->capacity <= 0) {
-    return;
-  }
+  if (pHashObj == NULL) return;
 
   SHashNode *pNode, *pNext;
 
