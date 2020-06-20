@@ -678,29 +678,16 @@ int32_t sdbDeleteRow(SSdbOper *pOper) {
     return TSDB_CODE_SUCCESS;
   }
 
-  void *  key = sdbGetObjKey(pTable, pOper->pObj);
-  int32_t keySize = 0;
-  switch (pTable->keyType) {
-    case SDB_KEY_STRING:
-    case SDB_KEY_VAR_STRING:
-      keySize = strlen((char *)key) + 1;
-      break;
-    case SDB_KEY_INT:
-    case SDB_KEY_AUTO:
-      keySize = sizeof(uint32_t);
-      break;
-    default:
-      return TSDB_CODE_MND_SDB_INVAID_KEY_TYPE;
-  }
-
-  int32_t size = sizeof(SSdbOper) + sizeof(SWalHead) + keySize + SDB_SYNC_HACK;
+  int32_t size = sizeof(SSdbOper) + sizeof(SWalHead) + pTable->maxRowSize + SDB_SYNC_HACK;
   SSdbOper *pNewOper = taosAllocateQitem(size);
 
   SWalHead *pHead = (void *)pNewOper + sizeof(SSdbOper) + SDB_SYNC_HACK;
   pHead->version = 0;
-  pHead->len = keySize;
   pHead->msgType = pTable->tableId * 10 + SDB_ACTION_DELETE;
-  memcpy(pHead->cont, key, keySize);
+  
+  pOper->rowData = pHead->cont;
+  (*pTable->encodeFp)(pOper);
+  pHead->len = pOper->rowSize;
 
   memcpy(pNewOper, pOper, sizeof(SSdbOper));
 
