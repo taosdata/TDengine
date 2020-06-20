@@ -652,6 +652,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
+        taos_free_result(pSql);
         return true;
       }
       taosMsleep(1000);
