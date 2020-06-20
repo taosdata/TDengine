@@ -191,9 +191,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
           break;
         }
         
-        str++;
-        
-        int32_t ret = WCSPatternMatch(&patterStr[i], str, wcslen(str), pInfo);
+        int32_t ret = WCSPatternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
@@ -241,9 +239,11 @@ static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
 
 static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
-  
+
   wchar_t pattern[128] = {0};
-  memcpy(pattern, varDataVal(pRight), varDataLen(pRight)/TSDB_NCHAR_SIZE);
+  assert(TSDB_PATTERN_STRING_MAX_LEN < 128);
+
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
   assert(varDataLen(pRight) < 128);
   
   int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);

@@ -171,8 +171,7 @@ public class TSDBSubscribe {
                 state = 1;
 
                 try {
-                    TSDBResultSet resultSet = consume(subscription);
-                    callBack.invoke(resultSet);
+                    callBack.invoke(consume(subscription));
                 } catch (Exception e) {
                     this.cancel();
                     throw new RuntimeException(e);

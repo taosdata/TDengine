@@ -3,10 +3,11 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Properties;
 
 public class TestAsyncTSDBSubscribe {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws SQLException {
         String usage = "java -cp taos-jdbcdriver-1.0.3_dev-dist.jar com.taosdata.jdbc.TSDBSubscribe -db dbName -topic topicName " +
                 "-tname tableName -h host";
         if (args.length < 2) {
@@ -38,15 +39,18 @@ public class TestAsyncTSDBSubscribe {
         }
 
         Connection connection = null;
-        TSDBSubscribe subscribe = null;
         long subscribId = 0;
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
             connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + dbName + "?user=root&password=taosdata", properties);
             String rawSql = "select * from " + tName + ";";
-            subscribe = ((TSDBConnection) connection).createSubscribe();
+            TSDBSubscribe subscribe = ((TSDBConnection) connection).createSubscribe();
             subscribId = subscribe.subscribe(topic, rawSql, false, 1000, new CallBack("first"));
             long subscribId2 = subscribe.subscribe("test", rawSql, false, 1000, new CallBack("second"));
             int a = 0;
@@ -55,6 +59,9 @@ public class TestAsyncTSDBSubscribe {
             System.err.println("cancel subscribe");
         } catch (Exception e) {
             e.printStackTrace();
+            if (null != connection && !connection.isClosed()) {
+                connection.close();
+            }
         }
     }
 

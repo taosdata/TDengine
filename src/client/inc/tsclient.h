@@ -349,7 +349,7 @@ typedef struct SSqlStream {
 int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn);
 void    tscInitMsgsFp();
 
-int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
+int tsParseSql(SSqlObj *pSql, bool initialParse);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet);
 int  tscProcessSql(SSqlObj *pSql);

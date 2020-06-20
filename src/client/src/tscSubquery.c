@@ -1165,8 +1165,8 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   pSql->res.qhandle = 0x1;
-  pSql->res.numOfRows = 0;
-  
+  assert(pSql->res.numOfRows == 0);
+
   if (pSql->pSubs == NULL) {
     pSql->pSubs = calloc(pSupporter->pState->numOfTotal, POINTER_BYTES);
     if (pSql->pSubs == NULL) {
@@ -1364,7 +1364,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   tOrderDescriptor *pDesc = NULL;
   SColumnModel *    pModel = NULL;
   
-  pRes->qhandle = 1;  // hack the qhandle check
+  pRes->qhandle = 0x1;  // hack the qhandle check
   
   const uint32_t nBufferSize = (1u << 16);  // 64KB
   
@@ -1845,34 +1845,42 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   }
 }
 
-static void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
+static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows) {
   SInsertSupporter *pSupporter = (SInsertSupporter *)param;
   SSqlObj* pParentObj = pSupporter->pSql;
   SSqlCmd* pParentCmd = &pParentObj->cmd;
   
   SSubqueryState* pState = pSupporter->pState;
 
-  // increase the total inserted rows
+  // record the total inserted rows
   if (numOfRows > 0) {
-    pParentObj->res.numOfRows += numOfRows;
+    if (tres != pParentObj) {
+      pParentObj->res.numOfRows += numOfRows;
+    }
   } else {
     SSqlObj* pSql = (SSqlObj*) tres;
     assert(pSql != NULL && pSql->res.code == numOfRows);
     
     pParentObj->res.code = pSql->res.code;
   }
-  
-  taos_free_result(tres);
+
+
+  // it is not the initial sqlObj, free it
+  if (tres != pParentObj) {
+    taos_free_result(tres);
+  } else {
+    assert(pParentObj->pSubs[0] == tres);
+  }
+
   tfree(pSupporter);
   if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
     return;
   }
   
   tscTrace("%p Async insertion completed, total inserted:%" PRId64, pParentObj, pParentObj->res.numOfRows);
-  
-  tfree(pState);
-  
+
   // release data block data
+  tfree(pState);
   pParentCmd->pDataBlocks = tscDestroyBlockArrayList(pParentCmd->pDataBlocks);
   
   // restore user defined fp
@@ -1886,9 +1894,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
-  pRes->qhandle = 1;  // hack the qhandle check
   SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
-  
   pSql->pSubs = calloc(pDataBlocks->nSize, POINTER_BYTES);
   pSql->numOfSubs = pDataBlocks->nSize;
   assert(pDataBlocks->nSize > 0);
@@ -1896,31 +1902,54 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   pState->numOfTotal = pSql->numOfSubs;
+
   pState->numOfRemain = pSql->numOfSubs;
-  
+ 
   pRes->code = TSDB_CODE_SUCCESS;
-  
-  int32_t i = 0;
+
+  SInsertSupporter* pSupporter = calloc(1, sizeof(SInsertSupporter));
+  pSupporter->pSql   = pSql;
+  pSupporter->pState = pState;
+
+  pSql->fp       = multiVnodeInsertFinalize;
+  pSql->param    = pSupporter;
+  pSql->pSubs[0] = pSql;  // the first sub insert points back to itself
+  tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pSql, 0);
+
+  int32_t code = tscCopyDataBlockToPayload(pSql, pDataBlocks->pData[0]);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%d", pSql, 0,
+             pDataBlocks->nSize, code);
+    goto _error;
+  }
+
+  int32_t i = 1;
   for (; i < pSql->numOfSubs; ++i) {
-    SInsertSupporter* pSupporter = calloc(1, sizeof(SInsertSupporter));
-    pSupporter->pSql = pSql;
-    pSupporter->pState = pState;
+    SInsertSupporter* pSupporter1 = calloc(1, sizeof(SInsertSupporter));
+    pSupporter1->pSql = pSql;
+    pSupporter1->pState = pState;
     
-    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertMerge, pSupporter, TSDB_SQL_INSERT, NULL);
+    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertFinalize, pSupporter, TSDB_SQL_INSERT, NULL);
     if (pNew == NULL) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
-      break;
+      goto _error;
     }
   
     /*
      * assign the callback function to fetchFp to make sure that the error process function can restore
-     * the callback function (multiVnodeInsertMerge) correctly.
+     * the callback function (multiVnodeInsertFinalize) correctly.
      */
     pNew->fetchFp = pNew->fp;
     pSql->pSubs[i] = pNew;
-    pNew->fetchFp = pNew->fp;
-    
-    tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
+
+    code = tscCopyDataBlockToPayload(pNew, pDataBlocks->pData[i]);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%d", pSql, i,
+               pDataBlocks->nSize, code);
+      goto _error;
+    } else {
+      tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
+    }
   }
   
   if (i < pSql->numOfSubs) {
@@ -1928,21 +1957,30 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;  // free all allocated resource
   }
-  
-  for (int32_t j = 0; j < pSql->numOfSubs; ++j) {
+
+  // use the local variable
+  int32_t numOfSub = pSql->numOfSubs;
+  for (int32_t j = 0; j < numOfSub; ++j) {
     SSqlObj *pSub = pSql->pSubs[j];
-    int32_t code = tscCopyDataBlockToPayload(pSub, pDataBlocks->pData[j]);
-    
-    if (code != TSDB_CODE_SUCCESS) {
-      tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%d", pSql, j,
-               pDataBlocks->nSize, code);
-    }
-    
     tscTrace("%p sub:%p launch sub insert, orderOfSub:%d", pSql, pSub, j);
     tscProcessSql(pSub);
   }
   
   return TSDB_CODE_SUCCESS;
+
+  _error:
+  // restore the udf fp
+  pSql->fp = pSql->fetchFp;
+
+  tfree(pState);
+  tfree(pSql->param);
+
+  for(int32_t j = 1; j < i; ++j) {
+    tfree(pSql->pSubs[j]->param);
+    taos_free_result(pSql->pSubs[j]);
+  }
+
+  return TSDB_CODE_TSC_OUT_OF_MEMORY;
 }
 
 void tscBuildResFromSubqueries(SSqlObj *pSql) {
