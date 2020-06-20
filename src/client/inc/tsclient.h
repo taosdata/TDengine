@@ -296,7 +296,7 @@ typedef struct STscObj {
 typedef struct SSqlObj {
   void            *signature;
   STscObj         *pTscObj;
-  void            *SRpcReqContext;
+  void            *pRpcCtx;
   void            (*fp)();
   void            (*fetchFp)();
   void            *param;
@@ -308,8 +308,7 @@ typedef struct SSqlObj {
   char             retry;
   char             maxRetry;
   SRpcIpSet        ipList;
-  char             freed : 4;
-  char             listed : 4;
+  char             listed;
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
@@ -349,7 +348,7 @@ typedef struct SSqlStream {
 int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn);
 void    tscInitMsgsFp();
 
-int tsParseSql(SSqlObj *pSql, bool initialParse);
+int tsParseSql(SSqlObj *pSql, bool initial);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet);
 int  tscProcessSql(SSqlObj *pSql);
