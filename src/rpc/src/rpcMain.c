@@ -147,17 +147,17 @@ void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, vo
 };
 
 void (*taosCleanUpConn[])(void *thandle) = {
-    NULL, 
-    NULL,
+    taosCleanUpUdpConnection, 
+    taosCleanUpUdpConnection, 
     taosCleanUpTcpServer,
     taosCleanUpTcpClient
 };
 
 void (*taosStopConn[])(void *thandle) = {
-    taosCleanUpUdpConnection, 
-    taosCleanUpUdpConnection, 
+    taosStopUdpConnection, 
+    taosStopUdpConnection, 
     taosStopTcpServer,
-    NULL 
+    taosStopTcpClient,
 };
 
 int (*taosSendData[])(uint32_t ip, uint16_t port, void *data, int len, void *chandle) = {
@@ -297,11 +297,8 @@ void rpcClose(void *param) {
   SRpcInfo *pRpc = (SRpcInfo *)param;
 
   // stop connection to outside first
-  if (taosStopConn[pRpc->connType | RPC_CONN_TCP])
-    (*taosStopConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
-
-  if (taosStopConn[pRpc->connType])
-    (*taosStopConn[pRpc->connType])(pRpc->udphandle);
+  (*taosStopConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
+  (*taosStopConn[pRpc->connType])(pRpc->udphandle);
 
   // close all connections 
   for (int i = 0; i < pRpc->sessions; ++i) {
@@ -311,11 +308,8 @@ void rpcClose(void *param) {
   }
 
   // clean up
-  if (taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])
-    (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
-
-  if (taosCleanUpConn[pRpc->connType])
-    (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
+  (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
+  (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
   tTrace("%s rpc is closed", pRpc->label);
   rpcDecRef(pRpc);

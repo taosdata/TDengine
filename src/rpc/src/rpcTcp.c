@@ -193,10 +193,11 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
 void taosStopTcpServer(void *handle) {
   SServerObj *pServerObj = handle;
 
-  tTrace("TCP:%s, stop accept new connections", pServerObj->label);
   if (pServerObj == NULL) return;
   if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
   if(pServerObj->thread) pthread_join(pServerObj->thread, NULL);
+
+  tTrace("%s TCP server is stopped", pServerObj->label);
 }
 
 void taosCleanUpTcpServer(void *handle) {
@@ -210,7 +211,7 @@ void taosCleanUpTcpServer(void *handle) {
     pthread_mutex_destroy(&(pThreadObj->mutex));
   }
 
-  tTrace("TCP:%s, TCP server is cleaned up", pServerObj->label);
+  tTrace("%s TCP server is cleaned up", pServerObj->label);
 
   tfree(pServerObj->pThreadObj);
   tfree(pServerObj);
@@ -309,12 +310,19 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   return pThreadObj;
 }
 
+void taosStopTcpClient(void *chandle) {
+  SThreadObj *pThreadObj = chandle;
+  if (pThreadObj == NULL) return;
+
+  tTrace ("%s TCP client is stopped", pThreadObj->label);
+}
+
 void taosCleanUpTcpClient(void *chandle) {
   SThreadObj *pThreadObj = chandle;
   if (pThreadObj == NULL) return;
 
   taosStopTcpThread(pThreadObj);
-  tTrace ("%s, all connections are cleaned up", pThreadObj->label);
+  tTrace ("%s TCP client is cleaned up", pThreadObj->label);
 
   tfree(pThreadObj);
 }

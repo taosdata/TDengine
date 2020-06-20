@@ -130,7 +130,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   return pSet;
 }
 
-void taosCleanUpUdpConnection(void *handle) {
+void taosStopUdpConnection(void *handle) {
   SUdpConnSet *pSet = (SUdpConnSet *)handle;
   SUdpConn    *pConn;
 
@@ -146,9 +146,24 @@ void taosCleanUpUdpConnection(void *handle) {
     pConn = pSet->udpConn + i;
     if (pConn->thread) pthread_join(pConn->thread, NULL);
     tfree(pConn->buffer);
-    tTrace("%s UDP thread is closed, inedx:%d", pConn->label, i);
+    // tTrace("%s UDP thread is closed, index:%d", pConn->label, i);
   }
 
+  tTrace("%s UDP is stopped", pSet->label);
+}
+
+void taosCleanUpUdpConnection(void *handle) {
+  SUdpConnSet *pSet = (SUdpConnSet *)handle;
+  SUdpConn    *pConn;
+
+  if (pSet == NULL) return;
+
+  for (int i = 0; i < pSet->threads; ++i) {
+    pConn = pSet->udpConn + i;
+    if (pConn->fd >=0) taosCloseSocket(pConn->fd);
+  }
+
+  tTrace("%s UDP is cleaned up", pSet->label);
   tfree(pSet);
 }
 
