@@ -205,6 +205,10 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
     }
   }
 
+  if (tscResultsetFetchCompleted(result)) {
+    isContinue = false;
+  }
+
   if (isContinue) {
     // retrieve next batch of rows
     httpTrace("context:%p, fd:%d, ip:%s, user:%s, continue retrieve, numOfRows:%d", pContext, pContext->fd,
