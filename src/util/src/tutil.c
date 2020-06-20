@@ -58,6 +58,7 @@ uint32_t taosRand(void)
 #endif
 
 size_t twcslen(const wchar_t *wcs) {
+#ifdef WINDOWS
   int *wstr = (int *)wcs;
   if (NULL == wstr) {
     return 0;
@@ -72,6 +73,9 @@ size_t twcslen(const wchar_t *wcs) {
   }
 
   return n;
+#else
+  return wcslen(wcs);
+#endif
 }
 
 int32_t strdequote(char *z) {
