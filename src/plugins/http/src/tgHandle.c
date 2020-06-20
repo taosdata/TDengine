@@ -269,14 +269,20 @@ int tgReadSchema(char *fileName) {
   httpPrint("open telegraf schema file:%s success", fileName);
   fseek(fp, 0, SEEK_END);
   int32_t contentSize = (int32_t)ftell(fp);
+  if (contentSize <= 0) {
+    fclose(fp);
+    return 0;
+  }
+
   rewind(fp);
   char *  content = (char *)calloc(contentSize + 1, 1);
   int32_t result = fread(content, 1, contentSize, fp);
+  
   if (result != contentSize) {
     httpError("failed to read telegraf schema file:%s", fileName);
     fclose(fp);
     free(content);
-    return -1;
+    return 0;
   }
 
   content[contentSize] = 0;

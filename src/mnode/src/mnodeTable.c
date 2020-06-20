@@ -1753,11 +1753,43 @@ static int32_t mnodeFindNormalTableColumnIndex(SChildTableObj *pTable, char *col
   return -1;
 }
 
-static int32_t mnodeAddNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
+static int32_t mnodeAlterNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
-  mLPrint("app:%p:%p, ctable %s, add column result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
-          tstrerror(code));
-  return code;
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("app:%p:%p, ctable %s, failed to alter column, reason:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+           tstrerror(code));
+    return code;
+  }
+
+  SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(NULL, pTable);
+  if (pMDCreate == NULL) {
+    return terrno;
+  }
+
+  if (pMsg->pVgroup == NULL) {
+    pMsg->pVgroup = mnodeGetVgroup(pTable->vgId);
+    if (pMsg->pVgroup == NULL) {
+      rpcFreeCont(pMDCreate);
+      mError("app:%p:%p, ctable %s, vgId:%d not exist in mnode", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+             pTable->vgId);
+      return TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    }
+  }
+
+  SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
+  SRpcMsg rpcMsg = {
+      .handle  = pMsg,
+      .pCont   = pMDCreate,
+      .contLen = htonl(pMDCreate->contLen),
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_ALTER_TABLE
+  };
+
+  mTrace("app:%p:%p, ctable %s, send alter column msg to vgId:%d", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+         pMsg->pVgroup->vgId);
+
+  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
 static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int32_t ncols) {
@@ -1802,7 +1834,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
     .table = tsChildTableSdb,
     .pObj = pTable,
     .pMsg = pMsg,
-    .cb = mnodeAddNormalTableColumnCb
+    .cb = mnodeAlterNormalTableColumnCb
   };
 
   int32_t code = sdbUpdateRow(&oper);
@@ -1810,13 +1842,6 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
-  return code;
-}
-
-static int32_t mnodeDropNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
-  SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
-  mLPrint("app:%p:%p, ctable %s, drop column result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
-          tstrerror(code));
   return code;
 }
 
@@ -1847,7 +1872,7 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
     .table = tsChildTableSdb,
     .pObj = pTable,
     .pMsg = pMsg,
-    .cb = mnodeDropNormalTableColumnCb
+    .cb = mnodeAlterNormalTableColumnCb
   };
 
   int32_t code = sdbUpdateRow(&oper);
@@ -2185,9 +2210,33 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
   }
 }
 
-// not implemented yet
 static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
-  mTrace("alter table rsp received, handle:%p code:%s", rpcMsg->handle, tstrerror(rpcMsg->code));
+  if (rpcMsg->handle == NULL) return;
+
+  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  mnodeMsg->received++;
+
+  SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
+  assert(pTable);
+
+  if (rpcMsg->code == TSDB_CODE_SUCCESS || rpcMsg->code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+    mTrace("app:%p:%p, ctable:%s, altered in dnode, thandle:%p result:%s", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
+           pTable->info.tableId, mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
+
+    dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
+  } else {
+    if (mnodeMsg->retry++ < 3) {
+      mTrace("app:%p:%p, table:%s, alter table rsp received, need retry, times:%d result:%s thandle:%p",
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, tstrerror(rpcMsg->code),
+             mnodeMsg->rpcMsg.handle);
+
+      dnodeDelayReprocessMnodeWriteMsg(mnodeMsg);
+    } else {
+      mError("app:%p:%p, table:%s, failed to alter in dnode, result:%s thandle:%p", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
+             pTable->info.tableId, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
+      dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
+    }
+  }
 }
 
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {

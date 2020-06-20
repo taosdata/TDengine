@@ -437,7 +437,7 @@ static void *taosProcessTcpData(void *param) {
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, -1);
     if (pThreadObj->stop) {
-      tTrace("%s, tcp thread get stop event, exiting...", pThreadObj->label);
+      tTrace("%s TCP thread get stop event, exiting...", pThreadObj->label);
       break;
     }
     if (fdNum < 0) continue;

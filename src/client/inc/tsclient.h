@@ -404,6 +404,7 @@ void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
+bool tscResultsetFetchCompleted(TAOS_RES *result);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 

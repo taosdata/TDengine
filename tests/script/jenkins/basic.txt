@@ -159,21 +159,6 @@ cd ../../../debug; make
 ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
 
-./test.sh -f general/stream/metrics_1.sim
-./test.sh -f general/stream/metrics_del.sim
-./test.sh -f general/stream/metrics_n.sim
-./test.sh -f general/stream/metrics_replica1_vnoden.sim
-#./test.sh -f general/stream/new_stream.sim
-./test.sh -f general/stream/restart_stream.sim
-./test.sh -f general/stream/stream_1.sim
-./test.sh -f general/stream/stream_2.sim
-./test.sh -f general/stream/stream_3.sim
-./test.sh -f general/stream/stream_restart.sim
-./test.sh -f general/stream/table_1.sim
-./test.sh -f general/stream/table_del.sim
-./test.sh -f general/stream/table_n.sim
-./test.sh -f general/stream/table_replica1_vnoden.sim
-
 ./test.sh -f general/table/autocreate.sim
 ./test.sh -f general/table/basic1.sim
 ./test.sh -f general/table/basic2.sim
@@ -323,6 +308,21 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_repeat.sim
 ./test.sh -f unique/vnode/replica3_vgroup.sim
 
+./test.sh -f general/stream/metrics_1.sim
+./test.sh -f general/stream/metrics_del.sim
+./test.sh -f general/stream/metrics_n.sim
+./test.sh -f general/stream/metrics_replica1_vnoden.sim
+#./test.sh -f general/stream/new_stream.sim
+./test.sh -f general/stream/restart_stream.sim
+./test.sh -f general/stream/stream_1.sim
+./test.sh -f general/stream/stream_2.sim
+./test.sh -f general/stream/stream_3.sim
+./test.sh -f general/stream/stream_restart.sim
+./test.sh -f general/stream/table_1.sim
+./test.sh -f general/stream/table_del.sim
+./test.sh -f general/stream/table_n.sim
+./test.sh -f general/stream/table_replica1_vnoden.sim
+
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
 ./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
@@ -337,7 +337,9 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
 ./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
 ./test.sh -f unique/arbitrator/insert_duplicationTs.sim

@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInitWithCb(10, mnodeFreeShowObj);
+  tsMnodeShowCache = taosCacheInitWithCb(5, mnodeFreeShowObj);
   return 0;
 }
 
@@ -139,7 +139,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
   int32_t code = (*tsMnodeShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->rpcMsg.handle);
-  mTrace("%p, show type:%s index:%d, get meta finished, rows:%d cols:%d result:%s", pShow,
+  mTrace("%p, show type:%s index:%d, get meta finished, numOfRows:%d cols:%d result:%s", pShow,
          mnodeGetShowType(pShowMsg->type), pShow->index, pShow->numOfRows, pShow->numOfColumns, tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -179,7 +179,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
     mTrace("%p, show is already read finished, numOfReads:%d numOfRows:%d", pShow, pShow->numOfReads, pShow->numOfRows);
     pShow->numOfReads = pShow->numOfRows;
   }
-
+  
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
     rowsToRead = pShow->numOfRows - pShow->numOfReads;
   }
@@ -219,8 +219,10 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
 
   if (rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
     pRsp->completed = 1;
+    mTrace("%p, retrieve completed", pShow);
     mnodeReleaseShowObj(pShow, true);
   } else {
+    mTrace("%p, retrieve not completed yet", pShow);
     mnodeReleaseShowObj(pShow, false);
   }
 
@@ -379,10 +381,10 @@ static void *mnodePutShowObj(SShowObj *pShow, int32_t size) {
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
     sprintf(key, "%d", pShow->index);
 
-    SShowObj *newQhandle = taosCachePut(tsMnodeShowCache, key, pShow, size, 60);
+    SShowObj *newQhandle = taosCachePut(tsMnodeShowCache, key, pShow, size, 6);
     free(pShow);
 
-    mTrace("%p, show is put into cache", newQhandle);
+    mTrace("%p, show is put into cache, index:%s", newQhandle, key);
     return newQhandle;
   }
 

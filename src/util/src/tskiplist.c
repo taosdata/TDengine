@@ -219,6 +219,8 @@ void *tSkipListDestroy(SSkipList *pSkipList) {
 
 void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize) {
   if (pSkipList == NULL) {
+    *level = 1;
+    *headSize = SL_NODE_HEADER_SIZE(*level);
     return;
   }
 
@@ -277,7 +279,7 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode) {
       pthread_rwlock_unlock(pSkipList->lock);
     }
 
-    return forward[0];
+    return NULL;
   }
   
   tSkipListDoInsert(pSkipList, forward, pNode);

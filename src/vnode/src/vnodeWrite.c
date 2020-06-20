@@ -91,7 +91,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
 }
 
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   // save insert result into item
 
@@ -100,7 +100,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   pRet->len = sizeof(SShellSubmitRspMsg);
   pRet->rsp = rpcMallocCont(pRet->len);
   SShellSubmitRspMsg *pRsp = pRet->rsp;
-  code = tsdbInsertData(pVnode->tsdb, pCont, pRsp);
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
   pRsp->numOfFailedBlocks = 0; //TODO
   //pRet->len += pRsp->numOfFailedBlocks * sizeof(SShellSubmitRspBlock); //TODO
   pRsp->code              = 0;
@@ -110,10 +110,11 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 }
 
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
+  int code = TSDB_CODE_SUCCESS;
 
   STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
   if (pCfg == NULL) return terrno;
-  int32_t code = tsdbCreateTable(pVnode->tsdb, pCfg);
+  if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) code = terrno;
 
   tsdbClearTableCfg(pCfg);
   return code;
@@ -121,47 +122,47 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
 
 static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDDropTableMsg *pTable = pCont;
-  int32_t code = 0;
+  int32_t          code = TSDB_CODE_SUCCESS;
 
   vTrace("vgId:%d, table:%s, start to drop", pVnode->vgId, pTable->tableId);
-  STableId tableId = {
-    .uid = htobe64(pTable->uid),
-    .tid = htonl(pTable->sid)
-  };
+  STableId tableId = {.uid = htobe64(pTable->uid), .tid = htonl(pTable->sid)};
 
-  code = tsdbDropTable(pVnode->tsdb, tableId);
+  if (tsdbDropTable(pVnode->tsdb, tableId) < 0) code = terrno;
 
   return code;
 }
 
 static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
-  if (pCfg == NULL) return terrno;
-  int32_t code = tsdbAlterTable(pVnode->tsdb, pCfg);
-  tsdbClearTableCfg(pCfg);
-  return code;
+  // TODO: disposed in tsdb
+  // STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
+  // if (pCfg == NULL) return terrno;
+  // if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) code = terrno;
+
+  // tsdbClearTableCfg(pCfg);
+  vTrace("vgId:%d, alter table msg is received", pVnode->vgId);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SMDDropSTableMsg *pTable = pCont;
-  int32_t code = 0;
+  int32_t           code = TSDB_CODE_SUCCESS;
 
   vTrace("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
-  
-  STableId stableId = {
-    .uid = htobe64(pTable->uid),
-    .tid = -1
-  };
 
-  code = tsdbDropTable(pVnode->tsdb, stableId);
-  
+  STableId stableId = {.uid = htobe64(pTable->uid), .tid = -1};
+
+  if (tsdbDropTable(pVnode->tsdb, stableId) < 0) code = terrno;
+
   vTrace("vgId:%d, stable:%s, drop stable result:%s", pVnode->vgId, pTable->tableId, tstrerror(code));
- 
+
   return code;
 }
 
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  return tsdbUpdateTagValue(pVnode->tsdb, (SUpdateTableTagValMsg *)pCont);
+  if (tsdbUpdateTagValue(pVnode->tsdb, (SUpdateTableTagValMsg *)pCont) < 0) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int vnodeWriteToQueue(void *param, void *data, int type) {

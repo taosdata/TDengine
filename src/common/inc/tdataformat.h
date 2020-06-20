@@ -69,8 +69,8 @@ typedef struct {
   int      version;    // version
   int      numOfCols;  // Number of columns appended
   int      tlen;       // maximum length of a SDataRow without the header part
-  uint16_t  flen;       // First part length in a SDataRow after the header part
-  uint16_t  vlen;       // pure value part length, excluded the overhead
+  uint16_t flen;       // First part length in a SDataRow after the header part
+  uint16_t vlen;       // pure value part length, excluded the overhead
   STColumn columns[];
 } STSchema;
 
@@ -83,8 +83,8 @@ typedef struct {
 #define tdFreeSchema(s) tfree((s))
 
 STSchema *tdDupSchema(STSchema *pSchema);
-void *    tdEncodeSchema(void *dst, STSchema *pSchema);
-STSchema *tdDecodeSchema(void **psrc);
+int       tdEncodeSchema(void **buf, STSchema *pSchema);
+void *    tdDecodeSchema(void *buf, STSchema **pRSchema);
 
 static FORCE_INLINE int comparColId(const void *key1, const void *key2) {
   if (*(int16_t *)key1 > ((STColumn *)key2)->colId) {
@@ -107,8 +107,8 @@ typedef struct {
   int       tCols;
   int       nCols;
   int       tlen;
-  uint16_t   flen;
-  uint16_t   vlen;
+  uint16_t  flen;
+  uint16_t  vlen;
   int       version;
   STColumn *columns;
 } STSchemaBuilder;
@@ -288,7 +288,7 @@ typedef struct {
 
 SKVRow tdKVRowDup(SKVRow row);
 int    tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
-void * tdEncodeKVRow(void *buf, SKVRow row);
+int    tdEncodeKVRow(void **buf, SKVRow row);
 void * tdDecodeKVRow(void *buf, SKVRow *row);
 
 static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {

@@ -1984,6 +1984,11 @@ bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
   return (pQueryInfo->clauseLimit > 0 && pRes->numOfClauseTotal >= pQueryInfo->clauseLimit);
 }
 
+bool tscResultsetFetchCompleted(TAOS_RES *result) {
+  SSqlRes* pRes = result;
+  return pRes->completed; 
+}
+
 char* tscGetErrorMsgPayload(SSqlCmd* pCmd) { return pCmd->payload; }
 
 /**
