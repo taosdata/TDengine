@@ -126,6 +126,9 @@ python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
+# stable
+python3 ./test.py -f stable/query_after_reset.py
+
 # table
 python3 ./test.py -f table/del_stable.py
 
