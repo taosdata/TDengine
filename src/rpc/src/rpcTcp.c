@@ -190,14 +190,19 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
   }
 }
 
+void taosStopTcpServer(void *handle) {
+  SServerObj *pServerObj = handle;
+
+  tTrace("TCP:%s, stop accept new connections", pServerObj->label);
+  if (pServerObj == NULL) return;
+  if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
+  if(pServerObj->thread) pthread_join(pServerObj->thread, NULL);
+}
 
 void taosCleanUpTcpServer(void *handle) {
   SServerObj *pServerObj = handle;
   SThreadObj *pThreadObj;
-
   if (pServerObj == NULL) return;
-  if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
-  if(pServerObj->thread) pthread_join(pServerObj->thread, NULL);
 
   for (int i = 0; i < pServerObj->numOfThreads; ++i) {
     pThreadObj = pServerObj->pThreadObj + i;
@@ -226,7 +231,7 @@ static void *taosAcceptTcpConnection(void *arg) {
     connFd = accept(pServerObj->fd, (struct sockaddr *)&caddr, &addrlen);
     if (connFd == -1) {
       if (errno == EINVAL) {
-        tTrace("%s TCP server socket was shutdown, exiting...", pServerObj->label);
+        tTrace("%s TCP server stop accepting new connections, exiting", pServerObj->label);
         break;
       }
 

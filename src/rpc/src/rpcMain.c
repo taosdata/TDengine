@@ -147,10 +147,17 @@ void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, vo
 };
 
 void (*taosCleanUpConn[])(void *thandle) = {
-    taosCleanUpUdpConnection, 
-    taosCleanUpUdpConnection, 
+    NULL, 
+    NULL,
     taosCleanUpTcpServer,
     taosCleanUpTcpClient
+};
+
+void (*taosStopConn[])(void *thandle) = {
+    taosCleanUpUdpConnection, 
+    taosCleanUpUdpConnection, 
+    taosStopTcpServer,
+    NULL 
 };
 
 int (*taosSendData[])(uint32_t ip, uint16_t port, void *data, int len, void *chandle) = {
@@ -289,14 +296,26 @@ void *rpcOpen(const SRpcInit *pInit) {
 void rpcClose(void *param) {
   SRpcInfo *pRpc = (SRpcInfo *)param;
 
+  // stop connection to outside first
+  if (taosStopConn[pRpc->connType | RPC_CONN_TCP])
+    (*taosStopConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
+
+  if (taosStopConn[pRpc->connType])
+    (*taosStopConn[pRpc->connType])(pRpc->udphandle);
+
+  // close all connections 
   for (int i = 0; i < pRpc->sessions; ++i) {
     if (pRpc->connList && pRpc->connList[i].user[0]) {
       rpcCloseConn((void *)(pRpc->connList + i));
     }
   }
 
-  (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
-  (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
+  // clean up
+  if (taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])
+    (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
+
+  if (taosCleanUpConn[pRpc->connType])
+    (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
   tTrace("%s rpc is closed", pRpc->label);
   rpcDecRef(pRpc);
@@ -588,6 +607,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
   pConn->inTranId = 0;
   pConn->outTranId = 0;
   pConn->secured = 0;
+  pConn->peerId = 0;
   pConn->peerIp = 0;
   pConn->peerPort = 0;
   pConn->pReqMsg = NULL;
@@ -627,6 +647,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
     pConn->spi = pRpc->spi;
     pConn->encrypt = pRpc->encrypt;
     if (pConn->spi) memcpy(pConn->secret, pRpc->secret, TSDB_KEY_LEN);
+    tTrace("%s %p client connection is allocated", pRpc->label, pConn);
   }
 
   return pConn;
@@ -681,6 +702,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
   
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
+    tTrace("%s %p server connection is allocated", pRpc->label, pConn);
   }
 
   return pConn;
