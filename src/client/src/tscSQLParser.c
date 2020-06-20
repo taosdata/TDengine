@@ -2642,7 +2642,7 @@ static int32_t doExtractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnFilterIn
 
       tVariantDump(&pRight->val, (char*)pColumnFilter->pz, colType, false);
 
-      size_t len = wcslen((wchar_t*)pColumnFilter->pz);
+      size_t len = twcslen((wchar_t*)pColumnFilter->pz);
       pColumnFilter->len = len * TSDB_NCHAR_SIZE;
     } else {
       tVariantDump(&pRight->val, (char*)&pColumnFilter->lowerBndd, colType, false);
