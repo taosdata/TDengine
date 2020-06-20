@@ -53,7 +53,7 @@ typedef struct STable {
   STSchema*      schema[TSDB_MAX_TABLE_SCHEMAS];
   STSchema*      tagSchema;
   SKVRow         tagVal;
-  void*          pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
+  SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure

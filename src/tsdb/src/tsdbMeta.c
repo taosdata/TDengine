@@ -31,7 +31,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper);
 static void    tsdbFreeTable(STable *pTable);
 static int     tsdbUpdateTableTagSchema(STable *pTable, STSchema *newSchema);
 static int     tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx);
-static void    tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFromIdx);
+static void    tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFromIdx, bool lock);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid);
@@ -123,6 +123,8 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
     return -1;
   }
 
+  tsdbTrace("vgId:%d try to drop table %s type %d", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TYPE(pTable));
+
   tid = TABLE_TID(pTable);
   tbname = strdup(TABLE_CHAR_NAME(pTable));
   if (tbname == NULL) {
@@ -143,11 +145,11 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
       void *buf = tsdbAllocBytes(pRepo, tlen);
       ASSERT(buf != NULL);
       tsdbInsertTableAct(pRepo, TSDB_DROP_META, buf, tTable);
-      tsdbRemoveTableFromMeta(pRepo, tTable, true);
+      tsdbRemoveTableFromMeta(pRepo, tTable, false, true);
     }
   }
 
-  tsdbRemoveTableFromMeta(pRepo, pTable, true);
+  tsdbRemoveTableFromMeta(pRepo, pTable, true, true);
 
   tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
   free(tbname);
@@ -708,6 +710,7 @@ _err:
 
 static void tsdbFreeTable(STable *pTable) {
   if (pTable) {
+    tsdbTrace("table %s is destroyed", TABLE_CHAR_NAME(pTable));
     tfree(TABLE_NAME(pTable));
     if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
       for (int i = 0; i < TSDB_MAX_TABLE_SCHEMAS; i++) {
@@ -723,6 +726,7 @@ static void tsdbFreeTable(STable *pTable) {
 
     tSkipListDestroy(pTable->pIndex);
     tfree(pTable->sql);
+    free(pTable);
   }
 }
 
@@ -790,12 +794,12 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
   return 0;
 
 _err:
-  tsdbRemoveTableFromMeta(pRepo, pTable, false);
+  tsdbRemoveTableFromMeta(pRepo, pTable, false, false);
   if (addIdx) tsdbUnlockRepoMeta(pRepo);
   return -1;
 }
 
-static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFromIdx) {
+static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFromIdx, bool lock) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   SListIter  lIter = {0};
   SListNode *pNode = NULL;
@@ -806,17 +810,17 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   int       maxCols = schemaNCols(pSchema);
   int       maxRowBytes = schemaTLen(pSchema);
 
-  if (rmFromIdx) tsdbWLockRepoMeta(pRepo);
+  if (lock) tsdbWLockRepoMeta(pRepo);
 
   if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
     tdListInitIter(pMeta->superList, &lIter, TD_LIST_BACKWARD);
 
     while ((pNode = tdListNext(&lIter)) != NULL) {
-      tdListNodeGetData(pMeta->superList, pNode, (void *)(tTable));
+      tdListNodeGetData(pMeta->superList, pNode, (void *)(&tTable));
       if (pTable == tTable) {
-        break;
         tdListPopNode(pMeta->superList, pNode);
         free(pNode);
+        break;
       }
     }
   } else {
@@ -843,7 +847,8 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
     }
   }
 
-  if (rmFromIdx) tsdbUnlockRepoMeta(pRepo);
+  if (lock) tsdbUnlockRepoMeta(pRepo);
+  tsdbTrace("vgId:%d table %s is removed from meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
   tsdbUnRefTable(pTable);
 }
 
