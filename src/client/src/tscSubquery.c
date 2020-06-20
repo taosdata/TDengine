@@ -1864,6 +1864,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     pParentObj->res.code = pSql->res.code;
   }
 
+
   // it is not the initial sqlObj, free it
   if (tres != pParentObj) {
     taos_free_result(tres);
@@ -1901,8 +1902,9 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   pState->numOfTotal = pSql->numOfSubs;
-  pState->numOfRemain = pState->numOfTotal;
 
+  pState->numOfRemain = pSql->numOfSubs;
+ 
   pRes->code = TSDB_CODE_SUCCESS;
 
   SInsertSupporter* pSupporter = calloc(1, sizeof(SInsertSupporter));
