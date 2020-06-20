@@ -1896,7 +1896,8 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   pState->numOfTotal = pSql->numOfSubs;
-  
+  pState->numOfRemain = pState->numOfTotal;
+
   pRes->code = TSDB_CODE_SUCCESS;
   
   int32_t i = 0;
@@ -1917,8 +1918,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
      */
     pNew->fetchFp = pNew->fp;
     pSql->pSubs[i] = pNew;
-    pNew->fetchFp = pNew->fp;
-    
+
     tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
   }
   

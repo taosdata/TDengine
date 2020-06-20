@@ -4,6 +4,13 @@
 #
 # Build Matrix
 #
+branches:
+  only:
+    - master
+    - develop
+    - coverity_scan
+    - /^.*ci-.*$/
+
 matrix:
   - os: linux
     dist: bionic

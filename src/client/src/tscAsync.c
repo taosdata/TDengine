@@ -42,11 +42,13 @@ static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRo
 int doAsyncParseSql(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
+
   int32_t code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to malloc payload");
+    pSql->res.code = code;
+
     tscQueueAsyncRes(pSql);
-//    tscQueueAsyncRes(pSql->fp, pSql->param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return code;
   }
   
