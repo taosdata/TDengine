@@ -588,6 +588,8 @@ static void rpcReleaseConn(SRpcConn *pConn) {
   pConn->inTranId = 0;
   pConn->outTranId = 0;
   pConn->secured = 0;
+  pConn->peerIp = 0;
+  pConn->peerPort = 0;
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
   pConn->pContext = NULL;
