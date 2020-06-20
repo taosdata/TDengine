@@ -986,14 +986,16 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   return code;
 }
 
-int validateTableName(char *tblName, int len) {
+int validateTableName(char *tblName, int len, SSQLToken* psTblToken) {
   char buf[TSDB_TABLE_ID_LEN] = {0};
   tstrncpy(buf, tblName, sizeof(buf));
 
-  SSQLToken token = {.n = len, .type = TK_ID, .z = buf};
-  tSQLGetToken(buf, &token.type);
+  psTblToken->n    = len;
+  psTblToken->type = TK_ID;
+  psTblToken->z    = buf;
+  tSQLGetToken(buf, &psTblToken->type);
 
-  return tscValidateName(&token);
+  return tscValidateName(psTblToken);
 }
 
 static int32_t validateDataSource(SSqlCmd *pCmd, int8_t type, const char *sql) {
@@ -1077,14 +1079,14 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
 
     pCmd->curSql = sToken.z;
-
+    SSQLToken sTblToken;
     // Check if the table name available or not
-    if (validateTableName(sToken.z, sToken.n) != TSDB_CODE_SUCCESS) {
+    if (validateTableName(sToken.z, sToken.n, &sTblToken) != TSDB_CODE_SUCCESS) {
       code = tscInvalidSQLErrMsg(pCmd->payload, "table name invalid", sToken.z);
       goto _error;
     }
 
-    if ((code = tscSetTableFullName(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableFullName(pTableMetaInfo, &sTblToken, pSql)) != TSDB_CODE_SUCCESS) {
       goto _error;
     }
 
