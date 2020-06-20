@@ -18,9 +18,10 @@
 #include "tglobal.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "httpInt.h"
 #include "tgHandle.h"
 #include "tgJson.h"
-#include "httpLog.h"
+#include "cJSON.h"
 
 /*
  * taos.telegraf.cfg formats like
@@ -267,17 +268,24 @@ int tgReadSchema(char *fileName) {
 
   httpPrint("open telegraf schema file:%s success", fileName);
   fseek(fp, 0, SEEK_END);
-  size_t contentSize = (size_t)ftell(fp);
+  int32_t contentSize = (int32_t)ftell(fp);
+  if (contentSize <= 0) {
+    fclose(fp);
+    return 0;
+  }
+
   rewind(fp);
-  char *content = (char *)calloc(contentSize * sizeof(char) + 1, 1);
-  size_t result = fread(content, 1, contentSize, fp);
+  char *  content = (char *)calloc(contentSize + 1, 1);
+  int32_t result = fread(content, 1, contentSize, fp);
+  
   if (result != contentSize) {
     httpError("failed to read telegraf schema file:%s", fileName);
     fclose(fp);
     free(content);
-    return -1;
+    return 0;
   }
 
+  content[contentSize] = 0;
   int schemaNum = tgParseSchema(content, fileName);
 
   free(content);

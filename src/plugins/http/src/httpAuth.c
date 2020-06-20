@@ -18,8 +18,8 @@
 #include "tkey.h"
 #include "tutil.h"
 #include "http.h"
-#include "httpLog.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpAuth.h"
 
 #define KEY_DES_4 4971256377704625728L
 
@@ -29,6 +29,7 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
   char *base64 = (char *)base64_decode(token, len, &outlen);
   if (base64 == NULL || outlen == 0) {
     httpError("context:%p, fd:%d, ip:%s, basic token:%s parsed error", pContext, pContext->fd, pContext->ipstr, token);
+    free(base64);
     return false;
   }
 
@@ -73,6 +74,7 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
   unsigned char *base64 = base64_decode(token, len, &outlen);
   if (base64 == NULL || outlen == 0) {
     httpError("context:%p, fd:%d, ip:%s, taosd token:%s parsed error", pContext, pContext->fd, pContext->ipstr, token);
+    if (base64) free(base64);
     return false;
   }
   if (outlen != (TSDB_USER_LEN + TSDB_PASSWORD_LEN)) {

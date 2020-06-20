@@ -92,10 +92,6 @@ extern int32_t tsNumOfMnodes;
 extern int32_t tsMaxShellConns;
 extern int32_t tsMaxTables;
 
-extern char tsDefaultDB[];
-extern char tsDefaultUser[];
-extern char tsDefaultPass[];
-
 extern char tsMqttBrokerAddress[];
 extern char tsMqttBrokerClientId[];
 
@@ -170,6 +166,7 @@ extern char gitinfo[];
 extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
+extern int8_t tsDaylight;
 extern char tsTimezone[64];
 extern char tsLocale[64];
 extern char tsCharset[64];  // default encode string

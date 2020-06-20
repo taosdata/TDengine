@@ -34,18 +34,19 @@ extern "C" {
 
 #define WCHAR wchar_t
 
-#define tfree(x) \
-  {              \
-    if (x) {     \
-      free((void*)(x));   \
-      x = 0;  \
-    }            \
+#define tfree(x)         \
+  {                      \
+    if (x) {             \
+      free((void *)(x)); \
+      x = 0;             \
+    }                    \
   }
 
-#define tstrncpy(dst, src, size) do { \
+#define tstrncpy(dst, src, size)   \
+  do {                             \
     strncpy((dst), (src), (size)); \
-    (dst)[(size) - 1] = 0; \
-} while (0);
+    (dst)[(size)-1] = 0;           \
+  } while (0);
 
 #define tclose(x) taosCloseSocket(x)
 
@@ -115,6 +116,10 @@ extern "C" {
 #define MILLISECOND_PER_YEAR   (MILLISECOND_PER_DAY * 365)
 
 #define POW2(x) ((x) * (x))
+
+uint32_t taosRand(void);
+
+size_t twcslen(const wchar_t *wcs);
 
 int32_t strdequote(char *src);
 

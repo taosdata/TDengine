@@ -1,13 +1,13 @@
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
-#unsupport ./test.sh -f general/alter/cached_schema_after_alter.sim
-#unsupport ./test.sh -f general/alter/count.sim
-#unsupport ./test.sh -f general/alter/import.sim
-#unsupport ./test.sh -f general/alter/insert1.sim
-#unsupport ./test.sh -f general/alter/insert2.sim
-#unsupport ./test.sh -f general/alter/metrics.sim
-#unsupport ./test.sh -f general/alter/table.sim
+#./test.sh -f general/alter/cached_schema_after_alter.sim
+./test.sh -f general/alter/count.sim
+./test.sh -f general/alter/import.sim
+#./test.sh -f general/alter/insert1.sim
+./test.sh -f general/alter/insert2.sim
+./test.sh -f general/alter/metrics.sim
+./test.sh -f general/alter/table.sim
 
 ./test.sh -f general/cache/new_metrics.sim
 ./test.sh -f general/cache/restart_metrics.sim
@@ -100,9 +100,9 @@ cd ../../../debug; make
 ./test.sh -f general/insert/query_multi_file.sim
 ./test.sh -f general/insert/tcp.sim
 
-#unsupport ./test.sh -f general/parser/alter.sim
-#unsupport ./test.sh -f general/parser/alter1.sim
-#unsupport ./test.sh -f general/parser/alter_stable.sim
+./test.sh -f general/parser/alter.sim
+./test.sh -f general/parser/alter1.sim
+./test.sh -f general/parser/alter_stable.sim
 ./test.sh -f general/parser/auto_create_tb.sim
 ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f general/parser/col_arithmetic_operation.sim
@@ -117,40 +117,40 @@ cd ../../../debug; make
 ./test.sh -f general/parser/import_commit3.sim
 ./test.sh -f general/parser/insert_tb.sim
 ./test.sh -f general/parser/first_last.sim
-#unsupport ./test.sh -f general/parser/import_file.sim
+#./test.sh -f general/parser/import_file.sim
 ./test.sh -f general/parser/lastrow.sim
 ./test.sh -f general/parser/nchar.sim
-#unsupport ./test.sh -f general/parser/null_char.sim
+./test.sh -f general/parser/null_char.sim
 ./test.sh -f general/parser/single_row_in_tb.sim
 ./test.sh -f general/parser/select_from_cache_disk.sim
+./test.sh -f general/parser/mixed_blocks.sim
+./test.sh -f general/parser/selectResNum.sim
 ./test.sh -f general/parser/limit.sim
 ./test.sh -f general/parser/limit1.sim
 ./test.sh -f general/parser/limit1_tblocks100.sim
-./test.sh -f general/parser/mixed_blocks.sim
-./test.sh -f general/parser/selectResNum.sim
 ./test.sh -f general/parser/select_across_vnodes.sim
 ./test.sh -f general/parser/slimit1.sim
 ./test.sh -f general/parser/tbnameIn.sim
-./test.sh -f general/parser/binary_escapeCharacter.sim
 ./test.sh -f general/parser/projection_limit_offset.sim
 ./test.sh -f general/parser/limit2.sim
-./test.sh -f general/parser/slimit.sim
 ./test.sh -f general/parser/fill.sim
 ./test.sh -f general/parser/fill_stb.sim
-./test.sh -f general/parser/interp.sim
 ./test.sh -f general/parser/where.sim
-#unsupport ./test.sh -f general/parser/join.sim
-#unsupport ./test.sh -f general/parser/join_multivnode.sim
+./test.sh -f general/parser/slimit.sim
 ./test.sh -f general/parser/select_with_tags.sim
-#unsupport ./test.sh -f general/parser/groupby.sim
-#unsupport ./test.sh -f general/parser/bug.sim
-#unsupport ./test.sh -f general/parser/tags_dynamically_specifiy.sim
-#unsupport ./test.sh -f general/parser/set_tag_vals.sim
-#unsupport ./test.sh -f general/parser/repeatAlter.sim
-#unsupport ./test.sh -f general/parser/slimit_alter_tags.sim
-#unsupport ./test.sh -f general/parser/stream_on_sys.sim
-#unsupport ./test.sh -f general/parser/stream.sim
-#unsupport ./test.sh -f general/parser/repeatStream.sim
+./test.sh -f general/parser/interp.sim
+./test.sh -f general/parser/tags_dynamically_specifiy.sim
+./test.sh -f general/parser/groupby.sim
+./test.sh -f general/parser/set_tag_vals.sim
+#./test.sh -f general/parser/slimit_alter_tags.sim
+./test.sh -f general/parser/join.sim
+./test.sh -f general/parser/join_multivnode.sim
+./test.sh -f general/parser/binary_escapeCharacter.sim
+./test.sh -f general/parser/bug.sim
+#./test.sh -f general/parser/stream_on_sys.sim
+./test.sh -f general/parser/stream.sim
+./test.sh -f general/parser/repeatAlter.sim
+#./test.sh -f general/parser/repeatStream.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
@@ -191,25 +191,25 @@ cd ../../../debug; make
 ./test.sh -f general/tag/4.sim
 ./test.sh -f general/tag/5.sim
 ./test.sh -f general/tag/6.sim
-#unsupport ./test.sh -f general/tag/add.sim
+./test.sh -f general/tag/add.sim
 ./test.sh -f general/tag/bigint.sim
 ./test.sh -f general/tag/binary_binary.sim
 ./test.sh -f general/tag/binary.sim
 ./test.sh -f general/tag/bool_binary.sim
 ./test.sh -f general/tag/bool_int.sim
 ./test.sh -f general/tag/bool.sim
-#unsupport ./test.sh -f general/tag/change.sim
+./test.sh -f general/tag/change.sim
 ./test.sh -f general/tag/column.sim
-#unsupport ./test.sh -f general/tag/commit.sim
+#./test.sh -f general/tag/commit.sim
 ./test.sh -f general/tag/create.sim
-#unsupport ./test.sh -f general/tag/delete.sim
+./test.sh -f general/tag/delete.sim
 ./test.sh -f general/tag/double.sim
 ./test.sh -f general/tag/filter.sim
 ./test.sh -f general/tag/float.sim
 ./test.sh -f general/tag/int_binary.sim
 ./test.sh -f general/tag/int_float.sim
 ./test.sh -f general/tag/int.sim
-#unsupport ./test.sh -f general/tag/set.sim
+./test.sh -f general/tag/set.sim
 ./test.sh -f general/tag/smallint.sim
 ./test.sh -f general/tag/tinyint.sim
 
@@ -307,3 +307,59 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_basic.sim
 ./test.sh -f unique/vnode/replica3_repeat.sim
 ./test.sh -f unique/vnode/replica3_vgroup.sim
+
+./test.sh -f general/stream/metrics_1.sim
+./test.sh -f general/stream/metrics_del.sim
+./test.sh -f general/stream/metrics_n.sim
+./test.sh -f general/stream/metrics_replica1_vnoden.sim
+#./test.sh -f general/stream/new_stream.sim
+./test.sh -f general/stream/restart_stream.sim
+./test.sh -f general/stream/stream_1.sim
+./test.sh -f general/stream/stream_2.sim
+./test.sh -f general/stream/stream_3.sim
+./test.sh -f general/stream/stream_restart.sim
+./test.sh -f general/stream/table_1.sim
+./test.sh -f general/stream/table_del.sim
+./test.sh -f general/stream/table_n.sim
+./test.sh -f general/stream/table_replica1_vnoden.sim
+
+./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
+./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
+./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
+./test.sh -f unique/arbitrator/dn3_mn1_full_dropDnodeFail.sim
+./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
+./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
+./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
+./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
+./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
+./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
+./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
+./test.sh -f unique/arbitrator/insert_duplicationTs.sim
+./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_dropDb_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_alterTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_dropDb_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_dropTable_online.sim
+./test.sh -f unique/arbitrator/replica_changeWithArbitrator.sim
+./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim
+./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim
+./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
+./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim
+./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
+./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
+./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
+./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
+

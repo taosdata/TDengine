@@ -142,16 +142,15 @@ void taosCleanUpUdpConnection(void *handle) {
     pConn = pSet->udpConn + i;
     pConn->signature = NULL;
 
-    // shutdown to signal the thread to exit
-    if ( pConn->fd >=0) shutdown(pConn->fd, SHUT_RD);
+    if (pConn->fd >=0) shutdown(pConn->fd, SHUT_RDWR);
+    if (pConn->fd >=0) taosCloseSocket(pConn->fd);
   }
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     if (pConn->thread) pthread_join(pConn->thread, NULL);
-    if (pConn->fd >=0) taosCloseSocket(pConn->fd);
     tfree(pConn->buffer);
-    tTrace("UDP chandle:%p is closed", pConn);
+    tTrace("%s UDP thread is closed, inedx:%d", pConn->label, i);
   }
 
   tfree(pSet);
@@ -185,15 +184,15 @@ static void *taosRecvUdpData(void *param) {
 
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
-    if(dataLen == 0) {
-      tTrace("data length is 0, socket was closed, exiting");
+    if(dataLen <= 0) {
+      tTrace("%s UDP socket was closed, exiting", pConn->label);
       break;
     }
 
     port = ntohs(sourceAdd.sin_port);
 
     if (dataLen < sizeof(SRpcHead)) {
-      tError("%s recvfrom failed, reason:%s\n", pConn->label, strerror(errno));
+      tError("%s recvfrom failed(%s)", pConn->label, strerror(errno));
       continue;
     }
 

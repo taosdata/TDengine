@@ -17,11 +17,10 @@
 #include "os.h"
 #include "tmd5.h"
 #include "taos.h"
-#include "http.h"
-#include "httpLog.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
 #include "httpResp.h"
+#include "httpSql.h"
+#include "httpUtil.h"
 
 bool httpCheckUsedbSql(char *sql) {
   if (strstr(sql, "use ") != NULL) {
@@ -203,8 +202,7 @@ bool httpReMallocMultiCmdsSize(HttpContext *pContext, int cmdSize) {
               pContext->user, cmdSize);
     return false;
   }
-  memset(multiCmds->cmds + multiCmds->maxSize * (int16_t)sizeof(HttpSqlCmd), 0,
-         (size_t)(cmdSize - multiCmds->maxSize) * sizeof(HttpSqlCmd));
+  memset(multiCmds->cmds + multiCmds->maxSize, 0, (size_t)(cmdSize - multiCmds->maxSize) * sizeof(HttpSqlCmd));
   multiCmds->maxSize = (int16_t)cmdSize;
 
   return true;

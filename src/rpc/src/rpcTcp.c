@@ -117,7 +117,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     code = pthread_mutex_init(&(pThreadObj->mutex), NULL);
     if (code < 0) {
       tError("%s failed to init TCP process data mutex(%s)", label, strerror(errno));
-      break;;
+      break;
     }
 
     pThreadObj->pollFd = epoll_create(10);  // size does not matter
@@ -299,7 +299,7 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
     return NULL;
   }
 
-  tTrace("%s TCP client is initialized, ip:%s:%hu", label, ip, port);
+  tTrace("%s TCP client is initialized, ip:%u:%hu", label, ip, port);
 
   return pThreadObj;
 }
@@ -367,7 +367,7 @@ static void taosReportBrokenLink(SFdObj *pFdObj) {
     recvInfo.ip = 0;
     recvInfo.port = 0;
     recvInfo.shandle = pThreadObj->shandle;
-    recvInfo.thandle = pFdObj->thandle;;
+    recvInfo.thandle = pFdObj->thandle;
     recvInfo.chandle = NULL;
     recvInfo.connType = RPC_CONN_TCP;
     (*(pThreadObj->processData))(&recvInfo);
@@ -414,7 +414,7 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
   pInfo->ip = pFdObj->ip;
   pInfo->port = pFdObj->port;
   pInfo->shandle = pThreadObj->shandle;
-  pInfo->thandle = pFdObj->thandle;;
+  pInfo->thandle = pFdObj->thandle;
   pInfo->chandle = pFdObj;
   pInfo->connType = RPC_CONN_TCP;
 
@@ -437,7 +437,7 @@ static void *taosProcessTcpData(void *param) {
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, -1);
     if (pThreadObj->stop) {
-      tTrace("%s, tcp thread get stop event, exiting...", pThreadObj->label);
+      tTrace("%s TCP thread get stop event, exiting...", pThreadObj->label);
       break;
     }
     if (fdNum < 0) continue;

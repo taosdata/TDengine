@@ -100,10 +100,10 @@ typedef struct STSBuf {
 typedef struct STSBufFileHeader {
   uint32_t magic;       // file magic number
   uint32_t numOfVnode;  // number of vnode stored in current file
-  uint32_t tsOrder;     // timestamp order in current file
+  int32_t  tsOrder;     // timestamp order in current file
 } STSBufFileHeader;
 
-STSBuf* tsBufCreate(bool autoDelete);
+STSBuf* tsBufCreate(bool autoDelete, int32_t order);
 STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete);
 STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t tsOrder);
 

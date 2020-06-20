@@ -84,11 +84,13 @@ while $i < 10
   sql alter table $tb set tag tg_added = $tg_added
   $i = $i + 1
 endw
-sql describe tb0
-if $rows != 7 then
+
+sql select t1,t2,tg_added from tb0
+if $rows != 1 then
   return -1
 endi
-if $data63 != tb0 then
+
+if $data02 != tb0 then
   return -1
 endi
 

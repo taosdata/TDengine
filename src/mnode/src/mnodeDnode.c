@@ -44,7 +44,7 @@ static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
 extern void *  tsVgroupSdb;
 
-static int32_t mnodeCreateDnode(char *ep);
+static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg);
@@ -90,11 +90,12 @@ static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionUpdate(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   SDnodeObj *pSaved = mnodeGetDnode(pDnode->dnodeId);
-  if (pDnode != pSaved && pDnode != NULL && pSaved != NULL) {
+  if (pSaved != NULL && pDnode != pSaved) {
     memcpy(pSaved, pDnode, pOper->rowSize);
     free(pDnode);
+    mnodeDecDnodeRef(pSaved);
   }
-  mnodeDecDnodeRef(pSaved);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -117,10 +118,13 @@ static int32_t mnodeDnodeActionDecode(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
-    mnodeCreateDnode(tsLocalEp);
+    mPrint("dnode first deploy, create dnode:%s", tsLocalEp);
+    mnodeCreateDnode(tsLocalEp, NULL);
     SDnodeObj *pDnode = mnodeGetDnodeByEp(tsLocalEp);
-    mnodeAddMnode(pDnode->dnodeId);
-    mnodeDecDnodeRef(pDnode);
+    if (pDnode != NULL) {
+      mnodeAddMnode(pDnode->dnodeId);
+      mnodeDecDnodeRef(pDnode);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -250,7 +254,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
     // TODO temporary disabled for compiling: strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep); 
   }
 
-  if (strcmp(pMsg->pUser->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, TSDB_DEFAULT_USER) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
@@ -275,6 +279,20 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
 
 static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
   mPrint("cfg dnode rsp is received");
+}
+
+static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
+  if (clusterCfg->numOfMnodes        != tsNumOfMnodes)        return false;
+  if (clusterCfg->mnodeEqualVnodeNum != tsMnodeEqualVnodeNum) return false;
+  if (clusterCfg->offlineThreshold   != tsOfflineThreshold)   return false;
+  if (clusterCfg->statusInterval     != tsStatusInterval)     return false;
+
+  if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) return false;
+  if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone)))       return false;
+  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale)))              return false;
+  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset)))           return false;
+    
+  return true;
 }
 
 static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
@@ -312,7 +330,6 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pDnode->alternativeRole  = pStatus->alternativeRole;
   pDnode->totalVnodes      = pStatus->numOfTotalVnodes; 
   pDnode->moduleStatus     = pStatus->moduleStatus;
-  pDnode->lastAccess       = tsAccessSquence;
   
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
@@ -321,6 +338,19 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
+  int32_t contLen = sizeof(SDMStatusRsp) + openVnodes * sizeof(SDMVgroupAccess);
+  SDMStatusRsp *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    mnodeDecDnodeRef(pDnode);
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
+
+  pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
+  pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
+  pRsp->dnodeCfg.numOfVnodes = htonl(openVnodes);
+  mnodeGetMnodeInfos(&pRsp->mnodes);
+  SDMVgroupAccess *pAccess = (SDMVgroupAccess *)((char *)pRsp + sizeof(SDMStatusRsp));
+
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
     pVload->vgId = htonl(pVload->vgId);
@@ -333,42 +363,44 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       mnodeSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
       mnodeUpdateVgroupStatus(pVgroup, pDnode, pVload);
+      pAccess->vgId = htonl(pVload->vgId);
+      pAccess->accessState = pVgroup->accessState;
+      pAccess++;
       mnodeDecVgroupRef(pVgroup);
     }
+
   }
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
+    // Verify whether the cluster parameters are consistent when status change from offline to ready
+    bool ret = mnodeCheckClusterCfgPara(&(pStatus->clusterCfg));
+    if (false == ret) {
+      mnodeDecDnodeRef(pDnode);
+      rpcFreeCont(pRsp);
+      mError("dnode %s cluster cfg parameters inconsistent", pStatus->dnodeEp);
+      return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
+    }
+    
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     balanceUpdateMnode();
     balanceNotify();
   }
 
-  mnodeDecDnodeRef(pDnode);
-
-  int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SDMVgroupAccess);
-  SDMStatusRsp *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) {
-    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  if (openVnodes != pDnode->openVnodes) {
+    mnodeCheckUnCreatedVgroup(pDnode, pStatus->load, openVnodes);
   }
 
-  mnodeGetMnodeInfos(&pRsp->mnodes);
+  pDnode->lastAccess = tsAccessSquence;
+  mnodeDecDnodeRef(pDnode);
 
-  pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
-  pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
-  pRsp->dnodeCfg.numOfVnodes = 0;
-  
-  contLen = sizeof(SDMStatusRsp);
-
-  //TODO: set vnode access
-  
   pMsg->rpcRsp.len = contLen;
   pMsg->rpcRsp.rsp =  pRsp;
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeCreateDnode(char *ep) {
+static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   int32_t grantCode = grantCheck(TSDB_GRANT_DNODE);
   if (grantCode != TSDB_CODE_SUCCESS) {
     return grantCode;
@@ -392,7 +424,8 @@ static int32_t mnodeCreateDnode(char *ep) {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
     .pObj = pDnode,
-    .rowSize = sizeof(SDnodeObj)
+    .rowSize = sizeof(SDnodeObj),
+    .pMsg = pMsg
   };
 
   int32_t code = sdbInsertRow(&oper);
@@ -400,30 +433,32 @@ static int32_t mnodeCreateDnode(char *ep) {
     int dnodeId = pDnode->dnodeId;
     tfree(pDnode);
     mError("failed to create dnode:%d, result:%s", dnodeId, tstrerror(code));
-    return TSDB_CODE_MND_SDB_ERROR;
+  } else {
+    mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
-  mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
   return code;
 }
 
-int32_t mnodeDropDnode(SDnodeObj *pDnode) {
+int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsDnodeSdb,
-    .pObj = pDnode
+    .pObj = pDnode,
+    .pMsg = pMsg
   };
 
-  int32_t code = sdbDeleteRow(&oper); 
-  if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_SDB_ERROR;
+  int32_t code = sdbDeleteRow(&oper);
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
+    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
-  mLPrint("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
   return code;
 }
 
-static int32_t mnodeDropDnodeByEp(char *ep) {
+static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
     mError("dnode:%s, is not exist", ep);
@@ -438,7 +473,7 @@ static int32_t mnodeDropDnodeByEp(char *ep) {
 
   mPrint("dnode:%d, start to drop it", pDnode->dnodeId);
 #ifndef _SYNC
-  return mnodeDropDnode(pDnode);
+  return mnodeDropDnode(pDnode, pMsg);
 #else
   return balanceDropDnode(pDnode);
 #endif
@@ -447,38 +482,20 @@ static int32_t mnodeDropDnodeByEp(char *ep) {
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   SCMCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
-  if (strcmp(pMsg->pUser->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, TSDB_DEFAULT_USER) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   } else {
-    int32_t code = mnodeCreateDnode(pCreate->ep);
-
-    if (code == TSDB_CODE_SUCCESS) {
-      SDnodeObj *pDnode = mnodeGetDnodeByEp(pCreate->ep);
-      mLPrint("dnode:%d, %s is created by %s", pDnode->dnodeId, pCreate->ep, pMsg->pUser->user);
-      mnodeDecDnodeRef(pDnode);
-    } else {
-      mError("failed to create dnode:%s, reason:%s", pCreate->ep, tstrerror(code));
-    }
-
-    return code;
+    return mnodeCreateDnode(pCreate->ep, pMsg);
   }
 }
 
 static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg) {
   SCMDropDnodeMsg *pDrop = pMsg->rpcMsg.pCont;
 
-  if (strcmp(pMsg->pUser->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->user, TSDB_DEFAULT_USER) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
   } else {
-    int32_t code = mnodeDropDnodeByEp(pDrop->ep);
-
-    if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("dnode:%s is dropped by %s", pDrop->ep, pMsg->pUser->user);
-    } else {
-      mError("failed to drop dnode:%s, reason:%s", pDrop->ep, tstrerror(code));
-    }
-
-    return code;
+    return mnodeDropDnodeByEp(pDrop->ep, pMsg);
   }
 }
 
@@ -486,7 +503,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->pAcct->user, "root") != 0) {
+  if (strcmp(pUser->pAcct->user, TSDB_DEFAULT_USER) != 0) {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
@@ -570,7 +587,7 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols] - VARSTR_HEADER_SIZE);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -615,7 +632,7 @@ static int32_t mnodeGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->user, "root") != 0)  {
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0)  {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
@@ -725,7 +742,7 @@ static int32_t mnodeGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
-  if (strcmp(pUser->user, "root") != 0)  {
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0)  {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
@@ -812,7 +829,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
   
-  if (strcmp(pUser->user, "root") != 0)  {
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0)  {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }

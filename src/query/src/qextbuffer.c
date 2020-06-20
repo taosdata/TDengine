@@ -245,30 +245,29 @@ static void tExtMemBufferClearFlushoutInfo(tExtMemBuffer *pMemBuffer) {
   memset(pFileMeta->flushoutData.pFlushoutInfo, 0, sizeof(tFlushoutInfo) * pFileMeta->flushoutData.nAllocSize);
 }
 
-bool tExtMemBufferFlush(tExtMemBuffer *pMemBuffer) {
+int32_t tExtMemBufferFlush(tExtMemBuffer *pMemBuffer) {
+  int32_t ret = 0;
   if (pMemBuffer->numOfTotalElems == 0) {
-    return true;
+    return ret;
   }
 
   if (pMemBuffer->file == NULL) {
     if ((pMemBuffer->file = fopen(pMemBuffer->path, "wb+")) == NULL) {
-      return false;
+      ret = TAOS_SYSTEM_ERROR(errno);
+      return ret;
     }
   }
 
   /* all data has been flushed to disk, ignore flush operation */
   if (pMemBuffer->numOfElemsInBuffer == 0) {
-    return true;
+    return ret;
   }
 
-  bool ret = true;
-  
   tFilePagesItem *first = pMemBuffer->pHead;
-
   while (first != NULL) {
     size_t retVal = fwrite((char *)&(first->item), pMemBuffer->pageSize, 1, pMemBuffer->file);
     if (retVal <= 0) {  // failed to write to buffer, may be not enough space
-      ret = false;
+      ret = TAOS_SYSTEM_ERROR(errno);
     }
 
     pMemBuffer->fileMeta.numOfElemsInFile += first->item.num;
@@ -896,6 +895,7 @@ void tColModelDisplay(SColumnModel *pModel, void *pData, int32_t numOfRows, int3
           char buf[4096] = {0};
           taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
           printf("%s\t", buf);
+          break;
         }
         case TSDB_DATA_TYPE_BINARY: {
           printBinaryData(val, pModel->pFields[j].field.bytes);
@@ -947,6 +947,7 @@ void tColModelDisplayEx(SColumnModel *pModel, void *pData, int32_t numOfRows, in
           char buf[128] = {0};
           taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
           printf("%s\t", buf);
+          break;
         }
         case TSDB_DATA_TYPE_BINARY: {
           printBinaryDataEx(val, pModel->pFields[j].field.bytes, &param[j]);

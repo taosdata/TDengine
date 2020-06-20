@@ -13,7 +13,7 @@ python3 ./test.py -f insert/date.py
 python3 ./test.py -f insert/binary.py
 python3 ./test.py -f insert/nchar.py
 # python3 ./test.py -f insert/nchar-boundary.py
-# python3 ./test.py -f insert/nchar-unicode.py
+python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
 
@@ -29,18 +29,18 @@ python3 ./test.py -f tag_lite/3.py
 python3 ./test.py -f tag_lite/4.py
 python3 ./test.py -f tag_lite/5.py
 python3 ./test.py -f tag_lite/6.py
-# python3 ./test.py -f tag_lite/add.py
+python3 ./test.py -f tag_lite/add.py
 python3 ./test.py -f tag_lite/bigint.py
 python3 ./test.py -f tag_lite/binary_binary.py
 python3 ./test.py -f tag_lite/binary.py
 python3 ./test.py -f tag_lite/bool_binary.py
 python3 ./test.py -f tag_lite/bool_int.py
 python3 ./test.py -f tag_lite/bool.py
-# python3 ./test.py -f tag_lite/change.py
+python3 ./test.py -f tag_lite/change.py
 python3 ./test.py -f tag_lite/column.py
-# python3 ./test.py -f tag_lite/commit.py
+python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
-# python3 ./test.py -f tag_lite/datatype.py
+python3 ./test.py -f tag_lite/datatype.py
 python3 ./test.py -f tag_lite/datatype-without-alter.py
 # python3 ./test.py -f tag_lite/delete.py
 python3 ./test.py -f tag_lite/double.py
@@ -48,7 +48,7 @@ python3 ./test.py -f tag_lite/float.py
 python3 ./test.py -f tag_lite/int_binary.py
 python3 ./test.py -f tag_lite/int_float.py
 python3 ./test.py -f tag_lite/int.py
-# python3 ./test.py -f tag_lite/set.py
+python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
 
@@ -80,8 +80,8 @@ python3 ./test.py -f import_merge/importCacheFileTO.py
 python3 ./test.py -f import_merge/importCacheFileTPO.py
 python3 ./test.py -f import_merge/importCacheFileT.py
 python3 ./test.py -f import_merge/importDataH2.py
-# python3 ./test.py -f import_merge/importDataHO2.py
-# python3 ./test.py -f import_merge/importDataHO.py
+python3 ./test.py -f import_merge/importDataHO2.py
+python3 ./test.py -f import_merge/importDataHO.py
 python3 ./test.py -f import_merge/importDataHPO.py
 python3 ./test.py -f import_merge/importDataLastHO.py
 python3 ./test.py -f import_merge/importDataLastHPO.py
@@ -92,7 +92,7 @@ python3 ./test.py -f import_merge/importDataLastTO.py
 python3 ./test.py -f import_merge/importDataLastTPO.py
 python3 ./test.py -f import_merge/importDataLastT.py
 python3 ./test.py -f import_merge/importDataS.py
-# python3 ./test.py -f import_merge/importDataSub.py
+python3 ./test.py -f import_merge/importDataSub.py
 python3 ./test.py -f import_merge/importDataTO.py
 python3 ./test.py -f import_merge/importDataTPO.py
 python3 ./test.py -f import_merge/importDataT.py
@@ -127,12 +127,13 @@ python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
 # table
-# python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterAllIntTypes.py
 python3 ./test.py -f query/filterFloatAndDouble.py
+python3 ./test.py -f query/querySort.py
 
 
 #stream

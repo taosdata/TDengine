@@ -16,16 +16,11 @@
 #ifndef TDENGINE_TG_HANDLE_H
 #define TDENGINE_TG_HANDLE_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
-#include "cJSON.h"
 #include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpUtil.h"
 #include "httpResp.h"
+#include "httpSql.h"
 
 #define TG_ROOT_URL_POS   0
 #define TG_DB_URL_POS     1

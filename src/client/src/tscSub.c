@@ -182,21 +182,25 @@ static SArray* getTableList( SSqlObj* pSql ) {
   char* sql = alloca(strlen(p) + 32);
   sprintf(sql, "select tbid(tbname)%s", p);
   
-  SSqlObj* pSql1 = taos_query(pSql->pTscObj, sql);
-  if (terrno != TSDB_CODE_SUCCESS) {
-    tscError("failed to retrieve table id: %s", tstrerror(terrno));
+  SSqlObj* pNew = taos_query(pSql->pTscObj, sql);
+  if (pNew == NULL) {
+    tscError("failed to retrieve table id: cannot create new sql object.");
+    return NULL;
+
+  } else if (taos_errno(pNew) != TSDB_CODE_SUCCESS) {
+    tscError("failed to retrieve table id: %s", tstrerror(taos_errno(pNew)));
     return NULL;
   }
 
   TAOS_ROW row;
   SArray* result = taosArrayInit( 128, sizeof(STidTags) );
-  while ((row = taos_fetch_row(pSql1))) {
+  while ((row = taos_fetch_row(pNew))) {
     STidTags tags;
     memcpy(&tags, row[0], sizeof(tags));
     taosArrayPush(result, &tags);
   }
 
-  taos_free_result(pSql1);
+  taos_free_result(pNew);
   
   return result;
 }
@@ -222,6 +226,9 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
 
   SArray* tables = getTableList(pSql);
+  if (tables == NULL) {
+    return 0;
+  }
   size_t numOfTables = taosArrayGetSize(tables);
 
   SArray* progress = taosArrayInit(numOfTables, sizeof(SSubscriptionProgress));
@@ -238,10 +245,11 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     taosArraySort( tables, tscCompareTidTags );
-    tscBuildVgroupTableInfo( pTableMetaInfo, tables );
+    tscBuildVgroupTableInfo(pSql, pTableMetaInfo, tables);
   }
   taosArrayDestroy(tables);
 
+  TSDB_QUERY_SET_TYPE(tscGetQueryInfoDetail(pCmd, 0)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
   return 1;
 }
 
@@ -291,7 +299,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   fclose(fp);
 
   taosArraySort(progress, tscCompareSubscriptionProgress);
-  tscTrace("subscription progress loaded, %d tables: %s", taosArrayGetSize(progress), pSub->topic);
+  tscTrace("subscription progress loaded, %zu tables: %s", taosArrayGetSize(progress), pSub->topic);
   return 1;
 }
 
@@ -350,7 +358,7 @@ TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char 
 
   pSub->interval = interval;
   if (fp != NULL) {
-    tscTrace("asynchronize subscription, create new timer", topic);
+    tscTrace("asynchronize subscription, create new timer: %s", topic);
     pSub->fp = fp;
     pSub->param = param;
     taosTmrReset(tscProcessSubscriptionTimer, interval, pSub, tscTmr, &pSub->pTimer);
@@ -413,7 +421,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   }
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscError("failed to query data, error code=%d", pRes->code);
+    tscError("failed to query data: %s", tstrerror(pRes->code));
     tscRemoveFromSqlList(pSql);
     return NULL;
   }
@@ -435,7 +443,9 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
   } else {
     char path[256];
     sprintf(path, "%s/subscribe/%s", tsDataDir, pSub->topic);
-    remove(path);
+    if (remove(path) != 0) {
+      tscError("failed to remove progress file, topic = %s, error = %s", pSub->topic, strerror(errno));
+    }
   }
 
   tscFreeSqlObj(pSub->pSql);

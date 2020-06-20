@@ -184,7 +184,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
     
     case TSDB_DATA_TYPE_NCHAR: {
       dst[0] = '\'';
-      taosUcs4ToMbs(pVar->wpz, (wcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
+      taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
       int32_t len = strlen(dst);
       dst[len] = '\'';
       dst[len + 1] = 0;
@@ -357,7 +357,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
     size_t newSize = pVariant->nLen * TSDB_NCHAR_SIZE;
     if (pBuf != NULL) {
-      if (newSize > INITIAL_ALLOC_SIZE) {
+      if (newSize >= INITIAL_ALLOC_SIZE) {
         pBuf = realloc(pBuf, newSize + 1);
       }
       
@@ -416,7 +416,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     }
     
     pVariant->wpz = pWStr;
-    *pDestSize = wcslen(pVariant->wpz);
+    *pDestSize = twcslen(pVariant->wpz);
     
     // shrink the allocate memory, no need to check here.
     char* tmp = realloc(pVariant->wpz, (*pDestSize + 1)*TSDB_NCHAR_SIZE);
@@ -474,6 +474,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         free(pVariant->pz);
         pVariant->nLen = 0;
       }
+
       setNull((char *)result, type, tDataTypeDesc[type].nSize);
       return 0;
     }
@@ -597,10 +598,10 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
  * todo handle the return value
  */
 int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
-  if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType, pVariant->nLen))) {
+  if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType))) {
     return -1;
   }
-  
+
   errno = 0;  // reset global error code
   
   switch (type) {
@@ -800,12 +801,13 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {
+      int32_t newlen = 0;
       if (!includeLengthPrefix) {
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
           *(uint32_t *)payload = TSDB_DATA_NCHAR_NULL;
         } else {
           if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
-            toNchar(pVariant, &payload, &pVariant->nLen);
+            toNchar(pVariant, &payload, &newlen);
           } else {
             wcsncpy((wchar_t *)payload, pVariant->wpz, pVariant->nLen);
           }
@@ -817,12 +819,13 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
           char *p = varDataVal(payload);
 
           if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
-            toNchar(pVariant, &p, &pVariant->nLen);
+            toNchar(pVariant, &p, &newlen);
           } else {
             wcsncpy((wchar_t *)p, pVariant->wpz, pVariant->nLen);
+            newlen = pVariant->nLen;
           }
 
-          varDataSetLen(payload, pVariant->nLen);  // the length may be changed after toNchar function called
+          varDataSetLen(payload, newlen);  // the length may be changed after toNchar function called
           assert(p == varDataVal(payload));
         }
       }
@@ -885,7 +888,7 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
         free(pVariant->pz);
         pVariant->dKey = v;
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-        pVariant->dKey = pVariant->i64Key;
+        pVariant->dKey = (double)(pVariant->i64Key);
       }
       
       pVariant->nType = TSDB_DATA_TYPE_DOUBLE;

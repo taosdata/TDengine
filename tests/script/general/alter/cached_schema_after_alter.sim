@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -56,11 +56,12 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 5000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
+sleep 5000
 sql connect
-sleep 3000
 
 sql use $db
 sql select * from $stb
+print select * from $stb ==> $data00 $data01 $data02
 if $rows != 1 then
   return -1
 endi
@@ -72,6 +73,7 @@ if $data02 != 1 then
 endi 
 
 sql select * from $tb2
+print select * from $tb2 ==> $data00 $data01 $data02
 if $rows != 1 then
   return -1
 endi

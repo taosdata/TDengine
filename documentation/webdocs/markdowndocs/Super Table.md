@@ -22,7 +22,7 @@ New keyword "tags" is introduced, where tag_name is the tag name, and tag_type i
 
 Note：
 
-1. The bytes of all tags together shall be less than 64k 
+1. The bytes of all tags together shall be less than 16k 
 2. Tag's data type can not be time stamp
 3. Tag name shall be different from the field name
 4. Tag name shall not be the same as system keywords

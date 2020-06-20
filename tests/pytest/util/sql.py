@@ -17,6 +17,7 @@ import time
 import datetime
 import inspect
 from util.log import *
+import numpy as np
 
 
 class TDSql:
@@ -39,10 +40,18 @@ class TDSql:
 
     def prepare(self):
         tdLog.info("prepare database:db")
-        self.cursor.execute('reset query cache')
-        self.cursor.execute('drop database if exists db')
-        self.cursor.execute('create database db')
-        self.cursor.execute('use db')
+        s = 'reset query cache'
+        print(s)
+        self.cursor.execute(s)
+        s = 'drop database if exists db'
+        print(s)
+        self.cursor.execute(s)
+        s = 'create database db'
+        print(s)
+        self.cursor.execute(s)
+        s = 'use db'
+        print(s)
+        self.cursor.execute(s)
 
     def error(self, sql):
         expectErrNotOccured = True
@@ -65,6 +74,7 @@ class TDSql:
 
     def query(self, sql):
         self.sql = sql
+        print(sql)
         self.cursor.execute(sql)
         self.queryResult = self.cursor.fetchall()
         self.queryRows = len(self.queryResult)
@@ -181,6 +191,7 @@ class TDSql:
 
     def execute(self, sql):
         self.sql = sql
+        print(sql)
         self.affectedRows = self.cursor.execute(sql)
         return self.affectedRows
 
@@ -195,6 +206,46 @@ class TDSql:
                 (callerFilename, self.sql, self.affectedRows, expectAffectedRows))
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" %
                    (self.sql, self.affectedRows, expectAffectedRows))
+
+    def checkColumnSorted(self, col, order):
+        frame = inspect.stack()[1]
+        callerModule = inspect.getmodule(frame[0])
+        callerFilename = callerModule.__file__
+
+        if col < 0:
+            tdLog.exit(
+                "%s failed: sql:%s, col:%d is smaller than zero" %
+                (callerFilename, self.sql, col))
+        if col > self.queryCols:
+            tdLog.exit(
+                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
+                (callerFilename, self.sql, col, self.queryCols))
+
+        matrix = np.array(self.queryResult)
+        list = matrix[:, 0]
+
+        if order == "" or order.upper() == "ASC":
+            if all(sorted(list) == list):
+                tdLog.info(
+                    "sql:%s, column :%d is sorted in accending order as expected" %
+                    (self.sql, col))
+            else:
+                tdLog.exit(
+                    "%s failed: sql:%s, col:%d is not sorted in accesnind order" %
+                    (callerFilename, self.sql, col))
+        elif order.upper() == "DESC":
+            if all(sorted(list, reverse=True) == list):
+                tdLog.info(
+                    "sql:%s, column :%d is sorted in decending order as expected" %
+                    (self.sql, col))
+            else:
+                tdLog.exit(
+                    "%s failed: sql:%s, col:%d is not sorted in decending order" %
+                    (callerFilename, self.sql, col))
+        else:
+            tdLog.exit(
+                "%s failed: sql:%s, the order provided for col:%d is not correct" %
+                (callerFilename, self.sql, col))
 
 
 tdSql = TDSql()

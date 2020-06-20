@@ -61,7 +61,7 @@ typedef struct {
   char   ep[TSDB_EP_LEN];
   int8_t cmdIndex;
   int8_t state;
-  char   sql[SQL_LENGTH];
+  char   sql[SQL_LENGTH + 1];
   void * initTimer;
   void * diskTimer;
 } SMonitorConn;
@@ -177,8 +177,8 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
              ") tags (acctId binary(%d))",
              tsMonitorDbName, TSDB_USER_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_ACCT_ROOT) {
-    snprintf(sql, SQL_LENGTH, "create table if not exists %s.acct_%s using %s.acct tags('%s')", tsMonitorDbName, "root",
-             tsMonitorDbName, "root");
+    snprintf(sql, SQL_LENGTH, "create table if not exists %s.acct_%s using %s.acct tags('%s')", tsMonitorDbName, TSDB_DEFAULT_USER,
+             tsMonitorDbName, TSDB_DEFAULT_USER);
   } else if (cmd == MONITOR_CMD_CREATE_TB_SLOWQUERY) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.slowquery(ts timestamp, username "
@@ -208,7 +208,7 @@ static void monitorInitDatabase() {
 
 static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
   if (-code == TSDB_CODE_MND_TABLE_ALREADY_EXIST || -code == TSDB_CODE_MND_DB_ALREADY_EXIST || code >= 0) {
-    monitorTrace("monitor:%p, sql success, reason:%d, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
+    monitorTrace("monitor:%p, sql success, reason:%s, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
     if (tsMonitorConn.cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
       monitorPrint("dnode:%s is started", tsLocalEp);
     }

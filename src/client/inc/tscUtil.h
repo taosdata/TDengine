@@ -28,7 +28,7 @@ extern "C" {
 #include "exception.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
-#include "tscSecondaryMerge.h"
+#include "tscLocalMerge.h"
 #include "tsclient.h"
 
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \
@@ -64,7 +64,8 @@ typedef struct SJoinSupporter {
   SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
-  int64_t         interval;       // interval time
+  int64_t         intervalTime;   // interval time
+  int64_t         slidingTime;    // sliding time
   SLimitVal       limit;          // limit info
   uint64_t        uid;            // query meter uid
   SArray*         colList;        // previous query information, no need to use this attribute, and the corresponding attribution
@@ -122,15 +123,13 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableI
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
-bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
+bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
-bool tscQueryOnSTable(SSqlCmd* pCmd);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
-bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
 void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
-                                  SSchema* pColSchema, int16_t isTag);
+                                  SSchema* pColSchema, int16_t colType);
 
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
@@ -139,7 +138,7 @@ bool tscIsInsertData(char* sqlstr);
 
 /* use for keep current db info temporarily, for handle table with db prefix */
 // todo remove it
-void tscGetDBInfoFromMeterId(char* tableId, char* db);
+void tscGetDBInfoFromTableFullName(char* tableId, char* db);
 
 int tscAllocPayload(SSqlCmd* pCmd, int size);
 
@@ -248,12 +247,14 @@ void tscDoQuery(SSqlObj* pSql);
  * @param pPrevSql
  * @return
  */
+SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd);
+
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql);
 void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex);
 
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 
-int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid);
+int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
 
 void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 

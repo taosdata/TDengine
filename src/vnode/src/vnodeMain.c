@@ -119,11 +119,11 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-  tsdbCfg.compression         = pVnodeCfg->cfg.compression;;
+  tsdbCfg.compression         = pVnodeCfg->cfg.compression;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
-  code = tsdbCreateRepo(tsdbDir, &tsdbCfg, NULL);
+  code = tsdbCreateRepo(tsdbDir, &tsdbCfg);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
     return TSDB_CODE_VND_INIT_FAILED;
@@ -195,6 +195,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->version  = 0;  
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
   pVnode->rootDir = strdup(rootDir);
+  pVnode->accessState = TSDB_VN_ALL_ACCCESS;
 
   int32_t code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -321,6 +322,27 @@ void vnodeRelease(void *pVnodeRaw) {
     return;
   }
 
+  if (pVnode->tsdb)
+    tsdbCloseRepo(pVnode->tsdb, 1);
+  pVnode->tsdb = NULL;
+
+  // stop continuous query
+  if (pVnode->cq) 
+    cqClose(pVnode->cq);
+  pVnode->cq = NULL;
+
+  if (pVnode->wal) 
+    walClose(pVnode->wal);
+  pVnode->wal = NULL;
+
+  if (pVnode->wqueue) 
+    dnodeFreeVnodeWqueue(pVnode->wqueue);
+  pVnode->wqueue = NULL;
+
+  if (pVnode->rqueue) 
+    dnodeFreeVnodeRqueue(pVnode->rqueue);
+  pVnode->rqueue = NULL;
+ 
   tfree(pVnode->rootDir);
 
   if (pVnode->status == TAOS_VN_STATUS_DELETING) {
@@ -410,34 +432,31 @@ void vnodeBuildStatusMsg(void *param) {
   taosHashDestroyIter(pIter);
 }
 
+void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    pAccess[i].vgId = htonl(pAccess[i].vgId);
+    SVnodeObj *pVnode = vnodeAccquireVnode(pAccess[i].vgId);
+    if (pVnode != NULL) {
+      pVnode->accessState = pAccess[i].accessState;
+      if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {
+        vTrace("vgId:%d, access state is set to %d", pAccess[i].vgId, pVnode->accessState)
+      }
+      vnodeRelease(pVnode);
+    }
+  }
+}
+
 static void vnodeCleanUp(SVnodeObj *pVnode) {
+  // remove from hash, so new messages wont be consumed
   taosHashRemove(tsDnodeVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t));
 
+  // stop replication module
   if (pVnode->sync) {
     syncStop(pVnode->sync);
     pVnode->sync = NULL;
   }
 
-  if (pVnode->tsdb)
-    tsdbCloseRepo(pVnode->tsdb, 1);
-  pVnode->tsdb = NULL;
-
-  if (pVnode->wal) 
-    walClose(pVnode->wal);
-  pVnode->wal = NULL;
-
-  if (pVnode->cq) 
-    cqClose(pVnode->cq);
-  pVnode->cq = NULL;
-
-  if (pVnode->wqueue) 
-    dnodeFreeVnodeWqueue(pVnode->wqueue);
-  pVnode->wqueue = NULL;
-
-  if (pVnode->rqueue) 
-    dnodeFreeVnodeRqueue(pVnode->rqueue);
-  pVnode->rqueue = NULL;
- 
+  // release local resources only after cutting off outside connections
   vnodeRelease(pVnode);
 }
 
@@ -715,7 +734,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
 
   cJSON *quorum = cJSON_GetObjectItem(root, "quorum");
   if (!quorum || quorum->type != cJSON_Number) {
-    vError("failed to read vnode cfg, quorum not found", pVnode->vgId);
+    vError("vgId: %d, failed to read vnode cfg, quorum not found", pVnode->vgId);
     goto PARSE_OVER;
   }
   pVnode->syncCfg.quorum = (int8_t)quorum->valueint;

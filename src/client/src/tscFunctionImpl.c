@@ -153,7 +153,7 @@ typedef struct SRateInfo {
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
-  if (!isValidDataType(dataType, dataBytes)) {
+  if (!isValidDataType(dataType)) {
     tscError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -699,7 +699,7 @@ static int32_t first_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end,
 }
 
 static int32_t last_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -727,7 +727,7 @@ static int32_t first_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY
 }
 
 static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return BLK_DATA_NO_NEEDED;
   }
   
@@ -1593,7 +1593,7 @@ static void first_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
   }
-  
+
   if (pCtx->order == TSDB_ORDER_DESC) {
     return;
   }
@@ -1652,7 +1652,7 @@ static void first_dist_func_second_merge(SQLFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
   
@@ -1681,7 +1681,6 @@ static void last_function(SQLFunctionCtx *pCtx) {
 }
 
 static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  assert(pCtx->order != TSDB_ORDER_ASC);
   void *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
@@ -1725,7 +1724,7 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
    */
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
   
@@ -1763,7 +1762,7 @@ static void last_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
    */
-  if (pCtx->order == TSDB_ORDER_ASC) {
+  if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
   
@@ -1854,26 +1853,14 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
 static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   // do nothing at the first stage
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
-    if (pResInfo->hasResult != DATA_SET_FLAG) {
-      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
-      } else {
-        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      }
-      
-      return;
+  if (pResInfo->hasResult != DATA_SET_FLAG) {
+    if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+    } else {
+      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
     }
-  } else {
-    if (pResInfo->hasResult != DATA_SET_FLAG) {
-      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
-      } else {
-        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      }
-      
-      return;
-    }
+    
+    return;
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;
@@ -2990,12 +2977,12 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
  */
 static void tag_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
 }
 
 static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
 }
 
 static void copy_function(SQLFunctionCtx *pCtx) {
@@ -3904,7 +3891,7 @@ static bool ts_comp_function_setup(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   STSCompInfo *pInfo = pResInfo->interResultBuf;
   
-  pInfo->pTSBuf = tsBufCreate(false);
+  pInfo->pTSBuf = tsBufCreate(false, pCtx->order);
   pInfo->pTSBuf->tsOrder = pCtx->order;
   return true;
 }
@@ -3926,7 +3913,6 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   }
   
   SET_VAL(pCtx, pCtx->size, 1);
-  
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 

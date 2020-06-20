@@ -126,8 +126,11 @@ python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
+# stable
+python3 ./test.py -f stable/query_after_reset.py
+
 # table
-#python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py
@@ -137,7 +140,12 @@ python3 ./test.py -f query/queryError.py
 python3 ./test.py -f query/filterAllIntTypes.py
 python3 ./test.py -f query/filterFloatAndDouble.py
 python3 ./test.py -f query/filterOtherTypes.py
+python3 ./test.py -f query/querySort.py
+python3 ./test.py -f query/queryJoin.py
 
 #stream
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
+
+#alter table
+python3 ./test.py -f alter/alter_table_crash.py

@@ -99,7 +99,13 @@ endi
 print ============== step3: stop dnode4 
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
 sleep $sleepTimer
+
+$loopCnt = 0
 wait_dnode4_offline_0:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
 sql show dnodes
 if $rows != 3 then
   sleep 2000
@@ -160,7 +166,12 @@ $totalRows = $totalRows + $addRows
 print ============== step5: restart dnode4, waiting dnode4 synced
 system sh/exec.sh -n dnode4 -s start
 
+$loopCnt = 0
 wait_dnode4_ready:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
 sql show dnodes
 if $rows != 3 then
   sleep 2000

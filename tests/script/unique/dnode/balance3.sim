@@ -177,7 +177,6 @@ endi
 
 print ========== step5
 sql create dnode $hostname6
-system sh/deploy.sh -n dnode6 -i 6
 system sh/exec.sh -n dnode6 -s start
 
 $x = 0
