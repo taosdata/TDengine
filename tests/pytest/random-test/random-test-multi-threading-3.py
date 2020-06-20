@@ -24,6 +24,7 @@ last_tb = ""
 last_stb = ""
 written = 0
 last_timestamp = 0
+colAdded = False
 
 
 class Test (Thread):
@@ -140,6 +141,26 @@ class Test (Thread):
             last_tb = ""
             written = 0
 
+    def alter_table_to_add_col(self):
+        tdLog.info("alter_table_to_add_col")
+        global last_stb
+        global colAdded
+
+        if last_stb != "" and colAdded == False:
+            tdSql.execute(
+                "alter table %s add column col binary(20)" %
+                last_stb)
+            colAdded = True
+
+    def alter_table_to_drop_col(self):
+        tdLog.info("alter_table_to_drop_col")
+        global last_stb
+        global colAdded
+
+        if last_stb != "" and colAdded:
+            tdSql.execute("alter table %s drop column col" % last_stb)
+            colAdded = False
+
     def restart_database(self):
         tdLog.info("restart_database")
         global last_tb
@@ -235,6 +256,8 @@ class Test (Thread):
             7: self.reset_database,
             8: self.delete_datafiles,
             9: self.drop_stable,
+            10: self.alter_table_to_add_col,
+            11: self.alter_table_to_drop_col,
         }
 
         queryOp = {
@@ -256,7 +279,7 @@ class Test (Thread):
             while True:
                 self.dbEvent.wait()
                 tdLog.notice("second thread")
-                randDbOp = random.randint(1, 9)
+                randDbOp = random.randint(1, 11)
                 dbOp.get(randDbOp, lambda: "ERROR")()
                 self.dbEvent.clear()
                 self.dataEvent.clear()
