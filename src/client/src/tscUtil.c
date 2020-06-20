@@ -1674,6 +1674,14 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   pNew->param = param;
   pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
 
+  pNew->sqlstr = strdup(pSql->sqlstr);
+  if (pNew->sqlstr == NULL) {
+    tscError("%p new subquery failed", pSql);
+
+    free(pNew);
+    return NULL;
+  }
+
   SQueryInfo* pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, 0, &pQueryInfo);
 
@@ -1696,6 +1704,14 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
+
+  pNew->sqlstr = strdup(pSql->sqlstr);
+  if (pNew->sqlstr == NULL) {
+    tscError("%p new subquery failed, tableIndex:%d, vgroupIndex:%d", pSql, tableIndex, pTableMetaInfo->vgroupIndex);
+
+    free(pNew);
+    return NULL;
+  }
 
   SSqlCmd* pnCmd = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
