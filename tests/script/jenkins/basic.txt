@@ -337,7 +337,9 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
 ./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
 ./test.sh -f unique/arbitrator/insert_duplicationTs.sim
