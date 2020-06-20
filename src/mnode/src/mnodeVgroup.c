@@ -258,7 +258,37 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
   mnodeSendCreateVgroupMsg(pVgroup, NULL);
 }
 
-void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t openVnodes) {}
+/*
+  Traverse all vgroups on mnode, if there no such vgId on a dnode, so send msg to this dnode for re-creating this vgId/vnode 
+*/
+void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t openVnodes) {
+  SVnodeLoad *pNextV = NULL;
+
+  void *pIter = NULL;
+  while (1) {
+    SVgObj *pVgroup;
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    pNextV = pVloads;
+    int32_t i;
+    for (i = 0; i < openVnodes; ++i) {
+      if ((pVgroup->vnodeGid[i].pDnode == pDnode) && (pVgroup->vgId == pNextV->vgId)) {
+        break;
+      }
+      pNextV++;
+    }
+
+    if (i == openVnodes) {
+      mnodeSendCreateVgroupMsg(pVgroup, NULL);
+    }
+    
+    mnodeDecVgroupRef(pVgroup);
+  }
+
+  sdbFreeIter(pIter);
+  return;
+}
 
 void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVload) {
   bool dnodeExist = false;
