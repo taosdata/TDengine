@@ -1048,7 +1048,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscTrace("%p create data block list for submit data:%p, curSql:%p, pTableList:%p", pSql, pSql->cmd.pDataBlocks, pCmd->curSql, pCmd->pTableList);
+  tscTrace("%p create data block list for submit data:%p, pTableList:%p", pSql, pCmd->pDataBlocks, pCmd->pTableList);
 
   while (1) {
     int32_t   index = 0;
@@ -1088,22 +1088,16 @@ int tsParseInsertSql(SSqlObj *pSql) {
       goto _error;
     }
 
-    ptrdiff_t pos = pCmd->curSql - pSql->sqlstr;
-    
     if ((code = tscCheckIfCreateTable(&str, pSql)) != TSDB_CODE_SUCCESS) {
       /*
-       * For async insert, after get the table meta from server, the sql string will not be
-       * parsed using the new table meta to avoid the overhead cause by get table meta data information.
-       * And during the getMeterMetaCallback function, the sql string will be parsed from the
-       * interrupted position.
+       * After retrieving the table meta from server, the sql string will be parsed from the paused position.
+       * And during the getTableMetaCallback function, the sql string will be parsed from the paused position.
        */
       if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
-        tscTrace("%p waiting for get table meta during insert, then resume from offset: %" PRId64 ", %s", pSql,
-            pos, pCmd->curSql);
         return code;
       }
       
-      tscError("%p async insert parse error, code:%d, reason:%s", pSql, code, tstrerror(code));
+      tscError("%p async insert parse error, code:%s", pSql, tstrerror(code));
       pCmd->curSql = NULL;
       goto _error;
     }
@@ -1317,11 +1311,11 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseSql(SSqlObj *pSql, bool initialParse) {
+int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
 
-  if (!pCmd->parseFinished) {
+  if ((!pCmd->parseFinished) && (!initial)) {
     tscTrace("%p resume to parse sql: %s", pSql, pCmd->curSql);
   }
   
@@ -1330,12 +1324,12 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
      * Set the fp before parse the sql string, in case of getTableMeta failed, in which
      * the error handle callback function can rightfully restore the user-defined callback function (fp).
      */
-    if (initialParse && (pSql->cmd.insertType != TSDB_QUERY_TYPE_STMT_INSERT)) {
+    if (initial && (pSql->cmd.insertType != TSDB_QUERY_TYPE_STMT_INSERT)) {
       pSql->fetchFp = pSql->fp;
       pSql->fp = (void(*)())tscHandleMultivnodeInsert;
     }
     
-    if (initialParse && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
+    if (initial && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
       return ret;
     }
     
