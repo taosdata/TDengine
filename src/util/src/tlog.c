@@ -428,8 +428,12 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   buffer[len] = 0;
 
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->fd >= 0) {
-    taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
-
+    if (tsAsyncLog) {
+      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
+    } else {
+      twrite(tsLogObj.logHandle->fd, buffer, len);
+    }
+    
     if (tsLogObj.maxLines > 0) {
       atomic_add_fetch_32(&tsLogObj.lines, 1);
 
