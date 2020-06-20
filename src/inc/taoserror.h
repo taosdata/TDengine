@@ -183,8 +183,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0214, "vnode no w
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         0, 0x0600, "tsdb invalid table id")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       0, 0x0601, "tsdb invalid table schema version")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_SCHEMA_VERSION,     0, 0x0602, "tsdb invalid table schema version")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       0, 0x0601, "tsdb invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION,    0, 0x0602, "tsdb invalid table schema version")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_ALREADY_EXIST,      0, 0x0603, "tsdb table already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CONFIG,           0, 0x0604, "tsdb invalid configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INIT_FAILED,              0, 0x0605, "tsdb init failed")
@@ -194,6 +194,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_FILE_CORRUPTED,           0, 0x0608, "tsdb file 
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_OUT_OF_MEMORY,            0, 0x0609, "tsdb out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE,      0, 0x060A, "tsdb tag version is out of date")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE,   0, 0x060B, "tsdb timestamp is out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP,      0, 0x060C, "tsdb submit message is messed up")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_ACTION,           0, 0x060D, "tsdb invalid action")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CREATE_TB_MSG,    0, 0x060E, "tsdb invalid create table message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM,     0, 0x060F, "tsdb no table data in memory skiplist")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_FILE_ALREADY_EXISTS,      0, 0x0610, "tsdb file already exists")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          0, 0x0700, "query invalid handle")

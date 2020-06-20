@@ -1321,7 +1321,6 @@ int tsParseSql(SSqlObj *pSql, bool initialParse) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
 
-  tscTrace("------------------%p, initial:%d, sqlstr:%s", pSql, initialParse, pSql->sqlstr);
   if (!pCmd->parseFinished) {
     tscTrace("%p resume to parse sql: %s", pSql, pCmd->curSql);
   }

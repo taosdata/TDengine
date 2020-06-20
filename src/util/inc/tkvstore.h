@@ -25,7 +25,7 @@ typedef int (*iterFunc)(void *, void *cont, int contLen);
 typedef void (*afterFunc)(void *);
 
 typedef struct {
-  int64_t size;
+  int64_t size;  // including 512 bytes of header size
   int64_t tombSize;
   int64_t nRecords;
   int64_t nDels;

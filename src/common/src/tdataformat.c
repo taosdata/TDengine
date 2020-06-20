@@ -14,6 +14,7 @@
  */
 #include "tdataformat.h"
 #include "talgo.h"
+#include "tcoding.h"
 #include "wchar.h"
 
 /**
@@ -33,50 +34,50 @@ STSchema *tdDupSchema(STSchema *pSchema) {
 /**
  * Encode a schema to dst, and return the next pointer
  */
-void *tdEncodeSchema(void *dst, STSchema *pSchema) {
+int tdEncodeSchema(void **buf, STSchema *pSchema) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, schemaVersion(pSchema));
+  tlen += taosEncodeFixedI32(buf, schemaNCols(pSchema));
 
-  T_APPEND_MEMBER(dst, pSchema, STSchema, version);
-  T_APPEND_MEMBER(dst, pSchema, STSchema, numOfCols);
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
-    T_APPEND_MEMBER(dst, pCol, STColumn, type);
-    T_APPEND_MEMBER(dst, pCol, STColumn, colId);
-    T_APPEND_MEMBER(dst, pCol, STColumn, bytes);
+    tlen += taosEncodeFixedI8(buf, colType(pCol));
+    tlen += taosEncodeFixedI16(buf, colColId(pCol));
+    tlen += taosEncodeFixedI32(buf, colBytes(pCol));
   }
 
-  return dst;
+  return tlen;
 }
 
 /**
  * Decode a schema from a binary.
  */
-STSchema *tdDecodeSchema(void **psrc) {
-  int totalCols = 0;
+void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   int version = 0;
-  STSchemaBuilder schemaBuilder = {0};
+  int numOfCols = 0;
+  STSchemaBuilder schemaBuilder;
 
-  T_READ_MEMBER(*psrc, int, version);
-  T_READ_MEMBER(*psrc, int, totalCols);
+  buf = taosDecodeFixedI32(buf, &version);
+  buf = taosDecodeFixedI32(buf, &numOfCols);
 
   if (tdInitTSchemaBuilder(&schemaBuilder, version) < 0) return NULL;
 
-  for (int i = 0; i < totalCols; i++) {
+  for (int i = 0; i < numOfCols; i++) {
     int8_t  type = 0;
     int16_t colId = 0;
     int32_t bytes = 0;
-    T_READ_MEMBER(*psrc, int8_t, type);
-    T_READ_MEMBER(*psrc, int16_t, colId);
-    T_READ_MEMBER(*psrc, int32_t, bytes);
-
+    buf = taosDecodeFixedI8(buf, &type);
+    buf = taosDecodeFixedI16(buf, &colId);
+    buf = taosDecodeFixedI32(buf, &bytes);
     if (tdAddColToSchema(&schemaBuilder, type, colId, bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
     }
   }
 
-  STSchema *pSchema = tdGetSchemaFromBuilder(&schemaBuilder);
+  *pRSchema = tdGetSchemaFromBuilder(&schemaBuilder);
   tdDestroyTSchemaBuilder(&schemaBuilder);
-  return pSchema;
+  return buf;
 }
 
 int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
@@ -605,14 +606,19 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
   return 0;
 }
 
-void *tdEncodeKVRow(void *buf, SKVRow row) {
+int tdEncodeKVRow(void **buf, SKVRow row) {
   // May change the encode purpose
-  kvRowCpy(buf, row);
-  return POINTER_SHIFT(buf, kvRowLen(row));
+  if (buf != NULL) {
+    kvRowCpy(*buf, row);
+    *buf = POINTER_SHIFT(*buf, kvRowLen(row));
+  }
+
+  return kvRowLen(row);
 }
 
 void *tdDecodeKVRow(void *buf, SKVRow *row) {
   *row = tdKVRowDup(buf);
+  if (*row == NULL) return NULL;
   return POINTER_SHIFT(buf, kvRowLen(*row));
 }
 

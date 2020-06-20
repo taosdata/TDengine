@@ -774,7 +774,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     char *         pData = SL_GET_NODE_DATA(pNode);
 
     // todo refactor:
-    tstr *name = ((STableIndexElem *)pData)->pTable->name;
+    tstr *name = (*(STable **)pData)->name;
     // todo speed up by using hash
     if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {

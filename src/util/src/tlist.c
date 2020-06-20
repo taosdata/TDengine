@@ -39,8 +39,10 @@ void tdListEmpty(SList *list) {
 }
 
 void tdListFree(SList *list) {
-  tdListEmpty(list);
-  free(list);
+  if (list) {
+    tdListEmpty(list);
+    free(list);
+  }
 }
 
 void tdListPrependNode(SList *list, SListNode *node) {
@@ -81,7 +83,7 @@ int tdListPrepend(SList *list, void *data) {
 }
 
 int tdListAppend(SList *list, void *data) {
-  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
+  SListNode *node = (SListNode *)calloc(1, sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
   memcpy((void *)(node->data), data, list->eleSize);
@@ -145,6 +147,13 @@ void tdListMove(SList *src, SList *dst) {
   SListNode *node = NULL;
   while ((node = tdListPopHead(src)) != NULL) {
     tdListAppendNode(dst, node);
+  }
+}
+
+void tdListDiscard(SList *list) {
+  if (list) {
+    list->head = list->tail = NULL;
+    list->numOfEles = 0;
   }
 }
 
