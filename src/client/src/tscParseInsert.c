@@ -1038,8 +1038,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
   if (NULL == pCmd->pTableList) {
     pCmd->pTableList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
-
-    pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
+    pCmd->pDataBlocks = taosArrayInit(4, POINTER_BYTES);
     if (NULL == pCmd->pTableList || NULL == pSql->cmd.pDataBlocks) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
@@ -1170,7 +1169,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         goto _error;
       }
 
-      tscAppendDataBlock(pCmd->pDataBlocks, pDataBlock);
+      taosArrayPush(pCmd->pDataBlocks, &pDataBlock);
       strcpy(pDataBlock->filename, fname);
     } else if (sToken.type == TK_LP) {
       /* insert into tablename(col1, col2,..., coln) values(v1, v2,... vn); */
@@ -1258,7 +1257,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     goto _clean;
   }
 
-  if (pCmd->pDataBlocks->nSize > 0) { // merge according to vgId
+  if (taosArrayGetSize(pCmd->pDataBlocks) > 0) { // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -1368,8 +1367,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
     return code;
   }
 
-  // the pDataBlock is different from the pTableDataBlocks
-  STableDataBlocks *pDataBlock = pCmd->pDataBlocks->pData[0];
+  STableDataBlocks *pDataBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
   if ((code = tscCopyDataBlockToPayload(pSql, pDataBlock)) != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1400,15 +1398,15 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   
   int32_t rowSize = tinfo.rowSize;
 
-  pCmd->pDataBlocks = tscCreateBlockArrayList();
+  pCmd->pDataBlocks = taosArrayInit(4, POINTER_BYTES);
   STableDataBlocks *pTableDataBlock = NULL;
-  int32_t           ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, rowSize, sizeof(SSubmitBlk),
-                                   pTableMetaInfo->name, pTableMeta, &pTableDataBlock);
+
+  int32_t ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, rowSize, sizeof(SSubmitBlk), pTableMetaInfo->name, pTableMeta, &pTableDataBlock);
   if (ret != TSDB_CODE_SUCCESS) {
-    return -1;
+    return ret;
   }
 
-  tscAppendDataBlock(pCmd->pDataBlocks, pTableDataBlock);
+  taosArrayPush(pCmd->pDataBlocks, &pTableDataBlock);
 
   code = tscAllocateMemIfNeed(pTableDataBlock, rowSize, &maxRows);
   if (TSDB_CODE_SUCCESS != code) return -1;
@@ -1442,7 +1440,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
         return -code;
       }
 
-      pTableDataBlock = pCmd->pDataBlocks->pData[0];
+      pTableDataBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
       pTableDataBlock->size = sizeof(SSubmitBlk);
       pTableDataBlock->rowSize = tinfo.rowSize;
 
@@ -1479,13 +1477,14 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
   int32_t           affected_rows = 0;
 
   assert(pCmd->dataSourceType == DATA_FROM_DATA_FILE && pCmd->pDataBlocks != NULL);
-  SDataBlockList *pDataBlockList = pCmd->pDataBlocks;
+  SArray *pDataBlockList = pCmd->pDataBlocks;
   pCmd->pDataBlocks = NULL;
 
   char path[PATH_MAX] = {0};
 
-  for (int32_t i = 0; i < pDataBlockList->nSize; ++i) {
-    pDataBlock = pDataBlockList->pData[i];
+  size_t size = taosArrayGetSize(pDataBlockList);
+  for (int32_t i = 0; i < size; ++i) {
+    pDataBlock = taosArrayGetP(pDataBlockList, i );
     if (pDataBlock == NULL) {
       continue;
     }

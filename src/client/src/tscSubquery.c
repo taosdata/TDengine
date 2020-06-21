@@ -1864,7 +1864,6 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     pParentObj->res.code = pSql->res.code;
   }
 
-  // it is not the initial sqlObj, free it
   taos_free_result(tres);
   tfree(pSupporter);
 
@@ -1889,12 +1888,14 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
-  SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
-  pSql->pSubs = calloc(pDataBlocks->nSize, POINTER_BYTES);
-  pSql->numOfSubs = pDataBlocks->nSize;
-  assert(pDataBlocks->nSize > 0);
-  
-  tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
+  size_t size = taosArrayGetSize(pCmd->pDataBlocks);
+  assert(size > 0);
+
+  pSql->pSubs = calloc(size, POINTER_BYTES);
+  pSql->numOfSubs = size;
+
+  tscTrace("%p submit data to %zu vnode(s)", pSql, size);
+
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   pState->numOfTotal = pSql->numOfSubs;
   pState->numOfRemain = pSql->numOfSubs;
@@ -1920,12 +1921,14 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     pNew->fetchFp = pNew->fp;
     pSql->pSubs[numOfSub] = pNew;
 
-    pRes->code = tscCopyDataBlockToPayload(pNew, pDataBlocks->pData[numOfSub++]);
+    STableDataBlocks* pTableDataBlock = taosArrayGetP(pCmd->pDataBlocks, numOfSub);
+    pRes->code = tscCopyDataBlockToPayload(pNew, pTableDataBlock);
     if (pRes->code == TSDB_CODE_SUCCESS) {
       tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, numOfSub);
+      numOfSub++;
     } else {
-      tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%s", pSql, numOfSub,
-               pDataBlocks->nSize, tstrerror(pRes->code));
+      tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%zu, code:%s", pSql, numOfSub,
+               size, tstrerror(pRes->code));
       goto _error;
     }
   }

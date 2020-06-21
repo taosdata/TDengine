@@ -89,27 +89,21 @@ typedef struct SVgroupTableInfo {
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
                            STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
-void tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
                                    uint32_t offset);
 
-SDataBlockList* tscCreateBlockArrayList();
-
-void*   tscDestroyBlockArrayList(SDataBlockList* pList);
+void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-void    tscFreeUnusedDataBlocks(SDataBlockList* pList);
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
-int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
+void    tscFreeUnusedDataBlocks(SArray* pDataBlockList);
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pDataList);
+int32_t tscGetDataBlockFromList(void* pHashList, SArray* pDataBlockList, int64_t id, int32_t size,
                                 int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks);
 
-//UNUSED_FUNC STableIdInfo*  tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
-
 /**
- *
  * for the projection query on metric or point interpolation query on metric,
  * we iterate all the meters, instead of invoke query on all qualified meters simultaneously.
  *
