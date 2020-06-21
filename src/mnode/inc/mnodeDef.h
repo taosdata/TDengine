@@ -82,7 +82,8 @@ typedef struct STableObj {
 
 typedef struct SSuperTableObj {
   STableObj  info; 
-  int8_t     reserved0[3]; // for fill struct STableObj to 4byte align
+  int8_t     reserved0[1]; // for fill struct STableObj to 4byte align
+  int16_t    nextColId;
   int32_t    sversion;
   uint64_t   uid;
   int64_t    createdTime;
@@ -95,13 +96,13 @@ typedef struct SSuperTableObj {
   int32_t    numOfTables;
   SSchema *  schema;
   void *     vgHash;
-  int16_t    nextColId;
   int8_t     reserved2[6];
 } SSuperTableObj;
 
 typedef struct {
   STableObj  info;  
-  int8_t     reserved0[3]; // for fill struct STableObj to 4byte align
+  int8_t     reserved0[1]; // for fill struct STableObj to 4byte align
+  int16_t    nextColId;    //used by normal table
   int32_t    sversion;     //used by normal table  
   uint64_t   uid;
   uint64_t   suid;
@@ -112,7 +113,6 @@ typedef struct {
   int32_t    sqlLen;
   int8_t     updateEnd[1];
   int8_t     reserved1[1]; 
-  int16_t    nextColId;    //used by normal table
   int32_t    refCount;
   char*      sql;          //used by normal table
   SSchema*   schema;       //used by normal table

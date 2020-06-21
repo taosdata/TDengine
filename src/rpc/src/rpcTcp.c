@@ -190,14 +190,20 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
   }
 }
 
-
-void taosCleanUpTcpServer(void *handle) {
+void taosStopTcpServer(void *handle) {
   SServerObj *pServerObj = handle;
-  SThreadObj *pThreadObj;
 
   if (pServerObj == NULL) return;
   if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
   if(pServerObj->thread) pthread_join(pServerObj->thread, NULL);
+
+  tTrace("%s TCP server is stopped", pServerObj->label);
+}
+
+void taosCleanUpTcpServer(void *handle) {
+  SServerObj *pServerObj = handle;
+  SThreadObj *pThreadObj;
+  if (pServerObj == NULL) return;
 
   for (int i = 0; i < pServerObj->numOfThreads; ++i) {
     pThreadObj = pServerObj->pThreadObj + i;
@@ -205,7 +211,7 @@ void taosCleanUpTcpServer(void *handle) {
     pthread_mutex_destroy(&(pThreadObj->mutex));
   }
 
-  tTrace("TCP:%s, TCP server is cleaned up", pServerObj->label);
+  tTrace("%s TCP server is cleaned up", pServerObj->label);
 
   tfree(pServerObj->pThreadObj);
   tfree(pServerObj);
@@ -226,7 +232,7 @@ static void *taosAcceptTcpConnection(void *arg) {
     connFd = accept(pServerObj->fd, (struct sockaddr *)&caddr, &addrlen);
     if (connFd == -1) {
       if (errno == EINVAL) {
-        tTrace("%s TCP server socket was shutdown, exiting...", pServerObj->label);
+        tTrace("%s TCP server stop accepting new connections, exiting", pServerObj->label);
         break;
       }
 
@@ -304,12 +310,19 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   return pThreadObj;
 }
 
+void taosStopTcpClient(void *chandle) {
+  SThreadObj *pThreadObj = chandle;
+  if (pThreadObj == NULL) return;
+
+  tTrace ("%s TCP client is stopped", pThreadObj->label);
+}
+
 void taosCleanUpTcpClient(void *chandle) {
   SThreadObj *pThreadObj = chandle;
   if (pThreadObj == NULL) return;
 
   taosStopTcpThread(pThreadObj);
-  tTrace ("%s, all connections are cleaned up", pThreadObj->label);
+  tTrace ("%s TCP client is cleaned up", pThreadObj->label);
 
   tfree(pThreadObj);
 }
@@ -437,7 +450,7 @@ static void *taosProcessTcpData(void *param) {
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, -1);
     if (pThreadObj->stop) {
-      tTrace("%s, tcp thread get stop event, exiting...", pThreadObj->label);
+      tTrace("%s TCP thread get stop event, exiting...", pThreadObj->label);
       break;
     }
     if (fdNum < 0) continue;

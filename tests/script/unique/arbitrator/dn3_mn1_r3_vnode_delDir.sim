@@ -88,7 +88,6 @@ while $i < $tblNum
 endw 
 
 sql select count(*) from $stb
-sleep 1000
 print data00 $data00
 if $data00 != $totalRows then
 	return -1
@@ -124,7 +123,6 @@ if $dnode4Status != offline then
   goto wait_dnode4_offline_0
 endi
 
-
 $loopCnt = 0
 wait_dnode4_vgroup_offline:
 $loopCnt = $loopCnt + 1
@@ -153,11 +151,18 @@ if $dnode3Vtatus != master then
   goto wait_dnode4_vgroup_offline
 endi
 
-system rm -rf ../../../sim/dnode4/data/vnode/*
+system rm -rf ../../../sim/dnode4/data
+#system rm -rf ../../../sim/dnode4/data/vnode/*
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
 
 print ============== step4: restart dnode4, waiting sync end 
 system sh/exec.sh -n dnode4 -s start
-sleep $sleepTimer
+#sleep $sleepTimer
 
 $loopCnt = 0
 wait_dnode4_reready:
@@ -215,12 +220,19 @@ if $dnode3Vtatus != master then
   goto wait_dnode4_vgroup_slave
 endi
 
-print ============== step5: stop dnode3, and remove its vnodeX subdirector 
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+print ============== step5: stop dnode3/dnode2, and remove its vnode
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep $sleepTimer
 
 $loopCnt = 0
-wait_dnode3_offline:
+wait_dnode23_offline:
 $loopCnt = $loopCnt + 1
 if $loopCnt == 10 then 
   return -1
@@ -229,123 +241,7 @@ endi
 sql show dnodes
 if $rows != 4 then
   sleep 2000
-  goto wait_dnode3_offline
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
-
-if $dnode2Status != ready then
-  sleep 2000
-  goto wait_dnode3_offline
-endi
-if $dnode3Status != offline then
-  sleep 2000
-  goto wait_dnode3_offline
-endi
-if $dnode4Status != ready then
-  sleep 2000
-  goto wait_dnode3_offline
-endi
-
-system rm -rf ../../../sim/dnode3/data/vnode/*
-
-print ============== step6: restart dnode3, and check rows
-system sh/exec.sh -n dnode3 -s start
-sleep $sleepTimer
-
-$loopCnt = 0
-wait_dnode3_reready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
-
-sql show dnodes
-if $rows != 4 then
-  sleep 2000
-  goto wait_dnode3_reready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
-
-if $dnode3Status != ready then
-  sleep 2000
-  goto wait_dnode3_reready
-endi
-
-$loopCnt = 0
-wait_dnode3_vgroup_slave:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
-
-sql show vgroups
-if $rows != 1 then
-  sleep 2000
-  goto wait_dnode3_vgroup_slave
-endi
-print show vgroups:
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
-$dnode4Vtatus = $data4_2
-$dnode3Vtatus = $data7_2
-
-print dnode4Vtatus: $dnode4Vtatus
-print dnode3Vtatus: $dnode3Vtatus 
-if $dnode4Vtatus != master then
-  sleep 2000
-  goto wait_dnode3_vgroup_slave
-endi
-if $dnode3Vtatus != slave then
-  sleep 2000
-  goto wait_dnode3_vgroup_slave
-endi
-
-# check using select
-sql select count(*) from $stb
-print data00 $data00
-if $data00 != $totalRows then
-	return -1
-endi
-
-sql insert into $tb values ( now , 20000 ) ( now + 1a, 20001 ) ( now + 2a, 20002 )
-$totalRows = $totalRows + 3
-
-sql select count(*) from $stb
-print data00 $data00
-if $data00 != $totalRows then
-	return -1
-endi
-
-print ============== step7: stop dnode2, and remove its vnodeX subdirector 
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep $sleepTimer
-
-$loopCnt = 0
-wait_dnode2_offline:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
-
-sql show dnodes
-if $rows != 4 then
-  sleep 2000
-  goto wait_dnode2_offline
+  goto wait_dnode23_offline
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -358,25 +254,29 @@ $dnode4Status = $data4_4
 
 if $dnode2Status != offline then
   sleep 2000
-  goto wait_dnode2_offline
+  goto wait_dnode23_offline
 endi
-if $dnode3Status != ready then
+if $dnode3Status != offline then
   sleep 2000
-  goto wait_dnode2_offline
+  goto wait_dnode23_offline
 endi
 if $dnode4Status != ready then
   sleep 2000
-  goto wait_dnode2_offline
+  goto wait_dnode23_offline
 endi
 
-system rm -rf ../../../sim/dnode2/data/vnode/*
+system rm -rf ../../../sim/dnode2/data
+system rm -rf ../../../sim/dnode3/data
+#system rm -rf ../../../sim/dnode2/data/vnode/*
+#system rm -rf ../../../sim/dnode3/data/vnode/*
 
-print ============== step8: restart dnode2, and check rows
+print ============== step6: restart dnode2/dnode3, and check rows
 system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
 sleep $sleepTimer
 
 $loopCnt = 0
-wait_dnode2_reready:
+wait_dnode23_reready:
 $loopCnt = $loopCnt + 1
 if $loopCnt == 10 then 
   return -1
@@ -385,7 +285,7 @@ endi
 sql show dnodes
 if $rows != 4 then
   sleep 2000
-  goto wait_dnode2_reready
+  goto wait_dnode23_reready
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -398,11 +298,19 @@ $dnode4Status = $data4_4
 
 if $dnode2Status != ready then
   sleep 2000
-  goto wait_dnode2_reready
+  goto wait_dnode23_reready
+endi
+if $dnode3Status != ready then
+  sleep 2000
+  goto wait_dnode23_reready
+endi
+if $dnode4Status != ready then
+  sleep 2000
+  goto wait_dnode23_reready
 endi
 
 $loopCnt = 0
-wait_dnode2_vgroup_slave:
+wait_dnode4_vgroup_master:
 $loopCnt = $loopCnt + 1
 if $loopCnt == 10 then 
   return -1
@@ -411,7 +319,7 @@ endi
 sql show vgroups
 if $rows != 1 then
   sleep 2000
-  goto wait_dnode2_vgroup_slave
+  goto wait_dnode4_vgroup_master
 endi
 print show vgroups:
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
@@ -424,11 +332,11 @@ print dnode4Vtatus: $dnode4Vtatus
 print dnode3Vtatus: $dnode3Vtatus 
 if $dnode4Vtatus != master then
   sleep 2000
-  goto wait_dnode2_vgroup_slave
+  goto wait_dnode4_vgroup_master
 endi
 if $dnode3Vtatus != slave then
   sleep 2000
-  goto wait_dnode2_vgroup_slave
+  goto wait_dnode4_vgroup_master
 endi
 
 # check using select
@@ -448,11 +356,52 @@ if $data00 != $totalRows then
 endi
 
 
+print ============== step7: stop dnode3/dnode2, and cluster unable to provide services
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+sleep 3000
+sql_error select count(*) from $stb
 
+print ============== step8: restart dnode2, and cluster Still unable to provide services
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+sql_error select count(*) from $stb
 
+print ============== step9: restart dnode3, and cluster Resume service delivery
+system sh/exec.sh -n dnode3 -s start
 
+$loopCnt = 0
+wait_dnode4_vgroup_master_2:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then 
+  return -1
+endi
 
+sql show vgroups
+if $rows != 1 then
+  sleep 2000
+  goto wait_dnode4_vgroup_master_2
+endi
+print show vgroups:
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
+$dnode4Vtatus = $data4_2
+$dnode3Vtatus = $data7_2
 
+print dnode4Vtatus: $dnode4Vtatus
+print dnode3Vtatus: $dnode3Vtatus 
+if $dnode4Vtatus != master then
+  sleep 2000
+  goto wait_dnode4_vgroup_master_2
+endi
+if $dnode3Vtatus != slave then
+  sleep 2000
+  goto wait_dnode4_vgroup_master_2
+endi
 
-
-
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi

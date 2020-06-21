@@ -5755,6 +5755,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   const char* msg7 = "illegal number of tables in from clause";
   const char* msg8 = "too many columns in selection clause";
   const char* msg9 = "TWA query requires both the start and end time";
+  const char* msg10= "too many tables in from clause";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5789,6 +5790,10 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
+
+  if (pQuerySql->from->nExpr > 2) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
+  }
 
   // set all query tables, which are maybe more than one.
   for (int32_t i = 0; i < pQuerySql->from->nExpr; ++i) {

@@ -489,7 +489,6 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
 
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     tscTrace("%p send msg to dnode to free qhandle ASAP, command:%s", pSql, sqlCmd[pCmd->command]);
-    pSql->freed = 1;
     tscProcessSql(pSql);
 
     // in case of sync model query, waits for response and then goes on
@@ -631,7 +630,7 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  rpcCancelRequest(pSql->SRpcReqContext);
+  rpcCancelRequest(pSql->pRpcCtx);
   tscTrace("%p query is cancelled", res);
 }
 

@@ -12,7 +12,9 @@ run unique/arbitrator/dn3_mn1_vnode_change.sim
 run unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim 
 run unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
 run unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
-####run unique/arbitrator/dn3_mn1_vnode_delDir.sim                  # unsupport
+run unique/arbitrator/dn3_mn1_vnode_delDir.sim
+run unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim 
+run unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim 
 run unique/arbitrator/dn3_mn1_vnode_nomaster.sim
 run unique/arbitrator/dn3_mn2_killDnode.sim
 run unique/arbitrator/insert_duplicationTs.sim

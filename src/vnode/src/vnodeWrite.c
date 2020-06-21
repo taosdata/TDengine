@@ -133,6 +133,13 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
 }
 
 static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
+  // TODO: disposed in tsdb
+  // STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
+  // if (pCfg == NULL) return terrno;
+  // if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) code = terrno;
+
+  // tsdbClearTableCfg(pCfg);
+  vTrace("vgId:%d, alter table msg is received", pVnode->vgId);
   return TSDB_CODE_SUCCESS;
 }
 

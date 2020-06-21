@@ -180,11 +180,9 @@ if $data28 != null then
 endi
 
 print ======== step4
-sleep 2500
 sql alter table tb drop column d
 sql alter table tb drop column e
 sql insert into tb values(now-19d, -19, 6, 3, 0)
-sleep 3000
 sql select * from tb order by ts desc
 if $rows != 4 then
   return -1
@@ -287,10 +285,8 @@ if $data38 != null then
 endi
 
 print ======== step5
-sleep 2500
 sql alter table tb drop column g
 sql insert into tb values(now-16d, -16, 9, 5)
-sleep 3000
 sql select count(f) from tb
 if $data00 != 5 then
   return -1
@@ -421,10 +417,8 @@ if $data48 != null then
 endi
 
 print ======== step6
-sleep 2500
 sql alter table tb drop column f
 sql insert into tb values(now-13d, -13, 7)
-sleep 3000
 sql select * from tb order by ts desc
 if $rows != 6 then
   return -1
@@ -551,10 +545,8 @@ if $data58 != null then
 endi
 
 print ======== step7
-sleep 2500
 sql alter table tb drop column h
 sql insert into tb values(now-10d, -10)
-sleep 3000
 sql select * from tb order by ts desc
 if $rows != 7 then
   return -1
