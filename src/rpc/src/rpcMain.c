@@ -964,11 +964,9 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   terrno = 0;
   pConn = rpcProcessMsgHead(pRpc, pRecv);
 
-  if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16)) {
-    tTrace("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x",
+  tTrace("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x",
         pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
         pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
-  }
 
   int32_t code = terrno;
   if (code != TSDB_CODE_RPC_ALREADY_PROCESSED) {
@@ -1196,16 +1194,14 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   msgLen = rpcAddAuthPart(pConn, msg, msgLen);
 
   if ( rpcIsReq(pHead->msgType)) {
-    if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
-             pConn->info, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
-             msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    tTrace("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
+           pConn->info, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
+           msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
     if (pHead->code == 0) pConn->secured = 1; // for success response, set link as secured
-    if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
-          pConn->info, taosMsg[pHead->msgType], pConn->peerIp, pConn->peerPort, 
-          htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    tTrace("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
+           pConn->info, taosMsg[pHead->msgType], pConn->peerIp, pConn->peerPort, 
+           htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
   //tTrace("connection type is: %d", pConn->connType);
