@@ -237,12 +237,13 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       }
 
       SFile *pFile = &pFGroup->files[(*index) % 3];
-      strcpy(fname, pFile->fname);
+      fname = strdup(pFile->fname);
     }
   }
 
   if (stat(fname, &fState) < 0) {
     tfree(sdup);
+    tfree(fname);
     return 0;
   }
 
@@ -566,7 +567,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
 
 _err:
   tfree(fname);
-  if (fd > 0) close(fd);
+  if (fd >= 0) close(fd);
   return -1;
 }
 
@@ -609,7 +610,7 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
 
 _err:
   tfree(fname);
-  if (fd > 0) close(fd);
+  if (fd >= 0) close(fd);
   return -1;
 }
 

@@ -524,8 +524,6 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
-  free(dataDir);
-
   // Open files for write/read
   if (tsdbSetAndOpenHelperFile(pHelper, pGroup) < 0) {
     tsdbError("vgId:%d failed to set helper file since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -599,7 +597,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   return 0;
 
 _err:
-  // ASSERT(false);
+  tfree(dataDir);
   tsdbCloseHelperFile(pHelper, 1);
   return -1;
 }
