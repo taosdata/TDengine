@@ -147,6 +147,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
       tsdbInsertTableAct(pRepo, TSDB_DROP_META, buf, tTable);
       tsdbRemoveTableFromMeta(pRepo, tTable, false, true);
     }
+    tSkipListDestroyIter(pIter);
   }
 
   tsdbRemoveTableFromMeta(pRepo, pTable, true, true);
@@ -270,7 +271,6 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
 _err:
   tdDestroyTSchemaBuilder(&schemaBuilder);
   tsdbClearTableCfg(pCfg);
-  tfree(pCfg);
   return NULL;
 }
 
@@ -309,6 +309,7 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
 
     int32_t code = tsdbUpdateTable(pRepo, super, pTableCfg);
     if (code != TSDB_CODE_SUCCESS) {
+      tsdbClearTableCfg(pTableCfg);
       return code;
     }
     tsdbClearTableCfg(pTableCfg);
