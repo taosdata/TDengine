@@ -1332,23 +1332,24 @@ static void setCtxTagColumnInfo(SQuery *pQuery, SQLFunctionCtx *pCtx) {
     
     SQLFunctionCtx *p = NULL;
     SQLFunctionCtx **pTagCtx = calloc(pQuery->numOfOutput, POINTER_BYTES);
-    
-    for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-      SSqlFuncMsg *pSqlFuncMsg = &pQuery->pSelectExpr[i].base;
+    if (pTagCtx) {
+      for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+        SSqlFuncMsg *pSqlFuncMsg = &pQuery->pSelectExpr[i].base;
       
-      if (pSqlFuncMsg->functionId == TSDB_FUNC_TAG_DUMMY || pSqlFuncMsg->functionId == TSDB_FUNC_TS_DUMMY) {
-        tagLen += pCtx[i].outputBytes;
-        pTagCtx[num++] = &pCtx[i];
-      } else if ((aAggs[pSqlFuncMsg->functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-        p = &pCtx[i];
-      } else if (pSqlFuncMsg->functionId == TSDB_FUNC_TS || pSqlFuncMsg->functionId == TSDB_FUNC_TAG) {
+        if (pSqlFuncMsg->functionId == TSDB_FUNC_TAG_DUMMY || pSqlFuncMsg->functionId == TSDB_FUNC_TS_DUMMY) {
+          tagLen += pCtx[i].outputBytes;
+          pTagCtx[num++] = &pCtx[i];
+        } else if ((aAggs[pSqlFuncMsg->functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+          p = &pCtx[i];
+        } else if (pSqlFuncMsg->functionId == TSDB_FUNC_TS || pSqlFuncMsg->functionId == TSDB_FUNC_TAG) {
         // tag function may be the group by tag column
         // ts may be the required primary timestamp column
-        continue;
-      } else {
+          continue;
+        } else {
         // the column may be the normal column, group by normal_column, the functionId is TSDB_FUNC_PRJ
+        }
       }
-    }
+    } 
 
     p->tagInfo.pTagCtxList = pTagCtx;
     p->tagInfo.numOfTagCols = num;
@@ -3066,7 +3067,8 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
   pStatus->cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);  // save the cursor
   if (pRuntimeEnv->pTSBuf) {
     SWITCH_ORDER(pRuntimeEnv->pTSBuf->cur.order);
-    tsBufNextPos(pRuntimeEnv->pTSBuf);
+    bool ret = tsBufNextPos(pRuntimeEnv->pTSBuf);
+    UNUSED(ret);
   }
 
   // reverse order time range
@@ -3501,7 +3503,7 @@ static int32_t doCopyToSData(SQInfo *pQInfo, SWindowResult *result, int32_t orde
       continue;
     }
 
-    assert(result[i].numOfRows >= 0 && pQInfo->offset <= 1);
+    assert(pQInfo->offset <= 1);
 
     int32_t numOfRowsToCopy = result[i].numOfRows - pQInfo->offset;
     int32_t oldOffset = pQInfo->offset;
@@ -5142,7 +5144,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     int16_t functionId = pExprMsg->functionId;
     if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG_DUMMY) {
       if (pExprMsg->colInfo.flag != TSDB_COL_TAG) {  // ignore the column  index check for arithmetic expression.
-        return TSDB_CODE_QRY_INVALID_MSG;
+        goto _cleanup;
       }
     } else {
 //      if (!validateExprColumnInfo(pQueryMsg, pExprMsg)) {
@@ -5154,9 +5156,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   }
 
   if (!validateQuerySourceCols(pQueryMsg, *pExpr)) {
-    tfree(*pExpr);
-
-    return TSDB_CODE_QRY_INVALID_MSG;
+    goto _cleanup;
   }
 
   pMsg = createTableIdList(pQueryMsg, pMsg, pTableIdList);
@@ -5228,8 +5228,16 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
          pQueryMsg, pQueryMsg->numOfTables, pQueryMsg->queryType, pQueryMsg->window.skey, pQueryMsg->window.ekey, pQueryMsg->numOfGroupCols,
          pQueryMsg->order, pQueryMsg->numOfOutput, pQueryMsg->numOfCols, pQueryMsg->intervalTime,
          pQueryMsg->fillType, pQueryMsg->tsLen, pQueryMsg->tsNumOfBlocks, pQueryMsg->limit, pQueryMsg->offset);
-
   return 0;
+_cleanup:  
+  tfree(*pExpr);
+  taosArrayDestroy(*pTableIdList);
+  *pTableIdList = NULL;
+  tfree(*tbnameCond);
+  tfree(*groupbyCols);
+  tfree(*tagCols);
+  tfree(*tagCond);
+  return TSDB_CODE_QRY_INVALID_MSG;
 }
 
 static int32_t buildAirthmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTableMsg *pQueryMsg) {
@@ -5292,6 +5300,7 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
       assert(j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags || j == TSDB_TBNAME_COLUMN_INDEX);
 
       if (pExprs[i].base.colInfo.colId != TSDB_TBNAME_COLUMN_INDEX) {
+        assert(j >= 0);
         SColumnInfo* pCol = (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag))? &pTagCols[j]:&pQueryMsg->colList[j];
         type = pCol->type;
         bytes = pCol->bytes;
@@ -5323,7 +5332,7 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
 
     if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM) {
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
-      assert(j < pQueryMsg->numOfCols);
+      assert(j >= 0 && j < pQueryMsg->numOfCols);
 
       SColumnInfo *pCol = &pQueryMsg->colList[j];
 
@@ -5679,7 +5688,8 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
     pTSBuf = tsBufCreateFromCompBlocks(tsBlock, pQueryMsg->tsNumOfBlocks, pQueryMsg->tsLen, pQueryMsg->tsOrder);
 
     tsBufResetPos(pTSBuf);
-    tsBufNextPos(pTSBuf);
+    bool ret = tsBufNextPos(pTSBuf);
+    UNUSED(ret);
   }
 
   // only the successful complete requries the sem_post/over = 1 operations.
@@ -5830,13 +5840,18 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 
     // make sure file exist
     if (FD_VALID(fd)) {
-      size_t s = lseek(fd, 0, SEEK_END);
-      qTrace("QInfo:%p ts comp data return, file:%s, size:%zu", pQInfo, pQuery->sdata[0]->data, s);
-
-      lseek(fd, 0, SEEK_SET);
-      read(fd, data, s);
+      int sz;
+      if ((sz = lseek(fd, 0, SEEK_END)) < 0 || lseek(fd, 0, SEEK_SET) < 0) {
+        qError("QInfo:%p failed to get tmp file's info, path:%s, reason:%s", pQInfo,
+             pQuery->sdata[0]->data, strerror(errno));
+        return TSDB_CODE_QRY_NO_DISKSPACE;
+      }
+      qTrace("QInfo:%p ts comp data return, file:%s, size:%d", pQInfo, pQuery->sdata[0]->data, sz);
+      if (read(fd, data, sz) != sz) {
+        qError("QInfo:%p failed to read file, path:%s, reason:%s", pQInfo, pQuery->sdata[0]->data, strerror(errno));
+        return TSDB_CODE_QRY_NO_DISKSPACE;
+      }
       close(fd);
-
       unlink(pQuery->sdata[0]->data);
     } else {
       // todo return the error code to client
@@ -5895,6 +5910,7 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
 
   SExprInfo *pExprs = NULL;
   if ((code = createQFunctionExprFromMsg(pQueryMsg, &pExprs, pExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
+    tfree(pExprMsg);
     goto _over;
   }
 
@@ -5946,6 +5962,9 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
   }
 
   (*pQInfo) = createQInfoImpl(pQueryMsg, pTableIdList, pGroupbyExpr, pExprs, &groupInfo, pTagColumnInfo);
+  pGroupbyExpr = NULL;
+  pTagColumnInfo = NULL;
+  pExprs = NULL;
   if ((*pQInfo) == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _over;
@@ -5957,7 +5976,10 @@ _over:
   tfree(tagCond);
   tfree(tbnameCond);
   tfree(pGroupColIndex);
+  tfree(pGroupbyExpr);
+  tfree(pTagColumnInfo);
   taosArrayDestroy(pTableIdList);
+  
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
   if (code != TSDB_CODE_SUCCESS) {
