@@ -6,7 +6,7 @@
 #
 ##################################################
 
-set +e
+set -e
 #set -x
 
 CMD_NAME=
@@ -30,9 +30,10 @@ done
 echo LOOP_TIMES ${LOOP_TIMES}
 echo CMD_NAME ${CMD_NAME}
 
-for (( i=0; i<$LOOP_TIMES; i++ ))
+for ((i=0; i<$LOOP_TIMES; i++ ))
 do
     echo loop $i
     echo cmd $CMD_NAME
     $CMD_NAME
+    sleep 2
 done
