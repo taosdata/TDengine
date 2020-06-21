@@ -251,12 +251,20 @@ alter_db_optr(Y) ::= alter_db_optr(Z) comp(X).        { Y = Z; Y.compressionLeve
 alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
-typename(A) ::= ids(X).              { tSQLSetColumnType (&A, &X); }
+typename(A) ::= ids(X). { 
+  X.type = 0;
+  tSQLSetColumnType (&A, &X); 
+}
 
 //define binary type, e.g., binary(10), nchar(10)
 typename(A) ::= ids(X) LP signed(Y) RP.    {
-    X.type = -Y;          // negative value of name length
-    tSQLSetColumnType(&A, &X);
+    if (Y <= 0) {
+      X.type = 0;
+      tSQLSetColumnType(&A, &X);
+    } else {
+      X.type = -Y;          // negative value of name length
+      tSQLSetColumnType(&A, &X);
+    }
 }
 
 %type signed {int64_t}

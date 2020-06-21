@@ -4,6 +4,13 @@
 #
 # Build Matrix
 #
+branches:
+  only:
+    - master
+    - develop
+    - coverity_scan
+    - /^.*ci-.*$/
+
 matrix:
   - os: linux
     dist: bionic
@@ -260,19 +267,75 @@ matrix:
       - cmake .. > /dev/null
       - make > /dev/null
 
-        #  - os: osx
-        #    language: c
-        #    compiler: clang
-        #    env: DESC="mac/clang build"
-        #    git:
-        #      - depth: 1
-        #    addons:
-        #      homebrew:
-        #        - cmake
-        #
-        #    script:
-        #      - cd ${TRAVIS_BUILD_DIR}
-        #      - mkdir debug
-        #      - cd debug
-        #      - cmake .. > /dev/null
-        #      - make > /dev/null
+  - os: linux
+    arch: arm64
+    dist: bionic
+    language: c
+    compiler: clang
+    env: DESC="linux/clang build"
+    git:
+      - depth: 1
+
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+
+    before_script:
+      - cd ${TRAVIS_BUILD_DIR}
+      - mkdir debug
+      - cd debug
+
+    script:
+      - if [ "${TRAVIS_CPU_ARCH}" == "arm64" ]; then
+         cmake .. -DCPUTYPE=aarch64 > /dev/null;
+        else
+         cmake .. > /dev/null;
+        fi
+      - make > /dev/null
+
+  - os: linux
+    arch: arm64
+    dist: trusty
+    language: c
+    git:
+      - depth: 1
+
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+    env:
+      - DESC="trusty/gcc-4.8 build"
+
+    before_script:
+      - cd ${TRAVIS_BUILD_DIR}
+      - mkdir debug
+      - cd debug
+
+    script:
+      - if [ "${TRAVIS_CPU_ARCH}" == "arm64" ]; then
+         cmake .. -DCPUTYPE=aarch64 > /dev/null;
+        else
+         cmake .. > /dev/null;
+        fi
+      - make > /dev/null
+
+#  - os: osx
+#    language: c
+#    compiler: clang
+#    env: DESC="mac/clang build"
+#    git:
+#      - depth: 1
+#    addons:
+#      homebrew:
+#        - cmake
+#
+#    script:
+#      - cd ${TRAVIS_BUILD_DIR}
+#      - mkdir debug
+#      - cd debug
+#      - cmake .. > /dev/null
+#      - make > /dev/null

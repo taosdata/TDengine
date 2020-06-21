@@ -66,7 +66,7 @@ static void _init_tvariant_nchar(tVariant* t) {
   t->wpz = (wchar_t*)calloc(1, 20 * TSDB_NCHAR_SIZE);
   t->nType = TSDB_DATA_TYPE_NCHAR;
   wcscpy(t->wpz, L"-2000000.8765");
-  t->nLen = wcslen(t->wpz);
+  t->nLen = twcslen(t->wpz);
 }
 
 int main(int argc, char** argv) {

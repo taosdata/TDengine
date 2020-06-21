@@ -39,6 +39,7 @@
 #define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
 #define CONN_CHECK_TIME (tsShellActivityTimer * 2)
 #define QUERY_ID_SIZE   20
+#define QUERY_STREAM_SAVE_SIZE 20
 
 extern void *tsMnodeTmr;
 static SCacheObj *tsMnodeConnCache = NULL;
@@ -168,7 +169,7 @@ static void *mnodeGetNextConn(SHashMutableIterator *pIter, SConnObj **pConn) {
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
   
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -264,16 +265,27 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
 // not thread safe, need optimized
 int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
   pConn->numOfQueries = htonl(pHBMsg->numOfQueries);
-  if (pConn->numOfQueries > 0 && pConn->numOfQueries < 20) {
-    pConn->pQueries = calloc(sizeof(SQueryDesc), pConn->numOfQueries);
-    memcpy(pConn->pQueries, pHBMsg->pData, pConn->numOfQueries * sizeof(SQueryDesc));
+  if (pConn->numOfQueries > 0) {
+    if (pConn->pQueries == NULL) {
+      pConn->pQueries = calloc(sizeof(SQueryDesc), QUERY_STREAM_SAVE_SIZE);
+    }
+
+    int32_t saveSize = MIN(QUERY_STREAM_SAVE_SIZE, pConn->numOfQueries) * sizeof(SQueryDesc);
+    if (saveSize > 0 && pConn->pQueries != NULL) {
+      memcpy(pConn->pQueries, pHBMsg->pData, saveSize);
+    }
   }
 
   pConn->numOfStreams = htonl(pHBMsg->numOfStreams);
-  if (pConn->numOfStreams > 0 && pConn->numOfStreams < 20) {
-    pConn->pStreams = calloc(sizeof(SStreamDesc), pConn->numOfStreams);
-    memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc),
-           pConn->numOfStreams * sizeof(SStreamDesc));
+  if (pConn->numOfStreams > 0) {
+    if (pConn->pStreams == NULL) {
+      pConn->pStreams = calloc(sizeof(SStreamDesc), QUERY_STREAM_SAVE_SIZE);
+    }
+
+    int32_t saveSize = MIN(QUERY_STREAM_SAVE_SIZE, pConn->numOfStreams) * sizeof(SStreamDesc);
+    if (saveSize > 0 && pConn->pStreams != NULL) {
+      memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc), saveSize);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -282,7 +294,7 @@ int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
 static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -391,7 +403,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
 static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -519,7 +531,7 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
 
 static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mPrint("kill query msg is received, queryId:%s", pKill->queryId);
@@ -549,7 +561,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
 
 static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mPrint("kill stream msg is received, streamId:%s", pKill->queryId);
@@ -579,7 +591,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
 
 static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillConnMsg *pKill = pMsg->rpcMsg.pCont;
   SConnObj *      pConn = taosCacheAcquireByName(tsMnodeConnCache, pKill->queryId);

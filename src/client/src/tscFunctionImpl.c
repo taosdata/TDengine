@@ -153,7 +153,7 @@ typedef struct SRateInfo {
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
-  if (!isValidDataType(dataType, dataBytes)) {
+  if (!isValidDataType(dataType)) {
     tscError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -1853,26 +1853,14 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
 static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   // do nothing at the first stage
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
-    if (pResInfo->hasResult != DATA_SET_FLAG) {
-      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
-      } else {
-        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      }
-      
-      return;
+  if (pResInfo->hasResult != DATA_SET_FLAG) {
+    if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+    } else {
+      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
     }
-  } else {
-    if (pResInfo->hasResult != DATA_SET_FLAG) {
-      if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-        setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
-      } else {
-        setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-      }
-      
-      return;
-    }
+    
+    return;
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;
@@ -2989,12 +2977,12 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
  */
 static void tag_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
 }
 
 static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType, true);
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
 }
 
 static void copy_function(SQLFunctionCtx *pCtx) {
@@ -3903,7 +3891,7 @@ static bool ts_comp_function_setup(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   STSCompInfo *pInfo = pResInfo->interResultBuf;
   
-  pInfo->pTSBuf = tsBufCreate(false);
+  pInfo->pTSBuf = tsBufCreate(false, pCtx->order);
   pInfo->pTSBuf->tsOrder = pCtx->order;
   return true;
 }
@@ -3925,7 +3913,6 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   }
   
   SET_VAL(pCtx, pCtx->size, 1);
-  
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 

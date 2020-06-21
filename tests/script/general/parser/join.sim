@@ -258,6 +258,7 @@ sql select count(join_tb1.c3), count(join_tb0.ts) from $tb1 , $tb2 where $ts1 = 
 
 $val = 2
 if $data00 != $val then
+  print expect 2, actaul: $data00
   return -1
 endi
 
@@ -353,6 +354,7 @@ sql select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and 
 
 $val = 20
 if $data00 != $val then
+  print expect 20, actual:$data00
   return -1
 endi
 
@@ -410,7 +412,7 @@ endi
 
 #======================limit offset===================================
 # tag values not int
-sql_error select count(*) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t2=join_mt1.t2;
+sql_error select count(*) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t2=join_mt1.t2; #!!!!!
 
 # tag type not identical
 sql_error select count(*) from join_mt0, join_mt1 where join_mt1.t2 = join_mt0.t1 and join_mt1.ts=join_mt0.ts;

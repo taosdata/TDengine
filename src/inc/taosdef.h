@@ -83,6 +83,9 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
 
+#define TSDB_DEFAULT_USER               "root"
+#define TSDB_DEFAULT_PASS               "taosdata"
+
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0
@@ -156,7 +159,7 @@ typedef struct tDataTypeDescriptor {
 extern tDataTypeDescriptor tDataTypeDesc[11];
 #define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
-bool isValidDataType(int32_t type, int32_t length);
+bool isValidDataType(int32_t type);
 bool isNull(const char *val, int32_t type);
 
 void setVardataNull(char* val, int32_t type);
@@ -209,8 +212,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_SQL_SHOW_LEN     256
 #define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
 
-#define TSDB_MAX_BYTES_PER_ROW    65535
-#define TSDB_MAX_TAGS_LEN         65535
+#define TSDB_MAX_BYTES_PER_ROW    16384
+#define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
 
 #define TSDB_AUTH_LEN             16

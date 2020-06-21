@@ -7,6 +7,7 @@ system sh/deploy.sh -n dnode4 -i 4
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
 
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/cfg.sh -n dnode2 -c walLevel -v 2
@@ -24,9 +25,9 @@ system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 8
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 8
 
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
-#system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
-#system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
-#system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 
 system sh/cfg.sh -n dnode1 -c alternativeRole -v 0
 system sh/cfg.sh -n dnode2 -c alternativeRole -v 0
@@ -37,11 +38,21 @@ system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 4
 
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
+
+system sh/cfg.sh -n dnode1 -c offlineThreshold -v 8
+system sh/cfg.sh -n dnode2 -c offlineThreshold -v 8
+system sh/cfg.sh -n dnode3 -c offlineThreshold -v 8
+system sh/cfg.sh -n dnode4 -c offlineThreshold -v 8
+
+system sh/cfg.sh -n dnode1 -c statusInterval -v 3
+system sh/cfg.sh -n dnode2 -c statusInterval -v 3
+system sh/cfg.sh -n dnode3 -c statusInterval -v 3
+system sh/cfg.sh -n dnode4 -c statusInterval -v 3
 
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
@@ -96,7 +107,12 @@ sql create dnode $hostname2
 sleep 3000
 
 # expect after balanced, 2 vondes in dnode1, 1 vonde in dnode2
+$cnt = 0
 wait_dnode2_ready:
+$cnt = $cnt + 1
+if $cnt == 20 then
+  return -1
+endi
 sql show dnodes
 if $rows != 2 then
   sleep 2000
@@ -105,14 +121,8 @@ endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
 $dnode1Status = $data4_1  
 $dnode2Status = $data4_2
-#$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
 
 if $dnode1Status != ready then
   sleep 2000
@@ -123,7 +133,7 @@ if $dnode2Status != ready then
   goto wait_dnode2_ready
 endi
 
-print ============== step3: stop dnode1/dnode2, modify cfg mpeers to 2, and restart dnode1/dnode2
+print ============== step3: stop dnode1/dnode2, modify cfg numOfMnodes to 2, and restart dnode1/dnode2
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode2 -s stop
 sleep 3000
@@ -143,7 +153,12 @@ sleep 5000
 
 
 print ============= step4: wait dnode ready
+$cnt = 0
 wait_dnode_ready:
+$cnt = $cnt + 1
+if $cnt == 10 then
+  return -1
+endi
 sql show dnodes
 if $rows != 2 then
   sleep 2000
@@ -180,7 +195,12 @@ print ============== step5: stop dnode1
 system sh/exec.sh -n dnode1 -s stop
 sleep 3000
 
+$cnt = 0
 wait_dnode2_master:
+$cnt = $cnt + 1
+if $cnt == 10 then
+  return -1
+endi
 sql show mnodes
 if $rows != 2 then
   sleep 2000

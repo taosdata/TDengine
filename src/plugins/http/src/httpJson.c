@@ -139,7 +139,7 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
         return 0;  // there is no data to dump.
       }
     } else {
-      httpError("context:%p, fd:%d, ip:%s, failed to compress data, chunkSize:%d, last:%d, error:%d, response:\n%s",
+      httpError("context:%p, fd:%d, ip:%s, failed to compress data, chunkSize:%" PRIu64 ", last:%d, error:%d, response:\n%s",
                 buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, isTheLast, ret, buf->buf);
       return 0;
     }
@@ -442,14 +442,13 @@ void httpJsonPairStatus(JsonBuf* buf, int code) {
     httpJsonPair(buf, "status", 6, "error", 5);
     httpJsonItemToken(buf);
     httpJsonPairIntVal(buf, "code", 4, code);
-    if (code >= 0) {
-      httpJsonItemToken(buf);
-      if (code == TSDB_CODE_MND_DB_NOT_SELECTED) {
-        httpJsonPair(buf, "desc", 4, "failed to create database", 23);
-      } else if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
-        httpJsonPair(buf, "desc", 4, "failed to create table", 22);
-      } else
-        httpJsonPair(buf, "desc", 4, (char*)tstrerror(code), (int)strlen(tstrerror(code)));
+    httpJsonItemToken(buf);
+    if (code == TSDB_CODE_MND_DB_NOT_SELECTED) {
+      httpJsonPair(buf, "desc", 4, "failed to create database", 23);
+    } else if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
+      httpJsonPair(buf, "desc", 4, "failed to create table", 22);
+    } else {
+      httpJsonPair(buf, "desc", 4, (char*)tstrerror(code), (int)strlen(tstrerror(code)));
     }
   }
 }

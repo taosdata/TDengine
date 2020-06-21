@@ -16,43 +16,42 @@ import time
 from datetime import datetime
 
 class DBWriteNonStop:
-    def __init(self)__:
+    def __init__(self):
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
         self.config = "/etc/taos"
     
-    def init(self, host, user, password, config):
-        self.host = host
-        self.user = user
-        self.password = password
-        self.config = config
-    
-    def connectDB(self, conn, cursor):
+    def connectDB(self):
         self.conn = taos.connect(self.host, self.user, self.password, self.config)
-        self.cursor = conn.cursor()   
-        return self.cursor            
+        self.cursor = self.conn.cursor()           
 
-    def createTable()
+    def createTable(self):
+        self.cursor.execute("drop database if exists dbwrite")
+        self.cursor.execute("create database dbwrite")
+        self.cursor.execute("use dbwrite")
+        self.cursor.execute("create table if not exists st (ts timestamp, value nchar(50), speed int) tags(dev nchar(50))")    
 
+    def insertData(self):        
+        i = 1
+        startTime = datetime.now()
+        while True:
+            self.cursor.execute("insert into st1 using st tags('dev_001') values(now, 'taosdata%d', %d)" % (i % 10000, i % 100000)) 
+            i += 1
+            i = i % 32000000
+            endTime = datetime.now()
+            if (endTime - startTime).seconds >= 5 * 2:
+                startTime = endTime                
+                self.cursor.execute("select last(ts) from st >> output.txt")
+                self.cursor.execute("select count(*) from st >> output.txt")                
+            time.sleep(.001)
+    
+    def closeConn(self):
+        self.cursor.close()
+        self.conn.close()
 
-c1.execute('drop database if exists dbwrite')
-c1.execute('create database dbwrite')
-c1.execute('use dbwrite')
-c1.execute('create table if not exists st (ts timestamp, value nchar(50), speed int) tags(dev nchar(50))')
-
-i = 1
-
-startTime = datetime.now()
-while True:
-    c1.execute("insert into st1 using st tags('dev_001') values(now, 'taosdata%d', %d)" % (i % 10000, i % 100000)) 
-    i += 1
-    i = i % 32000000
-    endTime = datetime.now()
-    if (endTime - startTime).seconds >= 5 * 2:
-        startTime = endTime
-        c1.execute("select count(*) from st")
-        data = c1.fetchall()
-        print(datetime.now())
-        print("total records: %d" % data[0][0])
-    time.sleep(.001)
+test =  DBWriteNonStop()
+test.connectDB()
+test.createTable()
+test.insertData()
+test.closeConn()

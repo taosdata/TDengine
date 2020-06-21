@@ -25,7 +25,7 @@
 // All the keywords of the SQL language are stored in a hash table
 typedef struct SKeyword {
   const char* name;  // The keyword name
-  uint8_t     type;  // type
+  uint16_t     type;  // type
   uint8_t     len;   // length
 } SKeyword;
 

@@ -222,9 +222,7 @@ int taosReadn(int fd, char *ptr, int nbytes) {
 int taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in localAddr;
   int                sockFd;
-  int                ttl = 128;
-  int                reuse, nocheck;
-  int                bufSize = 8192000;
+  int                bufSize = 1024000;
 
   uTrace("open udp socket:0x%x:%hu", ip, port);
 
@@ -235,31 +233,6 @@ int taosOpenUdpSocket(uint32_t ip, uint16_t port) {
 
   if ((sockFd = (int)socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     uError("failed to open udp socket: %d (%s)", errno, strerror(errno));
-    return -1;
-  }
-
-  reuse = 1;
-  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
-    uError("setsockopt SO_REUSEADDR failed): %d (%s)", errno, strerror(errno));
-    close(sockFd);
-    return -1;
-  };
-
-  nocheck = 1;
-  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_NO_CHECK, (void *)&nocheck, sizeof(nocheck)) < 0) {
-    if (!taosSkipSocketCheck()) {
-      uError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
-      close(sockFd);
-      return -1;
-    } else {
-      uPrint("Skipping setsockopt SO_NO_CHECK error: %d (%s)", errno, strerror(errno));
-    }
-  }
-
-  ttl = 128;
-  if (taosSetSockOpt(sockFd, IPPROTO_IP, IP_TTL, (void *)&ttl, sizeof(ttl)) < 0) {
-    uError("setsockopt IP_TTL failed: %d (%s)", errno, strerror(errno));
-    close(sockFd);
     return -1;
   }
 
@@ -278,7 +251,7 @@ int taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   /* bind socket to local address */
   if (bind(sockFd, (struct sockaddr *)&localAddr, sizeof(localAddr)) < 0) {
     uError("failed to bind udp socket: %d (%s), 0x%x:%hu", errno, strerror(errno), ip, port);
-    taosCloseSocket(sockFd);
+    close(sockFd);
     return -1;
   }
 
@@ -321,7 +294,7 @@ int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientI
 
   if (ret != 0) {
     //uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
-    taosCloseSocket(sockFd);
+    close(sockFd);
     sockFd = -1;
   }
 

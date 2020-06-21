@@ -113,8 +113,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         0, 0x030C, "mnode inva
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_ID,        0, 0x030D, "mnode invalid stream id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          0, 0x030E, "mnode invalid connection")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE,    0, 0x0320, "mnode object already there")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_ERROR,                0, 0x0321, "mnode sdb error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE,    0, 0x0320, "sdb object already there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_ERROR,                0, 0x0321, "sdb app error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE,   0, 0x0322, "sdb invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_NOT_THERE,        0, 0x0323, "sdb object not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_INVAID_META_ROW,      0, 0x0324, "sdb invalid meta row")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_INVAID_KEY_TYPE,      0, 0x0325, "sdb invalid key type")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ALREADY_EXIST,      0, 0x0330, "mnode dnode already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          0, 0x0331, "mnode dnode not exist")
@@ -175,11 +179,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_DISK_PERMISSIONS,      0, 0x0506, "vnode no d
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR,      0, 0x0507, "vnode no such file or directory")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_OUT_OF_MEMORY,            0, 0x0508, "vnode out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "vnode app error")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0214, "vnode no write auth")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         0, 0x0600, "tsdb invalid table id")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       0, 0x0601, "tsdb invalid table schema version")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_SCHEMA_VERSION,     0, 0x0602, "tsdb invalid table schema version")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       0, 0x0601, "tsdb invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION,    0, 0x0602, "tsdb invalid table schema version")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_ALREADY_EXIST,      0, 0x0603, "tsdb table already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CONFIG,           0, 0x0604, "tsdb invalid configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INIT_FAILED,              0, 0x0605, "tsdb init failed")
@@ -189,6 +194,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_FILE_CORRUPTED,           0, 0x0608, "tsdb file 
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_OUT_OF_MEMORY,            0, 0x0609, "tsdb out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE,      0, 0x060A, "tsdb tag version is out of date")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE,   0, 0x060B, "tsdb timestamp is out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP,      0, 0x060C, "tsdb submit message is messed up")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_ACTION,           0, 0x060D, "tsdb invalid action")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CREATE_TB_MSG,    0, 0x060E, "tsdb invalid create table message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM,     0, 0x060F, "tsdb no table data in memory skiplist")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_FILE_ALREADY_EXISTS,      0, 0x0610, "tsdb file already exists")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          0, 0x0700, "query invalid handle")
@@ -196,6 +206,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_MSG,              0, 0x0701, "query inva
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_DISKSPACE,             0, 0x0702, "query no diskspace")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_OUT_OF_MEMORY,            0, 0x0703, "query out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_APP_ERROR,                0, 0x0704, "query app error")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUP_JOIN_KEY,             0, 0x0705, "query duplicated join key")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "grant expired")

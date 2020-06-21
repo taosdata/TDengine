@@ -49,8 +49,8 @@ int64_t numOfThreads = 1;
 int64_t numOfTablesPerThread = 1;
 char    dbName[32] = "db";
 char    stableName[64] = "st";
-int32_t cache = 16384;
-int32_t tables = 1000;
+int32_t cache = 16;
+int32_t tables = 5000;
 
 int main(int argc, char *argv[]) {
   shellParseArgument(argc, argv);
@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
 void createDbAndTable() {
   pPrint("start to create table");
 
+  TAOS_RES *     pSql;
   TAOS *         con;
   struct timeval systemTime;
   int64_t        st, et;
@@ -73,23 +74,28 @@ void createDbAndTable() {
 
   taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
-  con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
+  con = taos_connect(fqdn, "root", "taosdata", NULL, port);
   if (con == NULL) {
     pError("failed to connect to DB, reason:%s", taos_errstr(con));
     exit(1);
   }
 
-  sprintf(qstr, "create database if not exists %s cache %d tables %d", dbName, cache, tables);
-  if (taos_query(con, qstr)) {
-    pError("failed to create database:%s, code:%d reason:%s", dbName, taos_errno(con), taos_errstr(con));
+  sprintf(qstr, "create database if not exists %s cache %d maxtables %d", dbName, cache, tables);
+  pSql = taos_query(con, qstr);
+  int32_t code = taos_errno(pSql);
+  if (code != 0) {
+    pError("failed to create database:%s, sql:%s, code:%d reason:%s", dbName, qstr, taos_errno(con), taos_errstr(con));
     exit(0);
   }
 
   sprintf(qstr, "use %s", dbName);
-  if (taos_query(con, qstr)) {
+  pSql = taos_query(con, qstr);
+  code = taos_errno(pSql);
+  if (code != 0) {
     pError("failed to use db, code:%d reason:%s", taos_errno(con), taos_errstr(con));
     exit(0);
   }
+  taos_stop_query(pSql);
 
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
@@ -102,17 +108,23 @@ void createDbAndTable() {
     }
     sprintf(qstr + len, ") tags(t int)");
 
-    if (taos_query(con, qstr)) {
+    pSql = taos_query(con, qstr);
+    code = taos_errno(pSql);
+    if (code != 0) {
       pError("failed to create stable, code:%d reason:%s", taos_errno(con), taos_errstr(con));
       exit(0);
     }
-    
+    taos_stop_query(pSql);
+
     for (int64_t t = 0; t < totalTables; ++t) {
       sprintf(qstr, "create table if not exists %s%ld using %s tags(%ld)", stableName, t, stableName, t);
-      if (taos_query(con, qstr)) {
-        pError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
+      pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
+        pError("failed to create table %s%" PRId64 ", reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
+      taos_stop_query(pSql);
     }
   } else {
     for (int64_t t = 0; t < totalTables; ++t) {
@@ -122,16 +134,20 @@ void createDbAndTable() {
       }
       sprintf(qstr + len, ")");
 
-      if (taos_query(con, qstr)) {
+      pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
         pError("failed to create table %s%ld, reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
+      taos_stop_query(pSql);
     }
   }
 
   gettimeofday(&systemTime, NULL);
   et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-  pPrint("%.1f seconds to create %ld tables", (et - st) / 1000.0 / 1000.0, totalTables);
+  float seconds = (et - st) / 1000.0 / 1000.0;
+  pPrint("%.1f seconds to create %ld tables, speed:%.1f", seconds, totalTables, totalTables / seconds);
 }
 
 void insertData() {
@@ -141,7 +157,12 @@ void insertData() {
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
-  pPrint("%d threads are spawned to insert data", numOfThreads);
+  if (rowsPerTable <= 0) {
+    pPrint("not insert data for rowsPerTable is :%" PRId64, rowsPerTable);
+    exit(0);
+  } else {
+    pPrint("%" PRId64 " threads are spawned to insert data", numOfThreads);
+  }
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
@@ -201,7 +222,7 @@ void *syncTest(void *param) {
 
   taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
-  con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
+  con = taos_connect(fqdn, "root", "taosdata", NULL, port);
   if (con == NULL) {
     pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
     exit(1);
@@ -230,10 +251,13 @@ void *syncTest(void *param) {
       }
       len += sprintf(sql + len, ")");
       if (len > maxBytes) {
-        if (taos_query(con, qstr)) {
+        TAOS_RES *pSql = taos_query(con, qstr);
+        int32_t code = taos_errno(pSql);
+        if (code != 0) {
           pError("thread:%d, failed to insert table:%s%ld row:%ld, reason:%s", pInfo->threadIndex, pInfo->stableName,
                  table, row, taos_errstr(con));
         }
+        taos_stop_query(pSql);
 
         // "insert into"
         len = sprintf(sql, "%s", inserStr);
@@ -324,8 +348,8 @@ void shellParseArgument(int argc, char *argv[]) {
   pPrint("%spointsPerTable:%" PRId64 "%s", GREEN, pointsPerTable, NC);
   pPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
   pPrint("%snumOfTablesPerThread:%" PRId64 "%s", GREEN, numOfTablesPerThread, NC);
-  pPrint("%scache:%" PRId64 "%s", GREEN, cache, NC);
-  pPrint("%stables:%" PRId64 "%s", GREEN, tables, NC);
+  pPrint("%scache:%" PRId32 "%s", GREEN, cache, NC);
+  pPrint("%stables:%" PRId32 "%s", GREEN, tables, NC);
   pPrint("%sdbName:%s%s", GREEN, dbName, NC);
   pPrint("%stableName:%s%s", GREEN, stableName, NC);
   pPrint("%sstart to run%s", GREEN, NC);

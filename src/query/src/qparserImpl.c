@@ -497,10 +497,18 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
          * number of bytes in UCS-4 format, which is 4 times larger than the
          * number of characters
          */
-        pField->bytes = -(int32_t)type->type * TSDB_NCHAR_SIZE + LENGTH_SIZE_OF_STR;
+        if (type->type == 0) {
+          pField->bytes = 0;
+        } else {
+          pField->bytes = -(int32_t)type->type * TSDB_NCHAR_SIZE + LENGTH_SIZE_OF_STR;
+        }
       } else if (i == TSDB_DATA_TYPE_BINARY) {
         /* for binary, the TOKENTYPE is the length of binary */
-        pField->bytes = -(int32_t) type->type + LENGTH_SIZE_OF_STR;
+        if (type->type == 0) {
+          pField->bytes = 0;
+        } else {
+          pField->bytes = -(int32_t) type->type + LENGTH_SIZE_OF_STR;
+        } 
       }
       break;
     }

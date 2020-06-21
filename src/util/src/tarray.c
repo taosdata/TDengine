@@ -95,9 +95,6 @@ void* taosArrayGetP(const SArray* pArray, size_t index) {
   assert(index < pArray->size);
   
   void* d = TARRAY_GET_ELEM(pArray, index);
-  if (d == NULL) {
-    return NULL;
-  }
   
   return *(void**)d;
 }

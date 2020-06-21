@@ -20,14 +20,9 @@
 #include "tnote.h"
 #include "trpc.h"
 #include "tscLog.h"
-#include "tscProfile.h"
-#include "tscSecondaryMerge.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsclient.h"
-#include "tscompression.h"
-#include "tsocket.h"
-#include "ttimer.h"
 #include "ttokendef.h"
 #include "tutil.h"
 
@@ -152,6 +147,8 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscTrace("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
+  if (user == NULL) user = TSDB_DEFAULT_USER;
+  if (pass == NULL) pass = TSDB_DEFAULT_PASS;
 
   STscObj* pObj = NULL;
   SSqlObj *pSql = taosConnectImpl(ip, user, pass, db, port, syncConnCallback, NULL, (void**) &pObj);
@@ -491,8 +488,7 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
 
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscTrace("%p start to send msg to free qhandle in dnode, command:%s", pSql, sqlCmd[pCmd->command]);
-    pSql->freed = 1;
+    tscTrace("%p send msg to dnode to free qhandle ASAP, command:%s", pSql, sqlCmd[pCmd->command]);
     tscProcessSql(pSql);
 
     // in case of sync model query, waits for response and then goes on
@@ -513,18 +509,17 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
 
 void taos_free_result(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
-  tscTrace("%p start to free result", res);
-  
+
   if (pSql == NULL || pSql->signature != pSql) {
-    tscTrace("%p result has been freed", pSql);
+    tscTrace("%p sqlObj has been freed", pSql);
     return;
   }
   
   // The semaphore can not be changed while freeing async sub query objects.
   SSqlRes *pRes = &pSql->res;
   if (pRes == NULL || pRes->qhandle == 0) {
-    tscTrace("%p SqlObj is freed by app, qhandle is null", pSql);
     tscFreeSqlObj(pSql);
+    tscTrace("%p SqlObj is freed by app, qhandle is null", pSql);
     return;
   }
 
@@ -532,6 +527,7 @@ void taos_free_result(TAOS_RES *res) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     tscFreeSqlObj(pSql);
+    tscTrace("%p SqlObj is freed by app", pSql);
     return;
   }
 
@@ -589,7 +585,7 @@ char *taos_errstr(TAOS_RES *tres) {
 
 void taos_config(int debug, char *log_path) {
   uDebugFlag = debug;
-  strcpy(tsLogDir, log_path);
+  tstrncpy(tsLogDir, log_path, TSDB_FILENAME_LEN);
 }
 
 char *taos_get_server_info(TAOS *taos) {
@@ -612,7 +608,9 @@ int* taos_fetch_lengths(TAOS_RES *res) {
 char *taos_get_client_info() { return version; }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL) return;
+  if (res == NULL) {
+    return;
+  }
 
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlCmd *pCmd = &pSql->cmd;
@@ -632,7 +630,7 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  //taosStopRpcConn(pSql->thandle);
+  rpcCancelRequest(pSql->pRpcCtx);
   tscTrace("%p query is cancelled", res);
 }
 
@@ -714,7 +712,6 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
-  pRes->numOfRows  = 1;
   pRes->numOfTotal = 0;
   pRes->numOfClauseTotal = 0;
 
@@ -724,6 +721,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;
+    tfree(pSql);
     return pRes->code;
   }
 
@@ -732,6 +730,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
     tscTrace("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+    tfree(pSql);
     return pRes->code;
   }
 
@@ -856,6 +855,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
     tscError("%p tableNameList too long, length:%d, maximum allowed:%d", pSql, tblListLen, MAX_TABLE_NAME_LENGTH);
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;
+    tfree(pSql);
     return pRes->code;
   }
 
@@ -863,6 +863,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   if (str == NULL) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
+    tfree(pSql);
     return pRes->code;
   }
 
@@ -878,6 +879,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   free(str);
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
+    tscFreeSqlObj(pSql);
     return pRes->code;
   }
 

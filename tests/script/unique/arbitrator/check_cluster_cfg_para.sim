@@ -7,84 +7,83 @@ system sh/deploy.sh -n dnode5 -i 5
 system sh/deploy.sh -n dnode6 -i 6
 system sh/deploy.sh -n dnode7 -i 7
 
-
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode1 -c offlineThreshold -v 15
+system sh/cfg.sh -n dnode1 -c offlineThreshold -v 8
 system sh/cfg.sh -n dnode1 -c statusInterval -v 3
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 #system sh/cfg.sh -n dnode1 -c timezone -v ""
 #system sh/cfg.sh -n dnode1 -c locale -v ""
 #system sh/cfg.sh -n dnode1 -c charset -v ""
-system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 3
 
 ######## dnode 2 the same with dnode1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c offlineThreshold -v 15
+system sh/cfg.sh -n dnode2 -c offlineThreshold -v 8
 system sh/cfg.sh -n dnode2 -c statusInterval -v 3
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
 #system sh/cfg.sh -n dnode2 -c timezone -v ""
 #system sh/cfg.sh -n dnode2 -c locale -v ""
 #system sh/cfg.sh -n dnode2 -c charset -v ""
-system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 3
 
 ######## dnode 3 one para no same with dnode1
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode3 -c offlineThreshold -v 15
+system sh/cfg.sh -n dnode3 -c offlineThreshold -v 8
 system sh/cfg.sh -n dnode3 -c statusInterval -v 3
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
 #system sh/cfg.sh -n dnode3 -c timezone -v ""
 #system sh/cfg.sh -n dnode3 -c locale -v ""
 #system sh/cfg.sh -n dnode3 -c charset -v ""
-system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 3
 
 ######## dnode 4 one para no same with dnode1
 system sh/cfg.sh -n dnode4 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 5
-system sh/cfg.sh -n dnode4 -c offlineThreshold -v 15
+system sh/cfg.sh -n dnode4 -c offlineThreshold -v 8
 system sh/cfg.sh -n dnode4 -c statusInterval -v 3
 system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
 #system sh/cfg.sh -n dnode4 -c timezone -v ""
 #system sh/cfg.sh -n dnode4 -c locale -v ""
 #system sh/cfg.sh -n dnode4 -c charset -v ""
-system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 3
 
 ######## dnode 5 one para no same with dnode1
 system sh/cfg.sh -n dnode5 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode5 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode5 -c offlineThreshold -v 16
+system sh/cfg.sh -n dnode5 -c offlineThreshold -v 7
 system sh/cfg.sh -n dnode5 -c statusInterval -v 3
 system sh/cfg.sh -n dnode5 -c arbitrator -v $arbitrator
 #system sh/cfg.sh -n dnode5 -c timezone -v ""
 #system sh/cfg.sh -n dnode5 -c locale -v ""
 #system sh/cfg.sh -n dnode5 -c charset -v ""
-system sh/cfg.sh -n dnode5 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode5 -c balanceInterval -v 3
 
 
 ######## dnode 6 one para no same with dnode1
 system sh/cfg.sh -n dnode6 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode6 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode6 -c offlineThreshold -v 15 
+system sh/cfg.sh -n dnode6 -c offlineThreshold -v 8 
 system sh/cfg.sh -n dnode6 -c statusInterval -v 2
 system sh/cfg.sh -n dnode6 -c arbitrator -v $arbitrator
 #system sh/cfg.sh -n dnode6 -c timezone -v ""
 #system sh/cfg.sh -n dnode6 -c locale -v ""
 #system sh/cfg.sh -n dnode6 -c charset -v ""
-system sh/cfg.sh -n dnode6 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode6 -c balanceInterval -v 3
 
 
 ######## dnode 7 one para no same with dnode1
 system sh/cfg.sh -n dnode7 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode7 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode7 -c offlineThreshold -v 15
+system sh/cfg.sh -n dnode7 -c offlineThreshold -v 8
 system sh/cfg.sh -n dnode7 -c statusInterval -v 3
 system sh/cfg.sh -n dnode7 -c arbitrator -v "plum-VirtualBox:8001"
 #system sh/cfg.sh -n dnode7 -c timezone -v ""
 #system sh/cfg.sh -n dnode7 -c locale -v ""
 #system sh/cfg.sh -n dnode7 -c charset -v ""
-system sh/cfg.sh -n dnode7 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode7 -c balanceInterval -v 3
 
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
@@ -109,7 +108,12 @@ sql create dnode $hostname6
 sql create dnode $hostname7
 sleep 10000
 
+$loopCnt = 0
 wait_dnode_created:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then 
+  return -1
+endi
 sql show dnodes
 if $rows != 7 then
   sleep 2000
@@ -154,7 +158,12 @@ endi
 
 sleep 10000
 
+$loopCnt = 0
 wait_dnode_offline_overtime_dropped:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then 
+  return -1
+endi
 sql show dnodes
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2

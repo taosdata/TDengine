@@ -22,7 +22,6 @@
 #include "taosdef.h"
 #include "tscLog.h"
 #include "qextbuffer.h"
-#include "tscSecondaryMerge.h"
 #include "tschemautil.h"
 #include "tname.h"
 
@@ -183,8 +182,12 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     // type length
     int32_t bytes = pSchema[i].bytes;
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 2);
-    if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
-      bytes = bytes / TSDB_NCHAR_SIZE;
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+      bytes -= VARSTR_HEADER_SIZE;
+      
+      if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+        bytes = bytes / TSDB_NCHAR_SIZE;
+      }
     }
 
     *(int32_t *)(pRes->data + tscFieldInfoGetOffset(pQueryInfo, 2) * totalNumOfRows + pField->bytes * i) = bytes;

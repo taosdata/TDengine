@@ -24,14 +24,7 @@ extern "C" {
 #include "tutil.h"
 #include "ttokendef.h"
 
-#define TK_SPACE      200
-#define TK_COMMENT    201
-#define TK_ILLEGAL    202
-#define TK_HEX        203   // hex number  0x123
-#define TK_OCT        204   // oct number
-#define TK_BIN        205   // bin format data 0b111
-#define TK_FILE       206
-#define TK_QUESTION   207   // denoting the placeholder of "?",when invoking statement bind query
+
 
 #define TSQL_TBNAME   "TBNAME"
 #define TSQL_TBNAME_L "tbname"
@@ -120,6 +113,7 @@ static FORCE_INLINE int32_t isValidNumber(const SSQLToken* pToken) {
 
         type = TK_FLOAT;
         goto _end;
+        break;
       }
 
       case '0': {

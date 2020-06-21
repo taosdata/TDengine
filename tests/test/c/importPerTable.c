@@ -73,7 +73,7 @@ void createDbAndTable() {
 
   taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
-  con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
+  con = taos_connect(fqdn, "root", "taosdata", NULL, port);
   if (con == NULL) {
     pError("failed to connect to DB, reason:%s", taos_errstr(con));
     exit(1);
@@ -110,7 +110,7 @@ void createDbAndTable() {
     for (int64_t t = 0; t < totalTables; ++t) {
       sprintf(qstr, "create table if not exists %s%ld using %s tags(%ld)", stableName, t, stableName, t);
       if (taos_query(con, qstr)) {
-        pError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
+        pError("failed to create table %s%" PRId64 ", reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
     }
@@ -141,7 +141,7 @@ void insertData() {
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
-  pPrint("%d threads are spawned to import data", numOfThreads);
+  pPrint("%" PRId64 " threads are spawned to import data", numOfThreads);
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
@@ -200,7 +200,7 @@ void *syncTest(void *param) {
 
   taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
-  con = taos_connect(fqdn, tsDefaultUser, tsDefaultPass, NULL, port);
+  con = taos_connect(fqdn, "root", "taosdata", NULL, port);
   if (con == NULL) {
     pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
     exit(1);
@@ -323,8 +323,8 @@ void shellParseArgument(int argc, char *argv[]) {
   pPrint("%spointsPerTable:%" PRId64 "%s", GREEN, pointsPerTable, NC);
   pPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
   pPrint("%snumOfTablesPerThread:%" PRId64 "%s", GREEN, numOfTablesPerThread, NC);
-  pPrint("%scache:%" PRId64 "%s", GREEN, cache, NC);
-  pPrint("%stables:%" PRId64 "%s", GREEN, tables, NC);
+  pPrint("%scache:%d%s", GREEN, cache, NC);
+  pPrint("%stables:%d%s", GREEN, tables, NC);
   pPrint("%sdbName:%s%s", GREEN, dbName, NC);
   pPrint("%stableName:%s%s", GREEN, stableName, NC);
   pPrint("%sstart to run%s", GREEN, NC);

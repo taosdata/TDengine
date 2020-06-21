@@ -151,8 +151,8 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_dumpMemoryLeakImp
 JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_initImp(JNIEnv *env, jobject jobj, jstring jconfigDir) {
   if (jconfigDir != NULL) {
     const char *confDir = (*env)->GetStringUTFChars(env, jconfigDir, NULL);
-    if (confDir && strlen(configDir) != 0) {
-      strcpy(configDir, confDir);
+    if (confDir && strlen(confDir) != 0) {
+      tstrncpy(configDir, confDir, TSDB_FILENAME_LEN);
     }
     (*env)->ReleaseStringUTFChars(env, jconfigDir, confDir);
   }
@@ -192,7 +192,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv
     const char *tz1 = (*env)->GetStringUTFChars(env, optionValue, NULL);
     if (tz1 && strlen(tz1) != 0) {
       res = taos_options(TSDB_OPTION_TIMEZONE, tz1);
-      jniTrace("set timezone to %s, result:%d", timezone, res);
+      jniTrace("set timezone to %s, result:%d", tz1, res);
     } else {
       jniTrace("input timezone is empty");
     }
@@ -227,12 +227,10 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
   }
 
   if (user == NULL) {
-    jniTrace("jobj:%p, user is null, use tsDefaultUser", jobj);
-    user = tsDefaultUser;
+    jniTrace("jobj:%p, user is null, use default user %s", jobj, TSDB_DEFAULT_USER);
   }
   if (pass == NULL) {
-    jniTrace("jobj:%p, pass is null, use tsDefaultPass", jobj);
-    pass = tsDefaultPass;
+    jniTrace("jobj:%p, pass is null, use default password", jobj);
   }
 
   /*
@@ -252,8 +250,8 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
 
   if (host != NULL) (*env)->ReleaseStringUTFChars(env, jhost, host);
   if (dbname != NULL) (*env)->ReleaseStringUTFChars(env, jdbName, dbname);
-  if (user != NULL && user != tsDefaultUser) (*env)->ReleaseStringUTFChars(env, juser, user);
-  if (pass != NULL && pass != tsDefaultPass) (*env)->ReleaseStringUTFChars(env, jpass, pass);
+  if (user != NULL) (*env)->ReleaseStringUTFChars(env, juser, user);
+  if (pass != NULL) (*env)->ReleaseStringUTFChars(env, jpass, pass);
 
   return ret;
 }
@@ -344,7 +342,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
   STscObj *pObj = pSql->pTscObj;
 
   if (tscIsUpdateQuery(pSql)) {
-    taos_free_result(pSql);  // free result here
+    // taos_free_result(pSql);  // free result here
     jniTrace("jobj:%p, conn:%p, no resultset, %p", jobj, pObj, (void *)tres);
     return 0;
   } else {
@@ -385,7 +383,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getAffectedRowsIm
   }
 
   jint ret = taos_affected_rows((SSqlObj *)res);
-  jniTrace("jobj:%p, conn:%p, sql:%p, affect rows:%d", jobj, tscon, (void *)con, res, ret);
+  jniTrace("jobj:%p, conn:%p, sql:%p, res: %p, affect rows:%d", jobj, tscon, (void *)con, (void *)res, ret);
 
   return ret;
 }
@@ -411,10 +409,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
   // jobject arrayListObj = (*env)->NewObject(env, g_arrayListClass, g_arrayListConstructFp, "");
 
   if (num_fields == 0) {
-    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, (void *)res, num_fields);
     return JNI_NUM_OF_FIELDS_0;
   } else {
-    jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, (void *)res, num_fields);
     for (int i = 0; i < num_fields; ++i) {
       jobject metadataObj = (*env)->NewObject(env, g_metadataClass, g_metadataConstructFp);
       (*env)->SetIntField(env, metadataObj, g_metadataColtypeField, fields[i].type);
@@ -465,7 +463,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
   int         num_fields = taos_num_fields(result);
 
   if (num_fields == 0) {
-    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, (void*)res, num_fields);
     return JNI_NUM_OF_FIELDS_0;
   }
 
@@ -473,7 +471,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
   if (row == NULL) {
     int tserrno = taos_errno(result);
     if (tserrno == 0) {
-      jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
+      jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, (void*)res, num_fields);
       return JNI_FETCH_END;
     } else {
       jniTrace("jobj:%p, conn:%p, interruptted query", jobj, tscon);
@@ -571,9 +569,9 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
   sub = (jlong)tsub;
 
   if (sub == 0) {
-    jniTrace("jobj:%p, failed to subscribe: topic:%s", jobj, jtopic);
+    jniTrace("jobj:%p, failed to subscribe: topic:%s", jobj, topic);
   } else {
-    jniTrace("jobj:%p, successfully subscribe: topic: %s", jobj, jtopic);
+    jniTrace("jobj:%p, successfully subscribe: topic: %s", jobj, topic);
   }
 
   if (topic != NULL) (*env)->ReleaseStringUTFChars(env, jtopic, topic);
@@ -583,7 +581,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub) {
-  jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%ld", jobj, sub);
+  jniTrace("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%lld", jobj, sub);
   jniGetGlobalMethod(env);
 
   TAOS_SUB *tsub = (TAOS_SUB *)sub;

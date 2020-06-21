@@ -577,8 +577,7 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
       assert(0);
     }
   } else {
-    int32_t optr = cond.end->optr;
-    
+    int32_t optr = cond.end ? cond.end->optr : TSDB_RELATION_INVALID;
     if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
       bool comp = true;
       int32_t ret = 0;
@@ -775,7 +774,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     char *         pData = SL_GET_NODE_DATA(pNode);
 
     // todo refactor:
-    tstr *name = ((STableIndexElem *)pData)->pTable->name;
+    tstr *name = (*(STable **)pData)->name;
     // todo speed up by using hash
     if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {

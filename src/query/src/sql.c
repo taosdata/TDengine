@@ -25,17 +25,17 @@
 #include <stdio.h>
 /************ Begin %include sections from the grammar ************************/
 
-#include <assert.h>
-#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <stdbool.h>
+#include "tutil.h"
 #include "qsqlparser.h"
 #include "tstoken.h"
-#include "tutil.h"
 #include "tvariant.h"
 #include "ttokendef.h"
 #include "qsqltype.h"
-
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols
 ** in a format understandable to "makeheaders".  This section is blank unless
@@ -2262,13 +2262,21 @@ static void yy_reduce(
 { setDefaultCreateDbOption(&yymsp[1].minor.yy374);}
         break;
       case 102: /* typename ::= ids */
-{ tSQLSetColumnType (&yylhsminor.yy325, &yymsp[0].minor.yy0); }
+{ 
+  yymsp[0].minor.yy0.type = 0;
+  tSQLSetColumnType (&yylhsminor.yy325, &yymsp[0].minor.yy0); 
+}
   yymsp[0].minor.yy325 = yylhsminor.yy325;
         break;
       case 103: /* typename ::= ids LP signed RP */
 {
-    yymsp[-3].minor.yy0.type = -yymsp[-1].minor.yy279;          // negative value of name length
-    tSQLSetColumnType(&yylhsminor.yy325, &yymsp[-3].minor.yy0);
+    if (yymsp[-1].minor.yy279 <= 0) {
+      yymsp[-3].minor.yy0.type = 0;
+      tSQLSetColumnType(&yylhsminor.yy325, &yymsp[-3].minor.yy0);
+    } else {
+      yymsp[-3].minor.yy0.type = -yymsp[-1].minor.yy279;          // negative value of name length
+      tSQLSetColumnType(&yylhsminor.yy325, &yymsp[-3].minor.yy0);
+    }
 }
   yymsp[-3].minor.yy325 = yylhsminor.yy325;
         break;
