@@ -5965,7 +5965,6 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
   pExprs = NULL;
   pGroupbyExpr = NULL;
   pTagColumnInfo = NULL;
-  pExprs = NULL;
   if ((*pQInfo) == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _over;
