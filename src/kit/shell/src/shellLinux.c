@@ -86,7 +86,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         wordfree(&full_path);
         return -1;
       }
-      strcpy(configDir, full_path.we_wordv[0]);
+      tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 's':
@@ -100,7 +100,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(arguments->file, full_path.we_wordv[0]);
+      tstrncpy(arguments->file, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 'D':
@@ -108,7 +108,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(arguments->dir, full_path.we_wordv[0]);
+      tstrncpy(arguments->dir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 'T':
