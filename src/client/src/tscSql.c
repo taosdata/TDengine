@@ -133,8 +133,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     return NULL;
   }
 
-  // tsRpcHeaderSize will be updated during RPC initialization, so only after it initialization, this value is valid
-  tsInsertHeadSize = tsRpcHeadSize + sizeof(SMsgDesc) + sizeof(SSubmitMsg);
+  tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   return pSql;
 }
 

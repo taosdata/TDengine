@@ -92,7 +92,7 @@ void *taosThreadToOpenNewNote(void *param)
     }
 
     taosLockNote(fd, pNote);
-    lseek(fd, 0, SEEK_SET);
+    (void)lseek(fd, 0, SEEK_SET);
 
     int oldFd = pNote->taosNoteFd;
     pNote->taosNoteFd = fd;
@@ -128,10 +128,12 @@ int taosOpenNewNote(taosNoteInfo * pNote)
 
 bool taosCheckNoteIsOpen(char *noteName, taosNoteInfo * pNote)
 {
+    /*
     int exist = access(noteName, F_OK);
     if (exist != 0) {
         return false;
     }
+    */
 
     int fd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     if (fd < 0) {

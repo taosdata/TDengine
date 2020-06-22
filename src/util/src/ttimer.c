@@ -385,8 +385,8 @@ static void taosTimerLoopFunc(int signo) {
 
         timer = next;
       }
-      pthread_mutex_unlock(&wheel->mutex);
       wheel->nextScanAt += wheel->resolution;
+      pthread_mutex_unlock(&wheel->mutex);
     }
 
     addToExpired(expired);
@@ -514,17 +514,14 @@ static void taosTmrModuleInit(void) {
       tmrError("failed to create the mutex for wheel, reason:%s", strerror(errno));
       return;
     }
-    pthread_mutex_lock(&wheel->mutex);
     wheel->nextScanAt = now + wheel->resolution;
     wheel->index = 0;
     wheel->slots = (tmr_obj_t**)calloc(wheel->size, sizeof(tmr_obj_t*));
     if (wheel->slots == NULL) {
       tmrError("failed to allocate wheel slots");
-      pthread_mutex_unlock(&wheel->mutex);
       return;
     }
     timerMap.size += wheel->size;
-    pthread_mutex_unlock(&wheel->mutex);
   }
 
   timerMap.count = 0;

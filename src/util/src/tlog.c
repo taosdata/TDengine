@@ -147,7 +147,7 @@ static void *taosThreadToOpenNewFile(void *param) {
     return NULL;
   }
   taosLockFile(fd);
-  lseek(fd, 0, SEEK_SET);
+  (void)lseek(fd, 0, SEEK_SET);
 
   int32_t oldFd = tsLogObj.logHandle->fd;
   tsLogObj.logHandle->fd = fd;

@@ -331,8 +331,9 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     binded = pCmd->batchSize / 2;
   }
 
-  for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
-    STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
+  size_t size = taosArrayGetSize(pCmd->pDataBlocks);
+  for (int32_t i = 0; i < size; ++i) {
+    STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
     uint32_t          totalDataSize = pBlock->size - sizeof(SSubmitBlk);
     uint32_t          dataSize = totalDataSize / alloced;
     assert(dataSize * alloced == totalDataSize);
@@ -370,8 +371,9 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     return TSDB_CODE_SUCCESS;
   }
 
-  for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
-    STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
+  size_t total = taosArrayGetSize(pCmd->pDataBlocks);
+  for (int32_t i = 0; i < total; ++i) {
+    STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
 
     uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
     pBlock->size += totalDataSize / alloced;
@@ -395,8 +397,10 @@ static int insertStmtReset(STscStmt* pStmt) {
   SSqlCmd* pCmd = &pStmt->pSql->cmd;
   if (pCmd->batchSize > 2) {
     int32_t alloced = (pCmd->batchSize + 1) / 2;
-    for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
-      STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
+
+    size_t size = taosArrayGetSize(pCmd->pDataBlocks);
+    for (int32_t i = 0; i < size; ++i) {
+      STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
 
       uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
       pBlock->size = sizeof(SSubmitBlk) + totalDataSize / alloced;
@@ -423,15 +427,15 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   assert(pCmd->numOfClause == 1);
-  
-  if (pCmd->pDataBlocks->nSize > 0) {
+
+  if (taosArrayGetSize(pCmd->pDataBlocks) > 0) {
     // merge according to vgid
     int code = tscMergeTableDataBlocks(stmt->pSql, pCmd->pDataBlocks);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    STableDataBlocks *pDataBlock = pCmd->pDataBlocks->pData[0];
+    STableDataBlocks *pDataBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
     code = tscCopyDataBlockToPayload(stmt->pSql, pDataBlock);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
