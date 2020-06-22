@@ -39,4 +39,5 @@ function restartTaosd {
 
 buildTDengine
 restartTaosd
-python3 insert/writeDBNonStop.py
+cd /root/TDengine/tests/pytest/insert
+python3 writeDBNonStop.py

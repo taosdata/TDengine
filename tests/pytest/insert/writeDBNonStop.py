@@ -41,13 +41,14 @@ class DBWriteNonStop:
             "create table if not exists st (ts timestamp, value nchar(50), speed int) tags(dev nchar(50))")
 
     def writeDataToCSVFile(self, data, duration):
-        csvFile = open('csvFile.csv', 'a', newline='')
+        csvFile = open('/root/csvFile.csv', 'a', newline='')
         writer = csv.writer(csvFile)
         writer.writerow([data[0][0], data[0][1], data[0][2],
                          data[0][3], data[0][4], data[0][5], duration])
         csvFile.close()
 
     def insertData(self):
+        print("===============inserting data===============")
         i = 1
         startTime = datetime.now()
         while True:
@@ -60,7 +61,7 @@ class DBWriteNonStop:
             i += 1
             i = i % 32000000
             endTime = datetime.now()
-            if (endTime - startTime).seconds >= 10 * 2:
+            if (endTime - startTime).seconds >= 3600 * 1:
                 startTime = endTime
                 start = datetime.now()
                 self.cursor.execute(
