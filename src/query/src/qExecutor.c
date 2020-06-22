@@ -5902,7 +5902,7 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
 
   SExprInfo *pExprs = NULL;
   if ((code = createQFunctionExprFromMsg(pQueryMsg, &pExprs, pExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
-    tfree(pExprMsg);
+    free(pExprMsg);
     goto _over;
   }
 
@@ -5965,15 +5965,15 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
   code = initQInfo(pQueryMsg, tsdb, vgId, *pQInfo, isSTableQuery);
 
 _over:
-  tfree(tagCond);
-  tfree(tbnameCond);
-  tfree(pGroupColIndex);
+  free(tagCond);
+  free(tbnameCond);
+  free(pGroupColIndex);
   if (pGroupbyExpr != NULL) {
     taosArrayDestroy(pGroupbyExpr->columnInfo);
-    tfree(pGroupbyExpr);
+    free(pGroupbyExpr);
   } 
-  tfree(pTagColumnInfo);
-  tfree(pExprs);
+  free(pTagColumnInfo);
+  free(pExprs);
   taosArrayDestroy(pTableIdList);
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
