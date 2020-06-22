@@ -1378,6 +1378,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   if (ret != 0) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscQueueAsyncRes(pSql);
+    tfree(pMemoryBuf);
     return ret;
   }
   
@@ -1729,7 +1730,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
                                pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
     if (ret != 0) { // set no disk space error info, and abort retry
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
-      pthread_mutex_unlock(&trsupport->queryMutex);
       
     } else if (pRes->completed) {
       tscAllDataRetrievedFromDnode(trsupport, pSql);

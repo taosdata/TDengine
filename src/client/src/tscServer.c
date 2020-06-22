@@ -202,7 +202,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
   if (pSql == NULL || pSql->signature != pSql) {
-    tscError("%p sql is already released", pSql->signature);
+    tscError("%p sql is already released", pSql);
     return;
   }
 
@@ -819,8 +819,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     assert(QUERY_IS_JOIN_QUERY(pQueryInfo->type) && pBlockInfo != NULL);  // this query should not be sent
 
     // todo refactor
-    fseek(pQueryInfo->tsBuf->f, pBlockInfo->offset, SEEK_SET);
-    fread(pMsg, pBlockInfo->compLen, 1, pQueryInfo->tsBuf->f);
+    if (fseek(pQueryInfo->tsBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
+      int code = TAOS_SYSTEM_ERROR(ferror(pQueryInfo->tsBuf->f));
+      tscError("%p: fseek failed: %s", pSql, tstrerror(code));
+      return code;
+    }
+    if (fread(pMsg, pBlockInfo->compLen, 1, pQueryInfo->tsBuf->f) != pBlockInfo->compLen) {
+      int code = TAOS_SYSTEM_ERROR(ferror(pQueryInfo->tsBuf->f));
+      tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
+      return code;
+    }
 
     pMsg += pBlockInfo->compLen;
     tsLen = pBlockInfo->compLen;
@@ -1622,7 +1630,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  if (pMetaMsg->numOfTags > TSDB_MAX_TAGS || pMetaMsg->numOfTags < 0) {
+  if (pMetaMsg->numOfTags > TSDB_MAX_TAGS) {
     tscError("invalid numOfTags:%d", pMetaMsg->numOfTags);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
