@@ -72,7 +72,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOf
   if (ret != 0) {
     //    dError("QInfo:%p failed to create intermediate result output file:%s. %s", pQInfo, pSupporter->extBufFile,
     //           strerror(errno));
-    return -TSDB_CODE_QRY_NO_DISKSPACE;
+    return TSDB_CODE_QRY_NO_DISKSPACE;
   }
 
   pResultBuf->totalBufSize = pResultBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE;
@@ -80,7 +80,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOf
 
   if (pResultBuf->pBuf == MAP_FAILED) {
     //    dError("QInfo:%p failed to map temp file: %s. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
-    return -TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
   return TSDB_CODE_SUCCESS;

@@ -172,6 +172,7 @@ while $loop <= $loops
     endi
     sql select c8 from $stb where t1 = $i 
     if $rows != $rowNum then
+      print expect $rowNum, actual: $rows
       return -1
     endi
     sql select c9 from $stb where t1 = $i 

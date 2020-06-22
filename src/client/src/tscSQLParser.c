@@ -4463,7 +4463,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
-    SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) (pCmd->payload + tsRpcHeadSize);
+    SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
     pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
     pUpdateMsg->tid = htonl(pTableMeta->sid);
     pUpdateMsg->uid = htobe64(pTableMeta->uid);
