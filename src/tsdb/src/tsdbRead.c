@@ -1054,7 +1054,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
 
         int32_t end = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, key, order);
         if (tsArray[end] == key) { // the value of key in cache equals to the end timestamp value, ignore it
-          tSkipListIterNext(pCheckInfo->iter);
+          moveToNextRow(pCheckInfo);
         }
         
         int32_t start = -1;
