@@ -348,7 +348,6 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
   pRsp->dnodeCfg.numOfVnodes = htonl(openVnodes);
-  mnodeGetMnodeInfos(&pRsp->mnodes);
   SDMVgroupAccess *pAccess = (SDMVgroupAccess *)((char *)pRsp + sizeof(SDMStatusRsp));
 
   for (int32_t j = 0; j < openVnodes; ++j) {
@@ -392,6 +391,10 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   }
 
   pDnode->lastAccess = tsAccessSquence;
+
+  //this func should be called after sdb replica changed
+  mnodeGetMnodeInfos(&pRsp->mnodes);
+  
   mnodeDecDnodeRef(pDnode);
 
   pMsg->rpcRsp.len = contLen;

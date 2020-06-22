@@ -46,18 +46,20 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
     return TK_ILLEGAL;
   }
   
-  int32_t radix = 10;
-  
-  int32_t radixList[3] = {16, 8, 2}; // the integer number with different radix: hex, oct, bin
-  if (pToken->type == TK_HEX || pToken->type == TK_OCT || pToken->type == TK_BIN) {
-    radix = radixList[pToken->type - TK_HEX];
-  }
-
   errno = 0;
-  *value = strtoll(pToken->z, endPtr, radix);
+  *value = strtoll(pToken->z, endPtr, 0);
+  if (**endPtr == 'e' || **endPtr == 'E' || **endPtr == '.') {
+    errno = 0;
+    double v = round(strtod(pToken->z, endPtr));
+    if (v > INT64_MAX || v <= INT64_MIN) {
+      errno = ERANGE;
+    } else {
+      *value = v;
+    }
+  }
   
   // not a valid integer number, return error
-  if ((pToken->type == TK_STRING || pToken->type == TK_ID) && ((*endPtr - pToken->z) != pToken->n)) {
+  if (*endPtr - pToken->z != pToken->n) {
     return TK_ILLEGAL;
   }
 
@@ -73,11 +75,11 @@ static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
   *value = strtod(pToken->z, endPtr);
   
   // not a valid integer number, return error
-  if ((pToken->type == TK_STRING || pToken->type == TK_ID) && ((*endPtr - pToken->z) != pToken->n)) {
+  if ((*endPtr - pToken->z) != pToken->n) {
     return TK_ILLEGAL;
-  } else {
-    return pToken->type;
   }
+
+  return pToken->type;
 }
 
 int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
@@ -986,14 +988,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   return code;
 }
 
-int validateTableName(char *tblName, int len) {
-  char buf[TSDB_TABLE_ID_LEN] = {0};
-  tstrncpy(buf, tblName, sizeof(buf));
+int validateTableName(char *tblName, int len, SSQLToken* psTblToken) {
+  tstrncpy(psTblToken->z, tblName, TSDB_TABLE_ID_LEN);
 
-  SSQLToken token = {.n = len, .type = TK_ID, .z = buf};
-  tSQLGetToken(buf, &token.type);
+  psTblToken->n    = len;
+  psTblToken->type = TK_ID;
+  tSQLGetToken(psTblToken->z, &psTblToken->type);
 
-  return tscValidateName(&token);
+  return tscValidateName(psTblToken);
 }
 
 static int32_t validateDataSource(SSqlCmd *pCmd, int8_t type, const char *sql) {
@@ -1076,14 +1078,16 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
 
     pCmd->curSql = sToken.z;
-
+    char buf[TSDB_TABLE_ID_LEN];
+    SSQLToken sTblToken;
+    sTblToken.z = buf;
     // Check if the table name available or not
-    if (validateTableName(sToken.z, sToken.n) != TSDB_CODE_SUCCESS) {
+    if (validateTableName(sToken.z, sToken.n, &sTblToken) != TSDB_CODE_SUCCESS) {
       code = tscInvalidSQLErrMsg(pCmd->payload, "table name invalid", sToken.z);
       goto _error;
     }
 
-    if ((code = tscSetTableFullName(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableFullName(pTableMetaInfo, &sTblToken, pSql)) != TSDB_CODE_SUCCESS) {
       goto _error;
     }
 

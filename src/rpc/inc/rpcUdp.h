@@ -23,6 +23,7 @@ extern "C" {
 #include "taosdef.h"
 
 void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int, void *fp, void *shandle);
+void  taosStopUdpConnection(void *handle);
 void  taosCleanUpUdpConnection(void *handle);
 int   taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *chandle);
 void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port);
