@@ -34,6 +34,7 @@
 #include <wordexp.h>
 
 #include "taos.h"
+#include "tutil.h"
 
 extern char configDir[];
 
