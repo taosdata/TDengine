@@ -551,8 +551,8 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
     t_info->threadID = i;
-    strcpy(t_info->db_name, db_name);
-    strcpy(t_info->tb_prefix, tb_prefix);
+    tstrncpy(t_info->db_name, db_name, MAX_DB_NAME_SIZE);
+    tstrncpy(t_info->tb_prefix, tb_prefix, MAX_TB_NAME_SIZE);
     t_info->datatype = data_type;
     t_info->ncols_per_record = ncols_per_record;
     t_info->nrecords_per_table = nrecords_per_table;
@@ -1001,9 +1001,9 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
       pstr += sprintf(pstr, ", %" PRId64, trand() % 2147483648);
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
-      pstr += sprintf(pstr, ", %10.4f", (float)(trand() / 1000));
+      pstr += sprintf(pstr, ", %10.4f", (float)(trand() / 1000.0));
     } else if (strcasecmp(data_type[i % c], "double") == 0) {
-      double t = (double)(trand() / 1000000);
+      double t = (double)(trand() / 1000000.0);
       pstr += sprintf(pstr, ", %20.8f", t);
     } else if (strcasecmp(data_type[i % c], "bool") == 0) {
       bool b = trand() & 1;
