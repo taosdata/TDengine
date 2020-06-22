@@ -162,7 +162,7 @@ static void taosGetSystemTimezone() {
   FILE *f = fopen("/etc/timezone", "r");
   char  buf[65] = {0};
   if (f != NULL) {
-    fread(buf, 64, 1, f);
+    (void)fread(buf, 64, 1, f);
     fclose(f);
   }
 
@@ -547,7 +547,7 @@ void taosSetCoreDump() {
   struct rlimit rlim;
   struct rlimit rlim_new;
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uPrint("the old unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+    uPrint("the old unlimited para: rlim_cur=%d, rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
@@ -559,7 +559,7 @@ void taosSetCoreDump() {
   }
 
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uPrint("the new unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+    uPrint("the new unlimited para: rlim_cur=%d, rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
   }
 
 #ifndef _TD_ARM_
@@ -586,7 +586,7 @@ void taosSetCoreDump() {
       uPrint("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
   }
   
-  uPrint("The old core_uses_pid[%d]: %d", old_len, old_usespid);
+  uPrint("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 
 
   old_usespid = 0;
@@ -603,7 +603,7 @@ void taosSetCoreDump() {
       uPrint("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
   }
   
-  uPrint("The new core_uses_pid[%d]: %d", old_len, old_usespid);
+  uPrint("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 #endif
   
 #if 0
