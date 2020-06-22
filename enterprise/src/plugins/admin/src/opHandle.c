@@ -23,18 +23,27 @@
 #include "opHandle.h"
 
 static HttpDecodeMethod opDecodeMethod = {"opentsdb", opProcessRequest};
-static HttpEncodeMethod opPutSummaryMethod = {NULL,
-                                              NULL,
-                                              NULL,
-                                              opBuildPutSummaryAffectRowsJson,
-                                              opInitPutSummaryJson,
-                                              opCleanPutSummaryJson,
-                                              opCheckPutSummaryFinished,
-                                              opSetPutSummaryNextCmd};
+static HttpEncodeMethod opPutSummaryMethod = {
+  .startJsonFp          = NULL,         
+  .stopJsonFp           = NULL, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = opBuildPutSummaryAffectRowsJson, 
+  .initJsonFp           = opInitPutSummaryJson, 
+  .cleanJsonFp          = opCleanPutSummaryJson,
+  .checkFinishedFp      = opCheckPutSummaryFinished,
+  .setNextCmdFp         = opSetPutSummaryNextCmd
+};
 
-static HttpEncodeMethod opPutDetailMethod = {opStartPutDetailJson,           opStopPutDetailJson,  NULL,
-                                             opBuildPutDetailAffectRowsJson, opInitPutDetailJson,  opCleanPutDetailJson,
-                                             opCheckPutDetailFinished,       opSetPutDetailNextCmd};
+static HttpEncodeMethod opPutDetailMethod = {
+  .startJsonFp          = opStartPutDetailJson,         
+  .stopJsonFp           = opStopPutDetailJson, 
+  .buildQueryJsonFp     = NULL,
+  .buildAffectRowJsonFp = opBuildPutDetailAffectRowsJson, 
+  .initJsonFp           = opInitPutDetailJson, 
+  .cleanJsonFp          = opCleanPutDetailJson,
+  .checkFinishedFp      = opCheckPutDetailFinished,
+  .setNextCmdFp         = opSetPutDetailNextCmd
+};
 
 void opInitHandle(HttpServer *pServer) {
   httpAddMethod(pServer, &opDecodeMethod);
@@ -42,7 +51,7 @@ void opInitHandle(HttpServer *pServer) {
 
 bool opGetUserFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[OP_USER_URL_POS].len <= 0) {
+  if (pParser->path[OP_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[OP_USER_URL_POS].len <= 0) {
     return false;
   }
 
@@ -52,7 +61,7 @@ bool opGetUserFromUrl(HttpContext *pContext) {
 
 bool opGetPassFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[OP_PASS_URL_POS].len <= 0) {
+  if (pParser->path[OP_PASS_URL_POS].len > TSDB_PASSWORD_LEN || pParser->path[OP_PASS_URL_POS].len <= 0) {
     return false;
   }
 
@@ -109,7 +118,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
-  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 10) {
+  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 11) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
@@ -170,7 +179,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_NULL);
       return false;
     }
-    if (strlen(tag->string) >= TSDB_COL_NAME_LEN) {
+    if (strlen(tag->string) >= TSDB_COL_NAME_LEN - 1) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_SIZE);
       return false;
     }
@@ -499,7 +508,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
-  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 10) {
+  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 11) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
@@ -560,7 +569,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_NULL);
       return false;
     }
-    if (strlen(tag->string) >= TSDB_COL_NAME_LEN) {
+    if (strlen(tag->string) >= TSDB_COL_NAME_LEN - 1) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_SIZE);
       return false;
     }

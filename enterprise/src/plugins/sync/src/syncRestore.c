@@ -25,7 +25,7 @@
 
 static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eindex) {
   char       name[TSDB_FILENAME_LEN*2] = {0};
-  char       fname[TSDB_FILENAME_LEN*2] = {0};
+  char       fname[TSDB_FILENAME_LEN*3] = {0};
   uint32_t   magic; 
   uint64_t   fversion;
   int32_t    size;
@@ -39,7 +39,7 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eind
     magic = (*pNode->getFileInfo)(pNode->ahandle, name, &index, eindex, &size, &fversion);
     if (magic == 0) break;
 
-    sprintf(fname, "%s/%s", pNode->path, name);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, name);
     remove(fname);
     sTrace("%s, %s is removed", pPeer->id, fname);
 
@@ -100,7 +100,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
 
     // if sync is required, open file, receive from master, and write to file
     // get the full path to file
-    sprintf(name, "%s/%s", pNode->path, minfo.name);
+    snprintf(name, sizeof(name), "%s/%s", pNode->path, minfo.name);
 
     int dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if ( dfd < 0 ) {
@@ -149,7 +149,7 @@ static int syncRestoreWal(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret <0)  break;
 
-    sTrace("%s, restore a record, ver:%d", pPeer->id, pHead->version);
+    sTrace("%s, restore a record, ver:%" PRIu64, pPeer->id, pHead->version);
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
   }
 
@@ -213,10 +213,9 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
     memcpy(pRecv->offset, pHead, len);
     pRecv->offset += len;
     pRecv->forwards++;
-    sTrace("%s, fwd is saved into queue, ver:%d fwds:%d", 
-           pPeer->id, pHead->version, pRecv->forwards);
+    sTrace("%s, fwd is saved into queue, ver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
   } else {
-    sError("%s, buffer size:%d is too small", pRecv->bufferSize); 
+    sError("%s, buffer size:%d is too small", pPeer->id, pRecv->bufferSize);
     pRecv->code = -1;  // set error code
   }
 

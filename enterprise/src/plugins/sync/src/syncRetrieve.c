@@ -124,7 +124,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     pPeer->sversion = fileInfo.fversion;
 
     // get the full path to file
-    sprintf(name, "%s/%s", pNode->path, fileInfo.name);
+    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
     
     // add the file into watch list
     if ( syncAddIntoWatchList(pPeer, name) <0) break;
@@ -248,14 +248,14 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   sfd = open(name, O_RDONLY);
   if (sfd < 0) return -1;
   lseek(sfd, offset, SEEK_SET);
-  sTrace("%s, retrieve last wal, offset:%d fversion:%ld", pPeer->id, offset, fversion);
+  sTrace("%s, retrieve last wal, offset:%" PRId64 " fversion:%" PRIu64, pPeer->id, offset, fversion);
 
   while (1) {
     int wsize = syncReadOneWalRecord(sfd, pHead, pEvent); 
     if (wsize <0) break;
     if (wsize == 0) { code = 0; break; }
 
-    sTrace("%s, last wal is forwarded, ver:%d ", pPeer->id, pHead->version);
+    sTrace("%s, last wal is forwarded, ver:%" PRIu64, pPeer->id, pHead->version);
     int ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if ( ret != wsize ) break;
     pPeer->sversion = pHead->version;
@@ -291,7 +291,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     uint32_t event = 0;
 
     // get full path to wal file
-    sprintf(fname, "%s/%s", pNode->path, wname);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);
     sTrace("%s, start to retrieve last wal:%s", pPeer->id, fname);
 
     // monitor last wal
@@ -382,7 +382,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
     }
 
     // get the full path to wal file
-    sprintf(fname, "%s/%s", pNode->path, wname);
+    snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);
 
     // send wal file, 
     // inotify is not required, old wal file won't be modified, even remove is ok
@@ -423,7 +423,7 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_DATA;
   firstPkt.syncHead.vgId = pNode->vgId;
-  strcpy(firstPkt.fqdn, tsNodeFqdn);
+  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
 
   if (write(pPeer->syncFd, (char *) &firstPkt, sizeof(firstPkt)) < 0) {

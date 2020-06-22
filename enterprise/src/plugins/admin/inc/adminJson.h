@@ -18,7 +18,6 @@
 
 #include <stdbool.h>
 #include "taos.h"
-#include "httpHandle.h"
 #include "httpJson.h"
 
 #define ADMIN_JSON_SUCCESS        "succ"

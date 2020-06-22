@@ -430,7 +430,7 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
 
   if (!hasThisDnode) {
     mPrint("dnode:%d, dropped for all vnodes are moving to other dnodes", pDnode->dnodeId);
-    mnodeDropDnode(pDnode);
+    mnodeDropDnode(pDnode, NULL);
     return true;
   }
 
@@ -554,7 +554,7 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
     }
   } else {
     int64_t mseconds = (int64_t)handle;
-    mTrace("balance function is scheduled by event for %d mseconds arrived", mseconds);
+    mTrace("balance function is scheduled by event for %" PRId64 " mseconds arrived", mseconds);
     updateSoon = balanceStart();
   }
 
@@ -626,7 +626,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
 
   if (pDnode->openVnodes > totalFreeVnodes) {
     mError("dnode:%d, openVnodes:%d totalFreeVnodes:%d no enough dnodes", pDnode->dnodeId, pDnode->openVnodes, totalFreeVnodes);
-    return TSDB_CODE_NO_ENOUGH_DNODES;
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
   pDnode->status = TAOS_DN_STATUS_DROPPING;
@@ -777,7 +777,7 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
 
   if (strcmp(pUser->pAcct->user, "root") != 0)  {
     mnodeDecUserRef(pUser);
-    return TSDB_CODE_NO_RIGHTS;
+    return TSDB_CODE_MND_NO_RIGHTS;
   }
 
   int32_t cols = 0;

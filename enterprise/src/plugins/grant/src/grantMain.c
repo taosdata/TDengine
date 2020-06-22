@@ -431,9 +431,9 @@ static int32_t grantCheckStorage() {
 
   if (grantStatus.limitStorage == GRANT_STORAGE_LIMITS || grantStatus.curStorage <= grantStatus.limitStorage) {
     return 0;
-  }
-  else {
-    uError("grant storage in-available, used:%lld, grant:%lld, reason:grant storage limited", grantStatus.curStorage, grantStatus.limitStorage);
+  } else {
+    uError("grant storage in-available, used:%" PRIu64 ", grant:%" PRIu64 ", reason:grant storage limited",
+           grantStatus.curStorage, grantStatus.limitStorage);
     return TSDB_CODE_GRANT_STORAGE_LIMITED;
   }
 }
@@ -749,7 +749,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "trial");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 8);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -758,7 +758,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "unlimited");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 21);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -767,7 +767,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "false");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 5);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -777,7 +777,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "unlimited");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 21);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -786,7 +786,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "unlimited");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 21);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -795,7 +795,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "unlimited");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -804,7 +804,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "unlimited");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -813,7 +813,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "unlimited");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -822,7 +822,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     } else {
       strcpy(tmp, "unlimited");
     }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 10);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -832,7 +832,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     // else {
     strcpy(tmp, "unlimited");
     //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 11);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -842,7 +842,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     // else {
     strcpy(tmp, "unlimited");
     //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -852,7 +852,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     // else {
     strcpy(tmp, "unlimited");
     //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -862,7 +862,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     // else {
     strcpy(tmp, "unlimited");
     //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -872,7 +872,7 @@ int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn
     // else {
     strcpy(tmp, "unlimited");
     //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, 9);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     numOfRows++;

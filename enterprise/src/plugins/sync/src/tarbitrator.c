@@ -36,9 +36,9 @@ static sem_t    tsArbSem;
 static ttpool_h tsArbTcpPool;
 
 typedef struct {
-  char  id[TSDB_EP_LEN];
+  char  id[TSDB_EP_LEN+24];
   int   nodeFd;
-  void *pThread;
+  void *pConn;
 } SNodeConn;
 
 int main(int argc, char *argv[]) {
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
       debugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
       if (strlen(argv[++i]) > TSDB_FILENAME_LEN) continue; 
-      strcpy(arbLogPath, argv[i]);
+      tstrncpy(arbLogPath, argv[i], sizeof(arbLogPath));
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   }
 
   taosCloseTcpThreadPool(tsArbTcpPool);
-  sPrint("TAOS arbitrator is shut down\n", tsNodeFqdn, tsServerPort);
+  sPrint("TAOS arbitrator is shut down\n");
   closelog();
 
   return 0;
@@ -125,7 +125,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
     return;
   }
 
-  sprintf(pNode->id, "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port); 
+  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port); 
   if (firstPkt.syncHead.vgId) {  
     sTrace("%s, vgId in head is not zero, close the connection", pNode->id);
     tfree(pNode);
@@ -135,7 +135,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
 
   sTrace("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
-  pNode->pThread = taosAllocateTcpThread(tsArbTcpPool, pNode, connFd);
+  pNode->pConn = taosAllocateTcpConn(tsArbTcpPool, pNode, connFd);
 
   return;
 }
@@ -144,8 +144,6 @@ static void arbProcessBrokenLink(void *param) {
   SNodeConn *pNode = param;
 
   sTrace("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
-  taosFreeTcpThread(pNode->pThread, &pNode->nodeFd);
-
   tfree(pNode);
 }
 
