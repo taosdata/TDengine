@@ -99,6 +99,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   if (tSkipListPut(pTableData->pData, pNode) == NULL) {
     tsdbFreeBytes(pRepo, (void *)pNode, bytes);
   } else {
+    if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
     if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
     if (pMemTable->keyLast < key) pMemTable->keyLast = key;
     pMemTable->numOfRows++;
@@ -222,11 +223,12 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
     }
+    pRepo->commit = 0;
   }
 
   ASSERT(pRepo->commit == 0);
-  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
   if (pRepo->mem != NULL) {
+    if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
     if (tsdbLockRepo(pRepo) < 0) return -1;
     pRepo->imem = pRepo->mem;
     pRepo->mem = NULL;
@@ -468,9 +470,6 @@ _err:
 
 static void tsdbEndCommit(STsdbRepo *pRepo) {
   ASSERT(pRepo->commit == 1);
-  tsdbLockRepo(pRepo);
-  pRepo->commit = 0;
-  tsdbUnlockRepo(pRepo);
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER);
 }
 
@@ -525,8 +524,6 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
     goto _err;
   }
-
-  free(dataDir);
 
   // Open files for write/read
   if (tsdbSetAndOpenHelperFile(pHelper, pGroup) < 0) {
@@ -590,6 +587,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
+  tfree(dataDir);
   tsdbCloseHelperFile(pHelper, 0);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
@@ -601,7 +599,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   return 0;
 
 _err:
-  // ASSERT(false);
+  tfree(dataDir);
   tsdbCloseHelperFile(pHelper, 1);
   return -1;
 }

@@ -21,9 +21,11 @@ extern "C" {
 #endif
 
 void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
+void taosStopTcpServer(void *param);
 void taosCleanUpTcpServer(void *param);
 
 void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *fp, void *shandle);
+void taosStopTcpClient(void *chandle);
 void taosCleanUpTcpClient(void *chandle);
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port);
 

@@ -358,7 +358,9 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   ASSERT(pFileH->nFGroups >= 0);
 
   for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-    remove(fileGroup.files[type].fname);
+    if (remove(fileGroup.files[type].fname) < 0) {
+      tsdbError("vgId:%d failed to remove file %s", REPO_ID(pRepo), fileGroup.files[type].fname);
+    }
     tsdbDestroyFile(&fileGroup.files[type]);
   }
 }

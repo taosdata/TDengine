@@ -124,6 +124,7 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   }
 
   SListNode *    pNode = tdListPopHead(pBufPool->bufBlockList);
+  ASSERT(pNode != NULL);
   STsdbBufBlock *pBufBlock = NULL;
   tdListNodeGetData(pBufPool->bufBlockList, pNode, (void *)(&pBufBlock));
 
