@@ -162,7 +162,13 @@ static void taosGetSystemTimezone() {
   FILE *f = fopen("/etc/timezone", "r");
   char  buf[65] = {0};
   if (f != NULL) {
-    (void)fread(buf, 64, 1, f);
+    int len = fread(buf, 64, 1, f);
+    if(len < 64 && ferror(f)) {
+      fclose(f);
+      uError("read /etc/timezone error, reason:%s", strerror(errno));
+      return;
+    }
+    
     fclose(f);
   }
 
@@ -547,7 +553,7 @@ void taosSetCoreDump() {
   struct rlimit rlim;
   struct rlimit rlim_new;
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uPrint("the old unlimited para: rlim_cur=%d, rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    uPrint("the old unlimited para: rlim_cur=%" PRIu64, ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
@@ -559,7 +565,7 @@ void taosSetCoreDump() {
   }
 
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uPrint("the new unlimited para: rlim_cur=%d, rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    uPrint("the new unlimited para: rlim_cur=%" PRIu64, ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
   }
 
 #ifndef _TD_ARM_

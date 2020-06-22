@@ -168,7 +168,7 @@ void shellReadCommand(TAOS *con, char *command) {
       int count = countPrefixOnes(c);
       utf8_array[0] = c;
       for (int k = 1; k < count; k++) {
-        c = getchar();
+        c = (char)getchar();
         utf8_array[k] = c;
       }
       insertChar(&cmd, utf8_array, count);
@@ -214,10 +214,10 @@ void shellReadCommand(TAOS *con, char *command) {
           break;
       }
     } else if (c == '\033') {
-      c = getchar();
+      c = (char)getchar();
       switch (c) {
         case '[':
-          c = getchar();
+          c = (char)getchar();
           switch (c) {
             case 'A':  // Up arrow
               if (hist_counter != history.hstart) {
@@ -244,35 +244,35 @@ void shellReadCommand(TAOS *con, char *command) {
               moveCursorLeft(&cmd);
               break;
             case '1':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Home key
                 positionCursorHome(&cmd);
               }
               break;
             case '2':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Insert key
               }
               break;
             case '3':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Delete key
                 deleteChar(&cmd);
               }
               break;
             case '4':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // End key
                 positionCursorEnd(&cmd);
               }
               break;
             case '5':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Page up key
               }
               break;
             case '6':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Page down key
               }
               break;

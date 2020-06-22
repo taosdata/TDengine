@@ -238,7 +238,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(arguments->input, full_path.we_wordv[0]);
+      tstrncpy(arguments->input, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 'c':
@@ -246,7 +246,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(configDir, full_path.we_wordv[0]);
+      tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 'e':
@@ -537,11 +537,11 @@ int taosDumpOut(SDumpArguments *arguments) {
 
   if (arguments->databases || arguments->all_databases) {
     for (int i = 0; i < count; i++) {
-      taosDumpDb(dbInfos[i], arguments, fp);
+      (void)taosDumpDb(dbInfos[i], arguments, fp);
     }
   } else {
     if (arguments->arg_list_len == 1) {
-      taosDumpDb(dbInfos[0], arguments, fp);
+      (void)taosDumpDb(dbInfos[0], arguments, fp);
     } else {
       taosDumpCreateDbClause(dbInfos[0], arguments->with_property, fp);
 
@@ -560,9 +560,9 @@ int taosDumpOut(SDumpArguments *arguments) {
         }
 
         if (tableRecordInfo.isMetric) {  // dump whole metric
-          taosDumpMetric(tableRecordInfo.tableRecord.metric, arguments, fp);
+          (void)taosDumpMetric(tableRecordInfo.tableRecord.metric, arguments, fp);
         } else {  // dump MTable and NTable
-          taosDumpTable(tableRecordInfo.tableRecord.name, tableRecordInfo.tableRecord.metric, arguments, fp);
+          (void)taosDumpTable(tableRecordInfo.tableRecord.name, tableRecordInfo.tableRecord.metric, arguments, fp);
         }
       }
     }
@@ -645,6 +645,7 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   (void)lseek(fd, 0, SEEK_SET);
 
   while (1) {
+    memset(&tableRecord, 0, sizeof(STableRecord));
     ssize_t ret = read(fd, &tableRecord, sizeof(STableRecord));
     if (ret <= 0) break;
     
@@ -654,8 +655,9 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   }
 
   close(fd);
+  remove(".table.tmp");
 
-  return remove(".table.tmp");
+  return 0;
 }
 
 void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, SDumpArguments *arguments, FILE *fp) {
@@ -877,7 +879,7 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
   int fd = -1;
   STableRecord tableRecord;
 
-  tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
+  //tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
   sprintf(command, "select tbname from %s", metric);
   TAOS_RES* result = taos_query(taos, command);
@@ -898,8 +900,8 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
 
   while ((row = taos_fetch_row(result)) != NULL) {
     memset(&tableRecord, 0, sizeof(STableRecord));
-    strncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
-    strcpy(tableRecord.metric, metric);
+    tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
+    tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
     twrite(fd, &tableRecord, sizeof(STableRecord));
   }
 
@@ -908,7 +910,8 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
 
   (void)lseek(fd, 0, SEEK_SET);
 
-  while (1) {
+  while (1) {    
+    memset(&tableRecord, 0, sizeof(STableRecord));
     ssize_t ret = read(fd, &tableRecord, sizeof(STableRecord));
     if (ret <= 0) break;
     
@@ -917,7 +920,7 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
     taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
   }
 
-  tclose(fd);
+  close(fd);
   (void)remove(".table.tmp");
 
   return 0;

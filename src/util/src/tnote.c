@@ -92,7 +92,7 @@ void *taosThreadToOpenNewNote(void *param)
     }
 
     taosLockNote(fd, pNote);
-    lseek(fd, 0, SEEK_SET);
+    (void)lseek(fd, 0, SEEK_SET);
 
     int oldFd = pNote->taosNoteFd;
     pNote->taosNoteFd = fd;
