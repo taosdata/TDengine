@@ -314,6 +314,7 @@ int64_t strnatoi(char *num, int32_t len) {
   return ret;
 }
 
+#if 0
 FORCE_INLINE size_t getLen(size_t old, size_t size) {
   if (old == 1) {
     old = 2;
@@ -401,6 +402,7 @@ char *strreplace(const char *str, const char *pattern, const char *rep) {
 
   return dest;
 }
+#endif
 
 char *strbetween(char *string, char *begin, char *end) {
   char *result = NULL;

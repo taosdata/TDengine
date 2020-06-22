@@ -135,7 +135,7 @@ char* strtolower(char *dst, const char *src);
 
 int64_t strnatoi(char *num, int32_t len);
 
-char* strreplace(const char* str, const char* pattern, const char* rep);
+//char* strreplace(const char* str, const char* pattern, const char* rep);
 
 char *strbetween(char *string, char *begin, char *end);
 

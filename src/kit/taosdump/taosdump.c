@@ -655,7 +655,7 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
   }
 
   close(fd);
-  remove(".table.tmp");
+  (void)remove(".table.tmp");
 
   return 0;
 }
