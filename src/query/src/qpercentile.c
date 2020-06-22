@@ -879,8 +879,8 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
           UNUSED(ret);
 
           for (uint32_t jx = 0; jx < pFlushInfo->numOfPages; ++jx) {
-            ret = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
-            UNUSED(ret);
+            size_t sz = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
+            UNUSED(sz);
             tMemBucketPut(pMemBucket, pPage->data, pPage->num);
           }
 
@@ -965,10 +965,11 @@ char *getFirstElemOfMemBuffer(tMemBucketSegment *pSeg, int32_t slotIdx, tFilePag
      */
     tFlushoutInfo *pFlushInfo = &pMemBuffer->fileMeta.flushoutData.pFlushoutInfo[0];
     assert(pFlushInfo->numOfPages == pMemBuffer->fileMeta.nFileSize);
-
-    fseek(pMemBuffer->file, pFlushInfo->startPageId * pMemBuffer->pageSize, SEEK_SET);
-    size_t ret = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
+    int32_t ret;
+    ret = fseek(pMemBuffer->file, pFlushInfo->startPageId * pMemBuffer->pageSize, SEEK_SET);
     UNUSED(ret);
+    size_t sz = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
+    UNUSED(sz);
     thisVal = pPage->data;
   }
   return thisVal;
