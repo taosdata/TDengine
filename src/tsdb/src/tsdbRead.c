@@ -2254,6 +2254,44 @@ int32_t tsdbGetOneTableGroup(TSDB_REPO_T* tsdb, uint64_t uid, STableGroupInfo* p
   return terrno;
 }
 
+int32_t tsdbGetTableGroupFromIdList(TSDB_REPO_T* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo) {
+  if (tsdbRLockRepoMeta(tsdb) < 0) goto _error;
+
+  assert(pTableIdList != NULL);
+  size_t size = taosArrayGetSize(pTableIdList);
+  pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
+  SArray* group = taosArrayInit(1, POINTER_BYTES);
+
+  int32_t i = 0;
+  for(; i < size; ++i) {
+    STableIdInfo *id = taosArrayGet(pTableIdList, i);
+
+    STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), id->uid);
+    if (pTable == NULL) {
+      tsdbWarn("table uid:%"PRIu64", tid:%d has been drop already", id->uid, id->tid);
+      continue;
+    }
+
+    if (pTable->type == TSDB_SUPER_TABLE) {
+      tsdbError("direct query on super tale is not allowed, table uid:%"PRIu64", tid:%d", id->uid, id->tid);
+      terrno = TSDB_CODE_QRY_INVALID_MSG;
+    }
+
+    tsdbRefTable(pTable);
+    taosArrayPush(group, &pTable);
+  }
+
+  if (tsdbUnlockRepoMeta(tsdb) < 0) goto _error;
+
+  pGroupInfo->numOfTables = i;
+  taosArrayPush(pGroupInfo->pGroupList, &group);
+
+  return TSDB_CODE_SUCCESS;
+
+  _error:
+  return terrno;
+}
+
 void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
   if (pQueryHandle == NULL) {

@@ -208,6 +208,14 @@ TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STab
  */
 SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle);
 
+/**
+ * get the group list according to table id from client
+ * @param tsdb
+ * @param pCond
+ * @param groupList
+ * @param qinfo
+ * @return
+ */
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList,
                                                void *qinfo);
 
@@ -275,6 +283,15 @@ void tsdbDestoryTableGroup(STableGroupInfo *pGroupList);
  * @return
  */
 int32_t tsdbGetOneTableGroup(TSDB_REPO_T *tsdb, uint64_t uid, STableGroupInfo *pGroupInfo);
+
+/**
+ *
+ * @param tsdb
+ * @param pTableIdList
+ * @param pGroupInfo
+ * @return
+ */
+int32_t tsdbGetTableGroupFromIdList(TSDB_REPO_T* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo);
 
 /**
  * clean up the query handle
