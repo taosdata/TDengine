@@ -5882,6 +5882,8 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
   SSqlFuncMsg **pExprMsg = NULL;
   SColIndex *   pGroupColIndex = NULL;
   SColumnInfo*  pTagColumnInfo = NULL;
+  SExprInfo     *pExprs = NULL;
+  SSqlGroupbyExpr *pGroupbyExpr = NULL;
 
   if ((code = convertQueryMsg(pQueryMsg, &pTableIdList, &pExprMsg, &tagCond, &tbnameCond, &pGroupColIndex, &pTagColumnInfo)) !=
          TSDB_CODE_SUCCESS) {
@@ -5900,13 +5902,12 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
     goto _over;
   }
 
-  SExprInfo *pExprs = NULL;
   if ((code = createQFunctionExprFromMsg(pQueryMsg, &pExprs, pExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
     free(pExprMsg);
     goto _over;
   }
 
-  SSqlGroupbyExpr *pGroupbyExpr = createGroupbyExprFromMsg(pQueryMsg, pGroupColIndex, &code);
+  pGroupbyExpr = createGroupbyExprFromMsg(pQueryMsg, pGroupColIndex, &code);
   if ((pGroupbyExpr == NULL && pQueryMsg->numOfGroupCols != 0) || code != TSDB_CODE_SUCCESS) {
     goto _over;
   }
