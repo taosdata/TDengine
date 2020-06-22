@@ -491,16 +491,16 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSubmitMsg *pShellMsg = (SSubmitMsg *)pMsg;
 
   pShellMsg->header.vgId = htonl(vgId);
-  pShellMsg->header.contLen = htonl(size);
+  pShellMsg->header.contLen = htonl(size);      // the length not includes the size of SMsgDesc
   pShellMsg->length = pShellMsg->header.contLen;
   
-  pShellMsg->numOfBlocks = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
+  pShellMsg->numOfBlocks = htonl(pSql->cmd.numOfTablesInSubmit);  // number of tables to be inserted
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
   tscSetDnodeIpList(pSql, &pTableMeta->vgroupInfo);
   
-  tscTrace("%p build submit msg, vgId:%d numOfVgroup:%d numberOfIP:%d", pSql, vgId, htonl(pMsgDesc->numOfVnodes),
+  tscTrace("%p build submit msg, vgId:%d numOfTables:%d numberOfIP:%d", pSql, vgId, pSql->cmd.numOfTablesInSubmit,
       pSql->ipList.numOfIps);
   return TSDB_CODE_SUCCESS;
 }
