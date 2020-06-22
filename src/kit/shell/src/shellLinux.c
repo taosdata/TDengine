@@ -162,7 +162,7 @@ void shellReadCommand(TAOS *con, char *command) {
   // Read input.
   char c;
   while (1) {
-    c = getchar();
+    c = (char)getchar(); // getchar() return an 'int' value
 
     if (c < 0) {  // For UTF-8
       int count = countPrefixOnes(c);

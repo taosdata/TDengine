@@ -55,6 +55,25 @@ uint32_t taosRand(void)
 */
   return rand();
 }
+
+uint32_t trand(void)
+{
+  int fd;
+  int seed;
+  
+  fd = open("/dev/urandom", 0);
+  if (fd < 0) {
+    seed = time(0);
+  } else {
+    int len = read(fd, &seed, sizeof(seed));
+    if (len < 0) {
+      seed = time(0);
+    }  
+    close(fd);
+  }
+
+  return (uint32_t)seed;
+}
 #endif
 
 size_t twcslen(const wchar_t *wcs) {
