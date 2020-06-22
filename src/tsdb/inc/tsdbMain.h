@@ -25,6 +25,7 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
+#include "trwlatch.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,6 +60,7 @@ typedef struct STable {
   TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
   char*          sql;
   void*          cqhandle;
+  SRWLatch       latch;  // TODO: implementa latch functions
   T_REF_DECLARE();
 } STable;
 
