@@ -126,8 +126,8 @@ int32_t mnodeInitAccts() {
 }
 
 void mnodeCleanupAccts() {
-  sdbCloseTable(tsAcctSdb);
   acctCleanUp();
+  sdbCloseTable(tsAcctSdb);
 }
 
 void *mnodeGetAcct(char *name) {
