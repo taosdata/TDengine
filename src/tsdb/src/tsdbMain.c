@@ -213,10 +213,10 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       SFileGroup *pFGroup =
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
-        strcpy(fname, pFGroup->files[(*index) % 3].fname);
+        fname = strdup(pFGroup->files[(*index) % 3].fname);
       } else {
         if (pFGroup->fileId * 3 + 2 < eindex) {
-          strcpy(fname, pFGroup->files[0].fname);
+          fname = strdup(pFGroup->files[0].fname);
           *index = pFGroup->fileId * 3;
         } else {
           tfree(sdup);
