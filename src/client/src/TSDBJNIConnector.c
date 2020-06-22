@@ -565,6 +565,11 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
     sql = (char *)(*env)->GetStringUTFChars(env, jsql, NULL);
   }
 
+  if (topic == NULL || sql == NULL) {
+    jniTrace("jobj:%p, invalid argument: topic or sql is NULL", jobj);
+    return sub;
+  }
+
   TAOS_SUB *tsub = taos_subscribe(taos, (int)restart, topic, sql, NULL, NULL, jinterval);
   sub = (jlong)tsub;
 
@@ -574,8 +579,8 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNI
     jniTrace("jobj:%p, successfully subscribe: topic: %s", jobj, topic);
   }
 
-  if (topic != NULL) (*env)->ReleaseStringUTFChars(env, jtopic, topic);
-  if (sql != NULL) (*env)->ReleaseStringUTFChars(env, jsql, sql);
+  (*env)->ReleaseStringUTFChars(env, jtopic, topic);
+  (*env)->ReleaseStringUTFChars(env, jsql, sql);
 
   return sub;
 }

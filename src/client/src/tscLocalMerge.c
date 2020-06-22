@@ -123,7 +123,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
     }
   }
 
-  if (n == 0) {
+  if (n == 0 || pCtx == NULL) {
     free(pTagCtx);
   } else {
     pCtx->tagInfo.pTagCtxList = pTagCtx;
