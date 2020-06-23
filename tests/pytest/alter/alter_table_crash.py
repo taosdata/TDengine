@@ -72,11 +72,11 @@ class TDTestCase:
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
 
-        tdSql.query("select * from st")
+        tdSql.query("select * from dt")
         tdSql.checkRows(0)
 
     def stop(self):
-        tdSql.close()
+        tdSql.close()   
         tdLog.success("%s successfully executed" % __file__)
 
 tdCases.addWindows(__file__, TDTestCase())

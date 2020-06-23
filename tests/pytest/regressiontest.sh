@@ -141,5 +141,7 @@ python3 ./test.py -f query/querySort.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 
+#alter table
+python3 ./test.py -f alter/alter_table_crash.py
 
 
