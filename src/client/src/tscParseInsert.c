@@ -46,8 +46,16 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
     return TK_ILLEGAL;
   }
   
+
+  int32_t radix = 10;
+  if (pToken->type == TK_HEX) {
+    radix = 16;
+  } else if (pToken->type == TK_BIN) {
+    radix = 2;
+  }
+  
   errno = 0;
-  *value = strtoll(pToken->z, endPtr, 0);
+  *value = strtoll(pToken->z, endPtr, radix);
   if (**endPtr == 'e' || **endPtr == 'E' || **endPtr == '.') {
     errno = 0;
     double v = round(strtod(pToken->z, endPtr));
