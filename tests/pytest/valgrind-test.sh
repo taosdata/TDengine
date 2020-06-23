@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# client
+PYTHONMALLOC=malloc python3 ./test.py -g -f client/client.py
+PYTHONMALLOC=malloc python3 ./test.py -g -s && sleep 1
+
 # insert
 PYTHONMALLOC=malloc python3 ./test.py -g -f insert/basic.py
 PYTHONMALLOC=malloc python3 ./test.py -g -s && sleep 1

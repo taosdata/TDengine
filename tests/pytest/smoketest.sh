@@ -1,6 +1,10 @@
 #!/bin/bash
 ulimit -c unlimited
 
+# client
+python3 ./test.py $1 -f client/client.py
+python3 ./test.py $1 -s && sleep 1
+
 # insert
 python3 ./test.py $1 -f insert/basic.py
 python3 ./test.py $1 -s && sleep 1

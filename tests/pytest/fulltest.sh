@@ -1,6 +1,7 @@
 #!/bin/bash
 ulimit -c unlimited
 
+python3 ./test.py -f client/client.py
 python3 ./test.py -f insert/basic.py
 python3 ./test.py -f insert/int.py
 python3 ./test.py -f insert/float.py
@@ -142,6 +143,7 @@ python3 ./test.py -f query/filterFloatAndDouble.py
 python3 ./test.py -f query/filterOtherTypes.py
 python3 ./test.py -f query/querySort.py
 python3 ./test.py -f query/queryJoin.py
+python3 ./test.py -f query/select_last_crash.py
 
 #stream
 python3 ./test.py -f stream/stream1.py
