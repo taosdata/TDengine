@@ -130,7 +130,7 @@ TEST(TsdbTest, testInsertSpeed) {
   int         ret = 0;
   STsdbCfg    tsdbCfg;
   STableCfg   tableCfg;
-  std::string testDir = "/root/mnt/work/ttest";
+  std::string testDir = "./test";
   char *      rootDir = strdup((testDir + "/vnode" + std::to_string(vnode)).c_str());
 
   tsdbDebugFlag = 131; //NOTE: you must set the flag
@@ -148,7 +148,7 @@ TEST(TsdbTest, testInsertSpeed) {
   tsdbCreateTable(repo, &tableCfg);
 
   // Insert data
-  SInsertInfo iInfo = {repo, true, 1, 5849583783847394, 0, 1590000000000, 10, 10000000, 1000, tableCfg.schema};
+  SInsertInfo iInfo = {repo, true, 1, 5849583783847394, 0, 1590000000000, 10, 10000000, 100, tableCfg.schema};
 
   insertData(&iInfo);
 
