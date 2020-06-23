@@ -463,7 +463,9 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
   sdbIncRef(pTable, pOper->pObj);
   atomic_add_fetch_32(&pTable->numOfRows, 1);
 
-  if (pTable->tableId == SDB_TABLE_ACCOUNT) {
+  if (pTable->keyType == SDB_KEY_AUTO) {
+    pTable->autoIndex = MAX(pTable->autoIndex, *((uint32_t *)pOper->pObj));
+  } else {
     atomic_add_fetch_32(&pTable->autoIndex, 1);
   }
 
