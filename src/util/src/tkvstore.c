@@ -78,8 +78,8 @@ int tdCreateKVStore(char *fname) {
   return 0;
 
 _err:
-  if (fd > 0) close(fd);
-  remove(fname);
+  if (fd >= 0) close(fd);
+  (void)remove(fname);
   return -1;
 }
 
@@ -106,15 +106,15 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
     goto _err;
   }
 
-  if (access(pStore->fsnap, F_OK) == 0) { // .snap file exists
-    uTrace("file %s exists, try to recover the KV store", pStore->fsnap);
-    pStore->sfd = open(pStore->fsnap, O_RDONLY);
-    if (pStore->sfd < 0) {
+  pStore->sfd = open(pStore->fsnap, O_RDONLY);
+  if (pStore->sfd < 0) {
+    if (errno != ENOENT) {
       uError("failed to open file %s since %s", pStore->fsnap, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-
+  } else {
+    uTrace("file %s exists, try to recover the KV store", pStore->fsnap);
     if (tdLoadKVStoreHeader(pStore->sfd, pStore->fsnap, &info) < 0) {
       if (terrno != TSDB_CODE_COM_FILE_CORRUPTED) goto _err;
     } else {
@@ -133,7 +133,7 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
 
     close(pStore->sfd);
     pStore->sfd = -1;
-    remove(pStore->fsnap);
+    (void)remove(pStore->fsnap);
   }
 
   if (tdLoadKVStoreHeader(pStore->fd, pStore->fname, &info) < 0) goto _err;
@@ -212,7 +212,7 @@ _err:
   if (pStore->sfd > 0) {
     close(pStore->sfd);
     pStore->sfd = -1;
-    remove(pStore->fsnap);
+    (void)remove(pStore->fsnap);
   }
   if (pStore->fd > 0) {
     close(pStore->fd);
@@ -314,7 +314,7 @@ int tdKVStoreEndCommit(SKVStore *pStore) {
   }
   pStore->fd = -1;
 
-  remove(pStore->fsnap);
+  (void)remove(pStore->fsnap);
   return 0;
 }
 
