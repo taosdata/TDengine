@@ -608,6 +608,9 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
   SSqlCmd* pCmd = &pSql->cmd;
 
+  // the expanded size when a row data is converted to SDataRow format
+  const int32_t MAX_EXPAND_SIZE = TD_DATA_ROW_HEAD_SIZE + TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
+
   void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
   SArray* pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
@@ -627,7 +630,9 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
       return ret;
     }
 
-    int64_t destSize = dataBuf->size + pOneTableBlock->size + pOneTableBlock->size*sizeof(int32_t)*2;
+    SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
+    int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * MAX_EXPAND_SIZE;
+
     if (dataBuf->nAllocSize < destSize) {
       while (dataBuf->nAllocSize < destSize) {
         dataBuf->nAllocSize = dataBuf->nAllocSize * 1.5;
@@ -648,26 +653,30 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
       }
     }
 
-    SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
     tscSortRemoveDataBlockDupRows(pOneTableBlock);
-
     char* ekey = (char*)pBlocks->data + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
     
     tscTrace("%p tableId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->tableId,
         pBlocks->tid, pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->data), GET_INT64_VAL(ekey));
 
-    int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + sizeof(int32_t) * 2);
-    
+
+    int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + MAX_EXPAND_SIZE);
+
     pBlocks->tid = htonl(pBlocks->tid);
     pBlocks->uid = htobe64(pBlocks->uid);
     pBlocks->sversion = htonl(pBlocks->sversion);
     pBlocks->numOfRows = htons(pBlocks->numOfRows);
-    
-    pBlocks->len = htonl(len);
-    
+
     // erase the empty space reserved for binary data
-    len = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock);
-    dataBuf->size += (len + sizeof(SSubmitBlk));
+    int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock);
+    assert(finalLen <= len);
+
+    dataBuf->size += (finalLen + sizeof(SSubmitBlk));
+    assert(dataBuf->size <= dataBuf->nAllocSize);
+
+    // the length does not include the SSubmitBlk structure
+    pBlocks->len = htonl(finalLen);
+
     dataBuf->numOfTables += 1;
   }
 

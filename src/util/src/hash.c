@@ -468,7 +468,8 @@ void taosHashTableResize(SHashObj *pHashObj) {
     return;
   }
 
-  void *pNewEntry = realloc(pHashObj->hashList, POINTER_BYTES * newSize);
+  int32_t pointerSize = POINTER_BYTES;
+  void *pNewEntry = realloc(pHashObj->hashList, pointerSize * newSize);
   if (pNewEntry == NULL) {// todo handle error
 //    uTrace("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
     return;

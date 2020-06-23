@@ -47,7 +47,6 @@ class TDTestCase:
         tdSql.query("select * from st")
         tdSql.checkRows(1)
 
-
         print("==============Case 2: keep adding columns, restart taosd")
         tdSql.execute(
             "create table dt(ts timestamp, tbcol1 tinyint) tags(tgcol1 tinyint)")
@@ -72,7 +71,7 @@ class TDTestCase:
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
 
-        tdSql.query("select * from st")
+        tdSql.query("select * from dt")
         tdSql.checkRows(0)
 
     def stop(self):
