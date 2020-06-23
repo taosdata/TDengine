@@ -193,7 +193,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
       };
       
       assert(info.pTableObj != NULL && (info.pTableObj->type == TSDB_NORMAL_TABLE ||
-      info.pTableObj->type == TSDB_CHILD_TABLE));
+      info.pTableObj->type == TSDB_CHILD_TABLE || info.pTableObj->type == TSDB_STREAM_TABLE));
 
       taosArrayPush(pQueryHandle->pTableCheckInfo, &info);
     }
@@ -2236,7 +2236,7 @@ int32_t tsdbGetOneTableGroup(TSDB_REPO_T* tsdb, uint64_t uid, STableGroupInfo* p
     goto _error;
   }
 
-  assert(pTable->type == TSDB_CHILD_TABLE || pTable->type == TSDB_NORMAL_TABLE);
+  assert(pTable->type == TSDB_CHILD_TABLE || pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_STREAM_TABLE);
   tsdbRefTable(pTable);
   if (tsdbUnlockRepoMeta(tsdb) < 0) goto _error;
 
