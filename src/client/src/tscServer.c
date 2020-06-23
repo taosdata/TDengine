@@ -824,7 +824,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       tscError("%p: fseek failed: %s", pSql, tstrerror(code));
       return code;
     }
-    if (fread(pMsg, pBlockInfo->compLen, 1, pQueryInfo->tsBuf->f) != pBlockInfo->compLen) {
+
+    size_t s = fread(pMsg, 1, pBlockInfo->compLen, pQueryInfo->tsBuf->f);
+    if (s != pBlockInfo->compLen) {
       int code = TAOS_SYSTEM_ERROR(ferror(pQueryInfo->tsBuf->f));
       tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
       return code;
