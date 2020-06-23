@@ -772,3 +772,9 @@ void taosRemoveDir(char *rootDir) {
 
   uPrint("dir:%s is removed", rootDir);
 }
+
+int tmkdir(const char *path, mode_t mode) {
+  int code = mkdir(path, 0755);
+  if (code < 0 && errno == EEXIST) code = 0;
+  return code;
+}

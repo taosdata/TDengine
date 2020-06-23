@@ -181,6 +181,7 @@ char *taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);
 
 void taosRemoveDir(char *rootDir);
+int  tmkdir(const char *pathname, mode_t mode); 
 
 #define TAOS_ALLOC_MODE_DEFAULT 0
 #define TAOS_ALLOC_MODE_RANDOM_FAIL 1

@@ -71,14 +71,12 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
 
-  if (access(path, F_OK) != 0) {
-    if (mkdir(path, 0755) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      wError("wal:%s, failed to create directory(%s)", path, strerror(errno));
-      pthread_mutex_destroy(&pWal->mutex);
-      free(pWal);
-      pWal = NULL;
-    }
+  if (tmkdir(path, 0755) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    wError("wal:%s, failed to create directory(%s)", path, strerror(errno));
+    pthread_mutex_destroy(&pWal->mutex);
+    free(pWal);
+    pWal = NULL;
   }
      
   if (pCfg->keep == 1) return pWal;
@@ -86,16 +84,15 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
   if (walHandleExistingFiles(path) == 0) 
     walRenew(pWal);
 
-  if (pWal->fd <0) {
+  if (pWal && pWal->fd <0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("wal:%s, failed to open(%s)", path, strerror(errno));
     pthread_mutex_destroy(&pWal->mutex);
     free(pWal);
     pWal = NULL;
-  } else {
-    wTrace("wal:%s, it is open, level:%d", path, pWal->level);
-  }
+  } 
 
+  if (pWal) wTrace("wal:%s, it is open, level:%d", path, pWal->level);
   return pWal;
 }
 
@@ -218,10 +215,13 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
   if ( pWal->keep == 0) 
     strcpy(opath+slen, "/old");
 
-  // is there old directory?
-  if (access(opath, F_OK)) return 0; 
-
   DIR *dir = opendir(opath);
+  if (dir == NULL && errno == ENOENT) return 0;
+  if (dir == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
   while ((ent = readdir(dir))!= NULL) {
     if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
       index = atol(ent->d_name + plen);
@@ -379,12 +379,10 @@ int walHandleExistingFiles(const char *path) {
       if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
         snprintf(oname, sizeof(oname), "%s/%s", path, ent->d_name);
         snprintf(nname, sizeof(nname), "%s/old/%s", path, ent->d_name);
-        if (access(opath, F_OK) != 0) {
-          if (mkdir(opath, 0755) != 0) {
-            wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
-            terrno = TAOS_SYSTEM_ERROR(errno);
-            break;
-          } 
+        if (tmkdir(opath, 0755) != 0) {
+          wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
+          terrno = TAOS_SYSTEM_ERROR(errno);
+          break; 
         }
 
         if (rename(oname, nname) < 0) {
@@ -409,10 +407,14 @@ static int walRemoveWalFiles(const char *path) {
   char   name[TSDB_FILENAME_LEN * 3];
  
   terrno = 0;
-  if (access(path, F_OK) != 0) return 0;
 
   struct dirent *ent;
   DIR   *dir = opendir(path);
+  if (dir == NULL && errno == ENOENT) return 0;
+  if (dir == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }  
 
   while ((ent = readdir(dir))!= NULL) {
     if ( strncmp(ent->d_name, walPrefix, plen) == 0) {

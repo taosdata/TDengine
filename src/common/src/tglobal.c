@@ -1232,9 +1232,7 @@ bool taosCheckGlobalCfg() {
     taosGetFqdn(tsLocalFqdn);
   }
 
-  strcpy(tsLocalEp, tsLocalFqdn);
-
-  snprintf(tsLocalEp + strlen(tsLocalEp), sizeof(tsLocalEp), ":%d", tsServerPort);
+  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%d", tsLocalFqdn, tsServerPort);
   uPrint("localEp is: %s", tsLocalEp);
 
   if (tsFirst[0] == 0) {
