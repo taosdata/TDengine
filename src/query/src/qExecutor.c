@@ -5504,7 +5504,7 @@ static int compareTableIdInfo(const void* a, const void* b) {
 }
 
 static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                               STableGroupInfo *tableqinfoGroupInfo, SColumnInfo* pTagCols) {
+                               STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols) {
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
     return NULL;
@@ -5590,18 +5590,18 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
 
-  pQInfo->tableGroupInfo = *tableqinfoGroupInfo;
-  size_t numOfGroups = taosArrayGetSize(tableqinfoGroupInfo->pGroupList);
+  pQInfo->tableGroupInfo = *pTableGroupInfo;
+  size_t numOfGroups = taosArrayGetSize(pTableGroupInfo->pGroupList);
 
   pQInfo->tableqinfoGroupInfo.pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
-  pQInfo->tableqinfoGroupInfo.numOfTables = tableqinfoGroupInfo->numOfTables;
+  pQInfo->tableqinfoGroupInfo.numOfTables = pTableGroupInfo->numOfTables;
   
   int tableIndex = 0;
   STimeWindow window = pQueryMsg->window;
   taosArraySort(pTableIdList, compareTableIdInfo);
 
   for(int32_t i = 0; i < numOfGroups; ++i) {
-    SArray* pa = taosArrayGetP(tableqinfoGroupInfo->pGroupList, i);
+    SArray* pa = taosArrayGetP(pTableGroupInfo->pGroupList, i);
     size_t s = taosArrayGetSize(pa);
 
     SArray* p1 = taosArrayInit(s, POINTER_BYTES);
@@ -5914,13 +5914,13 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
   }
 
   bool isSTableQuery = false;
-  STableGroupInfo tableqinfoGroupInfo = {0};
+  STableGroupInfo tableGroupInfo = {0};
   
   if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_TABLE_QUERY)) {
     STableIdInfo *id = taosArrayGet(pTableIdList, 0);
 
     qTrace("qmsg:%p query normal table, uid:%"PRId64", tid:%d", pQueryMsg, id->uid, id->tid);
-    if ((code = tsdbGetOneTableGroup(tsdb, id->uid, &tableqinfoGroupInfo)) != TSDB_CODE_SUCCESS) {
+    if ((code = tsdbGetOneTableGroup(tsdb, id->uid, &tableGroupInfo)) != TSDB_CODE_SUCCESS) {
       goto _over;
     }
   } else if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_MULTITABLE_QUERY|TSDB_QUERY_TYPE_STABLE_QUERY)) {
@@ -5937,25 +5937,24 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
         numOfGroupByCols = 0;
       }
       
-      code = tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &tableqinfoGroupInfo, pGroupColIndex,
+      code = tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &tableGroupInfo, pGroupColIndex,
                                           numOfGroupByCols);
       if (code != TSDB_CODE_SUCCESS) {
         goto _over;
       }
     } else {
-      tableqinfoGroupInfo.pGroupList = taosArrayInit(1, POINTER_BYTES);
-      tableqinfoGroupInfo.numOfTables = taosArrayGetSize(pTableIdList);
+      code = tsdbGetTableGroupFromIdList(tsdb, pTableIdList, &tableGroupInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _over;
+      }
 
-      SArray* p = taosArrayClone(pTableIdList);
-      taosArrayPush(tableqinfoGroupInfo.pGroupList, &p);
-
-      qTrace("qmsg:%p query on %zu tables in one group from client", pQueryMsg, tableqinfoGroupInfo.numOfTables);
+      qTrace("qmsg:%p query on %zu tables in one group from client", pQueryMsg, tableGroupInfo.numOfTables);
     }
   } else {
     assert(0);
   }
-  
-  (*pQInfo) = createQInfoImpl(pQueryMsg, pTableIdList, pGroupbyExpr, pExprs, &tableqinfoGroupInfo, pTagColumnInfo);
+
+  (*pQInfo) = createQInfoImpl(pQueryMsg, pTableIdList, pGroupbyExpr, pExprs, &tableGroupInfo, pTagColumnInfo);
   pExprs = NULL;
   pGroupbyExpr = NULL;
   pTagColumnInfo = NULL;
@@ -6184,7 +6183,7 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
 
     while(pQInfo->tableIndex < num && count < pQuery->rec.capacity) {
       int32_t i = pQInfo->tableIndex++;
-      STableQueryInfo *item = taosArrayGet(pa, i);
+      STableQueryInfo *item = taosArrayGetP(pa, i);
 
       char *output = pQuery->sdata[0]->data + i * rsize;
       varDataSetLen(output, rsize - VARSTR_HEADER_SIZE);
