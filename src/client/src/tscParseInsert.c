@@ -783,12 +783,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
     sql += index;
 
-    STagData *pTag = (STagData *)pCmd->payload;
+    tscAllocPayload(pCmd, sizeof(STagData));
+    STagData *pTag = (STagData *) pCmd->payload;
+
     memset(pTag, 0, sizeof(STagData));
     
-    /*
-     * the source super table is moved to the secondary position of the pTableMetaInfo list
-     */
+    //the source super table is moved to the secondary position of the pTableMetaInfo list
     if (pQueryInfo->numOfTables < 2) {
       tscAddEmptyMetaInfo(pQueryInfo);
     }
@@ -889,9 +889,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       index = 0;
       sToken = tStrGetToken(sql, &index, true, numOfIgnoreToken, &ignoreTokenTypes);
       sql += index;
-      if (sToken.n == 0) {
-        break;
-      } else if (sToken.type == TK_RP) {
+
+      if (sToken.n == 0 || sToken.type == TK_RP) {
         break;
       }
 
@@ -904,11 +903,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       code = tsParseOneColumnData(&pTagSchema[colIndex], &sToken, tagVal, pCmd->payload, &sql, false, tinfo.precision);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
-      }
-
-      if ((pTagSchema[colIndex].type == TSDB_DATA_TYPE_BINARY || pTagSchema[colIndex].type == TSDB_DATA_TYPE_NCHAR) &&
-          sToken.n > pTagSchema[colIndex].bytes) {
-        return tscInvalidSQLErrMsg(pCmd->payload, "string too long", sToken.z);
       }
     }
 
@@ -1034,9 +1028,9 @@ int tsParseInsertSql(SSqlObj *pSql) {
   }
 
   // TODO: 2048 is added because TSDB_MAX_TAGS_LEN now is 65536, but TSDB_PAYLOAD_SIZE is 65380
-  if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE + 2048)) != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+//  if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE + 2048)) != TSDB_CODE_SUCCESS) {
+//    return code;
+//  }
 
   if (NULL == pCmd->pTableList) {
     pCmd->pTableList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
