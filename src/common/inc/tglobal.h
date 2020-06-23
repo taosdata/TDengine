@@ -20,60 +20,51 @@
 extern "C" {
 #endif
 
-extern char configDir[];
-extern char tsVnodeDir[];
-extern char tsDnodeDir[];
-extern char tsMnodeDir[];
-extern char tsDataDir[];
-extern char tsLogDir[];
-extern char tsScriptDir[];
-extern char tsOsName[];
-
-// system info
-extern int64_t tsPageSize;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern int32_t tsNumOfCores;
-extern int32_t tsAlternativeRole;
-extern float   tsTotalLogDirGB;
-extern float   tsTotalTmpDirGB;
-extern float   tsTotalDataDirGB;
-extern float   tsAvailLogDirGB;
-extern float   tsAvailTmpDirGB;
-extern float   tsAvailDataDirGB;
-extern float   tsMinimalLogDirGB;
-extern float   tsMinimalTmpDirGB;
-extern float   tsMinimalDataDirGB;
-extern int32_t tsEnableCoreFile;
-extern int32_t tsTotalMemoryMB;
-extern int32_t tsVersion;
-
-extern int32_t tscEmbedded;
-extern int64_t tsMsPerDay[3];
-
-extern char  tsFirst[];
-extern char  tsSecond[];
-extern char  tsLocalFqdn[];
-extern char  tsLocalEp[];
+// cluster
+extern char     tsFirst[];
+extern char     tsSecond[];
+extern char     tsLocalFqdn[];
+extern char     tsLocalEp[];
 extern uint16_t tsServerPort;
 extern uint16_t tsDnodeShellPort;
 extern uint16_t tsDnodeDnodePort;
 extern uint16_t tsSyncPort;
-
-extern int32_t tsStatusInterval;
-extern int32_t tsShellActivityTimer;
-extern int32_t tsVnodePeerHBTimer;
-extern int32_t tsMgmtPeerHBTimer;
-extern int32_t tsTableMetaKeepTimer;
-
-extern float    tsNumOfThreadsPerCore;
-extern float    tsRatioOfQueryThreads;
-extern char     tsPublicIp[];
-extern char     tsPrivateIp[];
+extern int32_t  tsStatusInterval;
 extern int16_t  tsNumOfVnodesPerCore;
 extern int16_t  tsNumOfTotalVnodes;
-extern uint32_t tsPublicIpInt;
+extern int32_t  tsNumOfMnodes;
 
+// common
+extern int      tsRpcTimer;
+extern int      tsRpcMaxTime;
+extern int32_t  tsMaxConnections;
+extern int32_t  tsMaxShellConns;
+extern int32_t  tsShellActivityTimer;
+extern uint32_t tsMaxTmrCtrl;
+extern float    tsNumOfThreadsPerCore;
+extern float    tsRatioOfQueryThreads;
+extern int8_t   tsDaylight;
+extern char     tsTimezone[64];
+extern char     tsLocale[64];
+extern char     tsCharset[64];  // default encode string
+extern int32_t  tsEnableCoreFile;
+extern int32_t  tsCompressMsgSize;
+
+// client
+extern int32_t tsTableMetaKeepTimer;
+extern int32_t tsMaxSQLStringLen;
+extern int32_t tsTscEnableRecordSql;
+extern int32_t tsMaxNumOfOrderedResults;
+extern int32_t tsMinSlidingTime;
+extern int32_t tsMinIntervalTime;
+extern int32_t tsMaxStreamComputDelay;
+extern int32_t tsStreamCompStartDelay;
+extern int32_t tsStreamCompRetryDelay;
+extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
+extern int32_t tsProjectExecInterval;
+extern int64_t tsMaxRetentWindow;
+
+// db parameters in client
 extern int32_t tsCacheBlockSize;
 extern int32_t tsBlocksPerVnode;
 extern int32_t tsMaxTablePerVnode;
@@ -87,42 +78,16 @@ extern int16_t tsCompression;
 extern int16_t tsWAL;
 extern int32_t tsReplications;
 
-extern int16_t tsAffectedRowsMod;
-extern int32_t tsNumOfMnodes;
-extern int32_t tsMaxShellConns;
-extern int32_t tsMaxTables;
-
-extern char tsMqttBrokerAddress[];
-extern char tsMqttBrokerClientId[];
-
-extern int32_t tsMaxConnections;
-
+// balance
+extern int32_t tsEnableBalance;
+extern int32_t tsAlternativeRole;
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
 extern int32_t tsMnodeEqualVnodeNum;
 
-extern int32_t tsEnableHttpModule;
-extern int32_t tsEnableMqttModule;
-extern int32_t tsEnableMonitorModule;
-
-extern int32_t tsRestRowLimit;
-extern int32_t tsMaxSQLStringLen;
-extern int32_t tsCompressMsgSize;
-extern int32_t tsMaxNumOfOrderedResults;
-
-extern char tsSocketType[4];
-
-extern int32_t tsMinSlidingTime;
-extern int32_t tsMinIntervalTime;
-extern int32_t tsMaxStreamComputDelay;
-extern int32_t tsStreamCompStartDelay;
-extern int32_t tsStreamCompRetryDelay;
-extern float tsStreamComputDelayRatio;   // the delayed computing ration of the whole time window
-
-extern int     tsProjectExecInterval;
-extern int64_t tsMaxRetentWindow;
-
-extern char     tsHttpIp[];
+// restful
+extern int32_t  tsEnableHttpModule;
+extern int32_t  tsRestRowLimit;
 extern uint16_t tsHttpPort;
 extern int32_t  tsHttpCacheSessions;
 extern int32_t  tsHttpSessionExpire;
@@ -131,12 +96,54 @@ extern int32_t  tsHttpEnableCompress;
 extern int32_t  tsHttpEnableRecordSql;
 extern int32_t  tsTelegrafUseFieldNum;
 
-extern int32_t  tsTscEnableRecordSql;
+// mqtt
+extern int32_t tsEnableMqttModule;
+extern char    tsMqttBrokerAddress[];
+extern char    tsMqttBrokerClientId[];
 
-extern char     tsMonitorDbName[];
-extern char     tsInternalPass[];
-extern int32_t  tsMonitorInterval;
+// monitor
+extern int32_t tsEnableMonitorModule;
+extern char    tsMonitorDbName[];
+extern char    tsInternalPass[];
+extern int32_t tsMonitorInterval;
 
+// internal
+extern int32_t tscEmbedded;
+extern char    configDir[];
+extern char    tsVnodeDir[];
+extern char    tsDnodeDir[];
+extern char    tsMnodeDir[];
+extern char    tsDataDir[];
+extern char    tsLogDir[];
+extern char    tsScriptDir[];
+extern int64_t tsMsPerDay[3];
+
+// system info
+extern char    tsOsName[];
+extern int64_t tsPageSize;
+extern int64_t tsOpenMax;
+extern int64_t tsStreamMax;
+extern int32_t tsNumOfCores;
+extern float   tsTotalLogDirGB;
+extern float   tsTotalTmpDirGB;
+extern float   tsTotalDataDirGB;
+extern float   tsAvailLogDirGB;
+extern float   tsAvailTmpDirGB;
+extern float   tsAvailDataDirGB;
+extern float   tsMinimalLogDirGB;
+extern float   tsMinimalTmpDirGB;
+extern float   tsMinimalDataDirGB;
+extern int32_t tsTotalMemoryMB;
+extern int32_t tsVersion;
+
+// build info
+extern char version[];
+extern char compatible_version[];
+extern char gitinfo[];
+extern char gitinfoOfInternal[];
+extern char buildinfo[];
+
+// log
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t dDebugFlag;
@@ -154,22 +161,6 @@ extern int32_t rpcDebugFlag;
 extern int32_t debugFlag;
 extern int32_t odbcDebugFlag;
 extern int32_t qDebugFlag;
-
-extern uint32_t taosMaxTmrCtrl;
-
-extern int  tsRpcTimer;
-extern int  tsRpcMaxTime;
-extern int  tsUdpDelay;
-extern char version[];
-extern char compatible_version[];
-extern char gitinfo[];
-extern char gitinfoOfInternal[];
-extern char buildinfo[];
-
-extern int8_t tsDaylight;
-extern char tsTimezone[64];
-extern char tsLocale[64];
-extern char tsCharset[64];  // default encode string
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

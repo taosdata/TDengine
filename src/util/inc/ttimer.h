@@ -24,7 +24,7 @@ typedef void *tmr_h;
 typedef void (*TAOS_TMR_CALLBACK)(void *, void *);
 
 extern int      taosTmrThreads;
-extern uint32_t taosMaxTmrCtrl;
+extern uint32_t tsMaxTmrCtrl;
 
 #define MSECONDS_PER_TICK 5
 

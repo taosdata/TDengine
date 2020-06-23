@@ -90,7 +90,7 @@ typedef struct time_wheel_t {
 } time_wheel_t;
 
 int32_t tmrDebugFlag = 131;
-uint32_t taosMaxTmrCtrl = 512;
+uint32_t tsMaxTmrCtrl = 512;
 
 static pthread_once_t  tmrModuleInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t tmrCtrlMutex;
@@ -492,17 +492,17 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
 }
 
 static void taosTmrModuleInit(void) {
-  tmrCtrls = malloc(sizeof(tmr_ctrl_t) * taosMaxTmrCtrl);
+  tmrCtrls = malloc(sizeof(tmr_ctrl_t) * tsMaxTmrCtrl);
   if (tmrCtrls == NULL) {
     tmrError("failed to allocate memory for timer controllers.");
     return;
   }
 
-  for (int i = 0; i < taosMaxTmrCtrl - 1; ++i) {
+  for (int i = 0; i < tsMaxTmrCtrl - 1; ++i) {
     tmr_ctrl_t* ctrl = tmrCtrls + i;
     ctrl->next = ctrl + 1;
   }
-  (tmrCtrls + taosMaxTmrCtrl - 1)->next = NULL;
+  (tmrCtrls + tsMaxTmrCtrl - 1)->next = NULL;
   unusedTmrCtrl = tmrCtrls;
 
   pthread_mutex_init(&tmrCtrlMutex, NULL);

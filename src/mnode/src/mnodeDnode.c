@@ -81,7 +81,7 @@ static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
   mnodeDropAllDnodeVgroups(pDnode);
 #endif  
   mnodeDropMnodeLocal(pDnode->dnodeId);
-  balanceNotify();
+  balanceAsyncNotify();
 
   mTrace("dnode:%d, all vgroups is dropped from sdb", pDnode->dnodeId);
   return TSDB_CODE_SUCCESS;
@@ -382,8 +382,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
-    balanceUpdateMnode();
-    balanceNotify();
+    balanceSyncNotify();
+    balanceAsyncNotify();
   }
 
   if (openVnodes != pDnode->openVnodes) {
