@@ -95,7 +95,7 @@ void createDbAndTable() {
     pError("failed to use db, code:%d reason:%s", taos_errno(con), taos_errstr(con));
     exit(0);
   }
-  taos_stop_query(pSql);
+  taos_free_result(pSql);
 
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
@@ -114,7 +114,7 @@ void createDbAndTable() {
       pError("failed to create stable, code:%d reason:%s", taos_errno(con), taos_errstr(con));
       exit(0);
     }
-    taos_stop_query(pSql);
+    taos_free_result(pSql);
 
     for (int64_t t = 0; t < totalTables; ++t) {
       sprintf(qstr, "create table if not exists %s%ld using %s tags(%ld)", stableName, t, stableName, t);
@@ -124,7 +124,7 @@ void createDbAndTable() {
         pError("failed to create table %s%" PRId64 ", reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
-      taos_stop_query(pSql);
+      taos_free_result(pSql);
     }
   } else {
     for (int64_t t = 0; t < totalTables; ++t) {
@@ -140,7 +140,7 @@ void createDbAndTable() {
         pError("failed to create table %s%ld, reason:%s", stableName, t, taos_errstr(con));
         exit(0);
       }
-      taos_stop_query(pSql);
+      taos_free_result(pSql);
     }
   }
 
@@ -148,6 +148,7 @@ void createDbAndTable() {
   et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
   float seconds = (et - st) / 1000.0 / 1000.0;
   pPrint("%.1f seconds to create %ld tables, speed:%.1f", seconds, totalTables, totalTables / seconds);
+  taos_close(con);
 }
 
 void insertData() {
@@ -257,7 +258,7 @@ void *syncTest(void *param) {
           pError("thread:%d, failed to insert table:%s%ld row:%ld, reason:%s", pInfo->threadIndex, pInfo->stableName,
                  table, row, taos_errstr(con));
         }
-        taos_stop_query(pSql);
+        taos_free_result(pSql);
 
         // "insert into"
         len = sprintf(sql, "%s", inserStr);
