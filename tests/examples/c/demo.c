@@ -44,7 +44,9 @@ int main(int argc, char *argv[]) {
 
 
   taos_query(taos, "drop database demo");
-  if (taos_query(taos, "create database demo") != 0) {
+
+  result = taos_query(taos, "create database demo");
+  if (result == NULL) {
     printf("failed to create database, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
@@ -53,7 +55,7 @@ int main(int argc, char *argv[]) {
   taos_query(taos, "use demo");
 
   // create table
-  if (taos_query(taos, "create table m1 (ts timestamp, speed int)") != 0) {
+  if (taos_query(taos, "create table m1 (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10))") == 0) {
     printf("failed to create table, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
@@ -65,9 +67,10 @@ int main(int argc, char *argv[]) {
   // insert 10 records
   int i = 0;
   for (i = 0; i < 10; ++i) {
-    sprintf(qstr, "insert into m1 values (%ld, %d)", 1546300800000 + i * 1000, i * 10);
+    sprintf(qstr, "insert into m1 values (%ld, %d, %d, %d, %d, %f, %lf, '%s')", 1546300800000 + i * 1000, i, i, i, i*10000000, i*1.0, i*2.0, "hello");
+    printf("qstr: %s\n", qstr);
     if (taos_query(taos, qstr)) {
-      printf("failed to insert row: %i, reason:%s\n", i, taos_errstr(taos));
+      printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));
     }
     //sleep(1);
   }
@@ -83,10 +86,11 @@ int main(int argc, char *argv[]) {
 
   TAOS_ROW    row;
   int         rows = 0;
-  int         num_fields = taos_field_count(taos);
+  int         num_fields = taos_field_count(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256];
+  char        temp[1024];
 
+  printf("num_fields = %d\n", num_fields);
   printf("select * from table, result:\n");
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
