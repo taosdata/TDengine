@@ -47,7 +47,6 @@ class TDTestCase:
         tdSql.query("select * from st")
         tdSql.checkRows(1)
 
-
         print("==============Case 2: keep adding columns, restart taosd")
         tdSql.execute(
             "create table dt(ts timestamp, tbcol1 tinyint) tags(tgcol1 tinyint)")
@@ -76,7 +75,7 @@ class TDTestCase:
         tdSql.checkRows(0)
 
     def stop(self):
-        tdSql.close()   
+        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 tdCases.addWindows(__file__, TDTestCase())
