@@ -25,8 +25,8 @@ struct SDnodeObj;
 
 int32_t balanceInit();
 void    balanceCleanUp();
-void    balanceNotify();
-void    balanceUpdateMnode();
+void    balanceAsyncNotify();
+void    balanceSyncNotify();
 void    balanceReset();
 int32_t balanceAllocVnodes(struct SVgObj *pVgroup);
 int32_t balanceDropDnode(struct SDnodeObj *pDnode);

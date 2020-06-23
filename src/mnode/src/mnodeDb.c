@@ -910,7 +910,7 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   mTrace("db:%s, all vgroups is altered", pDb->name);
   mLPrint("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  balanceNotify();
+  balanceAsyncNotify();
 
   return TSDB_CODE_SUCCESS;
 }
