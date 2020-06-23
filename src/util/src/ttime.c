@@ -56,7 +56,7 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 		year -= 1;
 	}
 
-  int64_t res = (((((int64_t) (year/4 - year/100 + year/400 + 367*mon/12 + day) +
+  int64_t res = (((((int64_t) (year/4 - year/100 + year/400 + (int64_t)(367*mon)/12 + day) +
 		  year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
 
 	return (res + timezone);
