@@ -158,18 +158,16 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   return 0;
 }
 
-void *tsdbGetTableTagVal(TSDB_REPO_T *repo, const STableId *id, int32_t colId, int16_t type, int16_t bytes) {
+void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_t bytes) {
   // TODO: this function should be changed also
-  STsdbMeta *pMeta = tsdbGetMeta(repo);
-  STable *   pTable = tsdbGetTableByUid(pMeta, id->uid);
 
-  STSchema *pSchema = tsdbGetTableTagSchema(pTable);
+  STSchema *pSchema = tsdbGetTableTagSchema((STable*) pTable);
   STColumn *pCol = tdGetColOfID(pSchema, colId);
   if (pCol == NULL) {
     return NULL;  // No matched tag volumn
   }
 
-  char *val = tdGetKVRowValOfCol(pTable->tagVal, colId);
+  char *val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
   assert(type == pCol->type && bytes == pCol->bytes);
 
   if (val != NULL && IS_VAR_DATA_TYPE(type)) {
@@ -179,18 +177,19 @@ void *tsdbGetTableTagVal(TSDB_REPO_T *repo, const STableId *id, int32_t colId, i
   return val;
 }
 
-char *tsdbGetTableName(TSDB_REPO_T *repo, const STableId *id) {
+char *tsdbGetTableName(void* pTable) {
   // TODO: need to change as thread-safe
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-
-  STable *pTable = tsdbGetTableByUid(pMeta, id->uid);
 
   if (pTable == NULL) {
     return NULL;
   } else {
-    return (char *)pTable->name;
+    return (char*) (((STable *)pTable)->name);
   }
+}
+
+STableId tsdbGetTableId(void *pTable) {
+  assert(pTable);
+  return ((STable*)pTable)->tableId;
 }
 
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {

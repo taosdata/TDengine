@@ -141,7 +141,7 @@ class TDTestCase:
         tdSql.prepare()
 
         # 8 bytes for timestamp
-        maxRowSize = 65535 - 8
+        maxRowSize = self.getLimitFromSourceCode('TSDB_MAX_BYTES_PER_ROW') - 8
         maxCols = self.getLimitFromSourceCode('TSDB_MAX_COLUMNS') - 1
 
         # for binary cols, 2 bytes are used for length

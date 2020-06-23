@@ -99,6 +99,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   if (tSkipListPut(pTableData->pData, pNode) == NULL) {
     tsdbFreeBytes(pRepo, (void *)pNode, bytes);
   } else {
+    if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
     if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
     if (pMemTable->keyLast < key) pMemTable->keyLast = key;
     pMemTable->numOfRows++;
@@ -586,6 +587,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
+  tfree(dataDir);
   tsdbCloseHelperFile(pHelper, 0);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));

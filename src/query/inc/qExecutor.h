@@ -102,7 +102,7 @@ typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
   int64_t     tag;
   STimeWindow win;
   STSCursor   cur;
-  STableId    id;  // for retrieve the page id list
+  void*       pTable;  // for retrieve the page id list
 
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
@@ -126,10 +126,10 @@ typedef struct SQueryCostInfo {
   uint64_t computTime;
 } SQueryCostInfo;
 
-typedef struct SGroupItem {
-  STableId         id;
-  STableQueryInfo* info;
-} SGroupItem;
+//typedef struct SGroupItem {
+//  void            *pTable;
+//  STableQueryInfo *info;
+//} SGroupItem;
 
 typedef struct SQuery {
   int16_t          numOfCols;
@@ -187,8 +187,8 @@ typedef struct SQInfo {
   void*   tsdb;
   int32_t vgId;
 
-  STableGroupInfo  tableIdGroupInfo;  // table id list < only includes the STableId list>
-  STableGroupInfo  groupInfo;         //
+  STableGroupInfo  tableGroupInfo;       // table id list < only includes the STable list>
+  STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   SQueryRuntimeEnv runtimeEnv;
   int32_t          groupIndex;
   int32_t          offset;  // offset in group result set of subgroup, todo refactor

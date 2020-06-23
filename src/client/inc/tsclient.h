@@ -183,11 +183,11 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-typedef struct SDataBlockList {  // todo remove
-  uint32_t           nSize;
-  uint32_t           nAlloc;
-  STableDataBlocks **pData;
-} SDataBlockList;
+//typedef struct SDataBlockList {  // todo remove
+//  uint32_t           nSize;
+//  uint32_t           nAlloc;
+//  STableDataBlocks **pData;
+//} SDataBlockList;
 
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
@@ -238,8 +238,7 @@ typedef struct {
   void *       pTableList;   // referred table involved in sql
   int32_t      batchSize;    // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
-
-  SDataBlockList *pDataBlocks;  // submit data blocks after parsing sql
+  SArray      *pDataBlocks;  // SArray<STableDataBlocks*> submit data blocks after parsing sql
 } SSqlCmd;
 
 typedef struct SResRec {

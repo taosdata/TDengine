@@ -474,7 +474,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
   } while( row != NULL);
 
   result = NULL;
-  taos_free_result(tres);
+  //taos_free_result(tres);
   fclose(fp);
 
   return numOfRows;
@@ -803,6 +803,7 @@ void source_file(TAOS *con, char *fptr) {
 
   char *fname = full_path.we_wordv[0];
 
+  /*
   if (access(fname, F_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
     
@@ -810,6 +811,7 @@ void source_file(TAOS *con, char *fptr) {
     free(cmd);
     return;
   }
+  */
   
   FILE *f = fopen(fname, "r");
   if (f == NULL) {
@@ -849,7 +851,7 @@ void source_file(TAOS *con, char *fptr) {
 
 void shellGetGrantInfo(void *con) {
   return;
-
+#if 0
   char sql[] = "show grants";
 
   TAOS_RES* tres = taos_query(con, sql);
@@ -900,4 +902,5 @@ void shellGetGrantInfo(void *con) {
   }
 
   fprintf(stdout, "\n");
+  #endif
 }

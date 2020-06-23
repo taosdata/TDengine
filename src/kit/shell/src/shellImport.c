@@ -73,7 +73,7 @@ static void shellParseDirectory(const char *directoryName, const char *prefix, c
   }
 
   int fileNum = 0;
-  while (fscanf(fp, "%s", fileArray[fileNum++])) {
+  while (fscanf(fp, "%128s", fileArray[fileNum++])) {
     if (strcmp(fileArray[fileNum-1], shellTablesSQLFile) == 0) {
       fileNum--;
     }
@@ -150,9 +150,11 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   char *fname = full_path.we_wordv[0];
   if (fname == NULL) {
     fprintf(stderr, "ERROR: invalid filename\n");
+    free(cmd);
     return;
   }
 
+  /*
   if (access(fname, F_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
     
@@ -168,6 +170,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     free(cmd);
     return;
   }
+  */
 
   FILE *f = fopen(fname, "r");
   if (f == NULL) {

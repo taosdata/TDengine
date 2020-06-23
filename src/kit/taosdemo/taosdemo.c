@@ -34,6 +34,7 @@
 #include <wordexp.h>
 
 #include "taos.h"
+#include "tutil.h"
 
 extern char configDir[];
 
@@ -82,7 +83,7 @@ typedef struct DemoArguments {
   bool   insert_only;
   char  *output_file;
   int    mode;
-  char  *datatype[MAX_NUM_DATATYPE];
+  char  *datatype[MAX_NUM_DATATYPE+1];
   int    len_of_binary;
   int    num_of_CPR;
   int    num_of_threads;
@@ -432,7 +433,7 @@ int main(int argc, char *argv[]) {
           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   printf("###################################################################\n\n");
   printf("Press enter key to continue");
-  getchar();
+  (void)getchar();
 
   fprintf(fp, "###################################################################\n");
   fprintf(fp, "# Server IP:                         %s:%hu\n", ip_addr == NULL ? "localhost" : ip_addr, port);
@@ -550,8 +551,8 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
     t_info->threadID = i;
-    strcpy(t_info->db_name, db_name);
-    strcpy(t_info->tb_prefix, tb_prefix);
+    tstrncpy(t_info->db_name, db_name, MAX_DB_NAME_SIZE);
+    tstrncpy(t_info->tb_prefix, tb_prefix, MAX_TB_NAME_SIZE);
     t_info->datatype = data_type;
     t_info->ncols_per_record = ncols_per_record;
     t_info->nrecords_per_table = nrecords_per_table;
@@ -845,10 +846,10 @@ void *syncWrite(void *sarg) {
       pstr += sprintf(pstr, "insert into %s.%s%d values", winfo->db_name, winfo->tb_prefix, tID);
       int k;
       for (k = 0; k < winfo->nrecords_per_request;) {
-        int rand_num = rand() % 100;
+        int rand_num = trand() % 100;
         int len = -1;
         if (winfo->data_of_order ==1 && rand_num < winfo->data_of_rate) {
-          long d = tmp_time - rand() % 1000000 + rand_num;
+          long d = tmp_time - trand() % 1000000 + rand_num;
           len = generateData(data, data_type, ncols_per_record, d, len_of_binary);
         } else {
           len = generateData(data, data_type, ncols_per_record, tmp_time += 1000, len_of_binary);
@@ -940,10 +941,10 @@ void callBack(void *param, TAOS_RES *res, int code) {
   pstr += sprintf(pstr, "insert into %s values", tb_info->tb_name);
 
   for (int i = 0; i < tb_info->nrecords_per_request; i++) {
-    int rand_num = rand() % 100;
+    int rand_num = trand() % 100;
     if (tb_info->data_of_order ==1 && rand_num < tb_info->data_of_rate)
     {
-      long d = tmp_time - rand() % 1000000 + rand_num;
+      long d = tmp_time - trand() % 1000000 + rand_num;
       generateData(data, datatype, ncols_per_record, d, len_of_binary);
     } else 
     {
@@ -985,22 +986,27 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
     }
   }
 
+  if (0 == c) {
+    perror("data type error!");
+    exit(-1);
+  }
+
   for (int i = 0; i < num_of_cols; i++) {
     if (strcasecmp(data_type[i % c], "tinyint") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 128));
+      pstr += sprintf(pstr, ", %d", (int)(trand() % 128));
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 32767));
+      pstr += sprintf(pstr, ", %d", (int)(trand() % 32767));
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 10)); 
+      pstr += sprintf(pstr, ", %d", (int)(trand() % 10)); 
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %" PRId64, rand() % 2147483648);
+      pstr += sprintf(pstr, ", %" PRId64, trand() % 2147483648);
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
-      pstr += sprintf(pstr, ", %10.4f", (float)(rand() / 1000));
+      pstr += sprintf(pstr, ", %10.4f", (float)(trand() / 1000.0));
     } else if (strcasecmp(data_type[i % c], "double") == 0) {
-      double t = (double)(rand() / 1000000);
+      double t = (double)(trand() / 1000000.0);
       pstr += sprintf(pstr, ", %20.8f", t);
     } else if (strcasecmp(data_type[i % c], "bool") == 0) {
-      bool b = rand() & 1;
+      bool b = trand() & 1;
       pstr += sprintf(pstr, ", %s", b ? "true" : "false");
     } else if (strcasecmp(data_type[i % c], "binary") == 0) {
       char s[len_of_binary];
@@ -1026,7 +1032,7 @@ void rand_string(char *str, int size) {
     --size;
     int n;
     for (n = 0; n < size; n++) {
-      int key = rand() % (int)(sizeof charset - 1);
+      int key = trand() % (int)(sizeof charset - 1);
       str[n] = charset[key];
     }
     str[n] = 0;
