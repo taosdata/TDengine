@@ -644,14 +644,15 @@ int taosDumpDb(SDbInfo *dbInfo, SDumpArguments *arguments, FILE *fp) {
 
   (void)lseek(fd, 0, SEEK_SET);
 
+  STableRecord tableInfo;
   while (1) {
-    memset(&tableRecord, 0, sizeof(STableRecord));
-    ssize_t ret = read(fd, &tableRecord, sizeof(STableRecord));
+    memset(&tableInfo, 0, sizeof(STableRecord));
+    ssize_t ret = read(fd, &tableInfo, sizeof(STableRecord));
     if (ret <= 0) break;
     
-    tableRecord.name[sizeof(tableRecord.name) - 1] = 0;
-    tableRecord.metric[sizeof(tableRecord.metric) - 1] = 0;
-    taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
+    tableInfo.name[sizeof(tableInfo.name) - 1] = 0;
+    tableInfo.metric[sizeof(tableInfo.metric) - 1] = 0;
+    taosDumpTable(tableInfo.name, tableInfo.metric, arguments, fp);
   }
 
   close(fd);
@@ -910,14 +911,22 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
 
   (void)lseek(fd, 0, SEEK_SET);
 
+  STableRecord tableInfo;
+  char tableName[TSDB_TABLE_NAME_LEN] ;
+  char metricName[TSDB_TABLE_NAME_LEN];
   while (1) {    
-    memset(&tableRecord, 0, sizeof(STableRecord));
-    ssize_t ret = read(fd, &tableRecord, sizeof(STableRecord));
+    memset(&tableInfo, 0, sizeof(STableRecord));      
+    memset(tableName, 0, TSDB_TABLE_NAME_LEN);    
+    memset(metricName, 0, TSDB_TABLE_NAME_LEN);
+    ssize_t ret = read(fd, &tableInfo, sizeof(STableRecord));
     if (ret <= 0) break;
     
-    tableRecord.name[sizeof(tableRecord.name) - 1] = 0;
-    tableRecord.metric[sizeof(tableRecord.metric) - 1] = 0;
-    taosDumpTable(tableRecord.name, tableRecord.metric, arguments, fp);
+    //tableInfo.name[sizeof(tableInfo.name) - 1] = 0;
+    //tableInfo.metric[sizeof(tableInfo.metric) - 1] = 0;    
+    //taosDumpTable(tableInfo.name, tableInfo.metric, arguments, fp);
+    tstrncpy(tableName, tableInfo.name, TSDB_TABLE_NAME_LEN-1);
+    tstrncpy(metricName, tableInfo.metric, TSDB_TABLE_NAME_LEN-1);
+    taosDumpTable(tableName, metricName, arguments, fp);
   }
 
   close(fd);
