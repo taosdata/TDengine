@@ -179,7 +179,7 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
       return -1;
     }
   }
-  pRsp->affectedRows = htonl(affectedrows);
+  if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
   return 0;
 }
 
@@ -648,7 +648,7 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
   }
 
   pRepo->config = *pCfg;
-  pRepo->appH = *pAppH;
+  if (pAppH) pRepo->appH = *pAppH;
 
   pRepo->tsdbMeta = tsdbNewMeta(pCfg);
   if (pRepo->tsdbMeta == NULL) {
