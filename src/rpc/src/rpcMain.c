@@ -434,6 +434,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   pConn->rspMsgLen = msgLen;
   if (pMsg->code == TSDB_CODE_RPC_ACTION_IN_PROGRESS) pConn->inTranId--;
 
+  // stop the progress timer
   taosTmrStopA(&pConn->pTimer);
 
   // set the idle timer to monitor the activity
@@ -1021,7 +1022,11 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   if ( rpcIsReq(pHead->msgType) ) {
     rpcMsg.handle = pConn;
     rpcAddRef(pRpc);  // add the refCount for requests
+
+    // start the progress timer to monitor the response from server app
     pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pRpc->tmrCtrl);
+ 
+    // notify the server app
     (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {
     // it's a response
