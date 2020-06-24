@@ -12,7 +12,7 @@ import java.util.Properties;
 
 import static org.junit.Assert.assertTrue;
 
-public class AsyncSubscribeTest {
+public class AsyncSubscribeTest extends BaseTest {
     Connection connection = null;
     Statement statement = null;
     String dbName = "test";
