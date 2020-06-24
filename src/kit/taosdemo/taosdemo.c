@@ -470,11 +470,12 @@ int main(int argc, char *argv[]) {
   char command[BUFFER_SIZE] = "\0";
 
   sprintf(command, "drop database %s;", db_name);
-  taos_query(taos, command);
-  
+  TAOS_RES* res = taos_query(taos, command);
+  taos_free_result(res);
 
   sprintf(command, "create database %s;", db_name);
-  taos_query(taos, command);
+  res = taos_query(taos, command);
+  taos_free_result(res);
 
   char cols[STRING_LEN] = "\0";
   int colIndex = 0;
