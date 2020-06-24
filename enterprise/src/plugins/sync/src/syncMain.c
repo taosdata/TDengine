@@ -121,6 +121,7 @@ void *syncStart(const SSyncInfo *pInfo)
 
   pthread_once(&syncModuleInit, syncModuleInitFunc); 
   if (tsTcpPool == NULL) {
+    free(pNode);
     sError("failed to init sync module(%s)", tstrerror(errno));
     return NULL;
   }
