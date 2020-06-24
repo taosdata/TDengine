@@ -63,7 +63,6 @@ typedef struct _SSdbTable {
   int32_t (*encodeFp)(SSdbOper *pOper);
   int32_t (*destroyFp)(SSdbOper *pOper);
   int32_t (*restoredFp)();
-  pthread_mutex_t mutex;
 } SSdbTable;
 
 typedef struct {
@@ -429,24 +428,18 @@ static SSdbRow *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
 
 void *sdbGetRow(void *handle, void *key) {
   SSdbTable *pTable = (SSdbTable *)handle;
-  SSdbRow * pMeta;
-
-  if (handle == NULL) return NULL;
-
-  pthread_mutex_lock(&pTable->mutex);
-
   int32_t keySize = sizeof(int32_t);
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
     keySize = strlen((char *)key);
   }
-  pMeta = taosHashGet(pTable->iHandle, key, keySize);
-
-  if (pMeta) sdbIncRef(pTable, pMeta->row);
-  pthread_mutex_unlock(&pTable->mutex);
-
-  if (pMeta == NULL) return NULL;
-
-  return pMeta->row;
+  
+  SSdbRow *pMeta = taosHashGet(pTable->iHandle, key, keySize);
+  if (pMeta) {
+    sdbIncRef(pTable, pMeta->row);
+    return pMeta->row;
+  } else {
+    return NULL;
+  }
 }
 
 static void *sdbGetRowFromObj(SSdbTable *pTable, void *key) {
@@ -458,8 +451,6 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
   rowMeta.rowSize = pOper->rowSize;
   rowMeta.row = pOper->pObj;
 
-  pthread_mutex_lock(&pTable->mutex);
-
   void *  key = sdbGetObjKey(pTable, pOper->pObj);
   int32_t keySize = sizeof(int32_t);
 
@@ -470,15 +461,13 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
   taosHashPut(pTable->iHandle, key, keySize, &rowMeta, sizeof(SSdbRow));
 
   sdbIncRef(pTable, pOper->pObj);
-  pTable->numOfRows++;
+  atomic_add_fetch_32(&pTable->numOfRows, 1);
 
   if (pTable->keyType == SDB_KEY_AUTO) {
     pTable->autoIndex = MAX(pTable->autoIndex, *((uint32_t *)pOper->pObj));
   } else {
-    pTable->autoIndex++;
+    atomic_add_fetch_32(&pTable->autoIndex, 1);
   }
-
-  pthread_mutex_unlock(&pTable->mutex);
 
   sdbTrace("table:%s, insert record:%s to hash, rowSize:%d numOfRows:%" PRId64 " version:%" PRIu64, pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pOper->rowSize, pTable->numOfRows, sdbGetVersion());
@@ -490,20 +479,15 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
   (*pTable->deleteFp)(pOper);
   
-  pthread_mutex_lock(&pTable->mutex);
-
   void *  key = sdbGetObjKey(pTable, pOper->pObj);
   int32_t keySize = sizeof(int32_t);
-
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
     keySize = strlen((char *)key);
   }
 
   taosHashRemove(pTable->iHandle, key, keySize);
-
-  pTable->numOfRows--;
-  pthread_mutex_unlock(&pTable->mutex);
-
+  atomic_sub_fetch_32(&pTable->numOfRows, 1);
+  
   sdbTrace("table:%s, delete record:%s from hash, numOfRows:%" PRId64 " version:%" PRIu64, pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion());
 
@@ -608,14 +592,12 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
   }
 
   if (pTable->keyType == SDB_KEY_AUTO) {
-    pthread_mutex_lock(&pTable->mutex);
-    *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+    *((uint32_t *)pOper->pObj) = atomic_add_fetch_32(&pTable->autoIndex, 1);
 
     // let vgId increase from 2
     if (pTable->autoIndex == 1 && strcmp(pTable->tableName, "vgroups") == 0) {
-      *((uint32_t *)pOper->pObj) = ++pTable->autoIndex;
+      *((uint32_t *)pOper->pObj) = atomic_add_fetch_32(&pTable->autoIndex, 1);
     }
-    pthread_mutex_unlock(&pTable->mutex);
   }
 
   int32_t code = sdbInsertHash(pTable, pOper);
@@ -805,8 +787,6 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   }
   pTable->iHandle = taosHashInit(pTable->hashSessions, hashFp, true);
 
-  pthread_mutex_init(&pTable->mutex, NULL);
-
   tsSdbObj.numOfTables++;
   tsSdbObj.tableList[pTable->tableId] = pTable;
   return pTable;
@@ -835,8 +815,6 @@ void sdbCloseTable(void *handle) {
   taosHashDestroyIter(pIter);
   taosHashCleanup(pTable->iHandle);
 
-  pthread_mutex_destroy(&pTable->mutex);
-  
   sdbTrace("table:%s, is closed, numOfTables:%d", pTable->tableName, tsSdbObj.numOfTables);
   free(pTable);
 }

@@ -65,8 +65,10 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   // validate the file magic number
   STSBufFileHeader header = {0};
-  fseek(pTSBuf->f, 0, SEEK_SET);
-  fread(&header, 1, sizeof(STSBufFileHeader), pTSBuf->f);
+  int32_t ret = fseek(pTSBuf->f, 0, SEEK_SET);
+  UNUSED(ret);
+  size_t sz = fread(&header, 1, sizeof(STSBufFileHeader), pTSBuf->f);
+  UNUSED(sz);
 
   // invalid file
   if (header.magic != TS_COMP_FILE_MAGIC) {
@@ -97,22 +99,30 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   size_t infoSize = sizeof(STSVnodeBlockInfo) * pTSBuf->numOfVnodes;
   
   STSVnodeBlockInfo* buf = (STSVnodeBlockInfo*)calloc(1, infoSize);
+  if (buf == NULL) {
+    tsBufDestory(pTSBuf);
+    return NULL; 
+  } 
   
   //int64_t pos = ftell(pTSBuf->f); //pos not used
-  fread(buf, infoSize, 1, pTSBuf->f);
+  sz = fread(buf, infoSize, 1, pTSBuf->f);
+  UNUSED(sz);
   
   // the length value for each vnode is not kept in file, so does not set the length value
   for (int32_t i = 0; i < pTSBuf->numOfVnodes; ++i) {
     STSVnodeBlockInfoEx* pBlockList = &pTSBuf->pData[i];
     memcpy(&pBlockList->info, &buf[i], sizeof(STSVnodeBlockInfo));
   }
-  
   free(buf);
   
-  fseek(pTSBuf->f, 0, SEEK_END);
+  ret = fseek(pTSBuf->f, 0, SEEK_END);
+  UNUSED(ret);
   
   struct stat fileStat;
-  fstat(fileno(pTSBuf->f), &fileStat);
+  if (fstat(fileno(pTSBuf->f), &fileStat) != 0) {
+    tsBufDestory(pTSBuf);
+    return NULL;
+  }
   
   pTSBuf->fileSize = (uint32_t)fileStat.st_size;
   tsBufResetPos(pTSBuf);
@@ -278,19 +288,24 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
      * set the right position for the reversed traverse, the reversed traverse is started from
      * the end of each comp data block
      */
-    fseek(pTSBuf->f, -sizeof(pBlock->padding), SEEK_CUR);
-    fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+    int32_t ret = fseek(pTSBuf->f, -sizeof(pBlock->padding), SEEK_CUR);
+    size_t sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+    UNUSED(sz); 
     
     pBlock->compLen = pBlock->padding;
     int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
-    fseek(pTSBuf->f, -offset, SEEK_CUR);
+    ret = fseek(pTSBuf->f, -offset, SEEK_CUR);
+    UNUSED(ret);
   }
   
-  fread(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
-  fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
-  
-  fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
-  fread(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
+  size_t sz = fread(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
+  UNUSED(sz);
+  sz = fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
+  UNUSED(sz);
+  sz = fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
+  UNUSED(sz);
+  sz = fread(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
+  UNUSED(sz);
   
   if (decomp) {
     pTSBuf->tsData.len =
@@ -299,12 +314,13 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   }
   
   // read the comp length at the length of comp block
-  fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+  sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+  UNUSED(sz);
   
   // for backwards traverse, set the start position at the end of previous block
   if (order == TSDB_ORDER_DESC) {
     int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
-    int64_t r = fseek(pTSBuf->f, -offset, SEEK_CUR);
+    int32_t r = fseek(pTSBuf->f, -offset, SEEK_CUR);
     UNUSED(r);
   }
   
@@ -441,7 +457,8 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
     STSBlock* pBlock = &pTSBuf->block;
     int32_t   compBlockSize =
         pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
-    fseek(pTSBuf->f, -compBlockSize, SEEK_CUR);
+    int32_t ret = fseek(pTSBuf->f, -compBlockSize, SEEK_CUR);
+    UNUSED(ret);
   }
   
   return 0;
@@ -538,7 +555,7 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
 
   assert(pHeader->tsOrder == TSDB_ORDER_ASC || pHeader->tsOrder == TSDB_ORDER_DESC);
 
-  int64_t r = fseek(pTSBuf->f, 0, SEEK_SET);
+  int32_t r = fseek(pTSBuf->f, 0, SEEK_SET);
   if (r != 0) {
     return -1;
   }
@@ -743,7 +760,9 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   int32_t oldSize = pDestBuf->fileSize;
   
   struct stat fileStat;
-  fstat(fileno(pDestBuf->f), &fileStat);
+  if (fstat(fileno(pDestBuf->f), &fileStat) != 0) {
+    return -1;  
+  }
   pDestBuf->fileSize = (uint32_t)fileStat.st_size;
   
   assert(pDestBuf->fileSize == oldSize + size);
@@ -766,8 +785,10 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   // update prev vnode length info in file
   TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pBlockInfo);
   
-  fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET);
-  fwrite((void*)pData, 1, len, pTSBuf->f);
+  int32_t ret = fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET);
+  UNUSED(ret);
+  size_t sz = fwrite((void*)pData, 1, len, pTSBuf->f);
+  UNUSED(sz);
   pTSBuf->fileSize += len;
   
   pTSBuf->tsOrder = order;

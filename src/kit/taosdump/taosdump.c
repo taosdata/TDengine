@@ -911,21 +911,27 @@ int32_t taosDumpMetric(char *metric, SDumpArguments *arguments, FILE *fp) {
 
   (void)lseek(fd, 0, SEEK_SET);
 
-  STableRecord tableInfo;
+  //STableRecord tableInfo;
   char tableName[TSDB_TABLE_NAME_LEN] ;
   char metricName[TSDB_TABLE_NAME_LEN];
-  while (1) {    
-    memset(&tableInfo, 0, sizeof(STableRecord));      
+  ssize_t ret;
+  while (1) {
+    //memset(&tableInfo, 0, sizeof(STableRecord));      
     memset(tableName, 0, TSDB_TABLE_NAME_LEN);    
     memset(metricName, 0, TSDB_TABLE_NAME_LEN);
-    ssize_t ret = read(fd, &tableInfo, sizeof(STableRecord));
+    //ssize_t ret = read(fd, &tableInfo, sizeof(STableRecord));
+    //if (ret <= 0) break;
+    ret = read(fd, tableName, TSDB_TABLE_NAME_LEN);
+    if (ret <= 0) break;
+    
+    ret = read(fd, metricName, TSDB_TABLE_NAME_LEN);
     if (ret <= 0) break;
     
     //tableInfo.name[sizeof(tableInfo.name) - 1] = 0;
     //tableInfo.metric[sizeof(tableInfo.metric) - 1] = 0;    
     //taosDumpTable(tableInfo.name, tableInfo.metric, arguments, fp);
-    tstrncpy(tableName, tableInfo.name, TSDB_TABLE_NAME_LEN-1);
-    tstrncpy(metricName, tableInfo.metric, TSDB_TABLE_NAME_LEN-1);
+    //tstrncpy(tableName, tableInfo.name, TSDB_TABLE_NAME_LEN-1);
+    //tstrncpy(metricName, tableInfo.metric, TSDB_TABLE_NAME_LEN-1);
     taosDumpTable(tableName, metricName, arguments, fp);
   }
 
