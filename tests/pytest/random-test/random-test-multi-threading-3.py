@@ -24,19 +24,23 @@ last_tb = ""
 last_stb = ""
 written = 0
 last_timestamp = 0
+colAdded = False
+killed = False
 
 
 class Test (Thread):
-    def __init__(self, threadId, name, events):
+    def __init__(self, threadId, name, events, q):
         Thread.__init__(self)
         self.threadId = threadId
         self.name = name
         self.dataEvent, self.dbEvent, self.queryEvent = events
+        self.q = q
 
     def create_table(self):
         tdLog.info("create_table")
         global last_tb
         global written
+        global killed
 
         current_tb = "tb%d" % int(round(time.time() * 1000))
 
@@ -51,8 +55,14 @@ class Test (Thread):
                     current_tb)
                 last_tb = current_tb
                 written = 0
+                killed = False
             except Exception as e:
-                tdLog.info(repr(e))
+                tdLog.info("killed: %d error: %s" % (killed, e.args[0]))
+                if killed and (e.args[0] == 'network unavailable'):
+                    tdLog.info("database killed, expect failed")
+                    return 0
+                return -1
+        return 0
 
     def insert_data(self):
         tdLog.info("insert_data")
@@ -74,22 +84,33 @@ class Test (Thread):
             for j in range(0, insertRows):
                 if (last_tb == ""):
                     tdLog.info("no table, return")
-                    return
-                tdSql.execute(
-                    'insert into %s values (%d + %da, %d, "test")' %
-                    (last_tb, start_time, last_timestamp, last_timestamp))
-                written = written + 1
-                last_timestamp = last_timestamp + 1
+                    return 0
+                try:
+                    tdSql.execute(
+                        'insert into %s values (%d + %da, %d, "test")' %
+                        (last_tb, start_time, last_timestamp, last_timestamp))
+                    written = written + 1
+                    last_timestamp = last_timestamp + 1
+                except Exception as e:
+                    if killed:
+                        tdLog.info(
+                            "database killed, expect failed %s" %
+                            e.args[0])
+                        return 0
+                    tdLog.info(repr(e))
+                    return -1
+        return 0
 
     def query_data(self):
         tdLog.info("query_data")
         global last_tb
-        global written
+        global killed
 
-        if (written > 0):
+        if not killed and last_tb != "":
             tdLog.info("query data from table")
             tdSql.query("select * from %s" % last_tb)
             tdSql.checkRows(written)
+        return 0
 
     def create_stable(self):
         tdLog.info("create_stable")
@@ -123,6 +144,7 @@ class Test (Thread):
                 (last_tb, start_time, last_timestamp))
             written = written + 1
             last_timestamp = last_timestamp + 1
+        return 0
 
     def drop_stable(self):
         tdLog.info("drop_stable")
@@ -139,22 +161,57 @@ class Test (Thread):
             last_stb = ""
             last_tb = ""
             written = 0
+        return 0
+
+    def alter_table_to_add_col(self):
+        tdLog.info("alter_table_to_add_col")
+        global last_stb
+        global colAdded
+
+        if last_stb != "" and colAdded == False:
+            tdSql.execute(
+                "alter table %s add column col binary(20)" %
+                last_stb)
+            colAdded = True
+        return 0
+
+    def alter_table_to_drop_col(self):
+        tdLog.info("alter_table_to_drop_col")
+        global last_stb
+        global colAdded
+
+        if last_stb != "" and colAdded:
+            tdSql.execute("alter table %s drop column col" % last_stb)
+            colAdded = False
+        return 0
 
     def restart_database(self):
         tdLog.info("restart_database")
         global last_tb
         global written
+        global killed
 
         tdDnodes.stop(1)
+        killed = True
         tdDnodes.start(1)
+        tdLog.sleep(10)
+        killed = False
+        return 0
 
     def force_restart_database(self):
         tdLog.info("force_restart_database")
         global last_tb
         global written
+        global killed
 
         tdDnodes.forcestop(1)
+        last_tb = ""
+        written = 0
+        killed = True
         tdDnodes.start(1)
+#        tdLog.sleep(10)
+        killed = False
+        return 0
 
     def drop_table(self):
         tdLog.info("drop_table")
@@ -167,6 +224,7 @@ class Test (Thread):
                 tdSql.execute("drop table %s" % last_tb)
                 last_tb = ""
                 written = 0
+        return 0
 
     def query_data_from_stable(self):
         tdLog.info("query_data_from_stable")
@@ -178,6 +236,7 @@ class Test (Thread):
         else:
             tdLog.info("will query data from super table")
             tdSql.execute('select * from %s' % last_stb)
+        return 0
 
     def reset_query_cache(self):
         tdLog.info("reset_query_cache")
@@ -187,38 +246,44 @@ class Test (Thread):
         tdLog.info("reset query cache")
         tdSql.execute("reset query cache")
         tdLog.sleep(1)
+        return 0
 
     def reset_database(self):
         tdLog.info("reset_database")
         global last_tb
         global last_stb
         global written
+        global killed
 
         tdDnodes.forcestop(1)
+        killed = True
         tdDnodes.deploy(1)
         tdDnodes.start(1)
         tdSql.prepare()
-        last_tb = ""
-        last_stb = ""
-        written = 0
+        killed = False
+        return 0
 
     def delete_datafiles(self):
         tdLog.info("delete_data_files")
         global last_tb
         global last_stb
         global written
+        global killed
 
         dnodesDir = tdDnodes.getDnodesRootDir()
         tdDnodes.forcestop(1)
+        killed = True
         dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
-
-        tdDnodes.start(1)
-        tdSql.prepare()
         last_tb = ""
         last_stb = ""
         written = 0
+
+        tdDnodes.start(1)
+        tdSql.prepare()
+        killed = False
+        return 0
 
     def run(self):
         dataOp = {
@@ -235,6 +300,8 @@ class Test (Thread):
             7: self.reset_database,
             8: self.delete_datafiles,
             9: self.drop_stable,
+            10: self.alter_table_to_add_col,
+            11: self.alter_table_to_drop_col,
         }
 
         queryOp = {
@@ -247,16 +314,28 @@ class Test (Thread):
                 self.dataEvent.wait()
                 tdLog.notice("first thread")
                 randDataOp = random.randint(1, 1)
-                dataOp.get(randDataOp, lambda: "ERROR")()
-                self.dataEvent.clear()
-                self.queryEvent.clear()
-                self.dbEvent.set()
+                ret1 = dataOp.get(randDataOp, lambda: "ERROR")()
+
+                if ret1 == -1:
+                    self.q.put(-1)
+                    tdLog.exit("first thread failed")
+                else:
+                    self.q.put(1)
+
+                if (self.q.get() != -2):
+                    self.dataEvent.clear()
+                    self.queryEvent.clear()
+                    self.dbEvent.set()
+                else:
+                    self.q.put(-1)
+                    tdLog.exit("second thread failed, first thread exit too")
+
 
         elif (self.threadId == 2):
             while True:
                 self.dbEvent.wait()
                 tdLog.notice("second thread")
-                randDbOp = random.randint(1, 9)
+                randDbOp = random.randint(1, 11)
                 dbOp.get(randDbOp, lambda: "ERROR")()
                 self.dbEvent.clear()
                 self.dataEvent.clear()
@@ -297,6 +376,10 @@ class TDTestCase:
         test1.join()
         test2.join()
         test3.join()
+
+        while not q.empty():
+            if (q.get() != 0):
+                tdLog.exit("failed to end of test")
 
         tdLog.info("end of test")
 
