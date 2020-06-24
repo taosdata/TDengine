@@ -54,6 +54,7 @@ void mnodeCleanupMsg(SMnodeMsg *pMsg) {
     if (pMsg->pDb) mnodeDecDbRef(pMsg->pDb);
     if (pMsg->pVgroup) mnodeDecVgroupRef(pMsg->pVgroup);
     if (pMsg->pTable) mnodeDecTableRef(pMsg->pTable);
+    if (pMsg->pSTable) mnodeDecTableRef(pMsg->pSTable);
     if (pMsg->pAcct) mnodeDecAcctRef(pMsg->pAcct);
     if (pMsg->pDnode) mnodeDecDnodeRef(pMsg->pDnode);
   }
