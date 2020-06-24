@@ -73,10 +73,10 @@ void dnodeCleanupMnodeWrite() {
     SMWriteWorker *pWorker = tsMWritePool.writeWorker + i;
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
-      taosCloseQset(tsMWriteQset);
     }
   }
 
+  taosCloseQset(tsMWriteQset);
   tfree(tsMWritePool.writeWorker);
   dPrint("dnode mwrite is closed");
 }
