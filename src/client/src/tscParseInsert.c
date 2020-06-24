@@ -1153,29 +1153,19 @@ int tsParseInsertSql(SSqlObj *pSql) {
         goto _error;
       }
 
-      char fname[PATH_MAX] = {0};
-      strncpy(fname, sToken.z, sToken.n);
-      strdequote(fname);
+      strncpy(pCmd->payload, sToken.z, sToken.n);
+      strdequote(pCmd->payload);
 
+      // todo refactor extract method
       wordexp_t full_path;
-      if (wordexp(fname, &full_path, 0) != 0) {
+      if (wordexp(pCmd->payload, &full_path, 0) != 0) {
         code = tscInvalidSQLErrMsg(pCmd->payload, "invalid filename", sToken.z);
         goto _error;
       }
-      strcpy(fname, full_path.we_wordv[0]);
+
+      tstrncpy(pCmd->payload, full_path.we_wordv[0], pCmd->allocSize);
       wordfree(&full_path);
 
-      STableDataBlocks *pDataBlock = NULL;
-      STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-      
-      int32_t ret = tscCreateDataBlock(PATH_MAX, tinfo.rowSize, sizeof(SSubmitBlk), pTableMetaInfo->name,
-                                       pTableMeta, &pDataBlock);
-      if (ret != TSDB_CODE_SUCCESS) {
-        goto _error;
-      }
-
-      taosArrayPush(pCmd->pDataBlocks, &pDataBlock);
-      strcpy(pDataBlock->filename, fname);
     } else if (sToken.type == TK_LP) {
       /* insert into tablename(col1, col2,..., coln) values(v1, v2,... vn); */
       STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
@@ -1424,10 +1414,18 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
   int32_t count = 0;
   int32_t maxRows = 0;
 
-  STableDataBlocks *pTableDataBlock = taosArrayGetP(pSql->cmd.pDataBlocks, 0);
-  pTableDataBlock->size = pTableDataBlock->headerSize;
+  tscDestroyBlockArrayList(pSql->cmd.pDataBlocks);
+  pCmd->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
 
+  STableDataBlocks *pTableDataBlock = NULL;
+  int32_t ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, tinfo.rowSize, sizeof(SSubmitBlk), pTableMetaInfo->name, pTableMeta, &pTableDataBlock);
+  if (ret != TSDB_CODE_SUCCESS) {
+//    return ret;
+  }
+
+  taosArrayPush(pCmd->pDataBlocks, &pTableDataBlock);
   tscAllocateMemIfNeed(pTableDataBlock, tinfo.rowSize, &maxRows);
+
   char *tokenBuf = calloc(1, 4096);
 
   while ((readLen = getline(&line, &n, fp)) != -1) {
@@ -1559,52 +1557,33 @@ static UNUSED_FUNC int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpT
   return numOfRows;
 }
 
-void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
+void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   if (pCmd->command != TSDB_SQL_INSERT) {
     return;
   }
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+  assert(pCmd->dataSourceType == DATA_FROM_DATA_FILE  && strlen(pCmd->payload) != 0);
 
-  assert(pCmd->dataSourceType == DATA_FROM_DATA_FILE/* && pCmd->pDataBlocks != NULL*/);
-  SArray *pDataBlockList = pCmd->pDataBlocks;
-  STableDataBlocks* pDataBlock = taosArrayGetP(pDataBlockList, 0);
-
-  char path[PATH_MAX] = {0};
-
-  SImportFileSupport* pSupporter = calloc(1, sizeof(SImportFileSupport));
-  pSupporter->pSql = pSql;
-
+  SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);
 
   pNew->cmd.pDataBlocks = taosArrayInit(4, POINTER_BYTES);
+  pCmd->count = 1;
 
-  STableDataBlocks *pTableDataBlock = NULL;
-  int32_t ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, tinfo.rowSize, sizeof(SSubmitBlk), pTableMetaInfo->name, pTableMeta, &pTableDataBlock);
-  if (ret != TSDB_CODE_SUCCESS) {
-//    return ret;
+  FILE *fp = fopen(pCmd->payload, "r");
+  if (fp == NULL) {
+    pSql->res.code = TAOS_SYSTEM_ERROR(errno);
+    tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
+
+    tfree(pSupporter)
+    tscQueueAsyncRes(pSql);
+
+    return;
   }
 
-  taosArrayPush(pNew->cmd.pDataBlocks, &pTableDataBlock);
+  pSupporter->pSql = pSql;
+  pSupporter->fp = fp;
 
-    if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE)) {
-      tscError("%p failed to malloc when insert file", pSql);
-    }
-    pCmd->count = 1;
-
-    tstrncpy(path, pDataBlock->filename, sizeof(path));
-
-    FILE *fp = fopen(path, "r");
-    if (fp == NULL) {
-      tscError("%p failed to open file %s to load data from file, reason:%s", pSql, path, strerror(errno));
-//      continue;// todo handle error
-    }
-
-    pSupporter->fp = fp;
-
-    parseFileSendDataBlock(pSupporter, pNew, 0);
+  parseFileSendDataBlock(pSupporter, pNew, 0);
 }
