@@ -58,7 +58,7 @@ typedef struct {
   void   (*cfp)(SRpcMsg *, SRpcIpSet *);
   int    (*afp)(char *user, char *spi, char *encrypt, char *secret, char *ckey); 
 
-  int      refCount;
+  int32_t   refCount;
   void     *idPool;   // handle to ID pool
   void     *tmrCtrl;  // handle to timer
   SHashObj *hash;     // handle returned by hash utility
@@ -1497,12 +1497,12 @@ static void rpcUnlockConn(SRpcConn *pConn) {
 
 static void rpcAddRef(SRpcInfo *pRpc)
 {  
-   atomic_add_fetch_8(&pRpc->refCount, 1);
+   atomic_add_fetch_32(&pRpc->refCount, 1);
 }
 
 static void rpcDecRef(SRpcInfo *pRpc)
 { 
-  if (atomic_sub_fetch_8(&pRpc->refCount, 1) == 0) {
+  if (atomic_sub_fetch_32(&pRpc->refCount, 1) == 0) {
     taosHashCleanup(pRpc->hash);
     taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);
