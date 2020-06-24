@@ -195,7 +195,10 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .code    = 0
   };
 
-  pSql->pRpcCtx = rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
+  // NOTE: the rpc context should be acquired before sent data to server.
+  // Otherwise, the pSql object may have been released already in during the processMsgFromServer function, in the
+  // meanwhile, the assignment of the rpc context to sql object will absolutely caused crash.
+  /*pSql->pRpcCtx = */rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
