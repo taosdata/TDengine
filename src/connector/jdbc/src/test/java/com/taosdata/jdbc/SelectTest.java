@@ -9,7 +9,7 @@ import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 
-public class SelectTest {
+public class SelectTest extends BaseTest {
     Connection connection = null;
     Statement statement = null;
     String dbName = "test";

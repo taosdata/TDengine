@@ -13,7 +13,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @FixMethodOrder(MethodSorters.DEFAULT)
-public class PreparedStatementTest {
+public class PreparedStatementTest extends BaseTest {
     static Connection connection = null;
     static PreparedStatement statement = null;
     static String dbName = "test";

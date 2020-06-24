@@ -10,7 +10,7 @@ import java.util.Properties;
 
 import static org.junit.Assert.assertTrue;
 
-public class ConnectionTest {
+public class ConnectionTest extends BaseTest {
     static Connection connection = null;
     static Statement statement = null;
     static String dbName = "test";
