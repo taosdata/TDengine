@@ -149,7 +149,7 @@ if $dnode3Vtatus != master then
   goto wait_dnode4_vgroup_offline
 endi
 
-system echo "haha, nothing......" > ../../../sim/dnode4/data/vnode/vnode2/tsdb/data/f1643.data
+system echo "haha, nothing......" > ../../../sim/dnode4/data/vnode/vnode2/tsdb/data/v2f1643.data
 #system rm -rf ../../../sim/dnode4/data/vnode/*
 sleep 1000
 
