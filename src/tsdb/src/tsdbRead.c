@@ -2233,6 +2233,7 @@ int32_t tsdbGetOneTableGroup(TSDB_REPO_T* tsdb, uint64_t uid, STableGroupInfo* p
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
   if (pTable == NULL) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    tsdbUnlockRepoMeta(tsdb);
     goto _error;
   }
 
