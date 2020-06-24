@@ -170,18 +170,17 @@ static void taosGetSystemTimezone() {
     }
     
     fclose(f);
-  }
 
-  char *lineEnd = strstr(buf, "\n");
-  if (lineEnd != NULL) {
-    *lineEnd = 0;
-  }
+    char *lineEnd = strstr(buf, "\n");
+    if (lineEnd != NULL) {
+      *lineEnd = 0;
+    }
 
-  // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
-  if (strlen(buf) > 0) {
-    setenv("TZ", buf, 1);
+    // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
+    if (strlen(buf) > 0) {
+      setenv("TZ", buf, 1);
+    }
   }
-
   // get and set default timezone
   tzset();
 
