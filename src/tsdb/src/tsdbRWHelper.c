@@ -176,8 +176,8 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
         (void)remove(pHelper->files.nHeadF.fname);
       } else {
         if (rename(pHelper->files.nHeadF.fname, pHelper->files.headF.fname) < 0) {
-          tsdbError("vgId:%d failed to rename file from %s to %s since %s", REPO_ID(pHelper->pRepo),
-                    pHelper->files.nHeadF.fname, pHelper->files.headF.fname, strerror(errno));
+          tsdbError("failed to rename file from %s to %s since %s", pHelper->files.nHeadF.fname,
+                    pHelper->files.headF.fname, strerror(errno));
           terrno = TAOS_SYSTEM_ERROR(errno);
           return -1;
         }
@@ -194,8 +194,8 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
         (void)remove(pHelper->files.nLastF.fname);
       } else {
         if (rename(pHelper->files.nLastF.fname, pHelper->files.lastF.fname) < 0) {
-          tsdbError("vgId:%d failed to rename file from %s to %s since %s", REPO_ID(pHelper->pRepo),
-                    pHelper->files.nLastF.fname, pHelper->files.lastF.fname, strerror(errno));
+          tsdbError("failed to rename file from %s to %s since %s", pHelper->files.nLastF.fname,
+                    pHelper->files.lastF.fname, strerror(errno));
           terrno = TAOS_SYSTEM_ERROR(errno);
           return -1;
         }
