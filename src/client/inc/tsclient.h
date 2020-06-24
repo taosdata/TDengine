@@ -171,11 +171,7 @@ typedef struct STableDataBlocks {
    * to avoid it to be removed from cache
    */
   STableMeta *pTableMeta;
-
-  union {
-    char *filename;
-    char *pData;
-  };
+  char       *pData;
 
   // for parameter ('?') binding
   uint32_t    numOfAllocedParams;
@@ -398,7 +394,7 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
 int doAsyncParseSql(SSqlObj* pSql);
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
 
-void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
+void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql);
 void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
