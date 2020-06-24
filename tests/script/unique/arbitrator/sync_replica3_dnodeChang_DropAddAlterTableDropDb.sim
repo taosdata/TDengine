@@ -370,21 +370,20 @@ sql alter table stb drop column c1
 
 sql alter table stb add tag t2 int
 sql alter table stb add tag t3 int
-sql alter table stb add tag t4 int
 sql_error alter table stb drop tag t1
 
 $ts = $tsEnd + 10000
-sql insert into tb2 values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
-sql insert into tb3 values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
-sql insert into tb4 values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
-sql insert into tb5 values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
+sql insert into tb2 values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )
+sql insert into tb3 values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )
+sql insert into tb4 values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )
+sql insert into tb5 values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )
 
 
 $ts = $tsStart
-sql insert into tb14 using stb tags(14) values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
-sql insert into tb15 using stb tags(15) values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
-sql insert into tb16 using stb tags(16) values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
-sql insert into tb17 using stb tags(17) values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
+sql insert into tb14 using stb tags(14, 14, 14) values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )  
+sql insert into tb15 using stb tags(15, 15, 15) values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )  
+sql insert into tb16 using stb tags(16, 16, 16) values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )  
+sql insert into tb17 using stb tags(17, 17, 17) values ( $ts + 0a , $x , $x , $x ) ( $ts + 1a , $x , $x , $x ) ( $ts + 2a , $x , $x , $x ) ( $ts + 3a , $x , $x , $x ) ( $ts + 4a , $x , $x , $x ) ( $ts + 5a , $x , $x , $x ) ( $ts + 6a , $x , $x , $x ) ( $ts + 7a , $x , $x , $x ) ( $ts + 8a , $x , $x , $x ) ( $ts + 9a , $x , $x , $x )  
   
 $totalRows = $totalRows + 80
 sql select count(*) from $stb
