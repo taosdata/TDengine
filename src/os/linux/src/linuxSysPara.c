@@ -160,7 +160,7 @@ static void taosGetSystemTimezone() {
 
   /* load time zone string from /etc/timezone */
   FILE *f = fopen("/etc/timezone", "r");
-  char  buf[65] = {0};
+  char  buf[68] = {0};
   if (f != NULL) {
     int len = fread(buf, 64, 1, f);
     if(len < 64 && ferror(f)) {
