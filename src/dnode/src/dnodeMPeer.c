@@ -71,9 +71,11 @@ void dnodeCleanupMnodePeer() {
     SMPeerWorker *pWorker = tsMPeerPool.peerWorker + i;
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
+      taosCloseQset(tsMPeerQset);
     }
   }
 
+  tfree(tsMPeerPool.peerWorker);
   dPrint("dnode mpeer is closed");
 }
 
