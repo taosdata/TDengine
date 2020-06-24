@@ -174,7 +174,7 @@ if $system_content != 3 then
   return -1
 endi
 
-system echo "haha, nothing......" > ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/f1643.data
+system echo "haha, nothing......" > ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/v2f1643.data
 
 print ============== step3-1: insert some news data for let version changed
 sql insert into $tb values ( now + 0a , $x ) ( now + 1a , $x ) ( now + 2a , $x )
