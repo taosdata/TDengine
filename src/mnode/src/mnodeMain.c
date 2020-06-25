@@ -121,8 +121,8 @@ void mnodeCleanupSystem() {
   dnodeFreeMnodeWqueue();
   dnodeFreeMnodeRqueue();
   dnodeFreeMnodePqueue();
-  mnodeCleanupTimer();
   mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
+  mnodeCleanupTimer();
 
   mPrint("mnode is cleaned up");
 }

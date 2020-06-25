@@ -1351,6 +1351,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
 static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlocks *pTableDataBlocks) {
   int32_t  code = TSDB_CODE_SUCCESS;
   SSqlCmd *pCmd = &pSql->cmd;
+  pSql->res.numOfRows = 0;
 
   assert(pCmd->numOfClause == 1);
   STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
@@ -1394,6 +1395,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     fclose(fp);
 
     pParentSql->res.code = code;
+    tscQueueAsyncRes(pParentSql);
     return;
   }
 
@@ -1458,8 +1460,11 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
   free(line);
 
   if (count > 0) {
-    if ((code = doPackSendDataBlock(pSql, count, pTableDataBlock)) != TSDB_CODE_SUCCESS) {
+    code = doPackSendDataBlock(pSql, count, pTableDataBlock);
+    if (code != TSDB_CODE_SUCCESS) {
       pParentSql->res.code = code;
+      tscQueueAsyncRes(pParentSql);
+      return;
     }
 
   } else {
