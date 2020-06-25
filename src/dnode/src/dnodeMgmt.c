@@ -721,7 +721,7 @@ int32_t dnodeGetDnodeId() {
 }
 
 void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
-  SRpcConnInfo connInfo;
+  SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(rpcMsg->handle, &connInfo);
 
   SRpcIpSet ipSet = {0};
