@@ -1063,9 +1063,11 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       for (int i=0; i<pContext->ipSet.numOfIps; ++i) 
         pContext->ipSet.port[i] = htons(pContext->ipSet.port[i]);
       rpcSendReqToServer(pRpc, pContext);
+      rpcFreeCont(rpcMsg.pCont);
     } else if (pHead->code == TSDB_CODE_RPC_NOT_READY) {
       pContext->code = pHead->code;
       rpcProcessConnError(pContext, NULL);
+      rpcFreeCont(rpcMsg.pCont);
     } else {
       rpcNotifyClient(pContext, &rpcMsg);
     }
