@@ -1,0 +1,32 @@
+sql connect
+
+$db = db
+$stb = stb
+print =============== sync_replica_createTable_background_add.sim step0: create table and insert data
+$totalTableNum = 10
+
+sql use $db
+
+#sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+# create table , insert data
+#$rowNum = 500
+$tblNum = 20
+$totalRows = 100
+$tsStart = 1420141600000
+$tsEnd = 0
+
+$i = 10
+while $i < $tblNum
+  $tb = tb . $i
+  sql create table $tb using $stb tags( $i )
+ 
+  $x = 10
+  $ts = $tsStart + $x
+  sql insert into $tb values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x )
+
+  $totalRows = $totalRows + $x
+  print       info: inserted $x rows into $tb and totalRows: $totalRows
+  $i = $i + 1
+endw 
+
+

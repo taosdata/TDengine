@@ -147,6 +147,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
       tsdbInsertTableAct(pRepo, TSDB_DROP_META, buf, tTable);
       tsdbRemoveTableFromMeta(pRepo, tTable, false, true);
     }
+    tSkipListDestroyIter(pIter);
   }
 
   tsdbRemoveTableFromMeta(pRepo, pTable, true, true);
@@ -157,18 +158,16 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   return 0;
 }
 
-void *tsdbGetTableTagVal(TSDB_REPO_T *repo, const STableId *id, int32_t colId, int16_t type, int16_t bytes) {
+void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_t bytes) {
   // TODO: this function should be changed also
-  STsdbMeta *pMeta = tsdbGetMeta(repo);
-  STable *   pTable = tsdbGetTableByUid(pMeta, id->uid);
 
-  STSchema *pSchema = tsdbGetTableTagSchema(pTable);
+  STSchema *pSchema = tsdbGetTableTagSchema((STable*) pTable);
   STColumn *pCol = tdGetColOfID(pSchema, colId);
   if (pCol == NULL) {
     return NULL;  // No matched tag volumn
   }
 
-  char *val = tdGetKVRowValOfCol(pTable->tagVal, colId);
+  char *val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
   assert(type == pCol->type && bytes == pCol->bytes);
 
   if (val != NULL && IS_VAR_DATA_TYPE(type)) {
@@ -178,18 +177,19 @@ void *tsdbGetTableTagVal(TSDB_REPO_T *repo, const STableId *id, int32_t colId, i
   return val;
 }
 
-char *tsdbGetTableName(TSDB_REPO_T *repo, const STableId *id) {
+char *tsdbGetTableName(void* pTable) {
   // TODO: need to change as thread-safe
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-
-  STable *pTable = tsdbGetTableByUid(pMeta, id->uid);
 
   if (pTable == NULL) {
     return NULL;
   } else {
-    return (char *)pTable->name;
+    return (char*) (((STable *)pTable)->name);
   }
+}
+
+STableId tsdbGetTableId(void *pTable) {
+  assert(pTable);
+  return ((STable*)pTable)->tableId;
 }
 
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
@@ -270,7 +270,6 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
 _err:
   tdDestroyTSchemaBuilder(&schemaBuilder);
   tsdbClearTableCfg(pCfg);
-  tfree(pCfg);
   return NULL;
 }
 
@@ -309,6 +308,7 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
 
     int32_t code = tsdbUpdateTable(pRepo, super, pTableCfg);
     if (code != TSDB_CODE_SUCCESS) {
+      tsdbClearTableCfg(pTableCfg);
       return code;
     }
     tsdbClearTableCfg(pTableCfg);
@@ -788,6 +788,9 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
   }
 
   if (addIdx && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
+  if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE && addIdx) {
+    pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql, tsdbGetTableSchema(pTable));
+  }
 
   tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));

@@ -780,6 +780,16 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
   }
 }
 
+static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
+  SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
+  if (pTable != NULL) {
+    mLPrint("app:%p:%p, stable:%s, is created in sdb, result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+            tstrerror(code));
+  }
+
+  return code;
+}
+
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
@@ -819,27 +829,38 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     assert(tschema[col].type >= TSDB_DATA_TYPE_BOOL && tschema[col].type <= TSDB_DATA_TYPE_NCHAR);
   }
 
+  pMsg->pTable = (STableObj *)pStable;
+  mnodeIncTableRef(pMsg->pTable);
+
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
     .pObj = pStable,
     .rowSize = sizeof(SSuperTableObj) + schemaSize,
-    .pMsg = pMsg
+    .pMsg = pMsg,
+    .cb = mnodeCreateSuperTableCb
   };
 
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     mnodeDestroySuperTable(pStable);
+    pMsg->pTable = NULL;
     mError("app:%p:%p, table:%s, failed to create, sdb error", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId);
+    return code;
   } else {
-    mLPrint("app:%p:%p, table:%s, is created, tags:%d fields:%d", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId,
-            pStable->numOfTags, pStable->numOfColumns);
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  }
+}
+
+static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
+  SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
+  if (pTable != NULL) {
+    mLPrint("app:%p:%p, stable:%s, is dropped from sdb, result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+            tstrerror(code));
   }
 
   return code;
 }
-
 static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
@@ -870,19 +891,20 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   } 
   
   SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
+    .type  = SDB_OPER_GLOBAL,
     .table = tsSuperTableSdb,
-    .pObj = pStable,
-    .pMsg = pMsg
+    .pObj  = pStable,
+    .pMsg  = pMsg,
+    .cb    = mnodeDropSuperTableCb
   };
-  
-  int32_t code = sdbDeleteRow(&oper);
-  if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->info.tableId, tstrerror(code));
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
-  }
 
-  return code;
+  int32_t code = sdbDeleteRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("app:%p:%p, table:%s, failed to drop, sdb error", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId);
+    return code;
+  } else {
+    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  }
 }
 
 static int32_t mnodeFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {
@@ -1535,10 +1557,16 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
 }
 
 static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
+  SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
+  if (pTable != NULL) {
+    mTrace("app:%p:%p, table:%s, create table in id:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle, pMsg,
+           pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
+  }
+
   if (code != TSDB_CODE_SUCCESS) return code;
-  
+
   SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
-  SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(pCreate, (SChildTableObj *)pMsg->pTable);
+  SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(pCreate, pTable);
   if (pMDCreate == NULL) {
     return terrno;
   }
@@ -1578,19 +1606,18 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     STagData *pTagData = (STagData *) pCreate->schema;  // it is a tag key
-    SSuperTableObj *pSuperTable = mnodeGetSuperTable(pTagData->name);
-    if (pSuperTable == NULL) {
+    if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(pTagData->name);
+    if (pMsg->pSTable == NULL) {
       mError("app:%p:%p, table:%s, corresponding super table:%s does not exist", pMsg->rpcMsg.ahandle, pMsg,
              pCreate->tableId, pTagData->name);
       mnodeDestroyChildTable(pTable);
       return TSDB_CODE_MND_INVALID_TABLE_NAME;
     }
-    mnodeDecTableRef(pSuperTable);
-
-    pTable->suid = pSuperTable->uid;
+    
+    pTable->suid = pMsg->pSTable->uid;
     pTable->uid  = (((uint64_t)pTable->vgId) << 40) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
                   (sdbGetVersion() & ((1ul << 16) - 1ul));
-    pTable->superTable = pSuperTable;
+    pTable->superTable = pMsg->pSTable;
   } else {
     pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
     pTable->sversion     = 0;
@@ -1639,15 +1666,13 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
   
   int32_t code = sdbInsertRow(&desc);
   if (code != TSDB_CODE_SUCCESS) {
-    free(pTable);
+    mnodeDestroyChildTable(pTable);
+    pMsg->pTable = NULL;
     mError("app:%p:%p, table:%s, update sdb error, reason:%s", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
            tstrerror(code));
-    pMsg->pTable = NULL;
-    return code;
+    return code;       
   } else {
-    mTrace("app:%p:%p, table:%s, create table in vgroup:%d, id:%d, uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
-           pTable->info.tableId, pVgroup->vgId, pTable->sid, pTable->uid);
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }
 
@@ -1683,12 +1708,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
       mTrace("app:%p:%p, table:%s, create table in vgroup, vgId:%d sid:%d", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
              pVgroup->vgId, sid);
 
-      code = mnodeDoCreateChildTable(pMsg, sid);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      } else {
-        return TSDB_CODE_MND_ACTION_IN_PROGRESS;
-      }
+      return mnodeDoCreateChildTable(pMsg, sid);
     }
   } else {
     if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pCreate->tableId);

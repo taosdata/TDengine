@@ -194,13 +194,12 @@ void *tSkipListDestroy(SSkipList *pSkipList) {
     pthread_rwlock_wrlock(pSkipList->lock);
   }
 
-  SSkipListNode *pNode = SL_GET_FORWARD_POINTER(pSkipList->pHead, 0);
+  if (pSkipList->keyInfo.freeNode) {
+    SSkipListNode *pNode = SL_GET_FORWARD_POINTER(pSkipList->pHead, 0);
 
-  while (pNode != pSkipList->pTail) {
-    SSkipListNode *pTemp = pNode;
-    pNode = SL_GET_FORWARD_POINTER(pNode, 0);
-    
-    if (pSkipList->keyInfo.freeNode) {
+    while (pNode != pSkipList->pTail) {
+      SSkipListNode *pTemp = pNode;
+      pNode = SL_GET_FORWARD_POINTER(pNode, 0);
       tfree(pTemp);
     }
   }

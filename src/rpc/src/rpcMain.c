@@ -58,7 +58,7 @@ typedef struct {
   void   (*cfp)(SRpcMsg *, SRpcIpSet *);
   int    (*afp)(char *user, char *spi, char *encrypt, char *secret, char *ckey); 
 
-  int      refCount;
+  int32_t   refCount;
   void     *idPool;   // handle to ID pool
   void     *tmrCtrl;  // handle to timer
   SHashObj *hash;     // handle returned by hash utility
@@ -151,6 +151,13 @@ void (*taosCleanUpConn[])(void *thandle) = {
     taosCleanUpUdpConnection, 
     taosCleanUpTcpServer,
     taosCleanUpTcpClient
+};
+
+void (*taosStopConn[])(void *thandle) = {
+    taosStopUdpConnection, 
+    taosStopUdpConnection, 
+    taosStopTcpServer,
+    taosStopTcpClient,
 };
 
 int (*taosSendData[])(uint32_t ip, uint16_t port, void *data, int len, void *chandle) = {
@@ -289,12 +296,18 @@ void *rpcOpen(const SRpcInit *pInit) {
 void rpcClose(void *param) {
   SRpcInfo *pRpc = (SRpcInfo *)param;
 
+  // stop connection to outside first
+  (*taosStopConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
+  (*taosStopConn[pRpc->connType])(pRpc->udphandle);
+
+  // close all connections 
   for (int i = 0; i < pRpc->sessions; ++i) {
     if (pRpc->connList && pRpc->connList[i].user[0]) {
       rpcCloseConn((void *)(pRpc->connList + i));
     }
   }
 
+  // clean up
   (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
   (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
@@ -421,6 +434,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   pConn->rspMsgLen = msgLen;
   if (pMsg->code == TSDB_CODE_RPC_ACTION_IN_PROGRESS) pConn->inTranId--;
 
+  // stop the progress timer
   taosTmrStopA(&pConn->pTimer);
 
   // set the idle timer to monitor the activity
@@ -588,6 +602,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
   pConn->inTranId = 0;
   pConn->outTranId = 0;
   pConn->secured = 0;
+  pConn->peerId = 0;
   pConn->peerIp = 0;
   pConn->peerPort = 0;
   pConn->pReqMsg = NULL;
@@ -627,6 +642,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
     pConn->spi = pRpc->spi;
     pConn->encrypt = pRpc->encrypt;
     if (pConn->spi) memcpy(pConn->secret, pRpc->secret, TSDB_KEY_LEN);
+    tTrace("%s %p client connection is allocated", pRpc->label, pConn);
   }
 
   return pConn;
@@ -681,6 +697,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
   
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
+    tTrace("%s %p server connection is allocated", pRpc->label, pConn);
   }
 
   return pConn;
@@ -948,11 +965,9 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   terrno = 0;
   pConn = rpcProcessMsgHead(pRpc, pRecv);
 
-  if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16)) {
-    tTrace("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x",
+  tTrace("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x",
         pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
         pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
-  }
 
   int32_t code = terrno;
   if (code != TSDB_CODE_RPC_ALREADY_PROCESSED) {
@@ -1007,7 +1022,11 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   if ( rpcIsReq(pHead->msgType) ) {
     rpcMsg.handle = pConn;
     rpcAddRef(pRpc);  // add the refCount for requests
+
+    // start the progress timer to monitor the response from server app
     pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pRpc->tmrCtrl);
+ 
+    // notify the server app
     (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {
     // it's a response
@@ -1180,16 +1199,14 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   msgLen = rpcAddAuthPart(pConn, msg, msgLen);
 
   if ( rpcIsReq(pHead->msgType)) {
-    if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
-             pConn->info, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
-             msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    tTrace("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
+           pConn->info, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
+           msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
     if (pHead->code == 0) pConn->secured = 1; // for success response, set link as secured
-    if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
-          pConn->info, taosMsg[pHead->msgType], pConn->peerIp, pConn->peerPort, 
-          htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    tTrace("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
+           pConn->info, taosMsg[pHead->msgType], pConn->peerIp, pConn->peerPort, 
+           htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
   //tTrace("connection type is: %d", pConn->connType);
@@ -1480,12 +1497,12 @@ static void rpcUnlockConn(SRpcConn *pConn) {
 
 static void rpcAddRef(SRpcInfo *pRpc)
 {  
-   atomic_add_fetch_8(&pRpc->refCount, 1);
+   atomic_add_fetch_32(&pRpc->refCount, 1);
 }
 
 static void rpcDecRef(SRpcInfo *pRpc)
 { 
-  if (atomic_sub_fetch_8(&pRpc->refCount, 1) == 0) {
+  if (atomic_sub_fetch_32(&pRpc->refCount, 1) == 0) {
     taosHashCleanup(pRpc->hash);
     taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);

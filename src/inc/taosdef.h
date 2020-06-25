@@ -244,8 +244,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
 
-#define TSDB_PAYLOAD_SIZE         (TSDB_DEFAULT_PKT_SIZE - 100)
-#define TSDB_DEFAULT_PAYLOAD_SIZE 2048   // default payload size
+#define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
+#define TSDB_DEFAULT_PAYLOAD_SIZE 5120   // default payload size, greater than PATH_MAX value
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MAX_VNODES           256

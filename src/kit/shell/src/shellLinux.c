@@ -86,7 +86,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         wordfree(&full_path);
         return -1;
       }
-      strcpy(configDir, full_path.we_wordv[0]);
+      tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 's':
@@ -100,7 +100,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(arguments->file, full_path.we_wordv[0]);
+      tstrncpy(arguments->file, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 'D':
@@ -108,7 +108,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(arguments->dir, full_path.we_wordv[0]);
+      tstrncpy(arguments->dir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 'T':
@@ -162,13 +162,13 @@ void shellReadCommand(TAOS *con, char *command) {
   // Read input.
   char c;
   while (1) {
-    c = getchar();
+    c = (char)getchar(); // getchar() return an 'int' value
 
     if (c < 0) {  // For UTF-8
       int count = countPrefixOnes(c);
       utf8_array[0] = c;
       for (int k = 1; k < count; k++) {
-        c = getchar();
+        c = (char)getchar();
         utf8_array[k] = c;
       }
       insertChar(&cmd, utf8_array, count);
@@ -214,10 +214,10 @@ void shellReadCommand(TAOS *con, char *command) {
           break;
       }
     } else if (c == '\033') {
-      c = getchar();
+      c = (char)getchar();
       switch (c) {
         case '[':
-          c = getchar();
+          c = (char)getchar();
           switch (c) {
             case 'A':  // Up arrow
               if (hist_counter != history.hstart) {
@@ -244,35 +244,35 @@ void shellReadCommand(TAOS *con, char *command) {
               moveCursorLeft(&cmd);
               break;
             case '1':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Home key
                 positionCursorHome(&cmd);
               }
               break;
             case '2':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Insert key
               }
               break;
             case '3':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Delete key
                 deleteChar(&cmd);
               }
               break;
             case '4':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // End key
                 positionCursorEnd(&cmd);
               }
               break;
             case '5':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Page up key
               }
               break;
             case '6':
-              if ((c = getchar()) == '~') {
+              if ((c = (char)getchar()) == '~') {
                 // Page down key
               }
               break;

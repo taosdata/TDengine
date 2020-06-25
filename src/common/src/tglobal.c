@@ -27,122 +27,35 @@
 #include "ttimezone.h"
 #include "tsync.h"
 
-char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char tsVnodeDir[TSDB_FILENAME_LEN] = {0};
-char tsDnodeDir[TSDB_FILENAME_LEN] = {0};
-char tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char tsDataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
-char tsScriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char tsOsName[10] = "Linux";
-
-// system info, not configurable
-int64_t tsPageSize;
-int64_t tsOpenMax;
-int64_t tsStreamMax;
-int32_t tsNumOfCores = 1;
-int32_t tsAlternativeRole = 0;
-float   tsTotalTmpDirGB = 0;
-float   tsTotalDataDirGB = 0;
-float   tsAvailTmpDirGB = 0;
-float   tsAvailDataDirGB = 0;
-float   tsMinimalTmpDirGB = 0.1;
-float   tsMinimalDataDirGB = 0.5;
-int32_t tsTotalMemoryMB = 0;
-int32_t tsVersion = 0;
-int32_t tsEnableCoreFile = 0;
-
-// global, not configurable
-int32_t tscEmbedded = 0;
-
-/*
- * minimum scale for whole system, millisecond by default
- * for TSDB_TIME_PRECISION_MILLI: 86400000L
- *     TSDB_TIME_PRECISION_MICRO: 86400000000L
- *     TSDB_TIME_PRECISION_NANO:  86400000000000L
- */
-int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
-
-char  tsFirst[TSDB_EP_LEN] = {0};  
-char  tsSecond[TSDB_EP_LEN] = {0};
-char  tsArbitrator[TSDB_EP_LEN] = {0};
-char  tsLocalFqdn[TSDB_FQDN_LEN] = {0};
-char  tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
+// cluster
+char     tsFirst[TSDB_EP_LEN] = {0};
+char     tsSecond[TSDB_EP_LEN] = {0};
+char     tsArbitrator[TSDB_EP_LEN] = {0};
+char     tsLocalFqdn[TSDB_FQDN_LEN] = {0};
+char     tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
 uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
-uint16_t tsDnodeDnodePort = 6035;   // udp/tcp
+uint16_t tsDnodeDnodePort = 6035;  // udp/tcp
 uint16_t tsSyncPort = 6040;
+int32_t  tsStatusInterval = 1;  // second
+int16_t  tsNumOfVnodesPerCore = 8;
+int16_t  tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
+int32_t  tsNumOfMnodes = 3;
 
-int32_t tsStatusInterval = 1;         // second
-int32_t tsShellActivityTimer = 3;     // second
-int32_t tsTableMetaKeepTimer = 7200;  // second
+// common
 int32_t tsRpcTimer = 300;
-int32_t tsRpcMaxTime = 600;      // seconds;
-
-float   tsNumOfThreadsPerCore = 1.0;
-float   tsRatioOfQueryThreads = 0.5;
-int16_t tsNumOfVnodesPerCore = 8;
-int16_t tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
-
-#ifdef _TD_ARM_32_
-int32_t tsMaxTablePerVnode = 100;
-#else
-int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
-#endif
-
-int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
-int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
-int16_t tsDaysPerFile    = TSDB_DEFAULT_DAYS_PER_FILE;
-int32_t tsDaysToKeep     = TSDB_DEFAULT_KEEP;
-int32_t tsMinRowsInFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
-int32_t tsMaxRowsInFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
-int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
-int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
-int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
-int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
-int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
-
-/**
- * Change the meaning of affected rows:
- * 0: affected rows not include those duplicate records
- * 1: affected rows include those duplicate records
- */
-int16_t tsAffectedRowsMod = 0;
-int32_t tsNumOfMnodes = 3;
+int32_t tsRpcMaxTime = 600;  // seconds;
 int32_t tsMaxShellConns = 5000;
 int32_t tsMaxConnections = 5000;
-
-int32_t tsBalanceInterval = 300;  // seconds
-int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
-int32_t tsMnodeEqualVnodeNum = 4;
-
-int32_t tsEnableHttpModule = 1;
-int32_t tsEnableMqttModule = 0;   // not finished yet, not started it by default
-int32_t tsEnableMonitorModule = 0;
-
-int32_t tsRestRowLimit = 10240;
-int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
-
-int32_t tsNumOfLogLines = 10000000;
-int32_t mDebugFlag = 135;
-int32_t sdbDebugFlag = 135;
-int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t cDebugFlag = 135;
-int32_t jniDebugFlag = 131;
-int32_t odbcDebugFlag = 131;
-int32_t httpDebugFlag = 131;
-int32_t mqttDebugFlag = 131;
-int32_t monitorDebugFlag = 131;
-int32_t qDebugFlag = 131;
-int32_t rpcDebugFlag = 135;
-int32_t uDebugFlag = 131;
-int32_t debugFlag = 131;
-int32_t sDebugFlag = 135;
-int32_t tsdbDebugFlag = 135;
-
-// the maximum number of results for projection query on super table that are returned from
-// one virtual node, to order according to timestamp
-int32_t tsMaxNumOfOrderedResults = 100000;
+int32_t tsShellActivityTimer = 3;  // second
+float   tsNumOfThreadsPerCore = 1.0;
+float   tsRatioOfQueryThreads = 0.5;
+int8_t  tsDaylight = 0;
+char    tsTimezone[64] = {0};
+char    tsLocale[TSDB_LOCALE_LEN] = {0};
+char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
+int32_t tsEnableCoreFile = 0;
+int32_t tsMaxBinaryDisplayWidth = 30;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -154,8 +67,14 @@ int32_t tsMaxNumOfOrderedResults = 100000;
  */
 int32_t tsCompressMsgSize = -1;
 
-// use UDP by default[option: udp, tcp]
-char tsSocketType[4] = "udp";
+// client
+int32_t tsTableMetaKeepTimer = 7200;  // second
+int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
+int32_t tsTscEnableRecordSql = 0;
+
+// the maximum number of results for projection query on super table that are returned from
+// one virtual node, to order according to timestamp
+int32_t tsMaxNumOfOrderedResults = 100000;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
@@ -178,30 +97,104 @@ float tsStreamComputDelayRatio = 0.1;
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
-uint16_t tsHttpPort = 6020;                 // only tcp, range tcp[6020]
-// uint16_t tsNginxPort = 6060;             //only tcp, range tcp[6060]
-int32_t tsHttpCacheSessions = 100;
-int32_t tsHttpSessionExpire = 36000;
-int32_t tsHttpMaxThreads = 2;
-int32_t tsHttpEnableCompress = 0;
-int32_t tsHttpEnableRecordSql = 0;
-int32_t tsTelegrafUseFieldNum = 0;
+// db parameters
+int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
+int16_t tsDaysPerFile    = TSDB_DEFAULT_DAYS_PER_FILE;
+int32_t tsDaysToKeep     = TSDB_DEFAULT_KEEP;
+int32_t tsMinRowsInFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
+int32_t tsMaxRowsInFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
+int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
+int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
+int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
+int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
+int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
 
-int32_t  tsTscEnableRecordSql = 0;
-uint32_t tsPublicIpInt = 0;
+#ifdef _TD_ARM_32_
+  int32_t tsMaxTablePerVnode = 100;
+#else
+  int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
+#endif
 
-char tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
-char tsInternalPass[] = "secretkey";
+// balance
+int32_t tsEnableBalance = 1;
+int32_t tsAlternativeRole = 0;
+int32_t tsBalanceInterval = 300;  // seconds
+int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
+int32_t tsMnodeEqualVnodeNum = 4;
+
+// restful
+int32_t  tsEnableHttpModule = 1;
+int32_t  tsRestRowLimit = 10240;
+uint16_t tsHttpPort = 6020;  // only tcp, range tcp[6020]
+int32_t  tsHttpCacheSessions = 100;
+int32_t  tsHttpSessionExpire = 36000;
+int32_t  tsHttpMaxThreads = 2;
+int32_t  tsHttpEnableCompress = 0;
+int32_t  tsHttpEnableRecordSql = 0;
+int32_t  tsTelegrafUseFieldNum = 0;
+
+// mqtt
+int32_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
+char    tsMqttBrokerAddress[128] = {0};
+char    tsMqttBrokerClientId[128] = {0};
+
+// monitor
+int32_t tsEnableMonitorModule = 0;
+char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
+char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
-int8_t tsDaylight = 0;
-char tsTimezone[64] = {0};
-char tsLocale[TSDB_LOCALE_LEN] = {0};
-char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
-char tsMqttBrokerAddress[128] = {0}; 
-char tsMqttBrokerClientId[128] = {0};
+// internal
+int32_t tscEmbedded = 0;
+char    configDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char    tsVnodeDir[TSDB_FILENAME_LEN] = {0};
+char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
+char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
+char    tsDataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
+char    tsScriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
 
-int32_t tsMaxBinaryDisplayWidth = 30;
+/*
+ * minimum scale for whole system, millisecond by default
+ * for TSDB_TIME_PRECISION_MILLI: 86400000L
+ *     TSDB_TIME_PRECISION_MICRO: 86400000000L
+ *     TSDB_TIME_PRECISION_NANO:  86400000000000L
+ */
+int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
+
+// system info
+char    tsOsName[10] = "Linux";
+int64_t tsPageSize;
+int64_t tsOpenMax;
+int64_t tsStreamMax;
+int32_t tsNumOfCores = 1;
+float   tsTotalTmpDirGB = 0;
+float   tsTotalDataDirGB = 0;
+float   tsAvailTmpDirGB = 0;
+float   tsAvailDataDirGB = 0;
+float   tsMinimalTmpDirGB = 0.1;
+float   tsMinimalDataDirGB = 0.5;
+int32_t tsTotalMemoryMB = 0;
+int32_t tsVersion = 0;
+
+// log
+int32_t tsNumOfLogLines = 10000000;
+int32_t mDebugFlag = 135;
+int32_t sdbDebugFlag = 135;
+int32_t dDebugFlag = 135;
+int32_t vDebugFlag = 135;
+int32_t cDebugFlag = 135;
+int32_t jniDebugFlag = 131;
+int32_t odbcDebugFlag = 131;
+int32_t httpDebugFlag = 131;
+int32_t mqttDebugFlag = 131;
+int32_t monitorDebugFlag = 131;
+int32_t qDebugFlag = 131;
+int32_t rpcDebugFlag = 135;
+int32_t uDebugFlag = 131;
+int32_t debugFlag = 131;
+int32_t sDebugFlag = 135;
+int32_t tsdbDebugFlag = 135;
 
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
@@ -426,6 +419,16 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "balance";
+  cfg.ptr = &tsEnableBalance;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "balanceInterval";
   cfg.ptr = &tsBalanceInterval;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -447,19 +450,9 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "affectedRowsMod";
-  cfg.ptr = &tsAffectedRowsMod;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   // timer
   cfg.option = "maxTmrCtrl";
-  cfg.ptr = &taosMaxTmrCtrl;
+  cfg.ptr = &tsMaxTmrCtrl;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 8;
@@ -669,16 +662,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "ctime";
-  cfg.ptr = &tsCommitTime;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_COMMIT_TIME;
-  cfg.maxValue = TSDB_MAX_COMMIT_TIME;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
-
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
   cfg.valType = TAOS_CFG_VTYPE_INT16;
@@ -729,17 +712,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
  
-  // socket type; udp by default
-  cfg.option = "sockettype";
-  cfg.ptr = tsSocketType;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = 3;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "compressMsgSize";
   cfg.ptr = &tsCompressMsgSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -873,7 +845,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  
   cfg.option = "mqtt";
   cfg.ptr = &tsEnableMqttModule;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -891,16 +862,6 @@ static void doInitGlobalConfig() {
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "monitorDbName";
-  cfg.ptr = tsMonitorDbName;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_DB_NAME_LEN - 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -952,16 +913,6 @@ static void doInitGlobalConfig() {
   cfg.minValue = 1;
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "httpEnableCompress";
-  cfg.ptr = &tsHttpEnableCompress;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -1232,9 +1183,7 @@ bool taosCheckGlobalCfg() {
     taosGetFqdn(tsLocalFqdn);
   }
 
-  strcpy(tsLocalEp, tsLocalFqdn);
-
-  snprintf(tsLocalEp + strlen(tsLocalEp), sizeof(tsLocalEp), ":%d", tsServerPort);
+  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%d", tsLocalFqdn, tsServerPort);
   uPrint("localEp is: %s", tsLocalEp);
 
   if (tsFirst[0] == 0) {

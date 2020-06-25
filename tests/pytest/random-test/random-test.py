@@ -25,6 +25,7 @@ class Test:
         self.last_tb = ""
         self.last_stb = ""
         self.written = 0
+        self.colAdded = False
 
     def create_table(self):
         tdLog.info("create_table")
@@ -39,6 +40,7 @@ class Test:
                 current_tb)
             self.last_tb = current_tb
             self.written = 0
+            self.colAdded = False
 
     def insert_data(self):
         tdLog.info("insert_data")
@@ -50,28 +52,52 @@ class Test:
         insertRows = 10
         tdLog.info("insert %d rows to %s" % (insertRows, self.last_tb))
         for i in range(0, insertRows):
-            ret = tdSql.execute(
-                'insert into %s values (now + %dm, %d, "%s")' %
-                (self.last_tb, i, i, "->" + str(i)))
+            if self.colAdded:
+                ret = tdSql.execute(
+                    'insert into %s values (now + %dm, %d, "%s", "%s")' %
+                    (self.last_tb, i, i, "->" + str(i)), "col")
+            else:
+                ret = tdSql.execute(
+                    'insert into %s values (now + %dm, %d, "%s")' %
+                    (self.last_tb, i, i, "->" + str(i)))
+
             self.written = self.written + 1
 
         tdLog.info("insert earlier data")
-        tdSql.execute(
-            'insert into %s values (now - 5m , 10, " - 5m")' %
-            self.last_tb)
-        self.written = self.written + 1
-        tdSql.execute(
-            'insert into %s values (now - 6m , 10, " - 6m")' %
-            self.last_tb)
-        self.written = self.written + 1
-        tdSql.execute(
-            'insert into %s values (now - 7m , 10, " - 7m")' %
-            self.last_tb)
-        self.written = self.written + 1
-        tdSql.execute(
-            'insert into %s values (now - 8m , 10, " - 8m")' %
-            self.last_tb)
-        self.written = self.written + 1
+        if self.colAdded:
+            tdSql.execute(
+                'insert into %s values (now - 5m , 10, " - 5m", "col")' %
+                self.last_tb)
+            self.written = self.written + 1
+            tdSql.execute(
+                'insert into %s values (now - 6m , 10, " - 6m", "col")' %
+                self.last_tb)
+            self.written = self.written + 1
+            tdSql.execute(
+                'insert into %s values (now - 7m , 10, " - 7m", "col")' %
+                self.last_tb)
+            self.written = self.written + 1
+            tdSql.execute(
+                'insert into %s values (now - 8m , 10, " - 8m", "col")' %
+                self.last_tb)
+            self.written = self.written + 1
+        else:
+            tdSql.execute(
+                'insert into %s values (now - 5m , 10, " - 5m")' %
+                self.last_tb)
+            self.written = self.written + 1
+            tdSql.execute(
+                'insert into %s values (now - 6m , 10, " - 6m")' %
+                self.last_tb)
+            self.written = self.written + 1
+            tdSql.execute(
+                'insert into %s values (now - 7m , 10, " - 7m")' %
+                self.last_tb)
+            self.written = self.written + 1
+            tdSql.execute(
+                'insert into %s values (now - 8m , 10, " - 8m")' %
+                self.last_tb)
+            self.written = self.written + 1
 
     def query_data(self):
         tdLog.info("query_data")
@@ -88,21 +114,48 @@ class Test:
             return
         else:
             tdLog.info("will create stable %s" % current_stb)
+
+            db = "db"
+            tdSql.execute("drop database if exists %s" % (db))
+            tdSql.execute("reset query cache")
+            tdSql.execute("create database %s maxrows 200 maxtables 30" % (db))
+            tdSql.execute("use %s" % (db))
+
             tdSql.execute(
                 'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))' %
                 current_stb)
             self.last_stb = current_stb
+            self.colAdded = False
 
-            current_tb = "tb%d" % int(round(time.time() * 1000))
-            sqlcmd = "create table %s using %s tags (1, 'test')" %(current_tb, self.last_stb)
-            tdSql.execute(sqlcmd)
-            self.last_tb = current_tb
-            self.written = 0
+            for k in range(1, 300):
+                current_tb = "tb%d" % int(round(time.time() * 1000))
+                sqlcmd = "create table %s using %s tags (1, 'test')" % (
+                    current_tb, self.last_stb)
+                tdSql.execute(sqlcmd)
+                self.last_tb = current_tb
+                self.written = 0
 
+                for j in range(1, 100):
+                    tdSql.execute(
+                        "insert into %s values (now + %da, 27, 'wsnchar')" %
+                        (self.last_tb, j))
+                    self.written = self.written + 1
+
+    def alter_table_to_add_col(self):
+        tdLog.info("alter_table_to_add_col")
+
+        if self.last_stb != "" and not self.colAdded:
             tdSql.execute(
-                "insert into %s values (now, 27, 'wsnchar')" %
-                self.last_tb)
-            self.written = self.written + 1
+                "alter table %s add column col binary(20)" %
+                self.last_stb)
+            self.colAdded = True
+
+    def alter_table_to_drop_col(self):
+        tdLog.info("alter_table_to_drop_col")
+
+        if self.last_stb != "" and self.colAdded:
+            tdSql.execute("alter table %s drop column col" % self.last_stb)
+            self.colAdded = False
 
     def drop_stable(self):
         tdLog.info("drop_stable")
@@ -126,16 +179,16 @@ class Test:
             tdSql.execute('select * from %s' % self.last_stb)
 
     def restart_database(self):
-        tdLog.info("restart_databae")
+        tdLog.info("restart_database")
         tdDnodes.stop(1)
         tdDnodes.start(1)
-        tdLog.sleep(5)
+        tdLog.sleep(10)
 
     def force_restart_database(self):
         tdLog.info("force_restart_database")
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
-        tdLog.sleep(5)
+        tdLog.sleep(10)
         tdSql.prepare()
         self.last_tb = ""
         self.last_stb = ""
@@ -161,7 +214,7 @@ class Test:
         self.last_tb = ""
         self.written = 0
         tdDnodes.start(1)
-        tdLog.sleep(5)
+        tdLog.sleep(10)
         tdSql.prepare()
         self.last_tb = ""
         self.last_stb = ""
@@ -209,10 +262,12 @@ class TDTestCase:
             10: test.delete_datafiles,
             11: test.query_data_from_stable,
             12: test.drop_stable,
+            13: test.alter_table_to_add_col,
+            14: test.alter_table_to_drop_col,
         }
 
         for x in range(1, 1000):
-            r = random.randint(1, 12)
+            r = random.randint(1, 14)
             tdLog.notice("iteration %d run func %d" % (x, r))
             switch.get(r, lambda: "ERROR")()
 

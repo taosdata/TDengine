@@ -92,7 +92,7 @@ void *taosThreadToOpenNewNote(void *param)
     }
 
     taosLockNote(fd, pNote);
-    lseek(fd, 0, SEEK_SET);
+    (void)lseek(fd, 0, SEEK_SET);
 
     int oldFd = pNote->taosNoteFd;
     pNote->taosNoteFd = fd;
@@ -128,10 +128,12 @@ int taosOpenNewNote(taosNoteInfo * pNote)
 
 bool taosCheckNoteIsOpen(char *noteName, taosNoteInfo * pNote)
 {
+    /*
     int exist = access(noteName, F_OK);
     if (exist != 0) {
         return false;
     }
+    */
 
     int fd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     if (fd < 0) {
@@ -206,14 +208,15 @@ int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInf
         }
     }
 
-    sprintf(name, "%s.%d", pNote->taosNoteName, pNote->taosNoteFlag);
+    char noteName[NOTE_FILE_NAME_LEN * 2] = "\0";
+    sprintf(noteName, "%s.%d", pNote->taosNoteName, pNote->taosNoteFlag);
     pthread_mutex_init(&pNote->taosNoteMutex, NULL);
 
     umask(0);
-    pNote->taosNoteFd = open(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+    pNote->taosNoteFd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
     if (pNote->taosNoteFd < 0) {
-        fprintf(stderr, "failed to open note file:%s reason:%s\n", name, strerror(errno));
+        fprintf(stderr, "failed to open note file:%s reason:%s\n", noteName, strerror(errno));
         return -1;
     }
     taosLockNote(pNote->taosNoteFd, pNote);
@@ -221,7 +224,7 @@ int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInf
     // only an estimate for number of lines
     struct stat filestat;
     if (fstat(pNote->taosNoteFd, &filestat) < 0) {
-      fprintf(stderr, "failed to fstat note file:%s reason:%s\n", name, strerror(errno));
+      fprintf(stderr, "failed to fstat note file:%s reason:%s\n", noteName, strerror(errno));
       return -1;
     }    
     size = (int)filestat.st_size;

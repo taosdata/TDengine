@@ -31,6 +31,8 @@ run unique/arbitrator/offline_replica3_dropTable_online.sim
 run unique/arbitrator/replica_changeWithArbitrator.sim
 run unique/arbitrator/sync_replica2_alterTable_add.sim
 run unique/arbitrator/sync_replica2_alterTable_drop.sim
+run unique/arbitrator/sync_replica3_createTable.sim
+run unique/arbitrator/sync_replica3_dnodeChang_DropAddAlterTableDropDb.sim
 run unique/arbitrator/sync_replica2_dropDb.sim
 run unique/arbitrator/sync_replica2_dropTable.sim
 run unique/arbitrator/sync_replica3_alterTable_add.sim

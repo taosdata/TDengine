@@ -120,10 +120,13 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   STsdbBufPool *pBufPool = pRepo->pPool;
 
   while (POOL_IS_EMPTY(pBufPool)) {
+    pRepo->repoLocked = false;
     pthread_cond_wait(&(pBufPool->poolNotEmpty), &(pRepo->mutex));
+    pRepo->repoLocked = true;
   }
 
   SListNode *    pNode = tdListPopHead(pBufPool->bufBlockList);
+  ASSERT(pNode != NULL);
   STsdbBufBlock *pBufBlock = NULL;
   tdListNodeGetData(pBufPool->bufBlockList, pNode, (void *)(&pBufBlock));
 

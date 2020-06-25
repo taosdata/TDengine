@@ -1483,6 +1483,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
   const char* msg6 = "function applied to tags not allowed";
   const char* msg7 = "normal table can not apply this function";
   const char* msg8 = "multi-columns selection does not support alias column name";
+  const char* msg9 = "invalid function";
 
   switch (optr) {
     case TK_COUNT: {
@@ -1683,7 +1684,9 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExpr
       bool requireAllFields = (pItem->pNode->pParam == NULL);
 
       int16_t functionID = 0;
-      changeFunctionID(optr, &functionID);
+      if (changeFunctionID(optr, &functionID) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(pQueryInfo->msg, msg9);
+      }
 
       if (!requireAllFields) {
         if (pItem->pNode->pParam->nExpr < 1) {
@@ -3183,10 +3186,22 @@ static bool isValidExpr(tSQLExpr* pLeft, tSQLExpr* pRight, int32_t optr) {
    *
    * However, columnA < 4+12 is valid
    */
-  if ((pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_AVG_IRATE) ||
-      (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_AVG_IRATE) ||
-      (pLeft->nSQLOptr >= TK_BOOL && pLeft->nSQLOptr <= TK_BINARY && pRight->nSQLOptr >= TK_BOOL &&
-       pRight->nSQLOptr <= TK_BINARY)) {
+  if (pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_AVG_IRATE) {
+    return false;
+  }
+
+  if (pRight == NULL) {
+    return true;
+  }
+
+  if (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_AVG_IRATE) {
+    return false;
+  }
+  
+  if (pLeft->nSQLOptr >= TK_BOOL
+    && pLeft->nSQLOptr <= TK_BINARY
+    && pRight->nSQLOptr >= TK_BOOL
+    && pRight->nSQLOptr <= TK_BINARY) {
     return false;
   }
 
@@ -3759,13 +3774,17 @@ static void doAddJoinTagsColumnsIntoTagList(SQueryInfo* pQueryInfo, SCondExpr* p
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     SColumnIndex index = {0};
 
-    getColumnIndexByName(&pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index);
+    if (getColumnIndexByName(&pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+      tscError("%p: invalid column name (left)", pQueryInfo);
+    }
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   
     index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     tscColumnListInsert(pTableMetaInfo->tagColList, &index);
   
-    getColumnIndexByName(&pCondExpr->pJoinExpr->pRight->colInfo, pQueryInfo, &index);
+    if (getColumnIndexByName(&pCondExpr->pJoinExpr->pRight->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+      tscError("%p: invalid column name (right)", pQueryInfo);
+    }
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   
     index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -4463,7 +4482,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
-    SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) (pCmd->payload + tsRpcHeadSize);
+    SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
     pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
     pUpdateMsg->tid = htonl(pTableMeta->sid);
     pUpdateMsg->uid = htobe64(pTableMeta->uid);

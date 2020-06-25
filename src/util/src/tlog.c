@@ -147,7 +147,7 @@ static void *taosThreadToOpenNewFile(void *param) {
     return NULL;
   }
   taosLockFile(fd);
-  lseek(fd, 0, SEEK_SET);
+  (void)lseek(fd, 0, SEEK_SET);
 
   int32_t oldFd = tsLogObj.logHandle->fd;
   tsLogObj.logHandle->fd = fd;
@@ -276,14 +276,15 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
     }
   }
 
-  sprintf(name, "%s.%d", tsLogObj.logName, tsLogObj.flag);
+  char fileName[LOG_FILE_NAME_LEN + 50] = "\0";
+  sprintf(fileName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
   pthread_mutex_init(&tsLogObj.logMutex, NULL);
 
   umask(0);
-  tsLogObj.logHandle->fd = open(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  tsLogObj.logHandle->fd = open(fileName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (tsLogObj.logHandle->fd < 0) {
-    printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
+    printf("\nfailed to open log file:%s, reason:%s\n", fileName, strerror(errno));
     return -1;
   }
   taosLockFile(tsLogObj.logHandle->fd);
@@ -291,7 +292,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   // only an estimate for number of lines
   struct stat filestat;
   if (fstat(tsLogObj.logHandle->fd, &filestat) < 0) {
-    printf("\nfailed to fstat log file:%s, reason:%s\n", name, strerror(errno));
+    printf("\nfailed to fstat log file:%s, reason:%s\n", fileName, strerror(errno));
     return -1;
   }
   size = (int32_t)filestat.st_size;

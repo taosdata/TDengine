@@ -311,6 +311,15 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
 }
 
+static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
+  SDbObj *pDb = pMsg->pDb;
+  if (pDb != NULL) {
+    mLPrint("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+  }
+
+  return code;
+}
+
 static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMsg) {
   int32_t code = acctCheck(pAcct, ACCT_GRANT_DB);
   if (code != 0) return code;
@@ -364,18 +373,18 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
     .table   = tsDbSdb,
     .pObj    = pDb,
     .rowSize = sizeof(SDbObj),
-    .pMsg    = pMsg
+    .pMsg    = pMsg,
+    .cb      = mnodeCreateDbCb
   };
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pDb);
+    mLPrint("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
+    return code;
   } else {
-    mLPrint("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
-
-  return code;
 }
 
 bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
@@ -910,7 +919,7 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   mTrace("db:%s, all vgroups is altered", pDb->name);
   mLPrint("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  balanceNotify();
+  balanceAsyncNotify();
 
   return TSDB_CODE_SUCCESS;
 }

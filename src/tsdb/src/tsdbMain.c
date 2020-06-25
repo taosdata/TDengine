@@ -179,7 +179,7 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
       return -1;
     }
   }
-  pRsp->affectedRows = htonl(affectedrows);
+  if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
   return 0;
 }
 
@@ -213,10 +213,10 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       SFileGroup *pFGroup =
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
-        strcpy(fname, pFGroup->files[(*index) % 3].fname);
+        fname = strdup(pFGroup->files[(*index) % 3].fname);
       } else {
         if (pFGroup->fileId * 3 + 2 < eindex) {
-          strcpy(fname, pFGroup->files[0].fname);
+          fname = strdup(pFGroup->files[0].fname);
           *index = pFGroup->fileId * 3;
         } else {
           tfree(sdup);
@@ -237,12 +237,13 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       }
 
       SFile *pFile = &pFGroup->files[(*index) % 3];
-      strcpy(fname, pFile->fname);
+      fname = strdup(pFile->fname);
     }
   }
 
   if (stat(fname, &fState) < 0) {
     tfree(sdup);
+    tfree(fname);
     return 0;
   }
 
@@ -566,7 +567,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
 
 _err:
   tfree(fname);
-  if (fd > 0) close(fd);
+  if (fd >= 0) close(fd);
   return -1;
 }
 
@@ -609,7 +610,7 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
 
 _err:
   tfree(fname);
-  if (fd > 0) close(fd);
+  if (fd >= 0) close(fd);
   return -1;
 }
 
@@ -647,7 +648,7 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
   }
 
   pRepo->config = *pCfg;
-  pRepo->appH = *pAppH;
+  if (pAppH) pRepo->appH = *pAppH;
 
   pRepo->tsdbMeta = tsdbNewMeta(pCfg);
   if (pRepo->tsdbMeta == NULL) {

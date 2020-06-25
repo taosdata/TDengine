@@ -314,22 +314,6 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       }
       break;
 
-    case TSDB_OPTION_SOCKET_TYPE:
-      cfg = taosGetConfigOption("sockettype");
-      assert(cfg != NULL);
-    
-      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-//        if (strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_UDP) != 0 && strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_TCP) != 0) {
-//          tscError("only 'tcp' or 'udp' allowed for configuring the socket type");
-//          return -1;
-//        }
-
-        tstrncpy(tsSocketType, pStr, sizeof(tsSocketType));
-        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscPrint("socket type is set:%s", tsSocketType);
-      }
-      break;
-
     default:
       // TODO return the correct error code to client in the format for taos_errstr()
       tscError("Invalid option %d", option);

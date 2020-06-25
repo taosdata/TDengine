@@ -171,11 +171,7 @@ typedef struct STableDataBlocks {
    * to avoid it to be removed from cache
    */
   STableMeta *pTableMeta;
-
-  union {
-    char *filename;
-    char *pData;
-  };
+  char       *pData;
 
   // for parameter ('?') binding
   uint32_t    numOfAllocedParams;
@@ -183,11 +179,11 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-typedef struct SDataBlockList {  // todo remove
-  uint32_t           nSize;
-  uint32_t           nAlloc;
-  STableDataBlocks **pData;
-} SDataBlockList;
+//typedef struct SDataBlockList {  // todo remove
+//  uint32_t           nSize;
+//  uint32_t           nAlloc;
+//  STableDataBlocks **pData;
+//} SDataBlockList;
 
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
@@ -238,8 +234,7 @@ typedef struct {
   void *       pTableList;   // referred table involved in sql
   int32_t      batchSize;    // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
-
-  SDataBlockList *pDataBlocks;  // submit data blocks after parsing sql
+  SArray      *pDataBlocks;  // SArray<STableDataBlocks*> submit data blocks after parsing sql
 } SSqlCmd;
 
 typedef struct SResRec {
@@ -399,7 +394,7 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
 int doAsyncParseSql(SSqlObj* pSql);
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
 
-void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
+void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql);
 void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);

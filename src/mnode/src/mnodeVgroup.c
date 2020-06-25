@@ -678,8 +678,9 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   SMnodeMsg *mnodeMsg = rpcMsg->handle;
   mnodeMsg->received++;
   if (rpcMsg->code == TSDB_CODE_SUCCESS) {
-    mnodeMsg->code = rpcMsg->code;
     mnodeMsg->successed++;
+  } else {
+    mnodeMsg->code = rpcMsg->code;
   }
 
   SVgObj *pVgroup = mnodeMsg->pVgroup;
@@ -702,7 +703,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
       code = TSDB_CODE_MND_SDB_ERROR;
     }
 
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, code);
+    dnodeSendRpcMnodeWriteRsp(mnodeMsg, mnodeMsg->code);
   }
 }
 

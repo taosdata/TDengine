@@ -114,8 +114,6 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
     SWindowResult *pResult = &pWindowResInfo->pResult[i];
     if (pResult->status.closed) {  // remove the window slot from hash table
       taosHashRemove(pWindowResInfo->hashList, (const char *)&pResult->window.skey, pWindowResInfo->type);
-      printf("remove ============>%ld, remain size:%ld\n", pResult->window.skey, pWindowResInfo->hashList->size);
-
     } else {
       break;
     }
@@ -140,7 +138,7 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
     SWindowResult *pResult = &pWindowResInfo->pResult[k];
     int32_t *p = (int32_t *)taosHashGet(pWindowResInfo->hashList, (const char *)&pResult->window.skey,
         tDataTypeDesc[pWindowResInfo->type].nSize);
-    
+    assert(p != NULL); 
     int32_t  v = (*p - num);
     assert(v >= 0 && v <= pWindowResInfo->size);
     taosHashPut(pWindowResInfo->hashList, (char *)&pResult->window.skey, tDataTypeDesc[pWindowResInfo->type].nSize,

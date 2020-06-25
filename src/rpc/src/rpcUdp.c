@@ -30,7 +30,6 @@
 #define RPC_MAX_UDP_SIZE 65480
 
 typedef struct {
-  void           *signature;
   int             index;
   int             fd;
   uint16_t        port;       // peer port
@@ -111,7 +110,6 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     pConn->processData = fp;
     pConn->index = i;
     pConn->pSet = pSet;
-    pConn->signature = pConn;
 
     int code = pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
     if (code != 0) {
@@ -132,7 +130,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   return pSet;
 }
 
-void taosCleanUpUdpConnection(void *handle) {
+void taosStopUdpConnection(void *handle) {
   SUdpConnSet *pSet = (SUdpConnSet *)handle;
   SUdpConn    *pConn;
 
@@ -140,8 +138,6 @@ void taosCleanUpUdpConnection(void *handle) {
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
-    pConn->signature = NULL;
-
     if (pConn->fd >=0) shutdown(pConn->fd, SHUT_RDWR);
     if (pConn->fd >=0) taosCloseSocket(pConn->fd);
   }
@@ -150,9 +146,24 @@ void taosCleanUpUdpConnection(void *handle) {
     pConn = pSet->udpConn + i;
     if (pConn->thread) pthread_join(pConn->thread, NULL);
     tfree(pConn->buffer);
-    tTrace("%s UDP thread is closed, inedx:%d", pConn->label, i);
+    // tTrace("%s UDP thread is closed, index:%d", pConn->label, i);
   }
 
+  tTrace("%s UDP is stopped", pSet->label);
+}
+
+void taosCleanUpUdpConnection(void *handle) {
+  SUdpConnSet *pSet = (SUdpConnSet *)handle;
+  SUdpConn    *pConn;
+
+  if (pSet == NULL) return;
+
+  for (int i = 0; i < pSet->threads; ++i) {
+    pConn = pSet->udpConn + i;
+    if (pConn->fd >=0) taosCloseSocket(pConn->fd);
+  }
+
+  tTrace("%s UDP is cleaned up", pSet->label);
   tfree(pSet);
 }
 
@@ -164,7 +175,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t 
   SUdpConn *pConn = pSet->udpConn + pSet->index;
   pConn->port = port;
 
-  tTrace("%s UDP connection is setup, ip:%x:%hu", pConn->label, ip, port);
+  tTrace("%s UDP connection is setup, ip:%x:%hu localPort:%hu", pConn->label, ip, port, pConn->localPort);
 
   return pConn;
 }
@@ -185,7 +196,7 @@ static void *taosRecvUdpData(void *param) {
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
     if(dataLen <= 0) {
-      tTrace("%s UDP socket was closed, exiting", pConn->label);
+      tTrace("%s UDP socket was closed, exiting(%s)", pConn->label, strerror(errno));
       break;
     }
 
@@ -221,7 +232,7 @@ static void *taosRecvUdpData(void *param) {
 int taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *chandle) {
   SUdpConn *pConn = (SUdpConn *)chandle;
 
-  if (pConn == NULL || pConn->signature != pConn) return -1;
+  if (pConn == NULL) return -1;
 
   struct sockaddr_in destAdd;
   memset(&destAdd, 0, sizeof(destAdd));
