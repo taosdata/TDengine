@@ -819,7 +819,8 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
     tTrace("%s, authentication shall be restarted", pConn->info);
     pConn->secured = 0;
     rpcSendMsgToPeer(pConn, pConn->pReqMsg, pConn->reqMsgLen);      
-    pConn->pTimer = taosTmrStart(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl);
+    if (pConn->connType != RPC_CONN_TCPC)
+      pConn->pTimer = taosTmrStart(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl);
     return TSDB_CODE_RPC_ALREADY_PROCESSED;
   }
 
@@ -828,7 +829,8 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
       tTrace("%s, peer is still processing the transaction, retry:%d", pConn->info, pConn->tretry);
       pConn->tretry++;
       rpcSendReqHead(pConn);
-      pConn->pTimer = taosTmrStart(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl);
+      if (pConn->connType != RPC_CONN_TCPC)
+        pConn->pTimer = taosTmrStart(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl);
       return TSDB_CODE_RPC_ALREADY_PROCESSED;
     } else {
       // peer still in processing, give up
@@ -896,8 +898,12 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
       terrno = rpcProcessReqHead(pConn, pHead);
       pConn->connType = pRecv->connType;
 
-      // client shall send the request within tsRpcTime again, double it 
-      taosTmrReset(rpcProcessIdleTimer, tsRpcTimer*2, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
+      // stop idle timer
+      taosTmrStopA(&pConn->pIdleTimer);  
+
+      // client shall send the request within tsRpcTime again for UDP, double it 
+      if (pConn->connType != RPC_CONN_TCPS)
+        pConn->pIdleTimer = taosTmrStart(rpcProcessIdleTimer, tsRpcTimer*2, pConn, pRpc->tmrCtrl);
     } else {
       terrno = rpcProcessRspHead(pConn, pHead);
     }
@@ -1024,7 +1030,8 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     rpcAddRef(pRpc);  // add the refCount for requests
 
     // start the progress timer to monitor the response from server app
-    pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pRpc->tmrCtrl);
+    if (pConn->connType != RPC_CONN_TCPS) 
+      pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pRpc->tmrCtrl);
  
     // notify the server app
     (*(pRpc->cfp))(&rpcMsg, NULL);
@@ -1187,7 +1194,8 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pConn->pContext = pContext;
 
   rpcSendMsgToPeer(pConn, msg, msgLen);
-  taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
+  if (pConn->connType != RPC_CONN_TCPC)
+    taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
 
   rpcUnlockConn(pConn);
 }
