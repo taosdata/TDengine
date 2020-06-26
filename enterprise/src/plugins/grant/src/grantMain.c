@@ -85,6 +85,8 @@ int32_t grantInit() {
 }
 
 void grantCleanUp() {
+ taosTmrStopA(&grantCheckTimer); 
+ taosTmrStopA(&grantSendTimer); 
 }
 
 void grantParseParameter() {

@@ -85,27 +85,50 @@ static void syncModuleInitFunc() {
   info.processBrokenLink = syncProcessBrokenLink;
   info.processIncomingMsg = syncProcessPeerMsg;
   info.processIncomingConn = syncProcessIncommingConnection;
+
   tsTcpPool = taosOpenTcpThreadPool(&info);
+  if (tsTcpPool == NULL) return;
 
   syncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
+  if (syncTmrCtrl == NULL) {
+    taosCloseTcpThreadPool(tsTcpPool);
+    tsTcpPool = NULL;
+    return;
+  }
+    
   vgIdHash = taosHashInit(TSDB_MAX_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true); 
+  if (vgIdHash == NULL) {
+    taosTmrCleanUp(syncTmrCtrl);
+    taosCloseTcpThreadPool(tsTcpPool);
+    tsTcpPool = NULL;
+    syncTmrCtrl = NULL;
+    return;
+  } 
 
   tstrncpy(tsNodeFqdn, tsLocalFqdn, sizeof(tsNodeFqdn));
 }
 
 void *syncStart(const SSyncInfo *pInfo) 
 {
-  pthread_once(&syncModuleInit, syncModuleInitFunc); 
-
-  if (tsTcpPool == NULL) {
-    sError("failed to init TCP thread pool(%s)", strerror(errno));
-    return NULL;
-  }
-    
-  SSyncNode *pNode = (SSyncNode *) calloc(sizeof(SSyncNode), 1);
   const SSyncCfg *pCfg = &pInfo->syncCfg;
 
+  SSyncNode *pNode = (SSyncNode *) calloc(sizeof(SSyncNode), 1);
+  if (pNode == NULL) {
+    sError("no memory to allocate syncNode");
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return NULL;
+  }
+
+  pthread_once(&syncModuleInit, syncModuleInitFunc); 
+  if (tsTcpPool == NULL) {
+    free(pNode);
+    sError("failed to init sync module(%s)", tstrerror(errno));
+    return NULL;
+  }
+
+  atomic_add_fetch_32(&tsNodeNum, 1);
   tstrncpy(pNode->path, pInfo->path, sizeof(pNode->path));
+  pthread_mutex_init(&pNode->mutex, NULL);
 
   pNode->ahandle = pInfo->ahandle;
   pNode->getFileInfo = pInfo->getFileInfo;
@@ -129,7 +152,7 @@ void *syncStart(const SSyncInfo *pInfo)
   if (pNode->selfIndex < 0) {
     sPrint("vgId:%d, this node is not configured", pNode->vgId);
     terrno = TSDB_CODE_SYN_INVALID_CONFIG;
-    free (pNode);
+    syncStop(pNode);
     return NULL;
   }
 
@@ -138,15 +161,24 @@ void *syncStart(const SSyncInfo *pInfo)
   sPrint("vgId:%d, %d replicas are configured, quorum:%d role:%s", pNode->vgId, pNode->replica, pNode->quorum, syncRole[nodeRole]);
 
   pNode->pSyncFwds = calloc(sizeof(SSyncFwds) + tsMaxFwdInfo*sizeof(SFwdInfo), 1);
+  if (pNode->pSyncFwds == NULL) {
+    sError("vgId:%d, no memory to allocate syncFwds", pNode->vgId);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    syncStop(pNode);
+    return NULL;
+  }
+
   pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, pNode, syncTmrCtrl);
+  if (pNode->pFwdTimer == NULL) {
+    sError("vgId:%d, failed to allocate timer", pNode->vgId);
+    syncStop(pNode);
+    return NULL;
+  }
 
   syncAddArbitrator(pNode);
-  pthread_mutex_init(&pNode->mutex, NULL);
-
-  atomic_add_fetch_32(&tsNodeNum, 1);
   syncAddNodeRef(pNode);
   taosHashPut(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t), (char *)(&pNode), sizeof(SSyncNode *));
-
+ 
   if (pNode->notifyRole) 
    (*pNode->notifyRole)(pNode->ahandle, nodeRole);
 
@@ -171,8 +203,8 @@ void syncStop(void *param)
   pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
   if (pPeer) syncRemovePeer(pPeer);
 
-  taosHashRemove(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
-  taosTmrStop(pNode->pFwdTimer);
+  if (vgIdHash) taosHashRemove(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
+  if (pNode->pFwdTimer) taosTmrStop(pNode->pFwdTimer);
 
   pthread_mutex_unlock(&(pNode->mutex));
 
@@ -390,16 +422,18 @@ static void syncDecNodeRef(SSyncNode *pNode)
   if (atomic_sub_fetch_8(&pNode->refCount, 1) == 0) {
     pthread_mutex_destroy(&pNode->mutex);
     tfree(pNode->pRecv);
-    free(pNode->pSyncFwds);
-    free(pNode);
+    tfree(pNode->pSyncFwds);
+    tfree(pNode);
 
     if (atomic_sub_fetch_32(&tsNodeNum, 1) == 0) { 
-      sTrace("all sync resources are freed");
-      taosTmrCleanUp(syncTmrCtrl);
-      taosCloseTcpThreadPool(tsTcpPool);
-      taosHashCleanup(vgIdHash);
+      if (syncTmrCtrl) taosTmrCleanUp(syncTmrCtrl);
+      if (tsTcpPool) taosCloseTcpThreadPool(tsTcpPool);
+      if (vgIdHash) taosHashCleanup(vgIdHash);
+      syncTmrCtrl = NULL;
+      tsTcpPool = NULL;
       vgIdHash = NULL;
       syncModuleInit = PTHREAD_ONCE_INIT;
+      sTrace("all sync resources are freed");
     }
   }
 }

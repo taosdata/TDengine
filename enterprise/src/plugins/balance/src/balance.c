@@ -303,6 +303,10 @@ static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pD
 
 static bool balanceMonitorBalance() {
   if (tsBalanceDnodeListSize < 2) return false;
+  if (tsEnableBalance == 0) {
+    mTrace("balance not enabled");
+    return false;
+  }
 
   for (int32_t src = tsBalanceDnodeListSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = tsBalanceDnodeList[src];
@@ -569,7 +573,7 @@ static void balanceStartTimer(int64_t mseconds) {
   taosTmrReset(balanceProcessBalanceTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBalanceTimer);
 }
 
-void balanceUpdateMnode() {
+void balanceSyncNotify() {
   if (sdbIsMaster()) {
     balanceLock();
     balanceAccquireDnodeList();
@@ -579,7 +583,7 @@ void balanceUpdateMnode() {
   }
 }
 
-void balanceNotify() {
+void balanceAsyncNotify() {
   balanceStartTimer(500); 
 }
 
