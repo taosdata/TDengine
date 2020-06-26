@@ -433,7 +433,7 @@ static void syncDecNodeRef(SSyncNode *pNode)
       tsTcpPool = NULL;
       vgIdHash = NULL;
       syncModuleInit = PTHREAD_ONCE_INIT;
-      sTrace("all sync resources are freed");
+      sTrace("sync module is cleaned up");
     }
   }
 }
