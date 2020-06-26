@@ -553,10 +553,20 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-void tsdbRefTable(STable *pTable) { T_REF_INC(pTable); }
+void tsdbRefTable(STable *pTable) {
+  int16_t ref = T_REF_INC(pTable);
+  tsdbTrace("ref table %"PRIu64", tid:%d, refCount:%d", pTable->tableId.uid, pTable->tableId.tid, ref);
+}
 
 void tsdbUnRefTable(STable *pTable) {
-  if (T_REF_DEC(pTable) == 0) {
+  int16_t ref = T_REF_DEC(pTable);
+  tsdbTrace("unref table uid:%"PRIu64", tid:%d, refCount:%d", pTable->tableId.uid, pTable->tableId.tid, ref);
+
+  if (ref == 0) {
+    char name[TSDB_TABLE_NAME_LEN] = {0};
+    tstrncpy(name, pTable->name->data, sizeof(name));
+    tsdbTrace("destory table name:%s uid:%"PRIu64", tid:%d", name, pTable->tableId.uid, pTable->tableId.tid);
+
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
       tsdbUnRefTable(pTable->pSuper);
     }
