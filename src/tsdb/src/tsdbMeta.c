@@ -555,17 +555,17 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
 
 void tsdbRefTable(STable *pTable) {
   int16_t ref = T_REF_INC(pTable);
-  tsdbTrace("ref table %"PRIu64", tid:%d, refCount:%d", pTable->tableId.uid, pTable->tableId.tid, ref);
+  tsdbTrace("ref table %"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 }
 
 void tsdbUnRefTable(STable *pTable) {
   int16_t ref = T_REF_DEC(pTable);
-  tsdbTrace("unref table uid:%"PRIu64", tid:%d, refCount:%d", pTable->tableId.uid, pTable->tableId.tid, ref);
+  tsdbTrace("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 
   if (ref == 0) {
-    char name[TSDB_TABLE_NAME_LEN] = {0};
-    tstrncpy(name, pTable->name->data, sizeof(name));
-    tsdbTrace("destory table name:%s uid:%"PRIu64", tid:%d", name, pTable->tableId.uid, pTable->tableId.tid);
+    // char name[TSDB_TABLE_NAME_LEN] = {0};
+    // tstrncpy(name, pTable->name->data, sizeof(name));
+    tsdbTrace("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
 
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
       tsdbUnRefTable(pTable->pSuper);
