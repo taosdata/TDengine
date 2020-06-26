@@ -553,10 +553,18 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-void tsdbRefTable(STable *pTable) { T_REF_INC(pTable); }
+void tsdbRefTable(STable *pTable) {
+  int16_t ref = T_REF_INC(pTable);
+  tsdbTrace("ref table:%s, uid:%"PRIu64", tid:%d, ref:%d", TABLE_CHAR_NAME(pTable), pTable->tableId.uid, pTable->tableId.tid, ref);
+}
 
 void tsdbUnRefTable(STable *pTable) {
-  if (T_REF_DEC(pTable) == 0) {
+  int16_t ref = T_REF_DEC(pTable);
+  tsdbTrace("unref table:%s, uid:%"PRIu64", tid:%d, ref:%d", TABLE_CHAR_NAME(pTable), pTable->tableId.uid, pTable->tableId.tid, ref);
+
+  if (ref == 0) {
+    tsdbTrace("destroy table:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), pTable->tableId.uid, pTable->tableId.tid);
+
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
       tsdbUnRefTable(pTable->pSuper);
     }
