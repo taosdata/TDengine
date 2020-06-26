@@ -34,7 +34,6 @@ typedef struct SPoolObj {
   pthread_t    thread;
   int          nextId;
   int          acceptFd;  // FD for accept new connection
-  int32_t      refCount;
 } SPoolObj;
 
 typedef struct {
@@ -92,7 +91,7 @@ void *taosOpenTcpThreadPool(SPoolInfo *pInfo)
 
 void taosCloseTcpThreadPool(void *param)
 {
-  SPoolObj *pPool = (SPoolObj *)param;
+  SPoolObj    *pPool = (SPoolObj *)param;
   SThreadObj  *pThread;
 
   shutdown(pPool->acceptFd, SHUT_RD);  
@@ -157,9 +156,9 @@ void taosFreeTcpConn(void *param)
 }
 
 static void taosProcessBrokenLink(SConnObj *pConn) {
-  SThreadObj   *pThread = pConn->pThread;
-  SPoolObj  *pPool = pThread->pPool;
-  SPoolInfo    *pInfo = &pPool->info;
+  SThreadObj *pThread = pConn->pThread;
+  SPoolObj   *pPool = pThread->pPool;
+  SPoolInfo  *pInfo = &pPool->info;
   
   if (pConn->closedByApp == 0) shutdown(pConn->fd, SHUT_WR);
   (*pInfo->processBrokenLink)(pConn->ahandle);
@@ -174,10 +173,10 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
 #define maxEvents 10
 
 static void *taosProcessTcpData(void *param) {
-  SThreadObj        *pThread = (SThreadObj *) param;
+  SThreadObj     *pThread = (SThreadObj *) param;
   SPoolObj       *pPool = pThread->pPool;
-  SPoolInfo         *pInfo = &pPool->info;
-  SConnObj          *pConn = NULL;
+  SPoolInfo      *pInfo = &pPool->info;
+  SConnObj       *pConn = NULL;
   struct epoll_event events[maxEvents];
 
   void *buffer = malloc(pInfo->bufferSize);
@@ -233,7 +232,7 @@ static void *taosProcessTcpData(void *param) {
 
 static void *taosAcceptPeerTcpConnection(void *argv) {
   SPoolObj   *pPool = (SPoolObj *)argv;
-  SPoolInfo     *pInfo = &pPool->info;
+  SPoolInfo  *pInfo = &pPool->info;
 
   taosBlockSIGPIPE();
 
