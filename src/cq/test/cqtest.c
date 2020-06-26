@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
   tdFreeSchema(pSchema);
 
   while (1) {
-    char c = getchar();
+    char c = (char)getchar();
     
     switch(c) {
       case 's':

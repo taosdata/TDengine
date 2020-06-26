@@ -936,8 +936,10 @@ static SJoinSupporter* tscUpdateSubqueryStatus(SSqlObj* pSql, int32_t numOfFetch
     }
   }
   
-  pState->numOfTotal = pSql->numOfSubs;
-  pState->numOfRemain = numOfFetch;
+  if (pState != NULL) {
+    pState->numOfTotal = pSql->numOfSubs;
+    pState->numOfRemain = numOfFetch;
+  }
   
   return pSupporter;
 }

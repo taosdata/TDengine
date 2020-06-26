@@ -5901,7 +5901,7 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
 
   if ((code = convertQueryMsg(pQueryMsg, &pTableIdList, &pExprMsg, &tagCond, &tbnameCond, &pGroupColIndex, &pTagColumnInfo)) !=
          TSDB_CODE_SUCCESS) {
-    return code;
+    goto _over;
   }
 
   if (pQueryMsg->numOfTables <= 0) {

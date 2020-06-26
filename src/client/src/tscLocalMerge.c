@@ -315,7 +315,10 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   pReducer->finalRowSize = tscGetResRowLength(pQueryInfo->exprList);
   pReducer->resColModel = finalmodel;
-  pReducer->resColModel->capacity = pReducer->nResultBufSize / pReducer->finalRowSize;
+  pReducer->resColModel->capacity = pReducer->nResultBufSize;
+  if (pReducer->finalRowSize > 0) {
+    pReducer->resColModel->capacity /= pReducer->finalRowSize;
+  }
   assert(pReducer->finalRowSize <= pReducer->rowSize);
 
   pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
