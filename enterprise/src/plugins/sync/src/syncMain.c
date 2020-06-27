@@ -426,14 +426,14 @@ static void syncDecNodeRef(SSyncNode *pNode)
     tfree(pNode);
 
     if (atomic_sub_fetch_32(&tsNodeNum, 1) == 0) { 
-      if (syncTmrCtrl) taosTmrCleanUp(syncTmrCtrl);
       if (tsTcpPool) taosCloseTcpThreadPool(tsTcpPool);
+      if (syncTmrCtrl) taosTmrCleanUp(syncTmrCtrl);
       if (vgIdHash) taosHashCleanup(vgIdHash);
       syncTmrCtrl = NULL;
       tsTcpPool = NULL;
       vgIdHash = NULL;
       syncModuleInit = PTHREAD_ONCE_INIT;
-      sTrace("all sync resources are freed");
+      sTrace("sync module is cleaned up");
     }
   }
 }
@@ -459,6 +459,8 @@ int syncDecPeerRef(SSyncPeer *pPeer)
 
 static void syncClosePeerConn(SSyncPeer *pPeer) 
 {
+  taosTmrStopA(&pPeer->timer);
+  tclose(pPeer->syncFd);
   if (pPeer->peerFd >=0) {
     pPeer->peerFd = -1;
     taosFreeTcpConn(pPeer->pConn);
@@ -470,10 +472,7 @@ static void syncRemovePeer(SSyncPeer *pPeer)
   sPrint("%s, it is removed", pPeer->id);
 
   pPeer->ip = 0;
-  taosTmrStopA(&pPeer->timer);
   syncClosePeerConn(pPeer);
-  tclose(pPeer->syncFd);
-
   syncDecPeerRef(pPeer);
 }
 
@@ -695,8 +694,6 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
   sTrace("%s, restart connection", pPeer->id);
 
   syncClosePeerConn(pPeer);
-  tclose(pPeer->syncFd);
-  taosTmrStopA(&pPeer->timer);
 
   pPeer->sstatus = TAOS_SYNC_STATUS_INIT;
 
@@ -1090,6 +1087,7 @@ static void syncProcessBrokenLink(void *param) {
   SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
+  syncAddNodeRef(pNode);
   pthread_mutex_lock(&(pNode->mutex));
 
   sTrace("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
@@ -1100,6 +1098,7 @@ static void syncProcessBrokenLink(void *param) {
   }
 
   pthread_mutex_unlock(&(pNode->mutex));
+  syncDecNodeRef(pNode);
 }
 
 static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) 
