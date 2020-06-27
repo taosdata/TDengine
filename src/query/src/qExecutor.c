@@ -5858,11 +5858,13 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
       int32_t s = lseek(fd, 0, SEEK_END);
       UNUSED(s);
       qTrace("QInfo:%p ts comp data return, file:%s, size:%d", pQInfo, pQuery->sdata[0]->data, s);
-      s = lseek(fd, 0, SEEK_SET);
-      if (s >= 0) {
+      if (lseek(fd, 0, SEEK_SET) >= 0) {
         size_t sz = read(fd, data, s);
         UNUSED(sz);
+      } else {
+        // todo handle error
       }
+
       close(fd);
       unlink(pQuery->sdata[0]->data);
     } else {
