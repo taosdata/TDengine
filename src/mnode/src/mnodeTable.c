@@ -854,13 +854,15 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
 static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
-  if (pTable != NULL) {
-    mLPrint("app:%p:%p, stable:%s, is dropped from sdb, result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
-            tstrerror(code));
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("app:%p:%p, table:%s, failed to drop, sdb error", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId);
+  } else {
+    mLPrint("app:%p:%p, stable:%s, is dropped from sdb", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId);
   }
 
   return code;
 }
+
 static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
@@ -899,12 +901,10 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    mError("app:%p:%p, table:%s, failed to drop, sdb error", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId);
-    return code;
-  } else {
+  if (code == TSDB_CODE_SUCCESS) {
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+  return code;
 }
 
 static int32_t mnodeFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {
