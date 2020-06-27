@@ -884,7 +884,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, *(int64_t*) elem.tag, elem.ts);
+    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, elem.tag, elem.ts);
   }
   
   pTSBuf->cur.order = old;
