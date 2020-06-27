@@ -20,6 +20,7 @@
 #include "tconfig.h"
 #include "tutil.h"
 
+// TODO refactor to set the tz value through parameter
 void tsSetTimeZone() {
   SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
   uPrint("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);

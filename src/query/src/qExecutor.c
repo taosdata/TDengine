@@ -822,7 +822,7 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
 }
 
 /**
- *
+ * todo set the last value for pQueryTableInfo as in rowwiseapplyfunctions
  * @param pRuntimeEnv
  * @param forwardStep
  * @param tsCols
@@ -1064,16 +1064,18 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
   STableQueryInfo* item = pQuery->current;
-  
-  TSKEY  *tsCols = (TSKEY*) ((SColumnInfoData *)taosArrayGet(pDataBlock, 0))->pData;
-  bool    groupbyStateValue = isGroupbyNormalCol(pQuery->pGroupbyExpr);
+
+  SColumnInfoData* pColumnInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock, 0);
+
+  TSKEY  *tsCols = (pColumnInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (TSKEY*) pColumnInfoData->pData:NULL;
+  bool    groupbyColumnValue = isGroupbyNormalCol(pQuery->pGroupbyExpr);
   SArithmeticSupport *sasArray = calloc((size_t)pQuery->numOfOutput, sizeof(SArithmeticSupport));
 
   int16_t type = 0;
   int16_t bytes = 0;
 
   char *groupbyColumnData = NULL;
-  if (groupbyStateValue) {
+  if (groupbyColumnValue) {
     groupbyColumnData = getGroupbyColumnData(pQuery, &type, &bytes, pDataBlock);
   }
 
@@ -1161,7 +1163,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       pWindowResInfo->curIndex = index;
     } else {  // other queries
       // decide which group this rows belongs to according to current state value
-      if (groupbyStateValue) {
+      if (groupbyColumnValue) {
         char *val = groupbyColumnData + bytes * offset;
 
         int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, val, type, bytes);
@@ -1186,9 +1188,14 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       }
     }
   }
-  
-  item->lastKey = tsCols[offset] + step;
-  
+
+  assert(offset >= 0);
+  if (tsCols != NULL) {
+    item->lastKey = tsCols[offset] + step;
+  } else {
+    item->lastKey = (QUERY_IS_ASC_QUERY(pQuery)? pDataBlockInfo->window.ekey:pDataBlockInfo->window.skey) + step;
+  }
+
   // todo refactor: extract method
   for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     if (pQuery->pSelectExpr[i].base.functionId != TSDB_FUNC_ARITHM) {
