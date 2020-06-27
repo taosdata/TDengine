@@ -500,7 +500,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
 
     char *pBuf = tdDecodeKVRecord(tbuf, &rInfo);
     ASSERT(POINTER_DISTANCE(pBuf, tbuf) == sizeof(SKVRecord));
-    ASSERT(pStore->info.size == rInfo.offset);
+    ASSERT((rInfo.offset > 0) ? (pStore->info.size == rInfo.offset) : true);
 
     if (rInfo.offset < 0) {
       taosHashRemove(pStore->map, (void *)(&rInfo.uid), sizeof(rInfo.uid));
