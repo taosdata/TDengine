@@ -331,6 +331,7 @@ void rpcFreeCont(void *cont) {
   if ( cont ) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
     free(temp);
+    // tTrace("free mem: %p", temp);
   }
 }
 
@@ -540,6 +541,7 @@ static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
     free(temp);
+    // tTrace("free mem: %p", temp);
   }
 }
 
