@@ -968,6 +968,17 @@ static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
   return mnodeAlterDb(pMsg->pDb, pAlter, pMsg);
 }
 
+static int32_t mnodeDropDbCb(SMnodeMsg *pMsg, int32_t code) {
+  SDbObj *pDb = pMsg->pDb;
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("db:%s, failed to drop from sdb, reason:%s", pDb->name, tstrerror(code));
+  } else {
+    mLPrint("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+  }
+
+  return code;
+}
+
 static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
   
@@ -978,12 +989,12 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
     .type  = SDB_OPER_GLOBAL,
     .table = tsDbSdb,
     .pObj  = pDb,
-    .pMsg  = pMsg
+    .pMsg  = pMsg,
+    .cb    = mnodeDropDbCb
   };
 
   int32_t code = sdbDeleteRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
     code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
