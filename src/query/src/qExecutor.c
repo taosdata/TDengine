@@ -767,6 +767,9 @@ static void* getDataBlockImpl(SArray* pDataBlock, int32_t colId) {
 
 static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas, int32_t col, int32_t size,
                     SArray *pDataBlock) {
+  if (pDataBlock == NULL) {
+    return NULL;
+  }
   char *dataBlock = NULL;
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
@@ -819,7 +822,7 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
 }
 
 /**
- *
+ * todo set the last value for pQueryTableInfo as in rowwiseapplyfunctions
  * @param pRuntimeEnv
  * @param forwardStep
  * @param tsCols
@@ -854,6 +857,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
 
     STimeWindow win = getActiveTimeWindow(pWindowResInfo, ts, pQuery);
     if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo->tid, &win) != TSDB_CODE_SUCCESS) {
+      tfree(sasArray);
       return;
     }
 
@@ -1060,16 +1064,18 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
   STableQueryInfo* item = pQuery->current;
-  
-  TSKEY  *tsCols = (TSKEY*) ((SColumnInfoData *)taosArrayGet(pDataBlock, 0))->pData;
-  bool    groupbyStateValue = isGroupbyNormalCol(pQuery->pGroupbyExpr);
+
+  SColumnInfoData* pColumnInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock, 0);
+
+  TSKEY  *tsCols = (pColumnInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (TSKEY*) pColumnInfoData->pData:NULL;
+  bool    groupbyColumnValue = isGroupbyNormalCol(pQuery->pGroupbyExpr);
   SArithmeticSupport *sasArray = calloc((size_t)pQuery->numOfOutput, sizeof(SArithmeticSupport));
 
   int16_t type = 0;
   int16_t bytes = 0;
 
   char *groupbyColumnData = NULL;
-  if (groupbyStateValue) {
+  if (groupbyColumnValue) {
     groupbyColumnData = getGroupbyColumnData(pQuery, &type, &bytes, pDataBlock);
   }
 
@@ -1157,7 +1163,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       pWindowResInfo->curIndex = index;
     } else {  // other queries
       // decide which group this rows belongs to according to current state value
-      if (groupbyStateValue) {
+      if (groupbyColumnValue) {
         char *val = groupbyColumnData + bytes * offset;
 
         int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, val, type, bytes);
@@ -1182,9 +1188,14 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       }
     }
   }
-  
-  item->lastKey = tsCols[offset] + step;
-  
+
+  assert(offset >= 0);
+  if (tsCols != NULL) {
+    item->lastKey = tsCols[offset] + step;
+  } else {
+    item->lastKey = (QUERY_IS_ASC_QUERY(pQuery)? pDataBlockInfo->window.ekey:pDataBlockInfo->window.skey) + step;
+  }
+
   // todo refactor: extract method
   for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     if (pQuery->pSelectExpr[i].base.functionId != TSDB_FUNC_ARITHM) {
@@ -1349,10 +1360,13 @@ static void setCtxTagColumnInfo(SQuery *pQuery, SQLFunctionCtx *pCtx) {
         // the column may be the normal column, group by normal_column, the functionId is TSDB_FUNC_PRJ
       }
     }
-
-    p->tagInfo.pTagCtxList = pTagCtx;
-    p->tagInfo.numOfTagCols = num;
-    p->tagInfo.tagsLen = tagLen;
+    if (p != NULL) {
+      p->tagInfo.pTagCtxList = pTagCtx;
+      p->tagInfo.numOfTagCols = num;
+      p->tagInfo.tagsLen = tagLen;
+    } else {
+      tfree(pTagCtx); 
+    }
   }
 }
 
@@ -3497,7 +3511,7 @@ static int32_t doCopyToSData(SQInfo *pQInfo, SWindowResult *result, int32_t orde
       continue;
     }
 
-    assert(result[i].numOfRows >= 0 && pQInfo->offset <= 1);
+    assert(pQInfo->offset <= 1);
 
     int32_t numOfRowsToCopy = result[i].numOfRows - pQInfo->offset;
     int32_t oldOffset = pQInfo->offset;
@@ -5295,9 +5309,9 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
       bytes = s.bytes;
     } else{
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
-      assert(j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags || j == TSDB_TBNAME_COLUMN_INDEX);
+      assert(j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags);
 
-      if (pExprs[i].base.colInfo.colId != TSDB_TBNAME_COLUMN_INDEX) {
+      if (pExprs[i].base.colInfo.colId != TSDB_TBNAME_COLUMN_INDEX && j >= 0) {
         SColumnInfo* pCol = (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag))? &pTagCols[j]:&pQueryMsg->colList[j];
         type = pCol->type;
         bytes = pCol->bytes;
@@ -5339,8 +5353,6 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
       assert(ret == TSDB_CODE_SUCCESS);
     }
   }
-
-  tfree(pExprMsg);
   *pExprInfo = pExprs;
 
   return TSDB_CODE_SUCCESS;
@@ -5591,11 +5603,14 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   pQInfo->signature = pQInfo;
 
   pQInfo->tableGroupInfo = *pTableGroupInfo;
-  size_t numOfGroups = taosArrayGetSize(pTableGroupInfo->pGroupList);
+  size_t numOfGroups = 0;
+  if (pTableGroupInfo->pGroupList != NULL) {
+    numOfGroups = taosArrayGetSize(pTableGroupInfo->pGroupList);
 
-  pQInfo->tableqinfoGroupInfo.pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
-  pQInfo->tableqinfoGroupInfo.numOfTables = pTableGroupInfo->numOfTables;
-  
+    pQInfo->tableqinfoGroupInfo.pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
+    pQInfo->tableqinfoGroupInfo.numOfTables = pTableGroupInfo->numOfTables;
+  } 
+
   int tableIndex = 0;
   STimeWindow window = pQueryMsg->window;
   taosArraySort(pTableIdList, compareTableIdInfo);
@@ -5693,7 +5708,8 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
     pTSBuf = tsBufCreateFromCompBlocks(tsBlock, pQueryMsg->tsNumOfBlocks, pQueryMsg->tsLen, pQueryMsg->tsOrder);
 
     tsBufResetPos(pTSBuf);
-    tsBufNextPos(pTSBuf);
+    bool ret = tsBufNextPos(pTSBuf);
+    UNUSED(ret);
   }
 
   // only the successful complete requries the sem_post/over = 1 operations.
@@ -5839,18 +5855,23 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 
     // make sure file exist
     if (FD_VALID(fd)) {
-      size_t s = lseek(fd, 0, SEEK_END);
-      qTrace("QInfo:%p ts comp data return, file:%s, size:%zu", pQInfo, pQuery->sdata[0]->data, s);
-
-      lseek(fd, 0, SEEK_SET);
-      read(fd, data, s);
+      int32_t s = lseek(fd, 0, SEEK_END);
+      UNUSED(s);
+      qTrace("QInfo:%p ts comp data return, file:%s, size:%d", pQInfo, pQuery->sdata[0]->data, s);
+      s = lseek(fd, 0, SEEK_SET);
+      if (s >= 0) {
+        size_t sz = read(fd, data, s);
+        UNUSED(sz);
+      }
       close(fd);
-
       unlink(pQuery->sdata[0]->data);
     } else {
-      // todo return the error code to client
+      // todo return the error code to client and handle invalid fd
       qError("QInfo:%p failed to open tmp file to send ts-comp data to client, path:%s, reason:%s", pQInfo,
              pQuery->sdata[0]->data, strerror(errno));
+      if (fd != -1) {
+        close(fd); 
+      }
     }
 
     // all data returned, set query over
@@ -5903,7 +5924,6 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
   }
 
   if ((code = createQFunctionExprFromMsg(pQueryMsg, &pExprs, pExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
-    free(pExprMsg);
     goto _over;
   }
 
@@ -5975,6 +5995,7 @@ _over:
   } 
   free(pTagColumnInfo);
   free(pExprs);
+  free(pExprMsg);
   taosArrayDestroy(pTableIdList);
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;

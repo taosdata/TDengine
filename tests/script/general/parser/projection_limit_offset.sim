@@ -80,6 +80,7 @@ print $rows
 
 sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 8000 offset 0;
 if $rows != 4008 then
+  print expect 4008, actual:$rows
   return -1
 endi
 

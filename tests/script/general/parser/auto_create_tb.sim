@@ -153,13 +153,13 @@ print $rows $data00 $data10 $data20
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
+if $data00 != tb1 then
   return -1
 endi
 if $data10 != tb2 then
   return -1
 endi
-if $data20 != tb1 then
+if $data20 != tb3 then
   return -1
 endi
 
@@ -221,13 +221,13 @@ sql show tables
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
+if $data00 != tb1 then
   return -1
 endi
 if $data10 != tb2 then
   return -1
 endi
-if $data20 != tb1 then
+if $data20 != tb3 then
   return -1
 endi
 

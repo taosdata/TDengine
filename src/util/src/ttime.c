@@ -48,23 +48,21 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 		const unsigned int day, const unsigned int hour,
 		const unsigned int min, const unsigned int sec)
 {
-	unsigned int mon = mon0, year = year0;
+  unsigned int mon = mon0, year = year0;
 
-	/* 1..12 -> 11,12,1..10 */
-	if (0 >= (int) (mon -= 2)) {
-		mon += 12;	/* Puts Feb last since it has leap day */
-		year -= 1;
-	}
+  /* 1..12 -> 11,12,1..10 */
+  if (0 >= (int) (mon -= 2)) {
+    mon += 12;	/* Puts Feb last since it has leap day */
+    year -= 1;
+  }
 
-  //int64_t res = (((((int64_t) (year/4 - year/100 + year/400 + 367*mon/12 + day) +
-	//	  year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
-  int64_t res;
-  res  = 367*((int64_t)mon)/12;
-  res += year/4 - year/100 + year/400 + day + year*365 - 719499;
+  int64_t res = 367*((int64_t)mon)/12;
+
+  res += ((int64_t)(year/4 - year/100 + year/400 + day + year*365) - 719499);  // this value may be less than 0
   res  = res*24;
   res  = ((res + hour) * 60 + min) * 60 + sec;  
 
-	return (res + timezone);
+  return (res + timezone);
 }
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;

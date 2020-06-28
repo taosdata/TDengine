@@ -880,8 +880,11 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
           for (uint32_t jx = 0; jx < pFlushInfo->numOfPages; ++jx) {
             size_t sz = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
-            UNUSED(sz);
-            tMemBucketPut(pMemBucket, pPage->data, pPage->num);
+            if (sz != pMemBuffer->pageSize) {
+              uError("MemBucket:%p, read tmp file %s failed", pMemBucket, pMemBuffer->path);
+            } else {
+              tMemBucketPut(pMemBucket, pPage->data, pPage->num);
+            }
           }
 
           fclose(pMemBuffer->file);
