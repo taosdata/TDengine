@@ -250,7 +250,7 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   sdbTrace("forward request confirmed, version:%" PRIu64 ", result:%s", (int64_t)param, tstrerror(code));
 }
 
-static int32_t sdbForwardToPeer(SWalHead *pHead) {
+ static int32_t sdbForwardToPeer(SWalHead *pHead) {
   if (tsSdbObj.sync == NULL) return TSDB_CODE_SUCCESS;
 
   int32_t code = syncForwardToPeer(tsSdbObj.sync, pHead, (void*)pHead->version, TAOS_QTYPE_RPC);
@@ -782,7 +782,7 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   pTable->restoredFp   = pDesc->restoredFp;
 
   _hash_fn_t hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
-  if (pTable->keyType == SDB_KEY_STRING) {
+  if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
     hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   }
   pTable->iHandle = taosHashInit(pTable->hashSessions, hashFp, true);

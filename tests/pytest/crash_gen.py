@@ -14,6 +14,7 @@
 from __future__ import annotations  # For type hinting before definition, ref: https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel    
 
 import sys
+import os
 import traceback
 # Require Python 3
 if sys.version_info[0] < 3:
@@ -32,6 +33,7 @@ import textwrap
 
 from typing import List
 from typing import Dict
+from typing import Set
 
 from util.log import *
 from util.dnodes import *
@@ -42,7 +44,10 @@ import crash_gen
 import taos
 
 # Global variables, tried to keep a small number. 
-gConfig = None # Command-line/Environment Configurations, will set a bit later
+
+# Command-line/Environment Configurations, will set a bit later
+# ConfigNameSpace = argparse.Namespace
+gConfig = argparse.Namespace() # Dummy value, will be replaced later
 logger = None
 
 def runThread(wt: WorkerThread):    
@@ -64,7 +69,7 @@ class WorkerThread:
         # self._curStep = -1 
         self._pool = pool
         self._tid = tid        
-        self._tc = tc
+        self._tc = tc # type: ThreadCoordinator
         # self.threadIdent = threading.get_ident()
         self._thread = threading.Thread(target=runThread, args=(self,))
         self._stepGate = threading.Event()
@@ -156,13 +161,13 @@ class WorkerThread:
         if ( gConfig.per_thread_db_connection ):
             return self._dbConn.execute(sql)            
         else:
-            return self._tc.getDbState().getDbConn().execute(sql)
+            return self._tc.getDbManager().getDbConn().execute(sql)
 
     def getDbConn(self):
         if ( gConfig.per_thread_db_connection ):
             return self._dbConn     
         else:
-            return self._tc.getDbState().getDbConn()
+            return self._tc.getDbManager().getDbConn()
 
     # def querySql(self, sql): # not "execute", since we are out side the DB context
     #     if ( gConfig.per_thread_db_connection ):
@@ -171,12 +176,12 @@ class WorkerThread:
     #         return self._tc.getDbState().getDbConn().query(sql)
 
 class ThreadCoordinator:
-    def __init__(self, pool, dbState):
+    def __init__(self, pool, dbManager):
         self._curStep = -1 # first step is 0
         self._pool = pool
         # self._wd = wd
         self._te = None # prepare for every new step
-        self._dbState = dbState
+        self._dbManager = dbManager
         self._executedTasks: List[Task] = [] # in a given step
         self._lock = threading.RLock() # sync access for a few things
 
@@ -186,8 +191,8 @@ class ThreadCoordinator:
     def getTaskExecutor(self):
         return self._te
 
-    def getDbState(self) -> DbState :
-        return self._dbState
+    def getDbManager(self) -> DbManager :
+        return self._dbManager
 
     def crossStepBarrier(self):
         self._stepBarrier.wait()
@@ -211,7 +216,7 @@ class ThreadCoordinator:
 
             # At this point, all threads should be pass the overall "barrier" and before the per-thread "gate"
             try:
-                self._dbState.transition(self._executedTasks) # at end of step, transiton the DB state
+                self._dbManager.getStateMachine().transition(self._executedTasks) # at end of step, transiton the DB state
             except taos.error.ProgrammingError as err:
                 if ( err.msg == 'network unavailable' ): # broken DB connection
                     logger.info("DB connection broken, execution failed")
@@ -284,8 +289,8 @@ class ThreadCoordinator:
         # logger.debug(" (dice:{}/{}) ".format(i, nTasks))
         # # return copy.copy(tasks[i]) # Needs a fresh copy, to save execution results, etc.
         # return tasks[i].clone() # TODO: still necessary?
-        taskType = self.getDbState().pickTaskType() # pick a task type for current state
-        return taskType(self.getDbState(), self._execStats) # create a task from it
+        taskType = self.getDbManager().getStateMachine().pickTaskType() # pick a task type for current state
+        return taskType(self.getDbManager(), self._execStats) # create a task from it
 
     def resetExecutedTasks(self):
         self._executedTasks = [] # should be under single thread
@@ -296,16 +301,12 @@ class ThreadCoordinator:
 
 # We define a class to run a number of threads in locking steps.
 class ThreadPool:
-    def __init__(self, dbState, numThreads, maxSteps, funcSequencer):
+    def __init__(self, numThreads, maxSteps):
         self.numThreads = numThreads
         self.maxSteps = maxSteps
-        self.funcSequencer = funcSequencer
         # Internal class variables
-        # self.dispatcher = WorkDispatcher(dbState) # Obsolete?
         self.curStep = 0
         self.threadList = []
-        # self.stepGate = threading.Condition() # Gate to hold/sync all threads
-        # self.numWaitingThreads = 0    
         
     # starting to run all the threads, in locking steps
     def createAndStartThreads(self, tc: ThreadCoordinator):
@@ -319,7 +320,8 @@ class ThreadPool:
             logger.debug("Joining thread...")
             workerThread._thread.join()
 
-# A queue of continguous POSITIVE integers
+# A queue of continguous POSITIVE integers, used by DbManager to generate continuous numbers
+# for new table names
 class LinearQueue():
     def __init__(self):
         self.firstIndex = 1  # 1st ever element
@@ -595,9 +597,9 @@ class StateEmpty(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState): 
-        if ( self.hasSuccess(tasks, CreateDbTask) ): # at EMPTY, if there's succes in creating DB
-            if ( not self.hasTask(tasks, DropDbTask) ) : # and no drop_db tasks
-                self.assertAtMostOneSuccess(tasks, CreateDbTask) # we must have at most one. TODO: compare numbers
+        if ( self.hasSuccess(tasks, TaskCreateDb) ): # at EMPTY, if there's succes in creating DB
+            if ( not self.hasTask(tasks, TaskDropDb) ) : # and no drop_db tasks
+                self.assertAtMostOneSuccess(tasks, TaskCreateDb) # we must have at most one. TODO: compare numbers
 
 class StateDbOnly(AnyState):
     def getInfo(self):
@@ -609,20 +611,20 @@ class StateDbOnly(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
-        if ( not self.hasTask(tasks, CreateDbTask) ):
-            self.assertAtMostOneSuccess(tasks, DropDbTask) # only if we don't create any more
-        self.assertIfExistThenSuccess(tasks, DropDbTask)
+        if ( not self.hasTask(tasks, TaskCreateDb) ):
+            self.assertAtMostOneSuccess(tasks, TaskDropDb) # only if we don't create any more
+        self.assertIfExistThenSuccess(tasks, TaskDropDb)
         # self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # not true in massively parrallel cases
         # Nothing to be said about adding data task
-        if ( self.hasSuccess(tasks, DropDbTask) ): # dropped the DB
+        # if ( self.hasSuccess(tasks, DropDbTask) ): # dropped the DB
             # self.assertHasTask(tasks, DropDbTask) # implied by hasSuccess
-            self.assertAtMostOneSuccess(tasks, DropDbTask)
+            # self.assertAtMostOneSuccess(tasks, DropDbTask)
             # self._state = self.STATE_EMPTY
-        elif ( self.hasSuccess(tasks, CreateFixedSuperTableTask) ): # did not drop db, create table success
+        if ( self.hasSuccess(tasks, TaskCreateSuperTable) ): # did not drop db, create table success
             # self.assertHasTask(tasks, CreateFixedTableTask) # tried to create table
-            if ( not self.hasTask(tasks, DropFixedSuperTableTask) ): 
-                self.assertAtMostOneSuccess(tasks, CreateFixedSuperTableTask) # at most 1 attempt is successful, if we don't drop anything
-            self.assertNoTask(tasks, DropDbTask) # should have have tried
+            if ( not self.hasTask(tasks, TaskDropSuperTable) ): 
+                self.assertAtMostOneSuccess(tasks, TaskCreateSuperTable) # at most 1 attempt is successful, if we don't drop anything
+            # self.assertNoTask(tasks, DropDbTask) # should have have tried
             # if ( not self.hasSuccess(tasks, AddFixedDataTask) ): # just created table, no data yet
             #     # can't say there's add-data attempts, since they may all fail
             #     self._state = self.STATE_TABLE_ONLY
@@ -645,8 +647,8 @@ class StateSuperTableOnly(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
-        if ( self.hasSuccess(tasks, DropFixedSuperTableTask) ): # we are able to drop the table
-            self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask)
+        if ( self.hasSuccess(tasks, TaskDropSuperTable) ): # we are able to drop the table
+            self.assertAtMostOneSuccess(tasks, TaskDropSuperTable)
             # self._state = self.STATE_DB_ONLY
         # elif ( self.hasSuccess(tasks, AddFixedDataTask) ): # no success dropping the table, but added data
         #     self.assertNoTask(tasks, DropFixedTableTask) # not true in massively parrallel cases
@@ -670,35 +672,140 @@ class StateHasData(AnyState):
 
     def verifyTasksToState(self, tasks, newState):
         if ( newState.equals(AnyState.STATE_EMPTY) ):
-            self.hasSuccess(tasks, DropDbTask)
-            self.assertAtMostOneSuccess(tasks, DropDbTask) # TODO: dicy
+            self.hasSuccess(tasks, TaskDropDb)
+            if ( not self.hasTask(tasks, TaskCreateDb) ) : 
+                self.assertAtMostOneSuccess(tasks, TaskDropDb) # TODO: dicy
         elif ( newState.equals(AnyState.STATE_DB_ONLY) ): # in DB only
-            if ( not self.hasTask(tasks, CreateDbTask)): # without a create_db task
-                self.assertNoTask(tasks, DropDbTask) # we must have drop_db task
-            self.hasSuccess(tasks, DropFixedSuperTableTask)
+            if ( not self.hasTask(tasks, TaskCreateDb)): # without a create_db task
+                self.assertNoTask(tasks, TaskDropDb) # we must have drop_db task
+            self.hasSuccess(tasks, TaskDropSuperTable)
             # self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask) # TODO: dicy
         elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
-            self.assertNoTask(tasks, DropDbTask)
-            self.assertNoTask(tasks, DropFixedSuperTableTask)
-            self.assertNoTask(tasks, AddFixedDataTask)
+            self.assertNoTask(tasks, TaskDropDb)
+            self.assertNoTask(tasks, TaskDropSuperTable)
+            self.assertNoTask(tasks, TaskAddData)
             # self.hasSuccess(tasks, DeleteDataTasks)
-        else:
-            self.assertNoTask(tasks, DropDbTask)
-            self.assertNoTask(tasks, DropFixedSuperTableTask)
-            self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
+        else: # should be STATE_HAS_DATA
+            if (not self.hasTask(tasks, TaskCreateDb) ): # only if we didn't create one
+                self.assertNoTask(tasks, TaskDropDb) # we shouldn't have dropped it
+            if (not self.hasTask(tasks, TaskCreateSuperTable)) :  # if we didn't create the table
+                self.assertNoTask(tasks, TaskDropSuperTable) # we should not have a task that drops it            
+            # self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
 
+class StateMechine :
+    def __init__(self, dbConn):
+        self._dbConn = dbConn
+        self._curState = self._findCurrentState() # starting state
+        self._stateWeights = [1,3,5,15] # transitition target probabilities, indexed with value of STATE_EMPTY, STATE_DB_ONLY, etc.
+        
+    def getCurrentState(self):
+        return self._curState
 
-# State of the database as we believe it to be
-class DbState():
-    
+    # May be slow, use cautionsly...
+    def getTaskTypes(self): # those that can run (directly/indirectly) from the current state
+        allTaskClasses = StateTransitionTask.__subclasses__() # all state transition tasks
+        firstTaskTypes = []
+        for tc in allTaskClasses:
+            # t = tc(self) # create task object            
+            if tc.canBeginFrom(self._curState):
+                firstTaskTypes.append(tc)
+        # now we have all the tasks that can begin directly from the current state, let's figure out the INDIRECT ones
+        taskTypes = firstTaskTypes.copy() # have to have these
+        for task1 in firstTaskTypes: # each task type gathered so far
+            endState = task1.getEndState() # figure the end state
+            if endState == None: # does not change end state
+                continue # no use, do nothing
+            for tc in allTaskClasses: # what task can further begin from there?
+                if tc.canBeginFrom(endState) and (tc not in firstTaskTypes):
+                    taskTypes.append(tc) # gather it
+
+        if len(taskTypes) <= 0:
+            raise RuntimeError("No suitable task types found for state: {}".format(self._curState))   
+        logger.debug("[OPS] Tasks found for state {}: {}".format(self._curState, taskTypes))     
+        return taskTypes
+
+    def _findCurrentState(self):
+        dbc = self._dbConn
+        ts = time.time() # we use this to debug how fast/slow it is to do the various queries to find the current DB state
+        if dbc.query("show databases") == 0 : # no database?!
+            # logger.debug("Found EMPTY state")
+            logger.debug("[STT] empty database found, between {} and {}".format(ts, time.time()))
+            return StateEmpty()
+        dbc.execute("use db") # did not do this when openning connection
+        if dbc.query("show tables") == 0 : # no tables
+            # logger.debug("Found DB ONLY state")
+            logger.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
+            return StateDbOnly()
+        if dbc.query("SELECT * FROM db.{}".format(DbManager.getFixedSuperTableName()) ) == 0 : # no regular tables
+            # logger.debug("Found TABLE_ONLY state")
+            logger.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
+            return StateSuperTableOnly()
+        else: # has actual tables
+            # logger.debug("Found HAS_DATA state")
+            logger.debug("[STT] HAS_DATA found, between {} and {}".format(ts, time.time()))
+            return StateHasData()
+
+    def transition(self, tasks):
+        if ( len(tasks) == 0 ): # before 1st step, or otherwise empty
+            return # do nothing
+
+        self._dbConn.execute("show dnodes") # this should show up in the server log, separating steps
+
+        # Generic Checks, first based on the start state
+        if self._curState.canCreateDb():
+            self._curState.assertIfExistThenSuccess(tasks, TaskCreateDb)
+            # self.assertAtMostOneSuccess(tasks, CreateDbTask) # not really, in case of multiple creation and drops
+
+        if self._curState.canDropDb():
+            self._curState.assertIfExistThenSuccess(tasks, TaskDropDb)
+            # self.assertAtMostOneSuccess(tasks, DropDbTask) # not really in case of drop-create-drop
+
+        # if self._state.canCreateFixedTable():
+            # self.assertIfExistThenSuccess(tasks, CreateFixedTableTask) # Not true, DB may be dropped
+            # self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # not really, in case of create-drop-create
+
+        # if self._state.canDropFixedTable():
+            # self.assertIfExistThenSuccess(tasks, DropFixedTableTask) # Not True, the whole DB may be dropped
+            # self.assertAtMostOneSuccess(tasks, DropFixedTableTask) # not really in case of drop-create-drop
+
+        # if self._state.canAddData():
+        #     self.assertIfExistThenSuccess(tasks, AddFixedDataTask)  # not true actually
+
+        # if self._state.canReadData():
+            # Nothing for sure
+
+        newState = self._findCurrentState()
+        logger.debug("[STT] New DB state determined: {}".format(newState))
+        self._curState.verifyTasksToState(tasks, newState) # can old state move to new state through the tasks?
+        self._curState = newState
+
+    def pickTaskType(self):
+        taskTypes = self.getTaskTypes() # all the task types we can choose from at curent state
+        weights = []
+        for tt in taskTypes:
+            endState = tt.getEndState()
+            if endState != None :
+                weights.append(self._stateWeights[endState.getValIndex()]) # TODO: change to a method
+            else:
+                weights.append(10) # read data task, default to 10: TODO: change to a constant
+        i = self._weighted_choice_sub(weights)
+        # logger.debug(" (weighted random:{}/{}) ".format(i, len(taskTypes)))        
+        return taskTypes[i]
+
+    def _weighted_choice_sub(self, weights): # ref: https://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
+        rnd = random.random() * sum(weights) # TODO: use our dice to ensure it being determinstic?
+        for i, w in enumerate(weights):
+            rnd -= w
+            if rnd < 0:
+                return i
+
+# Manager of the Database Data/Connection
+class DbManager():    
     def __init__(self, resetDb = True):
         self.tableNumQueue = LinearQueue()
         self._lastTick = self.setupLastTick() # datetime.datetime(2019, 1, 1) # initial date time tick
         self._lastInt  = 0 # next one is initial integer 
         self._lock = threading.RLock()
-
-        self._state = StateInvalid() # starting state
-        self._stateWeights = [1,3,5,10] # indexed with value of STATE_EMPTY, STATE_DB_ONLY, etc.
         
         # self.openDbServerConnection()
         self._dbConn = DbConn()
@@ -706,7 +813,7 @@ class DbState():
             self._dbConn.open() # may throw taos.error.ProgrammingError: disconnected
         except taos.error.ProgrammingError as err:
             # print("Error type: {}, msg: {}, value: {}".format(type(err), err.msg, err))
-            if ( err.msg == 'disconnected' ): # cannot open DB connection
+            if ( err.msg == 'client disconnected' ): # cannot open DB connection
                 print("Cannot establish DB connection, please re-run script without parameter, and follow the instructions.")
                 sys.exit()
             else:
@@ -717,13 +824,17 @@ class DbState():
 
         if resetDb :
             self._dbConn.resetDb() # drop and recreate DB            
-        self._state = self._findCurrentState()
 
+        self._stateMachine = StateMechine(self._dbConn) # Do this after dbConn is in proper shape
+        
     def getDbConn(self):
         return self._dbConn
 
-    def getState(self):
-        return self._state
+    def getStateMachine(self):
+        return self._stateMachine
+
+    # def getState(self):
+    #     return self._stateMachine.getCurrentState()
 
     # We aim to create a starting time tick, such that, whenever we run our test here once
     # We should be able to safely create 100,000 records, which will not have any repeated time stamp
@@ -750,7 +861,8 @@ class DbState():
             tIndex = self.tableNumQueue.push()
         return tIndex
 
-    def getFixedSuperTableName(self):
+    @classmethod
+    def getFixedSuperTableName(cls):
         return "fs_table"
 
     def releaseTable(self, i): # return the table back, so others can use it
@@ -782,122 +894,6 @@ class DbState():
     def cleanUp(self):
         self._dbConn.close()      
 
-    # May be slow, use cautionsly...
-    def getTaskTypesAtState(self):        
-        allTaskClasses = StateTransitionTask.__subclasses__() # all state transition tasks
-        firstTaskTypes = []
-        for tc in allTaskClasses:
-            # t = tc(self) # create task object            
-            if tc.canBeginFrom(self._state):
-                firstTaskTypes.append(tc)
-        # now we have all the tasks that can begin directly from the current state, let's figure out the INDIRECT ones
-        taskTypes = firstTaskTypes.copy() # have to have these
-        for task1 in firstTaskTypes: # each task type gathered so far
-            endState = task1.getEndState() # figure the end state
-            if endState == None:
-                continue
-            for tc in allTaskClasses: # what task can further begin from there?
-                if tc.canBeginFrom(endState) and (tc not in firstTaskTypes):
-                    taskTypes.append(tc) # gather it
-
-        if len(taskTypes) <= 0:
-            raise RuntimeError("No suitable task types found for state: {}".format(self._state))   
-        logger.debug("[OPS] Tasks found for state {}: {}".format(self._state, taskTypes))     
-        return taskTypes
-
-        # tasks.append(ReadFixedDataTask(self)) # always for everybody
-        # if ( self._state == self.STATE_EMPTY ):
-        #     tasks.append(CreateDbTask(self))
-        #     tasks.append(CreateFixedTableTask(self))
-        # elif ( self._state == self.STATE_DB_ONLY ):
-        #     tasks.append(DropDbTask(self))
-        #     tasks.append(CreateFixedTableTask(self))
-        #     tasks.append(AddFixedDataTask(self))
-        # elif ( self._state == self.STATE_TABLE_ONLY ):
-        #     tasks.append(DropFixedTableTask(self))
-        #     tasks.append(AddFixedDataTask(self))
-        # elif ( self._state == self.STATE_HAS_DATA ) : # same as above. TODO: adjust
-        #     tasks.append(DropFixedTableTask(self))
-        #     tasks.append(AddFixedDataTask(self))
-        # else:
-        #     raise RuntimeError("Unexpected DbState state: {}".format(self._state))
-        # return tasks
-
-    def pickTaskType(self):
-        taskTypes = self.getTaskTypesAtState() # all the task types we can choose from at curent state
-        weights = []
-        for tt in taskTypes:
-            endState = tt.getEndState()
-            if endState != None :
-                weights.append(self._stateWeights[endState.getValIndex()]) # TODO: change to a method
-            else:
-                weights.append(10) # read data task, default to 10: TODO: change to a constant
-        i = self._weighted_choice_sub(weights)
-        # logger.debug(" (weighted random:{}/{}) ".format(i, len(taskTypes)))        
-        return taskTypes[i]
-
-    def _weighted_choice_sub(self, weights): # ref: https://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
-        rnd = random.random() * sum(weights) # TODO: use our dice to ensure it being determinstic?
-        for i, w in enumerate(weights):
-            rnd -= w
-            if rnd < 0:
-                return i
-
-    def _findCurrentState(self):
-        dbc = self._dbConn
-        ts = time.time()
-        if dbc.query("show databases") == 0 : # no database?!
-            # logger.debug("Found EMPTY state")
-            logger.debug("[STT] empty database found, between {} and {}".format(ts, time.time()))
-            return StateEmpty()
-        dbc.execute("use db") # did not do this when openning connection
-        if dbc.query("show tables") == 0 : # no tables
-            # logger.debug("Found DB ONLY state")
-            logger.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
-            return StateDbOnly()
-        if dbc.query("SELECT * FROM db.{}".format(self.getFixedSuperTableName()) ) == 0 : # no data
-            # logger.debug("Found TABLE_ONLY state")
-            logger.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
-            return StateSuperTableOnly()
-        else:
-            # logger.debug("Found HAS_DATA state")
-            logger.debug("[STT] HAS_DATA found, between {} and {}".format(ts, time.time()))
-            return StateHasData()
-    
-    def transition(self, tasks):
-        if ( len(tasks) == 0 ): # before 1st step, or otherwise empty
-            return # do nothing
-
-        self._dbConn.execute("show dnodes") # this should show up in the server log, separating steps
-
-        # Generic Checks, first based on the start state
-        if self._state.canCreateDb():
-            self._state.assertIfExistThenSuccess(tasks, CreateDbTask)
-            # self.assertAtMostOneSuccess(tasks, CreateDbTask) # not really, in case of multiple creation and drops
-
-        if self._state.canDropDb():
-            self._state.assertIfExistThenSuccess(tasks, DropDbTask)
-            # self.assertAtMostOneSuccess(tasks, DropDbTask) # not really in case of drop-create-drop
-
-        # if self._state.canCreateFixedTable():
-            # self.assertIfExistThenSuccess(tasks, CreateFixedTableTask) # Not true, DB may be dropped
-            # self.assertAtMostOneSuccess(tasks, CreateFixedTableTask) # not really, in case of create-drop-create
-
-        # if self._state.canDropFixedTable():
-            # self.assertIfExistThenSuccess(tasks, DropFixedTableTask) # Not True, the whole DB may be dropped
-            # self.assertAtMostOneSuccess(tasks, DropFixedTableTask) # not really in case of drop-create-drop
-
-        # if self._state.canAddData():
-        #     self.assertIfExistThenSuccess(tasks, AddFixedDataTask)  # not true actually
-
-        # if self._state.canReadData():
-            # Nothing for sure
-
-        newState = self._findCurrentState()
-        logger.debug("[STT] New DB state determined: {}".format(newState))
-        self._state.verifyTasksToState(tasks, newState) # can old state move to new state through the tasks?
-        self._state = newState
-
 class TaskExecutor():
     def __init__(self, curStep):
         self._curStep = curStep
@@ -923,8 +919,8 @@ class Task():
         # logger.debug("Allocating taskSN: {}".format(Task.taskSn))
         return Task.taskSn
 
-    def __init__(self, dbState: DbState, execStats: ExecutionStats):        
-        self._dbState = dbState
+    def __init__(self, dbManager: DbManager, execStats: ExecutionStats):        
+        self._dbManager = dbManager
         self._workerThread = None 
         self._err = None
         self._curStep = None
@@ -940,7 +936,7 @@ class Task():
         return self._err == None
 
     def clone(self): # TODO: why do we need this again?
-        newTask = self.__class__(self._dbState, self._execStats)
+        newTask = self.__class__(self._dbManager, self._execStats)
         return newTask
 
     def logDebug(self, msg):
@@ -966,7 +962,7 @@ class Task():
             self._executeInternal(te, wt) # TODO: no return value?
         except taos.error.ProgrammingError as err:
             self.logDebug("[=] Taos library exception: errno={:X}, msg: {}".format(err.errno, err))
-            self._err = err
+            self._err = err           
         except:
             self.logDebug("[=] Unexpected exception")
             raise
@@ -976,7 +972,7 @@ class Task():
         self._execStats.incExecCount(self.__class__.__name__, self.isSuccess()) # TODO: merge with above.
 
     def execSql(self, sql):
-        return self._dbState.execute(sql)
+        return self._dbManager.execute(sql)
 
                   
 class ExecutionStats:
@@ -1043,20 +1039,22 @@ class ExecutionStats:
 
 
 class StateTransitionTask(Task):
-    # @classmethod
-    # def getAllTaskClasses(cls): # static
-    #     return cls.__subclasses__()
     @classmethod
     def getInfo(cls): # each sub class should supply their own information
+        raise RuntimeError("Overriding method expected")
+
+    _endState = None 
+    @classmethod
+    def getEndState(cls): # TODO: optimize by calling it fewer times
         raise RuntimeError("Overriding method expected")
 
     # @classmethod
     # def getBeginStates(cls):
     #     return cls.getInfo()[0]
 
-    @classmethod
-    def getEndState(cls): # returning the class name
-        return cls.getInfo()[0]
+    # @classmethod
+    # def getEndState(cls): # returning the class name
+    #     return cls.getInfo()[0]
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
@@ -1066,15 +1064,10 @@ class StateTransitionTask(Task):
     def execute(self, wt: WorkerThread):
         super().execute(wt)
         
-
-
-class CreateDbTask(StateTransitionTask):
+class TaskCreateDb(StateTransitionTask):
     @classmethod
-    def getInfo(cls):
-        return [
-            # [AnyState.STATE_EMPTY], # can begin from
-            StateDbOnly() # end state
-        ]
+    def getEndState(cls):
+        return StateDbOnly() 
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
@@ -1083,13 +1076,10 @@ class CreateDbTask(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         wt.execSql("create database db")       
 
-class DropDbTask(StateTransitionTask):
+class TaskDropDb(StateTransitionTask):
     @classmethod
-    def getInfo(cls):
-        return [
-            # [AnyState.STATE_DB_ONLY, AnyState.STATE_TABLE_ONLY, AnyState.STATE_HAS_DATA],
-            StateEmpty()
-        ]
+    def getEndState(cls):
+        return StateEmpty()
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
@@ -1099,122 +1089,140 @@ class DropDbTask(StateTransitionTask):
         wt.execSql("drop database db")
         logger.debug("[OPS] database dropped at {}".format(time.time()))
 
-class CreateFixedSuperTableTask(StateTransitionTask):
+class TaskCreateSuperTable(StateTransitionTask):
     @classmethod
-    def getInfo(cls):
-        return [
-            # [AnyState.STATE_DB_ONLY],
-            StateSuperTableOnly()
-        ]
+    def getEndState(cls):
+        return StateSuperTableOnly()
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateFixedSuperTable()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tblName = self._dbState.getFixedSuperTableName()        
+        tblName = self._dbManager.getFixedSuperTableName()        
         wt.execSql("create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that automatically
 
 
-class ReadFixedDataTask(StateTransitionTask):
+class TaskReadData(StateTransitionTask):
     @classmethod
-    def getInfo(cls):
-        return [
-            # [AnyState.STATE_TABLE_ONLY, AnyState.STATE_HAS_DATA],
-            None # meaning doesn't affect state
-        ]
+    def getEndState(cls):
+        return None # meaning doesn't affect state
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         return state.canReadData()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        sTbName = self._dbState.getFixedSuperTableName()        
+        sTbName = self._dbManager.getFixedSuperTableName()        
         dbc = wt.getDbConn()
         dbc.query("select TBNAME from db.{}".format(sTbName)) # TODO: analyze result set later
-        rTables = dbc.getQueryResult()
-        # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
-        for rTbName in rTables : # regular tables
-            dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
+        if random.randrange(5) == 0 : # 1 in 5 chance, simulate a broken connection. TODO: break connection in all situations
+            dbc.close()
+            dbc.open()
+        else:
+            rTables = dbc.getQueryResult()
+            # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
+            for rTbName in rTables : # regular tables
+                dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
 
         # tdSql.query(" cars where tbname in ('carzero', 'carone')")
 
-class DropFixedSuperTableTask(StateTransitionTask):
+class TaskDropSuperTable(StateTransitionTask):
     @classmethod
-    def getInfo(cls):
-        return [
-            # [AnyState.STATE_TABLE_ONLY, AnyState.STATE_HAS_DATA],
-            StateDbOnly() # meaning doesn't affect state
-        ]
+    def getEndState(cls):
+        return StateDbOnly() 
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         return state.canDropFixedSuperTable()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tblName = self._dbState.getFixedSuperTableName()        
+        tblName = self._dbManager.getFixedSuperTableName()        
         wt.execSql("drop table db.{}".format(tblName))
 
-class AddFixedDataTask(StateTransitionTask):
+class TaskAlterTags(StateTransitionTask):
     @classmethod
-    def getInfo(cls):
-        return [
-            # [AnyState.STATE_TABLE_ONLY, AnyState.STATE_HAS_DATA],
-            StateHasData()
-        ]
+    def getEndState(cls):
+        return None # meaning doesn't affect state
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canDropFixedSuperTable() # if we can drop it, we can alter tags
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        tblName = self._dbManager.getFixedSuperTableName()   
+        dice = Dice.throw(4)
+        if dice == 0 :
+            wt.execSql("alter table db.{} add tag extraTag int".format(tblName))
+        elif dice == 1 :
+            wt.execSql("alter table db.{} drop tag extraTag".format(tblName))
+        elif dice == 2 :
+            wt.execSql("alter table db.{} drop tag newTag".format(tblName))
+        else: # dice == 3
+            wt.execSql("alter table db.{} change tag extraTag newTag".format(tblName))
+
+class TaskAddData(StateTransitionTask):
+    activeTable : Set[int] = set() # Track which table is being actively worked on
+    LARGE_NUMBER_OF_TABLES = 35
+    SMALL_NUMBER_OF_TABLES = 3
+    LARGE_NUMBER_OF_RECORDS = 50
+    SMALL_NUMBER_OF_RECORDS = 3
+
+    # We use these two files to record operations to DB, useful for power-off tests
+    fAddLogReady = None
+    fAddLogDone = None
+
+    @classmethod
+    def prepToRecordOps(cls):
+        if gConfig.record_ops :            
+            if ( cls.fAddLogReady == None ):
+                logger.info("Recording in a file operations to be performed...")
+                cls.fAddLogReady = open("add_log_ready.txt", "w")
+            if ( cls.fAddLogDone == None ):
+                logger.info("Recording in a file operations completed...")
+                cls.fAddLogDone = open("add_log_done.txt", "w")
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         return state.canAddData()
         
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        ds = self._dbState
+        ds = self._dbManager
         wt.execSql("use db") # TODO: seems to be an INSERT bug to require this
-        for i in range(10): # 0 to 9
-            for j in range(10) :
-                sql = "insert into db.reg_table_{} using {} tags ('{}', {}) values ('{}', {});".format(
-                    i, 
+        tblSeq = list(range(self.LARGE_NUMBER_OF_TABLES if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES)) 
+        random.shuffle(tblSeq) 
+        for i in tblSeq: 
+            if ( i in self.activeTable ): # wow already active
+                # logger.info("Concurrent data insertion into table: {}".format(i))      
+                # print("ct({})".format(i), end="", flush=True) # Concurrent insertion into table
+                print("x", end="", flush=True)
+            else:
+                self.activeTable.add(i) # marking it active
+            # No need to shuffle data sequence, unless later we decide to do non-increment insertion            
+            for j in range(self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS) : # number of records per table
+                nextInt = ds.getNextInt()
+                regTableName = "db.reg_table_{}".format(i)
+                if gConfig.record_ops:
+                    self.prepToRecordOps()
+                    self.fAddLogReady.write("Ready to write {} to {}\n".format(nextInt, regTableName))
+                    self.fAddLogReady.flush()
+                    os.fsync(self.fAddLogReady)
+                sql = "insert into {} using {} tags ('{}', {}) values ('{}', {});".format(
+                    regTableName, 
                     ds.getFixedSuperTableName(), 
                     ds.getNextBinary(), ds.getNextFloat(),
-                    ds.getNextTick(), ds.getNextInt())
+                    ds.getNextTick(), nextInt)
                 wt.execSql(sql) 
-
-
-#---------- Non State-Transition Related Tasks ----------#
-
-class CreateTableTask(Task):    
-    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tIndex = self._dbState.addTable()
-        self.logDebug("Creating a table {} ...".format(tIndex))
-        wt.execSql("create table db.table_{} (ts timestamp, speed int)".format(tIndex))
-        self.logDebug("Table {} created.".format(tIndex))
-        self._dbState.releaseTable(tIndex)
-
-class DropTableTask(Task):
-    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        tableName = self._dbState.getTableNameToDelete()
-        if ( not tableName ): # May be "False"
-            self.logInfo("Cannot generate a table to delete, skipping...")
-            return
-        self.logInfo("Dropping a table db.{} ...".format(tableName))
-        wt.execSql("drop table db.{}".format(tableName))
-        
-
-
-class AddDataTask(Task):
-    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        ds = self._dbState
-        self.logInfo("Adding some data... numQueue={}".format(ds.tableNumQueue.toText()))
-        tIndex = ds.pickAndAllocateTable()
-        if ( tIndex == None ):
-            self.logInfo("No table found to add data, skipping...")
-            return
-        sql = "insert into db.table_{} values ('{}', {});".format(tIndex, ds.getNextTick(), ds.getNextInt())
-        self.logDebug("[SQL] Executing SQL: {}".format(sql))
-        wt.execSql(sql) 
-        ds.releaseTable(tIndex)
-        self.logDebug("[OPS] Finished adding data")
+                if gConfig.record_ops:
+                    self.fAddLogDone.write("Wrote {} to {}\n".format(nextInt, regTableName))
+                    self.fAddLogDone.flush()
+                    os.fsync(self.fAddLogDone)
+            self.activeTable.discard(i) # not raising an error, unlike remove
 
 
 # Deterministic random number generator
@@ -1288,7 +1296,67 @@ class LoggingFilter(logging.Filter):
         #     return False
         return True
 
+class MainExec:
+    @classmethod
+    def runClient(cls):
+        # resetDb = False # DEBUG only
+        # dbState = DbState(resetDb)  # DBEUG only!
+        dbManager = DbManager() # Regular function
+        Dice.seed(0) # initial seeding of dice
+        thPool = ThreadPool(gConfig.num_threads, gConfig.max_steps)
+        tc = ThreadCoordinator(thPool, dbManager)
         
+        tc.run()
+        tc.logStats()
+        dbManager.cleanUp()    
+
+    @classmethod
+    def runService(cls):
+        print("Running service...")
+
+    @classmethod
+    def runTemp(cls): # for debugging purposes
+        # # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
+        # dbc = dbState.getDbConn()
+        # sTbName = dbState.getFixedSuperTableName()   
+        # dbc.execute("create database if not exists db")
+        # if not dbState.getState().equals(StateEmpty()):
+        #     dbc.execute("use db")     
+
+        # rTables = None
+        # try: # the super table may not exist
+        #     sql = "select TBNAME from db.{}".format(sTbName)
+        #     logger.info("Finding out tables in super table: {}".format(sql))
+        #     dbc.query(sql) # TODO: analyze result set later
+        #     logger.info("Fetching result")
+        #     rTables = dbc.getQueryResult()
+        #     logger.info("Result: {}".format(rTables))
+        # except taos.error.ProgrammingError as err:
+        #     logger.info("Initial Super table OPS error: {}".format(err))
+        
+        # # sys.exit()
+        # if ( not rTables == None):
+        #     # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
+        #     try:
+        #         for rTbName in rTables : # regular tables
+        #             ds = dbState
+        #             logger.info("Inserting into table: {}".format(rTbName[0]))
+        #             sql = "insert into db.{} values ('{}', {});".format(
+        #                 rTbName[0],                    
+        #                 ds.getNextTick(), ds.getNextInt())
+        #             dbc.execute(sql)
+        #         for rTbName in rTables : # regular tables        
+        #             dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
+        #         logger.info("Initial READING operation is successful")       
+        #     except taos.error.ProgrammingError as err:
+        #         logger.info("Initial WRITE/READ error: {}".format(err))   
+        
+        # Sandbox testing code
+        # dbc = dbState.getDbConn()
+        # while True:
+        #     rows = dbc.query("show databases") 
+        #     print("Rows: {}, time={}".format(rows, time.time()))
+        return 
 
 def main():
     # Super cool Python argument library: https://docs.python.org/3/library/argparse.html
@@ -1301,20 +1369,27 @@ def main():
             2. You run the server there before this script: ./build/bin/taosd -c test/cfg
 
             '''))
-    parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
-                        help='Use a single shared db connection (default: false)')
+
     parser.add_argument('-d', '--debug', action='store_true',                        
                         help='Turn on DEBUG mode for more logging (default: false)')
-    parser.add_argument('-s', '--max-steps', action='store', default=100, type=int,
+    parser.add_argument('-e', '--run-tdengine', action='store_true',                        
+                        help='Run TDengine service in foreground (default: false)')
+    parser.add_argument('-l', '--larger-data', action='store_true',                        
+                        help='Write larger amount of data during write operations (default: false)')
+    parser.add_argument('-p', '--per-thread-db-connection', action='store_false',                        
+                        help='Use a single shared db connection (default: false)')
+    parser.add_argument('-r', '--record-ops', action='store_true',                        
+                        help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')                    
+    parser.add_argument('-s', '--max-steps', action='store', default=1000, type=int,
                         help='Maximum number of steps to run (default: 100)')
-    parser.add_argument('-t', '--num-threads', action='store', default=10, type=int,
+    parser.add_argument('-t', '--num-threads', action='store', default=5, type=int,
                         help='Number of threads to run (default: 10)')
 
     global gConfig
     gConfig = parser.parse_args()
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit()
+    # if len(sys.argv) == 1:
+    #     parser.print_help()
+    #     sys.exit()
 
     global logger
     logger = logging.getLogger('CrashGen')
@@ -1326,62 +1401,11 @@ def main():
     ch = logging.StreamHandler()
     logger.addHandler(ch)
 
-    # resetDb = False # DEBUG only
-    # dbState = DbState(resetDb)  # DBEUG only!
-    dbState = DbState() # Regular function
-    Dice.seed(0) # initial seeding of dice
-    tc = ThreadCoordinator(
-        ThreadPool(dbState, gConfig.num_threads, gConfig.max_steps, 0), 
-        # WorkDispatcher(dbState), # Obsolete?
-        dbState
-        )
+    if gConfig.run_tdengine : # run server
+        MainExec.runService()
+    else :
+        MainExec.runClient()
 
-    # # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
-    # dbc = dbState.getDbConn()
-    # sTbName = dbState.getFixedSuperTableName()   
-    # dbc.execute("create database if not exists db")
-    # if not dbState.getState().equals(StateEmpty()):
-    #     dbc.execute("use db")     
-
-    # rTables = None
-    # try: # the super table may not exist
-    #     sql = "select TBNAME from db.{}".format(sTbName)
-    #     logger.info("Finding out tables in super table: {}".format(sql))
-    #     dbc.query(sql) # TODO: analyze result set later
-    #     logger.info("Fetching result")
-    #     rTables = dbc.getQueryResult()
-    #     logger.info("Result: {}".format(rTables))
-    # except taos.error.ProgrammingError as err:
-    #     logger.info("Initial Super table OPS error: {}".format(err))
-    
-    # # sys.exit()
-    # if ( not rTables == None):
-    #     # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
-    #     try:
-    #         for rTbName in rTables : # regular tables
-    #             ds = dbState
-    #             logger.info("Inserting into table: {}".format(rTbName[0]))
-    #             sql = "insert into db.{} values ('{}', {});".format(
-    #                 rTbName[0],                    
-    #                 ds.getNextTick(), ds.getNextInt())
-    #             dbc.execute(sql)
-    #         for rTbName in rTables : # regular tables        
-    #             dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
-    #         logger.info("Initial READING operation is successful")       
-    #     except taos.error.ProgrammingError as err:
-    #         logger.info("Initial WRITE/READ error: {}".format(err))   
-    
-    
-
-    # Sandbox testing code
-    # dbc = dbState.getDbConn()
-    # while True:
-    #     rows = dbc.query("show databases") 
-    #     print("Rows: {}, time={}".format(rows, time.time()))
-    
-    tc.run()
-    tc.logStats()
-    dbState.cleanUp()    
     
     # logger.info("Crash_Gen execution finished")
 
