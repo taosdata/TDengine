@@ -1420,7 +1420,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
       continue;
     }
     if (pTable->vgHash == NULL) {
-      mError("app:%p:%p, stable:%s, not vgroup exist while get stable vgroup info", pMsg->rpcMsg.ahandle, pMsg,
+      mError("app:%p:%p, stable:%s, no vgroup exist while get stable vgroup info", pMsg->rpcMsg.ahandle, pMsg,
              stableName);
       mnodeDecTableRef(pTable);
 
