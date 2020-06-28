@@ -802,7 +802,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
+    code = tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     tstrncpy(pTag->name, pSTableMeterMetaInfo->name, sizeof(pTag->name));
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
