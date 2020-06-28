@@ -204,7 +204,7 @@ static void taosGetSystemTimezone() {
   sprintf(tsTimezone, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
   // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  uPrint("timezone not configured, set to system default:%s", tsTimezone);
+  uInfo("timezone not configured, set to system default:%s", tsTimezone);
 }
 
 /*
@@ -411,7 +411,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   double totalBytes = (double)(curBytes - lastBytes) / 1024 * 8;  // Kb
   *bandSpeedKb = (float)(totalBytes / (double)(curTime - lastTime));
 
-  // uPrint("bandwidth lastBytes:%ld, lastTime:%ld, curBytes:%ld, curTime:%ld,
+  // uInfo("bandwidth lastBytes:%ld, lastTime:%ld, curBytes:%ld, curTime:%ld,
   // speed:%f", lastBytes, lastTime, curBytes, curTime, *bandSpeed);
 
   lastTime = curTime;
@@ -517,29 +517,29 @@ void taosGetSystemInfo() {
 }
 
 void taosPrintOsInfo() {
-  uPrint(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
-  uPrint(" os openMax:             %" PRId64, tsOpenMax);
-  uPrint(" os streamMax:           %" PRId64, tsStreamMax);
-  uPrint(" os numOfCores:          %d", tsNumOfCores);
-  uPrint(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
-  uPrint(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+  uInfo(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
+  uInfo(" os openMax:             %" PRId64, tsOpenMax);
+  uInfo(" os streamMax:           %" PRId64, tsStreamMax);
+  uInfo(" os numOfCores:          %d", tsNumOfCores);
+  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;
   if (uname(&buf)) {
-    uPrint(" can't fetch os info");
+    uInfo(" can't fetch os info");
     return;
   }
-  uPrint(" os sysname:             %s", buf.sysname);
-  uPrint(" os nodename:            %s", buf.nodename);
-  uPrint(" os release:             %s", buf.release);
-  uPrint(" os version:             %s", buf.version);
-  uPrint(" os machine:             %s", buf.machine);
-  uPrint("==================================");
+  uInfo(" os sysname:             %s", buf.sysname);
+  uInfo(" os nodename:            %s", buf.nodename);
+  uInfo(" os release:             %s", buf.release);
+  uInfo(" os version:             %s", buf.version);
+  uInfo(" os machine:             %s", buf.machine);
+  uInfo("==================================");
 }
 
 void taosKillSystem() {
   // SIGINT
-  uPrint("taosd will shut down soon");
+  uInfo("taosd will shut down soon");
   kill(tsProcId, 2);
 }
 
@@ -553,11 +553,11 @@ void taosSetCoreDump() {
   struct rlimit rlim;
   struct rlimit rlim_new;
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uPrint("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    uInfo("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
-      uPrint("set unlimited fail, error: %s", strerror(errno));
+      uInfo("set unlimited fail, error: %s", strerror(errno));
       rlim_new.rlim_cur = rlim.rlim_max;
       rlim_new.rlim_max = rlim.rlim_max;
       (void)setrlimit(RLIMIT_CORE, &rlim_new);
@@ -565,7 +565,7 @@ void taosSetCoreDump() {
   }
 
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uPrint("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    uInfo("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
   }
 
 #ifndef _TD_ARM_
@@ -589,10 +589,10 @@ void taosSetCoreDump() {
   old_len = sizeof(old_usespid);
   
   if (syscall(SYS__sysctl, &args) == -1) {
-      uPrint("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+      uInfo("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
   }
   
-  uPrint("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
+  uInfo("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 
 
   old_usespid = 0;
@@ -606,10 +606,10 @@ void taosSetCoreDump() {
   old_len = sizeof(old_usespid);
   
   if (syscall(SYS__sysctl, &args) == -1) {
-      uPrint("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+      uInfo("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
   }
   
-  uPrint("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
+  uInfo("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 #endif
   
 #if 0
@@ -619,7 +619,7 @@ void taosSetCoreDump() {
   if (opendir(coredump_dir) == NULL) {
     status = mkdir(coredump_dir, S_IRWXU | S_IRWXG | S_IRWXO); 
     if (status) {
-      uPrint("mkdir fail, error: %s\n", strerror(errno));
+      uInfo("mkdir fail, error: %s\n", strerror(errno));
     }
   }
 
@@ -643,10 +643,10 @@ void taosSetCoreDump() {
    old_len = sizeof(old_corefile);
 
    if (syscall(SYS__sysctl, &args) == -1) {
-       uPrint("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
+       uInfo("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
    }
    
-   uPrint("The old kern_core_pattern: %*s\n", old_len, old_corefile);
+   uInfo("The old kern_core_pattern: %*s\n", old_len, old_corefile);
 
 
    memset(&args, 0, sizeof(struct __sysctl_args));
@@ -658,10 +658,10 @@ void taosSetCoreDump() {
    old_len = sizeof(old_corefile);
 
    if (syscall(SYS__sysctl, &args) == -1) {
-       uPrint("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
+       uInfo("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
    }
    
-   uPrint("The new kern_core_pattern: %*s\n", old_len, old_corefile);
+   uInfo("The new kern_core_pattern: %*s\n", old_len, old_corefile);
 #endif
   
 }

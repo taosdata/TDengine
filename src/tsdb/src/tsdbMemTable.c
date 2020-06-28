@@ -111,7 +111,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
     ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
   }
 
-  tsdbTrace("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
+  tsdbDebug("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
             TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), key);
 
   return 0;
@@ -369,7 +369,7 @@ static void *tsdbCommitData(void *arg) {
   ASSERT(pRepo->commit == 1);
   ASSERT(pMem != NULL);
 
-  tsdbPrint("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64, REPO_ID(pRepo),
+  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64, REPO_ID(pRepo),
             pMem->keyFirst, pMem->keyLast, pMem->numOfRows);
 
   // Create the iterator to read from cache
@@ -417,7 +417,7 @@ _exit:
   tsdbDestroyTableIters(iters, pCfg->maxTables);
   tsdbDestroyHelper(&whelper);
   tsdbEndCommit(pRepo);
-  tsdbPrint("vgId:%d commit over", pRepo->config.tsdbId);
+  tsdbInfo("vgId:%d commit over", pRepo->config.tsdbId);
 
   return NULL;
 }
@@ -509,7 +509,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   // Check if there are data to commit to this file
   int hasDataToCommit = tsdbHasDataToCommit(iters, pCfg->maxTables, minKey, maxKey);
   if (!hasDataToCommit) {
-    tsdbTrace("vgId:%d no data to commit to file %d", REPO_ID(pRepo), fid);
+    tsdbDebug("vgId:%d no data to commit to file %d", REPO_ID(pRepo), fid);
     return 0;
   }
 

@@ -68,7 +68,7 @@ void httpCleanUpConnect() {
 
   tfree(pServer->pThreads);
   pServer->pThreads = NULL;
-  httpTrace("http server:%s is cleaned up", pServer->label);
+  httpDebug("http server:%s is cleaned up", pServer->label);
 }
 
 bool httpReadDataImp(HttpContext *pContext) {
@@ -81,7 +81,7 @@ bool httpReadDataImp(HttpContext *pContext) {
       break;
     } else if (nread < 0) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
-        httpTrace("context:%p, fd:%d, ip:%s, read from socket error:%d, wait another event",
+        httpDebug("context:%p, fd:%d, ip:%s, read from socket error:%d, wait another event",
                   pContext, pContext->fd, pContext->ipstr, errno);
         break;
       } else {
@@ -109,7 +109,7 @@ bool httpReadDataImp(HttpContext *pContext) {
 
 static bool httpDecompressData(HttpContext *pContext) {
   if (pContext->contentEncoding != HTTP_COMPRESS_GZIP) {
-    httpDump("context:%p, fd:%d, ip:%s, content:%s", pContext, pContext->fd, pContext->ipstr, pContext->parser.data.pos);
+    httpTraceDump("context:%p, fd:%d, ip:%s, content:%s", pContext, pContext->fd, pContext->ipstr, pContext->parser.data.pos);
     return true;
   }
 
@@ -125,7 +125,7 @@ static bool httpDecompressData(HttpContext *pContext) {
   if (ret == 0) {
     memcpy(pContext->parser.data.pos, decompressBuf, decompressBufLen);
     pContext->parser.data.pos[decompressBufLen] = 0;
-    httpDump("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s",
+    httpTraceDump("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s",
               pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, decompressBufLen,  decompressBuf);
     pContext->parser.data.len = decompressBufLen;
   } else {
@@ -154,10 +154,10 @@ static bool httpReadData(HttpContext *pContext) {
 
   int ret = httpCheckReadCompleted(pContext);
   if (ret == HTTP_CHECK_BODY_CONTINUE) {
-    //httpTrace("context:%p, fd:%d, ip:%s, not finished yet, wait another event", pContext, pContext->fd, pContext->ipstr);
+    //httpDebug("context:%p, fd:%d, ip:%s, not finished yet, wait another event", pContext, pContext->fd, pContext->ipstr);
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
-    httpTrace("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
+    httpDebug("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
               pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->parser.bufsize, pContext->parser.data.len);
     if (httpDecompressData(pContext)) {
       return true;
@@ -188,7 +188,7 @@ static void httpProcessHttpData(void *param) {
     //-1 means uncertainty, 0-nowait, 1-wait 1 ms, set it from -1 to 1
     fdNum = epoll_wait(pThread->pollFd, events, HTTP_MAX_EVENTS, 1);
     if (pThread->stop) {
-      httpTrace("%p, http thread get stop event, exiting...", pThread);
+      httpDebug("%p, http thread get stop event, exiting...", pThread);
       break;
     }
     if (fdNum <= 0) continue;
@@ -203,42 +203,42 @@ static void httpProcessHttpData(void *param) {
       }
 
       if (events[i].events & EPOLLPRI) {
-        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLPRI events occured, accessed:%d, close connect",
+        httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLPRI events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
         continue;
       }
 
       if (events[i].events & EPOLLRDHUP) {
-        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLRDHUP events occured, accessed:%d, close connect",
+        httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLRDHUP events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
         continue;
       }
 
       if (events[i].events & EPOLLERR) {
-        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLERR events occured, accessed:%d, close connect",
+        httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLERR events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
-        httpTrace("context:%p, fd:%d, ip:%s, state:%s, EPOLLHUP events occured, accessed:%d, close connect",
+        httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLHUP events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
         continue;
       }
 
       if (!httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_READY)) {
-        httpTrace("context:%p, fd:%d, ip:%s, state:%s, not in ready state, ignore read events",
+        httpDebug("context:%p, fd:%d, ip:%s, state:%s, not in ready state, ignore read events",
                 pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state));
         httpReleaseContext(pContext);
         continue;
       }
 
       if (pServer->status != HTTP_SERVER_RUNNING) {
-        httpTrace("context:%p, fd:%d, ip:%s, state:%s, server is not running, accessed:%d, close connect", pContext,
+        httpDebug("context:%p, fd:%d, ip:%s, state:%s, server is not running, accessed:%d, close connect", pContext,
                   pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpSendErrorResp(pContext, HTTP_SERVER_OFFLINE);
         httpNotifyContextClose(pContext);
@@ -273,7 +273,7 @@ static void *httpAcceptHttpConnection(void *arg) {
               taosIpStr(pServer->serverIp), pServer->serverPort, strerror(errno));
     return NULL;
   } else {
-    httpPrint("http server init success at %u", pServer->serverPort);
+    httpInfo("http server init success at %u", pServer->serverPort);
     pServer->status = HTTP_SERVER_RUNNING;
   }
 
@@ -282,7 +282,7 @@ static void *httpAcceptHttpConnection(void *arg) {
     connFd = (int)accept(pServer->fd, (struct sockaddr *)&clientAddr, &addrlen);
     if (connFd == -1) {
       if (errno == EINVAL) {
-        httpTrace("http server:%s socket was shutdown, exiting...", pServer->label);
+        httpDebug("http server:%s socket was shutdown, exiting...", pServer->label);
         break;
       }
       httpError("http server:%s, accept connect failure, errno:%d reason:%s", pServer->label, errno, strerror(errno));
@@ -331,7 +331,7 @@ static void *httpAcceptHttpConnection(void *arg) {
 
     // notify the data process, add into the FdObj list
     atomic_add_fetch_32(&pThread->numOfFds, 1);
-    httpTrace("context:%p, fd:%d, ip:%s, thread:%s numOfFds:%d totalFds:%d, accept a new connection", pContext, connFd,
+    httpDebug("context:%p, fd:%d, ip:%s, thread:%s numOfFds:%d totalFds:%d, accept a new connection", pContext, connFd,
               pContext->ipstr, pThread->label, pThread->numOfFds, totalFds);
 
     // pick up next thread for next connection
@@ -365,6 +365,7 @@ bool httpInitConnect() {
     pThread->pollFd = epoll_create(HTTP_MAX_EVENTS);  // size does not matter
     if (pThread->pollFd < 0) {
       httpError("http thread:%s, failed to create HTTP epoll", pThread->label);
+      pthread_mutex_destroy(&(pThread->threadMutex));
       return false;
     }
 
@@ -374,11 +375,12 @@ bool httpInitConnect() {
     if (pthread_create(&(pThread->thread), &thattr, (void *)httpProcessHttpData, (void *)(pThread)) != 0) {
       httpError("http thread:%s, failed to create HTTP process data thread, reason:%s", pThread->label,
                 strerror(errno));
+      pthread_mutex_destroy(&(pThread->threadMutex));        
       return false;
     }
     pthread_attr_destroy(&thattr);
 
-    httpTrace("http thread:%p:%s, initialized", pThread, pThread->label);
+    httpDebug("http thread:%p:%s, initialized", pThread, pThread->label);
     pThread++;
   }
 
@@ -387,11 +389,12 @@ bool httpInitConnect() {
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pServer->thread), &thattr, (void *)httpAcceptHttpConnection, (void *)(pServer)) != 0) {
     httpError("http server:%s, failed to create Http accept thread, reason:%s", pServer->label, strerror(errno));
+    httpCleanUpConnect();
     return false;
   }
   pthread_attr_destroy(&thattr);
 
-  httpTrace("http server:%s, initialized, ip:%s:%u, numOfThreads:%d", pServer->label, taosIpStr(pServer->serverIp),
+  httpDebug("http server:%s, initialized, ip:%s:%u, numOfThreads:%d", pServer->label, taosIpStr(pServer->serverIp),
             pServer->serverPort, pServer->numOfThreads);
   return true;
 }

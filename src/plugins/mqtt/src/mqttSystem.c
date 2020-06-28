@@ -50,7 +50,7 @@ int32_t mqttInitSystem() {
   recntStatus.password = strstr(url, "@") != NULL ? strbetween(strstr(url, recntStatus.user_name), ":", "@") : NULL;
 
   if (strlen(url) == 0) {
-    mqttTrace("mqtt module not init, url is null");
+    mqttDebug("mqtt module not init, url is null");
     return rc;
   }
 
@@ -84,10 +84,10 @@ int32_t mqttInitSystem() {
 int32_t mqttStartSystem() {
   int rc = 0;
   if (recntStatus.user_name != NULL && recntStatus.password != NULL) {
-    mqttPrint("connecting to  mqtt://%s:%s@%s:%s/%s/", recntStatus.user_name, recntStatus.password,
+    mqttInfo("connecting to  mqtt://%s:%s@%s:%s/%s/", recntStatus.user_name, recntStatus.password,
               recntStatus.hostname, recntStatus.port, topicPath);
   } else if (recntStatus.user_name != NULL && recntStatus.password == NULL) {
-    mqttPrint("connecting to  mqtt://%s@%s:%s/%s/", recntStatus.user_name, recntStatus.hostname, recntStatus.port,
+    mqttInfo("connecting to  mqtt://%s@%s:%s/%s/", recntStatus.user_name, recntStatus.hostname, recntStatus.port,
               topicPath);
   }
 
@@ -97,7 +97,7 @@ int32_t mqttStartSystem() {
     mqttCleanup(EXIT_FAILURE, -1, NULL);
     rc = -1;
   } else {
-    mqttPrint("listening for '%s' messages.", recntStatus.topic);
+    mqttInfo("listening for '%s' messages.", recntStatus.topic);
   }
   return rc;
 }
@@ -107,18 +107,18 @@ void mqttStopSystem() {
   mttIsRuning = 0;
   usleep(300000U);
   mqttCleanup(EXIT_SUCCESS, mqttClient.socketfd, &clientDaemonThread);
-  mqttPrint("mqtt is stoped");
+  mqttInfo("mqtt is stoped");
 }
 
 void mqttCleanUpSystem() {
-  mqttPrint("starting to clean  up mqtt");
+  mqttInfo("starting to clean  up mqtt");
   free(recntStatus.user_name);
   free(recntStatus.password);
   free(recntStatus.hostname);
   free(recntStatus.port);
   free(recntStatus.topic);
   free(topicPath);
-  mqttPrint("mqtt is cleaned up");
+  mqttInfo("mqtt is cleaned up");
 }
 
 void mqtt_PublishCallback(void** unused, struct mqtt_response_publish* published) {
@@ -126,12 +126,12 @@ void mqtt_PublishCallback(void** unused, struct mqtt_response_publish* published
   char* topic_name = (char*)malloc(published->topic_name_size + 1);
   memcpy(topic_name, published->topic_name, published->topic_name_size);
   topic_name[published->topic_name_size] = '\0';
-  mqttPrint("received publish('%s'): %s", topic_name, (const char*)published->application_message);
+  mqttInfo("received publish('%s'): %s", topic_name, (const char*)published->application_message);
   char _token[128] = {0};
   char _dbname[128] = {0};
   char _tablename[128] = {0};
   if (mqttConnect == NULL) {
-    mqttPrint("connect database");
+    mqttInfo("connect database");
     taos_connect_a(NULL, "_root", tsInternalPass, "", 0, mqttInitConnCb, &mqttClient, &mqttConnect);
   }
   if (topic_name[1]=='/' &&  strncmp((char*)&topic_name[1], topicPath, strlen(topicPath)) == 0) {
@@ -145,14 +145,14 @@ void mqtt_PublishCallback(void** unused, struct mqtt_response_publish* published
       strncpy(_token, p_p_cmd_part[1], 127);
       strncpy(_dbname, p_p_cmd_part[2], 127);
       strncpy(_tablename, p_p_cmd_part[3], 127);
-      mqttPrint("part count=%d,access token:%s,database name:%s, table name:%s", part_index, _token, _dbname,
+      mqttInfo("part count=%d,access token:%s,database name:%s, table name:%s", part_index, _token, _dbname,
                 _tablename);
 
       if (mqttConnect != NULL) {
         char* _sql = converJsonToSql((char*)published->application_message, _dbname, _tablename);
-        mqttPrint("query:%s", _sql);
+        mqttInfo("query:%s", _sql);
         taos_query_a(mqttConnect, _sql, mqttQueryInsertCallback, &mqttClient);
-        mqttPrint("free sql:%s", _sql);
+        mqttInfo("free sql:%s", _sql);
         free(_sql);
       }
     }
@@ -165,12 +165,12 @@ void* mqttClientRefresher(void* client) {
     mqtt_sync((struct mqtt_client*)client);
     taosMsleep(100);
   }
-  mqttTrace("quit refresher");
+  mqttDebug("quit refresher");
   return NULL;
 }
 
 void mqttCleanup(int status, int sockfd, pthread_t* client_daemon) {
-  mqttPrint("clean up mqtt module");
+  mqttInfo("clean up mqtt module");
   if (sockfd != -1) close(sockfd);
   if (client_daemon != NULL) pthread_cancel(*client_daemon);
 }
@@ -182,7 +182,7 @@ void mqttInitConnCb(void* param, TAOS_RES* result, int32_t code) {
     mqttConnect = NULL;
     return;
   }
-  mqttTrace("mqtt:%d, connect to database success, reason:%s", code, tstrerror(code));
+  mqttDebug("mqtt:%d, connect to database success, reason:%s", code, tstrerror(code));
 }
 
 void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code) {
@@ -191,12 +191,12 @@ void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code) {
   } else if (code == 0) {
     mqttError("mqtt:%d, save data failed, affect rows:%d", code, code);
   } else {
-    mqttPrint("mqtt:%d, save data   success, code:%s", code, tstrerror(code));
+    mqttInfo("mqtt:%d, save data   success, code:%s", code, tstrerror(code));
   }
 }
 
 void mqttReconnectClient(struct mqtt_client* client, void** reconnect_state_vptr) {
-  mqttPrint("reconnect client");
+  mqttInfo("reconnect client");
   struct reconnect_state_t* reconnect_state = *((struct reconnect_state_t**)reconnect_state_vptr);
 
   /* Close the clients socket if this isn't the initial reconnect call */

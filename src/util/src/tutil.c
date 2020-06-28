@@ -784,14 +784,14 @@ void taosRemoveDir(char *rootDir) {
       taosRemoveDir(filename);
     } else {
       (void)remove(filename);
-      uPrint("file:%s is removed", filename);
+      uInfo("file:%s is removed", filename);
     }
   }
 
   closedir(dir);
   rmdir(rootDir);
 
-  uPrint("dir:%s is removed", rootDir);
+  uInfo("dir:%s is removed", rootDir);
 }
 
 int tmkdir(const char *path, mode_t mode) {

@@ -20,13 +20,15 @@
 extern "C" {
 #endif
 
-#define DEBUG_ERROR 1U
+#define DEBUG_FATAL 1U
+#define DEBUG_ERROR DEBUG_FATAL
 #define DEBUG_WARN  2U
-#define DEBUG_TRACE 4U
-#define DEBUG_DUMP  8U
+#define DEBUG_INFO  DEBUG_WARN
+#define DEBUG_DEBUG 4U
+#define DEBUG_TRACE 8U
 
-#define DEBUG_FILE   0x80
-#define DEBUG_SCREEN 0x40
+#define DEBUG_SCREEN 64U
+#define DEBUG_FILE   128U
 
 int32_t taosInitLog(char *logName, int32_t numOfLogLines, int32_t maxFiles);
 void    taosCloseLog();

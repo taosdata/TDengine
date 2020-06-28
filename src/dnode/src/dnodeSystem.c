@@ -92,7 +92,7 @@ int32_t main(int32_t argc, char *argv[]) {
   // Initialize the system
   if (dnodeInitSystem() < 0) {
     syslog(LOG_ERR, "Error initialize TDengine system");
-    dPrint("Failed to start TDengine, please check the log at:%s", tsLogDir);
+    dInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
     closelog();
     exit(EXIT_FAILURE);
   }
@@ -109,14 +109,14 @@ int32_t main(int32_t argc, char *argv[]) {
   dnodeCleanUpSystem();
   // close the syslog
   syslog(LOG_INFO, "Shut down TDengine service successfully");
-  dPrint("TDengine is shut down!");
+  dInfo("TDengine is shut down!");
   closelog();
   return EXIT_SUCCESS;
 }
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   if (signum == SIGUSR1) {
-    taosCfgDynamicOptions("debugFlag 135");
+    taosCfgDynamicOptions("debugFlag 151");
     return;
   }
   if (signum == SIGUSR2) {
@@ -127,7 +127,7 @@ static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   syslog(LOG_INFO, "Shut down signal is %d", signum);
   syslog(LOG_INFO, "Shutting down TDengine service...");
   // clean the system.
-  dPrint("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
+  dInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
 
   // protect the application from receive another signal
   struct sigaction act = {{0}};

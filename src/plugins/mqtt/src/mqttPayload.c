@@ -43,7 +43,7 @@ char* converJsonToSql(char* json, char* _dbname, char* _tablename) {
   {
     cJSON* item = cJSON_GetArrayItem(jPlayload, i);
     if (cJSON_Object == item->type) {
-      mqttPrint("The item '%s' is not supported", item->string);
+      mqttInfo("The item '%s' is not supported", item->string);
     } else {
       strcat(_names, item->string);
       if (i < count - 1) {

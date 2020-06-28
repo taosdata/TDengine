@@ -74,7 +74,7 @@ int32_t mnodeInitProfile() {
 
 void mnodeCleanupProfile() {
   if (tsMnodeConnCache != NULL) {
-    mPrint("conn cache is cleanup");
+    mInfo("conn cache is cleanup");
     taosCacheCleanup(tsMnodeConnCache);
     tsMnodeConnCache = NULL;
   }
@@ -104,7 +104,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
   sprintf(key, "%u", connId);  
   SConnObj *pConn = taosCachePut(tsMnodeConnCache, key, &connObj, sizeof(connObj), CONN_KEEP_TIME);
   
-  mTrace("connId:%d, is created, user:%s ip:%s:%u", connId, user, taosIpStr(ip), port);
+  mDebug("connId:%d, is created, user:%s ip:%s:%u", connId, user, taosIpStr(ip), port);
   return pConn;
 }
 
@@ -131,7 +131,7 @@ SConnObj *mnodeAccquireConn(uint32_t connId, char *user, uint32_t ip, uint16_t p
     return NULL;
   }
 
-  // mTrace("connId:%d, is incoming, user:%s ip:%s:%u", connId, pConn->user, taosIpStr(pConn->ip), pConn->port);
+  // mDebug("connId:%d, is incoming, user:%s ip:%s:%u", connId, pConn->user, taosIpStr(pConn->ip), pConn->port);
   pConn->lastAccess = expireTime;
   return pConn;
 }
@@ -141,7 +141,7 @@ static void mnodeFreeConn(void *data) {
   tfree(pConn->pQueries);
   tfree(pConn->pStreams);
 
-  mTrace("connId:%d, is destroyed", pConn->connId);
+  mDebug("connId:%d, is destroyed", pConn->connId);
 }
 
 static void *mnodeGetNextConn(SHashMutableIterator *pIter, SConnObj **pConn) {
@@ -534,14 +534,14 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
-  mPrint("kill query msg is received, queryId:%s", pKill->queryId);
+  mInfo("kill query msg is received, queryId:%s", pKill->queryId);
 
   const char delim = ':';
   char* connIdStr = strtok(pKill->queryId, &delim);
   char* queryIdStr = strtok(NULL, &delim);
 
   if (queryIdStr == NULL || connIdStr == NULL) {
-    mPrint("failed to kill query, queryId:%s", pKill->queryId);
+    mInfo("failed to kill query, queryId:%s", pKill->queryId);
    return TSDB_CODE_MND_INVALID_QUERY_ID;
   }
 
@@ -552,7 +552,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
     mError("connId:%s, failed to kill queryId:%d, conn not exist", connIdStr, queryId);
     return TSDB_CODE_MND_INVALID_CONN_ID;
   } else {
-    mPrint("connId:%s, queryId:%d is killed by user:%s", connIdStr, queryId, pUser->user);
+    mInfo("connId:%s, queryId:%d is killed by user:%s", connIdStr, queryId, pUser->user);
     pConn->queryId = queryId;
     taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;
@@ -564,14 +564,14 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
-  mPrint("kill stream msg is received, streamId:%s", pKill->queryId);
+  mInfo("kill stream msg is received, streamId:%s", pKill->queryId);
 
   const char delim = ':';
   char* connIdStr = strtok(pKill->queryId, &delim);
   char* streamIdStr = strtok(NULL, &delim);
 
   if (streamIdStr == NULL || connIdStr == NULL) {
-    mPrint("failed to kill stream, streamId:%s", pKill->queryId);
+    mInfo("failed to kill stream, streamId:%s", pKill->queryId);
    return TSDB_CODE_MND_INVALID_STREAM_ID;
   }
 
@@ -582,7 +582,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
     mError("connId:%s, failed to kill streamId:%d, conn not exist", connIdStr, streamId);
     return TSDB_CODE_MND_INVALID_CONN_ID;
   } else {
-    mPrint("connId:%s, streamId:%d is killed by user:%s", connIdStr, streamId, pUser->user);
+    mInfo("connId:%s, streamId:%d is killed by user:%s", connIdStr, streamId, pUser->user);
     pConn->streamId = streamId;
     taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;
@@ -599,7 +599,7 @@ static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
     mError("connId:%s, failed to kill, conn not exist", pKill->queryId);
     return TSDB_CODE_MND_INVALID_CONN_ID;
   } else {
-    mPrint("connId:%s, is killed by user:%s", pKill->queryId, pUser->user);
+    mInfo("connId:%s, is killed by user:%s", pKill->queryId, pUser->user);
     pConn->killed = 1;
     taosCacheRelease(tsMnodeConnCache, (void**)&pConn, false);
     return TSDB_CODE_SUCCESS;
