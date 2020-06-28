@@ -113,6 +113,7 @@ void dnodeFreeMnodePqueue() {
 void dnodeDispatchToMnodePeerQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMPeerQueue == NULL) {
     dnodeSendRedirectMsg(pMsg, false);
+    rpcFreeCont(pMsg->pCont);
     return;
   }
 

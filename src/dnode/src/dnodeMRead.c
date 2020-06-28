@@ -116,6 +116,7 @@ void dnodeFreeMnodeRqueue() {
 void dnodeDispatchToMnodeReadQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMReadQueue == NULL) {
     dnodeSendRedirectMsg(pMsg, true);
+    rpcFreeCont(pMsg->pCont);
     return;
   }
 
