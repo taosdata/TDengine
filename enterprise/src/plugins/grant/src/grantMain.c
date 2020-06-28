@@ -285,7 +285,7 @@ static void grantResetMaster() {
   grantStatus.curQueryTime = grantGetCulsterCurQueryTime();
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
-  uPrint("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
+  uInfo("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
          grantStatus.curTimeSeries);
   free(ts);
 

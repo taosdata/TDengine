@@ -92,14 +92,14 @@ int main(int argc, char *argv[]) {
   info.processIncomingConn = arbProcessIncommingConnection;
   tsArbTcpPool = taosOpenTcpThreadPool(&info);
   
-  sPrint("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsServerPort);
+  sInfo("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsServerPort);
 
   for (int res = sem_wait(&tsArbSem); res != 0; res = sem_wait(&tsArbSem)) {
     if (res != EINTR) break;
   }
 
   taosCloseTcpThreadPool(tsArbTcpPool);
-  sPrint("TAOS arbitrator is shut down\n");
+  sInfo("TAOS arbitrator is shut down\n");
   closelog();
 
   return 0;
@@ -109,7 +109,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
 {
   char  ipstr[24];
   tinet_ntoa(ipstr, sourceIp);
-  sTrace("peer TCP connection from ip:%s", ipstr);
+  sDebug("peer TCP connection from ip:%s", ipstr);
 
   SFirstPkt firstPkt;
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
@@ -127,13 +127,13 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
 
   snprintf(pNode->id, sizeof(pNode->id), "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port); 
   if (firstPkt.syncHead.vgId) {  
-    sTrace("%s, vgId in head is not zero, close the connection", pNode->id);
+    sDebug("%s, vgId in head is not zero, close the connection", pNode->id);
     tfree(pNode);
     taosCloseSocket(connFd);
     return;
   }
 
-  sTrace("%s, arbitrator request is accepted", pNode->id);
+  sDebug("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
   pNode->pConn = taosAllocateTcpConn(tsArbTcpPool, pNode, connFd);
 
@@ -143,7 +143,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp)
 static void arbProcessBrokenLink(void *param) {
   SNodeConn *pNode = param;
 
-  sTrace("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
+  sDebug("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
   tfree(pNode);
 }
 
@@ -156,17 +156,17 @@ static int arbProcessPeerMsg(void *param, void *buffer)
 
   int hlen = taosReadMsg(pNode->nodeFd, &head, sizeof(head));
   if (hlen != sizeof(head)) {
-    sTrace("%s, failed to read msg, hlen:%d", pNode->id, hlen);
+    sDebug("%s, failed to read msg, hlen:%d", pNode->id, hlen);
     return -1;
   }
 
   bytes = taosReadMsg(pNode->nodeFd, cont, head.len);
   if (bytes != head.len) {
-    sTrace("%s, failed to read, bytes:%d len:%d", pNode->id, bytes, head.len);
+    sDebug("%s, failed to read, bytes:%d len:%d", pNode->id, bytes, head.len);
     return -1;
   }
 
-  sTrace("%s, msg is received, len:%d", pNode->id, head.len);
+  sDebug("%s, msg is received, len:%d", pNode->id, head.len);
   return 0;
 }
 
@@ -178,7 +178,7 @@ static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) 
   sigaction(SIGHUP, &act, NULL);
   sigaction(SIGINT, &act, NULL);
 
-  sPrint("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
+  sInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
 
   // inform main thread to exit
   sem_post(&tsArbSem);

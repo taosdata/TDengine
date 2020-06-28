@@ -154,7 +154,7 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
 
   tsStorageDiskTier.tiers[tierid].disks[tsStorageDiskTier.tiers[tierid].numOfDisks++] = disk;
 
-  uTrace("disk %s is added to tsStorageDiskTier, tid: %d did: %d", path, tierid, diskId.did);
+  uDebug("disk %s is added to tsStorageDiskTier, tid: %d did: %d", path, tierid, diskId.did);
 
   uDebugFlag = old_uDebugFlag;
 
@@ -192,7 +192,7 @@ DISKID storageAllocDiskOnTier(TIERID tierid) {
 
   pthread_mutex_unlock(&tsStorageDiskTier.tierMutex);
 
-  uTrace("Allocate disk tier %d did %d", tierid, did);
+  uDebug("Allocate disk tier %d did %d", tierid, did);
 
   return did;
 }

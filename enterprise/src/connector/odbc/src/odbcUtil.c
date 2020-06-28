@@ -24,11 +24,11 @@ void odbc_init_imp(void)
 {
 #if defined(_WIN32) || defined(_WIN64)
   taos_init();
-  odbcTrace("taosodbc.dll load success");
+  odbcDebug("taosodbc.dll load success");
   odbcLoaded = true;
 #else
   taos_init();
-  odbcTrace("libtaosodbc.so load success");
+  odbcDebug("libtaosodbc.so load success");
   odbcLoaded = true;
 #endif
 }
@@ -52,7 +52,7 @@ void odbc_setup_init_imp(void)
       printf("failed to open log file in directory:%s\n", tsLogDir);
     }
 
-    odbcTrace("taosodbc.dll for setup load success");
+    odbcDebug("taosodbc.dll for setup load success");
     odbcLoaded = true;
   }
 #else
@@ -60,7 +60,7 @@ void odbc_setup_init_imp(void)
     char temp[128];
     sprintf(temp, "%s/setuplog", tsLogDir);
     taosOpenLogFileWithMaxLines(temp, 10000, 10);
-    odbcTrace("libtaosodbc.so for setup load success");
+    odbcDebug("libtaosodbc.so for setup load success");
     odbcLoaded = true;
   }
 #endif
