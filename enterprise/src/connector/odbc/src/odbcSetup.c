@@ -49,7 +49,7 @@ ATTRMAP attrLookup[] = {
 static
 BOOL SetDSNAttributes(HWND parent, SETUPDLG *setupdlg)
 {
-  odbcPrint("SetDSNAttributes");
+  odbcInfo("SetDSNAttributes");
 
   char *dsn = setupdlg->attr[KEY_DSN].attr;
   if (strlen(dsn) == 0) {
@@ -78,7 +78,7 @@ BOOL SetDSNAttributes(HWND parent, SETUPDLG *setupdlg)
   SQLWritePrivateProfileString(dsn, "UID", setupdlg->attr[KEY_USER].attr, ODBC_INI);
   SQLWritePrivateProfileString(dsn, "PWD", setupdlg->attr[KEY_PASSWORD].attr, ODBC_INI);
 
-  odbcPrint("SetDSNAttributes, dsn:%s, driver:%s, server:%s, database:%s, uid:%s"
+  odbcInfo("SetDSNAttributes, dsn:%s, driver:%s, server:%s, database:%s, uid:%s"
     , setupdlg->driver
     , setupdlg->attr[KEY_DSN].attr
     , setupdlg->attr[KEY_IP].attr
@@ -96,7 +96,7 @@ BOOL SetDSNAttributes(HWND parent, SETUPDLG *setupdlg)
 static
 void GetAttributes(SETUPDLG *setupdlg)
 {
-  odbcPrint("GetAttributes");
+  odbcInfo("GetAttributes");
   char *dsn = setupdlg->attr[KEY_DSN].attr;
 
   SQLGetPrivateProfileString(dsn, "SERVER", "", setupdlg->attr[KEY_IP].attr,
@@ -108,7 +108,7 @@ void GetAttributes(SETUPDLG *setupdlg)
   SQLGetPrivateProfileString(dsn, "PWD", "", setupdlg->attr[KEY_PASSWORD].attr,
     sizeof(setupdlg->attr[KEY_PASSWORD].attr), ODBC_INI);
 
-  odbcPrint("GetAttributes, dsn:%s, server:%s, database:%s, uid:%s"
+  odbcInfo("GetAttributes, dsn:%s, server:%s, database:%s, uid:%s"
     , setupdlg->attr[KEY_DSN].attr
     , setupdlg->attr[KEY_IP].attr
     , setupdlg->attr[KEY_DBNAME].attr
@@ -170,7 +170,7 @@ void ParseAttributes(LPCSTR attribs, SETUPDLG *setupdlg)
 BOOL APIENTRY LibMain(HANDLE hinst, DWORD reason, LPVOID reserved)
 {
   //odbc_setup_init();
-  //odbcTrace("dll msg received, hinst:%p, reason:%s reserved:%p", hinst, odbcAttachMsgName(reason), reserved);
+  //odbcDebug("dll msg received, hinst:%p, reason:%s reserved:%p", hinst, odbcAttachMsgName(reason), reserved);
   static int initialized = 0;
   switch (reason) {
   case DLL_PROCESS_ATTACH:
@@ -238,7 +238,7 @@ static BOOL CALLBACK ConfigDlgProc(HWND hdlg, WORD wmsg, WPARAM wparam, LPARAM l
 {
   switch (wmsg) {
   case WM_INITDIALOG:
-    odbcPrint("ConfigDlgProc: init dialog");
+    odbcInfo("ConfigDlgProc: init dialog");
     SetDlgItemText(hdlg, IDC_DS, setupdlg->attr[KEY_DSN].attr);
     SetDlgItemText(hdlg, IDC_DBNAME, setupdlg->attr[KEY_DBNAME].attr);
     SetDlgItemText(hdlg, IDC_IP, setupdlg->attr[KEY_IP].attr);
@@ -260,11 +260,11 @@ static BOOL CALLBACK ConfigDlgProc(HWND hdlg, WORD wmsg, WPARAM wparam, LPARAM l
   case WM_COMMAND:
     switch (GET_WM_COMMAND_ID(wparam, lparam)) {
     case IDC_BROWSE:
-      odbcPrint("ConfigDlgProc: browse config directory");
+      odbcInfo("ConfigDlgProc: browse config directory");
       GetCfgDirectory(hdlg);
       break;
     case IDOK:
-      odbcPrint("ConfigDlgProc: push ok button");
+      odbcInfo("ConfigDlgProc: push ok button");
       GetDlgItemText(hdlg, IDC_DS, setupdlg->attr[KEY_DSN].attr, sizeof(setupdlg->attr[KEY_DSN].attr));
       GetDlgItemText(hdlg, IDC_IP, setupdlg->attr[KEY_IP].attr, sizeof(setupdlg->attr[KEY_IP].attr));
       GetDlgItemText(hdlg, IDC_DBNAME, setupdlg->attr[KEY_DBNAME].attr, sizeof(setupdlg->attr[KEY_DBNAME].attr));
@@ -274,10 +274,10 @@ static BOOL CALLBACK ConfigDlgProc(HWND hdlg, WORD wmsg, WPARAM wparam, LPARAM l
       if (!odbcSetupSilent)
         SetDSNAttributes(hdlg, setupdlg);
       EndDialog(hdlg, wparam);
-      odbcPrint("ConfigDlgProc: push ok button over");
+      odbcInfo("ConfigDlgProc: push ok button over");
       return TRUE;
     case IDCANCEL:
-      odbcPrint("ConfigDlgProc: push cancel button");
+      odbcInfo("ConfigDlgProc: push cancel button");
       EndDialog(hdlg, wparam);
       return TRUE;
     }
@@ -297,7 +297,7 @@ static BOOL CALLBACK ConfigDlgProc(HWND hdlg, WORD wmsg, WPARAM wparam, LPARAM l
 BOOL INSTAPI ConfigDSN(HWND hwnd, WORD request, LPCSTR driver, LPCSTR attribs)
 {
   odbc_setup_init();
-  odbcPrint("ConfigDSN, hwnd:%d, request:%d:%s, driver:%s, attribs:%s", hwnd, request, odbcConfigDsnType(request), driver, attribs)
+  odbcInfo("ConfigDSN, hwnd:%d, request:%d:%s, driver:%s, attribs:%s", hwnd, request, odbcConfigDsnType(request), driver, attribs)
 
   BOOL success = TRUE;
   
@@ -309,22 +309,22 @@ BOOL INSTAPI ConfigDSN(HWND hwnd, WORD request, LPCSTR driver, LPCSTR attribs)
     return FALSE;
   }
 
-  odbcPrint("ConfigDSN, setup dialog initialize success");
+  odbcInfo("ConfigDSN, setup dialog initialize success");
   memset(setupdlg, 0, sizeof(SETUPDLG));
   strcpy(setupdlg->driver, driver);
 
   if (attribs) {
-    odbcPrint("ConfigDSN, read exist attributes");
+    odbcInfo("ConfigDSN, read exist attributes");
     ParseAttributes(attribs, setupdlg);
     GetAttributes(setupdlg);
   }
 
   if (request == ODBC_REMOVE_DSN) {
     success = SQLRemoveDSNFromIni(setupdlg->attr[KEY_DSN].attr);
-    odbcPrint("ConfigDSN, drop dsn:%s, success:%d", setupdlg->attr[KEY_DSN].attr, success);
+    odbcInfo("ConfigDSN, drop dsn:%s, success:%d", setupdlg->attr[KEY_DSN].attr, success);
   }
   else if (request == ODBC_CONFIG_DSN){
-    odbcPrint("ConfigDSN, open dialog for config dsn:%s", setupdlg->attr[KEY_DSN].attr);
+    odbcInfo("ConfigDSN, open dialog for config dsn:%s", setupdlg->attr[KEY_DSN].attr);
     if (strlen(setupdlg->attr[KEY_DSN].attr) == 0) {
       setupdlg->isAdd = TRUE;
     }
@@ -343,7 +343,7 @@ BOOL INSTAPI ConfigDSN(HWND hwnd, WORD request, LPCSTR driver, LPCSTR attribs)
     }
   }
   else {
-    odbcPrint("ConfigDSN, open dialog for add new dsn");
+    odbcInfo("ConfigDSN, open dialog for add new dsn");
     setupdlg->isAdd = TRUE;
     setupdlg->parent = hwnd;
 
@@ -357,7 +357,7 @@ BOOL INSTAPI ConfigDSN(HWND hwnd, WORD request, LPCSTR driver, LPCSTR attribs)
     }
   }
 
-  odbcPrint("ConfigDSN, setup dialog closed");
+  odbcInfo("ConfigDSN, setup dialog closed");
 
   //free(setupdlg);
   //setupdlg = NULL;

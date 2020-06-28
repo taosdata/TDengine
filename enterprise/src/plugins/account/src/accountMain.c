@@ -95,7 +95,7 @@ int32_t acctInit() {
 
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
   
-  mTrace("table:accounts, is initialized");
+  mDebug("table:accounts, is initialized");
   return 0;
 }
 
@@ -242,7 +242,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pAcct);
   } else {
-    mLPrint("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
 
     // create a user in the same name and pass
     char suser[64] = {0};
@@ -272,7 +272,7 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
 
   int32_t code = sdbDeleteRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
@@ -494,54 +494,54 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
 
   pAcct = mnodeGetAcct(name);
   if (pAcct == NULL) {
-    mTrace("account: %s not exists", name);
+    mDebug("account: %s not exists", name);
     return TSDB_CODE_MND_INVALID_ACCT;
   }
 
   if (acctCheckAlterAcctParams(pAcct, pCfg) < 0) return TSDB_CODE_MND_INVALID_ACCT_OPTION;
 
   if (pCfg->maxUsers > 0) {
-    mTrace("account: %s maxUsers is modified from %d to %d", name, pAcct->cfg.maxUsers, pCfg->maxUsers);
+    mDebug("account: %s maxUsers is modified from %d to %d", name, pAcct->cfg.maxUsers, pCfg->maxUsers);
     pAcct->cfg.maxUsers = pCfg->maxUsers;
   }
 
   if (pCfg->maxDbs > 0) {
-    mTrace("account: %s maxDbs is modified from %d to %d", name, pAcct->cfg.maxDbs, pCfg->maxDbs);
+    mDebug("account: %s maxDbs is modified from %d to %d", name, pAcct->cfg.maxDbs, pCfg->maxDbs);
     pAcct->cfg.maxDbs = pCfg->maxDbs;
   }
 
   if (pCfg->maxTimeSeries > 0) {
-    mTrace("account: %s maxTimeSeries is modified from %d to %d", name, pAcct->cfg.maxTimeSeries, pCfg->maxTimeSeries);
+    mDebug("account: %s maxTimeSeries is modified from %d to %d", name, pAcct->cfg.maxTimeSeries, pCfg->maxTimeSeries);
     pAcct->cfg.maxTimeSeries = pCfg->maxTimeSeries;
   }
 
   if (pCfg->maxStreams > 0) {
-    mTrace("account: %s maxStreams is modified from %d to %d", name, pAcct->cfg.maxStreams, pCfg->maxStreams);
+    mDebug("account: %s maxStreams is modified from %d to %d", name, pAcct->cfg.maxStreams, pCfg->maxStreams);
     pAcct->cfg.maxStreams = pCfg->maxStreams;
   }
 
   if (pCfg->maxPointsPerSecond > 0) {
-    mTrace("account: %s maxPointsPerSecond is modified from %d to %d", name, pAcct->cfg.maxPointsPerSecond,
+    mDebug("account: %s maxPointsPerSecond is modified from %d to %d", name, pAcct->cfg.maxPointsPerSecond,
            pCfg->maxPointsPerSecond);
     pAcct->cfg.maxPointsPerSecond = pCfg->maxPointsPerSecond;
   }
 
   if (pCfg->maxStorage > 0) {
-    mTrace("account: %s maxStorage is modified from %" PRId64 " to %" PRId64, name, pAcct->cfg.maxStorage,
+    mDebug("account: %s maxStorage is modified from %" PRId64 " to %" PRId64, name, pAcct->cfg.maxStorage,
            pCfg->maxStorage);
     pAcct->cfg.maxStorage = pCfg->maxStorage;
     // TODO : Reactive account vnodes
   }
 
   if (pCfg->maxQueryTime > 0) {
-    mTrace("account: %s maxQueryTime is modified from %" PRId64 " to %" PRId64, name, pAcct->cfg.maxQueryTime,
+    mDebug("account: %s maxQueryTime is modified from %" PRId64 " to %" PRId64, name, pAcct->cfg.maxQueryTime,
            pCfg->maxQueryTime);
     pAcct->cfg.maxQueryTime = pCfg->maxQueryTime;
     // TODO : Reactive account vnodes
   }
 
   if (pCfg->accessState >= 0) {
-    mTrace("account: %s accessState is modified from %d to %d", name, pAcct->cfg.accessState, pCfg->accessState);
+    mDebug("account: %s accessState is modified from %d to %d", name, pAcct->cfg.accessState, pCfg->accessState);
     pAcct->cfg.accessState = pCfg->accessState;
   }
 
@@ -556,7 +556,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pAcct);
   } else {
-    mLPrint("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
@@ -596,13 +596,13 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   char accessState = TSDB_VN_ALL_ACCCESS;
   if (pAcct->acctInfo.totalStorage > pAcct->cfg.maxStorage) {
     accessState &= (~TSDB_VN_WRITE_ACCCESS);
-    mTrace("acct:%s, set state to no write access, totalStorage:%" PRId64 " maxStorage:%" PRId64, pAcct->user,
+    mDebug("acct:%s, set state to no write access, totalStorage:%" PRId64 " maxStorage:%" PRId64, pAcct->user,
            pAcct->acctInfo.totalStorage, pAcct->cfg.maxStorage);
   }
 
   if (grantCheck(TSDB_GRANT_STORAGE) != 0) {
     accessState &= (~TSDB_VN_WRITE_ACCCESS);
-    mTrace("acct:%s, set state to no write access, totalStorage:%" PRId64 " larger than grant value", pAcct->user,
+    mDebug("acct:%s, set state to no write access, totalStorage:%" PRId64 " larger than grant value", pAcct->user,
            pAcct->acctInfo.totalStorage);
   }
 
@@ -647,7 +647,7 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
   SCMCreateAcctMsg *pCreate = pMsg->rpcMsg.pCont;
   SAcctObj *pAcct = mnodeGetAcct(pCreate->user);
   if (pAcct != NULL) {
-    mPrint("acct:%s, already exist, update it", pCreate->user);
+    mInfo("acct:%s, already exist, update it", pCreate->user);
     mnodeDecAcctRef(pAcct);
     return acctProcessAlterAcctMsg(pMsg);
   }

@@ -154,7 +154,7 @@ void opBuildPutDetailAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int 
 
 bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace(
+  httpDebug(
       "context:%p, fd:%d, ip:%s, check opentsdb command, code:%s, state:%d, "
       "type:%d, rettype:%d, tags:%d",
       pContext, pContext->fd, pContext->ipstr, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
@@ -165,7 +165,7 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[0].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)-1;
-          httpTrace("context:%p, fd:%d, ip:%s, import failed, try create database", pContext, pContext->fd,
+          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create database", pContext, pContext->fd,
                     pContext->ipstr);
           return false;
         }
@@ -173,7 +173,7 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)(multiCmds->pos - 2);
-          httpTrace("context:%p, fd:%d, ip:%s, import failed, try create stable", pContext, pContext->fd,
+          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create stable", pContext, pContext->fd,
                     pContext->ipstr);
           return false;
         }
@@ -183,11 +183,11 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
     }
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_DB) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
+    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
               tstrerror(code));
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
+    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
   } else {
   }
 
@@ -196,7 +196,7 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
 
 void opSetPutDetailNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace(
+  httpDebug(
       "context:%p, fd:%d, ip:%s, get opentsdb detail next command, pos:%d, "
       "code:%s, state:%d, type:%d, rettype:%d, tags:%d",
       pContext, pContext->fd, pContext->ipstr, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType,
@@ -258,7 +258,7 @@ void opBuildPutSummaryAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int
 
 bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace(
+  httpDebug(
       "context:%p, fd:%d, ip:%s, check opentsdb summary command, code:%s, "
       "state:%d, type:%d, rettype:%d, tags:%d",
       pContext, pContext->fd, pContext->ipstr, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
@@ -269,7 +269,7 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[0].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = -1;
-          httpTrace("context:%p, fd:%d, ip:%s, import failed, try create database", pContext, pContext->fd,
+          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create database", pContext, pContext->fd,
                     pContext->ipstr);
           return false;
         }
@@ -277,7 +277,7 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = 0;
-          httpTrace("context:%p, fd:%d, ip:%s, import failed, try create stable", pContext, pContext->fd,
+          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create stable", pContext, pContext->fd,
                     pContext->ipstr);
           return false;
         }
@@ -287,11 +287,11 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
     }
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_DB) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
+    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
               tstrerror(code));
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
+    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
   } else {
   }
 
@@ -300,7 +300,7 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
 
 void opSetPutSummaryNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace(
+  httpDebug(
       "context:%p, fd:%d, ip:%s, get opentsdb summary next command, pos:%d, "
       "code:%s, state:%d, type:%d, rettype:%d, tags:%d",
       pContext, pContext->fd, pContext->ipstr, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType,

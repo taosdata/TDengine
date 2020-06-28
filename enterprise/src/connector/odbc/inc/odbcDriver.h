@@ -27,11 +27,13 @@
 #define SQL_API
 #endif
 
-void taosPrintLog(const char * const flags, int dflag, const char * const format, ...);
-#define odbcError(...) if ( odbcDebugFlag & DEBUG_ERROR ) { taosPrintLog("ODBC ERROR ", odbcDebugFlag, __VA_ARGS__); }
-#define odbcWarn(...)  if ( odbcDebugFlag & DEBUG_WARN )  { taosPrintLog("ODBC WARN  ", odbcDebugFlag, __VA_ARGS__); }
-#define odbcTrace(...) if ( odbcDebugFlag & DEBUG_TRACE ) { taosPrintLog("ODBC ", odbcDebugFlag, __VA_ARGS__); }
-#define odbcPrint(...) { taosPrintLog("ODBC INFO ", 255, __VA_ARGS__); }
+
+#define odbcFatal(...) { if (odbcDebugFlag & DEBUG_FATAL) { taosPrintLog("ODB FATAL ", tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
+#define odbcError(...) { if (odbcDebugFlag & DEBUG_ERROR) { taosPrintLog("ODB ERROR ", tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
+#define odbcWarn(...)  { if (odbcDebugFlag & DEBUG_WARN)  { taosPrintLog("ODB WARN  ", tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
+#define odbcInfo(...)  { if (odbcDebugFlag & DEBUG_INFO)  { taosPrintLog("ODB INFO  ", tscEmbedded ? 255 : cDodbcDebugFlagebugFlag, __VA_ARGS__); }}
+#define odbcDebug(...) { if (odbcDebugFlag & DEBUG_DEBUG) { taosPrintLog("ODB DEBUG ", odbcDebugFlag, __VA_ARGS__); }}
+#define odbcTrace(...) { if (odbcDebugFlag & DEBUG_TRACE) { taosPrintLog("ODB TRACE ", odbcDebugFlag, __VA_ARGS__); }}
 
 #define MAX_BIND_COL TSDB_MAX_COLUMNS
 #define MAX_ERROR_LEN 1024
