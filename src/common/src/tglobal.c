@@ -216,7 +216,7 @@ void taosSetAllDebugFlag() {
     tsdbDebugFlag = debugFlag;
     qDebugFlag = debugFlag;    
   }
-  uPrint("all debug flag are set to %d", debugFlag);
+  uInfo("all debug flag are set to %d", debugFlag);
 }
 
 bool taosCfgDynamicOptions(char *msg) {
@@ -234,7 +234,7 @@ bool taosCfgDynamicOptions(char *msg) {
     vint = atoi(value);
   }
 
-  uPrint("change dynamic option: %s, value: %d", option, vint);
+  uInfo("change dynamic option: %s, value: %d", option, vint);
 
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
@@ -1175,7 +1175,7 @@ void taosInitGlobalCfg() {
 }
 
 bool taosCheckGlobalCfg() {
-  if (debugFlag == 135 || debugFlag == 199) {
+  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG) {
     taosSetAllDebugFlag();
   }
   
@@ -1184,7 +1184,7 @@ bool taosCheckGlobalCfg() {
   }
 
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%d", tsLocalFqdn, tsServerPort);
-  uPrint("localEp is: %s", tsLocalEp);
+  uInfo("localEp is: %s", tsLocalEp);
 
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);

@@ -346,8 +346,8 @@ bool taosReadGlobalCfg() {
 }
 
 void taosPrintGlobalCfg() {
-  uPrint("   taos config & system info:");
-  uPrint("==================================");
+  uInfo("   taos config & system info:");
+  uInfo("==================================");
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
@@ -364,18 +364,18 @@ void taosPrintGlobalCfg() {
 
     switch (cfg->valType) {
       case TAOS_CFG_VTYPE_INT16:
-        uPrint(" %s:%s%d%s", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        uInfo(" %s:%s%d%s", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_INT32:
-        uPrint(" %s:%s%d%s", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        uInfo(" %s:%s%d%s", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_FLOAT:
-        uPrint(" %s:%s%f%s", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        uInfo(" %s:%s%f%s", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_STRING:
       case TAOS_CFG_VTYPE_IPSTR:
       case TAOS_CFG_VTYPE_DIRECTORY:
-        uPrint(" %s:%s%s%s", cfg->option, blank, (char *)cfg->ptr, tsGlobalUnit[cfg->unitType]);
+        uInfo(" %s:%s%s%s", cfg->option, blank, (char *)cfg->ptr, tsGlobalUnit[cfg->unitType]);
         break;
       default:
         break;

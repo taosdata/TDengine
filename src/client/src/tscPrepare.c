@@ -140,7 +140,7 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         break;
 
       default:
-        tscTrace("param %d: type mismatch or invalid", i);
+        tscDebug("param %d: type mismatch or invalid", i);
         return TSDB_CODE_TSC_INVALID_VALUE;
     }
   }
@@ -356,7 +356,7 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
       SParamInfo* param = pBlock->params + j;
       int code = doBindParam(data, param, bind + param->idx);
       if (code != TSDB_CODE_SUCCESS) {
-        tscTrace("param %d: type mismatch or invalid", param->idx);
+        tscDebug("param %d: type mismatch or invalid", param->idx);
         return code;
       }
     }
@@ -538,7 +538,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->numOfRows = 1;
   
   strtolower(pSql->sqlstr, sql);
-  tscDump("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugDump("%p SQL: %s", pSql, pSql->sqlstr);
 
   if (tscIsInsertData(pSql->sqlstr)) {  
     pStmt->isInsert = true;

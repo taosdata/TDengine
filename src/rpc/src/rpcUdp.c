@@ -126,7 +126,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     return NULL;
   }
 
-  tTrace("%s UDP connection is initialized, ip:%x:%hu threads:%d", label, ip, port, threads);
+  tDebug("%s UDP connection is initialized, ip:%x:%hu threads:%d", label, ip, port, threads);
   return pSet;
 }
 
@@ -149,7 +149,7 @@ void taosStopUdpConnection(void *handle) {
     // tTrace("%s UDP thread is closed, index:%d", pConn->label, i);
   }
 
-  tTrace("%s UDP is stopped", pSet->label);
+  tDebug("%s UDP is stopped", pSet->label);
 }
 
 void taosCleanUpUdpConnection(void *handle) {
@@ -163,7 +163,7 @@ void taosCleanUpUdpConnection(void *handle) {
     if (pConn->fd >=0) taosCloseSocket(pConn->fd);
   }
 
-  tTrace("%s UDP is cleaned up", pSet->label);
+  tDebug("%s UDP is cleaned up", pSet->label);
   tfree(pSet);
 }
 
@@ -175,7 +175,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t 
   SUdpConn *pConn = pSet->udpConn + pSet->index;
   pConn->port = port;
 
-  tTrace("%s UDP connection is setup, ip:%x:%hu localPort:%hu", pConn->label, ip, port, pConn->localPort);
+  tDebug("%s UDP connection is setup, ip:%x:%hu localPort:%hu", pConn->label, ip, port, pConn->localPort);
 
   return pConn;
 }
@@ -190,13 +190,13 @@ static void *taosRecvUdpData(void *param) {
 
   memset(&sourceAdd, 0, sizeof(sourceAdd));
   addLen = sizeof(sourceAdd);
-  tTrace("%s UDP thread is created, index:%d", pConn->label, pConn->index);
+  tDebug("%s UDP thread is created, index:%d", pConn->label, pConn->index);
   char *msg = pConn->buffer;
 
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
     if(dataLen <= 0) {
-      tTrace("%s UDP socket was closed, exiting(%s)", pConn->label, strerror(errno));
+      tDebug("%s UDP socket was closed, exiting(%s)", pConn->label, strerror(errno));
       break;
     }
 

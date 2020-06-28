@@ -260,12 +260,12 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
 
   FILE* fp = fopen(buf, "r");
   if (fp == NULL) {
-    tscTrace("subscription progress file does not exist: %s", pSub->topic);
+    tscDebug("subscription progress file does not exist: %s", pSub->topic);
     return 1;
   }
 
   if (fgets(buf, sizeof(buf), fp) == NULL) {
-    tscTrace("invalid subscription progress file: %s", pSub->topic);
+    tscDebug("invalid subscription progress file: %s", pSub->topic);
     fclose(fp);
     return 0;
   }
@@ -279,7 +279,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
     }
   }
   if (strcmp(buf, pSub->pSql->sqlstr) != 0) {
-    tscTrace("subscription sql statement mismatch: %s", pSub->topic);
+    tscDebug("subscription sql statement mismatch: %s", pSub->topic);
     fclose(fp);
     return 0;
   }
@@ -299,7 +299,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   fclose(fp);
 
   taosArraySort(progress, tscCompareSubscriptionProgress);
-  tscTrace("subscription progress loaded, %zu tables: %s", taosArrayGetSize(progress), pSub->topic);
+  tscDebug("subscription progress loaded, %zu tables: %s", taosArrayGetSize(progress), pSub->topic);
   return 1;
 }
 
@@ -344,7 +344,7 @@ TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char 
   pSub->taos = taos;
 
   if (restart) {
-    tscTrace("restart subscription: %s", topic);
+    tscDebug("restart subscription: %s", topic);
   } else {
     tscLoadSubscriptionProgress(pSub);
   }
@@ -356,7 +356,7 @@ TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char 
 
   pSub->interval = interval;
   if (fp != NULL) {
-    tscTrace("asynchronize subscription, create new timer: %s", topic);
+    tscDebug("asynchronize subscription, create new timer: %s", topic);
     pSub->fp = fp;
     pSub->param = param;
     taosTmrReset(tscProcessSubscriptionTimer, interval, pSub, tscTmr, &pSub->pTimer);
@@ -379,7 +379,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   if (pSub->pTimer == NULL) {
     int64_t duration = taosGetTimestampMs() - pSub->lastConsumeTime;
     if (duration < (int64_t)(pSub->interval)) {
-      tscTrace("subscription consume too frequently, blocking...");
+      tscDebug("subscription consume too frequently, blocking...");
       taosMsleep(pSub->interval - (int32_t)duration);
     }
   }
@@ -388,9 +388,9 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     tscRemoveFromSqlList(pSql);
 
     if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 60 * 1000) {
-      tscTrace("begin table synchronization");
+      tscDebug("begin table synchronization");
       if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
-      tscTrace("table synchronization completed");
+      tscDebug("table synchronization completed");
     }
 
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);

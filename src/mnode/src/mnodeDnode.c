@@ -83,7 +83,7 @@ static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
   mnodeDropMnodeLocal(pDnode->dnodeId);
   balanceAsyncNotify();
 
-  mTrace("dnode:%d, all vgroups is dropped from sdb", pDnode->dnodeId);
+  mDebug("dnode:%d, all vgroups is dropped from sdb", pDnode->dnodeId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -118,7 +118,7 @@ static int32_t mnodeDnodeActionDecode(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
-    mPrint("dnode first deploy, create dnode:%s", tsLocalEp);
+    mInfo("dnode first deploy, create dnode:%s", tsLocalEp);
     mnodeCreateDnode(tsLocalEp, NULL);
     SDnodeObj *pDnode = mnodeGetDnodeByEp(tsLocalEp);
     if (pDnode != NULL) {
@@ -170,7 +170,7 @@ int32_t mnodeInitDnodes() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mnodeGetDnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mnodeRetrieveDnodes);
  
-  mTrace("table:dnodes table is created");
+  mDebug("table:dnodes table is created");
   return 0;
 }
 
@@ -272,13 +272,13 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   };
   dnodeSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
 
-  mPrint("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
+  mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
 
   return TSDB_CODE_SUCCESS;
 }
 
 static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
-  mPrint("cfg dnode rsp is received");
+  mInfo("cfg dnode rsp is received");
 }
 
 static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
@@ -313,7 +313,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   if (pStatus->dnodeId == 0) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode == NULL) {
-      mTrace("dnode %s not created", pStatus->dnodeEp);
+      mDebug("dnode %s not created", pStatus->dnodeEp);
       return TSDB_CODE_MND_DNODE_NOT_EXIST;
     }
   } else {
@@ -332,9 +332,9 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pDnode->moduleStatus     = pStatus->moduleStatus;
   
   if (pStatus->dnodeId == 0) {
-    mTrace("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
+    mDebug("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
   } else {
-    //mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    //mDebug("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
@@ -358,7 +358,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     SVgObj *pVgroup = mnodeGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
       SRpcIpSet ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
-      mPrint("dnode:%d, vgId:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
+      mInfo("dnode:%d, vgId:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
       mnodeSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
     } else {
       mnodeUpdateVgroupStatus(pVgroup, pDnode, pVload);
@@ -380,7 +380,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
     }
     
-    mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
+    mDebug("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     balanceSyncNotify();
     balanceAsyncNotify();
@@ -437,7 +437,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
     tfree(pDnode);
     mError("failed to create dnode:%d, result:%s", dnodeId, tstrerror(code));
   } else {
-    mPrint("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
+    mInfo("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
@@ -454,7 +454,7 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
 
   int32_t code = sdbDeleteRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
+    mLInfo("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
@@ -474,7 +474,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
   }
 
-  mPrint("dnode:%d, start to drop it", pDnode->dnodeId);
+  mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
 #ifndef _SYNC
   return mnodeDropDnode(pDnode, pMsg);
 #else

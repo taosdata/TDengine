@@ -81,7 +81,7 @@ static int32_t mnodeMnodeActionDelete(SSdbOper *pOper) {
   pDnode->isMgmt = false;
   mnodeDecDnodeRef(pDnode);
 
-  mTrace("mnode:%d, is dropped from sdb", pMnode->mnodeId);
+  mDebug("mnode:%d, is dropped from sdb", pMnode->mnodeId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -159,7 +159,7 @@ int32_t mnodeInitMnodes() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mnodeGetMnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mnodeRetrieveMnodes);
 
-  mTrace("table:mnodes table is created");
+  mDebug("table:mnodes table is created");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -204,7 +204,7 @@ char *mnodeGetMnodeRoleStr(int32_t role) {
 }
 
 void mnodeUpdateMnodeIpSet() {
-  mPrint("update mnodes ipset, numOfIps:%d ", mnodeGetMnodesNum());
+  mInfo("update mnodes ipset, numOfIps:%d ", mnodeGetMnodesNum());
 
   mnodeMnodeWrLock();
 
@@ -223,11 +223,11 @@ void mnodeUpdateMnodeIpSet() {
     if (pDnode != NULL) {
       strcpy(tsMnodeIpSetForShell.fqdn[index], pDnode->dnodeFqdn);
       tsMnodeIpSetForShell.port[index] = htons(pDnode->dnodePort);
-      mTrace("mnode:%d, for shell fqdn:%s %d", pDnode->dnodeId, tsMnodeIpSetForShell.fqdn[index], htons(tsMnodeIpSetForShell.port[index]));      
+      mDebug("mnode:%d, for shell fqdn:%s %d", pDnode->dnodeId, tsMnodeIpSetForShell.fqdn[index], htons(tsMnodeIpSetForShell.port[index]));      
 
       strcpy(tsMnodeIpSetForPeer.fqdn[index], pDnode->dnodeFqdn);
       tsMnodeIpSetForPeer.port[index] = htons(pDnode->dnodePort + TSDB_PORT_DNODEDNODE);
-      mTrace("mnode:%d, for peer fqdn:%s %d", pDnode->dnodeId, tsMnodeIpSetForPeer.fqdn[index], htons(tsMnodeIpSetForPeer.port[index]));
+      mDebug("mnode:%d, for peer fqdn:%s %d", pDnode->dnodeId, tsMnodeIpSetForPeer.fqdn[index], htons(tsMnodeIpSetForPeer.port[index]));
 
       tsMnodeInfos.nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
       strcpy(tsMnodeInfos.nodeInfos[index].nodeEp, pDnode->dnodeEp);
@@ -238,7 +238,7 @@ void mnodeUpdateMnodeIpSet() {
         tsMnodeInfos.inUse = index;
       }
 
-      mPrint("mnode:%d, ep:%s %s", pDnode->dnodeId, pDnode->dnodeEp, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
+      mInfo("mnode:%d, ep:%s %s", pDnode->dnodeId, pDnode->dnodeEp, pMnode->role == TAOS_SYNC_ROLE_MASTER ? "master" : "");
       index++;
     }
 

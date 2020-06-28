@@ -104,7 +104,7 @@ static int32_t mnodeUserActionDecode(SSdbOper *pOper) {
 static int32_t mnodeUserActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsUserSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
-    mPrint("dnode first deploy, create root user");
+    mInfo("dnode first deploy, create root user");
     SAcctObj *pAcct = mnodeGetAcct(TSDB_DEFAULT_USER);
     mnodeCreateUser(pAcct, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS, NULL);
     mnodeCreateUser(pAcct, "monitor", tsInternalPass, NULL);
@@ -148,7 +148,7 @@ int32_t mnodeInitUsers() {
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mnodeRetrieveUsers);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mnodeProcessAuthMsg);
    
-  mTrace("table:%s, hash is created", tableDesc.tableName);
+  mDebug("table:%s, hash is created", tableDesc.tableName);
   return 0;
 }
 
@@ -182,7 +182,7 @@ static int32_t mnodeUpdateUser(SUserObj *pUser, void *pMsg) {
 
   int32_t code = sdbUpdateRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("user:%s, is altered by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("user:%s, is altered by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
@@ -205,7 +205,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
 
   SUserObj *pUser = mnodeGetUser(name);
   if (pUser != NULL) {
-    mTrace("user:%s, is already there", name);
+    mDebug("user:%s, is already there", name);
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_USER_ALREADY_EXIST;
   }
@@ -238,7 +238,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pUser);
   } else {
-    mLPrint("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
@@ -255,7 +255,7 @@ static int32_t mnodeDropUser(SUserObj *pUser, void *pMsg) {
 
   int32_t code = sdbDeleteRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("user:%s, is dropped by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("user:%s, is dropped by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
     if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
@@ -541,13 +541,13 @@ void mnodeDropAllUsers(SAcctObj *pAcct)  {
 
   sdbFreeIter(pIter);
 
-  mTrace("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
+  mDebug("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
 }
 
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (!sdbIsMaster()) {
     *secret = 0;
-    mTrace("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_RPC_NOT_READY));
+    mDebug("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_RPC_NOT_READY));
     return TSDB_CODE_RPC_NOT_READY;
   }
 
@@ -563,7 +563,7 @@ int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, cha
 
     memcpy(secret, pUser->pass, TSDB_KEY_LEN);
     mnodeDecUserRef(pUser);
-    mTrace("user:%s, auth info is returned", user);
+    mDebug("user:%s, auth info is returned", user);
     return TSDB_CODE_SUCCESS;
   }
 }

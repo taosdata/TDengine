@@ -20,20 +20,14 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-#define tmrError(...)                                 \
-  do { if (tmrDebugFlag & DEBUG_ERROR) {              \
-    taosPrintLog("ERROR TMR ", tmrDebugFlag, __VA_ARGS__); \
-  } } while(0)
+extern int32_t tscEmbedded;
 
-#define tmrWarn(...)                                  \
-  do { if (tmrDebugFlag & DEBUG_WARN) {               \
-    taosPrintLog("WARN TMR ", tmrDebugFlag, __VA_ARGS__); \
-  } } while(0)
-
-#define tmrTrace(...)                           \
-  do { if (tmrDebugFlag & DEBUG_TRACE) {        \
-    taosPrintLog("TMR ", tmrDebugFlag, __VA_ARGS__); \
-  } } while(0)
+#define tmrFatal(...) { if (tmrDebugFlag & DEBUG_FATAL) { taosPrintLog("TMR FATAL ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
+#define tmrError(...) { if (tmrDebugFlag & DEBUG_ERROR) { taosPrintLog("TMR ERROR ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
+#define tmrWarn(...)  { if (tmrDebugFlag & DEBUG_WARN)  { taosPrintLog("TMR WARN  ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
+#define tmrInfo(...)  { if (tmrDebugFlag & DEBUG_INFO)  { taosPrintLog("TMR INFO  ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
+#define tmrDebug(...) { if (tmrDebugFlag & DEBUG_DEBUG) { taosPrintLog("TMR DEBUG ", tmrDebugFlag, __VA_ARGS__); }}
+#define tmrTrace(...) { if (tmrDebugFlag & DEBUG_TRACE) { taosPrintLog("TMR TRACE ", tmrDebugFlag, __VA_ARGS__); }}
 
 #define TIMER_STATE_WAITING 0
 #define TIMER_STATE_EXPIRED 1
@@ -267,13 +261,13 @@ static void processExpiredTimer(void* handle, void* arg) {
   uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_EXPIRED);
   if (state == TIMER_STATE_WAITING) {
     const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] execution start.";
-    tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
+    tmrDebug(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
 
     (*timer->fp)(timer->param, (tmr_h)timer->id);
     atomic_store_8(&timer->state, TIMER_STATE_STOPPED);
 
     fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] execution end.";
-    tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
+    tmrDebug(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
   }
   removeTimer(timer->id);
   timerDecRef(timer);
@@ -285,7 +279,7 @@ static void addToExpired(tmr_obj_t* head) {
   while (head != NULL) {
     uintptr_t id = head->id;
     tmr_obj_t* next = head->next;
-    tmrTrace(fmt, head->ctrl->label, id, head->fp, head->param);
+    tmrDebug(fmt, head->ctrl->label, id, head->fp, head->param);
 
     SSchedMsg  schedMsg;
     schedMsg.fp = NULL;
@@ -295,7 +289,7 @@ static void addToExpired(tmr_obj_t* head) {
     schedMsg.thandle = NULL;
     taosScheduleTask(tmrQhandle, &schedMsg);
 
-    tmrTrace("timer[id=%" PRIuPTR "] has been added to queue.", id);
+    tmrDebug("timer[id=%" PRIuPTR "] has been added to queue.", id);
     head = next;
   }
 }
@@ -310,7 +304,7 @@ static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int msecon
   addTimer(timer);
 
   const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] started";
-  tmrTrace(fmt, ctrl->label, timer->id, timer->fp, timer->param);
+  tmrDebug(fmt, ctrl->label, timer->id, timer->fp, timer->param);
 
   if (mseconds == 0) {
     timer->wheel = tListLen(wheels);
@@ -403,7 +397,7 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
       reusable = true;
     }
     const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] is cancelled.";
-    tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
+    tmrDebug(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
     return reusable;
   }
 
@@ -423,7 +417,7 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
   // BUT this may result in dead lock if current thread are holding a lock which
   // the timer callback need to acquire. so, we HAVE TO return directly.
   const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] is executing and cannot be stopped.";
-  tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
+  tmrDebug(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
   return false;
 }
 
@@ -432,7 +426,7 @@ bool taosTmrStop(tmr_h timerId) {
 
   tmr_obj_t* timer = findTimer(id);
   if (timer == NULL) {
-    tmrTrace("timer[id=%" PRIuPTR "] does not exist", id);
+    tmrDebug("timer[id=%" PRIuPTR "] does not exist", id);
     return false;
   }
 
@@ -459,7 +453,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
   bool       stopped = false;
   tmr_obj_t* timer = findTimer(id);
   if (timer == NULL) {
-    tmrTrace("%s timer[id=%" PRIuPTR "] does not exist", ctrl->label, id);
+    tmrDebug("%s timer[id=%" PRIuPTR "] does not exist", ctrl->label, id);
   } else {
     uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_CANCELED);
     if (!doStopTimer(timer, state)) {
@@ -474,7 +468,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
     return stopped;
   }
 
-  tmrTrace("%s timer[id=%" PRIuPTR "] is reused", ctrl->label, timer->id);
+  tmrDebug("%s timer[id=%" PRIuPTR "] is reused", ctrl->label, timer->id);
 
   // wait until there's no other reference to this timer,
   // so that we can reuse this timer safely.
@@ -534,7 +528,7 @@ static void taosTmrModuleInit(void) {
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr");
   taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
 
-  tmrTrace("timer module is initialized, number of threads: %d", taosTmrThreads);
+  tmrDebug("timer module is initialized, number of threads: %d", taosTmrThreads);
 }
 
 void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* label) {
@@ -554,7 +548,7 @@ void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* lab
   }
 
   tstrncpy(ctrl->label, label, sizeof(ctrl->label));
-  tmrTrace("%s timer controller is initialized, number of timer controllers: %d.", label, numOfTmrCtrl);
+  tmrDebug("%s timer controller is initialized, number of timer controllers: %d.", label, numOfTmrCtrl);
   return ctrl;
 }
 
@@ -564,7 +558,7 @@ void taosTmrCleanUp(void* handle) {
     return;
   }
 
-  tmrTrace("%s timer controller is cleaned up.", ctrl->label);
+  tmrDebug("%s timer controller is cleaned up.", ctrl->label);
   ctrl->label[0] = 0;
 
   pthread_mutex_lock(&tmrCtrlMutex);
@@ -598,6 +592,6 @@ void taosTmrCleanUp(void* handle) {
     free(timerMap.slots);
     free(tmrCtrls);
 
-    tmrTrace("timer module is cleaned up");
+    tmrDebug("timer module is cleaned up");
   }
 }
