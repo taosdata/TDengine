@@ -371,9 +371,11 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 
     if (keepData) {
       pRet->cols[i].len = pDataCols->cols[i].len;
-      memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
-      if (pRet->cols[i].type == TSDB_DATA_TYPE_BINARY || pRet->cols[i].type == TSDB_DATA_TYPE_NCHAR) {
-        memcpy(pRet->cols[i].dataOff, pDataCols->cols[i].dataOff, sizeof(VarDataOffsetT) * pDataCols->maxPoints);
+      if (pDataCols->cols[i].len > 0) {
+        memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
+        if (pRet->cols[i].type == TSDB_DATA_TYPE_BINARY || pRet->cols[i].type == TSDB_DATA_TYPE_NCHAR) {
+          memcpy(pRet->cols[i].dataOff, pDataCols->cols[i].dataOff, sizeof(VarDataOffsetT) * pDataCols->maxPoints);
+        }
       }
     }
   }
@@ -443,8 +445,10 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
   if (dataColsKeyLast(target) < dataColsKeyFirst(source)) {  // No overlap
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
-        dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i), target->numOfRows,
-                         target->maxPoints);
+        if (source->cols[j].len > 0) {
+          dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i), target->numOfRows,
+                           target->maxPoints);
+        }
       }
       target->numOfRows++;
     }
@@ -479,8 +483,10 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limi
     if (key1 <= key2) {
       for (int i = 0; i < src1->numOfCols; i++) {
         ASSERT(target->cols[i].type == src1->cols[i].type);
-        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
-                         target->maxPoints);
+        if (src1->cols[i].len > 0) {
+          dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
+                           target->maxPoints);
+        }
       }
 
       target->numOfRows++;
@@ -489,8 +495,10 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limi
     } else {
       for (int i = 0; i < src2->numOfCols; i++) {
         ASSERT(target->cols[i].type == src2->cols[i].type);
-        dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfRows,
-                         target->maxPoints);
+        if (src2->cols[i].len > 0) {
+          dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfRows,
+                           target->maxPoints);
+        }
       }
 
       target->numOfRows++;
