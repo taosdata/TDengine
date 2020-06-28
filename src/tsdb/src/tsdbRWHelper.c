@@ -163,8 +163,8 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   if (pHelper->files.lastF.fd > 0) {
     if (helperType(pHelper) == TSDB_WRITE_HELPER) {
       fsync(pHelper->files.lastF.fd);
-      close(pHelper->files.lastF.fd);
     }
+    close(pHelper->files.lastF.fd);
     pHelper->files.lastF.fd = -1;
   }
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
