@@ -27,10 +27,10 @@ extern "C" {
 
 extern int32_t vDebugFlag;
 
-#define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", vDebugFlag, __VA_ARGS__); }}
-#define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", vDebugFlag, __VA_ARGS__); }}
-#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN  ", vDebugFlag, __VA_ARGS__); }}
-#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND INFO  ", vDebugFlag, __VA_ARGS__); }}
+#define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", 255, __VA_ARGS__); }}
+#define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", 255, __VA_ARGS__); }}
+#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN  ", 255, __VA_ARGS__); }}
+#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND INFO  ", 255, __VA_ARGS__); }}
 #define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND DEBUG ", vDebugFlag, __VA_ARGS__); }}
 #define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND TRACE ", vDebugFlag, __VA_ARGS__); }}
 

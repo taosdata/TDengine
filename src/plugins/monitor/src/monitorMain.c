@@ -28,10 +28,10 @@
 #include "monitor.h"
 
 
-#define monitorFatal(...) { if (monitorDebugFlag & DEBUG_FATAL) { taosPrintLog("MON FATAL ", monitorDebugFlag, __VA_ARGS__); }}
-#define monitorError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("MON ERROR ", monitorDebugFlag, __VA_ARGS__); }}
-#define monitorWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("MON WARN  ", monitorDebugFlag, __VA_ARGS__); }}
-#define monitorInfo(...)  { if (monitorDebugFlag & DEBUG_INFO)  { taosPrintLog("MON INFO  ", monitorDebugFlag, __VA_ARGS__); }}
+#define monitorFatal(...) { if (monitorDebugFlag & DEBUG_FATAL) { taosPrintLog("MON FATAL ", 255, __VA_ARGS__); }}
+#define monitorError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("MON ERROR ", 255, __VA_ARGS__); }}
+#define monitorWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("MON WARN  ", 255, __VA_ARGS__); }}
+#define monitorInfo(...)  { if (monitorDebugFlag & DEBUG_INFO)  { taosPrintLog("MON INFO  ", 255, __VA_ARGS__); }}
 #define monitorDebug(...) { if (monitorDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON DEBUG ", monitorDebugFlag, __VA_ARGS__); }}
 #define monitorTrace(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLog("MON TRACE ", monitorDebugFlag, __VA_ARGS__); }}
 

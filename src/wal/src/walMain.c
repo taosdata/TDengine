@@ -31,10 +31,10 @@
 
 #define walPrefix "wal"
 
-#define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", wDebugFlag, __VA_ARGS__); }}
-#define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", wDebugFlag, __VA_ARGS__); }}
-#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN  ", wDebugFlag, __VA_ARGS__); }}
-#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL INFO  ", wDebugFlag, __VA_ARGS__); }}
+#define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", 255, __VA_ARGS__); }}
+#define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", 255, __VA_ARGS__); }}
+#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN  ", 255, __VA_ARGS__); }}
+#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL INFO  ", 255, __VA_ARGS__); }}
 #define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL DEBUG ", wDebugFlag, __VA_ARGS__); }}
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL TRACE ", wDebugFlag, __VA_ARGS__); }}
 

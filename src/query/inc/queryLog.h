@@ -25,10 +25,10 @@ extern "C" {
 extern int32_t qDebugFlag;
 extern int32_t tscEmbedded;
 
-#define qFatal(...) { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }}
-#define qError(...) { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }}
-#define qWarn(...)  { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN  ", qDebugFlag, __VA_ARGS__); }}
-#define qInfo(...)  { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY INFO  ", qDebugFlag, __VA_ARGS__); }}
+#define qFatal(...) { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", 255, __VA_ARGS__); }}
+#define qError(...) { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", 255, __VA_ARGS__); }}
+#define qWarn(...)  { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN  ", 255, __VA_ARGS__); }}
+#define qInfo(...)  { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY INFO  ", 255, __VA_ARGS__); }}
 #define qDebug(...) { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY DEBUG ", qDebugFlag, __VA_ARGS__); }}
 #define qTrace(...) { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY TRACE ", qDebugFlag, __VA_ARGS__); }}
 
