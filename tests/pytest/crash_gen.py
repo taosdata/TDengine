@@ -686,8 +686,7 @@ class StateHasData(AnyState):
             self.assertNoTask(tasks, TaskAddData)
             # self.hasSuccess(tasks, DeleteDataTasks)
         else: # should be STATE_HAS_DATA
-            if (not self.hasTask(tasks, TaskCreateDb) ): # only if we didn't create one
-                self.assertNoTask(tasks, TaskDropDb) # we shouldn't have dropped it
+            self.assertNoTask(tasks, TaskDropDb)
             if (not self.hasTask(tasks, TaskCreateSuperTable)) :  # if we didn't create the table
                 self.assertNoTask(tasks, TaskDropSuperTable) # we should not have a task that drops it            
             # self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
@@ -1296,67 +1295,7 @@ class LoggingFilter(logging.Filter):
         #     return False
         return True
 
-class MainExec:
-    @classmethod
-    def runClient(cls):
-        # resetDb = False # DEBUG only
-        # dbState = DbState(resetDb)  # DBEUG only!
-        dbManager = DbManager() # Regular function
-        Dice.seed(0) # initial seeding of dice
-        thPool = ThreadPool(gConfig.num_threads, gConfig.max_steps)
-        tc = ThreadCoordinator(thPool, dbManager)
         
-        tc.run()
-        tc.logStats()
-        dbManager.cleanUp()    
-
-    @classmethod
-    def runService(cls):
-        print("Running service...")
-
-    @classmethod
-    def runTemp(cls): # for debugging purposes
-        # # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
-        # dbc = dbState.getDbConn()
-        # sTbName = dbState.getFixedSuperTableName()   
-        # dbc.execute("create database if not exists db")
-        # if not dbState.getState().equals(StateEmpty()):
-        #     dbc.execute("use db")     
-
-        # rTables = None
-        # try: # the super table may not exist
-        #     sql = "select TBNAME from db.{}".format(sTbName)
-        #     logger.info("Finding out tables in super table: {}".format(sql))
-        #     dbc.query(sql) # TODO: analyze result set later
-        #     logger.info("Fetching result")
-        #     rTables = dbc.getQueryResult()
-        #     logger.info("Result: {}".format(rTables))
-        # except taos.error.ProgrammingError as err:
-        #     logger.info("Initial Super table OPS error: {}".format(err))
-        
-        # # sys.exit()
-        # if ( not rTables == None):
-        #     # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
-        #     try:
-        #         for rTbName in rTables : # regular tables
-        #             ds = dbState
-        #             logger.info("Inserting into table: {}".format(rTbName[0]))
-        #             sql = "insert into db.{} values ('{}', {});".format(
-        #                 rTbName[0],                    
-        #                 ds.getNextTick(), ds.getNextInt())
-        #             dbc.execute(sql)
-        #         for rTbName in rTables : # regular tables        
-        #             dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
-        #         logger.info("Initial READING operation is successful")       
-        #     except taos.error.ProgrammingError as err:
-        #         logger.info("Initial WRITE/READ error: {}".format(err))   
-        
-        # Sandbox testing code
-        # dbc = dbState.getDbConn()
-        # while True:
-        #     rows = dbc.query("show databases") 
-        #     print("Rows: {}, time={}".format(rows, time.time()))
-        return 
 
 def main():
     # Super cool Python argument library: https://docs.python.org/3/library/argparse.html
@@ -1369,27 +1308,24 @@ def main():
             2. You run the server there before this script: ./build/bin/taosd -c test/cfg
 
             '''))
-
     parser.add_argument('-d', '--debug', action='store_true',                        
                         help='Turn on DEBUG mode for more logging (default: false)')
-    parser.add_argument('-e', '--run-tdengine', action='store_true',                        
-                        help='Run TDengine service in foreground (default: false)')
     parser.add_argument('-l', '--larger-data', action='store_true',                        
                         help='Write larger amount of data during write operations (default: false)')
-    parser.add_argument('-p', '--per-thread-db-connection', action='store_false',                        
+    parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
                         help='Use a single shared db connection (default: false)')
     parser.add_argument('-r', '--record-ops', action='store_true',                        
                         help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')                    
-    parser.add_argument('-s', '--max-steps', action='store', default=1000, type=int,
+    parser.add_argument('-s', '--max-steps', action='store', default=100, type=int,
                         help='Maximum number of steps to run (default: 100)')
-    parser.add_argument('-t', '--num-threads', action='store', default=5, type=int,
+    parser.add_argument('-t', '--num-threads', action='store', default=10, type=int,
                         help='Number of threads to run (default: 10)')
 
     global gConfig
     gConfig = parser.parse_args()
-    # if len(sys.argv) == 1:
-    #     parser.print_help()
-    #     sys.exit()
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit()
 
     global logger
     logger = logging.getLogger('CrashGen')
@@ -1401,11 +1337,62 @@ def main():
     ch = logging.StreamHandler()
     logger.addHandler(ch)
 
-    if gConfig.run_tdengine : # run server
-        MainExec.runService()
-    else :
-        MainExec.runClient()
+    # resetDb = False # DEBUG only
+    # dbState = DbState(resetDb)  # DBEUG only!
+    dbManager = DbManager() # Regular function
+    Dice.seed(0) # initial seeding of dice
+    tc = ThreadCoordinator(
+        ThreadPool(gConfig.num_threads, gConfig.max_steps), 
+        # WorkDispatcher(dbState), # Obsolete?
+        dbManager
+        )
 
+    # # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
+    # dbc = dbState.getDbConn()
+    # sTbName = dbState.getFixedSuperTableName()   
+    # dbc.execute("create database if not exists db")
+    # if not dbState.getState().equals(StateEmpty()):
+    #     dbc.execute("use db")     
+
+    # rTables = None
+    # try: # the super table may not exist
+    #     sql = "select TBNAME from db.{}".format(sTbName)
+    #     logger.info("Finding out tables in super table: {}".format(sql))
+    #     dbc.query(sql) # TODO: analyze result set later
+    #     logger.info("Fetching result")
+    #     rTables = dbc.getQueryResult()
+    #     logger.info("Result: {}".format(rTables))
+    # except taos.error.ProgrammingError as err:
+    #     logger.info("Initial Super table OPS error: {}".format(err))
+    
+    # # sys.exit()
+    # if ( not rTables == None):
+    #     # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
+    #     try:
+    #         for rTbName in rTables : # regular tables
+    #             ds = dbState
+    #             logger.info("Inserting into table: {}".format(rTbName[0]))
+    #             sql = "insert into db.{} values ('{}', {});".format(
+    #                 rTbName[0],                    
+    #                 ds.getNextTick(), ds.getNextInt())
+    #             dbc.execute(sql)
+    #         for rTbName in rTables : # regular tables        
+    #             dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
+    #         logger.info("Initial READING operation is successful")       
+    #     except taos.error.ProgrammingError as err:
+    #         logger.info("Initial WRITE/READ error: {}".format(err))   
+    
+    
+
+    # Sandbox testing code
+    # dbc = dbState.getDbConn()
+    # while True:
+    #     rows = dbc.query("show databases") 
+    #     print("Rows: {}, time={}".format(rows, time.time()))
+    
+    tc.run()
+    tc.logStats()
+    dbManager.cleanUp()    
     
     # logger.info("Crash_Gen execution finished")
 
