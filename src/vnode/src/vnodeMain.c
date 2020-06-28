@@ -148,7 +148,7 @@ int32_t vnodeDrop(int32_t vgId) {
   }
 
   SVnodeObj *pVnode = *ppVnode;
-  vDebug("vgId:%d, vnode will be dropped", pVnode->vgId);
+  vTrace("vgId:%d, vnode will be dropped, refCount:%d", pVnode->vgId, pVnode->refCount);
   pVnode->status = TAOS_VN_STATUS_DELETING;
   vnodeCleanUp(pVnode);
 
@@ -318,7 +318,7 @@ void vnodeRelease(void *pVnodeRaw) {
   assert(refCount >= 0);
 
   if (refCount > 0) {
-    vDebug("vgId:%d, release vnode, refCount:%d", vgId, refCount);
+    vTrace("vgId:%d, release vnode, refCount:%d", vgId, refCount);
     return;
   }
 
@@ -381,7 +381,7 @@ void *vnodeAccquireVnode(int32_t vgId) {
   if (pVnode == NULL) return pVnode;
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vDebug("vgId:%d, get vnode, refCount:%d", pVnode->vgId, pVnode->refCount);
+  vTrace("vgId:%d, get vnode, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   return pVnode;
 }
@@ -456,7 +456,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     pVnode->sync = NULL;
   }
 
-  vDebug("vgId:%d, vnode will be cleanuped, refCount:%d", pVnode->vgId, pVnode->refCount);
+  vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   // release local resources only after cutting off outside connections
   vnodeRelease(pVnode);

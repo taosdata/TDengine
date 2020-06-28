@@ -182,20 +182,20 @@ int32_t tsNumOfLogLines = 10000000;
 int32_t mDebugFlag = 135;
 int32_t sdbDebugFlag = 135;
 int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t cDebugFlag = 135;
+int32_t vDebugFlag = 131;
+int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
 int32_t mqttDebugFlag = 131;
 int32_t monitorDebugFlag = 131;
 int32_t qDebugFlag = 131;
-int32_t rpcDebugFlag = 135;
+int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
-int32_t tsdbDebugFlag = 135;
+int32_t tsdbDebugFlag = 131;
 
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
