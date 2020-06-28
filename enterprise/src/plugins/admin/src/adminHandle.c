@@ -100,14 +100,14 @@ bool adminGetPassFromUrl(HttpContext* pContext) {
 }
 
 bool adminProcessLoginRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin login msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin login msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
 
 bool adminProcessLogoutRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin logout msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin logout msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
   httpSendSuccResp(pContext, "logout success");
   pContext->reqType = HTTP_REQTYPE_OTHERS;
@@ -115,7 +115,7 @@ bool adminProcessLogoutRequest(HttpContext* pContext) {
 }
 
 bool adminProcessSqlRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin query part msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin query part msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
 
   char* sql = pContext->parser.data.pos;
@@ -139,7 +139,7 @@ bool adminProcessSqlRequest(HttpContext* pContext) {
 }
 
 bool adminProcessSqlAllRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin query all msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin query all msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
 
   char* sql = pContext->parser.data.pos;
@@ -163,7 +163,7 @@ bool adminProcessSqlAllRequest(HttpContext* pContext) {
 }
 
 bool adminProcessSqlsRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process multi-sqls msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process multi-sqls msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
 
   char* sql = pContext->parser.data.pos;
@@ -206,7 +206,7 @@ bool adminProcessSqlsRequest(HttpContext* pContext) {
 }
 
 bool adminProcessInfoRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin info msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin info msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
 
   if (!httpMallocMultiCmds(pContext, 10, HTTP_BUFFER_SIZE)) {
@@ -268,7 +268,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 }
 
 bool adminProcessMetaRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin table meta msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin table meta msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
 
   char* sql = pContext->parser.data.pos;

@@ -46,23 +46,23 @@ int writeIntoWal(SWalHead *pHead)
     remove(walName);
     dataFd = open(walName, O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
     if (dataFd < 0) { 
-      uPrint("failed to open wal file:%s(%s)", walName, strerror(errno));
+      uInfo("failed to open wal file:%s(%s)", walName, strerror(errno));
       return -1;
     } else {
       walNum++;
-      uPrint("file:%s is opened to write, walNum:%d", walName, walNum);
+      uInfo("file:%s is opened to write, walNum:%d", walName, walNum);
     }
   }
 
   if (write(dataFd, pHead, sizeof(SWalHead) + pHead->len) < 0) {
     uError("ver:%" PRIu64 ", failed to write wal file(%s)", pHead->version, strerror(errno));
   } else {
-    uTrace("ver:%" PRIu64 ", written to wal", pHead->version);
+    uDebug("ver:%" PRIu64 ", written to wal", pHead->version);
   }
 
   numOfWrites++;
   if (numOfWrites >= 10000) {
-    uPrint("%d request have been written into disk", numOfWrites);
+    uInfo("%d request have been written into disk", numOfWrites);
     close(dataFd);
     dataFd = -1;
     numOfWrites = 0;
@@ -76,7 +76,7 @@ void confirmForward(void *ahandle, void *mhandle, int32_t code)
   SRpcMsg  *pMsg = (SRpcMsg *)mhandle;
   SWalHead *pHead = (SWalHead *)(((char *)pMsg->pCont) - sizeof(SWalHead));
 
-  uTrace("ver:%" PRIu64 ", confirm is received", pHead->version);
+  uDebug("ver:%" PRIu64 ", confirm is received", pHead->version);
 
   rpcFreeCont(pMsg->pCont);
 
@@ -103,7 +103,7 @@ int processRpcMsg(void *item) {
     pHead->msgType = pMsg->msgType;
     pHead->len = pMsg->contLen;
 
-    uTrace("ver:%" PRIu64 ", pkt from client processed", pHead->version);
+    uDebug("ver:%" PRIu64 ", pkt from client processed", pHead->version);
     writeIntoWal(pHead); 
     syncForwardToPeer(syncHandle, pHead, item, TAOS_QTYPE_RPC);
 
@@ -134,7 +134,7 @@ int processFwdMsg(void *item) {
     return -1;
   }
 
-  uTrace("ver:%" PRIu64 ", forward from peer is received", pHead->version);
+  uDebug("ver:%" PRIu64 ", forward from peer is received", pHead->version);
   writeIntoWal(pHead);
   tversion = pHead->version;
 
@@ -162,7 +162,7 @@ int processWalMsg(void *item) {
     return -1;
   };
 
-  uTrace("ver:%" PRIu64 ", wal from peer is received", pHead->version);
+  uDebug("ver:%" PRIu64 ", wal from peer is received", pHead->version);
   writeIntoWal(pHead);
   tversion = pHead->version;
 
@@ -230,7 +230,7 @@ void processRequestMsg(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   pTemp = taosAllocateQitem(sizeof(SRpcMsg));
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
   
-  uTrace("request is received, type:%d, len:%d", pMsg->msgType, pMsg->contLen);
+  uDebug("request is received, type:%d, len:%d", pMsg->msgType, pMsg->contLen);
   taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
 }
 
@@ -241,7 +241,7 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex
   char         aname[280];
 
   if (*index == 2) {
-    uPrint("wait for a while .....");
+    uInfo("wait for a while .....");
     sleep(3);
   }
 
@@ -253,7 +253,7 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex
     snprintf(aname, sizeof(aname), "%s/%s", path, name);
   }
 
-  uPrint("get file info:%s", aname);
+  uInfo("get file info:%s", aname);
   if ( stat(aname, &fstat) < 0 ) return 0; 
 
   *size = fstat.st_size;
@@ -272,7 +272,7 @@ int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
 
   snprintf(aname, sizeof(aname), "%s/wal/wal.%d", path, *index);
   sprintf(name, "wal/wal.%d", *index); 
-  uPrint("get wal info:%s", aname);
+  uInfo("get wal info:%s", aname);
 
   if ( stat(aname, &fstat) < 0 ) return -1;
 
@@ -285,7 +285,7 @@ int  getWalInfo(void *ahandle, char *name, uint32_t *index) {
 int writeToCache(void *ahandle, void *data, int type) {
   SWalHead *pHead = data;
 
-  uTrace("pkt from peer is received, ver:%" PRIu64 " len:%d type:%d", pHead->version, pHead->len, type);
+  uDebug("pkt from peer is received, ver:%" PRIu64 " len:%d type:%d", pHead->version, pHead->len, type);
 
   int   msgSize = pHead->len + sizeof(SWalHead);
   void *pMsg = taosAllocateQitem(msgSize);
@@ -355,7 +355,7 @@ void doSync()
       if (syncReconfig(syncHandle, pCfg) < 0) syncHandle = NULL;
   }
 
-  uPrint("nodeId:%d path:%s syncPort:%d", nodeId, path, tsSyncPort);
+  uInfo("nodeId:%d path:%s syncPort:%d", nodeId, path, tsSyncPort);
 }
 
 int main(int argc, char *argv[]) {
