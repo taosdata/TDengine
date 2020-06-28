@@ -131,6 +131,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
         .msgType = 0
     };
     rpcSendResponse(&rpcRsp);
+    rpcFreeCont(pMsg->pCont);
   }
 }
 
