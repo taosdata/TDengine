@@ -142,6 +142,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   if (vnodes != pVgroup->numOfVnodes) {
     mTrace("vgId:%d, db:%s need vnodes:%d, but alloc:%d, free them", pVgroup->vgId, pVgroup->dbName,
            pVgroup->numOfVnodes, vnodes);
+    balanceReleaseDnodeList();       
     balanceUnLock();
     return -1;
   }
@@ -176,6 +177,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
     }  // 0, 1, 2
   }
 
+  balanceReleaseDnodeList();
   balanceUnLock();
   return 0;
 }
