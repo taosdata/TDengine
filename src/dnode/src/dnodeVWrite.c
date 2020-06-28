@@ -63,7 +63,7 @@ int32_t dnodeInitVnodeWrite() {
     wWorkerPool.writeWorker[i].workerId = i;
   }
 
-  dPrint("dnode write is opened");
+  dInfo("dnode write is opened");
   return 0;
 }
 
@@ -85,7 +85,7 @@ void dnodeCleanupVnodeWrite() {
   }
 
   free(wWorkerPool.writeWorker);
-  dPrint("dnode write is closed");
+  dInfo("dnode write is closed");
 }
 
 void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
@@ -153,7 +153,7 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
       taosCloseQueue(queue);
       queue = NULL;
     } else {
-      dTrace("write worker:%d is launched", pWorker->workerId);
+      dDebug("write worker:%d is launched", pWorker->workerId);
       wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
     }
 
@@ -163,7 +163,7 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
   }
 
-  dTrace("pVnode:%p, write queue:%p is allocated", pVnode, queue);
+  dDebug("pVnode:%p, write queue:%p is allocated", pVnode, queue);
 
   return queue;
 }
@@ -204,7 +204,7 @@ static void *dnodeProcessWriteQueue(void *param) {
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
     if (numOfMsgs == 0) {
-      dTrace("dnodeProcessWriteQueee: got no message from qset, exiting...");
+      dDebug("dnodeProcessWriteQueee: got no message from qset, exiting...");
       break;
     }
 
@@ -217,7 +217,7 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
         pHead->len = pWrite->contLen;
-        dTrace("%p, msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
+        dDebug("%p, msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
       } else {
         pHead = (SWalHead *)item;
       }
@@ -256,7 +256,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
      taosFreeQall(pWorker->qall);
      taosCloseQset(pWorker->qset);
      pWorker->qset = NULL;
-     dTrace("write worker:%d is released", pWorker->workerId);
+     dDebug("write worker:%d is released", pWorker->workerId);
      pthread_exit(NULL);
   }
 }

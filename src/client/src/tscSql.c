@@ -145,7 +145,7 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscTrace("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
+  tscDebug("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) user = TSDB_DEFAULT_USER;
   if (pass == NULL) pass = TSDB_DEFAULT_PASS;
 
@@ -165,7 +165,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
       return NULL;
     }
     
-    tscTrace("%p DB connection is opening, dnodeConn:%p", pObj, pObj->pDnodeConn);
+    tscDebug("%p DB connection is opening, dnodeConn:%p", pObj, pObj->pDnodeConn);
     taos_free_result(pSql);
   
     // version compare only requires the first 3 segments of the version string
@@ -190,7 +190,7 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
   }
   
   pSql->res.code = tscProcessSql(pSql);
-  tscTrace("%p DB async connection is opening", taos);
+  tscDebug("%p DB async connection is opening", taos);
   return taos;
 }
 
@@ -441,7 +441,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 
     assert(pSql->fp == NULL);
 
-    tscTrace("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
+    tscDebug("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
     tscProcessSql(pSql);
 
     nRows = taos_fetch_block_impl(res, rows);
@@ -487,7 +487,7 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
 
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscTrace("%p send msg to dnode to free qhandle ASAP, command:%s", pSql, sqlCmd[pCmd->command]);
+    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s", pSql, sqlCmd[pCmd->command]);
     tscProcessSql(pSql);
 
     // in case of sync model query, waits for response and then goes on
@@ -495,9 +495,9 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
 //      sem_wait(&pSql->rspSem);
 
 //      tscFreeSqlObj(pSql);
-//      tscTrace("%p sqlObj is freed by app", pSql);
+//      tscDebug("%p sqlObj is freed by app", pSql);
 //    } else {
-      tscTrace("%p sqlObj will be freed while rsp received", pSql);
+      tscDebug("%p sqlObj will be freed while rsp received", pSql);
 //    }
 
     return true;
@@ -510,7 +510,7 @@ void taos_free_result(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
 
   if (pSql == NULL || pSql->signature != pSql) {
-    tscTrace("%p sqlObj has been freed", pSql);
+    tscDebug("%p sqlObj has been freed", pSql);
     return;
   }
   
@@ -518,7 +518,7 @@ void taos_free_result(TAOS_RES *res) {
   SSqlRes *pRes = &pSql->res;
   if (pRes == NULL || pRes->qhandle == 0) {
     tscFreeSqlObj(pSql);
-    tscTrace("%p SqlObj is freed by app, qhandle is null", pSql);
+    tscDebug("%p SqlObj is freed by app, qhandle is null", pSql);
     return;
   }
 
@@ -526,14 +526,14 @@ void taos_free_result(TAOS_RES *res) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     tscFreeSqlObj(pSql);
-    tscTrace("%p SqlObj is freed by app", pSql);
+    tscDebug("%p SqlObj is freed by app", pSql);
     return;
   }
 
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
   if (!tscFreeQhandleInVnode(pSql)) {
     tscFreeSqlObj(pSql);
-    tscTrace("%p sqlObj is freed by app", pSql);
+    tscDebug("%p sqlObj is freed by app", pSql);
   }
 }
 
@@ -615,7 +615,7 @@ void taos_stop_query(TAOS_RES *res) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   if (pSql->signature != pSql) return;
-  tscTrace("%p start to cancel query", res);
+  tscDebug("%p start to cancel query", res);
 
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
@@ -630,7 +630,7 @@ void taos_stop_query(TAOS_RES *res) {
   }
 
   rpcCancelRequest(pSql->pRpcCtx);
-  tscTrace("%p query is cancelled", res);
+  tscDebug("%p query is cancelled", res);
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
@@ -714,7 +714,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pRes->numOfTotal = 0;
   pRes->numOfClauseTotal = 0;
 
-  tscTrace("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
+  tscDebug("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
 
   int32_t sqlLen = strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
@@ -728,7 +728,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   if (pSql->sqlstr == NULL) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
-    tscTrace("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
     tfree(pSql);
     return pRes->code;
   }
@@ -744,7 +744,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pRes->code = (uint8_t)tsParseSql(pSql, false);
   int code = pRes->code;
 
-  tscTrace("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+  tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
   taos_free_result(pSql);
 
   return code;
@@ -848,7 +848,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   pRes->code = 0;
 
   assert(pSql->fp == NULL);
-  tscTrace("%p tableNameList: %s pObj:%p", pSql, tableNameList, pObj);
+  tscDebug("%p tableNameList: %s pObj:%p", pSql, tableNameList, pObj);
 
   int32_t tblListLen = strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
@@ -884,7 +884,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   tscDoQuery(pSql);
 
-  tscTrace("%p load multi metermeta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+  tscDebug("%p load multi metermeta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscPartiallyFreeSqlObj(pSql);
   }

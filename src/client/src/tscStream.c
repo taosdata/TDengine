@@ -91,7 +91,7 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
 
   } else {
     tscTansformSQLFuncForSTableQuery(pQueryInfo);
-    tscTrace("%p stream:%p start stream query on:%s", pSql, pStream, pTableMetaInfo->name);
+    tscDebug("%p stream:%p start stream query on:%s", pSql, pStream, pTableMetaInfo->name);
     tscDoQuery(pStream->pSql);
     tscIncStreamExecutionCount(pStream);
   }
@@ -106,7 +106,7 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
   pStream->numOfRes = 0;  // reset the numOfRes.
   SSqlObj *pSql = pStream->pSql;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  tscTrace("%p add into timer", pSql);
+  tscDebug("%p add into timer", pSql);
 
   if (isProjectStream(pQueryInfo)) {
     /*
@@ -184,7 +184,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     
     for(int32_t i = 0; i < numOfRows; ++i) {
       TAOS_ROW row = taos_fetch_row(res);
-      tscTrace("%p stream:%p fetch result", pSql, pStream);
+      tscDebug("%p stream:%p fetch result", pSql, pStream);
       if (isProjectStream(pQueryInfo)) {
         pStream->stime = *(TSKEY *)row[0];
       } else {
@@ -227,8 +227,8 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
         //            char result[512] = {0};
         //            taos_print_row(result, row, pQueryInfo->fieldsInfo.pFields, pQueryInfo->fieldsInfo.numOfOutput);
-        //            tscPrint("%p stream:%p query result: %s", pSql, pStream, result);
-        tscTrace("%p stream:%p fetch result", pSql, pStream);
+        //            tscInfo("%p stream:%p query result: %s", pSql, pStream, result);
+        tscDebug("%p stream:%p fetch result", pSql, pStream);
 
         // user callback function
         (*pStream->fp)(pStream->param, res, row);
@@ -250,7 +250,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
       }
     }
 
-    tscTrace("%p stream:%p, query on:%s, fetch result completed, fetched rows:%" PRId64, pSql, pStream, pTableMetaInfo->name,
+    tscDebug("%p stream:%p, query on:%s, fetch result completed, fetched rows:%" PRId64, pSql, pStream, pTableMetaInfo->name,
              pStream->numOfRes);
 
     // release the metric/meter meta information reference, so data in cache can be updated
@@ -273,7 +273,7 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
       /*
        * current time window will be closed, since it too early to exceed the maxRetentWindow value
        */
-      tscTrace("%p stream:%p, etime:%" PRId64 " is too old, exceeds the max retention time window:%" PRId64 ", stop the stream",
+      tscDebug("%p stream:%p, etime:%" PRId64 " is too old, exceeds the max retention time window:%" PRId64 ", stop the stream",
                pStream->pSql, pStream, pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
       if (pStream->callback) {
@@ -284,10 +284,10 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
       return;
     }
   
-    tscTrace("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql, pStream,
+    tscDebug("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql, pStream,
              now + timer, timer, delay, pStream->stime, etime);
   } else {
-    tscTrace("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql, pStream,
+    tscDebug("%p stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql, pStream,
              pStream->stime, timer, delay, pStream->stime - pStream->interval, pStream->stime - 1);
   }
 
@@ -331,7 +331,7 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
      */
     timer = pStream->slidingTime;
     if (pStream->stime > pStream->etime) {
-      tscTrace("%p stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql, pStream,
+      tscDebug("%p stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql, pStream,
                pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
       if (pStream->callback) {
@@ -344,7 +344,7 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
   } else {
     pStream->stime += pStream->slidingTime;
     if ((pStream->stime - pStream->interval) >= pStream->etime) {
-      tscTrace("%p stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql, pStream,
+      tscDebug("%p stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql, pStream,
                pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
       if (pStream->callback) {
@@ -503,7 +503,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
   strtolower(pSql->sqlstr, sqlstr);
 
-  tscDump("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugDump("%p SQL: %s", pSql, pSql->sqlstr);
   tsem_init(&pSql->rspSem, 0, 0);
 
   int32_t code = tsParseSql(pSql, true);
@@ -541,7 +541,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   pCmd->command = TSDB_SQL_SELECT;
   taosTmrReset(tscProcessStreamTimer, starttime, pStream, tscTmr, &pStream->pTimer);
 
-  tscTrace("%p stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql,
+  tscDebug("%p stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql,
            pStream, pTableMetaInfo->name, pStream->interval, pStream->slidingTime, starttime, sqlstr);
 
   return pStream;
@@ -564,7 +564,7 @@ void taos_close_stream(TAOS_STREAM *handle) {
 
     taosTmrStopA(&(pStream->pTimer));
 
-    tscTrace("%p stream:%p is closed", pSql, pStream);
+    tscDebug("%p stream:%p is closed", pSql, pStream);
 
     tscFreeSqlObj(pSql);
     pStream->pSql = NULL;

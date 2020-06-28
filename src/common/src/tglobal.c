@@ -182,19 +182,20 @@ int32_t tsNumOfLogLines = 10000000;
 int32_t mDebugFlag = 135;
 int32_t sdbDebugFlag = 135;
 int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t cDebugFlag = 135;
+int32_t vDebugFlag = 131;
+int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
 int32_t mqttDebugFlag = 131;
 int32_t monitorDebugFlag = 131;
 int32_t qDebugFlag = 131;
-int32_t rpcDebugFlag = 135;
+int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 131;
 int32_t sDebugFlag = 135;
-int32_t tsdbDebugFlag = 135;
+int32_t wDebugFlag = 135;
+int32_t tsdbDebugFlag = 131;
 
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
@@ -213,10 +214,11 @@ void taosSetAllDebugFlag() {
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
     sDebugFlag = debugFlag;
+    wDebugFlag = debugFlag;
     tsdbDebugFlag = debugFlag;
     qDebugFlag = debugFlag;    
   }
-  uPrint("all debug flag are set to %d", debugFlag);
+  uInfo("all debug flag are set to %d", debugFlag);
 }
 
 bool taosCfgDynamicOptions(char *msg) {
@@ -234,7 +236,7 @@ bool taosCfgDynamicOptions(char *msg) {
     vint = atoi(value);
   }
 
-  uPrint("change dynamic option: %s, value: %d", option, vint);
+  uInfo("change dynamic option: %s, value: %d", option, vint);
 
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
@@ -977,6 +979,17 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "wDebugFlag";
+  cfg.ptr = &wDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+
   cfg.option = "sdbDebugFlag";
   cfg.ptr = &sdbDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1067,7 +1080,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-
   cfg.option = "monitorDebugFlag";
   cfg.ptr = &monitorDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1082,6 +1094,16 @@ static void doInitGlobalConfig() {
   cfg.ptr = &qDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "vDebugFlag";
+  cfg.ptr = &vDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
@@ -1175,7 +1197,7 @@ void taosInitGlobalCfg() {
 }
 
 bool taosCheckGlobalCfg() {
-  if (debugFlag == 135 || debugFlag == 199) {
+  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG) {
     taosSetAllDebugFlag();
   }
   
@@ -1184,7 +1206,7 @@ bool taosCheckGlobalCfg() {
   }
 
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%d", tsLocalFqdn, tsServerPort);
-  uPrint("localEp is: %s", tsLocalEp);
+  uInfo("localEp is: %s", tsLocalEp);
 
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);

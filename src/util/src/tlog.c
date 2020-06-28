@@ -153,7 +153,7 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->fd = fd;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  uPrint("new log file is opened!!!");
+  uInfo("new log file is opened!!!");
 
   taosCloseLogByFd(oldFd);
   return NULL;
@@ -165,7 +165,7 @@ static int32_t taosOpenNewLogFile() {
   if (tsLogObj.lines > tsLogObj.maxLines && tsLogObj.openInProgress == 0) {
     tsLogObj.openInProgress = 1;
 
-    uPrint("open new log file ......");
+    uInfo("open new log file ......");
     pthread_t      thread;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
@@ -190,8 +190,8 @@ void taosResetLog() {
   taosOpenNewLogFile();
   (void)remove(lastName);
 
-  uPrint("==================================");
-  uPrint("   reset log file ");
+  uInfo("==================================");
+  uInfo("   reset log file ");
 }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
@@ -328,7 +328,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%08" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());
   len += sprintf(buffer + len, "%s", flags);
 
@@ -415,7 +415,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%08" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());
   len += sprintf(buffer + len, "%s", flags);
 

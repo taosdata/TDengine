@@ -83,7 +83,7 @@ static int32_t mnodeAcctActionDecode(SSdbOper *pOper) {
 static int32_t mnodeAcctActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsAcctSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
-    mPrint("dnode first deploy, create root acct");
+    mInfo("dnode first deploy, create root acct");
     int32_t code = mnodeCreateRootAcct();
     if (code != TSDB_CODE_SUCCESS) {
       mError("failed to create root account, reason:%s", tstrerror(code));
@@ -121,7 +121,7 @@ int32_t mnodeInitAccts() {
     return -1;
   }
 
-  mTrace("table:%s, hash is created", tableDesc.tableName);
+  mDebug("table:%s, hash is created", tableDesc.tableName);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -85,7 +85,7 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
     pPool->nBufBlocks++;
   }
 
-  tsdbTrace("vgId:%d buffer pool is opened! bufBlockSize:%d tBufBlocks:%d nBufBlocks:%d", REPO_ID(pRepo),
+  tsdbDebug("vgId:%d buffer pool is opened! bufBlockSize:%d tBufBlocks:%d nBufBlocks:%d", REPO_ID(pRepo),
             pPool->bufBlockSize, pPool->tBufBlocks, pPool->nBufBlocks);
 
   return 0;
@@ -110,7 +110,7 @@ void tsdbCloseBufPool(STsdbRepo *pRepo) {
     }
   }
 
-  tsdbTrace("vgId:%d buffer pool is closed", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d buffer pool is closed", REPO_ID(pRepo));
 }
 
 SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
@@ -134,7 +134,7 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   pBufBlock->offset = 0;
   pBufBlock->remain = pBufPool->bufBlockSize;
 
-  tsdbTrace("vgId:%d buffer block is allocated, blockId:%" PRId64, REPO_ID(pRepo), pBufBlock->blockId);
+  tsdbDebug("vgId:%d buffer block is allocated, blockId:%" PRId64, REPO_ID(pRepo), pBufBlock->blockId);
   return pNode;
 }
 

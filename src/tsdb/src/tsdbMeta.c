@@ -125,7 +125,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
     return -1;
   }
 
-  tsdbTrace("vgId:%d try to drop table %s type %d", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TYPE(pTable));
+  tsdbDebug("vgId:%d try to drop table %s type %d", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TYPE(pTable));
 
   tid = TABLE_TID(pTable);
   tbname = strdup(TABLE_CHAR_NAME(pTable));
@@ -146,7 +146,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
     goto _err;
   }
 
-  tsdbTrace("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
+  tsdbDebug("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
   free(tbname);
 
   return 0;
@@ -294,7 +294,7 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
   }
 
   if (schemaVersion(tsdbGetTableTagSchema(pTable)) < tversion) {
-    tsdbTrace("vgId:%d server tag version %d is older than client tag version %d, try to config", REPO_ID(pRepo),
+    tsdbDebug("vgId:%d server tag version %d is older than client tag version %d, try to config", REPO_ID(pRepo),
               schemaVersion(tsdbGetTableTagSchema(pTable)), tversion);
     void *msg = (*pRepo->appH.configFunc)(pRepo->config.tsdbId, htonl(pMsg->tid));
     if (msg == NULL) return -1;
@@ -400,7 +400,7 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  tsdbTrace("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
   tfree(fname);
   return 0;
 
@@ -427,7 +427,7 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
     listNodeFree(pNode);
   }
 
-  tsdbTrace("vgId:%d TSDB meta is closed", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d TSDB meta is closed", REPO_ID(pRepo));
   return 0;
 }
 
@@ -554,15 +554,15 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
 void tsdbRefTable(STable *pTable) {
   int16_t ref = T_REF_INC(pTable);
   UNUSED(ref);
-  // tsdbTrace("ref table %"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  // tsdbDebug("ref table %"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 }
 
 void tsdbUnRefTable(STable *pTable) {
   int16_t ref = T_REF_DEC(pTable);
-  tsdbTrace("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  tsdbDebug("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 
   if (ref == 0) {
-    // tsdbTrace("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
+    // tsdbDebug("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
 
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
       tsdbUnRefTable(pTable->pSuper);
@@ -598,7 +598,7 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
     return -1;
   }
 
-  tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is restored from file", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+  tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is restored from file", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));
   return 0;
 }
@@ -717,7 +717,7 @@ _err:
 
 static void tsdbFreeTable(STable *pTable) {
   if (pTable) {
-    tsdbTrace("table %s is destroyed", TABLE_CHAR_NAME(pTable));
+    tsdbDebug("table %s is destroyed", TABLE_CHAR_NAME(pTable));
     tfree(TABLE_NAME(pTable));
     if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
       for (int i = 0; i < TSDB_MAX_TABLE_SCHEMAS; i++) {
@@ -771,7 +771,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
   } else {
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE && addIdx) {  // add STABLE to the index
       if (tsdbAddTableIntoIndex(pMeta, pTable) < 0) {
-        tsdbTrace("vgId:%d failed to add table %s to meta while add table to index since %s", REPO_ID(pRepo),
+        tsdbDebug("vgId:%d failed to add table %s to meta while add table to index since %s", REPO_ID(pRepo),
                   TABLE_CHAR_NAME(pTable), tstrerror(terrno));
         goto _err;
       }
@@ -799,7 +799,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
     pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql, tsdbGetTableSchema(pTable));
   }
 
-  tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+  tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));
   return 0;
 
@@ -858,7 +858,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   }
 
   if (lock) tsdbUnlockRepoMeta(pRepo);
-  tsdbTrace("vgId:%d table %s is removed from meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
+  tsdbDebug("vgId:%d table %s is removed from meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
   tsdbUnRefTable(pTable);
 }
 
