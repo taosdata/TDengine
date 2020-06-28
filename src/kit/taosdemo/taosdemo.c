@@ -547,7 +547,10 @@ int main(int argc, char *argv[]) {
     threads = ntables;
     a = 1;
   }
-  int b = ntables % threads;
+
+  int b = 0;
+  if (threads != 0)
+    b = ntables % threads;
   int last = 0;
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
