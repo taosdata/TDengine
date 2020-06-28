@@ -319,7 +319,7 @@ static int32_t dnodeOpenVnodes() {
   int32_t failedVnodes = 0;
   for (int32_t t = 0; t < threadNum; ++t) {
     SOpenVnodeThread *pThread = &threads[t];
-    if (pThread->thread) {
+    if (pThread->vnodeNum > 0 && pThread->thread) {
       pthread_join(pThread->thread, NULL);
     }
     openVnodes += pThread->opened;
