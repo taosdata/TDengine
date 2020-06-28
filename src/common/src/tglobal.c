@@ -1080,7 +1080,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-
   cfg.option = "monitorDebugFlag";
   cfg.ptr = &monitorDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1095,6 +1094,16 @@ static void doInitGlobalConfig() {
   cfg.ptr = &qDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "vDebugFlag";
+  cfg.ptr = &vDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
   cfg.maxValue = 255;
   cfg.ptrLength = 0;

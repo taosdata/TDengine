@@ -365,6 +365,7 @@ bool httpInitConnect() {
     pThread->pollFd = epoll_create(HTTP_MAX_EVENTS);  // size does not matter
     if (pThread->pollFd < 0) {
       httpError("http thread:%s, failed to create HTTP epoll", pThread->label);
+      pthread_mutex_destroy(&(pThread->threadMutex));
       return false;
     }
 
@@ -374,6 +375,7 @@ bool httpInitConnect() {
     if (pthread_create(&(pThread->thread), &thattr, (void *)httpProcessHttpData, (void *)(pThread)) != 0) {
       httpError("http thread:%s, failed to create HTTP process data thread, reason:%s", pThread->label,
                 strerror(errno));
+      pthread_mutex_destroy(&(pThread->threadMutex));        
       return false;
     }
     pthread_attr_destroy(&thattr);
@@ -387,6 +389,7 @@ bool httpInitConnect() {
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pServer->thread), &thattr, (void *)httpAcceptHttpConnection, (void *)(pServer)) != 0) {
     httpError("http server:%s, failed to create Http accept thread, reason:%s", pServer->label, strerror(errno));
+    httpCleanUpConnect();
     return false;
   }
   pthread_attr_destroy(&thattr);
