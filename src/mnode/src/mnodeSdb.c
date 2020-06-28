@@ -181,7 +181,7 @@ static int32_t sdbInitWal() {
     return -1;
   }
 
-  sdbDebug("open sdb wal for restore");
+  sdbInfo("open sdb wal for restore");
   walRestore(tsSdbObj.wal, NULL, sdbWrite);
   return 0;
 }
@@ -201,7 +201,7 @@ static void sdbRestoreTables() {
     sdbDebug("table:%s, is restored, numOfRows:%" PRId64, pTable->tableName, pTable->numOfRows);
   }
 
-  sdbDebug("sdb is restored, version:%" PRId64 " totalRows:%d numOfTables:%d", tsSdbObj.version, totalRows, numOfTables);
+  sdbInfo("sdb is restored, version:%" PRId64 " totalRows:%d numOfTables:%d", tsSdbObj.version, totalRows, numOfTables);
 }
 
 void sdbUpdateMnodeRoles() {
@@ -388,9 +388,7 @@ void sdbIncRef(void *handle, void *pObj) {
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
   atomic_add_fetch_32(pRefCount, 1);
-  if (0 && (pTable->tableId == SDB_TABLE_CTABLE || pTable->tableId == SDB_TABLE_DB)) {
-    sdbDebug("add ref to table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
-  }
+  sdbTrace("add ref to table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
 }
 
 void sdbDecRef(void *handle, void *pObj) {
@@ -399,13 +397,11 @@ void sdbDecRef(void *handle, void *pObj) {
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
   int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
-  if (0 && (pTable->tableId == SDB_TABLE_CTABLE || pTable->tableId == SDB_TABLE_DB)) {
-    sdbDebug("def ref of table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
-  }
+  sdbTrace("def ref of table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
 
   int8_t *updateEnd = pObj + pTable->refCountPos - 1;
   if (refCount <= 0 && *updateEnd) {
-    sdbDebug("table:%s, record:%p:%s:%d is destroyed", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
+    sdbTrace("table:%s, record:%p:%s:%d is destroyed", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
     SSdbOper oper = {.pObj = pObj};
     (*pTable->destroyFp)(&oper);
   }
@@ -551,7 +547,7 @@ static int sdbWrite(void *param, void *data, int type) {
 
   // from app, oper is created
   if (pOper != NULL) {
-    sdbDebug("record from app is disposed, table:%s action:%s record:%s version:%" PRIu64 " result:%s",
+    sdbTrace("record from app is disposed, table:%s action:%s record:%s version:%" PRIu64 " result:%s",
              pTable->tableName, sdbGetActionStr(action), sdbGetKeyStr(pTable, pHead->cont), pHead->version,
              tstrerror(code));
     return code;
@@ -559,11 +555,11 @@ static int sdbWrite(void *param, void *data, int type) {
 
   // from wal or forward msg, oper not created, should add into hash
   if (tsSdbObj.sync != NULL) {
-    sdbDebug("record from wal forward is disposed, table:%s action:%s record:%s version:%" PRIu64 " confirm it",
+    sdbTrace("record from wal forward is disposed, table:%s action:%s record:%s version:%" PRIu64 " confirm it",
              pTable->tableName, sdbGetActionStr(action), sdbGetKeyStr(pTable, pHead->cont), pHead->version);
     syncConfirmForward(tsSdbObj.sync, pHead->version, code);
   } else {
-    sdbDebug("record from wal restore is disposed, table:%s action:%s record:%s version:%" PRIu64, pTable->tableName,
+    sdbTrace("record from wal restore is disposed, table:%s action:%s record:%s version:%" PRIu64, pTable->tableName,
              sdbGetActionStr(action), sdbGetKeyStr(pTable, pHead->cont), pHead->version);
   }
 
@@ -971,12 +967,12 @@ static void *sdbWorkerFp(void *param) {
       if (type == TAOS_QTYPE_RPC) {
         pOper = (SSdbOper *)item;
         if (pOper != NULL && pOper->cb != NULL) {
-          sdbDebug("app:%p:%p, will do callback func, index:%d", pOper->pMsg->rpcMsg.ahandle, pOper->pMsg, i);
+          sdbTrace("app:%p:%p, will do callback func, index:%d", pOper->pMsg->rpcMsg.ahandle, pOper->pMsg, i);
           pOper->retCode = (*pOper->cb)(pOper->pMsg, pOper->retCode);
         }
 
         if (pOper != NULL && pOper->pMsg != NULL) {
-          sdbDebug("app:%p:%p, msg is processed, result:%s", pOper->pMsg->rpcMsg.ahandle, pOper->pMsg,
+          sdbTrace("app:%p:%p, msg is processed, result:%s", pOper->pMsg->rpcMsg.ahandle, pOper->pMsg,
                    tstrerror(pOper->retCode));
         }
 
