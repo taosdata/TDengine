@@ -131,7 +131,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   pTSBuf->cur.order = TSDB_ORDER_ASC;
   pTSBuf->autoDelete = autoDelete;
   
-//  tscTrace("create tsBuf from file:%s, fd:%d, size:%d, numOfVnode:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
+//  tscDebug("create tsBuf from file:%s, fd:%d, size:%d, numOfVnode:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
 //           pTSBuf->fileSize, pTSBuf->numOfVnodes, pTSBuf->autoDelete);
   
   return pTSBuf;
@@ -154,7 +154,7 @@ void* tsBufDestory(STSBuf* pTSBuf) {
 //    ("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
     unlink(pTSBuf->path);
   } else {
-//    tscTrace("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
+//    tscDebug("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }
   
   free(pTSBuf);
@@ -767,7 +767,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   
   assert(pDestBuf->fileSize == oldSize + size);
   
-//  tscTrace("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfVnode:%d, autoDelete:%d", pDestBuf,
+//  tscDebug("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfVnode:%d, autoDelete:%d", pDestBuf,
 //           pDestBuf->path, fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfVnodes, pDestBuf->autoDelete);
   
   return 0;
@@ -884,7 +884,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, *(int64_t*) elem.tag, elem.ts);
+    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, elem.tag, elem.ts);
   }
   
   pTSBuf->cur.order = old;

@@ -76,7 +76,7 @@ endi
 # insert nchar data with a pair of single quotes
 $col = 'NCHAR'
 $col_ = NCHAR
-sql insert into $tb values (now, $col )
+sql insert into $tb values (now+1s, $col )
 sql select * from $tb order by ts desc
 print expected: $col_
 print returned: $data01
@@ -87,7 +87,7 @@ endi
 # insert nchar data with a pair of double quotes
 $col = "NCHAR"
 $col_ = NCHAR
-sql insert into $tb values (now, $col )
+sql insert into $tb values (now+2s, $col )
 sql select * from $tb order by ts desc
 print expected: $col_
 print returned: $data01
@@ -98,7 +98,7 @@ endi
 # insert nchar data without quotes
 $col = NCHAR
 $col_ = nchar
-sql_error insert into $tb values (now, $col )
+sql_error insert into $tb values (now+3s, $col )
 sql select * from $tb order by ts desc
 #print expected: $col_
 #print returned: $data01
@@ -107,10 +107,10 @@ sql select * from $tb order by ts desc
 #endi
 
 # insert nchar data with space and no quotes
-sql_error insert into $tb values (now, n char )
+sql_error insert into $tb values (now+4s, n char )
 
 # insert nchar data with space and a pair of single quotes
-sql insert into $tb values (now, 'NCHAR' )
+sql insert into $tb values (now+5s, 'NCHAR' )
 sql select * from $tb order by ts desc
 print expected: NCHAR
 print returned: $data01
@@ -126,7 +126,7 @@ endi
 label1:
 
 # insert nchar data with space and a pair of double quotes
-sql insert into $tb values (now, "NCHAR" )
+sql insert into $tb values (now+6s, "NCHAR" )
 sql select * from $tb order by ts desc
 print expected: N CHAR
 print returned: $data01
@@ -141,7 +141,7 @@ else
 endi
 label2:
 
-sql insert into $tb values (now, "涛思" )
+sql insert into $tb values (now+7s, "涛思" )
 sql select * from $tb order by ts desc
 print expected: 涛思
 print returned: $data01
@@ -150,9 +150,9 @@ if $data01 != 涛思 then
 endi
 
 # insert nchar data with a single quote and a double quote
-#sql insert into $tb values (now, 'NCHAR")
-sql_error insert into $tb values (now, 'NCHAR")
-sql_error insert into $tb values (now, 'NCHAR])
+#sql insert into $tb values (now+8s, 'NCHAR")
+sql_error insert into $tb values (now+9s, 'NCHAR")
+sql_error insert into $tb values (now+10s, 'NCHAR])
 
 sql drop table $tb
 sql drop table $mt

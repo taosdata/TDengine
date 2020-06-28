@@ -1,7 +1,7 @@
 {
   "name": "TDengine",
   "private": false,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "grafana datasource plugin for tdengine",
   "scripts": {
     "build": "./node_modules/grunt-cli/bin/grunt",

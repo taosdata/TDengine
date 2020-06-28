@@ -126,7 +126,7 @@ class Test:
     def delete_datafiles(self):
         tdLog.info("delete data files")
         dnodesDir = tdDnodes.getDnodesRootDir()
-        dataDir = dnodesDir + '/dnode1/*'
+        dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
 

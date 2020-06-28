@@ -72,7 +72,7 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
       tscError("failed to init connection to TDengine");
       return -1;
     } else {
-      tscTrace("dnodeConn:%p is created, user:%s", *pDnodeConn, user);
+      tscDebug("dnodeConn:%p is created, user:%s", *pDnodeConn, user);
     }
   }
 
@@ -106,8 +106,8 @@ void taos_init_imp() {
     taosCheckGlobalCfg();
     taosPrintGlobalCfg();
 
-    tscTrace("starting to initialize TAOS client ...");
-    tscTrace("Local End Point is:%s", tsLocalEp);
+    tscDebug("starting to initialize TAOS client ...");
+    tscDebug("Local End Point is:%s", tsLocalEp);
   }
 
   taosSetCoreDump();
@@ -151,7 +151,7 @@ void taos_init_imp() {
     tscCacheHandle = taosCacheInit(refreshTime);
   }
 
-  tscTrace("client is initialized successfully");
+  tscDebug("client is initialized successfully");
 }
 
 void taos_init() { pthread_once(&tscinit, taos_init_imp); }
@@ -182,7 +182,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
         tstrncpy(configDir, pStr, TSDB_FILENAME_LEN);
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscPrint("set config file directory:%s", pStr);
+        tscInfo("set config file directory:%s", pStr);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr,
                 tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
@@ -198,7 +198,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         if (tsShellActivityTimer < 1) tsShellActivityTimer = 1;
         if (tsShellActivityTimer > 3600) tsShellActivityTimer = 3600;
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscPrint("set shellActivityTimer:%d", tsShellActivityTimer);
+        tscInfo("set shellActivityTimer:%d", tsShellActivityTimer);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, pStr,
                 tsCfgStatusStr[cfg->cfgStatus], *(int32_t *)cfg->ptr);
@@ -211,7 +211,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
   
       size_t len = strlen(pStr);
       if (len == 0 || len > TSDB_LOCALE_LEN) {
-        tscPrint("Invalid locale:%s, use default", pStr);
+        tscInfo("Invalid locale:%s, use default", pStr);
         return -1;
       }
 
@@ -227,11 +227,11 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         char *locale = setlocale(LC_CTYPE, pStr);
 
         if (locale != NULL) {
-          tscPrint("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
+          tscInfo("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else { // set the user-specified localed failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
-          tscPrint("failed to set locale:%s, current locale:%s", pStr, tsLocale);
+          tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
 
         tstrncpy(tsLocale, locale, sizeof(tsLocale));
@@ -244,21 +244,21 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 
           if (taosValidateEncodec(charset)) {
             if (strlen(tsCharset) == 0) {
-              tscPrint("charset set:%s", charset);
+              tscInfo("charset set:%s", charset);
             } else {
-              tscPrint("charset changed from %s to %s", tsCharset, charset);
+              tscInfo("charset changed from %s to %s", tsCharset, charset);
             }
 
             tstrncpy(tsCharset, charset, sizeof(tsCharset));
             cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
 
           } else {
-            tscPrint("charset:%s is not valid in locale, charset remains:%s", charset, tsCharset);
+            tscInfo("charset:%s is not valid in locale, charset remains:%s", charset, tsCharset);
           }
 
           free(charset);
         } else { // it may be windows system
-          tscPrint("charset remains:%s", tsCharset);
+          tscInfo("charset remains:%s", tsCharset);
         }
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr,
@@ -274,22 +274,22 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       
       size_t len = strlen(pStr);
       if (len == 0 || len > TSDB_LOCALE_LEN) {
-        tscPrint("failed to set charset:%s", pStr);
+        tscInfo("failed to set charset:%s", pStr);
         return -1;
       }
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
         if (taosValidateEncodec(pStr)) {
           if (strlen(tsCharset) == 0) {
-            tscPrint("charset is set:%s", pStr);
+            tscInfo("charset is set:%s", pStr);
           } else {
-            tscPrint("charset changed from %s to %s", tsCharset, pStr);
+            tscInfo("charset changed from %s to %s", tsCharset, pStr);
           }
 
           tstrncpy(tsCharset, pStr, sizeof(tsCharset));
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
-          tscPrint("charset:%s not valid", pStr);
+          tscInfo("charset:%s not valid", pStr);
         }
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr,
@@ -307,7 +307,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         tstrncpy(tsTimezone, pStr, sizeof(tsTimezone));
         tsSetTimeZone();
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscTrace("timezone set:%s, input:%s by taos_options", tsTimezone, pStr);
+        tscDebug("timezone set:%s, input:%s by taos_options", tsTimezone, pStr);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr,
                 tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
@@ -328,7 +328,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
     if (i % 1000 == 0) {
-      tscPrint("haven't acquire lock after spin %d times.", i);
+      tscInfo("haven't acquire lock after spin %d times.", i);
       sched_yield();
     }
   }

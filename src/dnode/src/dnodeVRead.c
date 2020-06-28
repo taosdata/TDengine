@@ -59,7 +59,7 @@ int32_t dnodeInitVnodeRead() {
     pWorker->workerId = i;
   }
 
-  dPrint("dnode read is opened");
+  dInfo("dnode read is opened");
   return 0;
 }
 
@@ -81,7 +81,7 @@ void dnodeCleanupVnodeRead() {
   free(readPool.readWorker);
   taosCloseQset(readQset);
 
-  dPrint("dnode read is closed");
+  dInfo("dnode read is closed");
 }
 
 void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
@@ -131,6 +131,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
         .msgType = 0
     };
     rpcSendResponse(&rpcRsp);
+    rpcFreeCont(pMsg->pCont);
   }
 }
 
@@ -155,11 +156,11 @@ void *dnodeAllocateVnodeRqueue(void *pVnode) {
 
       pthread_attr_destroy(&thAttr);
       readPool.num++;
-      dTrace("read worker:%d is launched, total:%d", pWorker->workerId, readPool.num);
+      dDebug("read worker:%d is launched, total:%d", pWorker->workerId, readPool.num);
     } while (readPool.num < readPool.min);
   }
 
-  dTrace("pVnode:%p, read queue:%p is allocated", pVnode, queue);
+  dDebug("pVnode:%p, read queue:%p is allocated", pVnode, queue);
 
   return queue;
 }
@@ -206,11 +207,11 @@ static void *dnodeProcessReadQueue(void *param) {
 
   while (1) {
     if (taosReadQitemFromQset(readQset, &type, (void **)&pReadMsg, &pVnode) == 0) {
-      dTrace("dnodeProcessReadQueee: got no message from qset, exiting...");
+      dDebug("dnodeProcessReadQueee: got no message from qset, exiting...");
       break;
     }
 
-    dTrace("%p, msg:%s will be processed in vread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);
+    dDebug("%p, msg:%s will be processed in vread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);
     int32_t code = vnodeProcessRead(pVnode, pReadMsg);
     dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     taosFreeQitem(pReadMsg);
@@ -226,7 +227,7 @@ static void dnodeHandleIdleReadWorker(SReadWorker *pWorker) {
 
   if (num == 0 || (num <= readPool.min && readPool.num > readPool.min)) {
     readPool.num--;
-    dTrace("read worker:%d is released, total:%d", pWorker->workerId, readPool.num);
+    dDebug("read worker:%d is released, total:%d", pWorker->workerId, readPool.num);
     pthread_exit(NULL);
   } else {
     usleep(30000);

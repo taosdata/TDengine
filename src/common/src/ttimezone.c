@@ -20,9 +20,10 @@
 #include "tconfig.h"
 #include "tutil.h"
 
+// TODO refactor to set the tz value through parameter
 void tsSetTimeZone() {
   SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
-  uPrint("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);
+  uInfo("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);
 
 #ifdef WINDOWS
   char winStr[TSDB_LOCALE_LEN * 2];
@@ -60,5 +61,5 @@ void tsSetTimeZone() {
   sprintf(tsTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
   tsDaylight = daylight;
 
-  uPrint("timezone format changed to %s", tsTimezone);
+  uInfo("timezone format changed to %s", tsTimezone);
 }

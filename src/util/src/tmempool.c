@@ -88,7 +88,7 @@ char *taosMemPoolMalloc(mpool_h handle) {
 
   pthread_mutex_unlock(&(pool_p->mutex));
 
-  if (pos == NULL) uTrace("mempool: out of memory");
+  if (pos == NULL) uDebug("mempool: out of memory");
   return pos;
 }
 

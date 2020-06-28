@@ -10,7 +10,7 @@ import java.util.Properties;
 
 public class TestTSDBSubscribe {
     public static void main(String[] args) throws Exception {
-        String usage = "java -cp taos-jdbcdriver-1.0.3_dev-dist.jar com.taosdata.jdbc.TSDBSubscribe -db dbName " +
+        String usage = "java -cp taos-jdbcdriver-2.0.0_dev-dist.jar com.taosdata.jdbc.TSDBSubscribe -db dbName " +
                 "-topic topicName -tname tableName -h host";
         if (args.length < 2) {
             System.err.println(usage);

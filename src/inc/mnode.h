@@ -48,6 +48,7 @@ typedef struct SMnodeMsg {
   struct SDbObj *   pDb;
   struct SVgObj *   pVgroup;
   struct STableObj *pTable;
+  struct SSuperTableObj *pSTable;
 } SMnodeMsg;
 
 void    mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg);

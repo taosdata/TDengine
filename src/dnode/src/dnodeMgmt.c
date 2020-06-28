@@ -141,7 +141,7 @@ int32_t dnodeInitMgmt() {
 
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
   
-  dPrint("dnode mgmt is initialized");
+  dInfo("dnode mgmt is initialized");
  
   return TSDB_CODE_SUCCESS;
 }
@@ -196,11 +196,11 @@ static void *dnodeProcessMgmtQueue(void *param) {
 
   while (1) {
     if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
-      dTrace("dnode mgmt got no message from qset, exit ...");
+      dDebug("dnode mgmt got no message from qset, exit ...");
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pMsg->ahandle, taosMsg[pMsg->msgType]);    
+    dDebug("%p, msg:%s will be processed", pMsg->ahandle, taosMsg[pMsg->msgType]);    
     if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
       rsp.code = (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
     } else {
@@ -252,7 +252,7 @@ static int32_t dnodeOpenVnodes() {
   status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
-    dPrint("Get dnode list failed");
+    dInfo("Get dnode list failed");
     free(vnodeList);
     return status;
   }
@@ -263,7 +263,7 @@ static int32_t dnodeOpenVnodes() {
   }
 
   free(vnodeList);
-  dPrint("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, numOfVnodes-failed, failed);
+  dInfo("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, numOfVnodes-failed, failed);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -273,7 +273,7 @@ void dnodeStartStream() {
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
-    dPrint("Get dnode list failed");
+    dInfo("Get dnode list failed");
     return;
   }
 
@@ -281,7 +281,7 @@ void dnodeStartStream() {
     vnodeStartStream(vnodeList[i]);
   }
 
-  dPrint("streams started");
+  dInfo("streams started");
 }
 
 static void dnodeCloseVnodes() {
@@ -292,7 +292,7 @@ static void dnodeCloseVnodes() {
   status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
-    dPrint("Get dnode list failed");
+    dInfo("Get dnode list failed");
     free(vnodeList);
     return;
   }
@@ -302,7 +302,7 @@ static void dnodeCloseVnodes() {
   }
 
   free(vnodeList);
-  dPrint("total vnodes:%d are all closed", numOfVnodes);
+  dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
@@ -360,10 +360,10 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
 }
 
 void dnodeUpdateMnodeIpSetForPeer(SRpcIpSet *pIpSet) {
-  dPrint("mnode IP list for is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
+  dInfo("mnode IP list for is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
   for (int i = 0; i < pIpSet->numOfIps; ++i) {
     pIpSet->port[i] -= TSDB_PORT_DNODEDNODE;
-    dPrint("mnode index:%d %s:%u", i, pIpSet->fqdn[i], pIpSet->port[i])
+    dInfo("mnode index:%d %s:%u", i, pIpSet->fqdn[i], pIpSet->port[i])
   }
 
   tsDMnodeIpSet = *pIpSet;
@@ -440,9 +440,9 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   if (!dnodeCheckMnodeInfos(pMnodes)) return;
 
   memcpy(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
-  dPrint("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  dInfo("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
   for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    dPrint("mnode index:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
+    dInfo("mnode index:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
   }
 
   tsDMnodeIpSet.inUse = tsDMnodeInfos.inUse;
@@ -461,7 +461,7 @@ static bool dnodeReadMnodeInfos() {
   sprintf(ipFile, "%s/mnodeIpList.json", tsDnodeDir);
   FILE *fp = fopen(ipFile, "r");
   if (!fp) {
-    dTrace("failed to read mnodeIpList.json, file not exist");
+    dDebug("failed to read mnodeIpList.json, file not exist");
     return false;
   }
 
@@ -530,9 +530,9 @@ static bool dnodeReadMnodeInfos() {
 
   ret = true;
 
-  dPrint("read mnode iplist successed, numOfIps:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  dInfo("read mnode iplist successed, numOfIps:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
   for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    dPrint("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
+    dInfo("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
   }
 
 PARSE_OVER:
@@ -572,7 +572,7 @@ static void dnodeSaveMnodeInfos() {
   fclose(fp);
   free(content);
   
-  dPrint("save mnode iplist successed");
+  dInfo("save mnode iplist successed");
 }
 
 char *dnodeGetMnodeMasterEp() {
@@ -645,7 +645,7 @@ static bool dnodeReadDnodeCfg() {
 
   FILE *fp = fopen(dnodeCfgFile, "r");
   if (!fp) {
-    dTrace("failed to read dnodeCfg.json, file not exist");
+    dDebug("failed to read dnodeCfg.json, file not exist");
     return false;
   }
 
@@ -676,7 +676,7 @@ static bool dnodeReadDnodeCfg() {
 
   ret = true;
 
-  dPrint("read numOfVnodes successed, dnodeId:%d", tsDnodeCfg.dnodeId);
+  dInfo("read numOfVnodes successed, dnodeId:%d", tsDnodeCfg.dnodeId);
 
 PARSE_CFG_OVER:
   free(content);
@@ -705,12 +705,12 @@ static void dnodeSaveDnodeCfg() {
   fclose(fp);
   free(content);
   
-  dPrint("save dnodeId successed");
+  dInfo("save dnodeId successed");
 }
 
 void dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg) {
   if (tsDnodeCfg.dnodeId == 0) {
-    dPrint("dnodeId is set to %d", pCfg->dnodeId);  
+    dInfo("dnodeId is set to %d", pCfg->dnodeId);  
     tsDnodeCfg.dnodeId = pCfg->dnodeId;
     dnodeSaveDnodeCfg();
   }
@@ -721,7 +721,7 @@ int32_t dnodeGetDnodeId() {
 }
 
 void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
-  SRpcConnInfo connInfo;
+  SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(rpcMsg->handle, &connInfo);
 
   SRpcIpSet ipSet = {0};
@@ -731,11 +731,11 @@ void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
     dnodeGetMnodeIpSetForPeer(&ipSet);
   }
   
-  dTrace("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[rpcMsg->msgType],
+  dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[rpcMsg->msgType],
          taosIpStr(connInfo.clientIp), connInfo.user, ipSet.numOfIps, ipSet.inUse);
 
   for (int i = 0; i < ipSet.numOfIps; ++i) {
-    dTrace("mnode index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
+    dDebug("mnode index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
     ipSet.port[i] = htons(ipSet.port[i]);
   }
 

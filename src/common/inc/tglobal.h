@@ -158,9 +158,10 @@ extern int32_t mqttDebugFlag;
 extern int32_t monitorDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
-extern int32_t debugFlag;
 extern int32_t odbcDebugFlag;
 extern int32_t qDebugFlag;
+extern int32_t wDebugFlag;
+extern int32_t debugFlag;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

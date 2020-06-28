@@ -40,14 +40,14 @@ void processShellMsg() {
       continue;
     }     
 
-    tTrace("%d shell msgs are received", numOfMsgs);
+    tDebug("%d shell msgs are received", numOfMsgs);
 
     for (int i=0; i<numOfMsgs; ++i) {
       taosGetQitem(qall, &type, (void **)&pRpcMsg);
  
       if (dataFd >=0) {
         if ( write(dataFd, pRpcMsg->pCont, pRpcMsg->contLen) <0 ) {
-          tPrint("failed to write data file, reason:%s", strerror(errno));
+          tInfo("failed to write data file, reason:%s", strerror(errno));
         }
       }
     }
@@ -55,11 +55,11 @@ void processShellMsg() {
     if (commit >=2) {
       num += numOfMsgs;
       if ( fsync(dataFd) < 0 ) {
-        tPrint("failed to flush data to file, reason:%s", strerror(errno));
+        tInfo("failed to flush data to file, reason:%s", strerror(errno));
       }
 
       if (num % 10000 == 0) {
-        tPrint("%d request have been written into disk", num);
+        tInfo("%d request have been written into disk", num);
       }
     }
   
@@ -120,7 +120,7 @@ void processRequestMsg(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   pTemp = taosAllocateQitem(sizeof(SRpcMsg));
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
-  tTrace("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
+  tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
   taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
 }
 
@@ -180,12 +180,12 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  tPrint("RPC server is running, ctrl-c to exit");
+  tInfo("RPC server is running, ctrl-c to exit");
 
   if (commit) {
     dataFd = open(dataName, O_APPEND | O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
     if (dataFd<0) 
-      tPrint("failed to open data file, reason:%s", strerror(errno));
+      tInfo("failed to open data file, reason:%s", strerror(errno));
   }
 
   qhandle = taosOpenQueue(sizeof(SRpcMsg));

@@ -55,7 +55,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
 
   strtolower(pSql->sqlstr, sqlstr);
 
-  tscDump("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugDump("%p SQL: %s", pSql, pSql->sqlstr);
   pSql->cmd.curSql = pSql->sqlstr;
 
   int32_t code = tsParseSql(pSql, true);
@@ -361,7 +361,7 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
   }
 
   if (shouldFree) {
-    tscTrace("%p sqlObj is automatically freed in async res", pSql);
+    tscDebug("%p sqlObj is automatically freed in async res", pSql);
     tscFreeSqlObj(pSql);
   }
 }
@@ -385,7 +385,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
 
 void tscQueueAsyncRes(SSqlObj *pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
-    tscTrace("%p SqlObj is freed, not add into queue async res", pSql);
+    tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
   } else {
     tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
@@ -401,12 +401,12 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
 
 void tscProcessAsyncFree(SSchedMsg *pMsg) {
   SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  tscTrace("%p sql is freed", pSql);
+  tscDebug("%p sql is freed", pSql);
   taos_free_result(pSql);
 }
 
 void tscQueueAsyncFreeResult(SSqlObj *pSql) {
-  tscTrace("%p sqlObj put in queue to async free", pSql);
+  tscDebug("%p sqlObj put in queue to async free", pSql);
 
   SSchedMsg schedMsg = { 0 };
   schedMsg.fp = tscProcessAsyncFree;
@@ -436,7 +436,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
     // check if it is a sub-query of super table query first, if true, enter another routine
     if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY)) {
-      tscTrace("%p update table meta in local cache, continue to process sql and send corresponding subquery", pSql);
+      tscDebug("%p update table meta in local cache, continue to process sql and send corresponding subquery", pSql);
 
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
       code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -462,7 +462,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       }
     } else {  // continue to process normal async query
       if (pCmd->parseFinished) {
-        tscTrace("%p update table meta in local cache, continue to process sql and send corresponding query", pSql);
+        tscDebug("%p update table meta in local cache, continue to process sql and send corresponding query", pSql);
 
         STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -481,7 +481,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 //          code = tscSendMsgToServer(pSql);
 //          if (code == TSDB_CODE_SUCCESS) return;
       } else {
-        tscTrace("%p continue parse sql after get table meta", pSql);
+        tscDebug("%p continue parse sql after get table meta", pSql);
 
         code = tsParseSql(pSql, false);
         if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT)) {
@@ -522,14 +522,14 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   }
 
   if (pSql->pStream) {
-    tscTrace("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
+    tscDebug("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
     if (!pSql->cmd.parseFinished) {
       tsParseSql(pSql, false);
       sem_post(&pSql->rspSem);
     }
     return;
   } else {
-    tscTrace("%p get tableMeta successfully", pSql);
+    tscDebug("%p get tableMeta successfully", pSql);
   }
 
   tscDoQuery(pSql);

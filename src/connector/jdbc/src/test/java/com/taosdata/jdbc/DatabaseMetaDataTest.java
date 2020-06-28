@@ -7,7 +7,7 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 
-public class DatabaseMetaDataTest {
+public class DatabaseMetaDataTest extends BaseTest {
     static Connection connection = null;
     static PreparedStatement statement = null;
     static String dbName = "test";

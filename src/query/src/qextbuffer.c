@@ -42,7 +42,7 @@ tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, SColumnMo
   getTmpfilePath("extbuf", name);
   
   pMemBuffer->path = strdup(name);
-  uTrace("create tmp file:%s", pMemBuffer->path);
+  uDebug("create tmp file:%s", pMemBuffer->path);
   
   SExtFileInfo *pFMeta = &pMemBuffer->fileMeta;
 
@@ -83,7 +83,7 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
       uError("failed to close file:%s, reason:%s", pMemBuffer->path, strerror(errno));
     }
     
-    uTrace("remove temp file:%s for external buffer", pMemBuffer->path);
+    uDebug("remove temp file:%s for external buffer", pMemBuffer->path);
     unlink(pMemBuffer->path);
   }
 

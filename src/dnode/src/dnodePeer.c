@@ -70,7 +70,7 @@ int32_t dnodeInitServer() {
     return -1;
   }
 
-  dPrint("inter-dnodes RPC server is opened");
+  dInfo("inter-dnodes RPC server is opened");
   return 0;
 }
 
@@ -78,7 +78,7 @@ void dnodeCleanupServer() {
   if (tsDnodeServerRpc) {
     rpcClose(tsDnodeServerRpc);
     tsDnodeServerRpc = NULL;
-    dPrint("inter-dnodes RPC server is closed");
+    dInfo("inter-dnodes RPC server is closed");
   }
 }
 
@@ -95,7 +95,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
     rspMsg.code = TSDB_CODE_RPC_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
-    dTrace("RPC %p, msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
+    dDebug("RPC %p, msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
     return;
   }
 
@@ -108,7 +108,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   if (dnodeProcessReqMsgFp[pMsg->msgType]) {
     (*dnodeProcessReqMsgFp[pMsg->msgType])(pMsg);
   } else {
-    dTrace("RPC %p, message:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
+    dDebug("RPC %p, message:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
     rspMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
@@ -135,7 +135,7 @@ int32_t dnodeInitClient() {
     return -1;
   }
 
-  dPrint("inter-dnodes rpc client is opened");
+  dInfo("inter-dnodes rpc client is opened");
   return 0;
 }
 
@@ -143,7 +143,7 @@ void dnodeCleanupClient() {
   if (tsDnodeClientRpc) {
     rpcClose(tsDnodeClientRpc);
     tsDnodeClientRpc = NULL;
-    dPrint("inter-dnodes rpc client is closed");
+    dInfo("inter-dnodes rpc client is closed");
   }
 }
 
