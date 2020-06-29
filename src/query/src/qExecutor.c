@@ -4887,6 +4887,7 @@ static void tableQueryImpl(SQInfo *pQInfo) {
       }
 
       qDebug("QInfo:%p current:%" PRId64 " returned, total:%" PRId64, pQInfo, pQuery->rec.rows, pQuery->rec.total);
+      return;
     } else {
       pQuery->rec.rows = 0;
       pQInfo->groupIndex = 0;  // always start from 0
