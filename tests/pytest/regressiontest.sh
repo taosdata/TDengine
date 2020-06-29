@@ -43,7 +43,7 @@ python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
 python3 ./test.py -f tag_lite/datatype.py
 python3 ./test.py -f tag_lite/datatype-without-alter.py
-# python3 ./test.py -f tag_lite/delete.py
+python3 ./test.py -f tag_lite/delete.py
 python3 ./test.py -f tag_lite/double.py
 python3 ./test.py -f tag_lite/float.py
 python3 ./test.py -f tag_lite/int_binary.py
@@ -134,8 +134,9 @@ python3 ./test.py -f table/del_stable.py
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterAllIntTypes.py
 python3 ./test.py -f query/filterFloatAndDouble.py
+python3 ./test.py -f query/filterOtherTypes.py
+python3 ./test.py -f query/queryError.py
 python3 ./test.py -f query/querySort.py
-
 
 #stream
 python3 ./test.py -f stream/stream1.py
