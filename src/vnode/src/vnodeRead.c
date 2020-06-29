@@ -137,7 +137,6 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   }
 
   if (pQInfo != NULL) {
-    vDebug("vgId:%d, QInfo:%p, do qTableQuery", pVnode->vgId, pQInfo);
     qTableQuery(pQInfo, vnodeRelease, pVnode); // do execute query
   }
 

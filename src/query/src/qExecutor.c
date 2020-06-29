@@ -3291,16 +3291,17 @@ void destroyTableQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols) 
   free(pTableQueryInfo);
 }
 
-void setCurrentQueryTable(SQueryRuntimeEnv *pRuntimeEnv, STableQueryInfo *pTableQueryInfo) {
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-  pQuery->current = pTableQueryInfo;
-  
-  assert(((pTableQueryInfo->lastKey >= pTableQueryInfo->win.skey) && QUERY_IS_ASC_QUERY(pQuery)) ||
-         ((pTableQueryInfo->lastKey <= pTableQueryInfo->win.skey) && !QUERY_IS_ASC_QUERY(pQuery)));
-}
+#define SET_CURRENT_QUERY_TABLE_INFO(_runtime, _tableInfo)                                      \
+  do {                                                                                          \
+    SQuery *_query = (_runtime)->pQuery;                                                        \
+    _query->current = _tableInfo;                                                               \
+    assert((((_tableInfo)->lastKey >= (_tableInfo)->win.skey) && QUERY_IS_ASC_QUERY(_query)) || \
+           (((_tableInfo)->lastKey <= (_tableInfo)->win.skey) && !QUERY_IS_ASC_QUERY(_query))); \
+  } while (0)
 
 /**
  * set output buffer for different group
+ * TODO opt performance if current group is identical to previous group
  * @param pRuntimeEnv
  * @param pDataBlockInfo
  */
@@ -4165,32 +4166,9 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
     if(pTableQueryInfo == NULL) {
       break;
     }
-    // todo opt performance using hash table
-
-//    size_t numOfGroup = GET_NUM_OF_TABLEGROUP(pQInfo);
-//    for (int32_t i = 0; i < numOfGroup; ++i) {
-//      SArray *group = GET_TABLEGROUP(pQInfo, i);
-//
-//      size_t num = taosArrayGetSize(group);
-//      for (int32_t j = 0; j < num; ++j) {
-//        STableQueryInfo *p = taosArrayGetP(group, j);
-//
-//        STableId id = tsdbGetTableId(p->pTable);
-//        if (id.tid == blockInfo.tid) {
-//          assert(id.uid == blockInfo.uid);
-//          pTableQueryInfo = p;
-//
-//          break;
-//        }
-//      }
-//
-//      if (pTableQueryInfo != NULL) {
-//        break;
-//      }
-//    }
 
     assert(*pTableQueryInfo != NULL);
-    setCurrentQueryTable(pRuntimeEnv, *pTableQueryInfo);
+    SET_CURRENT_QUERY_TABLE_INFO(pRuntimeEnv, *pTableQueryInfo);
 
     SDataStatis *pStatis = NULL;
     SArray *pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis);
